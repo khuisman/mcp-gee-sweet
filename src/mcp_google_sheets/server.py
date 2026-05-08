@@ -10,7 +10,6 @@ import logging
 import os
 import sys
 import time
-from typing import Optional
 
 logging.basicConfig(
     level=logging.DEBUG if os.getenv("DEBUG") else logging.WARNING,
@@ -29,30 +28,30 @@ if os.getenv("DEBUG"):
     logger.addHandler(_h)
     logger.propagate = False
 
-from mcp.server.fastmcp import FastMCP
-from mcp.types import ToolAnnotations
+from mcp.server.fastmcp import FastMCP  # noqa: E402
+from mcp.types import ToolAnnotations  # noqa: E402
 
-from .auth import spreadsheet_lifespan
+from .auth import spreadsheet_lifespan  # noqa: E402
 
 
-def _parse_enabled_tools() -> Optional[set]:
+def _parse_enabled_tools() -> set | None:
     enabled_tools_str = None
     for i, arg in enumerate(sys.argv):
-        if arg == '--include-tools' and i + 1 < len(sys.argv):
+        if arg == "--include-tools" and i + 1 < len(sys.argv):
             enabled_tools_str = sys.argv[i + 1]
             break
     if not enabled_tools_str:
-        enabled_tools_str = os.environ.get('ENABLED_TOOLS')
+        enabled_tools_str = os.environ.get("ENABLED_TOOLS")
     if not enabled_tools_str:
         return None
-    tools = {t.strip() for t in enabled_tools_str.split(',') if t.strip()}
+    tools = {t.strip() for t in enabled_tools_str.split(",") if t.strip()}
     return tools if tools else None
 
 
 ENABLED_TOOLS = _parse_enabled_tools()
 
-_resolved_host = os.environ.get('HOST') or os.environ.get('FASTMCP_HOST') or "0.0.0.0"
-_resolved_port_str = os.environ.get('PORT') or os.environ.get('FASTMCP_PORT') or "8000"
+_resolved_host = os.environ.get("HOST") or os.environ.get("FASTMCP_HOST") or "0.0.0.0"
+_resolved_port_str = os.environ.get("PORT") or os.environ.get("FASTMCP_PORT") or "8000"
 try:
     _resolved_port = int(_resolved_port_str)
 except ValueError:
@@ -77,10 +76,11 @@ def _timed(func):
             return func(*args, **kwargs)
         finally:
             logger.debug("%s took %.3fs", func.__name__, time.perf_counter() - start)
+
     return wrapper
 
 
-def tool(annotations: Optional[ToolAnnotations] = None):
+def tool(annotations: ToolAnnotations | None = None):
     def decorator(func):
         tool_name = func.__name__
         if ENABLED_TOOLS is None or tool_name in ENABLED_TOOLS:
@@ -90,11 +90,13 @@ def tool(annotations: Optional[ToolAnnotations] = None):
             else:
                 return mcp.tool()(timed)
         return func
+
     return decorator
 
 
 # Register all tools
-from .tools import register_all  # noqa: E402 — must come after mcp and tool are defined
+from .tools import register_all  # noqa: E402
+
 register_all(tool)
 
 
@@ -114,15 +116,15 @@ def get_spreadsheet_info(spreadsheet_id: str) -> str:
 
     spreadsheet = sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
     info = {
-        "title": spreadsheet.get('properties', {}).get('title', 'Unknown'),
+        "title": spreadsheet.get("properties", {}).get("title", "Unknown"),
         "sheets": [
             {
-                "title": sheet['properties']['title'],
-                "sheetId": sheet['properties']['sheetId'],
-                "gridProperties": sheet['properties'].get('gridProperties', {})
+                "title": sheet["properties"]["title"],
+                "sheetId": sheet["properties"]["sheetId"],
+                "gridProperties": sheet["properties"].get("gridProperties", {}),
             }
-            for sheet in spreadsheet.get('sheets', [])
-        ]
+            for sheet in spreadsheet.get("sheets", [])
+        ],
     }
 
     return json.dumps(info, indent=2)
@@ -130,7 +132,7 @@ def get_spreadsheet_info(spreadsheet_id: str) -> str:
 
 def main():
     if ENABLED_TOOLS is not None:
-        logger.debug("Tool filtering enabled. Active tools: %s", ', '.join(sorted(ENABLED_TOOLS)))
+        logger.debug("Tool filtering enabled. Active tools: %s", ", ".join(sorted(ENABLED_TOOLS)))
     else:
         logger.debug("Tool filtering disabled. All tools are enabled.")
 
@@ -144,6 +146,7 @@ def main():
 
     if reload and transport == "sse":
         import uvicorn
+
         uvicorn.run(
             "mcp_google_sheets.server:app",
             host=_resolved_host,
