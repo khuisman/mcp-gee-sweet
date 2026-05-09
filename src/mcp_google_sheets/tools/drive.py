@@ -271,3 +271,87 @@ def register(tool):
             ]
         except Exception as e:
             return [{"error": f"Search failed: {e!s}"}]
+
+    @tool(annotations=ToolAnnotations(title="List Files", readOnlyHint=True))
+    def list_files(
+        folder_id: str,
+        mime_type: str | None = None,
+        max_results: int = 100,
+        ctx: Context = None,
+    ) -> list[dict[str, Any]]:
+        """
+        List files in a Google Drive folder, optionally filtered by MIME type.
+
+        Args:
+            folder_id: The Google Drive folder ID to list files from.
+            mime_type: Optional MIME type filter. Common values:
+                       'application/vnd.google-apps.document' (Google Docs)
+                       'application/vnd.google-apps.spreadsheet' (Google Sheets)
+                       'application/vnd.google-apps.folder' (folders)
+            max_results: Maximum number of results to return (default 100, max 1000)
+
+        Returns:
+            List of files with their ID, name, MIME type, modified time, and web link
+        """
+        drive_service = ctx.request_context.lifespan_context.drive_service
+        max_results = min(max(1, max_results), 1000)
+
+        query = f"'{folder_id}' in parents and trashed=false"
+        if mime_type:
+            query += f" and mimeType='{mime_type}'"
+
+        results = (
+            drive_service.files()
+            .list(
+                q=query,
+                pageSize=max_results,
+                spaces="drive",
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                fields="files(id, name, mimeType, modifiedTime, webViewLink)",
+                orderBy="name",
+            )
+            .execute()
+        )
+
+        return [
+            {
+                "id": f["id"],
+                "name": f["name"],
+                "mime_type": f["mimeType"],
+                "modified_time": f.get("modifiedTime"),
+                "web_link": f.get("webViewLink"),
+            }
+            for f in results.get("files", [])
+        ]
+
+    @tool(annotations=ToolAnnotations(title="Get Document Content", readOnlyHint=True))
+    def get_doc_content(file_id: str, ctx: Context = None) -> dict[str, Any]:
+        """
+        Get the plain text content of a Google Doc.
+
+        Args:
+            file_id: The Google Drive file ID of the document.
+
+        Returns:
+            Dictionary with the document's text content and metadata
+        """
+        drive_service = ctx.request_context.lifespan_context.drive_service
+
+        metadata = (
+            drive_service.files()
+            .get(
+                fileId=file_id, fields="id, name, modifiedTime, webViewLink", supportsAllDrives=True
+            )
+            .execute()
+        )
+
+        content = drive_service.files().export(fileId=file_id, mimeType="text/plain").execute()
+
+        return {
+            "id": metadata["id"],
+            "name": metadata["name"],
+            "modified_time": metadata.get("modifiedTime"),
+            "web_link": metadata.get("webViewLink"),
+            "content": content.decode("utf-8") if isinstance(content, bytes) else content,
+        }
