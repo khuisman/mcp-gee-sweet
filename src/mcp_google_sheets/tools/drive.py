@@ -58,6 +58,58 @@ def register(tool):
             "folder": parents[0] if parents else "root",
         }
 
+    @tool(annotations=ToolAnnotations(title="Create Document", destructiveHint=True))
+    def create_doc(title: str, folder_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
+        """
+        Create a new Google Doc.
+
+        Args:
+            title: The title of the new document
+            folder_id: Optional Google Drive folder ID where the document should be created.
+                      If not provided, creates in the root of My Drive.
+
+        Returns:
+            Information about the newly created document including its ID and web link
+        """
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+        target_folder_id = folder_id or lc.folder_id
+
+        file_body = {
+            "name": title,
+            "mimeType": "application/vnd.google-apps.document",
+        }
+        if target_folder_id:
+            file_body["parents"] = [target_folder_id]
+
+        doc = (
+            drive_service.files()
+            .create(
+                supportsAllDrives=True,
+                body=file_body,
+                fields="id, name, parents, webViewLink",
+            )
+            .execute()
+        )
+
+        doc_id = doc.get("id")
+        parents = doc.get("parents")
+        logger.debug(
+            "Doc created with ID: %s%s",
+            doc_id,
+            f" in folder {target_folder_id}" if target_folder_id else " in root",
+        )
+
+        if target_folder_id:
+            lc.drive_folder_cache.mark_dirty(target_folder_id)
+
+        return {
+            "docId": doc_id,
+            "title": doc.get("name", title),
+            "folder": parents[0] if parents else "root",
+            "web_link": doc.get("webViewLink"),
+        }
+
     @tool(annotations=ToolAnnotations(title="List Spreadsheets", readOnlyHint=True))
     def list_spreadsheets(
         folder_id: str | None = None, ctx: Context = None
