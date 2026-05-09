@@ -183,25 +183,38 @@ def register(tool):
             "spreadsheetId": spreadsheet_id,
         }
 
-    @tool(annotations=ToolAnnotations(title="Refresh Sheet Cache", readOnlyHint=True))
-    def refresh_cache(spreadsheet_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
+    @tool(annotations=ToolAnnotations(title="Refresh Cache", readOnlyHint=True))
+    def refresh_cache(
+        spreadsheet_id: str | None = None,
+        doc_id: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
         """
-        Invalidate the sheet structure cache, forcing a fresh fetch on next use.
+        Invalidate caches, forcing a fresh fetch on next use.
 
         Args:
-            spreadsheet_id: Optional spreadsheet ID to refresh. If not provided, invalidates all entries.
+            spreadsheet_id: Optional spreadsheet ID to refresh sheets/data cache for.
+            doc_id: Optional Google Doc file ID to refresh doc content cache for.
+            If neither is provided, invalidates all caches (sheets, data, folders, docs).
 
         Returns:
             Confirmation of what was invalidated
         """
         lc = ctx.request_context.lifespan_context
 
-        if spreadsheet_id:
-            lc.cache.mark_dirty(spreadsheet_id)
-            lc.sheet_data_cache.mark_dirty(spreadsheet_id)
-            return {"invalidated": spreadsheet_id}
+        if spreadsheet_id or doc_id:
+            invalidated = []
+            if spreadsheet_id:
+                lc.cache.mark_dirty(spreadsheet_id)
+                lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+                invalidated.append(spreadsheet_id)
+            if doc_id:
+                lc.doc_cache.mark_dirty(doc_id)
+                invalidated.append(doc_id)
+            return {"invalidated": invalidated}
         else:
             lc.cache.mark_all_dirty()
             lc.sheet_data_cache.mark_all_dirty()
             lc.drive_folder_cache.mark_all_dirty()
+            lc.doc_cache.mark_all_dirty()
             return {"invalidated": "all"}

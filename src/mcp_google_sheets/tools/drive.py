@@ -578,7 +578,13 @@ def register(tool):
         Returns:
             Dictionary with the document's text content and metadata
         """
-        drive_service = ctx.request_context.lifespan_context.drive_service
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+        doc_cache = lc.doc_cache
+
+        cached = doc_cache.get(file_id)
+        if cached is not None:
+            return cached
 
         metadata = (
             drive_service.files()
@@ -590,13 +596,15 @@ def register(tool):
 
         content = drive_service.files().export(fileId=file_id, mimeType="text/plain").execute()
 
-        return {
+        result = {
             "id": metadata["id"],
             "name": metadata["name"],
             "modified_time": metadata.get("modifiedTime"),
             "web_link": metadata.get("webViewLink"),
             "content": content.decode("utf-8") if isinstance(content, bytes) else content,
         }
+        doc_cache.store(file_id, result)
+        return result
 
     @tool(annotations=ToolAnnotations(title="Write Document Content", destructiveHint=True))
     def write_doc_content(
@@ -647,5 +655,6 @@ def register(tool):
             .execute()
         )
 
+        lc.doc_cache.mark_dirty(doc_id)
         logger.debug("Wrote content to doc %s", doc_id)
         return {"docId": doc_id, "web_link": metadata.get("webViewLink")}
