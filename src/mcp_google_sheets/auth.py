@@ -31,6 +31,7 @@ DRIVE_FOLDER_ID = os.environ.get("DRIVE_FOLDER_ID", "")
 class SpreadsheetContext:
     sheets_service: Any
     drive_service: Any
+    docs_service: Any
     folder_id: str | None = None
     cache: SheetStructureCache = field(default_factory=SheetStructureCache)
     sheet_data_cache: SheetDataCache = field(default_factory=SheetDataCache)
@@ -108,11 +109,13 @@ async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetCont
     # cache_discovery=False: file cache requires oauth2client<4.0; all auth paths here use google-auth
     sheets_service = build("sheets", "v4", credentials=creds, cache_discovery=False)
     drive_service = build("drive", "v3", credentials=creds, cache_discovery=False)
+    docs_service = build("docs", "v1", credentials=creds, cache_discovery=False)
 
     try:
         yield SpreadsheetContext(
             sheets_service=sheets_service,
             drive_service=drive_service,
+            docs_service=docs_service,
             folder_id=DRIVE_FOLDER_ID if DRIVE_FOLDER_ID else None,
             cache=SheetStructureCache(),
         )

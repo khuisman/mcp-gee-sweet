@@ -1,11 +1,46 @@
+import html as html_module
 import json
 import logging
+from html.parser import HTMLParser
 from typing import Any
 
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
 logger = logging.getLogger(__name__)
+
+
+def _html_to_text(html_content: str) -> str:
+    """Convert HTML to plain text, preserving block-level line breaks."""
+    _BLOCK = {"p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "div", "tr", "blockquote"}
+
+    class _Extractor(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.parts = []
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "br":
+                self.parts.append("\n")
+            elif tag in _BLOCK and self.parts and not self.parts[-1].endswith("\n"):
+                self.parts.append("\n")
+
+        def handle_endtag(self, tag):
+            if tag in _BLOCK:
+                self.parts.append("\n")
+
+        def handle_data(self, data):
+            self.parts.append(data)
+
+        def handle_entityref(self, name):
+            self.parts.append(html_module.unescape(f"&{name};"))
+
+        def handle_charref(self, name):
+            self.parts.append(html_module.unescape(f"&#{name};"))
+
+    extractor = _Extractor()
+    extractor.feed(html_content)
+    return "".join(extractor.parts).strip()
 
 
 def register(tool):
@@ -59,12 +94,22 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Create Document", destructiveHint=True))
-    def create_doc(title: str, folder_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
+    def create_doc(
+        title: str,
+        content: str | None = None,
+        folder_id: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
         """
-        Create a new Google Doc.
+        Create a new Google Doc, optionally with initial content.
+
+        Content is interpreted as HTML. Basic formatting (headings, paragraphs, lists,
+        line breaks) is preserved as plain text in the document body. Inline markup like
+        <strong>/<em> and <a href="..."> link text is included but not styled.
 
         Args:
             title: The title of the new document
+            content: Optional HTML content for the document body
             folder_id: Optional Google Drive folder ID where the document should be created.
                       If not provided, creates in the root of My Drive.
 
@@ -73,6 +118,7 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
+        docs_service = lc.docs_service
         target_folder_id = folder_id or lc.folder_id
 
         file_body = {
@@ -99,6 +145,16 @@ def register(tool):
             doc_id,
             f" in folder {target_folder_id}" if target_folder_id else " in root",
         )
+
+        if content:
+            plain_text = _html_to_text(content)
+            if plain_text:
+                docs_service.documents().batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [{"insertText": {"location": {"index": 1}, "text": plain_text}}]
+                    },
+                ).execute()
 
         if target_folder_id:
             lc.drive_folder_cache.mark_dirty(target_folder_id)
