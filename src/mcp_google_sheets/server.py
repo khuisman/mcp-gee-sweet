@@ -12,21 +12,22 @@ import sys
 import time
 
 logging.basicConfig(
-    level=logging.DEBUG if os.getenv("DEBUG") else logging.WARNING,
+    level=logging.WARNING,  # keeps third-party HTTP response bodies out of logs
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
     stream=sys.stderr,
     force=True,
 )
 logger = logging.getLogger(__name__)
 logging.getLogger("sse_starlette.sse").setLevel(logging.WARNING)  # suppress keepalive ping noise
-# Give our logger a direct handler so uvicorn's dictConfig can't suppress DEBUG output.
+# Give our package a direct handler so uvicorn's dictConfig can't suppress DEBUG output.
 if os.getenv("DEBUG"):
-    logger.setLevel(logging.DEBUG)
+    _pkg_logger = logging.getLogger("mcp_google_sheets")
+    _pkg_logger.setLevel(logging.DEBUG)
     _h = logging.StreamHandler(sys.stderr)
     _h.setLevel(logging.DEBUG)
     _h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
-    logger.addHandler(_h)
-    logger.propagate = False
+    _pkg_logger.addHandler(_h)
+    _pkg_logger.propagate = False
 
 from mcp.server.fastmcp import FastMCP  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402

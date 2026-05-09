@@ -3,7 +3,7 @@ from typing import Any
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
-from ..cache import fetch_sheets
+from ..cache import SheetInfo, fetch_sheets
 from ..helpers import _column_index_to_letter
 
 
@@ -144,7 +144,10 @@ def register(tool):
             A list of dictionaries, each representing a spreadsheet summary.
             Includes spreadsheet title, sheet summaries (title, headers, first rows), or an error.
         """
-        sheets_service = ctx.request_context.lifespan_context.sheets_service
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+        data_cache = lc.sheet_data_cache
+        structure_cache = lc.cache
         summaries = []
 
         for spreadsheet_id in spreadsheet_ids:
@@ -155,39 +158,53 @@ def register(tool):
                 "error": None,
             }
             try:
-                spreadsheet = (
-                    sheets_service.spreadsheets()
-                    .get(
-                        spreadsheetId=spreadsheet_id,
-                        fields="properties.title,sheets(properties(title,sheetId))",
+                cached_sheets = structure_cache.get_sheets(spreadsheet_id)
+                cached_title = structure_cache.get_title(spreadsheet_id)
+
+                if cached_sheets is not None and cached_title is not None:
+                    sheet_infos = cached_sheets
+                    summary_data["title"] = cached_title
+                else:
+                    spreadsheet = (
+                        sheets_service.spreadsheets()
+                        .get(
+                            spreadsheetId=spreadsheet_id,
+                            fields="properties.title,sheets(properties(title,sheetId))",
+                        )
+                        .execute()
                     )
-                    .execute()
-                )
+                    title = spreadsheet.get("properties", {}).get("title", "Unknown Title")
+                    summary_data["title"] = title
+                    sheet_infos = [
+                        SheetInfo(
+                            title=s["properties"]["title"],
+                            sheet_id=s["properties"]["sheetId"],
+                        )
+                        for s in spreadsheet.get("sheets", [])
+                        if s.get("properties", {}).get("title")
+                    ]
+                    structure_cache.store(spreadsheet_id, sheet_infos, title=title)
 
-                summary_data["title"] = spreadsheet.get("properties", {}).get(
-                    "title", "Unknown Title"
-                )
                 sheet_summaries = []
-
-                for sheet in spreadsheet.get("sheets", []):
-                    sheet_title = sheet.get("properties", {}).get("title")
-                    sheet_id = sheet.get("properties", {}).get("sheetId")
+                for sheet_info in sheet_infos:
                     sheet_summary = {
-                        "title": sheet_title,
-                        "sheet_id": sheet_id,
+                        "title": sheet_info.title,
+                        "sheet_id": sheet_info.sheet_id,
                         "headers": [],
                         "first_rows": [],
                         "error": None,
                     }
 
-                    if not sheet_title:
-                        sheet_summary["error"] = "Sheet title not found"
+                    cached = data_cache.get(spreadsheet_id, sheet_info.sheet_id, rows_to_fetch)
+                    if cached is not None:
+                        sheet_summary["headers"] = cached["headers"]
+                        sheet_summary["first_rows"] = cached["first_rows"]
                         sheet_summaries.append(sheet_summary)
                         continue
 
                     try:
                         max_row = max(1, rows_to_fetch)
-                        range_to_get = f"{sheet_title}!A1:{max_row}"
+                        range_to_get = f"{sheet_info.title}!A1:{max_row}"
                         result = (
                             sheets_service.spreadsheets()
                             .values()
@@ -195,13 +212,16 @@ def register(tool):
                             .execute()
                         )
                         values = result.get("values", [])
-                        if values:
-                            sheet_summary["headers"] = values[0]
-                            if len(values) > 1:
-                                sheet_summary["first_rows"] = values[1:max_row]
+                        headers = values[0] if values else []
+                        first_rows = values[1:max_row] if len(values) > 1 else []
+                        sheet_summary["headers"] = headers
+                        sheet_summary["first_rows"] = first_rows
+                        data_cache.store(
+                            spreadsheet_id, sheet_info.sheet_id, headers, first_rows, rows_to_fetch
+                        )
                     except Exception as sheet_e:
                         sheet_summary["error"] = (
-                            f"Error fetching data for sheet {sheet_title}: {sheet_e}"
+                            f"Error fetching data for sheet {sheet_info.title}: {sheet_e}"
                         )
 
                     sheet_summaries.append(sheet_summary)
