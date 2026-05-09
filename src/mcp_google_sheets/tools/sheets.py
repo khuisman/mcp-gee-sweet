@@ -203,4 +203,5 @@ def register(tool):
         else:
             lc.cache.mark_all_dirty()
             lc.sheet_data_cache.mark_all_dirty()
+            lc.drive_folder_cache.mark_all_dirty()
             return {"invalidated": "all"}

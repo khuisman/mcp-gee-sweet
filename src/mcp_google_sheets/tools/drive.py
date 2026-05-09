@@ -24,8 +24,9 @@ def register(tool):
         Returns:
             Information about the newly created spreadsheet including its ID
         """
-        drive_service = ctx.request_context.lifespan_context.drive_service
-        target_folder_id = folder_id or ctx.request_context.lifespan_context.folder_id
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+        target_folder_id = folder_id or lc.folder_id
 
         file_body = {
             "name": title,
@@ -47,6 +48,9 @@ def register(tool):
             spreadsheet_id,
             f" in folder {target_folder_id}" if target_folder_id else " in root",
         )
+
+        if target_folder_id:
+            lc.drive_folder_cache.mark_dirty(target_folder_id)
 
         return {
             "spreadsheetId": spreadsheet_id,
@@ -293,8 +297,14 @@ def register(tool):
         Returns:
             List of files with their ID, name, MIME type, modified time, and web link
         """
-        drive_service = ctx.request_context.lifespan_context.drive_service
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+        folder_cache = lc.drive_folder_cache
         max_results = min(max(1, max_results), 1000)
+
+        cached = folder_cache.get(folder_id, mime_type)
+        if cached is not None:
+            return cached
 
         query = f"'{folder_id}' in parents and trashed=false"
         if mime_type:
@@ -314,7 +324,7 @@ def register(tool):
             .execute()
         )
 
-        return [
+        files = [
             {
                 "id": f["id"],
                 "name": f["name"],
@@ -324,6 +334,8 @@ def register(tool):
             }
             for f in results.get("files", [])
         ]
+        folder_cache.store(folder_id, mime_type, files)
+        return files
 
     @tool(annotations=ToolAnnotations(title="Get Document Content", readOnlyHint=True))
     def get_doc_content(file_id: str, ctx: Context = None) -> dict[str, Any]:
