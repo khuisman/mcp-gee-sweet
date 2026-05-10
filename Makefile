@@ -28,6 +28,10 @@ logs: ## Tail container logs.
 sh: ## Open a shell in the container.
 	docker compose exec mcp-gee-sweet bash
 
+.PHONY: test
+test: ## Run unit tests.
+	uv run pytest
+
 .PHONY: lint
 lint: ## Run ruff linter and formatter, fixing issues in place.
 	uv run ruff check --fix src/
