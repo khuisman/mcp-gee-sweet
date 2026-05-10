@@ -1,87 +1,95 @@
 <div align="center">
   <!-- Main Title Link -->
-  <b>mcp-google-sheets</b>
+  <b>mcp-gee-sweet</b>
 
   <!-- Description Paragraph -->
   <p align="center">
-    <i>Your AI Assistant's Gateway to Google Sheets! </i>📊
+    <i>Your AI Assistant's Gateway to Google Workspace!</i>
   </p>
 
-[![PyPI - Version](https://img.shields.io/pypi/v/mcp-google-sheets)](https://pypi.org/project/mcp-google-sheets/)
-[![PyPI Downloads](https://static.pepy.tech/badge/mcp-google-sheets)](https://pepy.tech/projects/mcp-google-sheets)
-![GitHub License](https://img.shields.io/github/license/xing5/mcp-google-sheets)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/xing5/mcp-google-sheets/release.yml)
+![GitHub License](https://img.shields.io/github/license/khuisman/mcp-gee-sweet)
 </div>
+
+> **⚠️ Development version — use at your own risk.**
+> This project is under active development and has only been tested on personal projects. For a stable, production-ready version, use [xing5/mcp-google-sheets](https://github.com/xing5/mcp-google-sheets) instead.
 
 ---
 
 ## 🤔 What is this?
 
-`mcp-google-sheets` is a Python-based MCP server that acts as a bridge between any MCP-compatible client (like Claude Desktop) and the Google Sheets API. It allows you to interact with your Google Spreadsheets using a defined set of tools, enabling powerful automation and data manipulation workflows driven by AI.
+`mcp-gee-sweet` is a Python-based MCP server that acts as a bridge between any MCP-compatible client (like Claude Desktop) and the Google Workspace APIs (Sheets, Drive, Docs). It allows you to interact with your spreadsheets, documents, and Drive files using a defined set of tools, enabling powerful automation and data manipulation workflows driven by AI.
+
+Forked from [xing5/mcp-google-sheets](https://github.com/xing5/mcp-google-sheets) and extended with caching, Google Docs support, Drive file listing, and observability.
 
 ---
 
-## 🚀 Quick Start (Using `uvx`)
+## 🚀 Quick Start
 
-Essentially the server runs in one line: `uvx mcp-google-sheets@latest`. 
-
-This command will automatically download the latest code and run it. **We recommend always using `@latest`** to ensure you have the newest version with the latest features and bug fixes.
+`mcp-gee-sweet` is not yet published to PyPI — run it from source using Docker (recommended) or `uv`.
 
 _Refer to the [ID Reference Guide](#-id-reference-guide) for more information about the IDs used below._
 
-1.  **☁️ Prerequisite: Google Cloud Setup**
-    *   You **must** configure Google Cloud Platform credentials and enable the necessary APIs first. We strongly recommend using a **Service Account**.
-    *   ➡️ Jump to the [**Detailed Google Cloud Platform Setup**](#-google-cloud-platform-setup-detailed) guide below.
+### Prerequisites
 
-2.  **🐍 Install `uv`**
-    *   `uvx` is part of `uv`, a fast Python package installer and resolver. Install it if you haven't already:
-        ```bash
-        # macOS / Linux
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        # Windows
-        powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-        # Or using pip:
-        # pip install uv
-        ```
-        *Follow instructions in the installer output to add `uv` to your PATH if needed.*
+1.  **☁️ Google Cloud Setup** — configure credentials and enable the APIs first.
+    *   ➡️ See [**Detailed Google Cloud Platform Setup**](#-google-cloud-platform-setup-detailed).
 
-3.  **🔑 Set Essential Environment Variables (Service Account Recommended)**
-    *   You need to tell the server how to authenticate. Set these variables in your terminal:
-    *   **(Linux/macOS)**
-        ```bash
-        # Replace with YOUR actual path and folder ID from the Google Setup step
-        export SERVICE_ACCOUNT_PATH="/path/to/your/service-account-key.json"
-        export DRIVE_FOLDER_ID="YOUR_DRIVE_FOLDER_ID"
-        ```
-    *   **(Windows CMD)**
-        ```cmd
-        set SERVICE_ACCOUNT_PATH="C:\path\to\your\service-account-key.json"
-        set DRIVE_FOLDER_ID="YOUR_DRIVE_FOLDER_ID"
-        ```
-    *   **(Windows PowerShell)**
-        ```powershell
-        $env:SERVICE_ACCOUNT_PATH = "C:\path\to\your\service-account-key.json"
-        $env:DRIVE_FOLDER_ID = "YOUR_DRIVE_FOLDER_ID"
-        ```
-    *   ➡️ See [**Detailed Authentication & Environment Variables**](#-authentication--environment-variables-detailed) for other options (OAuth, `CREDENTIALS_CONFIG`).
+2.  **🔑 Credentials** — place your service account key at `service_account.json` in the repo root and set `DRIVE_FOLDER_ID` in your environment.
+    *   ➡️ See [**Authentication & Environment Variables**](#-authentication--environment-variables-detailed) for all options.
 
-4.  **🏃 Run the Server!**
-    *   `uvx` will automatically download and run the latest version of `mcp-google-sheets`:
-        ```bash
-        uvx mcp-google-sheets@latest
-        ```
-    *   The server will start and print logs indicating it's ready.
-    *   
-    *   > **💡 Pro Tip:** Always use `@latest` to ensure you get the newest version with bug fixes and features. Without `@latest`, `uvx` may use a cached older version.
+### Option A: Docker (Recommended)
 
-5.  **🔌 Connect your MCP Client**
-    *   Configure your client (e.g., Claude Desktop) to connect to the running server.
-    *   Depending on the client you use, you might not need step 4 because the client can launch the server for you. But it's a good practice to test run step 4 anyway to make sure things are set up properly.
-    *   ➡️ See [**Usage with Claude Desktop**](#-usage-with-claude-desktop) for examples.
+Requires [Docker](https://docs.docker.com/get-docker/) and `make`.
 
-6.  **⚡ Optional: Enable Tool Filtering (Reduce Context Usage)**
-    *   By default, all 19 tools are enabled (~13K tokens). To reduce context usage, enable only the tools you need.
-    *   ➡️ See [**Tool Filtering**](#-tool-filtering-reduce-context-usage) for details.
+```bash
+git clone https://github.com/khuisman/mcp-gee-sweet.git
+cd mcp-gee-sweet
+
+make build   # build the container image
+make start   # start the server (SSE on port 47000)
+make logs    # tail logs
+make restart # restart after code changes (then restart your MCP client too)
+make down    # stop and remove the container
+```
+
+<details>
+<summary>No <code>make</code>? Use <code>docker compose</code> directly.</summary>
+
+```bash
+docker compose build
+docker compose up -d
+docker compose logs -f
+docker compose restart mcp-gee-sweet
+docker compose down
+```
+</details>
+
+The server listens on `http://localhost:47000`. Point your MCP client at `http://localhost:47000/sse` using SSE transport.
+
+### Option B: Run locally with `uv`
+
+```bash
+git clone https://github.com/khuisman/mcp-gee-sweet.git
+cd mcp-gee-sweet
+
+# Install uv if needed: https://docs.astral.sh/uv/getting-started/installation/
+uv sync
+
+export SERVICE_ACCOUNT_PATH="/path/to/service-account-key.json"
+export DRIVE_FOLDER_ID="YOUR_DRIVE_FOLDER_ID"
+
+uv run mcp-gee-sweet                    # stdio transport
+uv run mcp-gee-sweet --transport sse    # SSE on port 8000
+```
+
+### Connect your MCP Client
+
+*   ➡️ See [**Usage with Claude Desktop**](#-usage-with-claude-desktop) for config examples.
+
+### Optional: Tool Filtering
+
+*   By default, all 25 tools are enabled. To reduce context usage, enable only the tools you need.
+*   ➡️ See [**Tool Filtering**](#-tool-filtering-reduce-context-usage) for details.
 
 You're ready! Start issuing commands via your MCP client.
 
@@ -89,18 +97,19 @@ You're ready! Start issuing commands via your MCP client.
 
 ## ✨ Key Features
 
-*   **Seamless Integration:** Connects directly to Google Drive & Google Sheets APIs.
-*   **Comprehensive Tools:** Offers a wide range of operations (CRUD, listing, batching, sharing, formatting, etc.).
+*   **Seamless Integration:** Connects directly to Google Drive, Google Sheets, and Google Docs APIs.
+*   **Comprehensive Tools:** Offers a wide range of operations (CRUD, listing, batching, sharing, formatting, Docs read/write, etc.).
 *   **Flexible Authentication:** Supports **Service Accounts (recommended)**, OAuth 2.0, and direct credential injection via environment variables.
 *   **Easy Deployment:** Run instantly with `uvx` (zero-install feel) or clone for development using `uv`.
-*   **AI-Ready:** Designed for use with MCP-compatible clients, enabling natural language spreadsheet interaction.
+*   **AI-Ready:** Designed for use with MCP-compatible clients, enabling natural language spreadsheet and document interaction.
 *   **Tool Filtering:** Reduce context window usage by enabling only the tools you need with `--include-tools` or `ENABLED_TOOLS` environment variable.
+*   **Caching:** Sheet structure, sheet data, Drive folder listings, and Doc content are cached to reduce API calls and latency.
 
 ---
 
 ## 🎯 Tool Filtering (Reduce Context Usage)
 
-**Problem:** By default, this MCP server exposes all 19 tools, consuming ~13,000 tokens before any conversation begins. If you only need a few tools, this wastes valuable context window space.
+**Problem:** By default, this MCP server exposes all 25 tools. If you only need a few tools, this wastes valuable context window space.
 
 **Solution:** Use tool filtering to enable only the tools you actually use.
 
@@ -115,7 +124,7 @@ You can filter tools using either:
        "google-sheets": {
          "command": "uvx",
          "args": [
-           "mcp-google-sheets@latest",
+           "mcp-gee-sweet@latest",
            "--include-tools",
            "get_sheet_data,update_cells,list_spreadsheets,list_sheets"
          ],
@@ -133,7 +142,7 @@ You can filter tools using either:
      "mcpServers": {
        "google-sheets": {
          "command": "uvx",
-         "args": ["mcp-google-sheets@latest"],
+         "args": ["mcp-gee-sweet@latest"],
          "env": {
            "SERVICE_ACCOUNT_PATH": "/path/to/credentials.json",
            "ENABLED_TOOLS": "get_sheet_data,update_cells,list_spreadsheets,list_sheets"
@@ -154,25 +163,31 @@ When filtering, use these exact tool names (comma-separated, no spaces):
 - `list_sheets` - Navigate tabs
 
 **All Available Tools:**
+- `add_chart`
 - `add_columns`
 - `add_rows`
 - `batch_update`
 - `batch_update_cells`
 - `copy_sheet`
+- `create_doc`
 - `create_sheet`
 - `create_spreadsheet`
 - `find_in_spreadsheet`
+- `get_doc_content`
 - `get_multiple_sheet_data`
 - `get_multiple_spreadsheet_summary`
 - `get_sheet_data`
 - `get_sheet_formulas`
+- `list_files`
 - `list_folders`
 - `list_sheets`
 - `list_spreadsheets`
+- `refresh_cache`
 - `rename_sheet`
 - `search_spreadsheets`
 - `share_spreadsheet`
 - `update_cells`
+- `write_doc_content`
 
 **Note:** If neither `--include-tools` nor `ENABLED_TOOLS` is specified, all tools are enabled (default behavior).
 
@@ -180,7 +195,7 @@ When filtering, use these exact tool names (comma-separated, no spaces):
 
 ## 🛠️ Available Tools & Resources
 
-This server exposes the following tools for interacting with Google Sheets:
+This server exposes the following tools for interacting with Google Workspace:
 
 _Refer to the [ID Reference Guide](#-id-reference-guide) for more information about the IDs used below._
 
@@ -257,6 +272,33 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
     *   `sheet` (string): Current sheet/tab name (e.g., "Sheet1").
     *   `new_name` (string): New sheet/tab name (e.g., "Transactions").
     *   _Returns:_ Result of the operation ([`batchUpdate` response](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets/batchUpdate#response-body)).
+*   **`find_in_spreadsheet`**: Searches for a value across all cells in a spreadsheet.
+    *   `spreadsheet_id` (string): The spreadsheet ID (from its URL).
+    *   `query` (string): The value to search for.
+    *   _Returns:_ List of matching cell locations and values.
+*   **`search_spreadsheets`**: Searches for spreadsheets by name in Google Drive.
+    *   `query` (string): Name or partial name to search for.
+    *   `folder_id` (optional string): Limit search to this Drive folder.
+    *   _Returns:_ List of matching spreadsheet objects `[{id: string, title: string}]`.
+*   **`list_folders`**: Lists Google Drive folders accessible to the service account.
+    *   `parent_id` (optional string): Parent folder ID to list subfolders of. If omitted, lists top-level folders.
+    *   _Returns:_ List of folder objects `[{id: string, name: string}]`.
+*   **`list_files`**: Lists files in a Google Drive folder.
+    *   `folder_id` (optional string): Folder ID to list files in. If omitted, uses the configured default folder.
+    *   _Returns:_ List of file objects with id, name, and mimeType.
+*   **`create_doc`**: Creates a new Google Doc.
+    *   `title` (string): Title for the new document.
+    *   `content` (optional string): Initial HTML or plain text content.
+    *   `folder_id` (optional string): Drive folder to create the document in.
+    *   _Returns:_ Object with document info including `documentId` and `title`.
+    *   **⚠️ Service Account limitation:** Creating docs (and spreadsheets) in a personal Drive folder fails with `storageQuotaExceeded` because the service account owns the new file but has no Drive storage quota. **Workaround:** create the file manually in the Drive UI, then use `write_doc_content` to populate it. This limitation does not apply to Shared Drives.
+*   **`get_doc_content`**: Reads the content of a Google Doc.
+    *   `file_id` (string): The document ID (from its URL).
+    *   _Returns:_ Document content as structured text.
+*   **`write_doc_content`**: Writes or replaces the content of a Google Doc.
+    *   `file_id` (string): The document ID (from its URL).
+    *   `content` (string): New HTML or plain text content to write.
+    *   _Returns:_ Result of the operation.
 *   **`add_chart`**: Creates a chart in a Google Spreadsheet from specified data.
     *   `spreadsheet_id` (string): The spreadsheet ID (from its URL).
     *   `sheet` (string): Name of the sheet/tab containing the data (e.g., "Sheet1").
@@ -270,6 +312,14 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
     *   `width` (optional integer, default `600`): Width of the chart in pixels.
     *   `height` (optional integer, default `400`): Height of the chart in pixels.
     *   _Returns:_ Result object with success status, chart ID, and operation details.
+*   **`batch_update`**: Passthrough to the Sheets `spreadsheets().batchUpdate()` endpoint. Accepts raw request objects for operations not covered by named tools (formatting, conditional formatting, dimension properties, etc.).
+    *   `spreadsheet_id` (string): The spreadsheet ID (from its URL).
+    *   `requests` (array of objects): Raw batchUpdate request objects per the [Sheets API spec](https://developers.google.com/workspace/sheets/api/reference/rest/v4/spreadsheets/batchUpdate).
+    *   _Returns:_ Raw batchUpdate response.
+*   **`refresh_cache`**: Invalidates cached data, forcing fresh API calls on next use.
+    *   `spreadsheet_id` (optional string): Invalidate cache for a specific spreadsheet only. If omitted, flushes all caches.
+    *   `doc_id` (optional string): Invalidate doc content cache for a specific document only.
+    *   _Returns:_ Confirmation of what was cleared.
 
 **MCP Resources:**
 
@@ -286,6 +336,7 @@ This setup is **required** before running the server.
 2.  **Enable APIs:** Navigate to "APIs & Services" -> "Library". Search for and enable:
     *   `Google Sheets API`
     *   `Google Drive API`
+    *   `Google Docs API`
 3.  **Configure Credentials:** You need to choose *one* authentication method below (Service Account is recommended).
 
 ---
@@ -321,7 +372,7 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
 
 *   **Why?** For personal use or local development where interactive browser login is okay.
 *   **Steps:**
-    1.  **Configure OAuth Consent Screen:** In GCP Console -> "APIs & Services" -> "OAuth consent screen". Select "External", fill required info, add scopes (`.../auth/spreadsheets`, `.../auth/drive`), add test users if needed.
+    1.  **Configure OAuth Consent Screen:** In GCP Console -> "APIs & Services" -> "OAuth consent screen". Select "External", fill required info, add scopes (`.../auth/spreadsheets`, `.../auth/drive`, `.../auth/documents`), add test users if needed.
     2.  **Create OAuth Client ID:** In GCP Console -> "APIs & Services" -> "Credentials". "+ CREATE CREDENTIALS" -> "OAuth client ID" -> Type: **Desktop app**. Name it. "CREATE". **Download JSON**.
     3.  **Set Environment Variables:**
         *   `CREDENTIALS_PATH`: Path to the downloaded OAuth credentials JSON file (default: `credentials.json`).
@@ -360,7 +411,7 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
     3.  Attached service account from metadata server (GKE, Compute Engine, etc.)
 *   **Setup:**
     *   **Local Development:** 
-        1. Run `gcloud auth application-default login --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/drive` once
+        1. Run `gcloud auth application-default login --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/drive,https://www.googleapis.com/auth/documents` once
         2. Set a quota project: `gcloud auth application-default set-quota-project <project_id>` (replace `<project_id>` with your Google Cloud project ID)
     *   **Google Cloud:** Attach a service account to your compute resource
     *   **Environment Variable:** Set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json` (Google's standard)
@@ -399,7 +450,7 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
 As shown in the [Ultra Quick Start](#-ultra-quick-start-using-uvx), this is the easiest way. Set environment variables, then run:
 
 ```bash
-uvx mcp-google-sheets@latest
+uvx mcp-gee-sweet@latest
 ```
 `uvx` handles fetching and running the package temporarily.
 
@@ -407,13 +458,13 @@ uvx mcp-google-sheets@latest
 
 If you want to modify the code:
 
-1.  **Clone:** `git clone https://github.com/yourusername/mcp-google-sheets.git && cd mcp-google-sheets` (Use actual URL)
+1.  **Clone:** `git clone https://github.com/khuisman/mcp-gee-sweet.git && cd mcp-gee-sweet`
 2.  **Set Environment Variables:** As described above.
 3.  **Run using `uv`:** (Uses the local code)
     ```bash
-    uv run mcp-google-sheets
-    # Or via the script name if defined in pyproject.toml, e.g.:
-    # uv run start
+    uv run mcp-gee-sweet
+    # Or with SSE transport:
+    uv run mcp-gee-sweet --transport sse
     ```
 
 ### Method 3: Docker (SSE transport)
@@ -422,16 +473,16 @@ Run the server in a container using the included `Dockerfile`:
 
 ```bash
 # Build the image
-docker build -t mcp-google-sheets .
+docker build -t mcp-gee-sweet .
 
 # Run (SSE on port 8000)
 # NOTE: Prefer CREDENTIALS_CONFIG (Base64 credentials content) in containers.
-docker run --rm -p 8000:8000 ^
-  -e HOST=0.0.0.0 ^
-  -e PORT=8000 ^
-  -e CREDENTIALS_CONFIG=YOUR_BASE64_CREDENTIALS ^
-  -e DRIVE_FOLDER_ID=YOUR_DRIVE_FOLDER_ID ^
-  mcp-google-sheets
+docker run --rm -p 8000:8000 \
+  -e HOST=0.0.0.0 \
+  -e PORT=8000 \
+  -e CREDENTIALS_CONFIG=YOUR_BASE64_CREDENTIALS \
+  -e DRIVE_FOLDER_ID=YOUR_DRIVE_FOLDER_ID \
+  mcp-gee-sweet
 ```
 
 - Use `CREDENTIALS_CONFIG` instead of `SERVICE_ACCOUNT_PATH` inside Docker to avoid mounting secrets as files.
@@ -456,7 +507,7 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
   "mcpServers": {
     "google-sheets": {
       "command": "uvx",
-      "args": ["mcp-google-sheets@latest"],
+      "args": ["mcp-gee-sweet@latest"],
       "env": {
         "SERVICE_ACCOUNT_PATH": "/full/path/to/your/service-account-key.json",
         "DRIVE_FOLDER_ID": "your_shared_folder_id_here"
@@ -472,7 +523,7 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
   "mcpServers": {
     "google-sheets": {
       "command": "/Users/yourusername/.local/bin/uvx",
-      "args": ["mcp-google-sheets@latest"],
+      "args": ["mcp-gee-sweet@latest"],
       "env": {
         "SERVICE_ACCOUNT_PATH": "/full/path/to/your/service-account-key.json",
         "DRIVE_FOLDER_ID": "your_shared_folder_id_here"
@@ -492,7 +543,7 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
   "mcpServers": {
     "google-sheets": {
       "command": "uvx",
-      "args": ["mcp-google-sheets@latest"],
+      "args": ["mcp-gee-sweet@latest"],
       "env": {
         "CREDENTIALS_PATH": "/full/path/to/your/credentials.json",
         "TOKEN_PATH": "/full/path/to/your/token.json"
@@ -514,7 +565,7 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
   "mcpServers": {
     "google-sheets": {
       "command": "uvx",
-      "args": ["mcp-google-sheets@latest"],
+      "args": ["mcp-gee-sweet@latest"],
       "env": {
         "CREDENTIALS_CONFIG": "ewogICJ0eXBlIjogInNlcnZpY2VfYWNjb3VudCIsCiAgInByb2plY3RfaWQiOiAi...",
         "DRIVE_FOLDER_ID": "your_shared_folder_id_here"
@@ -537,7 +588,7 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
   "mcpServers": {
     "google-sheets": {
       "command": "uvx",
-      "args": ["mcp-google-sheets@latest"],
+      "args": ["mcp-gee-sweet@latest"],
       "env": {
         "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/service-account.json"
       }
@@ -552,14 +603,14 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
   "mcpServers": {
     "google-sheets": {
       "command": "uvx",
-      "args": ["mcp-google-sheets@latest"],
+      "args": ["mcp-gee-sweet@latest"],
       "env": {}
     }
   }
 }
 ```
 *Prerequisites:* 
-1. *Run `gcloud auth application-default login --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/drive` first.*
+1. *Run `gcloud auth application-default login --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/drive,https://www.googleapis.com/auth/documents` first.*
 2. *Set quota project: `gcloud auth application-default set-quota-project <project_id>`*
 
 **🍎 macOS Note:** If you get a `spawn uvx ENOENT` error, replace `"command": "uvx"` with `"command": "/Users/yourusername/.local/bin/uvx"` (replace `yourusername` with your actual username).
@@ -571,16 +622,16 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
 ```json
 {
   "mcpServers": {
-    "mcp-google-sheets-local": {
+    "mcp-gee-sweet-local": {
       "command": "uv",
       "args": [
         "run",
         "--directory",
-        "/path/to/your/mcp-google-sheets",
-        "mcp-google-sheets"
+        "/path/to/your/mcp-gee-sweet",
+        "mcp-gee-sweet"
       ],
       "env": {
-        "SERVICE_ACCOUNT_PATH": "/path/to/your/mcp-google-sheets/service_account.json",
+        "SERVICE_ACCOUNT_PATH": "/path/to/your/mcp-gee-sweet/service_account.json",
         "DRIVE_FOLDER_ID": "your_drive_folder_id_here"
       }
     }
@@ -607,6 +658,9 @@ Once connected, try prompts like:
 *   "Create a column chart in my 'Sales Report' spreadsheet showing monthly revenue from data in range A1:B13."
 *   "Add a pie chart to the 'Market Analysis' sheet with data from A1:B5 titled 'Market Share by Product'."
 *   "In spreadsheet `abc123`, create a line chart on Sheet1 from range A1:C10 with title 'Growth Trends' and labels 'Month' and 'Revenue'."
+*   "Read the contents of the doc with ID `xyz789`."
+*   "List all files in my Drive folder."
+*   "Search for spreadsheets with 'Budget' in the name."
 
 ---
 
@@ -626,6 +680,10 @@ Google Drive Folder ID:
 Google Sheets Spreadsheet ID:
   https://docs.google.com/spreadsheets/d/25_-_raTaKjaVxu9nJzA7-FCrNhnkd3cXC54BPAOXemI/edit
                                          └───────────── Spreadsheet ID ─────────────┘
+
+Google Docs Document ID:
+  https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms/edit
+                                     └───────────── Document ID ──────────────┘
 ```
 
 ---
@@ -644,6 +702,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Credits
 
+*   Forked from [xing5/mcp-google-sheets](https://github.com/xing5/mcp-google-sheets).
 *   Built with [FastMCP](https://github.com/cognitiveapis/fastmcp).
 *   Inspired by [kazz187/mcp-google-spreadsheet](https://github.com/kazz187/mcp-google-spreadsheet).
 *   Uses Google API Python Client libraries.

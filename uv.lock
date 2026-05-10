@@ -565,7 +565,7 @@ wheels = [
 ]
 
 [[package]]
-name = "mcp-google-sheets"
+name = "mcp-gee-sweet"
 source = { editable = "." }
 dependencies = [
     { name = "google-api-python-client" },

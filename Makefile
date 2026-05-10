@@ -14,7 +14,7 @@ down: ## Stop and remove container.
 
 .PHONY: restart
 restart: ## Restart container (requires Claude Code restart to reconnect SSE).
-	docker compose restart mcp-google-sheets
+	docker compose restart mcp-gee-sweet
 
 .PHONY: recreate
 recreate: ## Recreate container from scratch (removes historical logs).
@@ -26,7 +26,7 @@ logs: ## Tail container logs.
 
 .PHONY: sh
 sh: ## Open a shell in the container.
-	docker compose exec mcp-google-sheets bash
+	docker compose exec mcp-gee-sweet bash
 
 .PHONY: lint
 lint: ## Run ruff linter and formatter, fixing issues in place.
