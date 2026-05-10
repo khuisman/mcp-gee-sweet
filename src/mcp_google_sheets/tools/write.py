@@ -23,7 +23,8 @@ def register(tool):
         Returns:
             Result of the update operation
         """
-        sheets_service = ctx.request_context.lifespan_context.sheets_service
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
 
         result = (
             sheets_service.spreadsheets()
@@ -37,6 +38,7 @@ def register(tool):
             .execute()
         )
 
+        lc.sheet_data_cache.mark_dirty(spreadsheet_id)
         return result
 
     @tool(annotations=ToolAnnotations(title="Batch Update Cells", destructiveHint=True))
@@ -55,7 +57,8 @@ def register(tool):
         Returns:
             Result of the batch update operation
         """
-        sheets_service = ctx.request_context.lifespan_context.sheets_service
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
 
         data = [
             {"range": f"{sheet}!{range_str}", "values": values}
@@ -72,6 +75,7 @@ def register(tool):
             .execute()
         )
 
+        lc.sheet_data_cache.mark_dirty(spreadsheet_id)
         return result
 
     @tool(annotations=ToolAnnotations(title="Add Rows", destructiveHint=True))
@@ -237,7 +241,8 @@ def register(tool):
         Returns:
             Result of the batch update operation, including replies for each request
         """
-        sheets_service = ctx.request_context.lifespan_context.sheets_service
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
 
         if not requests:
             return {"error": "requests list cannot be empty"}
@@ -250,4 +255,5 @@ def register(tool):
             .execute()
         )
 
+        lc.sheet_data_cache.mark_dirty(spreadsheet_id)
         return result

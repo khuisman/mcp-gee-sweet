@@ -8,6 +8,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 CACHE_PATH = os.environ.get("CACHE_PATH", "/tmp/mcp_sheet_cache.json")
+SHEET_DATA_CACHE_PATH = os.environ.get("SHEET_DATA_CACHE_PATH", "/tmp/mcp_sheet_data_cache.json")
 CACHE_TTL = int(os.environ.get("CACHE_TTL", "1800"))  # 30 minutes
 
 
@@ -61,12 +62,20 @@ class SheetStructureCache:
             return None
         return [SheetInfo(**s) for s in self._data[spreadsheet_id]["sheets"]]
 
-    def store(self, spreadsheet_id: str, sheets: list[SheetInfo]):
+    def get_title(self, spreadsheet_id: str) -> str | None:
+        """Returns cached spreadsheet title, or None on cache miss/dirty/expired."""
+        if not self._is_valid(spreadsheet_id):
+            return None
+        return self._data[spreadsheet_id].get("title")
+
+    def store(self, spreadsheet_id: str, sheets: list[SheetInfo], title: str | None = None):
         self._data[spreadsheet_id] = {
             "sheets": [{"title": s.title, "sheet_id": s.sheet_id} for s in sheets],
             "fetched_at": time.time(),
             "dirty": False,
         }
+        if title is not None:
+            self._data[spreadsheet_id]["title"] = title
         self._save()
         logger.debug("Cached %d sheets for %s", len(sheets), spreadsheet_id)
 
@@ -83,6 +92,103 @@ class SheetStructureCache:
         logger.debug("Invalidated all %d cache entries", len(self._data))
 
 
+class SheetDataCache:
+    """Caches per-sheet summary data (headers + first N rows) keyed by (spreadsheet_id, sheet_id)."""
+
+    def __init__(self, path: str = SHEET_DATA_CACHE_PATH, ttl: int = CACHE_TTL):
+        self._path = path
+        self._ttl = ttl
+        self._data: dict = {}
+        self._load()
+
+    def _load(self):
+        try:
+            with open(self._path) as f:
+                self._data = json.load(f)
+            logger.debug(
+                "Loaded sheet data cache from %s (%d spreadsheets)", self._path, len(self._data)
+            )
+        except FileNotFoundError:
+            self._data = {}
+        except Exception as e:
+            logger.warning("Failed to load sheet data cache: %s", e)
+            self._data = {}
+
+    def _save(self):
+        try:
+            with open(self._path, "w") as f:
+                json.dump(self._data, f)
+        except Exception as e:
+            logger.warning("Failed to save sheet data cache: %s", e)  # best-effort, don't crash
+
+    def _is_valid(self, spreadsheet_id: str, sheet_id: int, rows_to_fetch: int) -> bool:
+        entry = self._data.get(spreadsheet_id, {}).get(str(sheet_id))
+        if entry is None:
+            return False
+        if entry.get("dirty", False):
+            return False
+        if time.time() - entry.get("fetched_at", 0) > self._ttl:
+            entry["dirty"] = True
+            self._save()
+            return False
+        if entry.get("rows_fetched", 0) < rows_to_fetch:
+            return False
+        return True
+
+    def get(self, spreadsheet_id: str, sheet_id: int, rows_to_fetch: int) -> dict | None:
+        """Returns cached {headers, first_rows}, or None on miss/dirty/expired/insufficient rows."""
+        if not self._is_valid(spreadsheet_id, sheet_id, rows_to_fetch):
+            return None
+        entry = self._data[spreadsheet_id][str(sheet_id)]
+        logger.debug("Sheet data cache hit: %s/%s", spreadsheet_id, sheet_id)
+        return {
+            "headers": entry["headers"],
+            "first_rows": entry["first_rows"][: rows_to_fetch - 1],
+        }
+
+    def store(
+        self,
+        spreadsheet_id: str,
+        sheet_id: int,
+        headers: list,
+        first_rows: list,
+        rows_to_fetch: int,
+    ):
+        if spreadsheet_id not in self._data:
+            self._data[spreadsheet_id] = {}
+        self._data[spreadsheet_id][str(sheet_id)] = {
+            "headers": headers,
+            "first_rows": first_rows,
+            "rows_fetched": rows_to_fetch,
+            "fetched_at": time.time(),
+            "dirty": False,
+        }
+        self._save()
+        logger.debug("Cached sheet data for %s/%s", spreadsheet_id, sheet_id)
+
+    def mark_dirty(self, spreadsheet_id: str, sheet_id: int | None = None):
+        if spreadsheet_id not in self._data:
+            return
+        if sheet_id is not None:
+            entry = self._data[spreadsheet_id].get(str(sheet_id))
+            if entry:
+                entry["dirty"] = True
+                self._save()
+                logger.debug("Marked sheet data dirty for %s/%s", spreadsheet_id, sheet_id)
+        else:
+            for entry in self._data[spreadsheet_id].values():
+                entry["dirty"] = True
+            self._save()
+            logger.debug("Marked all sheet data dirty for %s", spreadsheet_id)
+
+    def mark_all_dirty(self):
+        for sheets in self._data.values():
+            for entry in sheets.values():
+                entry["dirty"] = True
+        self._save()
+        logger.debug("Invalidated all sheet data cache entries")
+
+
 def fetch_sheets(
     sheets_service: Any, spreadsheet_id: str, cache: SheetStructureCache
 ) -> list[SheetInfo]:
@@ -95,14 +201,18 @@ def fetch_sheets(
     try:
         spreadsheet = (
             sheets_service.spreadsheets()
-            .get(spreadsheetId=spreadsheet_id, fields="sheets(properties(title,sheetId))")
+            .get(
+                spreadsheetId=spreadsheet_id,
+                fields="properties.title,sheets(properties(title,sheetId))",
+            )
             .execute()
         )
         sheets = [
             SheetInfo(title=s["properties"]["title"], sheet_id=s["properties"]["sheetId"])
             for s in spreadsheet.get("sheets", [])
         ]
-        cache.store(spreadsheet_id, sheets)
+        title = spreadsheet.get("properties", {}).get("title")
+        cache.store(spreadsheet_id, sheets, title=title)
         return sheets
     except Exception as e:
         # Fall back to stale cache rather than hard-failing

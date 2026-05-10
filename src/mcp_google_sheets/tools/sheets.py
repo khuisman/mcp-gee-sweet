@@ -194,11 +194,13 @@ def register(tool):
         Returns:
             Confirmation of what was invalidated
         """
-        cache = ctx.request_context.lifespan_context.cache
+        lc = ctx.request_context.lifespan_context
 
         if spreadsheet_id:
-            cache.mark_dirty(spreadsheet_id)
+            lc.cache.mark_dirty(spreadsheet_id)
+            lc.sheet_data_cache.mark_dirty(spreadsheet_id)
             return {"invalidated": spreadsheet_id}
         else:
-            cache.mark_all_dirty()
+            lc.cache.mark_all_dirty()
+            lc.sheet_data_cache.mark_all_dirty()
             return {"invalidated": "all"}
