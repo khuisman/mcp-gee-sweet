@@ -29,7 +29,7 @@ There are no tests in this project.
 
 ## Architecture
 
-All logic lives in a single file: `src/mcp_google_sheets/server.py`. `__init__.py` just re-exports `main()`.
+Logic is split across `src/mcp_google_sheets/`: `server.py` (MCP setup, tool decorator, resource), `auth.py` (lifespan, `SpreadsheetContext`), and `tools/` (one file per category: `read.py`, `write.py`, `sheets.py`, `drive.py`, `charts.py`). `__init__.py` just re-exports `main()`.
 
 **Startup / auth** (`spreadsheet_lifespan`): FastMCP lifespan context manager that authenticates on server start and injects a `SpreadsheetContext` (holding `sheets_service` and `drive_service`) into every tool call via `ctx.request_context.lifespan_context`. Auth is attempted in priority order: `CREDENTIALS_CONFIG` (base64 service account) → `SERVICE_ACCOUNT_PATH` → OAuth flow (`CREDENTIALS_PATH`/`TOKEN_PATH`) → Application Default Credentials.
 
@@ -46,3 +46,4 @@ All logic lives in a single file: `src/mcp_google_sheets/server.py`. `__init__.p
 ## Development workflow
 
 **MCP restart**: After `docker compose restart mcp-google-sheets`, Claude Code does not automatically reconnect to the SSE server — you must restart Claude Code too to re-establish the connection.
+
