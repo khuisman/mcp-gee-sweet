@@ -81,9 +81,10 @@ export DRIVE_FOLDER_ID="YOUR_DRIVE_FOLDER_ID"
 
 uv run mcp-gee-sweet                    # stdio transport
 uv run mcp-gee-sweet --transport sse    # SSE on port 8000
-```
 
-Run the test suite at any time with `make test`.
+make test        # run unit tests
+make lint        # run ruff linter and formatter
+```
 
 ### Connect your MCP Client
 

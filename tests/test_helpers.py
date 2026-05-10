@@ -91,3 +91,13 @@ class TestParseA1Notation:
     def test_invalid_notation_raises(self):
         with pytest.raises(ValueError):
             _parse_a1_notation("Sheet1!A1")
+
+    def test_invalid_empty_string_returns_empty_dict(self):
+        # Bug: empty string matches the all-optional regex and returns {} instead of raising.
+        # See: https://github.com/khuisman/mcp-gee-sweet/issues/11
+        result = _parse_a1_notation("")
+        assert result == {}
+
+    def test_invalid_garbage_raises(self):
+        with pytest.raises(ValueError):
+            _parse_a1_notation("??!!")

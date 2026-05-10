@@ -25,6 +25,10 @@ class TestHtmlToText:
         assert "&amp;" not in _html_to_text("<p>fish &amp; chips</p>")
         assert "fish & chips" in _html_to_text("<p>fish &amp; chips</p>")
 
+    def test_numeric_html_entity(self):
+        result = _html_to_text("<p>&#169;</p>")
+        assert "©" in result
+
     def test_empty_input(self):
         assert _html_to_text("") == ""
 
@@ -87,3 +91,14 @@ class TestHtmlToDocRequests:
         insert = next(r for r in requests if "insertText" in r)
         full_text = insert["insertText"]["text"]
         assert full_text == "First\nSecond\n"
+
+    def test_list_item_inside_ul(self):
+        requests = _html_to_doc_requests("<ul><li>Item one</li><li>Item two</li></ul>")
+        bullets = [r for r in requests if "createParagraphBullets" in r]
+        assert len(bullets) == 2
+
+    def test_whitespace_only_paragraph_skipped(self):
+        requests = _html_to_doc_requests("<p>   </p><p>Real content</p>")
+        insert = next(r for r in requests if "insertText" in r)
+        assert "Real content" in insert["insertText"]["text"]
+        assert insert["insertText"]["text"].strip() == "Real content"

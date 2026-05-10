@@ -45,3 +45,10 @@ class TestParseEnabledTools:
         monkeypatch.setenv("ENABLED_TOOLS", "")
         monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
         assert _parse_enabled_tools() is None
+
+    def test_cli_arg_missing_value_falls_through_to_env(self, monkeypatch):
+        monkeypatch.setenv("ENABLED_TOOLS", "get_sheet_data")
+        # --include-tools is the last arg with no following value
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--include-tools"])
+        result = _parse_enabled_tools()
+        assert result == {"get_sheet_data"}
