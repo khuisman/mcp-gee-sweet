@@ -46,7 +46,7 @@ The gap analysis (see [roadmap.md](roadmap.md)) shows that most missing features
 
 **Fork from upstream.** The codebase has grown well past the original scope. Continuing as a silent fork accumulates invisible divergence and makes it harder to credit the work appropriately. The plan:
 
-1. Open PRs upstream for the cleanest early additions that would benefit xing5 (tool filtering, `batch_update` passthrough) before cutting loose
+1. Open a PR upstream from the `upstream-observability` branch — structured logging, per-tool timing, and `cache_discovery=False` fix — changes that fit cleanly within xing5's scope before cutting loose
 2. Fork to a new repo under an appropriate name (e.g., `mcp-google-workspace`)
 3. Update README to credit xing5 as the original base and freema/piotr-agier for roadmap inspiration
 
