@@ -5,8 +5,8 @@ Prioritized work queue. See [docs/roadmap.md](docs/roadmap.md) for full context 
 ## Up next
 
 1. ~~**Fix A1 notation bugs**~~ ✓ — fixed open-ended range `endRowIndex` and empty-string raising. [Issue #11](https://github.com/khuisman/mcp-gee-sweet/issues/11)
-2. **SQLite cache migration** — replace `/tmp/*.json` file-backed caches with SQLite; unblocks cache unit tests
-3. **Cache unit tests** — after SQLite migration
+2. ~~**SQLite cache migration**~~ ✓ — single DB at `/tmp/mcp_gee_sweet.db`, four namespaces, WAL mode
+3. ~~**Cache unit tests**~~ ✓ — 32 tests covering TTL, dirty flag, partial invalidation, all four caches
 4. **PyPI publish** — set up trusted publishing (OIDC) on PyPI, do a test release; CI workflow already written
 
 ## Tier 1 features

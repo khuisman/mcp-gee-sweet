@@ -34,7 +34,7 @@ install-hooks: ## Install pre-commit hooks into the local git repo.
 
 .PHONY: test
 test: ## Run unit tests.
-	uv run pytest
+	uv run python -m pytest
 
 .PHONY: lint
 lint: ## Run ruff linter and formatter, fixing issues in place.
