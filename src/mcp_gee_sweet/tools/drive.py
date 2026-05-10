@@ -20,9 +20,7 @@ def _html_to_text(html_content: str) -> str:
             self.parts = []
 
         def handle_starttag(self, tag, attrs):
-            if tag == "br":
-                self.parts.append("\n")
-            elif tag in _BLOCK and self.parts and not self.parts[-1].endswith("\n"):
+            if tag == "br" or (tag in _BLOCK and self.parts and not self.parts[-1].endswith("\n")):
                 self.parts.append("\n")
 
         def handle_endtag(self, tag):

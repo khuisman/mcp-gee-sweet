@@ -59,7 +59,7 @@ Features are grouped by category and ordered by practical priority within each t
 ## Testing
 
 - [x] Add `pytest` and `pytest-cov` as dev dependencies
-- [ ] Unit tests for cache logic — TTL expiry, dirty flag, file persistence, partial invalidation (`SheetStructureCache`, `SheetDataCache`, `DriveFolderCache`, `DocContentCache`) _(after SQLite migration — see Infrastructure)_
+- [x] Unit tests for cache logic — TTL expiry, dirty flag, partial invalidation for all four cache classes; uses in-memory SQLite (`:memory:`)
 - [x] Unit tests for A1 notation helpers — `_parse_a1_notation`, `_column_index_to_letter`, `_letter_to_column_index`
 - [x] Unit tests for HTML↔Doc conversion (`_html_to_text`, `_html_to_doc_requests`)
 - [x] Unit tests for tool filtering — tools excluded when not in `ENABLED_TOOLS`
@@ -69,7 +69,7 @@ Features are grouped by category and ordered by practical priority within each t
 
 ## Infrastructure / internal
 
-- [ ] Revisit cache persistence — all caches write JSON to `/tmp/*.json`; evaluate whether SQLite would be more appropriate as the number of cached entries grows
+- [x] Migrate cache persistence — replaced four `/tmp/*.json` files with a single SQLite DB (`/tmp/mcp_gee_sweet.db`, configurable via `CACHE_DB_PATH`); one table, four namespaces; WAL mode
 - [ ] PyPI publish — set up trusted publishing (OIDC), create package on PyPI, do a test release; CI workflow already written
 - [x] Open PR to xing5 from `upstream-observability` branch (structured logging, per-tool timing, `cache_discovery=False`) — [PR #79](https://github.com/xing5/mcp-google-sheets/pull/79)
 - [x] Fork repo and rename to `mcp-gee-sweet`; README credits xing5, freema, and piotr-agier
