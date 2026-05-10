@@ -46,7 +46,3 @@ All logic lives in a single file: `src/mcp_google_sheets/server.py`. `__init__.p
 ## Development workflow
 
 **MCP restart**: After `docker compose restart mcp-google-sheets`, Claude Code does not automatically reconnect to the SSE server — you must restart Claude Code too to re-establish the connection.
-
-## Style guidelines
-
-**Log suppressions**: When silencing a noisy logger with `setLevel(logging.WARNING)`, always add an inline comment explaining why — e.g. `# suppress keepalive ping noise`.

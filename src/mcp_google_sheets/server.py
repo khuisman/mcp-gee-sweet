@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
+# Configure logging: WARNING by default to suppress noisy third-party libs (httpx, googleapiclient).
+# The direct handler block below handles DEBUG output for this package specifically.
 logging.basicConfig(
     level=logging.DEBUG if os.getenv("DEBUG") else logging.WARNING,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -1722,7 +1724,6 @@ def add_chart(spreadsheet_id: str,
             "error": f"Failed to add chart: {str(e)}"
         }
 
-print('out of main')
 def main():
     print('main is running', flush=True)
     if ENABLED_TOOLS is not None:
