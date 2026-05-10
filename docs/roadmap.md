@@ -58,17 +58,20 @@ Features are grouped by category and ordered by practical priority within each t
 
 ## Testing
 
-- [ ] Add `pytest` and `pytest-cov` as dev dependencies
+- [x] Add `pytest` and `pytest-cov` as dev dependencies
 - [ ] Unit tests for cache logic — TTL expiry, dirty flag, file persistence, partial invalidation (`SheetStructureCache`, `SheetDataCache`, `DriveFolderCache`, `DocContentCache`) _(after SQLite migration — see Infrastructure)_
-- [ ] Unit tests for A1 notation helpers — `_parse_a1_notation`, `_column_index_to_letter`, `_letter_to_column_index`
-- [ ] Unit tests for HTML↔Doc conversion (`_html_to_text`, `_html_to_doc_requests`)
-- [ ] Unit tests for tool filtering — tools excluded when not in `ENABLED_TOOLS`
-- [ ] Integration tests (optional, requires live credentials + test spreadsheet/doc) — smoke tests for each tool against a dedicated test Drive folder
+- [x] Unit tests for A1 notation helpers — `_parse_a1_notation`, `_column_index_to_letter`, `_letter_to_column_index`
+- [x] Unit tests for HTML↔Doc conversion (`_html_to_text`, `_html_to_doc_requests`)
+- [x] Unit tests for tool filtering — tools excluded when not in `ENABLED_TOOLS`
+- [ ] Formatting integration spike — explore `effectiveFormat` API response shape; determine fixture strategy; assess whether API-level assertions cover formatting without a browser
+- [ ] Integration tests — API-level smoke tests against a dedicated test Drive folder (service account)
+- [ ] OAuth integration tests — verify auth fallback chain and tool behavior under user credentials; needed for `create_doc`/`create_spreadsheet` in personal Drive
 
 ## Infrastructure / internal
 
 - [ ] Revisit cache persistence — all caches write JSON to `/tmp/*.json`; evaluate whether SQLite would be more appropriate as the number of cached entries grows
-- [ ] Open PR to xing5 from `upstream-observability` branch (structured logging, per-tool timing, `cache_discovery=False`) before fully cutting loose
+- [ ] PyPI publish — set up trusted publishing (OIDC), create package on PyPI, do a test release; CI workflow already written
+- [x] Open PR to xing5 from `upstream-observability` branch (structured logging, per-tool timing, `cache_discovery=False`) — [PR #79](https://github.com/xing5/mcp-google-sheets/pull/79)
 - [x] Fork repo and rename to `mcp-gee-sweet`; README credits xing5, freema, and piotr-agier
 
 ## Inspiration and credits
