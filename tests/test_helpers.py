@@ -76,12 +76,12 @@ class TestParseA1Notation:
         assert "startRowIndex" not in result
 
     def test_open_ended_range(self):
-        # B2:D — no end row specified; implementation fills endRowIndex from startRow
+        # B2:D — colon present but no end row; endRowIndex should be absent (open-ended)
         result = _parse_a1_notation("B2:D")
         assert result["startColumnIndex"] == 1
         assert result["startRowIndex"] == 1
         assert result["endColumnIndex"] == 4  # exclusive
-        assert result["endRowIndex"] == 2  # startRowIndex + 1 (single-row fallback)
+        assert "endRowIndex" not in result
 
     def test_multi_letter_column(self):
         result = _parse_a1_notation("AA1:AB2")
@@ -92,11 +92,9 @@ class TestParseA1Notation:
         with pytest.raises(ValueError):
             _parse_a1_notation("Sheet1!A1")
 
-    def test_invalid_empty_string_returns_empty_dict(self):
-        # Bug: empty string matches the all-optional regex and returns {} instead of raising.
-        # See: https://github.com/khuisman/mcp-gee-sweet/issues/11
-        result = _parse_a1_notation("")
-        assert result == {}
+    def test_invalid_empty_string_raises(self):
+        with pytest.raises(ValueError):
+            _parse_a1_notation("")
 
     def test_invalid_garbage_raises(self):
         with pytest.raises(ValueError):

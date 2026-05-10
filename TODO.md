@@ -4,7 +4,7 @@ Prioritized work queue. See [docs/roadmap.md](docs/roadmap.md) for full context 
 
 ## Up next
 
-1. **Fix A1 notation bugs** — `_parse_a1_notation` returns wrong `endRowIndex` for open-ended ranges (e.g. `B2:D`) and silently returns `{}` for empty string instead of raising. [Issue #11](https://github.com/khuisman/mcp-gee-sweet/issues/11)
+1. ~~**Fix A1 notation bugs**~~ ✓ — fixed open-ended range `endRowIndex` and empty-string raising. [Issue #11](https://github.com/khuisman/mcp-gee-sweet/issues/11)
 2. **SQLite cache migration** — replace `/tmp/*.json` file-backed caches with SQLite; unblocks cache unit tests
 3. **Cache unit tests** — after SQLite migration
 4. **PyPI publish** — set up trusted publishing (OIDC) on PyPI, do a test release; CI workflow already written
