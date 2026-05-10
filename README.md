@@ -107,7 +107,7 @@ You're ready! Start issuing commands via your MCP client.
 *   **Easy Deployment:** Run instantly with `uvx` (zero-install feel) or clone for development using `uv`.
 *   **AI-Ready:** Designed for use with MCP-compatible clients, enabling natural language spreadsheet and document interaction.
 *   **Tool Filtering:** Reduce context window usage by enabling only the tools you need with `--include-tools` or `ENABLED_TOOLS` environment variable.
-*   **Caching:** Sheet structure, sheet data, Drive folder listings, and Doc content are cached to reduce API calls and latency.
+*   **Caching:** Sheet structure, sheet data, Drive folder listings, and Doc content are cached in a local SQLite database to reduce API calls and latency. Cache location and TTL are configurable via environment variables.
 
 ---
 
@@ -442,6 +442,8 @@ The server checks for credentials in this order:
 | `CREDENTIALS_PATH`               | OAuth 2.0                   | Path to the OAuth 2.0 Client ID JSON file.                       | `credentials.json` |
 | `TOKEN_PATH`                     | OAuth 2.0                   | Path to store the generated OAuth token.                         | `token.json`       |
 | `CREDENTIALS_CONFIG`             | Service Account / OAuth 2.0 | Base64 encoded JSON string of credentials content.               | -                  |
+| `CACHE_DB_PATH`                  | Cache                       | Path to the SQLite cache database.                               | `/tmp/mcp_gee_sweet.db` |
+| `CACHE_TTL`                      | Cache                       | Cache time-to-live in seconds.                                   | `1800` (30 min)    |
 
 ---
 
