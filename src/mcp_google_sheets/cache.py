@@ -12,6 +12,7 @@ SHEET_DATA_CACHE_PATH = os.environ.get("SHEET_DATA_CACHE_PATH", "/tmp/mcp_sheet_
 DRIVE_FOLDER_CACHE_PATH = os.environ.get(
     "DRIVE_FOLDER_CACHE_PATH", "/tmp/mcp_drive_folder_cache.json"
 )
+DOC_CACHE_PATH = os.environ.get("DOC_CACHE_PATH", "/tmp/mcp_doc_cache.json")
 CACHE_TTL = int(os.environ.get("CACHE_TTL", "1800"))  # 30 minutes
 
 
@@ -264,6 +265,74 @@ class DriveFolderCache:
             entry["dirty"] = True
         self._save()
         logger.debug("Invalidated all drive folder cache entries")
+
+
+class DocContentCache:
+    """Caches Google Doc content keyed by file_id."""
+
+    def __init__(self, path: str = DOC_CACHE_PATH, ttl: int = CACHE_TTL):
+        self._path = path
+        self._ttl = ttl
+        self._data: dict = {}
+        self._load()
+
+    def _load(self):
+        try:
+            with open(self._path) as f:
+                self._data = json.load(f)
+            logger.debug("Loaded doc cache from %s (%d entries)", self._path, len(self._data))
+        except FileNotFoundError:
+            self._data = {}
+        except Exception as e:
+            logger.warning("Failed to load doc cache: %s", e)
+            self._data = {}
+
+    def _save(self):
+        try:
+            with open(self._path, "w") as f:
+                json.dump(self._data, f)
+        except Exception as e:
+            logger.warning("Failed to save doc cache: %s", e)  # best-effort, don't crash
+
+    def _is_valid(self, file_id: str) -> bool:
+        entry = self._data.get(file_id)
+        if entry is None:
+            return False
+        if entry.get("dirty", False):
+            return False
+        if time.time() - entry.get("fetched_at", 0) > self._ttl:
+            entry["dirty"] = True
+            self._save()
+            return False
+        return True
+
+    def get(self, file_id: str) -> dict | None:
+        """Returns cached doc response dict, or None on miss/dirty/expired."""
+        if not self._is_valid(file_id):
+            return None
+        logger.debug("Doc cache hit: %s", file_id)
+        return self._data[file_id]["doc"]
+
+    def store(self, file_id: str, doc: dict):
+        self._data[file_id] = {
+            "doc": doc,
+            "fetched_at": time.time(),
+            "dirty": False,
+        }
+        self._save()
+        logger.debug("Cached doc %s", file_id)
+
+    def mark_dirty(self, file_id: str):
+        if file_id in self._data:
+            self._data[file_id]["dirty"] = True
+            self._save()
+            logger.debug("Marked doc cache dirty for %s", file_id)
+
+    def mark_all_dirty(self):
+        for entry in self._data.values():
+            entry["dirty"] = True
+        self._save()
+        logger.debug("Invalidated all doc cache entries")
 
 
 def fetch_sheets(
