@@ -9,6 +9,9 @@ logger = logging.getLogger(__name__)
 
 CACHE_PATH = os.environ.get("CACHE_PATH", "/tmp/mcp_sheet_cache.json")
 SHEET_DATA_CACHE_PATH = os.environ.get("SHEET_DATA_CACHE_PATH", "/tmp/mcp_sheet_data_cache.json")
+DRIVE_FOLDER_CACHE_PATH = os.environ.get(
+    "DRIVE_FOLDER_CACHE_PATH", "/tmp/mcp_drive_folder_cache.json"
+)
 CACHE_TTL = int(os.environ.get("CACHE_TTL", "1800"))  # 30 minutes
 
 
@@ -187,6 +190,80 @@ class SheetDataCache:
                 entry["dirty"] = True
         self._save()
         logger.debug("Invalidated all sheet data cache entries")
+
+
+class DriveFolderCache:
+    """Caches Drive folder listings keyed by (folder_id, mime_type)."""
+
+    def __init__(self, path: str = DRIVE_FOLDER_CACHE_PATH, ttl: int = CACHE_TTL):
+        self._path = path
+        self._ttl = ttl
+        self._data: dict = {}
+        self._load()
+
+    def _load(self):
+        try:
+            with open(self._path) as f:
+                self._data = json.load(f)
+            logger.debug(
+                "Loaded drive folder cache from %s (%d entries)", self._path, len(self._data)
+            )
+        except FileNotFoundError:
+            self._data = {}
+        except Exception as e:
+            logger.warning("Failed to load drive folder cache: %s", e)
+            self._data = {}
+
+    def _save(self):
+        try:
+            with open(self._path, "w") as f:
+                json.dump(self._data, f)
+        except Exception as e:
+            logger.warning("Failed to save drive folder cache: %s", e)  # best-effort, don't crash
+
+    def _key(self, folder_id: str, mime_type: str | None) -> str:
+        return f"{folder_id}:{mime_type or ''}"
+
+    def _is_valid(self, folder_id: str, mime_type: str | None) -> bool:
+        entry = self._data.get(self._key(folder_id, mime_type))
+        if entry is None:
+            return False
+        if entry.get("dirty", False):
+            return False
+        if time.time() - entry.get("fetched_at", 0) > self._ttl:
+            entry["dirty"] = True
+            self._save()
+            return False
+        return True
+
+    def get(self, folder_id: str, mime_type: str | None) -> list | None:
+        """Returns cached file list, or None on miss/dirty/expired."""
+        if not self._is_valid(folder_id, mime_type):
+            return None
+        logger.debug("Drive folder cache hit: %s (mime=%s)", folder_id, mime_type)
+        return self._data[self._key(folder_id, mime_type)]["files"]
+
+    def store(self, folder_id: str, mime_type: str | None, files: list):
+        self._data[self._key(folder_id, mime_type)] = {
+            "files": files,
+            "fetched_at": time.time(),
+            "dirty": False,
+        }
+        self._save()
+        logger.debug("Cached %d files for folder %s (mime=%s)", len(files), folder_id, mime_type)
+
+    def mark_dirty(self, folder_id: str):
+        for key in list(self._data):
+            if key.startswith(f"{folder_id}:"):
+                self._data[key]["dirty"] = True
+        self._save()
+        logger.debug("Marked drive folder cache dirty for %s", folder_id)
+
+    def mark_all_dirty(self):
+        for entry in self._data.values():
+            entry["dirty"] = True
+        self._save()
+        logger.debug("Invalidated all drive folder cache entries")
 
 
 def fetch_sheets(

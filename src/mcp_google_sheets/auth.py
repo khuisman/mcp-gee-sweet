@@ -14,7 +14,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from mcp.server.fastmcp import FastMCP
 
-from .cache import SheetDataCache, SheetStructureCache
+from .cache import DriveFolderCache, SheetDataCache, SheetStructureCache
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ class SpreadsheetContext:
     folder_id: str | None = None
     cache: SheetStructureCache = field(default_factory=SheetStructureCache)
     sheet_data_cache: SheetDataCache = field(default_factory=SheetDataCache)
+    drive_folder_cache: DriveFolderCache = field(default_factory=DriveFolderCache)
 
 
 @asynccontextmanager
