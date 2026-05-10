@@ -1,9 +1,9 @@
 services:
-  mcp-google-sheets:
+  mcp-gee-sweet:
     build:
       context: .
       target: builder
-    command: ["uv", "run", "mcp-google-sheets", "--transport", "sse", "--reload"]
+    command: ["uv", "run", "mcp-gee-sweet", "--transport", "sse", "--reload"]
     ports:
       - "47000:8000"
     environment:

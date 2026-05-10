@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Run locally from the cloned repo:
 ```bash
-uv run mcp-google-sheets
-uv run mcp-google-sheets --transport sse   # SSE instead of stdio
+uv run mcp-gee-sweet
+uv run mcp-gee-sweet --transport sse   # SSE instead of stdio
 ```
 
 Build and publish:
@@ -18,18 +18,18 @@ uv sync        # install deps from uv.lock
 
 Docker:
 ```bash
-docker build -t mcp-google-sheets .
+docker build -t mcp-gee-sweet .
 docker run --rm -p 8000:8000 \
   -e CREDENTIALS_CONFIG=<base64> \
   -e DRIVE_FOLDER_ID=<id> \
-  mcp-google-sheets
+  mcp-gee-sweet
 ```
 
 There are no tests in this project.
 
 ## Architecture
 
-Logic is split across `src/mcp_google_sheets/`: `server.py` (MCP setup, tool decorator, resource), `auth.py` (lifespan, `SpreadsheetContext`), and `tools/` (one file per category: `read.py`, `write.py`, `sheets.py`, `drive.py`, `charts.py`). `__init__.py` just re-exports `main()`.
+Logic is split across `src/mcp_gee_sweet/`: `server.py` (MCP setup, tool decorator, resource), `auth.py` (lifespan, `SpreadsheetContext`), and `tools/` (one file per category: `read.py`, `write.py`, `sheets.py`, `drive.py`, `charts.py`). `__init__.py` just re-exports `main()`.
 
 **Startup / auth** (`spreadsheet_lifespan`): FastMCP lifespan context manager that authenticates on server start and injects a `SpreadsheetContext` (holding `sheets_service` and `drive_service`) into every tool call via `ctx.request_context.lifespan_context`. Auth is attempted in priority order: `CREDENTIALS_CONFIG` (base64 service account) → `SERVICE_ACCOUNT_PATH` → OAuth flow (`CREDENTIALS_PATH`/`TOKEN_PATH`) → Application Default Credentials.
 
@@ -45,5 +45,5 @@ Logic is split across `src/mcp_google_sheets/`: `server.py` (MCP setup, tool dec
 
 ## Development workflow
 
-**MCP restart**: After `docker compose restart mcp-google-sheets`, Claude Code does not automatically reconnect to the SSE server — you must restart Claude Code too to re-establish the connection.
+**MCP restart**: After `docker compose restart mcp-gee-sweet`, Claude Code does not automatically reconnect to the SSE server — you must restart Claude Code too to re-establish the connection.
 

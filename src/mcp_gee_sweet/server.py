@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 logging.getLogger("sse_starlette.sse").setLevel(logging.WARNING)  # suppress keepalive ping noise
 # Give our package a direct handler so uvicorn's dictConfig can't suppress DEBUG output.
 if os.getenv("DEBUG"):
-    _pkg_logger = logging.getLogger("mcp_google_sheets")
+    _pkg_logger = logging.getLogger("mcp_gee_sweet")
     _pkg_logger.setLevel(logging.DEBUG)
     _h = logging.StreamHandler(sys.stderr)
     _h.setLevel(logging.DEBUG)
@@ -149,7 +149,7 @@ def main():
         import uvicorn
 
         uvicorn.run(
-            "mcp_google_sheets.server:app",
+            "mcp_gee_sweet.server:app",
             host=_resolved_host,
             port=_resolved_port,
             reload=True,
