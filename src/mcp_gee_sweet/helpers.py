@@ -28,13 +28,19 @@ def _parse_a1_notation(range_str: str) -> dict[str, int]:
 
     Returns a dict with applicable keys: startRowIndex, endRowIndex,
     startColumnIndex, endColumnIndex. Not all keys present for all formats.
+    Open-ended ranges (e.g. "B2:D") omit endRowIndex so the API treats them
+    as extending to the last row of the sheet.
     """
+    if not range_str:
+        raise ValueError("Invalid A1 notation: empty string")
+
     match = re.match(r"^([A-Z]+)?(\d+)?(?::([A-Z]+)?(\d+)?)?$", range_str.upper())
 
     if not match:
         raise ValueError(f"Invalid A1 notation: {range_str}")
 
     start_col, start_row, end_col, end_row = match.groups()
+    has_colon = ":" in range_str
     result = {}
 
     if start_col:
@@ -43,11 +49,13 @@ def _parse_a1_notation(range_str: str) -> dict[str, int]:
         result["startRowIndex"] = int(start_row) - 1  # A1 is 1-based, API is 0-based
     if end_col:
         result["endColumnIndex"] = _letter_to_column_index(end_col) + 1  # exclusive
-    elif start_col:
+    elif start_col and not has_colon:
+        # Single cell or bare column — close the range to one column
         result["endColumnIndex"] = result["startColumnIndex"] + 1
     if end_row:
         result["endRowIndex"] = int(end_row)  # already exclusive
-    elif start_row:
+    elif start_row and not has_colon:
+        # Single cell or bare row — close the range to one row
         result["endRowIndex"] = result["startRowIndex"] + 1
 
     return result

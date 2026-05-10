@@ -687,7 +687,7 @@ Google Sheets Spreadsheet ID:
 
 Google Docs Document ID:
   https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms/edit
-                                     └───────────── Document ID ──────────────┘
+                                     └─────────────── Document ID ──────────────┘
 ```
 
 ---
