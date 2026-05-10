@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Create Spreadsheet", destructiveHint=True))
-    def create_spreadsheet(title: str,
-                           folder_id: Optional[str] = None,
-                           ctx: Context = None) -> Dict[str, Any]:
+    def create_spreadsheet(
+        title: str, folder_id: str | None = None, ctx: Context = None
+    ) -> dict[str, Any]:
         """
         Create a new Google Spreadsheet.
 
@@ -28,32 +28,36 @@ def register(tool):
         target_folder_id = folder_id or ctx.request_context.lifespan_context.folder_id
 
         file_body = {
-            'name': title,
-            'mimeType': 'application/vnd.google-apps.spreadsheet',
+            "name": title,
+            "mimeType": "application/vnd.google-apps.spreadsheet",
         }
         if target_folder_id:
-            file_body['parents'] = [target_folder_id]
+            file_body["parents"] = [target_folder_id]
 
-        spreadsheet = drive_service.files().create(
-            supportsAllDrives=True,
-            body=file_body,
-            fields='id, name, parents'
-        ).execute()
+        spreadsheet = (
+            drive_service.files()
+            .create(supportsAllDrives=True, body=file_body, fields="id, name, parents")
+            .execute()
+        )
 
-        spreadsheet_id = spreadsheet.get('id')
-        parents = spreadsheet.get('parents')
-        logger.debug("Spreadsheet created with ID: %s%s", spreadsheet_id,
-                     f" in folder {target_folder_id}" if target_folder_id else " in root")
+        spreadsheet_id = spreadsheet.get("id")
+        parents = spreadsheet.get("parents")
+        logger.debug(
+            "Spreadsheet created with ID: %s%s",
+            spreadsheet_id,
+            f" in folder {target_folder_id}" if target_folder_id else " in root",
+        )
 
         return {
-            'spreadsheetId': spreadsheet_id,
-            'title': spreadsheet.get('name', title),
-            'folder': parents[0] if parents else 'root',
+            "spreadsheetId": spreadsheet_id,
+            "title": spreadsheet.get("name", title),
+            "folder": parents[0] if parents else "root",
         }
 
     @tool(annotations=ToolAnnotations(title="List Spreadsheets", readOnlyHint=True))
-    def list_spreadsheets(folder_id: Optional[str] = None,
-                          ctx: Context = None) -> List[Dict[str, str]]:
+    def list_spreadsheets(
+        folder_id: str | None = None, ctx: Context = None
+    ) -> list[dict[str, str]]:
         """
         List all spreadsheets in the specified Google Drive folder.
         If no folder is specified, uses the configured default folder or lists from 'My Drive'.
@@ -75,22 +79,28 @@ def register(tool):
         else:
             logger.debug("Searching for spreadsheets in 'My Drive'")
 
-        results = drive_service.files().list(
-            q=query,
-            spaces='drive',
-            includeItemsFromAllDrives=True,
-            supportsAllDrives=True,
-            fields='files(id, name)',
-            orderBy='modifiedTime desc'
-        ).execute()
+        results = (
+            drive_service.files()
+            .list(
+                q=query,
+                spaces="drive",
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                fields="files(id, name)",
+                orderBy="modifiedTime desc",
+            )
+            .execute()
+        )
 
-        return [{'id': f['id'], 'title': f['name']} for f in results.get('files', [])]
+        return [{"id": f["id"], "title": f["name"]} for f in results.get("files", [])]
 
     @tool(annotations=ToolAnnotations(title="Share Spreadsheet", destructiveHint=True))
-    def share_spreadsheet(spreadsheet_id: str,
-                          recipients: List[Dict[str, str]],
-                          send_notification: bool = True,
-                          ctx: Context = None) -> Dict[str, List[Dict[str, Any]]]:
+    def share_spreadsheet(
+        spreadsheet_id: str,
+        recipients: list[dict[str, str]],
+        send_notification: bool = True,
+        ctx: Context = None,
+    ) -> dict[str, list[dict[str, Any]]]:
         """
         Share a Google Spreadsheet with multiple users via email, assigning specific roles.
 
@@ -113,41 +123,56 @@ def register(tool):
         failures = []
 
         for recipient in recipients:
-            email_address = recipient.get('email_address')
-            role = recipient.get('role', 'writer')
+            email_address = recipient.get("email_address")
+            role = recipient.get("role", "writer")
 
             if not email_address:
-                failures.append({'email_address': None, 'error': 'Missing email_address in recipient entry.'})
+                failures.append(
+                    {"email_address": None, "error": "Missing email_address in recipient entry."}
+                )
                 continue
 
-            if role not in ['reader', 'commenter', 'writer']:
-                failures.append({'email_address': email_address,
-                                 'error': f"Invalid role '{role}'. Must be 'reader', 'commenter', or 'writer'."})
+            if role not in ["reader", "commenter", "writer"]:
+                failures.append(
+                    {
+                        "email_address": email_address,
+                        "error": f"Invalid role '{role}'. Must be 'reader', 'commenter', or 'writer'.",
+                    }
+                )
                 continue
 
             try:
-                result = drive_service.permissions().create(
-                    fileId=spreadsheet_id,
-                    body={'type': 'user', 'role': role, 'emailAddress': email_address},
-                    sendNotificationEmail=send_notification,
-                    fields='id'
-                ).execute()
-                successes.append({'email_address': email_address, 'role': role, 'permissionId': result.get('id')})
+                result = (
+                    drive_service.permissions()
+                    .create(
+                        fileId=spreadsheet_id,
+                        body={"type": "user", "role": role, "emailAddress": email_address},
+                        sendNotificationEmail=send_notification,
+                        fields="id",
+                    )
+                    .execute()
+                )
+                successes.append(
+                    {"email_address": email_address, "role": role, "permissionId": result.get("id")}
+                )
             except Exception as e:
                 error_details = str(e)
-                if hasattr(e, 'content'):
+                if hasattr(e, "content"):
                     try:
                         error_content = json.loads(e.content)
-                        error_details = error_content.get('error', {}).get('message', error_details)
+                        error_details = error_content.get("error", {}).get("message", error_details)
                     except json.JSONDecodeError:
                         pass
-                failures.append({'email_address': email_address, 'error': f"Failed to share: {error_details}"})
+                failures.append(
+                    {"email_address": email_address, "error": f"Failed to share: {error_details}"}
+                )
 
         return {"successes": successes, "failures": failures}
 
     @tool(annotations=ToolAnnotations(title="List Folders", readOnlyHint=True))
-    def list_folders(parent_folder_id: Optional[str] = None,
-                     ctx: Context = None) -> List[Dict[str, str]]:
+    def list_folders(
+        parent_folder_id: str | None = None, ctx: Context = None
+    ) -> list[dict[str, str]]:
         """
         List all folders in the specified Google Drive folder.
         If no parent folder is specified, lists folders from 'My Drive' root.
@@ -169,28 +194,36 @@ def register(tool):
             query += " and 'root' in parents"
             logger.debug("Searching for folders in 'My Drive' root")
 
-        results = drive_service.files().list(
-            q=query,
-            spaces='drive',
-            includeItemsFromAllDrives=True,
-            supportsAllDrives=True,
-            fields='files(id, name, parents)',
-            orderBy='name'
-        ).execute()
+        results = (
+            drive_service.files()
+            .list(
+                q=query,
+                spaces="drive",
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                fields="files(id, name, parents)",
+                orderBy="name",
+            )
+            .execute()
+        )
 
         return [
             {
-                'id': f['id'],
-                'name': f['name'],
-                'parent': f.get('parents', ['root'])[0] if f.get('parents') else 'root'
+                "id": f["id"],
+                "name": f["name"],
+                "parent": f.get("parents", ["root"])[0] if f.get("parents") else "root",
             }
-            for f in results.get('files', [])
+            for f in results.get("files", [])
         ]
 
-    @tool(annotations=ToolAnnotations(title="Search Spreadsheets by Name or Content", readOnlyHint=True))
-    def search_spreadsheets(query: str,
-                            max_results: int = 20,
-                            ctx: Context = None) -> List[Dict[str, Any]]:
+    @tool(
+        annotations=ToolAnnotations(
+            title="Search Spreadsheets by Name or Content", readOnlyHint=True
+        )
+    )
+    def search_spreadsheets(
+        query: str, max_results: int = 20, ctx: Context = None
+    ) -> list[dict[str, Any]]:
         """
         Search for spreadsheets in Google Drive by name or content.
 
@@ -211,26 +244,30 @@ def register(tool):
         )
 
         try:
-            results = drive_service.files().list(
-                q=search_query,
-                pageSize=max_results,
-                spaces='drive',
-                includeItemsFromAllDrives=True,
-                supportsAllDrives=True,
-                fields='files(id, name, createdTime, modifiedTime, owners, webViewLink)',
-                orderBy='modifiedTime desc'
-            ).execute()
+            results = (
+                drive_service.files()
+                .list(
+                    q=search_query,
+                    pageSize=max_results,
+                    spaces="drive",
+                    includeItemsFromAllDrives=True,
+                    supportsAllDrives=True,
+                    fields="files(id, name, createdTime, modifiedTime, owners, webViewLink)",
+                    orderBy="modifiedTime desc",
+                )
+                .execute()
+            )
 
             return [
                 {
-                    'id': f['id'],
-                    'name': f['name'],
-                    'created_time': f.get('createdTime'),
-                    'modified_time': f.get('modifiedTime'),
-                    'owners': [owner.get('emailAddress') for owner in f.get('owners', [])],
-                    'web_link': f.get('webViewLink')
+                    "id": f["id"],
+                    "name": f["name"],
+                    "created_time": f.get("createdTime"),
+                    "modified_time": f.get("modifiedTime"),
+                    "owners": [owner.get("emailAddress") for owner in f.get("owners", [])],
+                    "web_link": f.get("webViewLink"),
                 }
-                for f in results.get('files', [])
+                for f in results.get("files", [])
             ]
         except Exception as e:
-            return [{'error': f'Search failed: {str(e)}'}]
+            return [{"error": f"Search failed: {e!s}"}]

@@ -1,16 +1,16 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+from ..helpers import _get_sheet_id
+
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Update Cells", destructiveHint=True))
-    def update_cells(spreadsheet_id: str,
-                     sheet: str,
-                     range: str,
-                     data: List[List[Any]],
-                     ctx: Context = None) -> Dict[str, Any]:
+    def update_cells(
+        spreadsheet_id: str, sheet: str, range: str, data: list[list[Any]], ctx: Context = None
+    ) -> dict[str, Any]:
         """
         Update cells in a Google Spreadsheet.
 
@@ -25,20 +25,24 @@ def register(tool):
         """
         sheets_service = ctx.request_context.lifespan_context.sheets_service
 
-        result = sheets_service.spreadsheets().values().update(
-            spreadsheetId=spreadsheet_id,
-            range=f"{sheet}!{range}",
-            valueInputOption='USER_ENTERED',
-            body={'values': data}
-        ).execute()
+        result = (
+            sheets_service.spreadsheets()
+            .values()
+            .update(
+                spreadsheetId=spreadsheet_id,
+                range=f"{sheet}!{range}",
+                valueInputOption="USER_ENTERED",
+                body={"values": data},
+            )
+            .execute()
+        )
 
         return result
 
     @tool(annotations=ToolAnnotations(title="Batch Update Cells", destructiveHint=True))
-    def batch_update_cells(spreadsheet_id: str,
-                           sheet: str,
-                           ranges: Dict[str, List[List[Any]]],
-                           ctx: Context = None) -> Dict[str, Any]:
+    def batch_update_cells(
+        spreadsheet_id: str, sheet: str, ranges: dict[str, list[list[Any]]], ctx: Context = None
+    ) -> dict[str, Any]:
         """
         Batch update multiple ranges in a Google Spreadsheet.
 
@@ -54,23 +58,30 @@ def register(tool):
         sheets_service = ctx.request_context.lifespan_context.sheets_service
 
         data = [
-            {'range': f"{sheet}!{range_str}", 'values': values}
+            {"range": f"{sheet}!{range_str}", "values": values}
             for range_str, values in ranges.items()
         ]
 
-        result = sheets_service.spreadsheets().values().batchUpdate(
-            spreadsheetId=spreadsheet_id,
-            body={'valueInputOption': 'USER_ENTERED', 'data': data}
-        ).execute()
+        result = (
+            sheets_service.spreadsheets()
+            .values()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"valueInputOption": "USER_ENTERED", "data": data},
+            )
+            .execute()
+        )
 
         return result
 
     @tool(annotations=ToolAnnotations(title="Add Rows", destructiveHint=True))
-    def add_rows(spreadsheet_id: str,
-                 sheet: str,
-                 count: int,
-                 start_row: Optional[int] = None,
-                 ctx: Context = None) -> Dict[str, Any]:
+    def add_rows(
+        spreadsheet_id: str,
+        sheet: str,
+        count: int,
+        start_row: int | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
         """
         Add rows to a sheet in a Google Spreadsheet.
 
@@ -83,40 +94,47 @@ def register(tool):
         Returns:
             Result of the operation
         """
-        sheets_service = ctx.request_context.lifespan_context.sheets_service
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
 
-        spreadsheet = sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
-        sheet_id = next(
-            (s['properties']['sheetId'] for s in spreadsheet['sheets']
-             if s['properties']['title'] == sheet),
-            None
-        )
-
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
         start = start_row if start_row is not None else 0
-        result = sheets_service.spreadsheets().batchUpdate(
-            spreadsheetId=spreadsheet_id,
-            body={"requests": [{"insertDimension": {
-                "range": {
-                    "sheetId": sheet_id,
-                    "dimension": "ROWS",
-                    "startIndex": start,
-                    "endIndex": start + count
+        result = (
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "insertDimension": {
+                                "range": {
+                                    "sheetId": sheet_id,
+                                    "dimension": "ROWS",
+                                    "startIndex": start,
+                                    "endIndex": start + count,
+                                },
+                                "inheritFromBefore": start_row is not None and start_row > 0,
+                            }
+                        }
+                    ]
                 },
-                "inheritFromBefore": start_row is not None and start_row > 0
-            }}]}
-        ).execute()
+            )
+            .execute()
+        )
 
         return result
 
     @tool(annotations=ToolAnnotations(title="Add Columns", destructiveHint=True))
-    def add_columns(spreadsheet_id: str,
-                    sheet: str,
-                    count: int,
-                    start_column: Optional[int] = None,
-                    ctx: Context = None) -> Dict[str, Any]:
+    def add_columns(
+        spreadsheet_id: str,
+        sheet: str,
+        count: int,
+        start_column: int | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
         """
         Add columns to a sheet in a Google Spreadsheet.
 
@@ -129,38 +147,43 @@ def register(tool):
         Returns:
             Result of the operation
         """
-        sheets_service = ctx.request_context.lifespan_context.sheets_service
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
 
-        spreadsheet = sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
-        sheet_id = next(
-            (s['properties']['sheetId'] for s in spreadsheet['sheets']
-             if s['properties']['title'] == sheet),
-            None
-        )
-
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
         start = start_column if start_column is not None else 0
-        result = sheets_service.spreadsheets().batchUpdate(
-            spreadsheetId=spreadsheet_id,
-            body={"requests": [{"insertDimension": {
-                "range": {
-                    "sheetId": sheet_id,
-                    "dimension": "COLUMNS",
-                    "startIndex": start,
-                    "endIndex": start + count
+        result = (
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "insertDimension": {
+                                "range": {
+                                    "sheetId": sheet_id,
+                                    "dimension": "COLUMNS",
+                                    "startIndex": start,
+                                    "endIndex": start + count,
+                                },
+                                "inheritFromBefore": start_column is not None and start_column > 0,
+                            }
+                        }
+                    ]
                 },
-                "inheritFromBefore": start_column is not None and start_column > 0
-            }}]}
-        ).execute()
+            )
+            .execute()
+        )
 
         return result
 
     @tool(annotations=ToolAnnotations(title="Batch Update", destructiveHint=True))
-    def batch_update(spreadsheet_id: str,
-                     requests: List[Dict[str, Any]],
-                     ctx: Context = None) -> Dict[str, Any]:
+    def batch_update(
+        spreadsheet_id: str, requests: list[dict[str, Any]], ctx: Context = None
+    ) -> dict[str, Any]:
         """
         Execute a batch update on a Google Spreadsheet using the full batchUpdate endpoint.
         This provides access to all batchUpdate operations including adding sheets, updating properties,
@@ -221,9 +244,10 @@ def register(tool):
         if not all(isinstance(req, dict) for req in requests):
             return {"error": "Each request must be a dictionary"}
 
-        result = sheets_service.spreadsheets().batchUpdate(
-            spreadsheetId=spreadsheet_id,
-            body={"requests": requests}
-        ).execute()
+        result = (
+            sheets_service.spreadsheets()
+            .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
+            .execute()
+        )
 
         return result

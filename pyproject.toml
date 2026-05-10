@@ -33,3 +33,17 @@ fallback-version = "0.0.0"
 
 [project.scripts]
 mcp-google-sheets = "mcp_google_sheets:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.0",
+    "ruff>=0.15.12",
+]

@@ -1,27 +1,29 @@
-from typing import Any, Dict, Optional
+from typing import Any
 
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
 from ..helpers import _get_sheet_id, _parse_a1_notation
 
-_VALID_CHART_TYPES = ['COLUMN', 'BAR', 'LINE', 'AREA', 'PIE', 'SCATTER', 'COMBO', 'HISTOGRAM']
+_VALID_CHART_TYPES = ["COLUMN", "BAR", "LINE", "AREA", "PIE", "SCATTER", "COMBO", "HISTOGRAM"]
 
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Add Chart", destructiveHint=True))
-    def add_chart(spreadsheet_id: str,
-                  sheet: str,
-                  chart_type: str,
-                  data_range: str,
-                  title: Optional[str] = None,
-                  x_axis_label: Optional[str] = None,
-                  y_axis_label: Optional[str] = None,
-                  position_x: int = 0,
-                  position_y: int = 0,
-                  width: int = 600,
-                  height: int = 400,
-                  ctx: Context = None) -> Dict[str, Any]:
+    def add_chart(
+        spreadsheet_id: str,
+        sheet: str,
+        chart_type: str,
+        data_range: str,
+        title: str | None = None,
+        x_axis_label: str | None = None,
+        y_axis_label: str | None = None,
+        position_x: int = 0,
+        position_y: int = 0,
+        width: int = 600,
+        height: int = 400,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
         """
         Add a chart to a Google Spreadsheet.
 
@@ -74,13 +76,16 @@ def register(tool):
                 title="Market Share by Product"
             )
         """
-        sheets_service = ctx.request_context.lifespan_context.sheets_service
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
 
         chart_type = chart_type.upper()
         if chart_type not in _VALID_CHART_TYPES:
-            return {"error": f"Invalid chart type '{chart_type}'. Must be one of: {', '.join(_VALID_CHART_TYPES)}"}
+            return {
+                "error": f"Invalid chart type '{chart_type}'. Must be one of: {', '.join(_VALID_CHART_TYPES)}"
+            }
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet)
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found in spreadsheet"}
 
@@ -96,7 +101,7 @@ def register(tool):
                 "pieChart": {
                     "legendPosition": "RIGHT_LEGEND",
                     "domain": {"sourceRange": {"sources": [source_range]}},
-                    "series": {"sourceRange": {"sources": [source_range]}}
+                    "series": {"sourceRange": {"sources": [source_range]}},
                 }
             }
             if title:
@@ -108,8 +113,13 @@ def register(tool):
                     "legendPosition": "RIGHT_LEGEND",
                     "axis": [],
                     "domains": [{"domain": {"sourceRange": {"sources": [source_range]}}}],
-                    "series": [{"series": {"sourceRange": {"sources": [source_range]}}, "targetAxis": "LEFT_AXIS"}],
-                    "headerCount": 1
+                    "series": [
+                        {
+                            "series": {"sourceRange": {"sources": [source_range]}},
+                            "targetAxis": "LEFT_AXIS",
+                        }
+                    ],
+                    "headerCount": 1,
                 }
             }
             if title:
@@ -119,34 +129,57 @@ def register(tool):
             # allows the API to automatically interpret the first column as the domain (X-axis labels)
             # and subsequent columns as data series (Y-axis values).
             chart_spec["basicChart"]["axis"].append(
-                {"position": "BOTTOM_AXIS", "title": x_axis_label} if x_axis_label
+                {"position": "BOTTOM_AXIS", "title": x_axis_label}
+                if x_axis_label
                 else {"position": "BOTTOM_AXIS"}
             )
             chart_spec["basicChart"]["axis"].append(
-                {"position": "LEFT_AXIS", "title": y_axis_label} if y_axis_label
+                {"position": "LEFT_AXIS", "title": y_axis_label}
+                if y_axis_label
                 else {"position": "LEFT_AXIS"}
             )
 
         try:
-            result = sheets_service.spreadsheets().batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={"requests": [{"addChart": {"chart": {
-                    "spec": chart_spec,
-                    "position": {"overlayPosition": {
-                        "anchorCell": {"sheetId": sheet_id, "rowIndex": 0, "columnIndex": 0},
-                        "offsetXPixels": position_x,
-                        "offsetYPixels": position_y,
-                        "widthPixels": width,
-                        "heightPixels": height
-                    }}
-                }}}]}
-            ).execute()
+            result = (
+                sheets_service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={
+                        "requests": [
+                            {
+                                "addChart": {
+                                    "chart": {
+                                        "spec": chart_spec,
+                                        "position": {
+                                            "overlayPosition": {
+                                                "anchorCell": {
+                                                    "sheetId": sheet_id,
+                                                    "rowIndex": 0,
+                                                    "columnIndex": 0,
+                                                },
+                                                "offsetXPixels": position_x,
+                                                "offsetYPixels": position_y,
+                                                "widthPixels": width,
+                                                "heightPixels": height,
+                                            }
+                                        },
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                )
+                .execute()
+            )
 
             return {
                 "success": True,
                 "message": f"Chart '{title or chart_type}' added successfully",
-                "chartId": result.get('replies', [{}])[0].get('addChart', {}).get('chart', {}).get('chartId'),
-                "result": result
+                "chartId": result.get("replies", [{}])[0]
+                .get("addChart", {})
+                .get("chart", {})
+                .get("chartId"),
+                "result": result,
             }
         except Exception as e:
-            return {"error": f"Failed to add chart: {str(e)}"}
+            return {"error": f"Failed to add chart: {e!s}"}

@@ -28,6 +28,16 @@ logs: ## Tail container logs.
 sh: ## Open a shell in the container.
 	docker compose exec mcp-google-sheets bash
 
+.PHONY: lint
+lint: ## Run ruff linter and formatter, fixing issues in place.
+	uv run ruff check --fix src/
+	uv run ruff format src/
+
+.PHONY: lint-extra
+lint-extra: ## Run extended ruff rules (bugbear, pyupgrade, simplify) with fixes.
+	uv run ruff check --fix --extend-select B,UP,SIM,RUF src/
+	uv run ruff format src/
+
 # Self-documenting help
 # https://www.freecodecamp.org/news/self-documenting-makefile/
 .PHONY: help

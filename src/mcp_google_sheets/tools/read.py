@@ -1,18 +1,21 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+from ..cache import fetch_sheets
 from ..helpers import _column_index_to_letter
 
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Get Sheet Data", readOnlyHint=True))
-    def get_sheet_data(spreadsheet_id: str,
-                       sheet: str,
-                       range: Optional[str] = None,
-                       include_grid_data: bool = False,
-                       ctx: Context = None) -> Dict[str, Any]:
+    def get_sheet_data(
+        spreadsheet_id: str,
+        sheet: str,
+        range: str | None = None,
+        include_grid_data: bool = False,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
         """
         Get data from a specific sheet in a Google Spreadsheet.
 
@@ -33,28 +36,29 @@ def register(tool):
         full_range = f"{sheet}!{range}" if range else sheet
 
         if include_grid_data:
-            result = sheets_service.spreadsheets().get(
-                spreadsheetId=spreadsheet_id,
-                ranges=[full_range],
-                includeGridData=True
-            ).execute()
+            result = (
+                sheets_service.spreadsheets()
+                .get(spreadsheetId=spreadsheet_id, ranges=[full_range], includeGridData=True)
+                .execute()
+            )
         else:
-            values_result = sheets_service.spreadsheets().values().get(
-                spreadsheetId=spreadsheet_id,
-                range=full_range
-            ).execute()
+            values_result = (
+                sheets_service.spreadsheets()
+                .values()
+                .get(spreadsheetId=spreadsheet_id, range=full_range)
+                .execute()
+            )
             result = {
-                'spreadsheetId': spreadsheet_id,
-                'valueRanges': [{'range': full_range, 'values': values_result.get('values', [])}]
+                "spreadsheetId": spreadsheet_id,
+                "valueRanges": [{"range": full_range, "values": values_result.get("values", [])}],
             }
 
         return result
 
     @tool(annotations=ToolAnnotations(title="Get Sheet Formulas", readOnlyHint=True))
-    def get_sheet_formulas(spreadsheet_id: str,
-                           sheet: str,
-                           range: Optional[str] = None,
-                           ctx: Context = None) -> List[List[Any]]:
+    def get_sheet_formulas(
+        spreadsheet_id: str, sheet: str, range: str | None = None, ctx: Context = None
+    ) -> list[list[Any]]:
         """
         Get formulas from a specific sheet in a Google Spreadsheet.
 
@@ -70,17 +74,19 @@ def register(tool):
 
         full_range = f"{sheet}!{range}" if range else sheet
 
-        result = sheets_service.spreadsheets().values().get(
-            spreadsheetId=spreadsheet_id,
-            range=full_range,
-            valueRenderOption='FORMULA'
-        ).execute()
+        result = (
+            sheets_service.spreadsheets()
+            .values()
+            .get(spreadsheetId=spreadsheet_id, range=full_range, valueRenderOption="FORMULA")
+            .execute()
+        )
 
-        return result.get('values', [])
+        return result.get("values", [])
 
     @tool(annotations=ToolAnnotations(title="Get Multiple Sheet Data", readOnlyHint=True))
-    def get_multiple_sheet_data(queries: List[Dict[str, str]],
-                                ctx: Context = None) -> List[Dict[str, Any]]:
+    def get_multiple_sheet_data(
+        queries: list[dict[str, str]], ctx: Context = None
+    ) -> list[dict[str, Any]]:
         """
         Get data from multiple specific ranges in Google Spreadsheets.
 
@@ -98,30 +104,34 @@ def register(tool):
         results = []
 
         for query in queries:
-            spreadsheet_id = query.get('spreadsheet_id')
-            sheet = query.get('sheet')
-            range_str = query.get('range')
+            spreadsheet_id = query.get("spreadsheet_id")
+            sheet = query.get("sheet")
+            range_str = query.get("range")
 
             if not all([spreadsheet_id, sheet, range_str]):
-                results.append({**query, 'error': 'Missing required keys (spreadsheet_id, sheet, range)'})
+                results.append(
+                    {**query, "error": "Missing required keys (spreadsheet_id, sheet, range)"}
+                )
                 continue
 
             try:
                 full_range = f"{sheet}!{range_str}"
-                result = sheets_service.spreadsheets().values().get(
-                    spreadsheetId=spreadsheet_id,
-                    range=full_range
-                ).execute()
-                results.append({**query, 'data': result.get('values', [])})
+                result = (
+                    sheets_service.spreadsheets()
+                    .values()
+                    .get(spreadsheetId=spreadsheet_id, range=full_range)
+                    .execute()
+                )
+                results.append({**query, "data": result.get("values", [])})
             except Exception as e:
-                results.append({**query, 'error': str(e)})
+                results.append({**query, "error": str(e)})
 
         return results
 
     @tool(annotations=ToolAnnotations(title="Get Multiple Spreadsheet Summary", readOnlyHint=True))
-    def get_multiple_spreadsheet_summary(spreadsheet_ids: List[str],
-                                         rows_to_fetch: int = 5,
-                                         ctx: Context = None) -> List[Dict[str, Any]]:
+    def get_multiple_spreadsheet_summary(
+        spreadsheet_ids: list[str], rows_to_fetch: int = 5, ctx: Context = None
+    ) -> list[dict[str, Any]]:
         """
         Get a summary of multiple Google Spreadsheets, including sheet names,
         headers, and the first few rows of data for each sheet.
@@ -139,69 +149,81 @@ def register(tool):
 
         for spreadsheet_id in spreadsheet_ids:
             summary_data = {
-                'spreadsheet_id': spreadsheet_id,
-                'title': None,
-                'sheets': [],
-                'error': None
+                "spreadsheet_id": spreadsheet_id,
+                "title": None,
+                "sheets": [],
+                "error": None,
             }
             try:
-                spreadsheet = sheets_service.spreadsheets().get(
-                    spreadsheetId=spreadsheet_id,
-                    fields='properties.title,sheets(properties(title,sheetId))'
-                ).execute()
+                spreadsheet = (
+                    sheets_service.spreadsheets()
+                    .get(
+                        spreadsheetId=spreadsheet_id,
+                        fields="properties.title,sheets(properties(title,sheetId))",
+                    )
+                    .execute()
+                )
 
-                summary_data['title'] = spreadsheet.get('properties', {}).get('title', 'Unknown Title')
+                summary_data["title"] = spreadsheet.get("properties", {}).get(
+                    "title", "Unknown Title"
+                )
                 sheet_summaries = []
 
-                for sheet in spreadsheet.get('sheets', []):
-                    sheet_title = sheet.get('properties', {}).get('title')
-                    sheet_id = sheet.get('properties', {}).get('sheetId')
+                for sheet in spreadsheet.get("sheets", []):
+                    sheet_title = sheet.get("properties", {}).get("title")
+                    sheet_id = sheet.get("properties", {}).get("sheetId")
                     sheet_summary = {
-                        'title': sheet_title,
-                        'sheet_id': sheet_id,
-                        'headers': [],
-                        'first_rows': [],
-                        'error': None
+                        "title": sheet_title,
+                        "sheet_id": sheet_id,
+                        "headers": [],
+                        "first_rows": [],
+                        "error": None,
                     }
 
                     if not sheet_title:
-                        sheet_summary['error'] = 'Sheet title not found'
+                        sheet_summary["error"] = "Sheet title not found"
                         sheet_summaries.append(sheet_summary)
                         continue
 
                     try:
                         max_row = max(1, rows_to_fetch)
                         range_to_get = f"{sheet_title}!A1:{max_row}"
-                        result = sheets_service.spreadsheets().values().get(
-                            spreadsheetId=spreadsheet_id,
-                            range=range_to_get
-                        ).execute()
-                        values = result.get('values', [])
+                        result = (
+                            sheets_service.spreadsheets()
+                            .values()
+                            .get(spreadsheetId=spreadsheet_id, range=range_to_get)
+                            .execute()
+                        )
+                        values = result.get("values", [])
                         if values:
-                            sheet_summary['headers'] = values[0]
+                            sheet_summary["headers"] = values[0]
                             if len(values) > 1:
-                                sheet_summary['first_rows'] = values[1:max_row]
+                                sheet_summary["first_rows"] = values[1:max_row]
                     except Exception as sheet_e:
-                        sheet_summary['error'] = f'Error fetching data for sheet {sheet_title}: {sheet_e}'
+                        sheet_summary["error"] = (
+                            f"Error fetching data for sheet {sheet_title}: {sheet_e}"
+                        )
 
                     sheet_summaries.append(sheet_summary)
 
-                summary_data['sheets'] = sheet_summaries
+                summary_data["sheets"] = sheet_summaries
 
             except Exception as e:
-                summary_data['error'] = f'Error fetching spreadsheet {spreadsheet_id}: {e}'
+                summary_data["error"] = f"Error fetching spreadsheet {spreadsheet_id}: {e}"
 
             summaries.append(summary_data)
 
         return summaries
 
     @tool(annotations=ToolAnnotations(title="Find Cells", readOnlyHint=True))
-    def find_in_spreadsheet(spreadsheet_id: str,
-                            query: str,
-                            sheet: Optional[str] = None,
-                            case_sensitive: bool = False,
-                            max_results: int = 50,
-                            ctx: Context = None) -> List[Dict[str, Any]]:
+    def find_in_spreadsheet(
+        spreadsheet_id: str,
+        query: str,
+        sheet: str | None = None,
+        case_sensitive: bool = False,
+        max_results: int = 50,
+        ctx: Context = None,
+    ) -> list[dict[str, Any]]:
         """
         Find cells containing a specific value in a Google Spreadsheet.
 
@@ -215,23 +237,16 @@ def register(tool):
         Returns:
             List of found cells with their location (sheet, cell in A1 notation) and value
         """
-        sheets_service = ctx.request_context.lifespan_context.sheets_service
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
         results = []
 
         try:
-            spreadsheet = sheets_service.spreadsheets().get(
-                spreadsheetId=spreadsheet_id,
-                fields='sheets(properties(title,sheetId))'
-            ).execute()
-
-            sheets_to_search = [
-                s.get('properties', {}).get('title')
-                for s in spreadsheet.get('sheets', [])
-                if sheet is None or s.get('properties', {}).get('title') == sheet
-            ]
+            all_sheets = fetch_sheets(sheets_service, spreadsheet_id, lc.cache)
+            sheets_to_search = [s.title for s in all_sheets if sheet is None or s.title == sheet]
 
             if not sheets_to_search:
-                return [{'error': f"Sheet '{sheet}' not found"}]
+                return [{"error": f"Sheet '{sheet}' not found"}]
 
             search_query = query if case_sensitive else query.lower()
 
@@ -239,12 +254,14 @@ def register(tool):
                 if len(results) >= max_results:
                     break
 
-                response = sheets_service.spreadsheets().values().get(
-                    spreadsheetId=spreadsheet_id,
-                    range=sheet_name
-                ).execute()
+                response = (
+                    sheets_service.spreadsheets()
+                    .values()
+                    .get(spreadsheetId=spreadsheet_id, range=sheet_name)
+                    .execute()
+                )
 
-                for row_idx, row in enumerate(response.get('values', [])):
+                for row_idx, row in enumerate(response.get("values", [])):
                     if len(results) >= max_results:
                         break
                     for col_idx, cell_value in enumerate(row):
@@ -253,13 +270,15 @@ def register(tool):
                         cell_str = str(cell_value)
                         compare_value = cell_str if case_sensitive else cell_str.lower()
                         if search_query in compare_value:
-                            results.append({
-                                'sheet': sheet_name,
-                                'cell': f"{_column_index_to_letter(col_idx)}{row_idx + 1}",
-                                'value': cell_value
-                            })
+                            results.append(
+                                {
+                                    "sheet": sheet_name,
+                                    "cell": f"{_column_index_to_letter(col_idx)}{row_idx + 1}",
+                                    "value": cell_value,
+                                }
+                            )
 
             return results
 
         except Exception as e:
-            return [{'error': f'Search failed: {str(e)}'}]
+            return [{"error": f"Search failed: {e!s}"}]
