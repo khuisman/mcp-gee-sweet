@@ -58,8 +58,8 @@ Features are grouped by category and ordered by practical priority within each t
 
 ## Infrastructure / internal
 
-- [ ] Revisit cache persistence — all caches write JSON to `/tmp/*.json`; evaluate whether SQLite would be more appropriate as the number of cached entries grows (see existing TODO.md note)
-- [ ] Open upstream PRs to xing5 for tool filtering and `batch_update` passthrough before forking
+- [ ] Revisit cache persistence — all caches write JSON to `/tmp/*.json`; evaluate whether SQLite would be more appropriate as the number of cached entries grows
+- [ ] Open PR to xing5 from `upstream-observability` branch (structured logging, per-tool timing, `cache_discovery=False`) before fully cutting loose
 - [ ] Fork repo and rename (e.g., `mcp-google-workspace`); update README to credit xing5, freema, and piotr-agier
 
 ## Inspiration and credits
