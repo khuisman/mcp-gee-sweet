@@ -56,11 +56,20 @@ Features are grouped by category and ordered by practical priority within each t
 - [ ] `add_note` / `clear_note` — attach or remove a cell note (distinct from a comment) _(freema/mcp-gsheets)_
 - [ ] `get_revisions` — list Drive revision history for a file _(piotr-agier/google-drive-mcp)_
 
+## Testing
+
+- [ ] Add `pytest` and `pytest-cov` as dev dependencies
+- [ ] Unit tests for cache logic — TTL expiry, dirty flag, file persistence, partial invalidation (`SheetStructureCache`, `SheetDataCache`, `DriveFolderCache`, `DocContentCache`) _(after SQLite migration — see Infrastructure)_
+- [ ] Unit tests for A1 notation helpers — `_parse_a1_notation`, `_column_index_to_letter`, `_letter_to_column_index`
+- [ ] Unit tests for HTML↔Doc conversion (`_html_to_text`, `_html_to_doc_requests`)
+- [ ] Unit tests for tool filtering — tools excluded when not in `ENABLED_TOOLS`
+- [ ] Integration tests (optional, requires live credentials + test spreadsheet/doc) — smoke tests for each tool against a dedicated test Drive folder
+
 ## Infrastructure / internal
 
 - [ ] Revisit cache persistence — all caches write JSON to `/tmp/*.json`; evaluate whether SQLite would be more appropriate as the number of cached entries grows
 - [ ] Open PR to xing5 from `upstream-observability` branch (structured logging, per-tool timing, `cache_discovery=False`) before fully cutting loose
-- [ ] Fork repo and rename (e.g., `mcp-google-workspace`); update README to credit xing5, freema, and piotr-agier
+- [x] Fork repo and rename to `mcp-gee-sweet`; README credits xing5, freema, and piotr-agier
 
 ## Inspiration and credits
 
