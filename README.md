@@ -74,6 +74,7 @@ cd mcp-gee-sweet
 
 # Install uv if needed: https://docs.astral.sh/uv/getting-started/installation/
 uv sync
+make install-hooks   # wire up pre-commit (one-time, per clone)
 
 export SERVICE_ACCOUNT_PATH="/path/to/service-account-key.json"
 export DRIVE_FOLDER_ID="YOUR_DRIVE_FOLDER_ID"
@@ -81,6 +82,8 @@ export DRIVE_FOLDER_ID="YOUR_DRIVE_FOLDER_ID"
 uv run mcp-gee-sweet                    # stdio transport
 uv run mcp-gee-sweet --transport sse    # SSE on port 8000
 ```
+
+Run the test suite at any time with `make test`.
 
 ### Connect your MCP Client
 
