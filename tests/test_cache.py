@@ -62,6 +62,19 @@ class TestSheetStructureCache:
         assert result is not None
         assert result[0].title == "NewSheet"
 
+    def test_get_stale_sheets_ignores_dirty(self):
+        self.cache.store("sid", self.sheets)
+        self.cache.mark_dirty("sid")
+        result = self.cache.get_stale_sheets("sid")
+        assert result is not None
+        assert result[0].title == "Sheet1"
+
+    def test_get_stale_sheets_miss_returns_none(self):
+        assert self.cache.get_stale_sheets("nonexistent") is None
+
+    def test_close(self):
+        self.cache.close()
+
 
 class TestSheetDataCache:
     def setup_method(self):
@@ -123,6 +136,9 @@ class TestSheetDataCache:
         assert self.cache.get("sid1", 0, 1) is None
         assert self.cache.get("sid2", 0, 1) is not None
 
+    def test_close(self):
+        self.cache.close()
+
 
 class TestDriveFolderCache:
     def setup_method(self):
@@ -175,6 +191,9 @@ class TestDriveFolderCache:
         time.sleep(0.01)
         assert cache.get("folder", None) is None
 
+    def test_close(self):
+        self.cache.close()
+
 
 class TestDocContentCache:
     def setup_method(self):
@@ -212,6 +231,9 @@ class TestDocContentCache:
         new_doc = {"title": "Updated"}
         self.cache.store("fid", new_doc)
         assert self.cache.get("fid") == new_doc
+
+    def test_close(self):
+        self.cache.close()
 
 
 class TestSharedDb:

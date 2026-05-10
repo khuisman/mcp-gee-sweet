@@ -13,11 +13,12 @@ CACHE_TTL = int(os.environ.get("CACHE_TTL", "1800"))  # 30 minutes
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS cache (
-    namespace  TEXT NOT NULL,
-    key        TEXT NOT NULL,
-    value      TEXT NOT NULL,
-    fetched_at REAL NOT NULL,
-    dirty      INTEGER NOT NULL DEFAULT 0,
+    namespace    TEXT NOT NULL,
+    key          TEXT NOT NULL,
+    value        TEXT NOT NULL,
+    fetched_at   REAL NOT NULL,
+    dirty        INTEGER NOT NULL DEFAULT 0,
+    rows_fetched INTEGER,
     PRIMARY KEY (namespace, key)
 )
 """
@@ -106,6 +107,19 @@ class SheetStructureCache:
         self._conn.commit()
         logger.debug("Invalidated all sheet structure cache entries")
 
+    def get_stale_sheets(self, spreadsheet_id: str) -> list[SheetInfo] | None:
+        """Returns cached sheet list regardless of dirty/TTL state; None only on complete miss."""
+        row = self._conn.execute(
+            "SELECT value FROM cache WHERE namespace=? AND key=?",
+            (self._NS, spreadsheet_id),
+        ).fetchone()
+        if row is None:
+            return None
+        return [SheetInfo(**s) for s in json.loads(row["value"])["sheets"]]
+
+    def close(self):
+        self._conn.close()
+
 
 class SheetDataCache:
     """Caches per-sheet summary data (headers + first N rows) keyed by (spreadsheet_id, sheet_id)."""
@@ -125,7 +139,7 @@ class SheetDataCache:
     ) -> sqlite3.Row | None:
         key = self._key(spreadsheet_id, sheet_id)
         row = self._conn.execute(
-            "SELECT value, fetched_at, dirty FROM cache WHERE namespace=? AND key=?",
+            "SELECT value, fetched_at, dirty, rows_fetched FROM cache WHERE namespace=? AND key=?",
             (self._NS, key),
         ).fetchone()
         if row is None or row["dirty"]:
@@ -136,7 +150,7 @@ class SheetDataCache:
             )
             self._conn.commit()
             return None
-        if json.loads(row["value"]).get("rows_fetched", 0) < rows_to_fetch:
+        if (row["rows_fetched"] or 0) < rows_to_fetch:
             return None
         return row
 
@@ -160,11 +174,17 @@ class SheetDataCache:
         first_rows: list,
         rows_to_fetch: int,
     ):
-        value = {"headers": headers, "first_rows": first_rows, "rows_fetched": rows_to_fetch}
+        value = {"headers": headers, "first_rows": first_rows}
         self._conn.execute(
-            "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty)"
-            " VALUES (?,?,?,?,0)",
-            (self._NS, self._key(spreadsheet_id, sheet_id), json.dumps(value), time.time()),
+            "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty, rows_fetched)"
+            " VALUES (?,?,?,?,0,?)",
+            (
+                self._NS,
+                self._key(spreadsheet_id, sheet_id),
+                json.dumps(value),
+                time.time(),
+                rows_to_fetch,
+            ),
         )
         self._conn.commit()
         logger.debug("Cached sheet data for %s/%s", spreadsheet_id, sheet_id)
@@ -188,6 +208,9 @@ class SheetDataCache:
         self._conn.execute("UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
         self._conn.commit()
         logger.debug("Invalidated all sheet data cache entries")
+
+    def close(self):
+        self._conn.close()
 
 
 class DriveFolderCache:
@@ -249,6 +272,9 @@ class DriveFolderCache:
         self._conn.commit()
         logger.debug("Invalidated all drive folder cache entries")
 
+    def close(self):
+        self._conn.close()
+
 
 class DocContentCache:
     """Caches Google Doc content keyed by file_id."""
@@ -305,6 +331,9 @@ class DocContentCache:
         self._conn.commit()
         logger.debug("Invalidated all doc cache entries")
 
+    def close(self):
+        self._conn.close()
+
 
 def fetch_sheets(
     sheets_service: Any, spreadsheet_id: str, cache: SheetStructureCache
@@ -333,11 +362,8 @@ def fetch_sheets(
         return sheets
     except Exception as e:
         # Fall back to stale cache rather than hard-failing
-        stale = cache._conn.execute(
-            "SELECT value FROM cache WHERE namespace=? AND key=?",
-            (SheetStructureCache._NS, spreadsheet_id),
-        ).fetchone()
-        if stale:
+        stale = cache.get_stale_sheets(spreadsheet_id)
+        if stale is not None:
             logger.warning("API call failed for %s, serving stale cache: %s", spreadsheet_id, e)
-            return [SheetInfo(**s) for s in json.loads(stale["value"])["sheets"]]
+            return stale
         raise
