@@ -255,5 +255,6 @@ def register(tool):
             .execute()
         )
 
+        lc.cache.mark_dirty(spreadsheet_id)
         lc.sheet_data_cache.mark_dirty(spreadsheet_id)
         return result

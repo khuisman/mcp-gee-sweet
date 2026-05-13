@@ -10,8 +10,10 @@
 ![GitHub License](https://img.shields.io/github/license/khuisman/mcp-gee-sweet)
 </div>
 
-> **⚠️ Development version — use at your own risk.**
-> This project is under active development and has only been tested on personal projects. For a stable, production-ready version, use [xing5/mcp-google-sheets](https://github.com/xing5/mcp-google-sheets) instead.
+> **⚠️ Not published to PyPI — source install only.**
+> Do not attempt `pip install mcp-gee-sweet` or `uvx mcp-gee-sweet` — the package is not on PyPI and those commands will fail. Use **Docker** or **clone the repo** (see Quick Start below).
+>
+> This project is under active development and has only been tested on personal use cases. A [manual QA checklist](docs/qa-checklist.md) must be completed before any PyPI release. For a stable, production-ready version, use [xing5/mcp-google-sheets](https://github.com/xing5/mcp-google-sheets) instead.
 
 ---
 
@@ -104,7 +106,7 @@ You're ready! Start issuing commands via your MCP client.
 *   **Seamless Integration:** Connects directly to Google Drive, Google Sheets, and Google Docs APIs.
 *   **Comprehensive Tools:** Offers a wide range of operations (CRUD, listing, batching, sharing, formatting, Docs read/write, etc.).
 *   **Flexible Authentication:** Supports **Service Accounts (recommended)**, OAuth 2.0, and direct credential injection via environment variables.
-*   **Easy Deployment:** Run instantly with `uvx` (zero-install feel) or clone for development using `uv`.
+*   **Easy Deployment:** Run via Docker (recommended) or clone for development using `uv`. Not yet on PyPI.
 *   **AI-Ready:** Designed for use with MCP-compatible clients, enabling natural language spreadsheet and document interaction.
 *   **Tool Filtering:** Reduce context window usage by enabling only the tools you need with `--include-tools` or `ENABLED_TOOLS` environment variable.
 *   **Caching:** Sheet structure, sheet data, Drive folder listings, and Doc content are cached in a local SQLite database to reduce API calls and latency. Cache location and TTL are configurable via environment variables.
@@ -125,15 +127,18 @@ You can filter tools using either:
    ```json
    {
      "mcpServers": {
-       "google-sheets": {
-         "command": "uvx",
+       "mcp-gee-sweet-local": {
+         "command": "uv",
          "args": [
-           "mcp-gee-sweet@latest",
+           "run",
+           "--directory",
+           "/path/to/your/mcp-gee-sweet",
+           "mcp-gee-sweet",
            "--include-tools",
            "get_sheet_data,update_cells,list_spreadsheets,list_sheets"
          ],
          "env": {
-           "SERVICE_ACCOUNT_PATH": "/path/to/credentials.json"
+           "SERVICE_ACCOUNT_PATH": "/path/to/service-account-key.json"
          }
        }
      }
@@ -144,11 +149,16 @@ You can filter tools using either:
    ```json
    {
      "mcpServers": {
-       "google-sheets": {
-         "command": "uvx",
-         "args": ["mcp-gee-sweet@latest"],
+       "mcp-gee-sweet-local": {
+         "command": "uv",
+         "args": [
+           "run",
+           "--directory",
+           "/path/to/your/mcp-gee-sweet",
+           "mcp-gee-sweet"
+         ],
          "env": {
-           "SERVICE_ACCOUNT_PATH": "/path/to/credentials.json",
+           "SERVICE_ACCOUNT_PATH": "/path/to/service-account-key.json",
            "ENABLED_TOOLS": "get_sheet_data,update_cells,list_spreadsheets,list_sheets"
          }
        }
@@ -370,7 +380,7 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
     3.  **Set Environment Variables:**
         *   `SERVICE_ACCOUNT_PATH`: Full path to the downloaded JSON key file.
         *   `DRIVE_FOLDER_ID`: The ID of the shared Google Drive folder.
-        *(See [Ultra Quick Start](#-ultra-quick-start-using-uvx) for OS-specific examples)*
+        *(See [Quick Start](#-quick-start) for OS-specific examples)*
 
 ### Method B: OAuth 2.0 (Interactive / Personal Use) 🧑‍💻
 
@@ -451,16 +461,7 @@ The server checks for credentials in this order:
 
 _Refer to the [ID Reference Guide](#-id-reference-guide) for more information about the IDs used below._
 
-### Method 1: Using `uvx` (Recommended for Users)
-
-As shown in the [Ultra Quick Start](#-ultra-quick-start-using-uvx), this is the easiest way. Set environment variables, then run:
-
-```bash
-uvx mcp-gee-sweet@latest
-```
-`uvx` handles fetching and running the package temporarily.
-
-### Method 2: For Development (Cloning the Repo)
+### Method 1: For Development (Cloning the Repo)
 
 If you want to modify the code:
 
@@ -473,7 +474,7 @@ If you want to modify the code:
     uv run mcp-gee-sweet --transport sse
     ```
 
-### Method 3: Docker (SSE transport)
+### Method 2: Docker (SSE transport)
 
 Run the server in a container using the included `Dockerfile`:
 
@@ -502,128 +503,10 @@ Add the server config to `claude_desktop_config.json` under `mcpServers`. Choose
 
 _Refer to the [ID Reference Guide](#-id-reference-guide) for more information about the IDs used below._
 
-**⚠️ Important Notes:**
-- **🍎 macOS Users:** use the full path: `"/Users/yourusername/.local/bin/uvx"` instead of just `"uvx"`
+**Note:** `mcp-gee-sweet` is not published to PyPI. The only supported install methods are cloning the repo (stdio transport) or running Docker (SSE transport).
 
 <details>
-<summary>🔵 Config: uvx + Service Account (Recommended)</summary>
-
-```json
-{
-  "mcpServers": {
-    "google-sheets": {
-      "command": "uvx",
-      "args": ["mcp-gee-sweet@latest"],
-      "env": {
-        "SERVICE_ACCOUNT_PATH": "/full/path/to/your/service-account-key.json",
-        "DRIVE_FOLDER_ID": "your_shared_folder_id_here"
-      }
-    }
-  }
-}
-```
-
-**🍎 macOS Note:** If you get a `spawn uvx ENOENT` error, use the full path to `uvx`:
-```json
-{
-  "mcpServers": {
-    "google-sheets": {
-      "command": "/Users/yourusername/.local/bin/uvx",
-      "args": ["mcp-gee-sweet@latest"],
-      "env": {
-        "SERVICE_ACCOUNT_PATH": "/full/path/to/your/service-account-key.json",
-        "DRIVE_FOLDER_ID": "your_shared_folder_id_here"
-      }
-    }
-  }
-}
-```
-*Replace `yourusername` with your actual username.*
-</details>
-
-<details>
-<summary>🔵 Config: uvx + OAuth 2.0</summary>
-
-```json
-{
-  "mcpServers": {
-    "google-sheets": {
-      "command": "uvx",
-      "args": ["mcp-gee-sweet@latest"],
-      "env": {
-        "CREDENTIALS_PATH": "/full/path/to/your/credentials.json",
-        "TOKEN_PATH": "/full/path/to/your/token.json"
-      }
-    }
-  }
-}
-```
-*Note: A browser may open for Google login on first use. Ensure TOKEN_PATH is writable.*
-
-**🍎 macOS Note:** If you get a `spawn uvx ENOENT` error, replace `"command": "uvx"` with `"command": "/Users/yourusername/.local/bin/uvx"` (replace `yourusername` with your actual username).
-</details>
-
-<details>
-<summary>🔵 Config: uvx + CREDENTIALS_CONFIG (Service Account Example)</summary>
-
-```json
-{
-  "mcpServers": {
-    "google-sheets": {
-      "command": "uvx",
-      "args": ["mcp-gee-sweet@latest"],
-      "env": {
-        "CREDENTIALS_CONFIG": "ewogICJ0eXBlIjogInNlcnZpY2VfYWNjb3VudCIsCiAgInByb2plY3RfaWQiOiAi...",
-        "DRIVE_FOLDER_ID": "your_shared_folder_id_here"
-      }
-    }
-  }
-}
-```
-*Note: Paste the full Base64 string for CREDENTIALS_CONFIG. DRIVE_FOLDER_ID is still needed for Service Account folder context.*
-
-**🍎 macOS Note:** If you get a `spawn uvx ENOENT` error, replace `"command": "uvx"` with `"command": "/Users/yourusername/.local/bin/uvx"` (replace `yourusername` with your actual username).
-</details>
-
-<details>
-<summary>🔵 Config: uvx + Application Default Credentials (ADC)</summary>
-
-**Option 1: With GOOGLE_APPLICATION_CREDENTIALS**
-```json
-{
-  "mcpServers": {
-    "google-sheets": {
-      "command": "uvx",
-      "args": ["mcp-gee-sweet@latest"],
-      "env": {
-        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/service-account.json"
-      }
-    }
-  }
-}
-```
-
-**Option 2: With gcloud auth (no env vars needed)**
-```json
-{
-  "mcpServers": {
-    "google-sheets": {
-      "command": "uvx",
-      "args": ["mcp-gee-sweet@latest"],
-      "env": {}
-    }
-  }
-}
-```
-*Prerequisites:* 
-1. *Run `gcloud auth application-default login --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/drive,https://www.googleapis.com/auth/documents` first.*
-2. *Set quota project: `gcloud auth application-default set-quota-project <project_id>`*
-
-**🍎 macOS Note:** If you get a `spawn uvx ENOENT` error, replace `"command": "uvx"` with `"command": "/Users/yourusername/.local/bin/uvx"` (replace `yourusername` with your actual username).
-</details>
-
-<details>
-<summary>🟡 Config: Development (Running from cloned repo)</summary>
+<summary>🟡 Config: stdio — cloned repo + Service Account</summary>
 
 ```json
 {
@@ -644,7 +527,25 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
   }
 }
 ```
-*Note: Use `--directory` flag to specify the project path, and adjust paths to match your actual workspace location.*
+*Adjust `/path/to/your/mcp-gee-sweet` and credential paths to match your actual workspace location. Other auth methods (OAuth, `CREDENTIALS_CONFIG`, ADC) work by swapping the env vars — see [Authentication & Environment Variables](#-authentication--environment-variables-detailed).*
+</details>
+
+<details>
+<summary>🔵 Config: SSE — Docker container</summary>
+
+Start the server first with `make start` (see Quick Start), then point Claude Desktop at the SSE endpoint:
+
+```json
+{
+  "mcpServers": {
+    "mcp-gee-sweet": {
+      "transport": "sse",
+      "url": "http://localhost:47000/sse"
+    }
+  }
+}
+```
+*The Docker container must be running before starting Claude Desktop.*
 </details>
 
 ---
@@ -697,6 +598,8 @@ Google Docs Document ID:
 ## 🤝 Contributing
 
 Contributions are welcome! Please open an issue to discuss bugs or feature requests. Pull requests are appreciated.
+
+Before this project is published to PyPI, all items in [`docs/qa-checklist.md`](docs/qa-checklist.md) must be manually verified against a live Google account. If you're contributing new tools or fixing bugs, please add corresponding test cases and mark the relevant checklist items.
 
 ---
 
