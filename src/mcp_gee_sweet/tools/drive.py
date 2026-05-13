@@ -267,13 +267,10 @@ def register(tool):
         )
 
         if content:
-            plain_text = _html_to_text(content)
-            if plain_text:
+            content_requests = _html_to_doc_requests(content, start_index=1)
+            if content_requests:
                 docs_service.documents().batchUpdate(
-                    documentId=doc_id,
-                    body={
-                        "requests": [{"insertText": {"location": {"index": 1}, "text": plain_text}}]
-                    },
+                    documentId=doc_id, body={"requests": content_requests}
                 ).execute()
 
         if target_folder_id:
@@ -470,9 +467,10 @@ def register(tool):
         drive_service = ctx.request_context.lifespan_context.drive_service
         max_results = min(max(1, max_results), 100)
 
+        safe_query = query.replace("\\", "\\\\").replace("'", "\\'")
         search_query = (
             f"mimeType='application/vnd.google-apps.spreadsheet' and "
-            f"(name contains '{query}' or fullText contains '{query}')"
+            f"(name contains '{safe_query}' or fullText contains '{safe_query}')"
         )
 
         try:

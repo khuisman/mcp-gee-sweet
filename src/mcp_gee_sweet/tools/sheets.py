@@ -71,7 +71,7 @@ def register(tool):
 
         result = {"copy": copy_result}
 
-        if "title" in copy_result and copy_result["title"] != dst_sheet:
+        if copy_result.get("title") != dst_sheet:
             rename_result = (
                 sheets_service.spreadsheets()
                 .batchUpdate(
