@@ -660,3 +660,426 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Checks**
 - `get_doc_content` returns 'CacheTest' — not the old cached version
 - Confirms `doc_cache.mark_dirty` fires after write
+
+---
+
+## `create_folder`
+
+### TC-D58: Create in default folder
+
+**Prompt**
+> "Create a new folder called 'QA-Folder-Test' in my default folder"
+
+**Checks**
+- Response includes a `folderId` and `name: 'QA-Folder-Test'`
+- `parent` matches `{FOLDER_ID}`
+- Folder visible in Drive
+
+---
+
+### TC-D59: Create at root (no parent)
+
+**Prompt**
+> "Create a folder called 'QA-Folder-Root' with no parent folder specified"
+
+**Checks**
+- Folder created without error
+- `parent` is `root` or omitted
+- 🔍 **Note:** service account may not have access to personal Drive root — record error if seen
+
+---
+
+### TC-D60: Cache invalidated after create
+
+**Prompt**
+> "Create a folder called 'QA-Folder-Cache' in {FOLDER_ID}, then list files in that folder"
+
+**Checks**
+- `list_files` result includes 'QA-Folder-Cache' with `mimeType: application/vnd.google-apps.folder`
+- Confirms `drive_folder_cache.mark_dirty` fired for the parent
+
+---
+
+## `move_file`
+
+### TC-D61: Move a file to another folder ⚠️ destructive
+
+**Prompt**
+> "Move the file {SPREADSHEET_ID} to folder {FOLDER_ID}"
+
+**Checks**
+- Response includes `fileId`, `name`, and updated `parent` matching `{FOLDER_ID}`
+- File no longer appears in its previous folder (list to verify)
+- Both old and new parent caches invalidated — subsequent `list_files` reflects the change
+
+---
+
+### TC-D62: Move a folder
+
+**Prompt**
+> "Move the folder created in TC-D58 ('QA-Folder-Test') into {FOLDER_ID} — use its folder ID"
+
+**Checks**
+- Folder now nested inside `{FOLDER_ID}`
+- `mimeType` in response is `application/vnd.google-apps.folder`
+
+---
+
+### TC-D63: Non-existent file ID
+
+**Prompt**
+> "Move file 'invalidid123xyz' to {FOLDER_ID}"
+
+**Checks**
+- API error propagates cleanly — not a server crash
+- Error message identifies the bad file ID
+
+---
+
+## `rename_file`
+
+### TC-D64: Rename a file ⚠️ destructive
+
+**Prompt**
+> "Rename the file 'QA-Create-Test' (from TC-D01) to 'QA-Renamed-File' — use its spreadsheet ID"
+
+**Checks**
+- Response `name` is 'QA-Renamed-File'
+- File appears with new name in Drive
+- Parent folder cache invalidated — `list_files` reflects the new name
+
+---
+
+### TC-D65: Rename a folder
+
+**Prompt**
+> "Rename the 'QA-Folder-Cache' folder (from TC-D60) to 'QA-Folder-Renamed'"
+
+**Checks**
+- Folder name updated in Drive
+- Response `name` is 'QA-Folder-Renamed'
+
+---
+
+### TC-D66: Non-existent file ID
+
+**Prompt**
+> "Rename file 'invalidid123xyz' to 'SomeName'"
+
+**Checks**
+- API error propagates — not a crash or silent failure
+
+---
+
+## `copy_file`
+
+### TC-D67: Copy with auto-assigned name
+
+**Prompt**
+> "Copy the spreadsheet {SPREADSHEET_ID} without specifying a new name"
+
+**Checks**
+- New file created with name like 'Copy of <original>'
+- Response includes a new `fileId` different from `{SPREADSHEET_ID}`
+- `web_link` is present and different from the original
+
+---
+
+### TC-D68: Copy with explicit name and destination folder
+
+**Prompt**
+> "Copy {SPREADSHEET_ID} into {FOLDER_ID} and name the copy 'QA-Copy-Explicit'"
+
+**Checks**
+- New file named 'QA-Copy-Explicit' appears in `{FOLDER_ID}`
+- Destination folder cache invalidated — `list_files` includes the copy
+- Original `{SPREADSHEET_ID}` is unchanged
+
+---
+
+### TC-D69: Copy a Google Doc
+
+**Prompt**
+> "Copy {DOC_ID} and name it 'QA-Doc-Copy'"
+
+**Checks**
+- New doc created independently of the original
+- `mimeType` is `application/vnd.google-apps.document`
+- Edits to the copy do not affect the original
+
+---
+
+### TC-D70: Attempt to copy a folder
+
+**Prompt**
+> "Copy the folder from TC-D65 ('QA-Folder-Renamed') to see if folder copy is supported"
+
+**Checks**
+- 🔍 **Known API limitation:** Drive API does not support copying folders — expect an API error
+- Error message should be clear, not a server crash
+
+---
+
+## `delete_file`
+
+### TC-D71: Trash a file (default — recoverable) ⚠️ destructive
+
+**Prompt**
+> "Trash the file 'QA-Renamed-File' from TC-D64 — use permanent=False"
+
+**Checks**
+- Response: `{"fileId": ..., "action": "trashed"}`
+- File no longer appears in `list_files` for its folder (trashed files excluded)
+- File is recoverable from Drive Trash
+
+---
+
+### TC-D72: Permanently delete a file ⚠️ destructive
+
+**Prompt**
+> "Permanently delete the file 'QA-Copy-Explicit' from TC-D68 — use permanent=True"
+
+**Checks**
+- Response: `{"fileId": ..., "action": "deleted"}`
+- File is completely gone — not in Trash, not in any folder
+- Parent folder cache invalidated
+
+---
+
+### TC-D73: Trash a folder ⚠️ destructive
+
+**Prompt**
+> "Trash the 'QA-Folder-Renamed' folder from TC-D65"
+
+**Checks**
+- Folder and its contents moved to Trash
+- `list_folders` no longer shows it in the parent
+
+---
+
+### TC-D74: Non-existent file ID
+
+**Prompt**
+> "Delete file 'invalidid123xyz'"
+
+**Checks**
+- API error propagates — not a crash
+- No cache mutation occurs for a non-existent file
+
+---
+
+## `search_files`
+
+### TC-D75: Search by name across all MIME types
+
+**Prompt**
+> "Search files for 'QA' — no MIME type filter"
+
+**Checks**
+- Returns a mix of docs, spreadsheets, and folders created during QA
+- Each result has `id`, `name`, `mimeType`, `modified_time`, and `web_link`
+
+---
+
+### TC-D76: Search with MIME type filter
+
+**Prompt**
+> "Search for files named 'QA' that are Google Docs only"
+
+**Checks**
+- All results have `mimeType: application/vnd.google-apps.document`
+- Spreadsheets and folders excluded
+
+---
+
+### TC-D77: Search with folder filter
+
+**Prompt**
+> "Search for files with 'QA' in the name, but only in {FOLDER_ID}"
+
+**Checks**
+- All results have `parent` matching `{FOLDER_ID}`
+- Files from other folders excluded
+
+---
+
+### TC-D78: Query with single quote
+
+**Prompt**
+> "Search files for \"it's a test\""
+
+**Checks**
+- No Drive API syntax error
+- Returns results (possibly empty) — confirms `'` is safely escaped
+
+---
+
+## `get_file_metadata`
+
+### TC-D79: Metadata for a Google Spreadsheet
+
+**Prompt**
+> "Get the metadata for {SPREADSHEET_ID}"
+
+**Checks**
+- `mimeType` is `application/vnd.google-apps.spreadsheet`
+- `name`, `parents`, `created_time`, `modified_time`, `owners`, `web_link` all present
+- `size` is absent (Google Workspace files have no size field)
+- `trashed` is `false`
+
+---
+
+### TC-D80: Metadata for a Google Doc
+
+**Prompt**
+> "Get the metadata for {DOC_ID}"
+
+**Checks**
+- `mimeType` is `application/vnd.google-apps.document`
+- `web_link` is present and opens the doc
+
+---
+
+### TC-D81: Metadata for a folder
+
+**Prompt**
+> "Get the metadata for {FOLDER_ID}"
+
+**Checks**
+- `mimeType` is `application/vnd.google-apps.folder`
+- `web_link` may be absent or point to Drive folder URL
+
+---
+
+### TC-D82: Non-existent file ID
+
+**Prompt**
+> "Get metadata for file 'invalidid123xyz'"
+
+**Checks**
+- API error propagates — not a silent empty result or crash
+
+---
+
+## `export_file`
+
+### TC-D83: Export Google Doc as plain text
+
+**Prompt**
+> "Export {DOC_ID} as plain text"
+
+**Checks**
+- Response `encoding` is `utf-8`
+- `content` is a plain text string matching the doc's text
+- `format` is `txt`
+
+---
+
+### TC-D84: Export Google Doc as HTML
+
+**Prompt**
+> "Export {DOC_ID} as HTML"
+
+**Checks**
+- Response `encoding` is `utf-8`
+- `content` is an HTML string with `<html>` tags
+- Headings and lists from the doc visible as HTML elements
+
+---
+
+### TC-D85: Export Google Doc as PDF (binary)
+
+**Prompt**
+> "Export {DOC_ID} as PDF"
+
+**Checks**
+- Response `encoding` is `base64`
+- `content` is a non-empty base64 string
+- Decoding it produces a valid PDF (starts with `%PDF`)
+
+---
+
+### TC-D86: Export Google Sheet as CSV
+
+**Prompt**
+> "Export {SPREADSHEET_ID} as CSV"
+
+**Checks**
+- Response `encoding` is `utf-8`
+- `content` is comma-separated text matching the sheet's data
+
+---
+
+### TC-D87: Unknown export format
+
+**Prompt**
+> "Export {DOC_ID} in format 'xyz'"
+
+**Checks**
+- Returns a `ValueError` with a message listing valid formats
+- Not a server crash
+
+---
+
+## `upload_file`
+
+### TC-D88: Upload plain text file
+
+**Prompt**
+> "Upload a plain text file called 'qa-upload.txt' to {FOLDER_ID} with content 'Hello from QA'"
+
+**Checks**
+- File appears in `{FOLDER_ID}` with `mimeType: text/plain`
+- `name` is 'qa-upload.txt'
+- Folder cache invalidated — `list_files` shows the new file
+
+---
+
+### TC-D89: Upload Markdown as raw file (no conversion)
+
+**Prompt**
+> "Upload a markdown file called 'qa-notes.md' to {FOLDER_ID} with content '# Heading\n\n- item 1\n- item 2' and do not convert it to a doc"
+
+**Checks**
+- File created with `mimeType: text/markdown` (or `text/plain` — note whichever)
+- Markdown syntax is preserved as literal text — no conversion
+- `convert_to_doc` was `False`
+
+---
+
+### TC-D90: Upload Markdown and convert to Google Doc ⚠️ destructive
+
+**Prompt**
+> "Upload this markdown to {FOLDER_ID} as a Google Doc called 'QA-Markdown-Doc': `# My Title\n\n## Section One\n\n- Bullet A\n- Bullet B\n\nSome **bold** text and a [link](https://example.com).`"
+
+**Checks**
+- A Google Doc is created (not a raw `.md` file)
+- Open in browser: 'My Title' renders as Heading 1
+- 'Section One' renders as a heading
+- Bullet A and B render as a list
+- **bold** renders as bold text
+- 'link' is a hyperlink to https://example.com
+
+---
+
+### TC-D91: Upload HTML and convert to Google Doc
+
+**Prompt**
+> "Upload this HTML to {FOLDER_ID} as a Google Doc called 'QA-HTML-Doc': `<h1>HTML Title</h1><p>A paragraph.</p><ul><li>X</li><li>Y</li></ul>`"
+
+**Checks**
+- Google Doc created with formatted content
+- Heading and list visible in browser
+- `source_format` was `html`, `convert_to_doc` was `True`
+
+---
+
+### TC-D92: Upload Markdown with table
+
+**Prompt**
+> "Upload this markdown as a Google Doc called 'QA-Table-Doc' to {FOLDER_ID}: `# Table Test\n\n| Col A | Col B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |`"
+
+**Checks**
+- Google Doc created
+- Open in browser: a 2×2 table is visible under the heading
+- Confirms `markdown[extra]` extension handles GFM tables
