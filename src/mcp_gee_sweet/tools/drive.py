@@ -540,6 +540,231 @@ def register(tool):
             "parent": parents[0] if parents else "root",
         }
 
+    @tool(annotations=ToolAnnotations(title="Rename File", destructiveHint=True))
+    def rename_file(file_id: str, new_name: str, ctx: Context = None) -> dict[str, Any]:
+        """
+        Rename a file or folder in Google Drive.
+
+        Args:
+            file_id: The ID of the file or folder to rename.
+            new_name: The new name.
+
+        Returns:
+            Updated fileId, name, and parent folder ID.
+        """
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+
+        updated = (
+            drive_service.files()
+            .update(
+                fileId=file_id,
+                body={"name": new_name},
+                supportsAllDrives=True,
+                fields="id, name, parents",
+            )
+            .execute()
+        )
+
+        parents = updated.get("parents", [])
+        for parent in parents:
+            lc.drive_folder_cache.mark_dirty(parent)
+        logger.debug("Renamed file %s to %s", file_id, new_name)
+        return {
+            "fileId": updated.get("id"),
+            "name": updated.get("name"),
+            "parent": parents[0] if parents else "root",
+        }
+
+    @tool(annotations=ToolAnnotations(title="Copy File", destructiveHint=True))
+    def copy_file(
+        file_id: str,
+        new_name: str | None = None,
+        folder_id: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Copy a file in Google Drive.
+
+        Args:
+            file_id: The ID of the file to copy.
+            new_name: Name for the copy. Defaults to 'Copy of <original name>'.
+            folder_id: Destination folder ID. Defaults to the same folder as the original.
+
+        Returns:
+            fileId, name, mimeType, parent, and webViewLink of the new copy.
+        """
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+
+        body: dict[str, Any] = {}
+        if new_name:
+            body["name"] = new_name
+        if folder_id:
+            body["parents"] = [folder_id]
+
+        copied = (
+            drive_service.files()
+            .copy(
+                fileId=file_id,
+                body=body,
+                supportsAllDrives=True,
+                fields="id, name, mimeType, parents, webViewLink",
+            )
+            .execute()
+        )
+
+        parents = copied.get("parents", [])
+        for parent in parents:
+            lc.drive_folder_cache.mark_dirty(parent)
+        logger.debug("Copied file %s → %s", file_id, copied.get("id"))
+        return {
+            "fileId": copied.get("id"),
+            "name": copied.get("name"),
+            "mimeType": copied.get("mimeType"),
+            "parent": parents[0] if parents else "root",
+            "web_link": copied.get("webViewLink"),
+        }
+
+    @tool(annotations=ToolAnnotations(title="Trash or Delete File", destructiveHint=True))
+    def delete_file(file_id: str, permanent: bool = False, ctx: Context = None) -> dict[str, Any]:
+        """
+        Move a file to the trash or permanently delete it.
+
+        Args:
+            file_id: The ID of the file or folder to remove.
+            permanent: If False (default), moves to trash (recoverable).
+                       If True, permanently deletes — this cannot be undone.
+
+        Returns:
+            Confirmation with fileId and action taken ('trashed' or 'deleted').
+        """
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+
+        # Fetch parents before deletion so we can invalidate the cache
+        existing = (
+            drive_service.files()
+            .get(fileId=file_id, fields="parents", supportsAllDrives=True)
+            .execute()
+        )
+        for parent in existing.get("parents", []):
+            lc.drive_folder_cache.mark_dirty(parent)
+
+        if permanent:
+            drive_service.files().delete(fileId=file_id, supportsAllDrives=True).execute()
+            logger.debug("Permanently deleted file %s", file_id)
+            return {"fileId": file_id, "action": "deleted"}
+
+        drive_service.files().update(
+            fileId=file_id,
+            body={"trashed": True},
+            supportsAllDrives=True,
+            fields="id",
+        ).execute()
+        logger.debug("Trashed file %s", file_id)
+        return {"fileId": file_id, "action": "trashed"}
+
+    @tool(annotations=ToolAnnotations(title="Search Files", readOnlyHint=True))
+    def search_files(
+        query: str,
+        mime_type: str | None = None,
+        folder_id: str | None = None,
+        max_results: int = 20,
+        ctx: Context = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Search for files in Google Drive by name or content.
+
+        Args:
+            query: Search string matched against file name and full text.
+            mime_type: Optional MIME type filter, e.g.
+                       'application/vnd.google-apps.document',
+                       'application/vnd.google-apps.spreadsheet',
+                       'application/pdf'.
+            folder_id: Optional folder to restrict the search to.
+            max_results: Maximum results to return (default 20, max 100).
+
+        Returns:
+            List of matching files with id, name, mimeType, modified time, owners,
+            parent folder, and webViewLink.
+        """
+        drive_service = ctx.request_context.lifespan_context.drive_service
+        max_results = min(max(1, max_results), 100)
+
+        safe_query = query.replace("\\", "\\\\").replace("'", "\\'")
+        parts = [f"(name contains '{safe_query}' or fullText contains '{safe_query}')"]
+        if mime_type:
+            safe_mime = mime_type.replace("'", "\\'")
+            parts.append(f"mimeType='{safe_mime}'")
+        if folder_id:
+            parts.append(f"'{folder_id}' in parents")
+
+        try:
+            results = (
+                drive_service.files()
+                .list(
+                    q=" and ".join(parts),
+                    pageSize=max_results,
+                    spaces="drive",
+                    includeItemsFromAllDrives=True,
+                    supportsAllDrives=True,
+                    fields="files(id, name, mimeType, createdTime, modifiedTime, owners, parents, webViewLink)",
+                    orderBy="modifiedTime desc",
+                )
+                .execute()
+            )
+            return [
+                {
+                    "id": f["id"],
+                    "name": f["name"],
+                    "mimeType": f["mimeType"],
+                    "modified_time": f.get("modifiedTime"),
+                    "owners": [o.get("emailAddress") for o in f.get("owners", [])],
+                    "parent": f.get("parents", [None])[0],
+                    "web_link": f.get("webViewLink"),
+                }
+                for f in results.get("files", [])
+            ]
+        except Exception as e:
+            return [{"error": f"Search failed: {e!s}"}]
+
+    @tool(annotations=ToolAnnotations(title="Get File Metadata", readOnlyHint=True))
+    def get_file_metadata(file_id: str, ctx: Context = None) -> dict[str, Any]:
+        """
+        Get metadata for any file or folder in Google Drive.
+
+        Args:
+            file_id: The Google Drive file or folder ID.
+
+        Returns:
+            id, name, mimeType, parents, createdTime, modifiedTime, size,
+            owners, webViewLink, and trashed status.
+        """
+        drive_service = ctx.request_context.lifespan_context.drive_service
+
+        f = (
+            drive_service.files()
+            .get(
+                fileId=file_id,
+                fields="id, name, mimeType, parents, createdTime, modifiedTime, size, owners, webViewLink, trashed",
+                supportsAllDrives=True,
+            )
+            .execute()
+        )
+        return {
+            "id": f["id"],
+            "name": f["name"],
+            "mimeType": f["mimeType"],
+            "parents": f.get("parents", []),
+            "created_time": f.get("createdTime"),
+            "modified_time": f.get("modifiedTime"),
+            "size": f.get("size"),
+            "owners": [o.get("emailAddress") for o in f.get("owners", [])],
+            "web_link": f.get("webViewLink"),
+            "trashed": f.get("trashed", False),
+        }
+
     @tool(
         annotations=ToolAnnotations(
             title="Search Spreadsheets by Name or Content", readOnlyHint=True

@@ -18,13 +18,13 @@ Prioritized work queue. See [docs/roadmap.md](docs/roadmap.md) for full context 
 
 ## Drive
 
-Items already done: `create_folder`, `move_file`.
+Items already done: `create_folder`, `move_file`, `rename_file`, `copy_file`, `delete_file`, `search_files`, `get_file_metadata`.
 
-9. `rename_file` — rename any file or folder (`files().update()` with new `name`)
-10. `copy_file` — duplicate a file (`files().copy()`); useful for template workflows
-11. `trash_file` / `delete_file` — move to trash (`files().update(trashed=True)`) or permanently delete (`files().delete()`)
-12. `search_files` — general Drive search across all MIME types, not just spreadsheets
-13. `get_file_metadata` — fetch name, MIME type, parents, modified time, owners for any file ID
+9. ~~`rename_file`~~ ✓ — rename any file or folder (`files().update()` with new `name`)
+10. ~~`copy_file`~~ ✓ — duplicate a file (`files().copy()`); useful for template workflows
+11. ~~`trash_file` / `delete_file`~~ ✓ — `permanent=False` trashes, `permanent=True` permanently deletes
+12. ~~`search_files`~~ ✓ — general Drive search across all MIME types, optional mime_type + folder_id filter
+13. ~~`get_file_metadata`~~ ✓ — fetch name, MIME type, parents, modified time, size, owners, trashed status
 14. `list_permissions` — who has access to a file (`permissions().list()`)
 15. `update_permission` — change a user's role (`permissions().update()`)
 16. `remove_permission` — revoke access (`permissions().delete()`)
