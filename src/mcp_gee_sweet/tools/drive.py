@@ -1,4 +1,6 @@
+import base64
 import html as html_module
+import io
 import json
 import logging
 from html.parser import HTMLParser
@@ -445,6 +447,99 @@ def register(tool):
             for f in results.get("files", [])
         ]
 
+    @tool(annotations=ToolAnnotations(title="Create Folder", destructiveHint=True))
+    def create_folder(
+        name: str, parent_folder_id: str | None = None, ctx: Context = None
+    ) -> dict[str, Any]:
+        """
+        Create a new folder in Google Drive.
+
+        Args:
+            name: The name of the new folder
+            parent_folder_id: Optional parent folder ID. If not provided, creates in
+                              the configured default folder or the root of My Drive.
+
+        Returns:
+            Information about the newly created folder including its ID
+        """
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+        target_parent_id = parent_folder_id or lc.folder_id
+
+        file_body = {
+            "name": name,
+            "mimeType": "application/vnd.google-apps.folder",
+        }
+        if target_parent_id:
+            file_body["parents"] = [target_parent_id]
+
+        folder = (
+            drive_service.files()
+            .create(supportsAllDrives=True, body=file_body, fields="id, name, parents")
+            .execute()
+        )
+
+        folder_id = folder.get("id")
+        parents = folder.get("parents")
+        logger.debug("Folder created with ID: %s", folder_id)
+
+        if target_parent_id:
+            lc.drive_folder_cache.mark_dirty(target_parent_id)
+
+        return {
+            "folderId": folder_id,
+            "name": folder.get("name", name),
+            "parent": parents[0] if parents else "root",
+        }
+
+    @tool(annotations=ToolAnnotations(title="Move File", destructiveHint=True))
+    def move_file(file_id: str, destination_folder_id: str, ctx: Context = None) -> dict[str, Any]:
+        """
+        Move a file or folder to a different folder in Google Drive.
+
+        Args:
+            file_id: The ID of the file or folder to move
+            destination_folder_id: The ID of the destination folder
+
+        Returns:
+            Updated file metadata including new parent folder
+        """
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+
+        existing = (
+            drive_service.files()
+            .get(fileId=file_id, fields="parents", supportsAllDrives=True)
+            .execute()
+        )
+        previous_parents = ",".join(existing.get("parents", []))
+
+        updated = (
+            drive_service.files()
+            .update(
+                fileId=file_id,
+                addParents=destination_folder_id,
+                removeParents=previous_parents,
+                supportsAllDrives=True,
+                fields="id, name, parents, mimeType",
+            )
+            .execute()
+        )
+
+        logger.debug("Moved file %s to folder %s", file_id, destination_folder_id)
+
+        for old_parent in existing.get("parents", []):
+            lc.drive_folder_cache.mark_dirty(old_parent)
+        lc.drive_folder_cache.mark_dirty(destination_folder_id)
+
+        parents = updated.get("parents", [])
+        return {
+            "fileId": updated.get("id"),
+            "name": updated.get("name"),
+            "mimeType": updated.get("mimeType"),
+            "parent": parents[0] if parents else "root",
+        }
+
     @tool(
         annotations=ToolAnnotations(
             title="Search Spreadsheets by Name or Content", readOnlyHint=True
@@ -654,3 +749,196 @@ def register(tool):
         lc.doc_cache.mark_dirty(doc_id)
         logger.debug("Wrote content to doc %s", doc_id)
         return {"docId": doc_id, "web_link": metadata.get("webViewLink")}
+
+    @tool(annotations=ToolAnnotations(title="Export File", readOnlyHint=True))
+    def export_file(
+        file_id: str,
+        export_format: str,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Export or download a file from Google Drive.
+
+        For Google Workspace files (Docs, Sheets, Slides) the file is converted to the
+        requested format. For non-Google files the raw content is downloaded.
+
+        Supported export_format values:
+          All Google types:  'pdf', 'html'
+          Google Docs:       'txt', 'docx', 'odt', 'rtf', 'epub'
+          Google Sheets:     'csv', 'xlsx', 'ods'
+          Google Slides:     'pptx'
+          Non-Google files:  'raw'
+
+        Args:
+            file_id: The Google Drive file ID.
+            export_format: One of the format strings above.
+
+        Returns:
+            fileId, name, mime_type, format, encoding ('utf-8' or 'base64'), content.
+            Text formats (txt, html, csv, rtf) are returned as plain strings; all others
+            are base64-encoded bytes.
+        """
+        from googleapiclient.http import MediaIoBaseDownload
+
+        _EXPORT_MIME = {
+            "pdf": "application/pdf",
+            "html": "text/html",
+            "txt": "text/plain",
+            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "odt": "application/vnd.oasis.opendocument.text",
+            "rtf": "application/rtf",
+            "epub": "application/epub+zip",
+            "csv": "text/csv",
+            "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "ods": "application/vnd.oasis.opendocument.spreadsheet",
+            "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        }
+        _TEXT_MIME_PREFIXES = ("text/",)
+
+        drive_service = ctx.request_context.lifespan_context.drive_service
+
+        metadata = (
+            drive_service.files()
+            .get(fileId=file_id, fields="id, name, mimeType", supportsAllDrives=True)
+            .execute()
+        )
+        file_mime = metadata.get("mimeType", "")
+        is_google_workspace = file_mime.startswith("application/vnd.google-apps.")
+
+        if export_format == "raw" or not is_google_workspace:
+            request = drive_service.files().get_media(fileId=file_id)
+            buf = io.BytesIO()
+            downloader = MediaIoBaseDownload(buf, request)
+            done = False
+            while not done:
+                _, done = downloader.next_chunk()
+            raw_bytes = buf.getvalue()
+            is_text = any(file_mime.startswith(p) for p in _TEXT_MIME_PREFIXES)
+            if is_text:
+                return {
+                    "fileId": file_id,
+                    "name": metadata["name"],
+                    "mime_type": file_mime,
+                    "format": export_format,
+                    "encoding": "utf-8",
+                    "content": raw_bytes.decode("utf-8", errors="replace"),
+                }
+            return {
+                "fileId": file_id,
+                "name": metadata["name"],
+                "mime_type": file_mime,
+                "format": export_format,
+                "encoding": "base64",
+                "content": base64.b64encode(raw_bytes).decode("ascii"),
+            }
+
+        target_mime = _EXPORT_MIME.get(export_format)
+        if not target_mime:
+            raise ValueError(
+                f"Unknown export_format '{export_format}'. "
+                f"Valid options: {', '.join(_EXPORT_MIME)}, raw"
+            )
+
+        content_bytes = drive_service.files().export(fileId=file_id, mimeType=target_mime).execute()
+        is_text = any(target_mime.startswith(p) for p in _TEXT_MIME_PREFIXES)
+        if is_text:
+            return {
+                "fileId": file_id,
+                "name": metadata["name"],
+                "mime_type": target_mime,
+                "format": export_format,
+                "encoding": "utf-8",
+                "content": content_bytes.decode("utf-8")
+                if isinstance(content_bytes, bytes)
+                else content_bytes,
+            }
+        return {
+            "fileId": file_id,
+            "name": metadata["name"],
+            "mime_type": target_mime,
+            "format": export_format,
+            "encoding": "base64",
+            "content": base64.b64encode(content_bytes).decode("ascii"),
+        }
+
+    @tool(annotations=ToolAnnotations(title="Upload File", destructiveHint=True))
+    def upload_file(
+        name: str,
+        content: str,
+        source_format: str = "text",
+        folder_id: str | None = None,
+        convert_to_doc: bool = False,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Upload a text file to Google Drive, optionally converting it to a Google Doc.
+
+        Args:
+            name: File name (include extension, e.g. 'notes.md', 'report.html').
+            content: Text content to upload.
+            source_format: How to interpret the content. One of:
+                           'markdown' — Markdown text; converted to HTML before upload.
+                           'html'     — Raw HTML.
+                           'text'     — Plain text (default).
+            folder_id: Destination folder ID. Defaults to the configured folder or Drive root.
+            convert_to_doc: If True, create a Google Doc instead of a raw file.
+                            'markdown' and 'html' sources retain heading, list, and link
+                            formatting via Drive's HTML import. 'text' uploads as plain text
+                            and Drive converts it (no formatting preserved).
+
+        Returns:
+            fileId, name, parent folder ID, and webViewLink of the created file.
+        """
+        import markdown as _md
+        from googleapiclient.http import MediaInMemoryUpload
+
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+        target_folder_id = folder_id or lc.folder_id
+
+        if source_format == "markdown":
+            html_body = _md.markdown(content, extensions=["extra"])
+            upload_content = (
+                f"<!DOCTYPE html><html><head><meta charset='utf-8'></head>"
+                f"<body>{html_body}</body></html>"
+            ).encode("utf-8")
+            upload_mime = "text/html"
+        elif source_format == "html":
+            upload_content = content.encode("utf-8")
+            upload_mime = "text/html"
+        else:
+            upload_content = content.encode("utf-8")
+            upload_mime = "text/plain"
+
+        file_body: dict[str, Any] = {"name": name}
+        if target_folder_id:
+            file_body["parents"] = [target_folder_id]
+
+        if convert_to_doc:
+            file_body["mimeType"] = "application/vnd.google-apps.document"
+
+        media = MediaInMemoryUpload(upload_content, mimetype=upload_mime, resumable=False)
+        result = (
+            drive_service.files()
+            .create(
+                body=file_body,
+                media_body=media,
+                supportsAllDrives=True,
+                fields="id, name, parents, webViewLink",
+            )
+            .execute()
+        )
+
+        file_id = result.get("id")
+        parents = result.get("parents", [])
+        logger.debug("Uploaded %s as file %s (convert_to_doc=%s)", name, file_id, convert_to_doc)
+
+        if target_folder_id:
+            lc.drive_folder_cache.mark_dirty(target_folder_id)
+
+        return {
+            "fileId": file_id,
+            "name": result.get("name", name),
+            "parent": parents[0] if parents else "root",
+            "web_link": result.get("webViewLink"),
+        }
