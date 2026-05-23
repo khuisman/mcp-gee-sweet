@@ -7,21 +7,18 @@ on:
 permissions:
   contents: write  # needed for gh-deploy to push to gh-pages branch
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   deploy:
     name: Build and publish docs
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0  # full history for git-revision-date plugins if added later
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8
 
       - name: Set up Python 3.12
         run: uv python install 3.12
