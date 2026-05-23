@@ -1,0 +1,1671 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/qa/tests/write/">
+      
+      
+        <link rel="prev" href="../sheets/">
+      
+      
+        <link rel="next" href="../../../notes-read/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Write - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#write-tools-qa-test-cases" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Write
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tool-philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Philosophy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../qa-checklist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Checklist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../drive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#update_cells" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        update_cells
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="update_cells">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-w01-write-simple-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W01: Write simple values
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w02-write-a-formula-via-user_entered-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W02: Write a formula via USER_ENTERED ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w03-range-smaller-than-data-provided" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W03: Range smaller than data provided
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w04-cache-invalidated-after-write" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W04: Cache invalidated after write
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w05-non-existent-sheet-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W05: Non-existent sheet name
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#batch_update_cells" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        batch_update_cells
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="batch_update_cells">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-w06-multiple-ranges-in-one-call" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W06: Multiple ranges in one call
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w07-ranges-on-the-same-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W07: Ranges on the same sheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w08-empty-ranges-dict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W08: Empty ranges dict
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w09-cache-invalidated-after-batch-write" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W09: Cache invalidated after batch write
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#add_rows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_rows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="add_rows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-w10-add-row-at-beginning-no-position-specified" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W10: Add row at beginning (no position specified)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w11-add-row-at-explicit-position-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W11: Add row at explicit position ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w12-start_row0-inheritfrombeforefalse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W12: start_row=0 — inheritFromBefore=False
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w13-start_row1-inheritfrombeforetrue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W13: start_row=1 — inheritFromBefore=True
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w14-add-multiple-rows-at-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W14: Add multiple rows at once
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w15-invalid-sheet-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W15: Invalid sheet name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w16-large-count-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W16: Large count value
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#add_columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_columns
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="add_columns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-w17-add-column-at-beginning-no-position-specified" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W17: Add column at beginning (no position specified)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w18-start_column0-inheritfrombeforefalse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W18: start_column=0 — inheritFromBefore=False
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w19-start_column1-inheritfrombeforetrue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W19: start_column=1 — inheritFromBefore=True
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w20-add-multiple-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W20: Add multiple columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#batch_update-raw-passthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        batch_update (raw passthrough)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="batch_update (raw passthrough)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-w21-add-a-sheet-via-raw-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W21: Add a sheet via raw request
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w22-rename-a-sheet-via-raw-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W22: Rename a sheet via raw request
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w23-insert-dimension-via-raw-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W23: Insert dimension via raw request
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w24-delete-dimension-structure-cache-invalidated-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W24: Delete dimension — structure cache invalidated ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w25-empty-requests-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W25: Empty requests list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w26-non-dict-item-in-requests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W26: Non-dict item in requests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w27-invalid-request-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W27: Invalid request structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w28-both-caches-marked-dirty" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W28: Both caches marked dirty
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="write-tools-qa-test-cases">Write Tools — QA Test Cases<a class="headerlink" href="#write-tools-qa-test-cases" title="Permanent link">&para;</a></h1>
+<p>Source: <code>src/mcp_gee_sweet/tools/write.py</code></p>
+<p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute your <code>{SPREADSHEET_ID}</code> from <code>fixtures.local.md</code>.</p>
+<p>Many write tests mutate the fixture spreadsheet. Tests marked <strong>⚠️ destructive</strong> should be run last or followed by a fixture reset.</p>
+<hr />
+<h2 id="update_cells"><code>update_cells</code><a class="headerlink" href="#update_cells" title="Permanent link">&para;</a></h2>
+<h3 id="tc-w01-write-simple-values">TC-W01: Write simple values<a class="headerlink" href="#tc-w01-write-simple-values" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write the values 'Test', 'A', 'B', 'C' into row 7 of the Sales sheet in {SPREADSHEET_ID}, starting at column A"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Row 7 in Sales now contains: Test, A, B, C
+- Existing rows 1–6 unchanged
+- No <code>error</code> field</p>
+<hr />
+<h3 id="tc-w02-write-a-formula-via-user_entered-destructive">TC-W02: Write a formula via USER_ENTERED ⚠️ destructive<a class="headerlink" href="#tc-w02-write-a-formula-via-user_entered-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write the formula =A2&amp;' '&amp;A3 into cell E2 of the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- E2 shows computed value "Widget Gadget" (formula evaluated, not stored as string)
+- Confirms <code>USER_ENTERED</code> input mode</p>
+<hr />
+<h3 id="tc-w03-range-smaller-than-data-provided">TC-W03: Range smaller than data provided<a class="headerlink" href="#tc-w03-range-smaller-than-data-provided" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write these four values — Alpha, Beta, Gamma, Delta — into just cells A8:A9 of the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Only A8 and A9 are written (Alpha, Beta)
+- Gamma and Delta are silently truncated to fit the range
+- 🔍 <strong>Product decision:</strong> should truncation be silent or should the tool warn?</p>
+<hr />
+<h3 id="tc-w04-cache-invalidated-after-write">TC-W04: Cache invalidated after write<a class="headerlink" href="#tc-w04-cache-invalidated-after-write" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong> (run TC-R16 or TC-R17 first to warm the cache, then run this)</p>
+<blockquote>
+<p>"Update cell A7 in the Sales sheet of {SPREADSHEET_ID} to 'CacheTest', then immediately summarize that spreadsheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Summary reflects the new value in A7 — not stale cached data
+- Confirms <code>sheet_data_cache.mark_dirty</code> fired after the write</p>
+<hr />
+<h3 id="tc-w05-non-existent-sheet-name">TC-W05: Non-existent sheet name<a class="headerlink" href="#tc-w05-non-existent-sheet-name" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write 'Hello' into cell A1 of a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns a clear API error
+- Does not silently succeed or create the sheet</p>
+<hr />
+<h2 id="batch_update_cells"><code>batch_update_cells</code><a class="headerlink" href="#batch_update_cells" title="Permanent link">&para;</a></h2>
+<h3 id="tc-w06-multiple-ranges-in-one-call">TC-W06: Multiple ranges in one call<a class="headerlink" href="#tc-w06-multiple-ranges-in-one-call" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"In {SPREADSHEET_ID}, update two ranges at once: write 'Batch1' into Sales!A8 and 'Batch2' into Sales!A9"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Both cells updated in a single operation
+- A8 = Batch1, A9 = Batch2</p>
+<hr />
+<h3 id="tc-w07-ranges-on-the-same-sheet">TC-W07: Ranges on the same sheet<a class="headerlink" href="#tc-w07-ranges-on-the-same-sheet" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Update Sales!B8 to 999 and Sales!C8 to 888 in {SPREADSHEET_ID} in one batch call"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Both cells updated correctly
+- No conflict from writing multiple ranges to the same sheet</p>
+<hr />
+<h3 id="tc-w08-empty-ranges-dict">TC-W08: Empty ranges dict<a class="headerlink" href="#tc-w08-empty-ranges-dict" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Do a batch cell update on {SPREADSHEET_ID} with an empty set of ranges — no ranges to update"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns success or a clear no-op response — not a server error
+- 🔍 <strong>Product decision:</strong> should an empty ranges dict be an error or a no-op?</p>
+<hr />
+<h3 id="tc-w09-cache-invalidated-after-batch-write">TC-W09: Cache invalidated after batch write<a class="headerlink" href="#tc-w09-cache-invalidated-after-batch-write" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Batch update Sales!A8 to 'dirty' in {SPREADSHEET_ID}, then immediately summarize the spreadsheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Summary reflects A8 = 'dirty'
+- Confirms <code>sheet_data_cache.mark_dirty</code> is called for <code>batch_update_cells</code></p>
+<hr />
+<h2 id="add_rows"><code>add_rows</code><a class="headerlink" href="#add_rows" title="Permanent link">&para;</a></h2>
+<h3 id="tc-w10-add-row-at-beginning-no-position-specified">TC-W10: Add row at beginning (no position specified)<a class="headerlink" href="#tc-w10-add-row-at-beginning-no-position-specified" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add 1 row at the very beginning of the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New blank row appears above the current row 1 (headers pushed to row 2)
+- <code>inheritFromBefore=False</code> (inserting at index 0 — no row above to inherit from)</p>
+<hr />
+<h3 id="tc-w11-add-row-at-explicit-position-destructive">TC-W11: Add row at explicit position ⚠️ destructive<a class="headerlink" href="#tc-w11-add-row-at-explicit-position-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add 1 row after row 3 of the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New blank row at position 4
+- Existing rows 4–6 shifted down</p>
+<hr />
+<h3 id="tc-w12-start_row0-inheritfrombeforefalse">TC-W12: start_row=0 — inheritFromBefore=False<a class="headerlink" href="#tc-w12-start_row0-inheritfrombeforefalse" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add 1 row at position 0 (the very first row) of the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Row inserted at the top
+- <code>inheritFromBefore</code> is False (0 is not &gt; 0)
+- 🔍 <strong>Product decision:</strong> is <code>start_row=0</code> meaningfully different from <code>start_row=None</code>?</p>
+<hr />
+<h3 id="tc-w13-start_row1-inheritfrombeforetrue">TC-W13: start_row=1 — inheritFromBefore=True<a class="headerlink" href="#tc-w13-start_row1-inheritfrombeforetrue" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add 1 row at position 1 in the Sales sheet of {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Row inserted at index 1 (after the first row)
+- <code>inheritFromBefore=True</code> — new row inherits formatting from row above</p>
+<hr />
+<h3 id="tc-w14-add-multiple-rows-at-once">TC-W14: Add multiple rows at once<a class="headerlink" href="#tc-w14-add-multiple-rows-at-once" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add 5 blank rows at the end of the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 5 new rows appear
+- Existing data unchanged</p>
+<hr />
+<h3 id="tc-w15-invalid-sheet-name">TC-W15: Invalid sheet name<a class="headerlink" href="#tc-w15-invalid-sheet-name" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add 1 row to a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": ...}</code> without calling the Sheets API
+- Does not throw an unhandled exception</p>
+<hr />
+<h3 id="tc-w16-large-count-value">TC-W16: Large count value<a class="headerlink" href="#tc-w16-large-count-value" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add 1000 rows to the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Succeeds or returns a clear API limit error
+- 🔍 <strong>Product decision:</strong> should the tool cap <code>count</code> to prevent accidental large inserts?</p>
+<hr />
+<h2 id="add_columns"><code>add_columns</code><a class="headerlink" href="#add_columns" title="Permanent link">&para;</a></h2>
+<h3 id="tc-w17-add-column-at-beginning-no-position-specified">TC-W17: Add column at beginning (no position specified)<a class="headerlink" href="#tc-w17-add-column-at-beginning-no-position-specified" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add 1 column at the very beginning of the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New blank column A; existing columns shift right (Product moves to B)
+- <code>inheritFromBefore=False</code></p>
+<hr />
+<h3 id="tc-w18-start_column0-inheritfrombeforefalse">TC-W18: start_column=0 — inheritFromBefore=False<a class="headerlink" href="#tc-w18-start_column0-inheritfrombeforefalse" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add 1 column at position 0 of the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Column inserted at the leftmost position
+- <code>inheritFromBefore</code> is False</p>
+<hr />
+<h3 id="tc-w19-start_column1-inheritfrombeforetrue">TC-W19: start_column=1 — inheritFromBefore=True<a class="headerlink" href="#tc-w19-start_column1-inheritfrombeforetrue" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add 1 column at position 1 in the Sales sheet of {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Column inserted after column A
+- <code>inheritFromBefore=True</code></p>
+<hr />
+<h3 id="tc-w20-add-multiple-columns">TC-W20: Add multiple columns<a class="headerlink" href="#tc-w20-add-multiple-columns" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add 3 columns at position 2 in the Sales sheet of {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 3 new blank columns inserted at the correct position
+- Existing columns shifted right</p>
+<hr />
+<h2 id="batch_update-raw-passthrough"><code>batch_update</code> (raw passthrough)<a class="headerlink" href="#batch_update-raw-passthrough" title="Permanent link">&para;</a></h2>
+<h3 id="tc-w21-add-a-sheet-via-raw-request">TC-W21: Add a sheet via raw request<a class="headerlink" href="#tc-w21-add-a-sheet-via-raw-request" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Use a raw batch update on {SPREADSHEET_ID} to add a new sheet called 'RawAdded'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New sheet 'RawAdded' appears in the spreadsheet
+- Response includes the new sheet's properties</p>
+<hr />
+<h3 id="tc-w22-rename-a-sheet-via-raw-request">TC-W22: Rename a sheet via raw request<a class="headerlink" href="#tc-w22-rename-a-sheet-via-raw-request" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Use a raw batch update to rename the 'Empty' sheet to 'RawRenamed' in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Sheet formerly called 'Empty' is now 'RawRenamed'
+- <code>list_sheets</code> reflects the new name</p>
+<hr />
+<h3 id="tc-w23-insert-dimension-via-raw-request">TC-W23: Insert dimension via raw request<a class="headerlink" href="#tc-w23-insert-dimension-via-raw-request" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Use a raw batch update on {SPREADSHEET_ID} to insert 2 rows at index 1 in the Sales sheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 2 new rows appear at index 1
+- Existing data shifts down</p>
+<hr />
+<h3 id="tc-w24-delete-dimension-structure-cache-invalidated-destructive">TC-W24: Delete dimension — structure cache invalidated ⚠️ destructive<a class="headerlink" href="#tc-w24-delete-dimension-structure-cache-invalidated-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Use a raw batch update to delete row 7 from the Sales sheet in {SPREADSHEET_ID}, then list the sheets"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Row 7 deleted
+- <code>list_sheets</code> call after reflects current state — not stale cache
+- Confirms the structure cache bug fix: both <code>cache.mark_dirty</code> and <code>sheet_data_cache.mark_dirty</code> are called</p>
+<hr />
+<h3 id="tc-w25-empty-requests-list">TC-W25: Empty requests list<a class="headerlink" href="#tc-w25-empty-requests-list" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Send a raw batch update to {SPREADSHEET_ID} with an empty requests list"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "requests list cannot be empty"}</code> or similar
+- Does not call the Sheets API</p>
+<hr />
+<h3 id="tc-w26-non-dict-item-in-requests">TC-W26: Non-dict item in requests<a class="headerlink" href="#tc-w26-non-dict-item-in-requests" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Send a raw batch update to {SPREADSHEET_ID} with a requests list containing the string 'notadict'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns an <code>error</code> field
+- Does not forward the malformed request to the API</p>
+<hr />
+<h3 id="tc-w27-invalid-request-structure">TC-W27: Invalid request structure<a class="headerlink" href="#tc-w27-invalid-request-structure" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Send a raw batch update to {SPREADSHEET_ID} with requests: [{\"unknownKey\": {}}]"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- API error propagates back — not a server crash
+- Error message is from the Sheets API (unknown request type)</p>
+<hr />
+<h3 id="tc-w28-both-caches-marked-dirty">TC-W28: Both caches marked dirty<a class="headerlink" href="#tc-w28-both-caches-marked-dirty" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Use a raw batch update to add a sheet called 'CacheCheck' to {SPREADSHEET_ID}, then immediately list all sheets and summarize the spreadsheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_sheets</code> includes 'CacheCheck' — structure cache was invalidated
+- Summary reflects the new sheet — data cache was invalidated
+- Confirms both <code>cache.mark_dirty</code> and <code>sheet_data_cache.mark_dirty</code> are called</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

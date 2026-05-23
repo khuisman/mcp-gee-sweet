@@ -1,0 +1,2248 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/qa-checklist/">
+      
+      
+        <link rel="prev" href="../qa/">
+      
+      
+        <link rel="next" href="../qa/setup/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>QA Checklist - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#manual-qa-code-review-checklist" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              QA Checklist
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Philosophy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Checklist
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Checklist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#bugs-issues-fix-before-live-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bugs / Issues (fix before live testing)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#read-tools-readpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Read Tools (read.py)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Read Tools (read.py)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get_sheet_data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_sheet_data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_sheet_formulas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_sheet_formulas
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_multiple_sheet_data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_multiple_sheet_data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_multiple_spreadsheet_summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_multiple_spreadsheet_summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#find_in_spreadsheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find_in_spreadsheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#write-tools-writepy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Write Tools (write.py)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Write Tools (write.py)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#update_cells" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        update_cells
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#batch_update_cells" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        batch_update_cells
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add_rows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_rows
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add_columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#batch_update-raw-passthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        batch_update (raw passthrough)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sheet-management-tools-sheetspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sheet Management Tools (sheets.py)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sheet Management Tools (sheets.py)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_sheets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_sheets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#copy_sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        copy_sheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rename_sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rename_sheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create_sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_sheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#refresh_cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        refresh_cache
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#drive-tools-drivepy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drive Tools (drive.py)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Drive Tools (drive.py)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#create_spreadsheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_spreadsheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create_doc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_doc
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#list_spreadsheets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_spreadsheets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#share_spreadsheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        share_spreadsheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#list_folders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_folders
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#search_spreadsheets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        search_spreadsheets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#list_files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#list_drives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_drives
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_doc_content" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_doc_content
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create_folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_folder
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#move_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        move_file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rename_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rename_file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#copy_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        copy_file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        delete_file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#search_files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        search_files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_file_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_file_metadata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#export_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        export_file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upload_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        upload_file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upload_local_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        upload_local_file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upload_local_folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        upload_local_folder
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#download_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        download_file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#download_folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        download_folder
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sync_folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        sync_folder
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#write_doc_content" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        write_doc_content
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#calendar-tools-calendarpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calendar Tools (calendar.py)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Calendar Tools (calendar.py)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_calendars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_calendars
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_calendar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_calendar
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#list_events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_event
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create_event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_event
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update_event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        update_event
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete_event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        delete_event
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#find_free_slots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find_free_slots
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chart-tools-chartspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chart Tools (charts.py)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Chart Tools (charts.py)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#add_chart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_chart
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mcp-resource-serverpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCP Resource (server.py)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MCP Resource (server.py)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#spreadsheetspreadsheet_idinfo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        spreadsheet://{spreadsheet_id}/info
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-cutting-infrastructure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-Cutting / Infrastructure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cross-Cutting / Infrastructure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cache-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cache behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tool-filtering-enabled_tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool filtering (ENABLED_TOOLS)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#auth-fallback-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auth fallback chain
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transport" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transport
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/drive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/sheets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="manual-qa-code-review-checklist">Manual QA + Code Review Checklist<a class="headerlink" href="#manual-qa-code-review-checklist" title="Permanent link">&para;</a></h1>
+<p>Strategic post-merge verification of every registered tool. Work through each section after a clean server start. Check off items as verified.</p>
+<hr />
+<h2 id="bugs-issues-fix-before-live-testing">Bugs / Issues (fix before live testing)<a class="headerlink" href="#bugs-issues-fix-before-live-testing" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[x] <strong><code>search_spreadsheets</code> query injection</strong> (<code>drive.py</code>): User input interpolated raw into Drive API query string — a single quote breaks syntax. Fix: escape <code>'</code> → <code>\'</code> before embedding.</li>
+<li>[x] <strong><code>create_doc</code> strips formatting, <code>write_doc_content</code> preserves it</strong> (<code>drive.py</code>): <code>create_doc</code> used <code>_html_to_text</code> (plain text); <code>write_doc_content</code> uses <code>_html_to_doc_requests</code> (headings, bullets, links). Fixed to use <code>_html_to_doc_requests</code> in both.</li>
+<li>[x] <strong><code>copy_sheet</code> rename silently skipped if API omits <code>title</code></strong> (<code>sheets.py</code>): Guarded with <code>if "title" in copy_result</code> — if API response omits the key, sheet is left with wrong name and no error. Fixed to use <code>.get()</code> and always attempt rename when names differ.</li>
+<li>[x] <strong><code>batch_update</code> does not invalidate structure cache</strong> (<code>write.py</code>): Only called <code>sheet_data_cache.mark_dirty</code>; raw batchUpdate ops that add/rename/delete sheets left structure cache stale. Fixed to also call <code>cache.mark_dirty</code>.</li>
+<li>[ ] <strong><code>get_multiple_spreadsheet_summary</code> range format</strong> (<code>read.py:207</code>): <code>f"{sheet_info.title}!A1:{max_row}"</code> produces e.g. <code>Sheet1!A1:5</code> — valid A1 notation (rows 1–5, all columns), but verify this is intentional for sheets with many columns.</li>
+</ul>
+<hr />
+<h2 id="read-tools-readpy">Read Tools (<code>read.py</code>)<a class="headerlink" href="#read-tools-readpy" title="Permanent link">&para;</a></h2>
+<h3 id="get_sheet_data"><code>get_sheet_data</code><a class="headerlink" href="#get_sheet_data" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Happy path: fetch all data from a sheet (no range)</li>
+<li>[ ] With explicit range: <code>A1:C5</code></li>
+<li>[ ] With <code>include_grid_data=True</code>: verify response includes <code>rowData</code> / formatting fields</li>
+<li>[ ] Non-existent sheet name — does the Sheets API return a clear error?</li>
+<li>[ ] Non-existent spreadsheet ID — error propagates up?</li>
+<li>[ ] Range beyond data bounds (e.g., <code>A100:Z200</code> on a small sheet) — returns empty values, not error?</li>
+<li>[ ] Sheet name with spaces or special characters</li>
+</ul>
+<h3 id="get_sheet_formulas"><code>get_sheet_formulas</code><a class="headerlink" href="#get_sheet_formulas" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Happy path: sheet with formulas — returns formula strings, not computed values</li>
+<li>[ ] Sheet with no formulas — returns empty or literal values?</li>
+<li>[ ] Mixed cells (some formulas, some literals) — literals returned as-is?</li>
+<li>[ ] No range provided — fetches entire sheet</li>
+</ul>
+<h3 id="get_multiple_sheet_data"><code>get_multiple_sheet_data</code><a class="headerlink" href="#get_multiple_sheet_data" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Multiple valid queries across different spreadsheets</li>
+<li>[ ] One query missing required keys — that entry returns error, others succeed</li>
+<li>[ ] All queries fail — full list of errors returned</li>
+<li>[ ] Empty <code>queries</code> list — returns <code>[]</code></li>
+</ul>
+<h3 id="get_multiple_spreadsheet_summary"><code>get_multiple_spreadsheet_summary</code><a class="headerlink" href="#get_multiple_spreadsheet_summary" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Happy path with multiple spreadsheet IDs</li>
+<li>[ ] Cache hit path: call twice, confirm second call skips API</li>
+<li>[ ] <code>rows_to_fetch=1</code> — only header returned, <code>first_rows</code> is empty</li>
+<li>[ ] <code>rows_to_fetch=0</code> — <code>max(1, 0)</code> clamps to 1; verify behavior</li>
+<li>[ ] Spreadsheet with empty sheet — headers and first_rows both empty</li>
+<li>[ ] Invalid spreadsheet ID in list — that entry has error, others succeed</li>
+<li>[ ] Verify <code>range_to_get = f"{sheet_info.title}!A1:{max_row}"</code> works correctly for sheets with header-only data</li>
+</ul>
+<h3 id="find_in_spreadsheet"><code>find_in_spreadsheet</code><a class="headerlink" href="#find_in_spreadsheet" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Match found in a specific sheet</li>
+<li>[ ] Match found across all sheets (no <code>sheet</code> param)</li>
+<li>[ ] Case-insensitive match (default)</li>
+<li>[ ] Case-sensitive match</li>
+<li>[ ] <code>max_results</code> respected — stops at limit</li>
+<li>[ ] No matches — returns <code>[]</code></li>
+<li>[ ] Sheet name not found — returns <code>[{"error": ...}]</code></li>
+<li>[ ] Query matching multiple columns in same row — each cell is a separate result</li>
+</ul>
+<hr />
+<h2 id="write-tools-writepy">Write Tools (<code>write.py</code>)<a class="headerlink" href="#write-tools-writepy" title="Permanent link">&para;</a></h2>
+<h3 id="update_cells"><code>update_cells</code><a class="headerlink" href="#update_cells" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Write simple values to a range</li>
+<li>[ ] Write formulas (<code>=SUM(A1:A5)</code>) via <code>USER_ENTERED</code> — formula is evaluated</li>
+<li>[ ] Range smaller than data (data truncated to range)</li>
+<li>[ ] After write: <code>sheet_data_cache.mark_dirty</code> called — verify next <code>get_multiple_spreadsheet_summary</code> re-fetches</li>
+<li>[ ] Non-existent sheet — Sheets API error propagates</li>
+</ul>
+<h3 id="batch_update_cells"><code>batch_update_cells</code><a class="headerlink" href="#batch_update_cells" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Multiple ranges updated in one call</li>
+<li>[ ] Ranges on the same sheet</li>
+<li>[ ] Empty <code>ranges</code> dict — what does the API return? (probably succeeds with no changes)</li>
+<li>[ ] Cache invalidation: <code>sheet_data_cache.mark_dirty</code> called</li>
+</ul>
+<h3 id="add_rows"><code>add_rows</code><a class="headerlink" href="#add_rows" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Add rows at beginning (<code>start_row=None</code> → index 0, <code>inheritFromBefore=False</code>)</li>
+<li>[ ] Add rows at explicit position (e.g., <code>start_row=5</code>)</li>
+<li>[ ] <code>start_row=0</code> explicitly — <code>inheritFromBefore</code> is <code>False</code> (0 &gt; 0), correct?</li>
+<li>[ ] <code>start_row=1</code> — <code>inheritFromBefore=True</code>, new row inherits formatting from row above</li>
+<li>[ ] Add multiple rows at once (<code>count=5</code>)</li>
+<li>[ ] Invalid sheet name — returns <code>{"error": ...}</code> without calling API</li>
+<li>[ ] Large <code>count</code> value — API limit behavior</li>
+</ul>
+<h3 id="add_columns"><code>add_columns</code><a class="headerlink" href="#add_columns" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Same cases as <code>add_rows</code> but for COLUMNS dimension</li>
+<li>[ ] <code>start_column=None</code> → adds at column A</li>
+<li>[ ] <code>start_column=0</code> explicitly — <code>inheritFromBefore=False</code></li>
+<li>[ ] <code>start_column=1</code> — <code>inheritFromBefore=True</code></li>
+</ul>
+<h3 id="batch_update-raw-passthrough"><code>batch_update</code> <em>(raw passthrough)</em><a class="headerlink" href="#batch_update-raw-passthrough" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Valid request: add a sheet (<code>addSheet</code>)</li>
+<li>[ ] Valid request: rename a sheet (<code>updateSheetProperties</code>)</li>
+<li>[ ] Valid request: insert dimension</li>
+<li>[ ] Valid request: delete dimension — verify structure cache is now invalidated (was a bug, now fixed)</li>
+<li>[ ] Empty <code>requests</code> list — returns <code>{"error": "requests list cannot be empty"}</code></li>
+<li>[ ] Non-dict item in <code>requests</code> — returns error</li>
+<li>[ ] Invalid request structure — API error propagates</li>
+<li>[ ] Verify both <code>sheet_data_cache.mark_dirty</code> and <code>cache.mark_dirty</code> are called</li>
+</ul>
+<hr />
+<h2 id="sheet-management-tools-sheetspy">Sheet Management Tools (<code>sheets.py</code>)<a class="headerlink" href="#sheet-management-tools-sheetspy" title="Permanent link">&para;</a></h2>
+<h3 id="list_sheets"><code>list_sheets</code><a class="headerlink" href="#list_sheets" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Happy path — returns tab names</li>
+<li>[ ] Cache hit: call twice, second is served from cache</li>
+<li>[ ] After <code>rename_sheet</code>: <code>cache.mark_dirty</code> is called; next <code>list_sheets</code> re-fetches</li>
+</ul>
+<h3 id="copy_sheet"><code>copy_sheet</code><a class="headerlink" href="#copy_sheet" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Copy within same spreadsheet (src == dst spreadsheet)</li>
+<li>[ ] Copy to different spreadsheet</li>
+<li>[ ] <code>dst_sheet</code> name that differs from Google's auto-assigned "Copy of X" — rename triggered</li>
+<li>[ ] <code>dst_sheet</code> name that matches Google's auto-assigned name — rename skipped, correct behavior</li>
+<li>[ ] Source sheet not found — returns <code>{"error": ...}</code></li>
+<li>[ ] Destination spreadsheet not writable — API error</li>
+<li>[ ] Verify <code>cache.mark_dirty(dst_spreadsheet)</code> called after copy</li>
+</ul>
+<h3 id="rename_sheet"><code>rename_sheet</code><a class="headerlink" href="#rename_sheet" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Rename to a new name</li>
+<li>[ ] Rename to same name — API may succeed or no-op</li>
+<li>[ ] Sheet not found — returns <code>{"error": ...}</code></li>
+<li>[ ] After rename: <code>cache.mark_dirty</code> called; subsequent <code>list_sheets</code> reflects new name</li>
+</ul>
+<h3 id="create_sheet"><code>create_sheet</code><a class="headerlink" href="#create_sheet" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Create a new tab with a unique title</li>
+<li>[ ] Create a tab with a duplicate title — API behavior (error or auto-suffix?)</li>
+<li>[ ] Long title (&gt;100 chars) — API limit behavior</li>
+<li>[ ] Verify response includes <code>sheetId</code>, <code>title</code>, <code>index</code>, <code>spreadsheetId</code></li>
+<li>[ ] Verify <code>cache.mark_dirty</code> called</li>
+</ul>
+<h3 id="refresh_cache"><code>refresh_cache</code><a class="headerlink" href="#refresh_cache" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] With <code>spreadsheet_id</code> only — marks structure + data cache dirty</li>
+<li>[ ] With <code>doc_id</code> only — marks doc cache dirty</li>
+<li>[ ] With both — marks both</li>
+<li>[ ] With neither — marks all four caches dirty</li>
+<li>[ ] After <code>mark_all_dirty</code>: next summary call triggers fresh API fetch</li>
+</ul>
+<hr />
+<h2 id="drive-tools-drivepy">Drive Tools (<code>drive.py</code>)<a class="headerlink" href="#drive-tools-drivepy" title="Permanent link">&para;</a></h2>
+<h3 id="create_spreadsheet"><code>create_spreadsheet</code><a class="headerlink" href="#create_spreadsheet" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Create in configured default folder (<code>lc.folder_id</code>)</li>
+<li>[ ] Create with explicit <code>folder_id</code></li>
+<li>[ ] Create without any folder (root of Drive) — <code>target_folder_id</code> is None</li>
+<li>[ ] Service account: can it create in shared Drive? (known limitation — may fail for personal Drive)</li>
+<li>[ ] Verify <code>drive_folder_cache.mark_dirty</code> called for the target folder</li>
+<li>[ ] Resulting spreadsheet has expected title</li>
+</ul>
+<h3 id="create_doc"><code>create_doc</code><a class="headerlink" href="#create_doc" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Create with no content — doc created, empty body</li>
+<li>[ ] Create with <code>&lt;p&gt;</code>, <code>&lt;h1&gt;</code>, <code>&lt;li&gt;</code> content — headings and bullets preserved (now uses <code>_html_to_doc_requests</code>)</li>
+<li>[ ] Create with <code>&lt;a href="..."&gt;</code> — link formatting preserved</li>
+<li>[ ] Content that results in empty requests — no <code>batchUpdate</code> call, no error</li>
+<li>[ ] Verify <code>drive_folder_cache.mark_dirty</code> called</li>
+<li>[ ] Long content — API limit behavior</li>
+</ul>
+<h3 id="list_spreadsheets"><code>list_spreadsheets</code><a class="headerlink" href="#list_spreadsheets" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] List from configured folder</li>
+<li>[ ] List from explicit <code>folder_id</code></li>
+<li>[ ] List from root (no folder — omits folder filter in query)</li>
+<li>[ ] Empty folder — returns <code>[]</code></li>
+<li>[ ] Folder with many spreadsheets — pagination not implemented, may silently truncate</li>
+</ul>
+<h3 id="share_spreadsheet"><code>share_spreadsheet</code><a class="headerlink" href="#share_spreadsheet" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Share with valid email as <code>writer</code></li>
+<li>[ ] Share with valid email as <code>reader</code></li>
+<li>[ ] Share with valid email as <code>commenter</code></li>
+<li>[ ] Invalid role — goes to <code>failures</code> list</li>
+<li>[ ] Missing <code>email_address</code> key — goes to <code>failures</code> list with <code>None</code> email</li>
+<li>[ ] Multiple recipients, some succeed, some fail — mixed result</li>
+<li>[ ] <code>send_notification=False</code> — no email sent</li>
+<li>[ ] Non-existent spreadsheet ID — API error goes to <code>failures</code></li>
+<li>[ ] <strong>Danger check</strong>: no validation that caller owns the spreadsheet before sharing</li>
+</ul>
+<h3 id="list_folders"><code>list_folders</code><a class="headerlink" href="#list_folders" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] List folders in a specific parent folder</li>
+<li>[ ] List from root (no <code>parent_folder_id</code>) — adds <code>'root' in parents</code> filter</li>
+<li>[ ] Empty folder — returns <code>[]</code></li>
+<li>[ ] Note: pagination not implemented</li>
+</ul>
+<h3 id="search_spreadsheets"><code>search_spreadsheets</code><a class="headerlink" href="#search_spreadsheets" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Basic name search</li>
+<li>[ ] Content search (fullText)</li>
+<li>[ ] <code>max_results</code> clamped to 1–100</li>
+<li>[ ] Query containing a single quote — now safely escaped (was a bug, now fixed)</li>
+<li>[ ] No results — returns <code>[]</code></li>
+<li>[ ] Empty query string — behavior?</li>
+<li>[ ] API error — returns <code>[{"error": ...}]</code></li>
+</ul>
+<h3 id="list_files"><code>list_files</code><a class="headerlink" href="#list_files" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] List all files in a folder (no <code>mime_type</code>)</li>
+<li>[ ] Filter by MIME type</li>
+<li>[ ] Cache hit: second call with same <code>(folder_id, mime_type)</code> returns cached result</li>
+<li>[ ] <code>mime_type=None</code> cache key — verify <code>folder_cache.get(folder_id, None)</code> works correctly</li>
+<li>[ ] <code>max_results</code> clamped to 1–1000</li>
+<li>[ ] Pagination: &gt;1000 files silently truncated</li>
+<li>[ ] Trashed files excluded (query includes <code>trashed=false</code>)</li>
+<li>[ ] After <code>create_spreadsheet</code>/<code>create_doc</code>: <code>drive_folder_cache.mark_dirty</code> ensures next <code>list_files</code> re-fetches</li>
+</ul>
+<h3 id="list_drives"><code>list_drives</code><a class="headerlink" href="#list_drives" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] No args — returns all accessible shared drives with <code>id</code>, <code>name</code>, <code>created_time</code>, <code>capabilities</code></li>
+<li>[ ] <code>query='name contains "..."'</code> — filters results to matching drives only</li>
+<li>[ ] No shared drives accessible — returns empty list without error</li>
+<li>[ ] <code>max_results</code> clamped: 0 → 1, 300 → 200</li>
+<li>[ ] More drives than one page — pagination exhausts all results up to <code>max_results</code></li>
+<li>[ ] <code>capabilities</code> present in each result (e.g. <code>canAddChildren</code>, <code>canManageMembers</code>)</li>
+</ul>
+<h3 id="get_doc_content"><code>get_doc_content</code><a class="headerlink" href="#get_doc_content" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Happy path — returns text, metadata, web link</li>
+<li>[ ] Cache hit: second call returns cached result</li>
+<li>[ ] Non-Google-Doc file ID — Drive <code>export</code> API error</li>
+<li>[ ] Non-existent file ID — API error</li>
+<li>[ ] Large document — response handling</li>
+<li>[ ] Binary content edge case: <code>content.decode("utf-8")</code> vs already-string branch</li>
+</ul>
+<h3 id="create_folder"><code>create_folder</code><a class="headerlink" href="#create_folder" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Create in configured default folder</li>
+<li>[ ] Create with explicit <code>parent_folder_id</code></li>
+<li>[ ] Create at root (no parent) — <code>target_parent_id</code> is None</li>
+<li>[ ] Verify <code>drive_folder_cache.mark_dirty</code> called for parent</li>
+<li>[ ] Returned <code>folderId</code> is usable as a <code>folder_id</code> in other tools</li>
+</ul>
+<h3 id="move_file"><code>move_file</code><a class="headerlink" href="#move_file" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Move a file to a different folder — verify it appears in destination</li>
+<li>[ ] Move a folder — nested contents move with it</li>
+<li>[ ] Old parent cache and new parent cache both invalidated</li>
+<li>[ ] Moving a file already in the destination — API behavior (no-op or error?)</li>
+<li>[ ] Non-existent <code>file_id</code> — API error propagates</li>
+</ul>
+<h3 id="rename_file"><code>rename_file</code><a class="headerlink" href="#rename_file" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Rename a file — verify new name in Drive</li>
+<li>[ ] Rename a folder</li>
+<li>[ ] Rename to same name — API no-op</li>
+<li>[ ] Parent cache invalidated after rename</li>
+<li>[ ] Non-existent <code>file_id</code> — API error propagates</li>
+</ul>
+<h3 id="copy_file"><code>copy_file</code><a class="headerlink" href="#copy_file" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Copy with no <code>new_name</code> — Drive assigns "Copy of <original>"</li>
+<li>[ ] Copy with explicit <code>new_name</code></li>
+<li>[ ] Copy to different <code>folder_id</code></li>
+<li>[ ] Copy to same folder — two files with similar names</li>
+<li>[ ] Copy a Google Doc — results in a new independent doc</li>
+<li>[ ] Copy a folder — Drive API does not support folder copy; expect API error</li>
+<li>[ ] Destination folder cache invalidated</li>
+</ul>
+<h3 id="delete_file"><code>delete_file</code><a class="headerlink" href="#delete_file" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] <code>permanent=False</code> (default) — file moves to trash, recoverable</li>
+<li>[ ] <code>permanent=True</code> — file gone, cannot be recovered</li>
+<li>[ ] Parent folder cache invalidated in both cases</li>
+<li>[ ] Trash a folder — contents also trashed</li>
+<li>[ ] Non-existent <code>file_id</code> — API error propagates</li>
+<li>[ ] Already-trashed file with <code>permanent=False</code> — API behavior (no-op?)</li>
+</ul>
+<h3 id="search_files"><code>search_files</code><a class="headerlink" href="#search_files" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Name search with no filters — returns files across all types</li>
+<li>[ ] <code>mime_type</code> filter — only matching type returned</li>
+<li>[ ] <code>folder_id</code> filter — only files in that folder</li>
+<li>[ ] Both <code>mime_type</code> and <code>folder_id</code> combined</li>
+<li>[ ] Query with single quote — safely escaped, no API syntax error</li>
+<li>[ ] <code>max_results</code> clamped to 1–100</li>
+<li>[ ] No results — returns <code>[]</code></li>
+<li>[ ] API error — returns <code>[{"error": ...}]</code></li>
+</ul>
+<h3 id="get_file_metadata"><code>get_file_metadata</code><a class="headerlink" href="#get_file_metadata" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Google Doc — all fields populated including <code>webViewLink</code></li>
+<li>[ ] Google Sheet — mimeType is <code>application/vnd.google-apps.spreadsheet</code></li>
+<li>[ ] Non-Google file — <code>size</code> field is populated; <code>webViewLink</code> may be absent</li>
+<li>[ ] Folder — <code>mimeType</code> is <code>application/vnd.google-apps.folder</code></li>
+<li>[ ] Trashed file — <code>trashed: true</code> returned</li>
+<li>[ ] Non-existent <code>file_id</code> — API error propagates</li>
+</ul>
+<h3 id="export_file"><code>export_file</code><a class="headerlink" href="#export_file" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Google Doc → <code>txt</code> — plain text returned, <code>encoding: utf-8</code></li>
+<li>[ ] Google Doc → <code>html</code> — HTML string returned</li>
+<li>[ ] Google Doc → <code>pdf</code> — base64 content returned, <code>encoding: base64</code></li>
+<li>[ ] Google Doc → <code>docx</code> — base64 content returned</li>
+<li>[ ] Google Sheet → <code>csv</code> — CSV string returned</li>
+<li>[ ] Google Sheet → <code>xlsx</code> — base64 content returned</li>
+<li>[ ] Non-Google file with <code>raw</code> — raw bytes returned (text or base64 depending on MIME)</li>
+<li>[ ] Non-Google text file (e.g. <code>.md</code>) — <code>encoding: utf-8</code>, content is the file text</li>
+<li>[ ] Unknown <code>export_format</code> on a Google file — <code>ValueError</code> raised with helpful message</li>
+<li>[ ] Non-existent <code>file_id</code> — API error propagates</li>
+</ul>
+<h3 id="upload_file"><code>upload_file</code><a class="headerlink" href="#upload_file" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] <code>source_format='text'</code>, <code>convert_to_doc=False</code> — raw <code>.txt</code> file created in Drive</li>
+<li>[ ] <code>source_format='markdown'</code>, <code>convert_to_doc=False</code> — raw <code>.md</code> file, markdown syntax preserved as-is</li>
+<li>[ ] <code>source_format='markdown'</code>, <code>convert_to_doc=True</code> — Google Doc created; headings, bullets, bold, links converted</li>
+<li>[ ] <code>source_format='html'</code>, <code>convert_to_doc=True</code> — Google Doc created from raw HTML</li>
+<li>[ ] <code>source_format='text'</code>, <code>convert_to_doc=True</code> — Google Doc created, plain text no formatting</li>
+<li>[ ] <code>folder_id</code> specified — file lands in correct folder; cache invalidated</li>
+<li>[ ] No <code>folder_id</code> — uses configured default or Drive root</li>
+<li>[ ] Markdown with tables — <code>extra</code> extension converts to HTML table; verify in resulting Doc</li>
+<li>[ ] Markdown with fenced code blocks — preserved as preformatted text</li>
+<li>[ ] Empty <code>content</code> — empty file or empty Doc created without error</li>
+</ul>
+<h3 id="upload_local_file"><code>upload_local_file</code><a class="headerlink" href="#upload_local_file" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Upload a binary file (e.g. PNG, PDF) — verify it appears in Drive with correct MIME type</li>
+<li>[ ] Upload a text file — MIME type detected as <code>text/plain</code> or similar</li>
+<li>[ ] <code>name</code> override — file lands in Drive with the specified name, not the local filename</li>
+<li>[ ] <code>skip_if_exists=True</code> (default) — second upload of same filename returns existing file's ID without re-uploading</li>
+<li>[ ] <code>skip_if_exists=False</code> — duplicate file created even when name already exists</li>
+<li>[ ] Non-existent <code>local_path</code> — <code>ValueError</code> raised with clear message</li>
+<li>[ ] Destination is a Shared Drive folder — <code>supportsAllDrives=True</code> prevents 404</li>
+<li>[ ] Folder cache invalidated after upload</li>
+</ul>
+<h3 id="upload_local_folder"><code>upload_local_folder</code><a class="headerlink" href="#upload_local_folder" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Upload a directory of mixed file types — all land in Drive with correct MIME types</li>
+<li>[ ] <code>.DS_Store</code> excluded by default (<code>skip_system_files=True</code>)</li>
+<li>[ ] <code>skip_system_files=False</code> — <code>.DS_Store</code> included</li>
+<li>[ ] <code>skip_if_exists=True</code> — pre-fetches existing names in one list call; already-present files skipped</li>
+<li>[ ] <code>skip_if_exists=False</code> — all files uploaded regardless of existing names</li>
+<li>[ ] One file fails (e.g. permissions error) — others still upload; failed file in <code>failures</code> list</li>
+<li>[ ] Non-existent <code>local_path</code> — <code>ValueError</code> raised</li>
+<li>[ ] Empty directory — returns <code>{uploaded: [], skipped: [], failed: []}</code></li>
+<li>[ ] Folder cache invalidated only when at least one file uploaded</li>
+</ul>
+<h3 id="download_file"><code>download_file</code><a class="headerlink" href="#download_file" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Non-Google file — raw bytes written to <code>local_path</code>; file size matches Drive</li>
+<li>[ ] Google Doc → <code>txt</code> — text file written locally, readable content</li>
+<li>[ ] Google Doc → <code>pdf</code> — binary PDF written; file starts with <code>%PDF</code></li>
+<li>[ ] Google Sheet → <code>csv</code> — CSV written locally</li>
+<li>[ ] <code>local_path</code> is a directory — file saved as <code>&lt;drive_name&gt;</code> (or <code>&lt;drive_name&gt;.ext</code> for Workspace export)</li>
+<li>[ ] <code>local_path</code> is a file path — file written to that exact path; parent dirs created if needed</li>
+<li>[ ] Workspace file with no <code>export_format</code> — <code>ValueError</code> with helpful message</li>
+<li>[ ] Unknown <code>export_format</code> — <code>ValueError</code></li>
+<li>[ ] Non-existent <code>file_id</code> — API error propagates</li>
+</ul>
+<h3 id="download_folder"><code>download_folder</code><a class="headerlink" href="#download_folder" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Folder with mixed file types — non-Workspace files downloaded, Workspace files skipped (no <code>export_format</code>)</li>
+<li>[ ] With <code>export_format='pdf'</code> — Workspace files exported and downloaded alongside raw files</li>
+<li>[ ] <code>mime_type_filter</code> — only matching files downloaded</li>
+<li>[ ] <code>skip_if_exists=True</code> — files already present locally are skipped</li>
+<li>[ ] <code>skip_if_exists=False</code> — all files downloaded, overwriting local copies</li>
+<li>[ ] One file fails — others complete; failed entry in <code>failed</code> list</li>
+<li>[ ] <code>size_bytes</code> reflects total bytes written</li>
+<li>[ ] <code>local_path</code> created if it doesn't exist</li>
+</ul>
+<h3 id="sync_folder"><code>sync_folder</code><a class="headerlink" href="#sync_folder" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] <code>dry_run=True</code> — returns <code>actions</code> list with name/action/reason for every file; nothing transferred</li>
+<li>[ ] Drive-only file, <code>direction='bidirectional'</code> — downloaded</li>
+<li>[ ] Drive-only file, <code>direction='upload'</code> — skipped (appears in <code>skipped</code>)</li>
+<li>[ ] Local-only file, <code>direction='bidirectional'</code> — uploaded</li>
+<li>[ ] Local-only file, <code>direction='download'</code> — skipped</li>
+<li>[ ] Both sides, local newer — uploaded under <code>bidirectional</code> and <code>upload</code>; conflict under <code>download</code></li>
+<li>[ ] Both sides, Drive newer — downloaded under <code>bidirectional</code> and <code>download</code>; conflict under <code>upload</code></li>
+<li>[ ] Both sides, within 5-second tolerance — skipped (in sync)</li>
+<li>[ ] Upload preserves local mtime on Drive file — subsequent sync sees files as in-sync</li>
+<li>[ ] Workspace file with no <code>export_format</code> — excluded from sync (not in any output list)</li>
+<li>[ ] Workspace file with <code>export_format='pdf'</code> — participates in sync as <code>&lt;name&gt;.pdf</code></li>
+<li>[ ] <code>.DS_Store</code> excluded by default</li>
+<li>[ ] Invalid <code>direction</code> — <code>ValueError</code></li>
+<li>[ ] Invalid <code>export_format</code> — <code>ValueError</code></li>
+<li>[ ] Folder cache invalidated after any upload or download</li>
+</ul>
+<h3 id="write_doc_content"><code>write_doc_content</code><a class="headerlink" href="#write_doc_content" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Write to empty doc — <code>end_index=2</code>, no <code>deleteContentRange</code>, only insert</li>
+<li>[ ] Write to doc with existing content — existing content cleared, new content written</li>
+<li>[ ] HTML with <code>&lt;h1&gt;</code>, <code>&lt;h2&gt;</code>, <code>&lt;li&gt;</code>, <code>&lt;p&gt;</code> — headings and bullets preserved</li>
+<li>[ ] HTML with <code>&lt;a href="..."&gt;</code> — link formatting preserved</li>
+<li>[ ] HTML with no recognizable tags — existing content cleared, nothing new written</li>
+<li>[ ] Empty string content — existing content cleared, nothing inserted</li>
+<li>[ ] Very long content — Docs API batchUpdate size limits (~2MB per request)</li>
+<li>[ ] Verify <code>doc_cache.mark_dirty</code> called</li>
+</ul>
+<hr />
+<h2 id="calendar-tools-calendarpy">Calendar Tools (<code>calendar.py</code>)<a class="headerlink" href="#calendar-tools-calendarpy" title="Permanent link">&para;</a></h2>
+<h3 id="list_calendars"><code>list_calendars</code><a class="headerlink" href="#list_calendars" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Returns all subscribed calendars with <code>id</code>, <code>summary</code>, <code>time_zone</code>, <code>access_role</code>, <code>primary</code></li>
+<li>[ ] <code>primary: true</code> on the user's main calendar</li>
+<li>[ ] Empty calendar list (no subscriptions) — returns <code>[]</code></li>
+</ul>
+<h3 id="get_calendar"><code>get_calendar</code><a class="headerlink" href="#get_calendar" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Valid calendar ID — returns correct summary and timezone</li>
+<li>[ ] <code>calendar_id='primary'</code> — resolves to user's primary calendar</li>
+<li>[ ] Non-existent calendar ID — returns <code>{"error": ...}</code></li>
+</ul>
+<h3 id="list_events"><code>list_events</code><a class="headerlink" href="#list_events" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] No time filters — returns upcoming events ordered by start time</li>
+<li>[ ] <code>time_min</code> + <code>time_max</code> — only events in the window returned</li>
+<li>[ ] <code>query</code> string — matches against summary/description/location</li>
+<li>[ ] All-day event — <code>start</code>/<code>end</code> fields are date strings (no <code>T</code>)</li>
+<li>[ ] Timed event — <code>start</code>/<code>end</code> are RFC3339 datetime strings</li>
+<li>[ ] <code>max_results</code> clamped: 0 → 1, 3000 → 2500</li>
+<li>[ ] Non-existent <code>calendar_id</code> — returns <code>[{"error": ...}]</code></li>
+</ul>
+<h3 id="get_event"><code>get_event</code><a class="headerlink" href="#get_event" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Valid event — returns full details including <code>organizer</code>, <code>attendees</code>, <code>recurrence</code></li>
+<li>[ ] Non-existent event ID — returns <code>{"error": ...}</code></li>
+<li>[ ] Recurring event instance — <code>recurrence</code> field populated</li>
+</ul>
+<h3 id="create_event"><code>create_event</code><a class="headerlink" href="#create_event" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Timed event — created with correct RFC3339 start/end</li>
+<li>[ ] All-day event (date-only strings) — created with <code>date</code> field, not <code>dateTime</code></li>
+<li>[ ] With <code>description</code>, <code>location</code>, <code>attendees</code> — all fields present on created event</li>
+<li>[ ] <code>htmlLink</code> returned and points to Google Calendar UI</li>
+<li>[ ] Invalid <code>calendar_id</code> — returns <code>{"error": ...}</code></li>
+</ul>
+<h3 id="update_event"><code>update_event</code><a class="headerlink" href="#update_event" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Update <code>summary</code> only — other fields unchanged</li>
+<li>[ ] Update <code>start</code>/<code>end</code> — time changes reflected</li>
+<li>[ ] Update <code>description</code> and <code>location</code> — fields patched correctly</li>
+<li>[ ] Non-existent event ID — returns <code>{"error": ...}</code></li>
+</ul>
+<h3 id="delete_event"><code>delete_event</code><a class="headerlink" href="#delete_event" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Existing event — returns <code>{"calendar_id": ..., "event_id": ..., "action": "deleted"}</code>, event no longer appears in <code>list_events</code></li>
+<li>[ ] Non-existent event ID — returns <code>{"error": ...}</code></li>
+</ul>
+<h3 id="find_free_slots"><code>find_free_slots</code><a class="headerlink" href="#find_free_slots" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Single calendar — <code>busy</code> map contains correct calendar ID key</li>
+<li>[ ] No events in window — busy list is empty</li>
+<li>[ ] Events in window — busy periods match event start/end times</li>
+<li>[ ] Multiple calendar IDs — separate busy lists per calendar</li>
+<li>[ ] Invalid calendar ID in list — returns <code>{"error": ...}</code></li>
+</ul>
+<hr />
+<h2 id="chart-tools-chartspy">Chart Tools (<code>charts.py</code>)<a class="headerlink" href="#chart-tools-chartspy" title="Permanent link">&para;</a></h2>
+<h3 id="add_chart"><code>add_chart</code><a class="headerlink" href="#add_chart" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Each of the 8 chart types: COLUMN, BAR, LINE, AREA, PIE, SCATTER, COMBO, HISTOGRAM</li>
+<li>[ ] Invalid chart type — returns <code>{"error": ...}</code> before API call</li>
+<li>[ ] Chart type lowercase input — <code>.upper()</code> normalizes correctly</li>
+<li>[ ] Sheet not found — returns <code>{"error": ...}</code></li>
+<li>[ ] Invalid A1 notation in <code>data_range</code> — returns <code>{"error": ...}</code> from <code>_parse_a1_notation</code></li>
+<li>[ ] PIE chart: verify separate code path (no axis/domain/series splitting)</li>
+<li>[ ] Non-PIE chart with <code>x_axis_label</code> and <code>y_axis_label</code> — included in <code>axis</code> list</li>
+<li>[ ] Non-PIE chart without axis labels — axis entries have no <code>title</code> key</li>
+<li>[ ] Custom <code>position_x</code>, <code>position_y</code>, <code>width</code>, <code>height</code> — values passed to <code>overlayPosition</code></li>
+<li>[ ] Chart created on a sheet with data — appears in spreadsheet</li>
+<li>[ ] <code>chartId</code> extracted from response and returned</li>
+<li>[ ] API error during chart creation — returns <code>{"error": "Failed to add chart: ..."}</code> (catches all exceptions — intentional?)</li>
+</ul>
+<hr />
+<h2 id="mcp-resource-serverpy">MCP Resource (<code>server.py</code>)<a class="headerlink" href="#mcp-resource-serverpy" title="Permanent link">&para;</a></h2>
+<h3 id="spreadsheetspreadsheet_idinfo"><code>spreadsheet://{spreadsheet_id}/info</code><a class="headerlink" href="#spreadsheetspreadsheet_idinfo" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Happy path — returns JSON with title and sheet list</li>
+<li>[ ] Each sheet entry has <code>title</code>, <code>sheetId</code>, <code>gridProperties</code></li>
+<li>[ ] Non-existent spreadsheet ID — API error (resource doesn't catch exceptions)</li>
+<li>[ ] Uses <code>mcp.get_lifespan_context()</code> not <code>ctx</code> — verify this works correctly in resource context</li>
+<li>[ ] No cache — always hits the API (intentional)</li>
+</ul>
+<hr />
+<h2 id="cross-cutting-infrastructure">Cross-Cutting / Infrastructure<a class="headerlink" href="#cross-cutting-infrastructure" title="Permanent link">&para;</a></h2>
+<h3 id="cache-behavior">Cache behavior<a class="headerlink" href="#cache-behavior" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] Structure cache TTL: verify stale entries cause a re-fetch after expiry (not just after <code>mark_dirty</code>)</li>
+<li>[ ] SQLite WAL mode: verify concurrent reads during a write don't block</li>
+<li>[ ] <code>CACHE_DB_PATH</code> env var respected — verify file is created at custom path</li>
+<li>[ ] Server restart: cache persists across restarts (SQLite file survives), stale data possible</li>
+</ul>
+<h3 id="tool-filtering-enabled_tools">Tool filtering (<code>ENABLED_TOOLS</code>)<a class="headerlink" href="#tool-filtering-enabled_tools" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] With <code>--include-tools get_sheet_data,list_sheets</code>: only those two registered</li>
+<li>[ ] With <code>ENABLED_TOOLS</code> env var: same behavior</li>
+<li>[ ] Tool not in allowlist is called by name — MCP returns "tool not found"</li>
+</ul>
+<h3 id="auth-fallback-chain">Auth fallback chain<a class="headerlink" href="#auth-fallback-chain" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] <code>CREDENTIALS_CONFIG</code> (base64 service account) — works</li>
+<li>[ ] <code>SERVICE_ACCOUNT_PATH</code> — works</li>
+<li>[ ] OAuth flow (<code>CREDENTIALS_PATH</code>/<code>TOKEN_PATH</code>) — works; <code>create_doc</code>/<code>create_spreadsheet</code> land in personal Drive</li>
+<li>[ ] Application Default Credentials — works (e.g., <code>gcloud auth application-default login</code>)</li>
+<li>[ ] No credentials at all — server fails to start with a clear error</li>
+</ul>
+<h3 id="transport">Transport<a class="headerlink" href="#transport" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[ ] stdio transport: <code>uv run mcp-gee-sweet</code> — connects from a MCP client</li>
+<li>[ ] SSE transport: <code>uv run mcp-gee-sweet --transport sse</code> — accessible at <code>http://localhost:8000</code></li>
+<li>[ ] <code>--reload</code> flag with SSE — uvicorn hot-reload works</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
