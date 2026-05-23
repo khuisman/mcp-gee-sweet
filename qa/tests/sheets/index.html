@@ -1,0 +1,1620 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/qa/tests/sheets/">
+      
+      
+        <link rel="prev" href="../read/">
+      
+      
+        <link rel="next" href="../write/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Sheets - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#sheet-management-tools-qa-test-cases" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Sheets
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tool-philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Philosophy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../qa-checklist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Checklist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../drive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#list_sheets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_sheets
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_sheets">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s01-happy-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S01: Happy path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s02-cache-hit-on-second-call" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S02: Cache hit on second call
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s03-cache-invalidated-after-rename" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S03: Cache invalidated after rename
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#copy_sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        copy_sheet
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="copy_sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s04-copy-within-same-spreadsheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S04: Copy within same spreadsheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s05-copy-to-a-different-spreadsheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S05: Copy to a different spreadsheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s06-name-differs-from-googles-auto-assigned-name-rename-triggered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S06: Name differs from Google's auto-assigned name — rename triggered
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s07-name-matches-googles-auto-assigned-name-rename-skipped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S07: Name matches Google's auto-assigned name — rename skipped
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s08-source-sheet-not-found" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S08: Source sheet not found
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s09-destination-spreadsheet-not-writable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S09: Destination spreadsheet not writable
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s10-cache-invalidated-after-copy-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S10: Cache invalidated after copy ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rename_sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rename_sheet
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="rename_sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s11-rename-to-a-new-name-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S11: Rename to a new name ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s12-rename-to-the-same-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S12: Rename to the same name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s13-sheet-not-found" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S13: Sheet not found
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s14-cache-invalidated-after-rename" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S14: Cache invalidated after rename
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create_sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_sheet
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="create_sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s15-create-a-new-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S15: Create a new tab
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s16-duplicate-tab-title" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S16: Duplicate tab title
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s17-long-title" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S17: Long title
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s18-response-shape" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S18: Response shape
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s19-cache-updated-after-create" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S19: Cache updated after create
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#refresh_cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        refresh_cache
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="refresh_cache">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s20-refresh-by-spreadsheet-id-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S20: Refresh by spreadsheet ID only
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s21-refresh-by-doc-id-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S21: Refresh by doc ID only
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s22-refresh-both-spreadsheet-and-doc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S22: Refresh both spreadsheet and doc
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s23-refresh-with-no-arguments-clears-all-caches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S23: Refresh with no arguments — clears all caches
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s24-cache-re-populated-after-refresh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S24: Cache re-populated after refresh
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="sheet-management-tools-qa-test-cases">Sheet Management Tools — QA Test Cases<a class="headerlink" href="#sheet-management-tools-qa-test-cases" title="Permanent link">&para;</a></h1>
+<p>Source: <code>src/mcp_gee_sweet/tools/sheets.py</code></p>
+<p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute your <code>{SPREADSHEET_ID}</code> from <code>fixtures.local.md</code>.</p>
+<p>Tests marked <strong>⚠️ destructive</strong> rename or delete sheets — reset fixtures afterward.</p>
+<hr />
+<h2 id="list_sheets"><code>list_sheets</code><a class="headerlink" href="#list_sheets" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s01-happy-path">TC-S01: Happy path<a class="headerlink" href="#tc-s01-happy-path" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List all the sheets in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns 3 tabs: Sales, Empty, Notes &amp; Misc
+- Each entry includes the sheet name
+- No <code>error</code> field</p>
+<hr />
+<h3 id="tc-s02-cache-hit-on-second-call">TC-S02: Cache hit on second call<a class="headerlink" href="#tc-s02-cache-hit-on-second-call" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong> (run twice in the same session)</p>
+<blockquote>
+<p>"List the sheets in {SPREADSHEET_ID} again"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Second call returns the same list
+- Server logs show <code>cache hit</code> for the second call (<code>make logs</code>)</p>
+<hr />
+<h3 id="tc-s03-cache-invalidated-after-rename">TC-S03: Cache invalidated after rename<a class="headerlink" href="#tc-s03-cache-invalidated-after-rename" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Rename the 'Empty' sheet in {SPREADSHEET_ID} to 'WasEmpty', then immediately list all sheets"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_sheets</code> response includes 'WasEmpty', not 'Empty'
+- Confirms <code>cache.mark_dirty</code> fires after rename and the next list re-fetches</p>
+<hr />
+<h2 id="copy_sheet"><code>copy_sheet</code><a class="headerlink" href="#copy_sheet" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s04-copy-within-same-spreadsheet">TC-S04: Copy within same spreadsheet<a class="headerlink" href="#tc-s04-copy-within-same-spreadsheet" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy the Sales sheet within {SPREADSHEET_ID} and name the copy 'Sales Copy'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New sheet 'Sales Copy' appears in {SPREADSHEET_ID}
+- Data in 'Sales Copy' matches Sales (6 rows, 4 columns)
+- Original Sales sheet unchanged</p>
+<hr />
+<h3 id="tc-s05-copy-to-a-different-spreadsheet">TC-S05: Copy to a different spreadsheet<a class="headerlink" href="#tc-s05-copy-to-a-different-spreadsheet" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy the Sales sheet from {SPREADSHEET_ID} into a different spreadsheet — use {SPREADSHEET_ID} as both source and destination for this test, but note the tool supports different IDs"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Tool accepts <code>src_spreadsheet</code> and <code>dst_spreadsheet</code> as separate params
+- Copy operation completes without error
+- 🔍 <strong>Note:</strong> requires a second spreadsheet ID to fully verify cross-spreadsheet copy</p>
+<hr />
+<h3 id="tc-s06-name-differs-from-googles-auto-assigned-name-rename-triggered">TC-S06: Name differs from Google's auto-assigned name — rename triggered<a class="headerlink" href="#tc-s06-name-differs-from-googles-auto-assigned-name-rename-triggered" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy the Sales sheet in {SPREADSHEET_ID} and name the copy 'My Custom Name'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Sheet is named 'My Custom Name', not Google's default 'Copy of Sales'
+- Rename was triggered automatically after the copy</p>
+<hr />
+<h3 id="tc-s07-name-matches-googles-auto-assigned-name-rename-skipped">TC-S07: Name matches Google's auto-assigned name — rename skipped<a class="headerlink" href="#tc-s07-name-matches-googles-auto-assigned-name-rename-skipped" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy the Sales sheet in {SPREADSHEET_ID} and name the copy 'Copy of Sales'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Sheet is named 'Copy of Sales'
+- No unnecessary rename API call (names already match)</p>
+<hr />
+<h3 id="tc-s08-source-sheet-not-found">TC-S08: Source sheet not found<a class="headerlink" href="#tc-s08-source-sheet-not-found" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy a sheet called 'DoesNotExist' from {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": ...}</code> before calling the copy API
+- Error references the missing sheet name</p>
+<hr />
+<h3 id="tc-s09-destination-spreadsheet-not-writable">TC-S09: Destination spreadsheet not writable<a class="headerlink" href="#tc-s09-destination-spreadsheet-not-writable" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy the Sales sheet from {SPREADSHEET_ID} to spreadsheet 'invalidid123xyz'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns a clear API error — destination not accessible
+- Source spreadsheet unaffected</p>
+<hr />
+<h3 id="tc-s10-cache-invalidated-after-copy-destructive">TC-S10: Cache invalidated after copy ⚠️ destructive<a class="headerlink" href="#tc-s10-cache-invalidated-after-copy-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy the Sales sheet in {SPREADSHEET_ID} as 'PostCopyCache', then immediately list all sheets"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_sheets</code> includes 'PostCopyCache'
+- Confirms <code>cache.mark_dirty(dst_spreadsheet)</code> fires after copy</p>
+<hr />
+<h2 id="rename_sheet"><code>rename_sheet</code><a class="headerlink" href="#rename_sheet" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s11-rename-to-a-new-name-destructive">TC-S11: Rename to a new name ⚠️ destructive<a class="headerlink" href="#tc-s11-rename-to-a-new-name-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Rename the 'Empty' sheet in {SPREADSHEET_ID} to 'Renamed'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Sheet formerly called 'Empty' is now 'Renamed'
+- <code>list_sheets</code> reflects the new name
+- No <code>error</code> field</p>
+<hr />
+<h3 id="tc-s12-rename-to-the-same-name">TC-S12: Rename to the same name<a class="headerlink" href="#tc-s12-rename-to-the-same-name" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Rename the 'Sales' sheet in {SPREADSHEET_ID} to 'Sales' (same name)"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- API succeeds or no-ops — no error
+- Sheet still exists with the same name
+- 🔍 <strong>Product decision:</strong> is a same-name rename a no-op or does it round-trip to the API?</p>
+<hr />
+<h3 id="tc-s13-sheet-not-found">TC-S13: Sheet not found<a class="headerlink" href="#tc-s13-sheet-not-found" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Rename a sheet called 'NoSuchSheet' in {SPREADSHEET_ID} to 'Anything'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": ...}</code> — sheet not found
+- Does not call the Sheets API</p>
+<hr />
+<h3 id="tc-s14-cache-invalidated-after-rename">TC-S14: Cache invalidated after rename<a class="headerlink" href="#tc-s14-cache-invalidated-after-rename" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Rename 'Notes &amp; Misc' to 'Notes' in {SPREADSHEET_ID}, then list all sheets"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_sheets</code> shows 'Notes', not 'Notes &amp; Misc'
+- Confirms <code>cache.mark_dirty</code> fires; next list re-fetches from API</p>
+<hr />
+<h2 id="create_sheet"><code>create_sheet</code><a class="headerlink" href="#create_sheet" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s15-create-a-new-tab">TC-S15: Create a new tab<a class="headerlink" href="#tc-s15-create-a-new-tab" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add a new sheet called 'BrandNew' to {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New tab 'BrandNew' appears
+- Response includes <code>sheetId</code>, <code>title</code>, <code>index</code>, <code>spreadsheetId</code>
+- <code>cache.mark_dirty</code> called — <code>list_sheets</code> reflects the new tab</p>
+<hr />
+<h3 id="tc-s16-duplicate-tab-title">TC-S16: Duplicate tab title<a class="headerlink" href="#tc-s16-duplicate-tab-title" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add another sheet called 'Sales' to {SPREADSHEET_ID} — a tab with that name already exists"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 🔍 <strong>Product decision:</strong> does the API error, auto-suffix (e.g. "Sales2"), or succeed with a duplicate?
+- Note observed behavior</p>
+<hr />
+<h3 id="tc-s17-long-title">TC-S17: Long title<a class="headerlink" href="#tc-s17-long-title" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add a sheet with a 150-character title to {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- API error with a clear message about title length limits, or succeeds if no limit enforced
+- Note the actual limit if an error is returned</p>
+<hr />
+<h3 id="tc-s18-response-shape">TC-S18: Response shape<a class="headerlink" href="#tc-s18-response-shape" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a sheet called 'ShapeTest' in {SPREADSHEET_ID} and show me the full response"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response includes: <code>sheetId</code> (integer), <code>title</code> (string), <code>index</code> (integer), <code>spreadsheetId</code> (string)
+- No unexpected missing fields</p>
+<hr />
+<h3 id="tc-s19-cache-updated-after-create">TC-S19: Cache updated after create<a class="headerlink" href="#tc-s19-cache-updated-after-create" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a sheet called 'CacheNewSheet' in {SPREADSHEET_ID}, then list all sheets"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_sheets</code> includes 'CacheNewSheet' immediately
+- Confirms <code>cache.mark_dirty</code> fires after creation</p>
+<hr />
+<h2 id="refresh_cache"><code>refresh_cache</code><a class="headerlink" href="#refresh_cache" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s20-refresh-by-spreadsheet-id-only">TC-S20: Refresh by spreadsheet ID only<a class="headerlink" href="#tc-s20-refresh-by-spreadsheet-id-only" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Refresh the cache for {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns success
+- Next <code>list_sheets</code> or summary call hits the API (visible in logs as a cache miss)</p>
+<hr />
+<h3 id="tc-s21-refresh-by-doc-id-only">TC-S21: Refresh by doc ID only<a class="headerlink" href="#tc-s21-refresh-by-doc-id-only" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Refresh the cache for doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns success
+- Next <code>get_doc_content</code> call re-fetches from API</p>
+<hr />
+<h3 id="tc-s22-refresh-both-spreadsheet-and-doc">TC-S22: Refresh both spreadsheet and doc<a class="headerlink" href="#tc-s22-refresh-both-spreadsheet-and-doc" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Refresh the cache for both {SPREADSHEET_ID} and doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Both caches marked dirty
+- Subsequent calls for both re-fetch from API</p>
+<hr />
+<h3 id="tc-s23-refresh-with-no-arguments-clears-all-caches">TC-S23: Refresh with no arguments — clears all caches<a class="headerlink" href="#tc-s23-refresh-with-no-arguments-clears-all-caches" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Clear all caches in mcp-gee-sweet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- All four caches marked dirty (structure, data, Drive folder, doc)
+- Next calls for any resource re-fetch from API</p>
+<hr />
+<h3 id="tc-s24-cache-re-populated-after-refresh">TC-S24: Cache re-populated after refresh<a class="headerlink" href="#tc-s24-cache-re-populated-after-refresh" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Refresh the cache for {SPREADSHEET_ID}, then immediately summarize it"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Summary returns correct data (re-fetched, not stale)
+- Logs show a cache miss followed by a cache store</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
