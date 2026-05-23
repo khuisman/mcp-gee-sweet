@@ -199,6 +199,14 @@ Strategic post-merge verification of every registered tool. Work through each se
 - [ ] Trashed files excluded (query includes `trashed=false`)
 - [ ] After `create_spreadsheet`/`create_doc`: `drive_folder_cache.mark_dirty` ensures next `list_files` re-fetches
 
+### `list_drives`
+- [ ] No args — returns all accessible shared drives with `id`, `name`, `created_time`, `capabilities`
+- [ ] `query='name contains "..."'` — filters results to matching drives only
+- [ ] No shared drives accessible — returns empty list without error
+- [ ] `max_results` clamped: 0 → 1, 300 → 200
+- [ ] More drives than one page — pagination exhausts all results up to `max_results`
+- [ ] `capabilities` present in each result (e.g. `canAddChildren`, `canManageMembers`)
+
 ### `get_doc_content`
 - [ ] Happy path — returns text, metadata, web link
 - [ ] Cache hit: second call returns cached result
@@ -206,6 +214,145 @@ Strategic post-merge verification of every registered tool. Work through each se
 - [ ] Non-existent file ID — API error
 - [ ] Large document — response handling
 - [ ] Binary content edge case: `content.decode("utf-8")` vs already-string branch
+
+### `create_folder`
+- [ ] Create in configured default folder
+- [ ] Create with explicit `parent_folder_id`
+- [ ] Create at root (no parent) — `target_parent_id` is None
+- [ ] Verify `drive_folder_cache.mark_dirty` called for parent
+- [ ] Returned `folderId` is usable as a `folder_id` in other tools
+
+### `move_file`
+- [ ] Move a file to a different folder — verify it appears in destination
+- [ ] Move a folder — nested contents move with it
+- [ ] Old parent cache and new parent cache both invalidated
+- [ ] Moving a file already in the destination — API behavior (no-op or error?)
+- [ ] Non-existent `file_id` — API error propagates
+
+### `rename_file`
+- [ ] Rename a file — verify new name in Drive
+- [ ] Rename a folder
+- [ ] Rename to same name — API no-op
+- [ ] Parent cache invalidated after rename
+- [ ] Non-existent `file_id` — API error propagates
+
+### `copy_file`
+- [ ] Copy with no `new_name` — Drive assigns "Copy of <original>"
+- [ ] Copy with explicit `new_name`
+- [ ] Copy to different `folder_id`
+- [ ] Copy to same folder — two files with similar names
+- [ ] Copy a Google Doc — results in a new independent doc
+- [ ] Copy a folder — Drive API does not support folder copy; expect API error
+- [ ] Destination folder cache invalidated
+
+### `delete_file`
+- [ ] `permanent=False` (default) — file moves to trash, recoverable
+- [ ] `permanent=True` — file gone, cannot be recovered
+- [ ] Parent folder cache invalidated in both cases
+- [ ] Trash a folder — contents also trashed
+- [ ] Non-existent `file_id` — API error propagates
+- [ ] Already-trashed file with `permanent=False` — API behavior (no-op?)
+
+### `search_files`
+- [ ] Name search with no filters — returns files across all types
+- [ ] `mime_type` filter — only matching type returned
+- [ ] `folder_id` filter — only files in that folder
+- [ ] Both `mime_type` and `folder_id` combined
+- [ ] Query with single quote — safely escaped, no API syntax error
+- [ ] `max_results` clamped to 1–100
+- [ ] No results — returns `[]`
+- [ ] API error — returns `[{"error": ...}]`
+
+### `get_file_metadata`
+- [ ] Google Doc — all fields populated including `webViewLink`
+- [ ] Google Sheet — mimeType is `application/vnd.google-apps.spreadsheet`
+- [ ] Non-Google file — `size` field is populated; `webViewLink` may be absent
+- [ ] Folder — `mimeType` is `application/vnd.google-apps.folder`
+- [ ] Trashed file — `trashed: true` returned
+- [ ] Non-existent `file_id` — API error propagates
+
+### `export_file`
+- [ ] Google Doc → `txt` — plain text returned, `encoding: utf-8`
+- [ ] Google Doc → `html` — HTML string returned
+- [ ] Google Doc → `pdf` — base64 content returned, `encoding: base64`
+- [ ] Google Doc → `docx` — base64 content returned
+- [ ] Google Sheet → `csv` — CSV string returned
+- [ ] Google Sheet → `xlsx` — base64 content returned
+- [ ] Non-Google file with `raw` — raw bytes returned (text or base64 depending on MIME)
+- [ ] Non-Google text file (e.g. `.md`) — `encoding: utf-8`, content is the file text
+- [ ] Unknown `export_format` on a Google file — `ValueError` raised with helpful message
+- [ ] Non-existent `file_id` — API error propagates
+
+### `upload_file`
+- [ ] `source_format='text'`, `convert_to_doc=False` — raw `.txt` file created in Drive
+- [ ] `source_format='markdown'`, `convert_to_doc=False` — raw `.md` file, markdown syntax preserved as-is
+- [ ] `source_format='markdown'`, `convert_to_doc=True` — Google Doc created; headings, bullets, bold, links converted
+- [ ] `source_format='html'`, `convert_to_doc=True` — Google Doc created from raw HTML
+- [ ] `source_format='text'`, `convert_to_doc=True` — Google Doc created, plain text no formatting
+- [ ] `folder_id` specified — file lands in correct folder; cache invalidated
+- [ ] No `folder_id` — uses configured default or Drive root
+- [ ] Markdown with tables — `extra` extension converts to HTML table; verify in resulting Doc
+- [ ] Markdown with fenced code blocks — preserved as preformatted text
+- [ ] Empty `content` — empty file or empty Doc created without error
+
+### `upload_local_file`
+- [ ] Upload a binary file (e.g. PNG, PDF) — verify it appears in Drive with correct MIME type
+- [ ] Upload a text file — MIME type detected as `text/plain` or similar
+- [ ] `name` override — file lands in Drive with the specified name, not the local filename
+- [ ] `skip_if_exists=True` (default) — second upload of same filename returns existing file's ID without re-uploading
+- [ ] `skip_if_exists=False` — duplicate file created even when name already exists
+- [ ] Non-existent `local_path` — `ValueError` raised with clear message
+- [ ] Destination is a Shared Drive folder — `supportsAllDrives=True` prevents 404
+- [ ] Folder cache invalidated after upload
+
+### `upload_local_folder`
+- [ ] Upload a directory of mixed file types — all land in Drive with correct MIME types
+- [ ] `.DS_Store` excluded by default (`skip_system_files=True`)
+- [ ] `skip_system_files=False` — `.DS_Store` included
+- [ ] `skip_if_exists=True` — pre-fetches existing names in one list call; already-present files skipped
+- [ ] `skip_if_exists=False` — all files uploaded regardless of existing names
+- [ ] One file fails (e.g. permissions error) — others still upload; failed file in `failures` list
+- [ ] Non-existent `local_path` — `ValueError` raised
+- [ ] Empty directory — returns `{uploaded: [], skipped: [], failed: []}`
+- [ ] Folder cache invalidated only when at least one file uploaded
+
+### `download_file`
+- [ ] Non-Google file — raw bytes written to `local_path`; file size matches Drive
+- [ ] Google Doc → `txt` — text file written locally, readable content
+- [ ] Google Doc → `pdf` — binary PDF written; file starts with `%PDF`
+- [ ] Google Sheet → `csv` — CSV written locally
+- [ ] `local_path` is a directory — file saved as `<drive_name>` (or `<drive_name>.ext` for Workspace export)
+- [ ] `local_path` is a file path — file written to that exact path; parent dirs created if needed
+- [ ] Workspace file with no `export_format` — `ValueError` with helpful message
+- [ ] Unknown `export_format` — `ValueError`
+- [ ] Non-existent `file_id` — API error propagates
+
+### `download_folder`
+- [ ] Folder with mixed file types — non-Workspace files downloaded, Workspace files skipped (no `export_format`)
+- [ ] With `export_format='pdf'` — Workspace files exported and downloaded alongside raw files
+- [ ] `mime_type_filter` — only matching files downloaded
+- [ ] `skip_if_exists=True` — files already present locally are skipped
+- [ ] `skip_if_exists=False` — all files downloaded, overwriting local copies
+- [ ] One file fails — others complete; failed entry in `failed` list
+- [ ] `size_bytes` reflects total bytes written
+- [ ] `local_path` created if it doesn't exist
+
+### `sync_folder`
+- [ ] `dry_run=True` — returns `actions` list with name/action/reason for every file; nothing transferred
+- [ ] Drive-only file, `direction='bidirectional'` — downloaded
+- [ ] Drive-only file, `direction='upload'` — skipped (appears in `skipped`)
+- [ ] Local-only file, `direction='bidirectional'` — uploaded
+- [ ] Local-only file, `direction='download'` — skipped
+- [ ] Both sides, local newer — uploaded under `bidirectional` and `upload`; conflict under `download`
+- [ ] Both sides, Drive newer — downloaded under `bidirectional` and `download`; conflict under `upload`
+- [ ] Both sides, within 5-second tolerance — skipped (in sync)
+- [ ] Upload preserves local mtime on Drive file — subsequent sync sees files as in-sync
+- [ ] Workspace file with no `export_format` — excluded from sync (not in any output list)
+- [ ] Workspace file with `export_format='pdf'` — participates in sync as `<name>.pdf`
+- [ ] `.DS_Store` excluded by default
+- [ ] Invalid `direction` — `ValueError`
+- [ ] Invalid `export_format` — `ValueError`
+- [ ] Folder cache invalidated after any upload or download
 
 ### `write_doc_content`
 - [ ] Write to empty doc — `end_index=2`, no `deleteContentRange`, only insert

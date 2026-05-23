@@ -1,0 +1,330 @@
+# Write Tools — QA Test Cases
+
+Source: `src/mcp_gee_sweet/tools/write.py`
+
+Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_ID}` from `fixtures.local.md`.
+
+Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructive** should be run last or followed by a fixture reset.
+
+---
+
+## `update_cells`
+
+### TC-W01: Write simple values
+
+**Prompt**
+> "Write the values 'Test', 'A', 'B', 'C' into row 7 of the Sales sheet in {SPREADSHEET_ID}, starting at column A"
+
+**Checks**
+- Row 7 in Sales now contains: Test, A, B, C
+- Existing rows 1–6 unchanged
+- No `error` field
+
+---
+
+### TC-W02: Write a formula via USER_ENTERED ⚠️ destructive
+
+**Prompt**
+> "Write the formula =A2&' '&A3 into cell E2 of the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- E2 shows computed value "Widget Gadget" (formula evaluated, not stored as string)
+- Confirms `USER_ENTERED` input mode
+
+---
+
+### TC-W03: Range smaller than data provided
+
+**Prompt**
+> "Write these four values — Alpha, Beta, Gamma, Delta — into just cells A8:A9 of the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- Only A8 and A9 are written (Alpha, Beta)
+- Gamma and Delta are silently truncated to fit the range
+- 🔍 **Product decision:** should truncation be silent or should the tool warn?
+
+---
+
+### TC-W04: Cache invalidated after write
+
+**Prompt** (run TC-R16 or TC-R17 first to warm the cache, then run this)
+> "Update cell A7 in the Sales sheet of {SPREADSHEET_ID} to 'CacheTest', then immediately summarize that spreadsheet"
+
+**Checks**
+- Summary reflects the new value in A7 — not stale cached data
+- Confirms `sheet_data_cache.mark_dirty` fired after the write
+
+---
+
+### TC-W05: Non-existent sheet name
+
+**Prompt**
+> "Write 'Hello' into cell A1 of a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"
+
+**Checks**
+- Returns a clear API error
+- Does not silently succeed or create the sheet
+
+---
+
+## `batch_update_cells`
+
+### TC-W06: Multiple ranges in one call
+
+**Prompt**
+> "In {SPREADSHEET_ID}, update two ranges at once: write 'Batch1' into Sales!A8 and 'Batch2' into Sales!A9"
+
+**Checks**
+- Both cells updated in a single operation
+- A8 = Batch1, A9 = Batch2
+
+---
+
+### TC-W07: Ranges on the same sheet
+
+**Prompt**
+> "Update Sales!B8 to 999 and Sales!C8 to 888 in {SPREADSHEET_ID} in one batch call"
+
+**Checks**
+- Both cells updated correctly
+- No conflict from writing multiple ranges to the same sheet
+
+---
+
+### TC-W08: Empty ranges dict
+
+**Prompt**
+> "Do a batch cell update on {SPREADSHEET_ID} with an empty set of ranges — no ranges to update"
+
+**Checks**
+- Returns success or a clear no-op response — not a server error
+- 🔍 **Product decision:** should an empty ranges dict be an error or a no-op?
+
+---
+
+### TC-W09: Cache invalidated after batch write
+
+**Prompt**
+> "Batch update Sales!A8 to 'dirty' in {SPREADSHEET_ID}, then immediately summarize the spreadsheet"
+
+**Checks**
+- Summary reflects A8 = 'dirty'
+- Confirms `sheet_data_cache.mark_dirty` is called for `batch_update_cells`
+
+---
+
+## `add_rows`
+
+### TC-W10: Add row at beginning (no position specified)
+
+**Prompt**
+> "Add 1 row at the very beginning of the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- New blank row appears above the current row 1 (headers pushed to row 2)
+- `inheritFromBefore=False` (inserting at index 0 — no row above to inherit from)
+
+---
+
+### TC-W11: Add row at explicit position ⚠️ destructive
+
+**Prompt**
+> "Add 1 row after row 3 of the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- New blank row at position 4
+- Existing rows 4–6 shifted down
+
+---
+
+### TC-W12: start_row=0 — inheritFromBefore=False
+
+**Prompt**
+> "Add 1 row at position 0 (the very first row) of the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- Row inserted at the top
+- `inheritFromBefore` is False (0 is not > 0)
+- 🔍 **Product decision:** is `start_row=0` meaningfully different from `start_row=None`?
+
+---
+
+### TC-W13: start_row=1 — inheritFromBefore=True
+
+**Prompt**
+> "Add 1 row at position 1 in the Sales sheet of {SPREADSHEET_ID}"
+
+**Checks**
+- Row inserted at index 1 (after the first row)
+- `inheritFromBefore=True` — new row inherits formatting from row above
+
+---
+
+### TC-W14: Add multiple rows at once
+
+**Prompt**
+> "Add 5 blank rows at the end of the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- 5 new rows appear
+- Existing data unchanged
+
+---
+
+### TC-W15: Invalid sheet name
+
+**Prompt**
+> "Add 1 row to a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"
+
+**Checks**
+- Returns `{"error": ...}` without calling the Sheets API
+- Does not throw an unhandled exception
+
+---
+
+### TC-W16: Large count value
+
+**Prompt**
+> "Add 1000 rows to the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- Succeeds or returns a clear API limit error
+- 🔍 **Product decision:** should the tool cap `count` to prevent accidental large inserts?
+
+---
+
+## `add_columns`
+
+### TC-W17: Add column at beginning (no position specified)
+
+**Prompt**
+> "Add 1 column at the very beginning of the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- New blank column A; existing columns shift right (Product moves to B)
+- `inheritFromBefore=False`
+
+---
+
+### TC-W18: start_column=0 — inheritFromBefore=False
+
+**Prompt**
+> "Add 1 column at position 0 of the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- Column inserted at the leftmost position
+- `inheritFromBefore` is False
+
+---
+
+### TC-W19: start_column=1 — inheritFromBefore=True
+
+**Prompt**
+> "Add 1 column at position 1 in the Sales sheet of {SPREADSHEET_ID}"
+
+**Checks**
+- Column inserted after column A
+- `inheritFromBefore=True`
+
+---
+
+### TC-W20: Add multiple columns
+
+**Prompt**
+> "Add 3 columns at position 2 in the Sales sheet of {SPREADSHEET_ID}"
+
+**Checks**
+- 3 new blank columns inserted at the correct position
+- Existing columns shifted right
+
+---
+
+## `batch_update` (raw passthrough)
+
+### TC-W21: Add a sheet via raw request
+
+**Prompt**
+> "Use a raw batch update on {SPREADSHEET_ID} to add a new sheet called 'RawAdded'"
+
+**Checks**
+- New sheet 'RawAdded' appears in the spreadsheet
+- Response includes the new sheet's properties
+
+---
+
+### TC-W22: Rename a sheet via raw request
+
+**Prompt**
+> "Use a raw batch update to rename the 'Empty' sheet to 'RawRenamed' in {SPREADSHEET_ID}"
+
+**Checks**
+- Sheet formerly called 'Empty' is now 'RawRenamed'
+- `list_sheets` reflects the new name
+
+---
+
+### TC-W23: Insert dimension via raw request
+
+**Prompt**
+> "Use a raw batch update on {SPREADSHEET_ID} to insert 2 rows at index 1 in the Sales sheet"
+
+**Checks**
+- 2 new rows appear at index 1
+- Existing data shifts down
+
+---
+
+### TC-W24: Delete dimension — structure cache invalidated ⚠️ destructive
+
+**Prompt**
+> "Use a raw batch update to delete row 7 from the Sales sheet in {SPREADSHEET_ID}, then list the sheets"
+
+**Checks**
+- Row 7 deleted
+- `list_sheets` call after reflects current state — not stale cache
+- Confirms the structure cache bug fix: both `cache.mark_dirty` and `sheet_data_cache.mark_dirty` are called
+
+---
+
+### TC-W25: Empty requests list
+
+**Prompt**
+> "Send a raw batch update to {SPREADSHEET_ID} with an empty requests list"
+
+**Checks**
+- Returns `{"error": "requests list cannot be empty"}` or similar
+- Does not call the Sheets API
+
+---
+
+### TC-W26: Non-dict item in requests
+
+**Prompt**
+> "Send a raw batch update to {SPREADSHEET_ID} with a requests list containing the string 'notadict'"
+
+**Checks**
+- Returns an `error` field
+- Does not forward the malformed request to the API
+
+---
+
+### TC-W27: Invalid request structure
+
+**Prompt**
+> "Send a raw batch update to {SPREADSHEET_ID} with requests: [{\"unknownKey\": {}}]"
+
+**Checks**
+- API error propagates back — not a server crash
+- Error message is from the Sheets API (unknown request type)
+
+---
+
+### TC-W28: Both caches marked dirty
+
+**Prompt**
+> "Use a raw batch update to add a sheet called 'CacheCheck' to {SPREADSHEET_ID}, then immediately list all sheets and summarize the spreadsheet"
+
+**Checks**
+- `list_sheets` includes 'CacheCheck' — structure cache was invalidated
+- Summary reflects the new sheet — data cache was invalidated
+- Confirms both `cache.mark_dirty` and `sheet_data_cache.mark_dirty` are called
