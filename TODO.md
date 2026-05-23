@@ -10,6 +10,18 @@ Prioritized work queue. See [docs/roadmap.md](docs/roadmap.md) for full context 
 4. **PyPI publish** — set up trusted publishing (OIDC) on PyPI, do a test release; CI workflow already written
 5. ~~**Bug: sheet names with spaces break range strings**~~ ✓ — added `_quote_sheet_name()` helper in `helpers.py`; applied to all seven range-construction sites across `read.py` and `write.py` (`get_sheet_data`, `get_sheet_formulas`, `get_multiple_sheet_data`, `get_multiple_spreadsheet_summary`, `find_in_spreadsheet`, `update_cells`, `batch_update_cells`).
 
+## Post-PR cleanup
+
+Flagged in code reviews on PR #18, #20, and #22 — tackle after open PRs are merged.
+
+- ~~**Move local imports to top of file**~~ ✓ — `MediaFileUpload`, `MediaInMemoryUpload`, `MediaIoBaseDownload`, and `markdown` moved to top-level imports in `drive.py`.
+- ~~**Extract `_EXPORT_MIME` into a module-level constant**~~ ✓ — hoisted to module level as `dict[str, tuple[str, str]]`; `export_file` updated to use `[0]` for mime type. Four local definitions removed.
+- ~~**Unit tests for cache invalidation**~~ ✓ — 6 new tests in `TestDriveFolderCacheInvalidation` covering `create_folder`, `move_file`, `delete_file` (trash + permanent), and `upload_file`.
+- **Link `qa-checklist.md` to TC numbers** — the checklist items in `docs/qa-checklist.md` and the ai-guided test cases in `docs/qa/tests/` cover the same ground but don't reference each other. Each checklist item should cite its TC number(s) so the checklist can serve as attestation that specific test cases were run and passed.
+- **Investigate Calendar settings API** — the Calendar API has a `settings()` endpoint that exposes user preferences: working hours, timezone, locale, default reminders, etc. Assess whether a `get_calendar_settings` (or `update_calendar_settings`) tool would be useful; check what the API actually returns for a service account vs. a user account.
+- **Wire up MkDocs build and publish** — MkDocs was added to the project but the build/publish pipeline was never completed. Set up the CI workflow to build and deploy docs (GitHub Pages or similar) on merge to main.
+- ~~**Remove `site/` from git tracking**~~ ✓ — `git rm -r --cached site/` done; `.gitignore` entry already present.
+
 ## Tier 1 features
 
 5. `clear_values` — clear cell content in a range without touching formatting
