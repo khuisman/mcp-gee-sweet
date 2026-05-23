@@ -3,7 +3,7 @@ from typing import Any
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
-from ..helpers import _get_sheet_id
+from ..helpers import _get_sheet_id, _quote_sheet_name
 
 
 def register(tool):
@@ -31,7 +31,7 @@ def register(tool):
             .values()
             .update(
                 spreadsheetId=spreadsheet_id,
-                range=f"{sheet}!{range}",
+                range=f"{_quote_sheet_name(sheet)}!{range}",
                 valueInputOption="USER_ENTERED",
                 body={"values": data},
             )
@@ -61,7 +61,7 @@ def register(tool):
         sheets_service = lc.sheets_service
 
         data = [
-            {"range": f"{sheet}!{range_str}", "values": values}
+            {"range": f"{_quote_sheet_name(sheet)}!{range_str}", "values": values}
             for range_str, values in ranges.items()
         ]
 
