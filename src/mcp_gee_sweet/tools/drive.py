@@ -1335,3 +1335,237 @@ def register(tool):
             lc.drive_folder_cache.mark_dirty(parent_folder_id)
 
         return {"uploaded": uploaded, "skipped": skipped, "failed": failed}
+
+    @tool(annotations=ToolAnnotations(title="Download File", readOnlyHint=True))
+    def download_file(
+        file_id: str,
+        local_path: str,
+        export_format: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Download a file from Google Drive to the local filesystem.
+
+        For non-Google files the raw content is downloaded. For Google Workspace
+        files (Docs, Sheets, Slides) an export_format is required to convert the
+        file before download.
+
+        If local_path is a directory, the file is saved inside it using the Drive
+        filename (with an extension appended for exported Workspace files).
+
+        Args:
+            file_id: The Google Drive file ID.
+            local_path: Destination file path or directory on the local filesystem.
+            export_format: Required for Google Workspace files. One of:
+                           Docs   → 'pdf', 'docx', 'html', 'txt', 'odt', 'rtf', 'epub'
+                           Sheets → 'pdf', 'xlsx', 'csv', 'ods'
+                           Slides → 'pdf', 'pptx'
+                           For non-Google files omit this (raw download).
+
+        Returns:
+            local_path where the file was written, file name, and byte size.
+        """
+        from googleapiclient.http import MediaIoBaseDownload
+
+        _EXPORT_MIME = {
+            "pdf": ("application/pdf", ".pdf"),
+            "html": ("text/html", ".html"),
+            "txt": ("text/plain", ".txt"),
+            "docx": (
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".docx",
+            ),
+            "odt": ("application/vnd.oasis.opendocument.text", ".odt"),
+            "rtf": ("application/rtf", ".rtf"),
+            "epub": ("application/epub+zip", ".epub"),
+            "csv": ("text/csv", ".csv"),
+            "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx"),
+            "ods": ("application/vnd.oasis.opendocument.spreadsheet", ".ods"),
+            "pptx": (
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                ".pptx",
+            ),
+        }
+
+        drive_service = ctx.request_context.lifespan_context.drive_service
+
+        metadata = (
+            drive_service.files()
+            .get(fileId=file_id, fields="name, mimeType", supportsAllDrives=True)
+            .execute()
+        )
+        drive_name = metadata["name"]
+        file_mime = metadata.get("mimeType", "")
+        is_workspace = file_mime.startswith("application/vnd.google-apps.")
+
+        dest = Path(local_path)
+        if dest.is_dir():
+            if is_workspace and export_format:
+                ext = _EXPORT_MIME[export_format][1] if export_format in _EXPORT_MIME else ""
+                dest = dest / (drive_name + ext)
+            else:
+                dest = dest / drive_name
+
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        if is_workspace:
+            if not export_format:
+                raise ValueError(
+                    f"export_format is required for Google Workspace file '{drive_name}'. "
+                    f"Valid options: {', '.join(_EXPORT_MIME)}"
+                )
+            if export_format not in _EXPORT_MIME:
+                raise ValueError(
+                    f"Unknown export_format '{export_format}'. Valid options: {', '.join(_EXPORT_MIME)}"
+                )
+            target_mime = _EXPORT_MIME[export_format][0]
+            content = drive_service.files().export(fileId=file_id, mimeType=target_mime).execute()
+            if not isinstance(content, bytes):
+                content = content.encode("utf-8")
+            dest.write_bytes(content)
+        else:
+            request = drive_service.files().get_media(fileId=file_id)
+            with dest.open("wb") as fh:
+                downloader = MediaIoBaseDownload(fh, request)
+                done = False
+                while not done:
+                    _, done = downloader.next_chunk()
+
+        size = dest.stat().st_size
+        logger.debug("Downloaded %s → %s (%d bytes)", file_id, dest, size)
+        return {"local_path": str(dest), "name": drive_name, "size_bytes": size}
+
+    @tool(annotations=ToolAnnotations(title="Download Folder", readOnlyHint=True))
+    def download_folder(
+        folder_id: str,
+        local_path: str,
+        export_format: str | None = None,
+        mime_type_filter: str | None = None,
+        skip_if_exists: bool = True,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Download all files in a Google Drive folder (non-recursive) to a local directory.
+
+        For non-Google files the raw content is downloaded. Google Workspace files
+        are skipped unless export_format is provided, in which case they are exported
+        to that format.
+
+        Args:
+            folder_id: The Google Drive folder ID.
+            local_path: Local directory to download files into (created if needed).
+            export_format: If provided, Google Workspace files are exported to this
+                           format (e.g. 'pdf', 'docx'). See download_file for full list.
+                           Without this, Workspace files are skipped.
+            mime_type_filter: Only download files matching this MIME type.
+            skip_if_exists: Skip files that already exist at the destination (default True).
+
+        Returns:
+            Summary with lists of 'downloaded', 'skipped', and 'failed' filenames,
+            plus total 'size_bytes' downloaded.
+        """
+        from googleapiclient.http import MediaIoBaseDownload
+
+        _EXPORT_MIME = {
+            "pdf": ("application/pdf", ".pdf"),
+            "html": ("text/html", ".html"),
+            "txt": ("text/plain", ".txt"),
+            "docx": (
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".docx",
+            ),
+            "odt": ("application/vnd.oasis.opendocument.text", ".odt"),
+            "rtf": ("application/rtf", ".rtf"),
+            "epub": ("application/epub+zip", ".epub"),
+            "csv": ("text/csv", ".csv"),
+            "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx"),
+            "ods": ("application/vnd.oasis.opendocument.spreadsheet", ".ods"),
+            "pptx": (
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                ".pptx",
+            ),
+        }
+
+        drive_service = ctx.request_context.lifespan_context.drive_service
+        dest_dir = Path(local_path)
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        query = f"'{folder_id}' in parents and trashed=false"
+        if mime_type_filter:
+            safe = mime_type_filter.replace("'", "\\'")
+            query += f" and mimeType='{safe}'"
+
+        results = (
+            drive_service.files()
+            .list(
+                q=query,
+                spaces="drive",
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                fields="files(id, name, mimeType)",
+                pageSize=1000,
+                orderBy="name",
+            )
+            .execute()
+        )
+
+        downloaded: list[str] = []
+        skipped: list[str] = []
+        failed: list[dict[str, str]] = []
+        total_bytes = 0
+
+        for f in results.get("files", []):
+            fid = f["id"]
+            fname = f["name"]
+            fmime = f.get("mimeType", "")
+            is_workspace = fmime.startswith("application/vnd.google-apps.")
+
+            if is_workspace and not export_format:
+                skipped.append(fname)
+                continue
+
+            if is_workspace:
+                if export_format not in _EXPORT_MIME:
+                    failed.append(
+                        {"name": fname, "error": f"Unknown export_format '{export_format}'"}
+                    )
+                    continue
+                ext = _EXPORT_MIME[export_format][1]
+                dest_file = dest_dir / (fname + ext)
+            else:
+                dest_file = dest_dir / fname
+
+            if skip_if_exists and dest_file.exists():
+                skipped.append(dest_file.name)
+                continue
+
+            try:
+                if is_workspace:
+                    target_mime = _EXPORT_MIME[export_format][0]
+                    content = (
+                        drive_service.files().export(fileId=fid, mimeType=target_mime).execute()
+                    )
+                    if not isinstance(content, bytes):
+                        content = content.encode("utf-8")
+                    dest_file.write_bytes(content)
+                else:
+                    request = drive_service.files().get_media(fileId=fid)
+                    with dest_file.open("wb") as fh:
+                        downloader = MediaIoBaseDownload(fh, request)
+                        done = False
+                        while not done:
+                            _, done = downloader.next_chunk()
+
+                size = dest_file.stat().st_size
+                total_bytes += size
+                downloaded.append(dest_file.name)
+                logger.debug("Downloaded %s → %s (%d bytes)", fid, dest_file, size)
+            except Exception as e:
+                failed.append({"name": fname, "error": str(e)})
+
+        return {
+            "downloaded": downloaded,
+            "skipped": skipped,
+            "failed": failed,
+            "size_bytes": total_bytes,
+        }
