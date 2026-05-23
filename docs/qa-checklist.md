@@ -406,7 +406,7 @@ Strategic post-merge verification of every registered tool. Work through each se
 - [ ] Non-existent event ID — returns `{"error": ...}`
 
 ### `delete_event`
-- [ ] Existing event — returns `{"deleted": true}`, event no longer appears in `list_events`
+- [ ] Existing event — returns `{"calendar_id": ..., "event_id": ..., "action": "deleted"}`, event no longer appears in `list_events`
 - [ ] Non-existent event ID — returns `{"error": ...}`
 
 ### `find_free_slots`

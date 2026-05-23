@@ -44,4 +44,12 @@ nav:
     - QA Overview: qa/README.md
     - QA Checklist: qa-checklist.md
     - QA Setup: qa/setup.md
+    - Test Cases:
+      - Calendar: qa/tests/calendar.md
+      - Charts: qa/tests/charts.md
+      - Drive: qa/tests/drive.md
+      - Infrastructure: qa/tests/infra.md
+      - Read: qa/tests/read.md
+      - Sheets: qa/tests/sheets.md
+      - Write: qa/tests/write.md
     - Read API Notes: notes-read.md
