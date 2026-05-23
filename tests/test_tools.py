@@ -216,7 +216,7 @@ class TestBatchUpdateCacheInvalidation:
         )
         mock_cache.mark_dirty.assert_called_once_with("abc123")
 
-    def test_data_cache_still_marked_dirty(self):
+    def test_both_caches_marked_dirty_together(self):
         mock_data_cache = MagicMock()
         ctx = _make_ctx(
             sheets_service=self._mock_sheets(),
@@ -229,3 +229,86 @@ class TestBatchUpdateCacheInvalidation:
             ctx=ctx,
         )
         mock_data_cache.mark_dirty.assert_called_once_with("abc123")
+
+
+class TestDriveFolderCacheInvalidation:
+    """Verify that mutating Drive tools call drive_folder_cache.mark_dirty."""
+
+    def _drive_file_response(self, **kwargs):
+        defaults = {
+            "id": "fid1",
+            "name": "file.txt",
+            "parents": ["parent1"],
+            "mimeType": "text/plain",
+            "webViewLink": "https://example.com",
+        }
+        return {**defaults, **kwargs}
+
+    def test_create_folder_with_parent_marks_dirty(self):
+        mock = MagicMock()
+        mock.files.return_value.create.return_value.execute.return_value = {
+            "id": "new_folder",
+            "name": "MyFolder",
+            "parents": ["par1"],
+        }
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache, folder_id=None)
+        _drive_tools["create_folder"](name="MyFolder", parent_folder_id="par1", ctx=ctx)
+        folder_cache.mark_dirty.assert_called_once_with("par1")
+
+    def test_create_folder_without_parent_no_dirty_call(self):
+        mock = MagicMock()
+        mock.files.return_value.create.return_value.execute.return_value = {
+            "id": "new_folder",
+            "name": "MyFolder",
+            "parents": [],
+        }
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache, folder_id=None)
+        _drive_tools["create_folder"](name="MyFolder", ctx=ctx)
+        folder_cache.mark_dirty.assert_not_called()
+
+    def test_move_file_marks_old_and_new_parent_dirty(self):
+        mock = MagicMock()
+        mock.files.return_value.get.return_value.execute.return_value = {"parents": ["old_par"]}
+        mock.files.return_value.update.return_value.execute.return_value = (
+            self._drive_file_response(parents=["dest_par"])
+        )
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
+        _drive_tools["move_file"](file_id="fid1", destination_folder_id="dest_par", ctx=ctx)
+        calls = [c.args[0] for c in folder_cache.mark_dirty.call_args_list]
+        assert "old_par" in calls
+        assert "dest_par" in calls
+
+    def test_delete_file_trash_marks_parent_dirty_before_trash(self):
+        mock = MagicMock()
+        mock.files.return_value.get.return_value.execute.return_value = {"parents": ["par1"]}
+        mock.files.return_value.update.return_value.execute.return_value = {"id": "fid1"}
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
+        _drive_tools["delete_file"](file_id="fid1", permanent=False, ctx=ctx)
+        folder_cache.mark_dirty.assert_called_once_with("par1")
+
+    def test_delete_file_permanent_marks_parent_dirty_before_delete(self):
+        mock = MagicMock()
+        mock.files.return_value.get.return_value.execute.return_value = {"parents": ["par1"]}
+        mock.files.return_value.delete.return_value.execute.return_value = None
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
+        _drive_tools["delete_file"](file_id="fid1", permanent=True, ctx=ctx)
+        folder_cache.mark_dirty.assert_called_once_with("par1")
+
+    def test_upload_file_with_folder_marks_dirty(self):
+        mock = MagicMock()
+        mock.files.return_value.create.return_value.execute.return_value = (
+            self._drive_file_response()
+        )
+        folder_cache = MagicMock()
+        ctx = _make_ctx(
+            drive_service=mock, drive_folder_cache=folder_cache, folder_id="default_folder"
+        )
+        _drive_tools["upload_file"](
+            name="doc.txt", content="hello", folder_id="target_folder", ctx=ctx
+        )
+        folder_cache.mark_dirty.assert_called_once_with("target_folder")

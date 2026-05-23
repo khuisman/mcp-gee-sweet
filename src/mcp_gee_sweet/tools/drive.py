@@ -9,10 +9,26 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
+import markdown as _md
+from googleapiclient.http import MediaFileUpload, MediaInMemoryUpload, MediaIoBaseDownload
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
 logger = logging.getLogger(__name__)
+
+_EXPORT_MIME: dict[str, tuple[str, str]] = {
+    "pdf": ("application/pdf", ".pdf"),
+    "html": ("text/html", ".html"),
+    "txt": ("text/plain", ".txt"),
+    "docx": ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".docx"),
+    "odt": ("application/vnd.oasis.opendocument.text", ".odt"),
+    "rtf": ("application/rtf", ".rtf"),
+    "epub": ("application/epub+zip", ".epub"),
+    "csv": ("text/csv", ".csv"),
+    "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx"),
+    "ods": ("application/vnd.oasis.opendocument.spreadsheet", ".ods"),
+    "pptx": ("application/vnd.openxmlformats-officedocument.presentationml.presentation", ".pptx"),
+}
 
 
 def _html_to_text(html_content: str) -> str:
@@ -1273,21 +1289,6 @@ def register(tool):
             Text formats (txt, html, csv, rtf) are returned as plain strings; all others
             are base64-encoded bytes.
         """
-        from googleapiclient.http import MediaIoBaseDownload
-
-        _EXPORT_MIME = {
-            "pdf": "application/pdf",
-            "html": "text/html",
-            "txt": "text/plain",
-            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "odt": "application/vnd.oasis.opendocument.text",
-            "rtf": "application/rtf",
-            "epub": "application/epub+zip",
-            "csv": "text/csv",
-            "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "ods": "application/vnd.oasis.opendocument.spreadsheet",
-            "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        }
         _TEXT_MIME_PREFIXES = ("text/",)
 
         drive_service = ctx.request_context.lifespan_context.drive_service
@@ -1327,12 +1328,12 @@ def register(tool):
                 "content": base64.b64encode(raw_bytes).decode("ascii"),
             }
 
-        target_mime = _EXPORT_MIME.get(export_format)
-        if not target_mime:
+        if export_format not in _EXPORT_MIME:
             raise ValueError(
                 f"Unknown export_format '{export_format}'. "
                 f"Valid options: {', '.join(_EXPORT_MIME)}, raw"
             )
+        target_mime = _EXPORT_MIME[export_format][0]
 
         content_bytes = drive_service.files().export(fileId=file_id, mimeType=target_mime).execute()
         is_text = any(target_mime.startswith(p) for p in _TEXT_MIME_PREFIXES)
@@ -1384,9 +1385,6 @@ def register(tool):
         Returns:
             fileId, name, parent folder ID, and webViewLink of the created file.
         """
-        import markdown as _md
-        from googleapiclient.http import MediaInMemoryUpload
-
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
         target_folder_id = folder_id or lc.folder_id
@@ -1461,8 +1459,6 @@ def register(tool):
         Returns:
             fileId, name, webViewLink, and 'skipped' (True if skip_if_exists fired).
         """
-        from googleapiclient.http import MediaFileUpload
-
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
@@ -1543,8 +1539,6 @@ def register(tool):
         Returns:
             Summary with lists of 'uploaded', 'skipped', and 'failed' filenames.
         """
-        from googleapiclient.http import MediaFileUpload
-
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
@@ -1633,28 +1627,6 @@ def register(tool):
         Returns:
             local_path where the file was written, file name, and byte size.
         """
-        from googleapiclient.http import MediaIoBaseDownload
-
-        _EXPORT_MIME = {
-            "pdf": ("application/pdf", ".pdf"),
-            "html": ("text/html", ".html"),
-            "txt": ("text/plain", ".txt"),
-            "docx": (
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                ".docx",
-            ),
-            "odt": ("application/vnd.oasis.opendocument.text", ".odt"),
-            "rtf": ("application/rtf", ".rtf"),
-            "epub": ("application/epub+zip", ".epub"),
-            "csv": ("text/csv", ".csv"),
-            "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx"),
-            "ods": ("application/vnd.oasis.opendocument.spreadsheet", ".ods"),
-            "pptx": (
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                ".pptx",
-            ),
-        }
-
         drive_service = ctx.request_context.lifespan_context.drive_service
 
         metadata = (
@@ -1732,28 +1704,6 @@ def register(tool):
             Summary with lists of 'downloaded', 'skipped', and 'failed' filenames,
             plus total 'size_bytes' downloaded.
         """
-        from googleapiclient.http import MediaIoBaseDownload
-
-        _EXPORT_MIME = {
-            "pdf": ("application/pdf", ".pdf"),
-            "html": ("text/html", ".html"),
-            "txt": ("text/plain", ".txt"),
-            "docx": (
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                ".docx",
-            ),
-            "odt": ("application/vnd.oasis.opendocument.text", ".odt"),
-            "rtf": ("application/rtf", ".rtf"),
-            "epub": ("application/epub+zip", ".epub"),
-            "csv": ("text/csv", ".csv"),
-            "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx"),
-            "ods": ("application/vnd.oasis.opendocument.spreadsheet", ".ods"),
-            "pptx": (
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                ".pptx",
-            ),
-        }
-
         drive_service = ctx.request_context.lifespan_context.drive_service
         dest_dir = Path(local_path)
         dest_dir.mkdir(parents=True, exist_ok=True)
@@ -1902,28 +1852,6 @@ def register(tool):
             size_bytes transferred, dry_run flag, and — when dry_run=True — an
             'actions' list with {name, action, reason} for every file considered.
         """
-        from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
-
-        _EXPORT_MIME: dict[str, tuple[str, str]] = {
-            "pdf": ("application/pdf", ".pdf"),
-            "html": ("text/html", ".html"),
-            "txt": ("text/plain", ".txt"),
-            "docx": (
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                ".docx",
-            ),
-            "odt": ("application/vnd.oasis.opendocument.text", ".odt"),
-            "rtf": ("application/rtf", ".rtf"),
-            "epub": ("application/epub+zip", ".epub"),
-            "csv": ("text/csv", ".csv"),
-            "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx"),
-            "ods": ("application/vnd.oasis.opendocument.spreadsheet", ".ods"),
-            "pptx": (
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                ".pptx",
-            ),
-        }
-
         if direction not in ("bidirectional", "upload", "download"):
             raise ValueError(
                 f"direction must be 'bidirectional', 'upload', or 'download', got '{direction}'"
