@@ -3,7 +3,9 @@ import html as html_module
 import io
 import json
 import logging
+import mimetypes
 from html.parser import HTMLParser
+from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import Context
@@ -1167,3 +1169,169 @@ def register(tool):
             "parent": parents[0] if parents else "root",
             "web_link": result.get("webViewLink"),
         }
+
+    @tool(annotations=ToolAnnotations(title="Upload Local File", destructiveHint=True))
+    def upload_local_file(
+        local_path: str,
+        parent_folder_id: str,
+        name: str | None = None,
+        skip_if_exists: bool = True,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Upload a file from the local filesystem to a Google Drive folder.
+        Handles binary and text files (images, PDFs, DOCX, XLSX, scripts, etc.).
+
+        Args:
+            local_path: Absolute path to the local file to upload.
+            parent_folder_id: ID of the destination Drive folder.
+            name: Name to give the file in Drive. Defaults to the local filename.
+            skip_if_exists: If True (default), skip the upload and return the
+                            existing file's metadata if a file with the same name
+                            already exists in the destination folder.
+
+        Returns:
+            fileId, name, webViewLink, and 'skipped' (True if skip_if_exists fired).
+        """
+        from googleapiclient.http import MediaFileUpload
+
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+
+        path = Path(local_path)
+        if not path.is_file():
+            raise ValueError(f"No file found at {local_path!r}")
+
+        file_name = name or path.name
+
+        if skip_if_exists:
+            safe_name = file_name.replace("\\", "\\\\").replace("'", "\\'")
+            existing = (
+                drive_service.files()
+                .list(
+                    q=f"name='{safe_name}' and '{parent_folder_id}' in parents and trashed=false",
+                    spaces="drive",
+                    includeItemsFromAllDrives=True,
+                    supportsAllDrives=True,
+                    fields="files(id, name, webViewLink)",
+                    pageSize=1,
+                )
+                .execute()
+            )
+            hits = existing.get("files", [])
+            if hits:
+                logger.debug("Skipping upload — %s already exists as %s", file_name, hits[0]["id"])
+                return {
+                    "fileId": hits[0]["id"],
+                    "name": hits[0]["name"],
+                    "web_link": hits[0].get("webViewLink"),
+                    "skipped": True,
+                }
+
+        mime, _ = mimetypes.guess_type(local_path)
+        mime = mime or "application/octet-stream"
+
+        metadata: dict[str, Any] = {"name": file_name, "parents": [parent_folder_id]}
+        media = MediaFileUpload(local_path, mimetype=mime, resumable=True)
+        result = (
+            drive_service.files()
+            .create(
+                body=metadata,
+                media_body=media,
+                supportsAllDrives=True,
+                fields="id, name, webViewLink",
+            )
+            .execute()
+        )
+
+        lc.drive_folder_cache.mark_dirty(parent_folder_id)
+        logger.debug("Uploaded %s → %s (%s)", local_path, result.get("id"), mime)
+        return {
+            "fileId": result.get("id"),
+            "name": result.get("name", file_name),
+            "web_link": result.get("webViewLink"),
+            "skipped": False,
+        }
+
+    _SYSTEM_FILES = {".DS_Store", "Thumbs.db", "desktop.ini", ".localized"}
+
+    @tool(annotations=ToolAnnotations(title="Upload Local Folder", destructiveHint=True))
+    def upload_local_folder(
+        local_path: str,
+        parent_folder_id: str,
+        skip_if_exists: bool = True,
+        skip_system_files: bool = True,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Upload all files in a local directory (non-recursive) to a Google Drive folder.
+
+        Args:
+            local_path: Absolute path to the local directory.
+            parent_folder_id: ID of the destination Drive folder.
+            skip_if_exists: Skip files that already exist in the destination (default True).
+            skip_system_files: Skip OS metadata files like .DS_Store (default True).
+
+        Returns:
+            Summary with lists of 'uploaded', 'skipped', and 'failed' filenames.
+        """
+        from googleapiclient.http import MediaFileUpload
+
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+
+        folder = Path(local_path)
+        if not folder.is_dir():
+            raise ValueError(f"No directory found at {local_path!r}")
+
+        candidates = [p for p in folder.iterdir() if p.is_file()]
+        if skip_system_files:
+            candidates = [p for p in candidates if p.name not in _SYSTEM_FILES]
+
+        uploaded: list[str] = []
+        skipped: list[str] = []
+        failed: list[dict[str, str]] = []
+
+        if skip_if_exists and candidates:
+            existing_resp = (
+                drive_service.files()
+                .list(
+                    q=f"'{parent_folder_id}' in parents and trashed=false",
+                    spaces="drive",
+                    includeItemsFromAllDrives=True,
+                    supportsAllDrives=True,
+                    fields="files(name)",
+                    pageSize=1000,
+                )
+                .execute()
+            )
+            existing_names = {f["name"] for f in existing_resp.get("files", [])}
+        else:
+            existing_names = set()
+
+        for p in sorted(candidates):
+            if skip_if_exists and p.name in existing_names:
+                skipped.append(p.name)
+                continue
+
+            mime, _ = mimetypes.guess_type(str(p))
+            mime = mime or "application/octet-stream"
+
+            try:
+                metadata: dict[str, Any] = {"name": p.name, "parents": [parent_folder_id]}
+                media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
+                drive_service.files().create(
+                    body=metadata,
+                    media_body=media,
+                    supportsAllDrives=True,
+                    fields="id",
+                ).execute()
+                uploaded.append(p.name)
+                logger.debug("Uploaded %s (%s)", p.name, mime)
+            except Exception as e:
+                failed.append({"name": p.name, "error": str(e)})
+
+        if uploaded:
+            lc.drive_folder_cache.mark_dirty(parent_folder_id)
+
+        return {"uploaded": uploaded, "skipped": skipped, "failed": failed}
