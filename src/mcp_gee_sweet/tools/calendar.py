@@ -9,63 +9,47 @@ logger = logging.getLogger(__name__)
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="List Calendars", readOnlyHint=True))
-    def list_calendars(
-        ctx: Context = None,
-    ) -> list[dict[str, Any]]:
+    def list_calendars(ctx: Context = None) -> list[dict[str, Any]]:
         """
-        List all calendars in the authenticated account's calendar list.
+        List all calendars accessible to the authenticated user.
 
         Returns:
-            List of calendars, each with id, summary, description, time_zone,
-            access_role, and primary flag. Results are cached; call
-            refresh_cache(calendar_id=<id>) to invalidate a specific calendar,
-            or refresh_cache() to clear all caches.
+            List of calendars with id, summary, time_zone, access_role, and primary flag.
+            Results are cached; call refresh_cache(calendar_id=...) to invalidate.
         """
         lc = ctx.request_context.lifespan_context
-        calendar_service = lc.calendar_service
         cache = lc.calendar_cache
 
         cached = cache.get_list()
         if cached is not None:
             return cached
 
-        result = calendar_service.calendarList().list().execute()
-        calendars = []
-        for item in result.get("items", []):
-            calendars.append(
-                {
-                    "id": item["id"],
-                    "summary": item.get("summary", ""),
-                    "description": item.get("description", ""),
-                    "time_zone": item.get("timeZone", ""),
-                    "access_role": item.get("accessRole", ""),
-                    "primary": item.get("primary", False),
-                }
-            )
-
+        result = lc.calendar_service.calendarList().list().execute()
+        calendars = [
+            {
+                "id": c["id"],
+                "summary": c.get("summary", ""),
+                "time_zone": c.get("timeZone"),
+                "access_role": c.get("accessRole"),
+                "primary": c.get("primary", False),
+            }
+            for c in result.get("items", [])
+        ]
         cache.store_list(calendars)
-        logger.debug("Found %d calendars", len(calendars))
         return calendars
 
     @tool(annotations=ToolAnnotations(title="Get Calendar", readOnlyHint=True))
-    def get_calendar(
-        calendar_id: str,
-        ctx: Context = None,
-    ) -> dict[str, Any]:
+    def get_calendar(calendar_id: str, ctx: Context = None) -> dict[str, Any]:
         """
-        Get metadata for a single calendar.
+        Fetch metadata for a single calendar.
 
         Args:
-            calendar_id: The calendar ID (usually an email address, or 'primary').
+            calendar_id: The calendar ID, or 'primary' for the user's primary calendar.
 
         Returns:
-            Calendar metadata: id, summary, description, time_zone, access_role,
-            location, and primary flag. Results are cached; call
-            refresh_cache(calendar_id=calendar_id) to invalidate, or
-            refresh_cache() to clear all caches.
+            Calendar metadata: id, summary, description, time_zone, access_role, primary.
         """
         lc = ctx.request_context.lifespan_context
-        calendar_service = lc.calendar_service
         cache = lc.calendar_cache
 
         cached = cache.get(calendar_id)
@@ -73,22 +57,21 @@ def register(tool):
             return cached
 
         try:
-            item = calendar_service.calendarList().get(calendarId=calendar_id).execute()
-            result = {
-                "id": item["id"],
-                "summary": item.get("summary", ""),
-                "description": item.get("description", ""),
-                "time_zone": item.get("timeZone", ""),
-                "access_role": item.get("accessRole", ""),
-                "location": item.get("location", ""),
-                "primary": item.get("primary", False),
-            }
-            cache.store(calendar_id, result)
-            return result
+            c = lc.calendar_service.calendarList().get(calendarId=calendar_id).execute()
         except Exception as e:
             return {"error": str(e)}
 
-    # Not cached: results depend on a time window and change continuously as events are added/modified.
+        result = {
+            "id": c["id"],
+            "summary": c.get("summary", ""),
+            "description": c.get("description"),
+            "time_zone": c.get("timeZone"),
+            "access_role": c.get("accessRole"),
+            "primary": c.get("primary", False),
+        }
+        cache.store(calendar_id, result)
+        return result
+
     @tool(annotations=ToolAnnotations(title="List Events", readOnlyHint=True))
     def list_events(
         calendar_id: str,
@@ -99,22 +82,22 @@ def register(tool):
         ctx: Context = None,
     ) -> list[dict[str, Any]]:
         """
-        List events in a calendar, optionally filtered by time range or search query.
+        List events in a calendar.
 
         Args:
-            calendar_id: The calendar ID (usually an email address, or 'primary').
-            time_min: Lower bound for event start time, RFC3339 format
-                      e.g. '2026-05-22T00:00:00Z'. Defaults to now if omitted.
-            time_max: Upper bound for event start time, RFC3339 format.
-            query: Free-text search string matched against summary, description,
-                   location, attendee emails, and organizer.
-            max_results: Maximum events to return (default 50, max 2500).
+            calendar_id: The calendar ID, or 'primary'.
+            time_min: Lower bound (inclusive) for event start times, RFC 3339 format,
+                      e.g. '2026-01-01T00:00:00Z'. Defaults to now if omitted.
+            time_max: Upper bound (exclusive) for event end times, RFC 3339 format.
+            query: Free-text search terms to find events matching summary, description,
+                   location, attendee names/emails.
+            max_results: Maximum number of events to return (default 50, max 2500).
 
         Returns:
             List of events with id, summary, start, end, location, description,
-            status, organizer, attendees, and htmlLink.
+            organizer, attendees, htmlLink, and status.
         """
-        calendar_service = ctx.request_context.lifespan_context.calendar_service
+        lc = ctx.request_context.lifespan_context
         max_results = min(max(1, max_results), 2500)
 
         kwargs: dict[str, Any] = {
@@ -131,72 +114,72 @@ def register(tool):
             kwargs["q"] = query
 
         try:
-            result = calendar_service.events().list(**kwargs).execute()
-            events = []
-            for e in result.get("items", []):
-                start = e.get("start", {})
-                end = e.get("end", {})
-                events.append(
-                    {
-                        "id": e["id"],
-                        "summary": e.get("summary", ""),
-                        "start": start.get("dateTime") or start.get("date"),
-                        "end": end.get("dateTime") or end.get("date"),
-                        "location": e.get("location", ""),
-                        "description": e.get("description", ""),
-                        "status": e.get("status", ""),
-                        "organizer": e.get("organizer", {}).get("email", ""),
-                        "attendees": [a.get("email") for a in e.get("attendees", [])],
-                        "html_link": e.get("htmlLink", ""),
-                    }
-                )
-            logger.debug("Found %d events in calendar %s", len(events), calendar_id)
-            return events
+            result = lc.calendar_service.events().list(**kwargs).execute()
         except Exception as e:
             return [{"error": str(e)}]
 
-    # Not cached: event details can change at any time (updates, RSVP responses, cancellations).
+        events = []
+        for e in result.get("items", []):
+            start = e.get("start", {})
+            end = e.get("end", {})
+            events.append(
+                {
+                    "id": e["id"],
+                    "summary": e.get("summary", ""),
+                    "start": start.get("dateTime") or start.get("date"),
+                    "end": end.get("dateTime") or end.get("date"),
+                    "location": e.get("location"),
+                    "description": e.get("description"),
+                    "organizer": e.get("organizer", {}).get("email"),
+                    "attendees": [
+                        {"email": a.get("email"), "response": a.get("responseStatus")}
+                        for a in e.get("attendees", [])
+                    ],
+                    "html_link": e.get("htmlLink"),
+                    "status": e.get("status"),
+                }
+            )
+        return events
+
     @tool(annotations=ToolAnnotations(title="Get Event", readOnlyHint=True))
-    def get_event(
-        calendar_id: str,
-        event_id: str,
-        ctx: Context = None,
-    ) -> dict[str, Any]:
+    def get_event(calendar_id: str, event_id: str, ctx: Context = None) -> dict[str, Any]:
         """
-        Get a single calendar event by ID.
+        Fetch a single event by calendar ID and event ID.
 
         Args:
-            calendar_id: The calendar ID (usually an email address, or 'primary').
+            calendar_id: The calendar ID, or 'primary'.
             event_id: The event ID.
 
         Returns:
             Full event details: id, summary, start, end, location, description,
-            status, organizer, attendees, recurrence, and htmlLink.
+            organizer, attendees, recurrence, html_link, status, created, updated.
         """
-        calendar_service = ctx.request_context.lifespan_context.calendar_service
-
+        lc = ctx.request_context.lifespan_context
         try:
-            e = calendar_service.events().get(calendarId=calendar_id, eventId=event_id).execute()
-            start = e.get("start", {})
-            end = e.get("end", {})
-            return {
-                "id": e["id"],
-                "summary": e.get("summary", ""),
-                "start": start.get("dateTime") or start.get("date"),
-                "end": end.get("dateTime") or end.get("date"),
-                "location": e.get("location", ""),
-                "description": e.get("description", ""),
-                "status": e.get("status", ""),
-                "organizer": e.get("organizer", {}).get("email", ""),
-                "attendees": [
-                    {"email": a.get("email"), "response": a.get("responseStatus")}
-                    for a in e.get("attendees", [])
-                ],
-                "recurrence": e.get("recurrence", []),
-                "html_link": e.get("htmlLink", ""),
-            }
-        except Exception as e:
-            return {"error": str(e)}
+            e = lc.calendar_service.events().get(calendarId=calendar_id, eventId=event_id).execute()
+        except Exception as ex:
+            return {"error": str(ex)}
+
+        start = e.get("start", {})
+        end = e.get("end", {})
+        return {
+            "id": e["id"],
+            "summary": e.get("summary", ""),
+            "start": start.get("dateTime") or start.get("date"),
+            "end": end.get("dateTime") or end.get("date"),
+            "location": e.get("location"),
+            "description": e.get("description"),
+            "organizer": e.get("organizer", {}).get("email"),
+            "attendees": [
+                {"email": a.get("email"), "response": a.get("responseStatus")}
+                for a in e.get("attendees", [])
+            ],
+            "recurrence": e.get("recurrence"),
+            "html_link": e.get("htmlLink"),
+            "status": e.get("status"),
+            "created": e.get("created"),
+            "updated": e.get("updated"),
+        }
 
     @tool(annotations=ToolAnnotations(title="Create Event", destructiveHint=True))
     def create_event(
@@ -207,62 +190,68 @@ def register(tool):
         description: str | None = None,
         location: str | None = None,
         attendees: list[str] | None = None,
-        time_zone: str | None = None,
+        timezone: str | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
         Create a new event in a calendar.
 
         Args:
-            calendar_id: The calendar ID (usually an email address, or 'primary').
+            calendar_id: The calendar ID, or 'primary'.
             summary: Event title.
-            start: Start datetime in RFC3339 format ('2026-05-22T14:00:00-07:00')
-                   or date-only ('2026-05-22') for all-day events.
-            end: End datetime or date in the same format as start.
+            start: Start datetime in RFC 3339 format, e.g. '2026-06-01T10:00:00-07:00'.
+                   Use 'YYYY-MM-DD' for all-day events.
+            end: End datetime in RFC 3339 format. Use 'YYYY-MM-DD' for all-day events.
             description: Optional event description.
             location: Optional location string.
             attendees: Optional list of attendee email addresses.
-            time_zone: IANA timezone name (e.g. 'America/Los_Angeles'). Required
-                       when start/end are date-only all-day events.
+            timezone: IANA timezone name (e.g. 'America/Los_Angeles'). Required when
+                      start/end are date-only (all-day events).
 
         Returns:
-            Created event with id, summary, start, end, and htmlLink.
+            Created event: id, summary, start, end, html_link, status.
         """
-        calendar_service = ctx.request_context.lifespan_context.calendar_service
+        lc = ctx.request_context.lifespan_context
 
-        def _dt_field(value: str, tz: str | None) -> dict[str, str]:
-            if "T" in value:
-                field: dict[str, str] = {"dateTime": value}
-                if tz:
-                    field["timeZone"] = tz
-                return field
-            return {"date": value, **({"timeZone": tz} if tz else {})}
+        is_all_day = len(start) == 10  # 'YYYY-MM-DD'
+        if is_all_day:
+            start_obj: dict[str, str] = {"date": start}
+            end_obj: dict[str, str] = {"date": end}
+            if timezone:
+                start_obj["timeZone"] = timezone
+                end_obj["timeZone"] = timezone
+        else:
+            start_obj = {"dateTime": start}
+            end_obj = {"dateTime": end}
+            if timezone:
+                start_obj["timeZone"] = timezone
+                end_obj["timeZone"] = timezone
 
-        body: dict[str, Any] = {
-            "summary": summary,
-            "start": _dt_field(start, time_zone),
-            "end": _dt_field(end, time_zone),
-        }
+        body: dict[str, Any] = {"summary": summary, "start": start_obj, "end": end_obj}
         if description:
             body["description"] = description
         if location:
             body["location"] = location
         if attendees:
-            body["attendees"] = [{"email": a} for a in attendees]
+            body["attendees"] = [{"email": email} for email in attendees]
 
         try:
-            e = calendar_service.events().insert(calendarId=calendar_id, body=body).execute()
-            start_val = e.get("start", {})
-            end_val = e.get("end", {})
-            return {
-                "id": e["id"],
-                "summary": e.get("summary", ""),
-                "start": start_val.get("dateTime") or start_val.get("date"),
-                "end": end_val.get("dateTime") or end_val.get("date"),
-                "html_link": e.get("htmlLink", ""),
-            }
-        except Exception as e:
-            return {"error": str(e)}
+            e = lc.calendar_service.events().insert(calendarId=calendar_id, body=body).execute()
+        except Exception as ex:
+            return {"error": str(ex)}
+
+        lc.calendar_cache.mark_dirty(calendar_id)
+        logger.debug("Created event %s in calendar %s", e["id"], calendar_id)
+        ev_start = e.get("start", {})
+        ev_end = e.get("end", {})
+        return {
+            "id": e["id"],
+            "summary": e.get("summary", ""),
+            "start": ev_start.get("dateTime") or ev_start.get("date"),
+            "end": ev_end.get("dateTime") or ev_end.get("date"),
+            "html_link": e.get("htmlLink"),
+            "status": e.get("status"),
+        }
 
     @tool(annotations=ToolAnnotations(title="Update Event", destructiveHint=True))
     def update_event(
@@ -273,128 +262,171 @@ def register(tool):
         end: str | None = None,
         description: str | None = None,
         location: str | None = None,
-        time_zone: str | None = None,
+        attendees: list[str] | None = None,
+        timezone: str | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
-        Update fields on an existing calendar event. Only provided fields are changed.
+        Update fields on an existing event using a partial update (patch semantics).
+        Only the fields you provide are changed; omitted fields are left as-is.
 
         Args:
-            calendar_id: The calendar ID (usually an email address, or 'primary').
+            calendar_id: The calendar ID, or 'primary'.
             event_id: The event ID to update.
             summary: New event title.
-            start: New start datetime (RFC3339) or date.
-            end: New end datetime (RFC3339) or date.
+            start: New start datetime (RFC 3339) or date ('YYYY-MM-DD').
+            end: New end datetime (RFC 3339) or date ('YYYY-MM-DD').
             description: New description.
             location: New location.
-            time_zone: IANA timezone name, applied to start/end if provided.
+            attendees: Replacement attendee list (full replacement, not append).
+            timezone: IANA timezone for start/end when they are date-only.
 
         Returns:
-            Updated event with id, summary, start, end, and htmlLink.
+            Updated event: id, summary, start, end, html_link, status.
         """
-        calendar_service = ctx.request_context.lifespan_context.calendar_service
-
-        def _dt_field(value: str, tz: str | None) -> dict[str, str]:
-            if "T" in value:
-                field: dict[str, str] = {"dateTime": value}
-                if tz:
-                    field["timeZone"] = tz
-                return field
-            return {"date": value, **({"timeZone": tz} if tz else {})}
-
+        lc = ctx.request_context.lifespan_context
         patch: dict[str, Any] = {}
+
         if summary is not None:
             patch["summary"] = summary
-        if start is not None:
-            patch["start"] = _dt_field(start, time_zone)
-        if end is not None:
-            patch["end"] = _dt_field(end, time_zone)
         if description is not None:
             patch["description"] = description
         if location is not None:
             patch["location"] = location
+        if attendees is not None:
+            patch["attendees"] = [{"email": email} for email in attendees]
+
+        if start is not None:
+            is_all_day = len(start) == 10
+            start_obj: dict[str, str] = {"date": start} if is_all_day else {"dateTime": start}
+            if timezone:
+                start_obj["timeZone"] = timezone
+            patch["start"] = start_obj
+
+        if end is not None:
+            is_all_day = len(end) == 10
+            end_obj: dict[str, str] = {"date": end} if is_all_day else {"dateTime": end}
+            if timezone:
+                end_obj["timeZone"] = timezone
+            patch["end"] = end_obj
 
         try:
             e = (
-                calendar_service.events()
+                lc.calendar_service.events()
                 .patch(calendarId=calendar_id, eventId=event_id, body=patch)
                 .execute()
             )
-            start_val = e.get("start", {})
-            end_val = e.get("end", {})
-            return {
-                "id": e["id"],
-                "summary": e.get("summary", ""),
-                "start": start_val.get("dateTime") or start_val.get("date"),
-                "end": end_val.get("dateTime") or end_val.get("date"),
-                "html_link": e.get("htmlLink", ""),
-            }
-        except Exception as e:
-            return {"error": str(e)}
+        except Exception as ex:
+            return {"error": str(ex)}
+
+        lc.calendar_cache.mark_dirty(calendar_id)
+        logger.debug("Updated event %s in calendar %s", event_id, calendar_id)
+        ev_start = e.get("start", {})
+        ev_end = e.get("end", {})
+        return {
+            "id": e["id"],
+            "summary": e.get("summary", ""),
+            "start": ev_start.get("dateTime") or ev_start.get("date"),
+            "end": ev_end.get("dateTime") or ev_end.get("date"),
+            "html_link": e.get("htmlLink"),
+            "status": e.get("status"),
+        }
 
     @tool(annotations=ToolAnnotations(title="Delete Event", destructiveHint=True))
-    def delete_event(
-        calendar_id: str,
-        event_id: str,
-        ctx: Context = None,
-    ) -> dict[str, Any]:
+    def delete_event(calendar_id: str, event_id: str, ctx: Context = None) -> dict[str, Any]:
         """
-        Delete a calendar event.
+        Delete or cancel an event.
 
         Args:
-            calendar_id: The calendar ID (usually an email address, or 'primary').
+            calendar_id: The calendar ID, or 'primary'.
             event_id: The event ID to delete.
 
         Returns:
-            {'deleted': True} on success, or {'error': ...} on failure.
+            Confirmation with calendar_id, event_id, and action 'deleted'.
         """
-        calendar_service = ctx.request_context.lifespan_context.calendar_service
-
+        lc = ctx.request_context.lifespan_context
         try:
-            calendar_service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
-            logger.debug("Deleted event %s from calendar %s", event_id, calendar_id)
-            return {"deleted": True}
+            lc.calendar_service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
         except Exception as e:
             return {"error": str(e)}
 
-    # Not cached: free/busy data is inherently time-sensitive; stale results would be actively wrong.
+        lc.calendar_cache.mark_dirty(calendar_id)
+        logger.debug("Deleted event %s from calendar %s", event_id, calendar_id)
+        return {"calendar_id": calendar_id, "event_id": event_id, "action": "deleted"}
+
     @tool(annotations=ToolAnnotations(title="Find Free Slots", readOnlyHint=True))
     def find_free_slots(
         calendar_ids: list[str],
         time_min: str,
         time_max: str,
+        timezone: str = "UTC",
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
-        Find busy periods for one or more calendars within a time window.
-        Use the gaps between busy periods to identify free slots.
+        Query busy times for a list of calendars and return free slots within the window.
 
         Args:
-            calendar_ids: List of calendar IDs to check.
-            time_min: Start of the window, RFC3339 format (e.g. '2026-05-22T00:00:00Z').
-            time_max: End of the window, RFC3339 format.
+            calendar_ids: List of calendar IDs to check (use 'primary' for the user's
+                          primary calendar).
+            time_min: Start of the window to check, RFC 3339 format,
+                      e.g. '2026-06-01T09:00:00Z'.
+            time_max: End of the window to check, RFC 3339 format.
+            timezone: IANA timezone name for the query (default 'UTC').
 
         Returns:
-            Dict with 'time_min', 'time_max', and 'busy' — a map of calendar_id
-            to list of {'start', 'end'} busy periods.
+            busy: dict mapping each calendar_id to its list of busy periods
+                  ({start, end} each in RFC 3339).
+            free_slots: list of free periods ({start, end}) across all calendars,
+                        computed as the complement of the union of all busy times.
         """
-        calendar_service = ctx.request_context.lifespan_context.calendar_service
+        lc = ctx.request_context.lifespan_context
 
-        body = {
+        body: dict[str, Any] = {
             "timeMin": time_min,
             "timeMax": time_max,
+            "timeZone": timezone,
             "items": [{"id": cid} for cid in calendar_ids],
         }
 
         try:
-            result = calendar_service.freebusy().query(body=body).execute()
-            busy: dict[str, list[dict[str, str]]] = {}
-            for cid, info in result.get("calendars", {}).items():
-                busy[cid] = [{"start": p["start"], "end": p["end"]} for p in info.get("busy", [])]
-            return {
-                "time_min": time_min,
-                "time_max": time_max,
-                "busy": busy,
-            }
+            result = lc.calendar_service.freebusy().query(body=body).execute()
         except Exception as e:
             return {"error": str(e)}
+
+        calendars_busy = result.get("calendars", {})
+        busy: dict[str, list[dict[str, str]]] = {}
+        for cid in calendar_ids:
+            cal_data = calendars_busy.get(cid, {})
+            errors = cal_data.get("errors")
+            if errors:
+                busy[cid] = [{"error": err.get("reason", "unknown")} for err in errors]
+            else:
+                busy[cid] = [
+                    {"start": p["start"], "end": p["end"]} for p in cal_data.get("busy", [])
+                ]
+
+        # Compute union of all busy intervals to derive free slots
+        all_busy: list[tuple[str, str]] = []
+        for periods in busy.values():
+            for p in periods:
+                if "error" not in p:
+                    all_busy.append((p["start"], p["end"]))
+
+        all_busy.sort(key=lambda x: x[0])
+        merged: list[tuple[str, str]] = []
+        for start, end in all_busy:
+            if merged and start <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+            else:
+                merged.append((start, end))
+
+        free_slots: list[dict[str, str]] = []
+        cursor = time_min
+        for busy_start, busy_end in merged:
+            if cursor < busy_start:
+                free_slots.append({"start": cursor, "end": busy_start})
+            cursor = max(cursor, busy_end)
+        if cursor < time_max:
+            free_slots.append({"start": cursor, "end": time_max})
+
+        return {"busy": busy, "free_slots": free_slots}
