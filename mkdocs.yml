@@ -39,11 +39,14 @@ nav:
     - Tool Philosophy: tool-philosophy.md
     - Composite Tools: decision-composite-tools.md
     - Project Fork: decision-fork.md
+    - Publishing Strategy: decision-publishing.md
   - Roadmap: roadmap.md
   - Development:
     - QA Overview: qa/README.md
     - QA Checklist: qa-checklist.md
     - QA Setup: qa/setup.md
+    - QA Run Guide: qa/run.md
+    - QA Fixtures: qa/fixtures.template.md
     - Test Cases:
       - Calendar: qa/tests/calendar.md
       - Charts: qa/tests/charts.md
