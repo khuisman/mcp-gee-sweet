@@ -19,7 +19,7 @@ Flagged in code reviews on PR #18, #20, and #22 — tackle after open PRs are me
 - ~~**Unit tests for cache invalidation**~~ ✓ — 6 new tests in `TestDriveFolderCacheInvalidation` covering `create_folder`, `move_file`, `delete_file` (trash + permanent), and `upload_file`.
 - **Link `qa-checklist.md` to TC numbers** — the checklist items in `docs/qa-checklist.md` and the ai-guided test cases in `docs/qa/tests/` cover the same ground but don't reference each other. Each checklist item should cite its TC number(s) so the checklist can serve as attestation that specific test cases were run and passed.
 - **Investigate Calendar settings API** — the Calendar API has a `settings()` endpoint that exposes user preferences: working hours, timezone, locale, default reminders, etc. Assess whether a `get_calendar_settings` (or `update_calendar_settings`) tool would be useful; check what the API actually returns for a service account vs. a user account.
-- **Wire up MkDocs build and publish** — MkDocs was added to the project but the build/publish pipeline was never completed. Set up the CI workflow to build and deploy docs (GitHub Pages or similar) on merge to main.
+- ~~**Wire up MkDocs build and publish**~~ ✓ — `docs.yml` deploys to GitHub Pages via `mkdocs gh-deploy` on merge to main; `ci.yml` runs lint + tests on every push/PR; `release.yml` now gates on tests before building.
 - ~~**Remove `site/` from git tracking**~~ ✓ — `git rm -r --cached site/` done; `.gitignore` entry already present.
 
 ## Tier 1 features
