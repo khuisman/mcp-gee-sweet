@@ -1,438 +1,412 @@
 # Manual QA + Code Review Checklist
 
-Strategic post-merge verification of every registered tool. Work through each section after a clean server start. Check off items as verified.
+Strategic post-merge verification of every registered tool. Work through each section after a clean server start. Check off items as verified. Each TC-XXX item links to the corresponding test case in `docs/qa/tests/`.
 
 ---
 
 ## Bugs / Issues (fix before live testing)
 
-- [x] **`search_spreadsheets` query injection** (`drive.py`): User input interpolated raw into Drive API query string — a single quote breaks syntax. Fix: escape `'` → `\'` before embedding.
-- [x] **`create_doc` strips formatting, `write_doc_content` preserves it** (`drive.py`): `create_doc` used `_html_to_text` (plain text); `write_doc_content` uses `_html_to_doc_requests` (headings, bullets, links). Fixed to use `_html_to_doc_requests` in both.
-- [x] **`copy_sheet` rename silently skipped if API omits `title`** (`sheets.py`): Guarded with `if "title" in copy_result` — if API response omits the key, sheet is left with wrong name and no error. Fixed to use `.get()` and always attempt rename when names differ.
-- [x] **`batch_update` does not invalidate structure cache** (`write.py`): Only called `sheet_data_cache.mark_dirty`; raw batchUpdate ops that add/rename/delete sheets left structure cache stale. Fixed to also call `cache.mark_dirty`.
-- [ ] **`get_multiple_spreadsheet_summary` range format** (`read.py:207`): `f"{sheet_info.title}!A1:{max_row}"` produces e.g. `Sheet1!A1:5` — valid A1 notation (rows 1–5, all columns), but verify this is intentional for sheets with many columns.
+- [x] **`search_spreadsheets` query injection** (`drive.py`): User input interpolated raw into Drive API query string — a single quote breaks syntax. Fix: escape `'` → `\'` before embedding. → TC-D32
+- [x] **`create_doc` strips formatting, `write_doc_content` preserves it** (`drive.py`): `create_doc` used `_html_to_text` (plain text); `write_doc_content` uses `_html_to_doc_requests` (headings, bullets, links). Fixed to use `_html_to_doc_requests` in both. → TC-D08
+- [x] **`copy_sheet` rename silently skipped if API omits `title`** (`sheets.py`): Guarded with `if "title" in copy_result` — if API response omits the key, sheet is left with wrong name and no error. Fixed to use `.get()` and always attempt rename when names differ. → TC-S06, TC-S07
+- [x] **`batch_update` does not invalidate structure cache** (`write.py`): Only called `sheet_data_cache.mark_dirty`; raw batchUpdate ops that add/rename/delete sheets left structure cache stale. Fixed to also call `cache.mark_dirty`. → TC-W24, TC-W28
+- [ ] **`get_multiple_spreadsheet_summary` range format** (`read.py:207`): `f"{sheet_info.title}!A1:{max_row}"` produces e.g. `Sheet1!A1:5` — valid A1 notation (rows 1–5, all columns), but verify this is intentional for sheets with many columns. → TC-R22
 
 ---
 
 ## Read Tools (`read.py`)
 
 ### `get_sheet_data`
-- [ ] Happy path: fetch all data from a sheet (no range)
-- [ ] With explicit range: `A1:C5`
-- [ ] With `include_grid_data=True`: verify response includes `rowData` / formatting fields
-- [ ] Non-existent sheet name — does the Sheets API return a clear error?
-- [ ] Non-existent spreadsheet ID — error propagates up?
-- [ ] Range beyond data bounds (e.g., `A100:Z200` on a small sheet) — returns empty values, not error?
-- [ ] Sheet name with spaces or special characters
+- [ ] TC-R01: Happy path — fetch all data
+- [ ] TC-R02: Explicit range
+- [ ] TC-R03: Grid data with formatting
+- [ ] TC-R04: Non-existent sheet name
+- [ ] TC-R05: Non-existent spreadsheet ID
+- [ ] TC-R06: Range beyond data bounds
+- [ ] TC-R07: Sheet name with spaces and special characters
 
 ### `get_sheet_formulas`
-- [ ] Happy path: sheet with formulas — returns formula strings, not computed values
-- [ ] Sheet with no formulas — returns empty or literal values?
-- [ ] Mixed cells (some formulas, some literals) — literals returned as-is?
-- [ ] No range provided — fetches entire sheet
+- [ ] TC-R08: Sheet with formulas — returns formula strings
+- [ ] TC-R09: Sheet with no formulas
+- [ ] TC-R10: Mixed cells — formulas and literals
+- [ ] TC-R11: No range provided — fetches entire sheet
 
 ### `get_multiple_sheet_data`
-- [ ] Multiple valid queries across different spreadsheets
-- [ ] One query missing required keys — that entry returns error, others succeed
-- [ ] All queries fail — full list of errors returned
-- [ ] Empty `queries` list — returns `[]`
+- [ ] TC-R12: Multiple valid queries
+- [ ] TC-R13: One query with missing required keys
+- [ ] TC-R14: All queries fail
+- [ ] TC-R15: Empty queries list
 
 ### `get_multiple_spreadsheet_summary`
-- [ ] Happy path with multiple spreadsheet IDs
-- [ ] Cache hit path: call twice, confirm second call skips API
-- [ ] `rows_to_fetch=1` — only header returned, `first_rows` is empty
-- [ ] `rows_to_fetch=0` — `max(1, 0)` clamps to 1; verify behavior
-- [ ] Spreadsheet with empty sheet — headers and first_rows both empty
-- [ ] Invalid spreadsheet ID in list — that entry has error, others succeed
-- [ ] Verify `range_to_get = f"{sheet_info.title}!A1:{max_row}"` works correctly for sheets with header-only data
+- [ ] TC-R16: Happy path — multiple spreadsheet IDs
+- [ ] TC-R17: Cache hit — second call skips API
+- [ ] TC-R18: rows_to_fetch=1 — only header returned
+- [ ] TC-R19: rows_to_fetch=0 — clamped to 1
+- [ ] TC-R20: Spreadsheet with empty sheet
+- [ ] TC-R21: Invalid spreadsheet ID in list
+- [ ] TC-R22: Range format verification
 
 ### `find_in_spreadsheet`
-- [ ] Match found in a specific sheet
-- [ ] Match found across all sheets (no `sheet` param)
-- [ ] Case-insensitive match (default)
-- [ ] Case-sensitive match
-- [ ] `max_results` respected — stops at limit
-- [ ] No matches — returns `[]`
-- [ ] Sheet name not found — returns `[{"error": ...}]`
-- [ ] Query matching multiple columns in same row — each cell is a separate result
+- [ ] TC-R23: Match found in specific sheet
+- [ ] TC-R24: Match across all sheets
+- [ ] TC-R25: Case-insensitive match (default)
+- [ ] TC-R26: Case-sensitive match
+- [ ] TC-R27: max_results respected
+- [ ] TC-R28: No matches
+- [ ] TC-R29: Sheet name not found
+- [ ] TC-R30: Multiple column matches in same row
 
 ---
 
 ## Write Tools (`write.py`)
 
 ### `update_cells`
-- [ ] Write simple values to a range
-- [ ] Write formulas (`=SUM(A1:A5)`) via `USER_ENTERED` — formula is evaluated
-- [ ] Range smaller than data (data truncated to range)
-- [ ] After write: `sheet_data_cache.mark_dirty` called — verify next `get_multiple_spreadsheet_summary` re-fetches
-- [ ] Non-existent sheet — Sheets API error propagates
+- [ ] TC-W01: Write simple values
+- [ ] TC-W02: Write a formula via USER_ENTERED ⚠️ destructive
+- [ ] TC-W03: Range smaller than data provided
+- [ ] TC-W04: Cache invalidated after write
+- [ ] TC-W05: Non-existent sheet name
 
 ### `batch_update_cells`
-- [ ] Multiple ranges updated in one call
-- [ ] Ranges on the same sheet
-- [ ] Empty `ranges` dict — what does the API return? (probably succeeds with no changes)
-- [ ] Cache invalidation: `sheet_data_cache.mark_dirty` called
+- [ ] TC-W06: Multiple ranges in one call
+- [ ] TC-W07: Ranges on the same sheet
+- [ ] TC-W08: Empty ranges dict
+- [ ] TC-W09: Cache invalidated after batch write
 
 ### `add_rows`
-- [ ] Add rows at beginning (`start_row=None` → index 0, `inheritFromBefore=False`)
-- [ ] Add rows at explicit position (e.g., `start_row=5`)
-- [ ] `start_row=0` explicitly — `inheritFromBefore` is `False` (0 > 0), correct?
-- [ ] `start_row=1` — `inheritFromBefore=True`, new row inherits formatting from row above
-- [ ] Add multiple rows at once (`count=5`)
-- [ ] Invalid sheet name — returns `{"error": ...}` without calling API
-- [ ] Large `count` value — API limit behavior
+- [ ] TC-W10: Add row at beginning (no position specified)
+- [ ] TC-W11: Add row at explicit position ⚠️ destructive
+- [ ] TC-W12: start_row=0 — inheritFromBefore=False
+- [ ] TC-W13: start_row=1 — inheritFromBefore=True
+- [ ] TC-W14: Add multiple rows at once
+- [ ] TC-W15: Invalid sheet name
+- [ ] TC-W16: Large count value
 
 ### `add_columns`
-- [ ] Same cases as `add_rows` but for COLUMNS dimension
-- [ ] `start_column=None` → adds at column A
-- [ ] `start_column=0` explicitly — `inheritFromBefore=False`
-- [ ] `start_column=1` — `inheritFromBefore=True`
+- [ ] TC-W17: Add column at beginning (no position specified)
+- [ ] TC-W18: start_column=0 — inheritFromBefore=False
+- [ ] TC-W19: start_column=1 — inheritFromBefore=True
+- [ ] TC-W20: Add multiple columns
 
 ### `batch_update` _(raw passthrough)_
-- [ ] Valid request: add a sheet (`addSheet`)
-- [ ] Valid request: rename a sheet (`updateSheetProperties`)
-- [ ] Valid request: insert dimension
-- [ ] Valid request: delete dimension — verify structure cache is now invalidated (was a bug, now fixed)
-- [ ] Empty `requests` list — returns `{"error": "requests list cannot be empty"}`
-- [ ] Non-dict item in `requests` — returns error
-- [ ] Invalid request structure — API error propagates
-- [ ] Verify both `sheet_data_cache.mark_dirty` and `cache.mark_dirty` are called
+- [ ] TC-W21: Add a sheet via raw request
+- [ ] TC-W22: Rename a sheet via raw request
+- [ ] TC-W23: Insert dimension via raw request
+- [ ] TC-W24: Delete dimension — structure cache invalidated ⚠️ destructive
+- [ ] TC-W25: Empty requests list
+- [ ] TC-W26: Non-dict item in requests
+- [ ] TC-W27: Invalid request structure
+- [ ] TC-W28: Both caches marked dirty
 
 ---
 
 ## Sheet Management Tools (`sheets.py`)
 
 ### `list_sheets`
-- [ ] Happy path — returns tab names
-- [ ] Cache hit: call twice, second is served from cache
-- [ ] After `rename_sheet`: `cache.mark_dirty` is called; next `list_sheets` re-fetches
+- [ ] TC-S01: Happy path
+- [ ] TC-S02: Cache hit on second call
+- [ ] TC-S03: Cache invalidated after rename
 
 ### `copy_sheet`
-- [ ] Copy within same spreadsheet (src == dst spreadsheet)
-- [ ] Copy to different spreadsheet
-- [ ] `dst_sheet` name that differs from Google's auto-assigned "Copy of X" — rename triggered
-- [ ] `dst_sheet` name that matches Google's auto-assigned name — rename skipped, correct behavior
-- [ ] Source sheet not found — returns `{"error": ...}`
-- [ ] Destination spreadsheet not writable — API error
-- [ ] Verify `cache.mark_dirty(dst_spreadsheet)` called after copy
+- [ ] TC-S04: Copy within same spreadsheet
+- [ ] TC-S05: Copy to a different spreadsheet
+- [ ] TC-S06: Name differs from Google's auto-assigned name — rename triggered
+- [ ] TC-S07: Name matches Google's auto-assigned name — rename skipped
+- [ ] TC-S08: Source sheet not found
+- [ ] TC-S09: Destination spreadsheet not writable
+- [ ] TC-S10: Cache invalidated after copy ⚠️ destructive
 
 ### `rename_sheet`
-- [ ] Rename to a new name
-- [ ] Rename to same name — API may succeed or no-op
-- [ ] Sheet not found — returns `{"error": ...}`
-- [ ] After rename: `cache.mark_dirty` called; subsequent `list_sheets` reflects new name
+- [ ] TC-S11: Rename to a new name ⚠️ destructive
+- [ ] TC-S12: Rename to the same name
+- [ ] TC-S13: Sheet not found
+- [ ] TC-S14: Cache invalidated after rename
 
 ### `create_sheet`
-- [ ] Create a new tab with a unique title
-- [ ] Create a tab with a duplicate title — API behavior (error or auto-suffix?)
-- [ ] Long title (>100 chars) — API limit behavior
-- [ ] Verify response includes `sheetId`, `title`, `index`, `spreadsheetId`
-- [ ] Verify `cache.mark_dirty` called
+- [ ] TC-S15: Create a new tab
+- [ ] TC-S16: Duplicate tab title
+- [ ] TC-S17: Long title
+- [ ] TC-S18: Response shape
+- [ ] TC-S19: Cache updated after create
 
 ### `refresh_cache`
-- [ ] With `spreadsheet_id` only — marks structure + data cache dirty
-- [ ] With `doc_id` only — marks doc cache dirty
-- [ ] With both — marks both
-- [ ] With neither — marks all four caches dirty
-- [ ] After `mark_all_dirty`: next summary call triggers fresh API fetch
+- [ ] TC-S20: Refresh by spreadsheet ID only
+- [ ] TC-S21: Refresh by doc ID only
+- [ ] TC-S22: Refresh both spreadsheet and doc
+- [ ] TC-S23: Refresh with no arguments — clears all caches
+- [ ] TC-S24: Cache re-populated after refresh
 
 ---
 
 ## Drive Tools (`drive.py`)
 
 ### `create_spreadsheet`
-- [ ] Create in configured default folder (`lc.folder_id`)
-- [ ] Create with explicit `folder_id`
-- [ ] Create without any folder (root of Drive) — `target_folder_id` is None
-- [ ] Service account: can it create in shared Drive? (known limitation — may fail for personal Drive)
-- [ ] Verify `drive_folder_cache.mark_dirty` called for the target folder
-- [ ] Resulting spreadsheet has expected title
+- [ ] TC-D01: Create in default folder
+- [ ] TC-D02: Create with explicit folder ID
+- [ ] TC-D03: Create without a folder (root of Drive)
+- [ ] TC-D04: Service account Drive limitation
+- [ ] TC-D05: Drive folder cache invalidated
+- [ ] TC-D06: Resulting spreadsheet has expected title
 
 ### `create_doc`
-- [ ] Create with no content — doc created, empty body
-- [ ] Create with `<p>`, `<h1>`, `<li>` content — headings and bullets preserved (now uses `_html_to_doc_requests`)
-- [ ] Create with `<a href="...">` — link formatting preserved
-- [ ] Content that results in empty requests — no `batchUpdate` call, no error
-- [ ] Verify `drive_folder_cache.mark_dirty` called
-- [ ] Long content — API limit behavior
+- [ ] TC-D07: Create with no content
+- [ ] TC-D08: Create with HTML content — formatting preserved
+- [ ] TC-D09: Create with a link
+- [ ] TC-D10: Content with no block-level elements — batchUpdate skipped
+- [ ] TC-D11: Drive folder cache invalidated
+- [ ] TC-D12: Long content
 
 ### `list_spreadsheets`
-- [ ] List from configured folder
-- [ ] List from explicit `folder_id`
-- [ ] List from root (no folder — omits folder filter in query)
-- [ ] Empty folder — returns `[]`
-- [ ] Folder with many spreadsheets — pagination not implemented, may silently truncate
+- [ ] TC-D13: List from configured folder
+- [ ] TC-D14: List from explicit folder ID
+- [ ] TC-D15: List from root (no folder)
+- [ ] TC-D16: Empty folder
+- [ ] TC-D17: Pagination not implemented
 
 ### `share_spreadsheet`
-- [ ] Share with valid email as `writer`
-- [ ] Share with valid email as `reader`
-- [ ] Share with valid email as `commenter`
-- [ ] Invalid role — goes to `failures` list
-- [ ] Missing `email_address` key — goes to `failures` list with `None` email
-- [ ] Multiple recipients, some succeed, some fail — mixed result
-- [ ] `send_notification=False` — no email sent
-- [ ] Non-existent spreadsheet ID — API error goes to `failures`
-- [ ] **Danger check**: no validation that caller owns the spreadsheet before sharing
+- [ ] TC-D18: Share as writer
+- [ ] TC-D19: Share as reader
+- [ ] TC-D20: Share as commenter
+- [ ] TC-D21: Invalid role
+- [ ] TC-D22: Missing email address key
+- [ ] TC-D23: Mixed success and failure
+- [ ] TC-D24: send_notification=False
+- [ ] TC-D25: Non-existent spreadsheet ID
 
 ### `list_folders`
-- [ ] List folders in a specific parent folder
-- [ ] List from root (no `parent_folder_id`) — adds `'root' in parents` filter
-- [ ] Empty folder — returns `[]`
-- [ ] Note: pagination not implemented
+- [ ] TC-D26: List folders in a specific parent
+- [ ] TC-D27: List from root
+- [ ] TC-D28: Empty folder
 
 ### `search_spreadsheets`
-- [ ] Basic name search
-- [ ] Content search (fullText)
-- [ ] `max_results` clamped to 1–100
-- [ ] Query containing a single quote — now safely escaped (was a bug, now fixed)
-- [ ] No results — returns `[]`
-- [ ] Empty query string — behavior?
-- [ ] API error — returns `[{"error": ...}]`
+- [ ] TC-D29: Basic name search
+- [ ] TC-D30: Content search
+- [ ] TC-D31: max_results respected
+- [ ] TC-D32: Query with a single quote — injection fix
+- [ ] TC-D33: No results
+- [ ] TC-D34: Empty query string
+- [ ] TC-D35: API error
 
 ### `list_files`
-- [ ] List all files in a folder (no `mime_type`)
-- [ ] Filter by MIME type
-- [ ] Cache hit: second call with same `(folder_id, mime_type)` returns cached result
-- [ ] `mime_type=None` cache key — verify `folder_cache.get(folder_id, None)` works correctly
-- [ ] `max_results` clamped to 1–1000
-- [ ] Pagination: >1000 files silently truncated
-- [ ] Trashed files excluded (query includes `trashed=false`)
-- [ ] After `create_spreadsheet`/`create_doc`: `drive_folder_cache.mark_dirty` ensures next `list_files` re-fetches
-
-### `list_drives`
-- [ ] No args — returns all accessible shared drives with `id`, `name`, `created_time`, `capabilities`
-- [ ] `query='name contains "..."'` — filters results to matching drives only
-- [ ] No shared drives accessible — returns empty list without error
-- [ ] `max_results` clamped: 0 → 1, 300 → 200
-- [ ] More drives than one page — pagination exhausts all results up to `max_results`
-- [ ] `capabilities` present in each result (e.g. `canAddChildren`, `canManageMembers`)
+- [ ] TC-D36: List all files in a folder (no MIME type filter)
+- [ ] TC-D37: Filter by MIME type
+- [ ] TC-D38: Cache hit on second call
+- [ ] TC-D39: mime_type=None cache key
+- [ ] TC-D40: max_results clamped
+- [ ] TC-D41: Pagination limit
+- [ ] TC-D42: Trashed files excluded
+- [ ] TC-D43: Cache invalidated after create
 
 ### `get_doc_content`
-- [ ] Happy path — returns text, metadata, web link
-- [ ] Cache hit: second call returns cached result
-- [ ] Non-Google-Doc file ID — Drive `export` API error
-- [ ] Non-existent file ID — API error
-- [ ] Large document — response handling
-- [ ] Binary content edge case: `content.decode("utf-8")` vs already-string branch
-
-### `create_folder`
-- [ ] Create in configured default folder
-- [ ] Create with explicit `parent_folder_id`
-- [ ] Create at root (no parent) — `target_parent_id` is None
-- [ ] Verify `drive_folder_cache.mark_dirty` called for parent
-- [ ] Returned `folderId` is usable as a `folder_id` in other tools
-
-### `move_file`
-- [ ] Move a file to a different folder — verify it appears in destination
-- [ ] Move a folder — nested contents move with it
-- [ ] Old parent cache and new parent cache both invalidated
-- [ ] Moving a file already in the destination — API behavior (no-op or error?)
-- [ ] Non-existent `file_id` — API error propagates
-
-### `rename_file`
-- [ ] Rename a file — verify new name in Drive
-- [ ] Rename a folder
-- [ ] Rename to same name — API no-op
-- [ ] Parent cache invalidated after rename
-- [ ] Non-existent `file_id` — API error propagates
-
-### `copy_file`
-- [ ] Copy with no `new_name` — Drive assigns "Copy of <original>"
-- [ ] Copy with explicit `new_name`
-- [ ] Copy to different `folder_id`
-- [ ] Copy to same folder — two files with similar names
-- [ ] Copy a Google Doc — results in a new independent doc
-- [ ] Copy a folder — Drive API does not support folder copy; expect API error
-- [ ] Destination folder cache invalidated
-
-### `delete_file`
-- [ ] `permanent=False` (default) — file moves to trash, recoverable
-- [ ] `permanent=True` — file gone, cannot be recovered
-- [ ] Parent folder cache invalidated in both cases
-- [ ] Trash a folder — contents also trashed
-- [ ] Non-existent `file_id` — API error propagates
-- [ ] Already-trashed file with `permanent=False` — API behavior (no-op?)
-
-### `search_files`
-- [ ] Name search with no filters — returns files across all types
-- [ ] `mime_type` filter — only matching type returned
-- [ ] `folder_id` filter — only files in that folder
-- [ ] Both `mime_type` and `folder_id` combined
-- [ ] Query with single quote — safely escaped, no API syntax error
-- [ ] `max_results` clamped to 1–100
-- [ ] No results — returns `[]`
-- [ ] API error — returns `[{"error": ...}]`
-
-### `get_file_metadata`
-- [ ] Google Doc — all fields populated including `webViewLink`
-- [ ] Google Sheet — mimeType is `application/vnd.google-apps.spreadsheet`
-- [ ] Non-Google file — `size` field is populated; `webViewLink` may be absent
-- [ ] Folder — `mimeType` is `application/vnd.google-apps.folder`
-- [ ] Trashed file — `trashed: true` returned
-- [ ] Non-existent `file_id` — API error propagates
-
-### `export_file`
-- [ ] Google Doc → `txt` — plain text returned, `encoding: utf-8`
-- [ ] Google Doc → `html` — HTML string returned
-- [ ] Google Doc → `pdf` — base64 content returned, `encoding: base64`
-- [ ] Google Doc → `docx` — base64 content returned
-- [ ] Google Sheet → `csv` — CSV string returned
-- [ ] Google Sheet → `xlsx` — base64 content returned
-- [ ] Non-Google file with `raw` — raw bytes returned (text or base64 depending on MIME)
-- [ ] Non-Google text file (e.g. `.md`) — `encoding: utf-8`, content is the file text
-- [ ] Unknown `export_format` on a Google file — `ValueError` raised with helpful message
-- [ ] Non-existent `file_id` — API error propagates
-
-### `upload_file`
-- [ ] `source_format='text'`, `convert_to_doc=False` — raw `.txt` file created in Drive
-- [ ] `source_format='markdown'`, `convert_to_doc=False` — raw `.md` file, markdown syntax preserved as-is
-- [ ] `source_format='markdown'`, `convert_to_doc=True` — Google Doc created; headings, bullets, bold, links converted
-- [ ] `source_format='html'`, `convert_to_doc=True` — Google Doc created from raw HTML
-- [ ] `source_format='text'`, `convert_to_doc=True` — Google Doc created, plain text no formatting
-- [ ] `folder_id` specified — file lands in correct folder; cache invalidated
-- [ ] No `folder_id` — uses configured default or Drive root
-- [ ] Markdown with tables — `extra` extension converts to HTML table; verify in resulting Doc
-- [ ] Markdown with fenced code blocks — preserved as preformatted text
-- [ ] Empty `content` — empty file or empty Doc created without error
-
-### `upload_local_file`
-- [ ] Upload a binary file (e.g. PNG, PDF) — verify it appears in Drive with correct MIME type
-- [ ] Upload a text file — MIME type detected as `text/plain` or similar
-- [ ] `name` override — file lands in Drive with the specified name, not the local filename
-- [ ] `skip_if_exists=True` (default) — second upload of same filename returns existing file's ID without re-uploading
-- [ ] `skip_if_exists=False` — duplicate file created even when name already exists
-- [ ] Non-existent `local_path` — `ValueError` raised with clear message
-- [ ] Destination is a Shared Drive folder — `supportsAllDrives=True` prevents 404
-- [ ] Folder cache invalidated after upload
-
-### `upload_local_folder`
-- [ ] Upload a directory of mixed file types — all land in Drive with correct MIME types
-- [ ] `.DS_Store` excluded by default (`skip_system_files=True`)
-- [ ] `skip_system_files=False` — `.DS_Store` included
-- [ ] `skip_if_exists=True` — pre-fetches existing names in one list call; already-present files skipped
-- [ ] `skip_if_exists=False` — all files uploaded regardless of existing names
-- [ ] One file fails (e.g. permissions error) — others still upload; failed file in `failures` list
-- [ ] Non-existent `local_path` — `ValueError` raised
-- [ ] Empty directory — returns `{uploaded: [], skipped: [], failed: []}`
-- [ ] Folder cache invalidated only when at least one file uploaded
-
-### `download_file`
-- [ ] Non-Google file — raw bytes written to `local_path`; file size matches Drive
-- [ ] Google Doc → `txt` — text file written locally, readable content
-- [ ] Google Doc → `pdf` — binary PDF written; file starts with `%PDF`
-- [ ] Google Sheet → `csv` — CSV written locally
-- [ ] `local_path` is a directory — file saved as `<drive_name>` (or `<drive_name>.ext` for Workspace export)
-- [ ] `local_path` is a file path — file written to that exact path; parent dirs created if needed
-- [ ] Workspace file with no `export_format` — `ValueError` with helpful message
-- [ ] Unknown `export_format` — `ValueError`
-- [ ] Non-existent `file_id` — API error propagates
-
-### `download_folder`
-- [ ] Folder with mixed file types — non-Workspace files downloaded, Workspace files skipped (no `export_format`)
-- [ ] With `export_format='pdf'` — Workspace files exported and downloaded alongside raw files
-- [ ] `mime_type_filter` — only matching files downloaded
-- [ ] `skip_if_exists=True` — files already present locally are skipped
-- [ ] `skip_if_exists=False` — all files downloaded, overwriting local copies
-- [ ] One file fails — others complete; failed entry in `failed` list
-- [ ] `size_bytes` reflects total bytes written
-- [ ] `local_path` created if it doesn't exist
-
-### `sync_folder`
-- [ ] `dry_run=True` — returns `actions` list with name/action/reason for every file; nothing transferred
-- [ ] Drive-only file, `direction='bidirectional'` — downloaded
-- [ ] Drive-only file, `direction='upload'` — skipped (appears in `skipped`)
-- [ ] Local-only file, `direction='bidirectional'` — uploaded
-- [ ] Local-only file, `direction='download'` — skipped
-- [ ] Both sides, local newer — uploaded under `bidirectional` and `upload`; conflict under `download`
-- [ ] Both sides, Drive newer — downloaded under `bidirectional` and `download`; conflict under `upload`
-- [ ] Both sides, within 5-second tolerance — skipped (in sync)
-- [ ] Upload preserves local mtime on Drive file — subsequent sync sees files as in-sync
-- [ ] Workspace file with no `export_format` — excluded from sync (not in any output list)
-- [ ] Workspace file with `export_format='pdf'` — participates in sync as `<name>.pdf`
-- [ ] `.DS_Store` excluded by default
-- [ ] Invalid `direction` — `ValueError`
-- [ ] Invalid `export_format` — `ValueError`
-- [ ] Folder cache invalidated after any upload or download
+- [ ] TC-D44: Happy path
+- [ ] TC-D45: Cache hit on second call
+- [ ] TC-D46: Non-Google-Doc file ID
+- [ ] TC-D47: Non-existent file ID
+- [ ] TC-D48: Large document
+- [ ] TC-D49: Content decode branch
 
 ### `write_doc_content`
-- [ ] Write to empty doc — `end_index=2`, no `deleteContentRange`, only insert
-- [ ] Write to doc with existing content — existing content cleared, new content written
-- [ ] HTML with `<h1>`, `<h2>`, `<li>`, `<p>` — headings and bullets preserved
-- [ ] HTML with `<a href="...">` — link formatting preserved
-- [ ] HTML with no recognizable tags — existing content cleared, nothing new written
-- [ ] Empty string content — existing content cleared, nothing inserted
-- [ ] Very long content — Docs API batchUpdate size limits (~2MB per request)
-- [ ] Verify `doc_cache.mark_dirty` called
+- [ ] TC-D50: Write to an empty doc
+- [ ] TC-D51: Write to a doc with existing content ⚠️ destructive
+- [ ] TC-D52: HTML with headings and bullets
+- [ ] TC-D53: HTML with a link
+- [ ] TC-D54: HTML with no recognizable tags
+- [ ] TC-D55: Empty string content
+- [ ] TC-D56: Very long content
+- [ ] TC-D57: Cache invalidated after write
+
+### `create_folder`
+- [ ] TC-D58: Create in default folder
+- [ ] TC-D59: Create at root (no parent)
+- [ ] TC-D60: Cache invalidated after create
+
+### `move_file`
+- [ ] TC-D61: Move a file to another folder ⚠️ destructive
+- [ ] TC-D62: Move a folder
+- [ ] TC-D63: Non-existent file ID
+
+### `rename_file`
+- [ ] TC-D64: Rename a file ⚠️ destructive
+- [ ] TC-D65: Rename a folder
+- [ ] TC-D66: Non-existent file ID
+
+### `copy_file`
+- [ ] TC-D67: Copy with auto-assigned name
+- [ ] TC-D68: Copy with explicit name and destination folder
+- [ ] TC-D69: Copy a Google Doc
+- [ ] TC-D70: Attempt to copy a folder
+
+### `delete_file`
+- [ ] TC-D71: Trash a file (default — recoverable) ⚠️ destructive
+- [ ] TC-D72: Permanently delete a file ⚠️ destructive
+- [ ] TC-D73: Trash a folder ⚠️ destructive
+- [ ] TC-D74: Non-existent file ID
+
+### `search_files`
+- [ ] TC-D75: Search by name across all MIME types
+- [ ] TC-D76: Search with MIME type filter
+- [ ] TC-D77: Search with folder filter
+- [ ] TC-D78: Query with single quote
+
+### `get_file_metadata`
+- [ ] TC-D79: Metadata for a Google Spreadsheet
+- [ ] TC-D80: Metadata for a Google Doc
+- [ ] TC-D81: Metadata for a folder
+- [ ] TC-D82: Non-existent file ID
+
+### `export_file`
+- [ ] TC-D83: Export Google Doc as plain text
+- [ ] TC-D84: Export Google Doc as HTML
+- [ ] TC-D85: Export Google Doc as PDF (binary)
+- [ ] TC-D86: Export Google Sheet as CSV
+- [ ] TC-D87: Unknown export format
+
+### `upload_file`
+- [ ] TC-D88: Upload plain text file
+- [ ] TC-D89: Upload Markdown as raw file (no conversion)
+- [ ] TC-D90: Upload Markdown and convert to Google Doc ⚠️ destructive
+- [ ] TC-D91: Upload HTML and convert to Google Doc
+- [ ] TC-D92: Upload Markdown with table
+
+### `upload_local_file`
+- [ ] TC-D93: Upload a binary file
+- [ ] TC-D94: skip_if_exists prevents re-upload
+- [ ] TC-D95: skip_if_exists=False creates duplicate
+- [ ] TC-D96: Non-existent local path
+- [ ] TC-D97: Name override
+
+### `upload_local_folder`
+- [ ] TC-D98: Bulk upload of a mixed directory ⚠️ destructive
+- [ ] TC-D99: .DS_Store excluded by default
+- [ ] TC-D100: skip_if_exists batches the existence check
+
+### `download_file`
+- [ ] TC-D101: Download a non-Google file
+- [ ] TC-D102: Export Google Doc as plain text
+- [ ] TC-D103: Export Google Doc as PDF
+- [ ] TC-D104: Export Google Sheet as CSV
+- [ ] TC-D105: Workspace file without export_format
+- [ ] TC-D106: local_path as exact file path
+
+### `download_folder`
+- [ ] TC-D107: Download folder with mixed content
+- [ ] TC-D108: Download folder with export_format
+- [ ] TC-D109: skip_if_exists=True skips existing local files
+- [ ] TC-D110: mime_type_filter
+
+### `sync_folder`
+- [ ] TC-D111: dry_run shows full action plan
+- [ ] TC-D112: Bidirectional — Drive-only file downloaded ⚠️ destructive
+- [ ] TC-D113: Bidirectional — local-only file uploaded ⚠️ destructive
+- [ ] TC-D114: Local newer → uploaded; Drive newer → downloaded
+- [ ] TC-D115: Upload preserves mtime for future sync accuracy
+- [ ] TC-D116: direction='upload' — Drive-only file not downloaded
+- [ ] TC-D117: direction='download' — local-only file not uploaded
+- [ ] TC-D118: Workspace files excluded without export_format
+- [ ] TC-D119: Invalid direction raises error
+
+### `list_drives`
+- [ ] TC-D120: List all shared drives
+- [ ] TC-D121: Filter by name
+- [ ] TC-D122: max_results clamping
+- [ ] TC-D123: Pagination across multiple pages
+
+### `list_permissions`
+- [ ] TC-D124: List permissions on a file — owner entry present
+- [ ] TC-D125: List permissions after sharing — new entry visible
+- [ ] TC-D126: Non-existent file ID
+
+### `update_permission`
+- [ ] TC-D127: Downgrade writer → reader ⚠️ destructive
+- [ ] TC-D128: Invalid role value
+- [ ] TC-D129: Non-existent permission ID
+
+### `remove_permission`
+- [ ] TC-D130: Remove a permission ⚠️ destructive
+- [ ] TC-D131: Non-existent permission ID
+
+### `share_file`
+- [ ] TC-D132: Share with type=user as reader
+- [ ] TC-D133: Missing email_address for type=user
+- [ ] TC-D134: Invalid role
+- [ ] TC-D135: Share with type=domain
+- [ ] TC-D136: Share with type=anyone (public link)
+- [ ] TC-D137: Share a folder
+- [ ] TC-D138: Mixed success and failure in one call
+- [ ] TC-D139: send_notification=False for user share
 
 ---
 
 ## Calendar Tools (`calendar.py`)
 
 ### `list_calendars`
-- [ ] Returns all subscribed calendars with `id`, `summary`, `time_zone`, `access_role`, `primary`
-- [ ] `primary: true` on the user's main calendar
-- [ ] Empty calendar list (no subscriptions) — returns `[]`
+- [ ] TC-CAL01: Returns subscribed calendars
+- [ ] TC-CAL02: primary flag
+- [ ] TC-CAL03: Cache hit on second call
+- [ ] TC-CAL04: Empty subscription list
 
 ### `get_calendar`
-- [ ] Valid calendar ID — returns correct summary and timezone
-- [ ] `calendar_id='primary'` — resolves to user's primary calendar
-- [ ] Non-existent calendar ID — returns `{"error": ...}`
+- [ ] TC-CAL05: Valid calendar ID
+- [ ] TC-CAL06: calendar_id='primary'
+- [ ] TC-CAL07: Cache hit on second call
+- [ ] TC-CAL08: Non-existent calendar ID
 
 ### `list_events`
-- [ ] No time filters — returns upcoming events ordered by start time
-- [ ] `time_min` + `time_max` — only events in the window returned
-- [ ] `query` string — matches against summary/description/location
-- [ ] All-day event — `start`/`end` fields are date strings (no `T`)
-- [ ] Timed event — `start`/`end` are RFC3339 datetime strings
-- [ ] `max_results` clamped: 0 → 1, 3000 → 2500
-- [ ] Non-existent `calendar_id` — returns `[{"error": ...}]`
+- [ ] TC-CAL09: No time filters — upcoming events
+- [ ] TC-CAL10: time_min + time_max window
+- [ ] TC-CAL11: query string search
+- [ ] TC-CAL12: All-day event format
+- [ ] TC-CAL13: Timed event format
+- [ ] TC-CAL14: max_results clamped
+- [ ] TC-CAL15: Non-existent calendar ID
 
 ### `get_event`
-- [ ] Valid event — returns full details including `organizer`, `attendees`, `recurrence`
-- [ ] Non-existent event ID — returns `{"error": ...}`
-- [ ] Recurring event instance — `recurrence` field populated
+- [ ] TC-CAL16: Valid event — full details
+- [ ] TC-CAL17: Attendees populated
+- [ ] TC-CAL18: Recurring event instance
+- [ ] TC-CAL19: Non-existent event ID
 
 ### `create_event`
-- [ ] Timed event — created with correct RFC3339 start/end
-- [ ] All-day event (date-only strings) — created with `date` field, not `dateTime`
-- [ ] With `description`, `location`, `attendees` — all fields present on created event
-- [ ] `htmlLink` returned and points to Google Calendar UI
-- [ ] Invalid `calendar_id` — returns `{"error": ...}`
+- [ ] TC-CAL20: Timed event ⚠️ destructive
+- [ ] TC-CAL21: All-day event ⚠️ destructive
+- [ ] TC-CAL22: With description, location, and attendees ⚠️ destructive
+- [ ] TC-CAL23: Invalid calendar ID
 
 ### `update_event`
-- [ ] Update `summary` only — other fields unchanged
-- [ ] Update `start`/`end` — time changes reflected
-- [ ] Update `description` and `location` — fields patched correctly
-- [ ] Non-existent event ID — returns `{"error": ...}`
+- [ ] TC-CAL24: Update summary only ⚠️ destructive
+- [ ] TC-CAL25: Update start and end ⚠️ destructive
+- [ ] TC-CAL26: Update description and location ⚠️ destructive
+- [ ] TC-CAL27: Non-existent event ID
 
 ### `delete_event`
-- [ ] Existing event — returns `{"calendar_id": ..., "event_id": ..., "action": "deleted"}`, event no longer appears in `list_events`
-- [ ] Non-existent event ID — returns `{"error": ...}`
+- [ ] TC-CAL28: Delete an existing event ⚠️ destructive
+- [ ] TC-CAL29: Non-existent event ID
 
 ### `find_free_slots`
-- [ ] Single calendar — `busy` map contains correct calendar ID key
-- [ ] No events in window — busy list is empty
-- [ ] Events in window — busy periods match event start/end times
-- [ ] Multiple calendar IDs — separate busy lists per calendar
-- [ ] Invalid calendar ID in list — returns `{"error": ...}`
+- [ ] TC-CAL30: Single calendar — no events in window
+- [ ] TC-CAL31: Single calendar — events in window
+- [ ] TC-CAL32: Multiple calendar IDs
+- [ ] TC-CAL33: Invalid calendar ID in list
+- [ ] TC-CAL34: free_slots covers full window when no busy times
+- [ ] TC-CAL35: Contiguous busy periods merged in free_slots
 
 ---
 
 ## Chart Tools (`charts.py`)
 
 ### `add_chart`
-- [ ] Each of the 8 chart types: COLUMN, BAR, LINE, AREA, PIE, SCATTER, COMBO, HISTOGRAM
-- [ ] Invalid chart type — returns `{"error": ...}` before API call
-- [ ] Chart type lowercase input — `.upper()` normalizes correctly
-- [ ] Sheet not found — returns `{"error": ...}`
-- [ ] Invalid A1 notation in `data_range` — returns `{"error": ...}` from `_parse_a1_notation`
-- [ ] PIE chart: verify separate code path (no axis/domain/series splitting)
-- [ ] Non-PIE chart with `x_axis_label` and `y_axis_label` — included in `axis` list
-- [ ] Non-PIE chart without axis labels — axis entries have no `title` key
-- [ ] Custom `position_x`, `position_y`, `width`, `height` — values passed to `overlayPosition`
-- [ ] Chart created on a sheet with data — appears in spreadsheet
-- [ ] `chartId` extracted from response and returned
-- [ ] API error during chart creation — returns `{"error": "Failed to add chart: ..."}` (catches all exceptions — intentional?)
+- [ ] TC-C01: COLUMN chart
+- [ ] TC-C02: BAR chart
+- [ ] TC-C03: LINE chart
+- [ ] TC-C04: AREA chart
+- [ ] TC-C05: PIE chart
+- [ ] TC-C06: SCATTER chart
+- [ ] TC-C07: COMBO chart
+- [ ] TC-C08: HISTOGRAM chart
+- [ ] TC-C09: Invalid chart type
+- [ ] TC-C10: Lowercase chart type input
+- [ ] TC-C11: Sheet not found
+- [ ] TC-C12: Custom position and size
 
 ---
 
@@ -447,27 +421,27 @@ Strategic post-merge verification of every registered tool. Work through each se
 
 ---
 
-## Cross-Cutting / Infrastructure
+## Infrastructure
 
 ### Cache behavior
-- [ ] Structure cache TTL: verify stale entries cause a re-fetch after expiry (not just after `mark_dirty`)
-- [ ] SQLite WAL mode: verify concurrent reads during a write don't block
-- [ ] `CACHE_DB_PATH` env var respected — verify file is created at custom path
-- [ ] Server restart: cache persists across restarts (SQLite file survives), stale data possible
+- [ ] TC-I01: Structure cache TTL — stale entry causes re-fetch
+- [ ] TC-I02: SQLite WAL mode — concurrent reads during a write
+- [ ] TC-I03: CACHE_DB_PATH env var respected
+- [ ] TC-I04: Cache persists across server restarts
 
 ### Tool filtering (`ENABLED_TOOLS`)
-- [ ] With `--include-tools get_sheet_data,list_sheets`: only those two registered
-- [ ] With `ENABLED_TOOLS` env var: same behavior
-- [ ] Tool not in allowlist is called by name — MCP returns "tool not found"
+- [ ] TC-I05: CLI flag — only specified tools registered
+- [ ] TC-I06: ENABLED_TOOLS env var — same behavior as CLI flag
+- [ ] TC-I07: Unlisted tool called by name
 
 ### Auth fallback chain
-- [ ] `CREDENTIALS_CONFIG` (base64 service account) — works
-- [ ] `SERVICE_ACCOUNT_PATH` — works
-- [ ] OAuth flow (`CREDENTIALS_PATH`/`TOKEN_PATH`) — works; `create_doc`/`create_spreadsheet` land in personal Drive
-- [ ] Application Default Credentials — works (e.g., `gcloud auth application-default login`)
-- [ ] No credentials at all — server fails to start with a clear error
+- [ ] TC-I08: CREDENTIALS_CONFIG (base64 service account)
+- [ ] TC-I09: SERVICE_ACCOUNT_PATH
+- [ ] TC-I10: OAuth flow (CREDENTIALS_PATH / TOKEN_PATH)
+- [ ] TC-I11: Application Default Credentials (ADC)
+- [ ] TC-I12: No credentials — server fails to start with clear error
 
 ### Transport
-- [ ] stdio transport: `uv run mcp-gee-sweet` — connects from a MCP client
-- [ ] SSE transport: `uv run mcp-gee-sweet --transport sse` — accessible at `http://localhost:8000`
-- [ ] `--reload` flag with SSE — uvicorn hot-reload works
+- [ ] TC-I13: stdio transport
+- [ ] TC-I14: SSE transport
+- [ ] TC-I15: Hot reload with SSE
