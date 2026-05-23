@@ -5,6 +5,17 @@ if TYPE_CHECKING:
     from .cache import SheetStructureCache
 
 
+def _quote_sheet_name(name: str) -> str:
+    """Wrap a sheet name in single quotes if it contains spaces or special chars.
+
+    The Sheets API requires 'Sheet Name'!A1:B2 when the name has non-word characters.
+    Single quotes inside the name are escaped by doubling them per API spec.
+    """
+    if re.search(r"[^A-Za-z0-9_]", name):
+        return "'" + name.replace("'", "''") + "'"
+    return name
+
+
 def _column_index_to_letter(index: int) -> str:
     """Convert 0-based column index to A1 notation letter (0='A', 25='Z', 26='AA', etc.)"""
     result = ""

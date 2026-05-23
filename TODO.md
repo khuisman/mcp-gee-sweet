@@ -8,6 +8,7 @@ Prioritized work queue. See [docs/roadmap.md](docs/roadmap.md) for full context 
 2. ~~**SQLite cache migration**~~ ✓ — single DB at `/tmp/mcp_gee_sweet.db`, four namespaces, WAL mode
 3. ~~**Cache unit tests**~~ ✓ — 32 tests covering TTL, dirty flag, partial invalidation, all four caches
 4. **PyPI publish** — set up trusted publishing (OIDC) on PyPI, do a test release; CI workflow already written
+5. ~~**Bug: sheet names with spaces break range strings**~~ ✓ — added `_quote_sheet_name()` helper in `helpers.py`; applied to all seven range-construction sites across `read.py` and `write.py` (`get_sheet_data`, `get_sheet_formulas`, `get_multiple_sheet_data`, `get_multiple_spreadsheet_summary`, `find_in_spreadsheet`, `update_cells`, `batch_update_cells`).
 
 ## Tier 1 features
 
