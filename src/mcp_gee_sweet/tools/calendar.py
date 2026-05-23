@@ -95,7 +95,7 @@ def register(tool):
 
         Returns:
             List of events with id, summary, start, end, location, description,
-            organizer, attendees, htmlLink, and status.
+            organizer, attendees, html_link, and status.
         """
         lc = ctx.request_context.lifespan_context
         max_results = min(max(1, max_results), 2500)
