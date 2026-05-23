@@ -62,6 +62,32 @@ Requires `google-api-python-client` Calendar client (`calendar/v3`) and `https:/
 38. ~~`delete_event`~~ ✓ — delete or cancel an event (`events().delete()`)
 39. ~~`find_free_slots`~~ ✓ — given a list of calendars + a time window, return free slots (`freebusy().query()`)
 
+## Tasks
+
+Requires `tasks/v1` client and `tasks` scope. Add `tasks_service` to `SpreadsheetContext`, wire up in `auth.py` lifespan.
+
+48. `list_task_lists` — list all task lists
+49. `get_task_list` — fetch metadata for a single task list
+50. `create_task_list` — create a new task list
+51. `delete_task_list` — delete a task list and all its tasks
+52. `list_tasks` — list tasks in a list with optional due date filter and completed/hidden flags
+53. `get_task` — fetch a single task by task list ID + task ID
+54. `create_task` — create a task (title, notes, due date, parent for subtasks)
+55. `update_task` — update fields on an existing task
+56. `delete_task` — delete a task
+57. `complete_task` — mark a task completed (shortcut for `update_task` with `status='completed'`)
+58. `clear_completed` — delete all completed tasks from a list
+
+## Tool access presets
+
+Preset names for `ENABLED_TOOLS` derived automatically from tool annotations (no hardcoded lists):
+
+- `readonly` — all tools where `readOnlyHint=True`
+- `standard` — readonly + create/update, excluding `destructiveHint=True` tools
+- `full` — all registered tools (current default when `ENABLED_TOOLS` is unset)
+
+Presets are resolved in the `ENABLED_TOOLS` parser in `server.py` before tool registration. Support mixing: `ENABLED_TOOLS=readonly,create_event` takes a preset and adds individual tools.
+
 ## Tier 2 features
 
 28. Cell formatting — `format_cells`, `update_borders`, `merge_cells` / `unmerge_cells`
@@ -71,6 +97,24 @@ Requires `google-api-python-client` Calendar client (`calendar/v3`) and `https:/
 ## Tier 3+ features
 
 31. Conditional formatting, named/protected ranges, permissions, filters _(see roadmap for details)_
+
+## Composite workflows
+
+Server-side tools that wrap multi-step chains worth implementing for reliability, not just convenience. See [docs/decision-composite-tools.md](docs/decision-composite-tools.md) for the full rationale.
+
+40. `sheet_to_doc` — pull data from a sheet range and render it as a formatted report doc; server-side to handle table/cell encoding decisions that Claude gets inconsistently (`get_sheet_data` → `create_doc` + `write_doc_content`)
+43. `bulk_export_folder` — export every doc/file in a folder to a target format (PDF, DOCX, etc.); server-side because the loop involves base64 binary decode on each file and pagination (`list_files` → loop `export_file`)
+46. `drive_inventory_doc` — generate a structured index of a folder's contents as a Google Doc; server-side to handle pagination and large result sets reliably (`list_files` + `get_file_metadata` → `create_doc` + `write_doc_content`)
+
+### Won't do — simple alias workflows
+
+These are straightforward two-call chains that Claude handles correctly without a dedicated tool. Adding a wrapper would add surface area with no reliability benefit. See [docs/decision-composite-tools.md](docs/decision-composite-tools.md).
+
+- ~~41. `create_from_template`~~ — `copy_file` → `write_doc_content`; two sequential calls Claude gets right
+- ~~42. `log_calendar_to_sheet`~~ — `list_events` → `add_rows`; two sequential calls Claude gets right
+- ~~44. `book_next_free_slot`~~ — `find_free_slots` → `create_event`; two sequential calls Claude gets right
+- ~~45. `find_and_update_row`~~ — `find_in_spreadsheet` → `update_cells`; two sequential calls Claude gets right
+- ~~47. `markdown_to_doc`~~ — already works via `upload_file` with `source_format='markdown'`; a named alias adds nothing
 
 ## Testing
 

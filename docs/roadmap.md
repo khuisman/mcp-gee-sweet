@@ -74,7 +74,50 @@ Features are grouped by category and ordered by practical priority within each t
 - [x] Open PR to xing5 from `upstream-observability` branch (structured logging, per-tool timing, `cache_discovery=False`) — [PR #79](https://github.com/xing5/mcp-google-sheets/pull/79)
 - [x] Fork repo and rename to `mcp-gee-sweet`; README credits xing5, freema, and piotr-agier
 
+## Tasks
+
+Requires `tasks/v1` client and `https://www.googleapis.com/auth/tasks` scope. Add `tasks_service` to `SpreadsheetContext` and wire up in `auth.py` lifespan alongside the existing clients.
+
+### Task lists
+- [ ] `list_task_lists` — list all task lists for the authenticated user
+- [ ] `get_task_list` — fetch metadata for a single task list
+- [ ] `create_task_list` — create a new task list
+- [ ] `delete_task_list` — delete a task list and all its tasks
+
+### Tasks
+- [ ] `list_tasks` — list tasks in a task list with optional due date filter and completed/hidden flags
+- [ ] `get_task` — fetch a single task by task list ID + task ID
+- [ ] `create_task` — create a task (title, notes, due date, parent for subtasks)
+- [ ] `update_task` — update fields on an existing task (`tasks().patch()`)
+- [ ] `delete_task` — delete a task
+- [ ] `complete_task` — mark a task as completed (shortcut for `update_task` with `status='completed'`)
+- [ ] `clear_completed` — delete all completed tasks from a list (`tasks().clear()`)
+
+## Gmail
+
+Requires `gmail/v1` client and `https://www.googleapis.com/auth/gmail.modify` scope (or narrower `gmail.readonly` / `gmail.send` scopes where appropriate). Add `gmail_service` to `SpreadsheetContext` and wire up in `auth.py` lifespan.
+
+### Reading
+- [ ] `list_messages` — list messages with optional query string (same syntax as Gmail search), label filter, and pagination
+- [ ] `get_message` — fetch a single message by ID; return headers, body (plain text + HTML), and attachment metadata
+- [ ] `list_threads` — list conversation threads with optional query and label filter
+- [ ] `get_thread` — fetch all messages in a thread
+- [ ] `list_labels` — list all labels (system and user-defined)
+
+### Sending and drafts
+- [ ] `send_message` — send an email (to, cc, bcc, subject, body, optional attachments)
+- [ ] `create_draft` — create a draft without sending
+- [ ] `send_draft` — send an existing draft by ID
+- [ ] `reply_to_message` — send a reply in an existing thread
+
+### Organization
+- [ ] `modify_labels` — add or remove labels from a message or thread (covers archive, mark read/unread, star, etc.)
+- [ ] `trash_message` — move a message to trash
+- [ ] `delete_message` — permanently delete a message
+
 ## Potential / under consideration
+
+- **Google Keep** — philosophically in scope (Workspace productivity tool) but the Keep API v1 is read-only for most operations and was historically restricted to Workspace Business/Enterprise accounts. Creating and editing notes via an officially supported third-party API is not currently possible. Revisit if Google opens the API further.
 
 - **SQLite cache encryption at rest** — the cache DB (`/tmp/mcp_gee_sweet.db`) stores Google Sheets data in plaintext. For deployments that handle sensitive data, consider [SQLCipher](https://www.zetetic.net/sqlcipher/) (open-source, AES-256, mostly API-compatible with standard SQLite) or rely on filesystem-level encryption (FileVault, LUKS, BitLocker). The official SQLite Encryption Extension (SEE) is an alternative but is commercial/proprietary. Not needed for typical local-dev use.
 
