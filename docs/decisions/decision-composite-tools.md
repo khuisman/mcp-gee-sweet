@@ -1,5 +1,10 @@
 # Decision: Composite Tool Policy
 
+**Date:** 2026-05-22
+**Snapshot commit:** [`d90ca0c`](https://github.com/khuisman/mcp-gee-sweet/commit/d90ca0c8517a44ad3222d4d35063a9877f7f3afc) — codebase as it existed when this decision was made
+
+> This is a point-in-time record. It captures context, alternatives, and reasoning as they were understood on the date above — not the current state of the project.
+
 ## Background
 
 As the tool count grew past 40, a question arose about whether to add server-side composite tools — single MCP tools that wrap common multi-step chains — or rely on the AI client (Claude) to orchestrate the primitives.

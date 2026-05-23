@@ -11,13 +11,13 @@ An MCP server that gives AI clients reliable, direct access to Google Workspace 
 
 ## Why it exists
 
-Google does not provide an official MCP server for Sheets or Drive (as of mid-2026). This project fills that gap, forked from [xing5/mcp-google-sheets](https://github.com/xing5/mcp-google-sheets) and expanded substantially. See [Project Fork](decision-fork.md) for the full history and alternatives evaluated.
+Google does not provide an official MCP server for Sheets or Drive (as of mid-2026). This project fills that gap, forked from [xing5/mcp-google-sheets](https://github.com/xing5/mcp-google-sheets) and expanded substantially. See [Project Fork](decisions/decision-fork.md) for the full history and alternatives evaluated.
 
 ## Key design decisions
 
-**Tool count is a cost.** Every registered tool is a name the AI must reason about on every call. This server applies a strict inclusion test — see [Tool Philosophy](tool-philosophy.md) — and defers borderline cases to the `batch_update` passthrough rather than adding named tools speculatively.
+**Tool count is a cost.** Every registered tool is a name the AI must reason about on every call. This server applies a strict inclusion test — see [Design Principles](design.md) — and defers borderline cases to the `batch_update` passthrough rather than adding named tools speculatively.
 
-**Composite tools only when it matters.** Multi-step workflows are left to the AI client unless they involve binary data, pagination loops, or encoding decisions that Claude handles inconsistently in practice. See [Composite Tools](decision-composite-tools.md) for the full policy and the specific failure modes that justified server-side wrappers.
+**Composite tools only when it matters.** Multi-step workflows are left to the AI client unless they involve binary data, pagination loops, or encoding decisions that Claude handles inconsistently in practice. See [Design Principles](design.md#when-to-build-a-composite) for the policy.
 
 **Caching by default.** Sheet structure, sheet data, Drive folder listings, doc content, and calendar metadata are all cached in a local SQLite database with TTL + dirty invalidation. This keeps repeated reads fast without hitting the Google API quota on every call.
 

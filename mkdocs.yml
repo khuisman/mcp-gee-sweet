@@ -35,11 +35,13 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Design:
-    - Tool Philosophy: tool-philosophy.md
-    - Composite Tools: decision-composite-tools.md
-    - Project Fork: decision-fork.md
-    - Publishing Strategy: decision-publishing.md
+  - Design Principles: design.md
+  - Decisions:
+    - Index: decisions/index.md
+    - Project Fork: decisions/decision-fork.md
+    - Composite Tools: decisions/decision-composite-tools.md
+    - Testing Approach: decisions/decision-testing.md
+    - Publishing Strategy: decisions/decision-publishing.md
   - Roadmap: roadmap.md
   - Development:
     - QA Overview: qa/README.md
