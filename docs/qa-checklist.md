@@ -366,6 +366,58 @@ Strategic post-merge verification of every registered tool. Work through each se
 
 ---
 
+## Calendar Tools (`calendar.py`)
+
+### `list_calendars`
+- [ ] Returns all subscribed calendars with `id`, `summary`, `time_zone`, `access_role`, `primary`
+- [ ] `primary: true` on the user's main calendar
+- [ ] Empty calendar list (no subscriptions) — returns `[]`
+
+### `get_calendar`
+- [ ] Valid calendar ID — returns correct summary and timezone
+- [ ] `calendar_id='primary'` — resolves to user's primary calendar
+- [ ] Non-existent calendar ID — returns `{"error": ...}`
+
+### `list_events`
+- [ ] No time filters — returns upcoming events ordered by start time
+- [ ] `time_min` + `time_max` — only events in the window returned
+- [ ] `query` string — matches against summary/description/location
+- [ ] All-day event — `start`/`end` fields are date strings (no `T`)
+- [ ] Timed event — `start`/`end` are RFC3339 datetime strings
+- [ ] `max_results` clamped: 0 → 1, 3000 → 2500
+- [ ] Non-existent `calendar_id` — returns `[{"error": ...}]`
+
+### `get_event`
+- [ ] Valid event — returns full details including `organizer`, `attendees`, `recurrence`
+- [ ] Non-existent event ID — returns `{"error": ...}`
+- [ ] Recurring event instance — `recurrence` field populated
+
+### `create_event`
+- [ ] Timed event — created with correct RFC3339 start/end
+- [ ] All-day event (date-only strings) — created with `date` field, not `dateTime`
+- [ ] With `description`, `location`, `attendees` — all fields present on created event
+- [ ] `htmlLink` returned and points to Google Calendar UI
+- [ ] Invalid `calendar_id` — returns `{"error": ...}`
+
+### `update_event`
+- [ ] Update `summary` only — other fields unchanged
+- [ ] Update `start`/`end` — time changes reflected
+- [ ] Update `description` and `location` — fields patched correctly
+- [ ] Non-existent event ID — returns `{"error": ...}`
+
+### `delete_event`
+- [ ] Existing event — returns `{"deleted": true}`, event no longer appears in `list_events`
+- [ ] Non-existent event ID — returns `{"error": ...}`
+
+### `find_free_slots`
+- [ ] Single calendar — `busy` map contains correct calendar ID key
+- [ ] No events in window — busy list is empty
+- [ ] Events in window — busy periods match event start/end times
+- [ ] Multiple calendar IDs — separate busy lists per calendar
+- [ ] Invalid calendar ID in list — returns `{"error": ...}`
+
+---
+
 ## Chart Tools (`charts.py`)
 
 ### `add_chart`

@@ -143,6 +143,8 @@ def register(tool):
         Returns:
             A list of dictionaries, each representing a spreadsheet summary.
             Includes spreadsheet title, sheet summaries (title, headers, first rows), or an error.
+            Results are cached; call refresh_cache(spreadsheet_id=<id>) to invalidate,
+            or refresh_cache() to clear all caches.
         """
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
