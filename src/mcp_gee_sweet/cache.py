@@ -335,6 +335,83 @@ class DocContentCache:
         self._conn.close()
 
 
+class CalendarCache:
+    """Caches calendar list and per-calendar metadata keyed by calendar_id."""
+
+    _NS = "calendar"
+    _LIST_KEY = "__list__"
+
+    def __init__(self, db_path: str = CACHE_DB_PATH, ttl: int = CACHE_TTL):
+        self._ttl = ttl
+        self._conn = _open(db_path)
+        logger.debug("Calendar cache opened: %s", db_path)
+
+    def _get_valid(self, key: str) -> sqlite3.Row | None:
+        row = self._conn.execute(
+            "SELECT value, fetched_at, dirty FROM cache WHERE namespace=? AND key=?",
+            (self._NS, key),
+        ).fetchone()
+        if row is None or row["dirty"]:
+            return None
+        if time.time() - row["fetched_at"] > self._ttl:
+            self._conn.execute(
+                "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?", (self._NS, key)
+            )
+            self._conn.commit()
+            return None
+        return row
+
+    def get_list(self) -> list | None:
+        """Returns cached calendar list, or None on miss/dirty/expired."""
+        row = self._get_valid(self._LIST_KEY)
+        if row is None:
+            return None
+        logger.debug("Calendar list cache hit")
+        return json.loads(row["value"])
+
+    def store_list(self, calendars: list):
+        self._conn.execute(
+            "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty)"
+            " VALUES (?,?,?,?,0)",
+            (self._NS, self._LIST_KEY, json.dumps(calendars), time.time()),
+        )
+        self._conn.commit()
+        logger.debug("Cached calendar list (%d entries)", len(calendars))
+
+    def get(self, calendar_id: str) -> dict | None:
+        """Returns cached calendar metadata, or None on miss/dirty/expired."""
+        row = self._get_valid(calendar_id)
+        if row is None:
+            return None
+        logger.debug("Calendar cache hit: %s", calendar_id)
+        return json.loads(row["value"])
+
+    def store(self, calendar_id: str, calendar: dict):
+        self._conn.execute(
+            "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty)"
+            " VALUES (?,?,?,?,0)",
+            (self._NS, calendar_id, json.dumps(calendar), time.time()),
+        )
+        self._conn.commit()
+        logger.debug("Cached calendar %s", calendar_id)
+
+    def mark_dirty(self, calendar_id: str):
+        for key in (calendar_id, self._LIST_KEY):
+            self._conn.execute(
+                "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?", (self._NS, key)
+            )
+        self._conn.commit()
+        logger.debug("Marked calendar cache dirty for %s", calendar_id)
+
+    def mark_all_dirty(self):
+        self._conn.execute("UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
+        self._conn.commit()
+        logger.debug("Invalidated all calendar cache entries")
+
+    def close(self):
+        self._conn.close()
+
+
 def fetch_sheets(
     sheets_service: Any, spreadsheet_id: str, cache: SheetStructureCache
 ) -> list[SheetInfo]:

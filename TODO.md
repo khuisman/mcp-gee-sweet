@@ -49,6 +49,19 @@ Items already done: `create_doc`, `get_doc_content`, `write_doc_content`.
 
 ~~`upload_file`~~ ✓ — `source_format='markdown'`, `convert_to_doc=True`; converts via `markdown[extra]` → HTML → Drive HTML import. Handles headings, lists, bold/italic, tables, fenced code, links.
 
+## Calendar
+
+Requires `google-api-python-client` Calendar client (`calendar/v3`) and `https://www.googleapis.com/auth/calendar` scope. Add `calendar_service` to `SpreadsheetContext` and wire up in `auth.py` lifespan alongside the existing Sheets and Drive clients.
+
+32. ~~`list_calendars`~~ ✓ — list all calendars accessible to the authenticated user (`calendarList().list()`)
+33. ~~`get_calendar`~~ ✓ — fetch metadata for a single calendar by ID (name, timezone, access role)
+34. ~~`list_events`~~ ✓ — list events in a calendar with optional `time_min`/`time_max`, `query`, and `max_results` (`events().list()`)
+35. ~~`get_event`~~ ✓ — fetch a single event by calendar ID + event ID
+36. ~~`create_event`~~ ✓ — create a new event (summary, start/end datetime, description, location, attendees, timezone)
+37. ~~`update_event`~~ ✓ — update fields on an existing event (`events().patch()`)
+38. ~~`delete_event`~~ ✓ — delete or cancel an event (`events().delete()`)
+39. ~~`find_free_slots`~~ ✓ — given a list of calendars + a time window, return free slots (`freebusy().query()`)
+
 ## Tier 2 features
 
 28. Cell formatting — `format_cells`, `update_borders`, `merge_cells` / `unmerge_cells`

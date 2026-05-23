@@ -1,4 +1,4 @@
-from . import charts, drive, read, sheets, write
+from . import calendar, charts, drive, read, sheets, write
 
 
 def register_all(tool):
@@ -7,3 +7,4 @@ def register_all(tool):
     sheets.register(tool)
     drive.register(tool)
     charts.register(tool)
+    calendar.register(tool)

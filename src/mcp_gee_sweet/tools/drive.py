@@ -893,7 +893,9 @@ def register(tool):
             max_results: Maximum number of results to return (default 100, max 1000)
 
         Returns:
-            List of files with their ID, name, MIME type, modified time, and web link
+            List of files with their ID, name, MIME type, modified time, and web link.
+            Results are cached; call refresh_cache(folder_id=folder_id) to invalidate,
+            or refresh_cache() to clear all caches.
         """
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
@@ -944,7 +946,9 @@ def register(tool):
             file_id: The Google Drive file ID of the document.
 
         Returns:
-            Dictionary with the document's text content and metadata
+            Dictionary with the document's text content and metadata. Results are
+            cached; call refresh_cache(doc_id=file_id) to invalidate, or
+            refresh_cache() to clear all caches.
         """
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
