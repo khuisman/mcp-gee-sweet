@@ -1083,3 +1083,325 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Google Doc created
 - Open in browser: a 2×2 table is visible under the heading
 - Confirms `markdown[extra]` extension handles GFM tables
+
+---
+
+## `upload_local_file`
+
+### TC-D93: Upload a binary file
+
+**Prompt**
+> "Upload the local file `/tmp/qa-test.png` to {FOLDER_ID}" *(create any small PNG at that path first)*
+
+**Checks**
+- File appears in Drive with `mimeType: image/png`
+- `skipped: false` in response
+- `list_files` for `{FOLDER_ID}` includes the new file after upload
+
+---
+
+### TC-D94: skip_if_exists prevents re-upload
+
+**Prompt** (run twice, same file)
+> "Upload `/tmp/qa-test.png` to {FOLDER_ID} again"
+
+**Checks**
+- Second call returns the existing file's `fileId` with `skipped: true`
+- No duplicate created in Drive
+- Confirms the pre-check list query fires and short-circuits
+
+---
+
+### TC-D95: skip_if_exists=False creates duplicate
+
+**Prompt**
+> "Upload `/tmp/qa-test.png` to {FOLDER_ID} with skip_if_exists set to false"
+
+**Checks**
+- A second file with the same name is created in Drive
+- Response `skipped: false`
+- 🔍 Drive allows duplicate names — both files now exist
+
+---
+
+### TC-D96: Non-existent local path
+
+**Prompt**
+> "Upload the file `/tmp/does-not-exist-qa.bin` to {FOLDER_ID}"
+
+**Checks**
+- `ValueError` raised with a message referencing the missing path
+- No Drive API call made
+
+---
+
+### TC-D97: Name override
+
+**Prompt**
+> "Upload `/tmp/qa-test.png` to {FOLDER_ID} but name it 'renamed-in-drive.png'"
+
+**Checks**
+- File in Drive is named `renamed-in-drive.png`, not `qa-test.png`
+- Local file unchanged
+
+---
+
+## `upload_local_folder`
+
+### TC-D98: Bulk upload of a mixed directory ⚠️ destructive
+
+**Prompt**
+> "Upload all files from `/tmp/qa-folder/` to {FOLDER_ID}" *(create a directory with 2–3 files of different types)*
+
+**Checks**
+- All files appear in Drive with correct MIME types
+- `uploaded` list matches the filenames
+- `failed` is empty
+
+---
+
+### TC-D99: .DS_Store excluded by default
+
+**Prompt**
+> "Upload the directory `/tmp/qa-folder/` to {FOLDER_ID}" *(ensure `.DS_Store` exists in that directory)*
+
+**Checks**
+- `.DS_Store` is absent from the `uploaded` list and from Drive
+- Other files in the directory are uploaded normally
+
+---
+
+### TC-D100: skip_if_exists batches the existence check
+
+**Prompt** (run twice)
+> "Upload `/tmp/qa-folder/` to {FOLDER_ID} again with skip_if_exists=True"
+
+**Checks**
+- Previously uploaded files appear in `skipped`
+- `uploaded` contains only new files (if any)
+- Only one `list` API call is made per run (not one per file) — check server logs
+
+---
+
+## `download_file`
+
+### TC-D101: Download a non-Google file
+
+**Prompt**
+> "Download the file {BINARY_FILE_ID} to `/tmp/qa-downloads/`" *(use the ID of the PNG uploaded in TC-D93)*
+
+**Checks**
+- File written to `/tmp/qa-downloads/<drive_name>`
+- `size_bytes` matches the Drive file size
+- File is a valid PNG (can be opened)
+
+---
+
+### TC-D102: Export Google Doc as plain text
+
+**Prompt**
+> "Download {DOC_ID} as a txt file to `/tmp/qa-downloads/`"
+
+**Checks**
+- File written as `<doc_name>.txt`
+- Content is readable plain text matching the doc body
+- `encoding` for the response is not relevant here — file is on disk
+
+---
+
+### TC-D103: Export Google Doc as PDF
+
+**Prompt**
+> "Download {DOC_ID} as a pdf to `/tmp/qa-downloads/`"
+
+**Checks**
+- File written as `<doc_name>.pdf`
+- File opens as a valid PDF (`%PDF` header)
+- `size_bytes` > 0
+
+---
+
+### TC-D104: Export Google Sheet as CSV
+
+**Prompt**
+> "Download {SPREADSHEET_ID} as CSV to `/tmp/qa-downloads/`"
+
+**Checks**
+- CSV file written locally
+- Content matches the spreadsheet's first sheet data
+
+---
+
+### TC-D105: Workspace file without export_format
+
+**Prompt**
+> "Download {DOC_ID} to `/tmp/qa-downloads/` without specifying a format"
+
+**Checks**
+- `ValueError` raised mentioning that `export_format` is required
+- No file written
+
+---
+
+### TC-D106: local_path as exact file path
+
+**Prompt**
+> "Download {BINARY_FILE_ID} and save it to `/tmp/qa-specific-name.png`"
+
+**Checks**
+- File written to exactly `/tmp/qa-specific-name.png`, not into a subdirectory
+- Parent directory created if it didn't exist
+
+---
+
+## `download_folder`
+
+### TC-D107: Download folder with mixed content
+
+**Prompt**
+> "Download all files from {FOLDER_ID} to `/tmp/qa-folder-download/`"
+
+**Checks**
+- All non-Workspace files written to the local directory
+- Workspace files (Docs, Sheets) listed in `skipped` — not exported without `export_format`
+- `downloaded` list matches non-Workspace filenames
+
+---
+
+### TC-D108: Download folder with export_format
+
+**Prompt**
+> "Download all files from {FOLDER_ID} to `/tmp/qa-folder-export/` with export_format='pdf'"
+
+**Checks**
+- Non-Workspace files downloaded as-is
+- Workspace files exported as `.pdf` and included in `downloaded`
+- All resulting files have `.pdf` extension or original extension
+
+---
+
+### TC-D109: skip_if_exists=True skips existing local files
+
+**Prompt** (run twice)
+> "Download {FOLDER_ID} to `/tmp/qa-folder-download/` again"
+
+**Checks**
+- Files already present locally appear in `skipped`
+- `downloaded` is empty (or contains only new Drive files)
+
+---
+
+### TC-D110: mime_type_filter
+
+**Prompt**
+> "Download only Google Docs from {FOLDER_ID} to `/tmp/qa-docs-only/` using export_format='txt'"
+
+**Checks**
+- Only `application/vnd.google-apps.document` files exported
+- Other file types absent from the output directory
+
+---
+
+## `sync_folder`
+
+### TC-D111: dry_run shows full action plan
+
+**Prompt**
+> "Do a dry run sync of {FOLDER_ID} with `/tmp/qa-sync/` in bidirectional mode"
+
+**Checks**
+- Response includes `actions` list with `{name, action, reason}` for every file
+- `dry_run: true` in response
+- No files created or modified locally or in Drive
+
+---
+
+### TC-D112: Bidirectional — Drive-only file downloaded ⚠️ destructive
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync/` bidirectionally" *(ensure at least one file exists in Drive but not locally)*
+
+**Checks**
+- Drive-only files appear in `downloaded`
+- Files written to `/tmp/qa-sync/`
+
+---
+
+### TC-D113: Bidirectional — local-only file uploaded ⚠️ destructive
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync/` bidirectionally" *(create a new file in `/tmp/qa-sync/` that doesn't exist in Drive)*
+
+**Checks**
+- New local file appears in `uploaded`
+- File visible in Drive after sync
+
+---
+
+### TC-D114: Local newer → uploaded; Drive newer → downloaded
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync/` and show me what gets uploaded vs downloaded"
+
+**Checks**
+- Files where local mtime > Drive modifiedTime + 5s → in `uploaded`
+- Files where Drive modifiedTime > local mtime + 5s → in `downloaded`
+- Files within 5s of each other → in `skipped`
+
+---
+
+### TC-D115: Upload preserves mtime for future sync accuracy
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync/` to upload a local file, then sync again immediately"
+
+**Checks**
+- First sync: local-only file appears in `uploaded`
+- Second sync: same file appears in `skipped` (in sync), not re-uploaded
+- Confirms `modifiedTime` is set on the Drive file to match the local mtime
+
+---
+
+### TC-D116: direction='upload' — Drive-only file not downloaded
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync/` using direction='upload'"
+
+**Checks**
+- Drive-only files appear in `skipped`, not `downloaded`
+- Local-only files are uploaded
+- Drive-newer files appear in `conflicts`, not `downloaded`
+
+---
+
+### TC-D117: direction='download' — local-only file not uploaded
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync/` using direction='download'"
+
+**Checks**
+- Local-only files appear in `skipped`, not `uploaded`
+- Drive-only files are downloaded
+- Local-newer files appear in `conflicts`, not `uploaded`
+
+---
+
+### TC-D118: Workspace files excluded without export_format
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync/` — the folder contains a Google Doc"
+
+**Checks**
+- Google Doc does not appear in `downloaded`, `uploaded`, or `conflicts`
+- 🔍 **Note:** Workspace files are silently excluded unless `export_format` is set — document this for users
+
+---
+
+### TC-D119: Invalid direction raises error
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync/` using direction='mirror'"
+
+**Checks**
+- `ValueError` raised immediately, before any API calls
+- Error message lists the valid direction values

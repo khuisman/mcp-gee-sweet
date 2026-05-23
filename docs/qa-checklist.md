@@ -287,6 +287,65 @@ Strategic post-merge verification of every registered tool. Work through each se
 - [ ] Markdown with fenced code blocks — preserved as preformatted text
 - [ ] Empty `content` — empty file or empty Doc created without error
 
+### `upload_local_file`
+- [ ] Upload a binary file (e.g. PNG, PDF) — verify it appears in Drive with correct MIME type
+- [ ] Upload a text file — MIME type detected as `text/plain` or similar
+- [ ] `name` override — file lands in Drive with the specified name, not the local filename
+- [ ] `skip_if_exists=True` (default) — second upload of same filename returns existing file's ID without re-uploading
+- [ ] `skip_if_exists=False` — duplicate file created even when name already exists
+- [ ] Non-existent `local_path` — `ValueError` raised with clear message
+- [ ] Destination is a Shared Drive folder — `supportsAllDrives=True` prevents 404
+- [ ] Folder cache invalidated after upload
+
+### `upload_local_folder`
+- [ ] Upload a directory of mixed file types — all land in Drive with correct MIME types
+- [ ] `.DS_Store` excluded by default (`skip_system_files=True`)
+- [ ] `skip_system_files=False` — `.DS_Store` included
+- [ ] `skip_if_exists=True` — pre-fetches existing names in one list call; already-present files skipped
+- [ ] `skip_if_exists=False` — all files uploaded regardless of existing names
+- [ ] One file fails (e.g. permissions error) — others still upload; failed file in `failures` list
+- [ ] Non-existent `local_path` — `ValueError` raised
+- [ ] Empty directory — returns `{uploaded: [], skipped: [], failed: []}`
+- [ ] Folder cache invalidated only when at least one file uploaded
+
+### `download_file`
+- [ ] Non-Google file — raw bytes written to `local_path`; file size matches Drive
+- [ ] Google Doc → `txt` — text file written locally, readable content
+- [ ] Google Doc → `pdf` — binary PDF written; file starts with `%PDF`
+- [ ] Google Sheet → `csv` — CSV written locally
+- [ ] `local_path` is a directory — file saved as `<drive_name>` (or `<drive_name>.ext` for Workspace export)
+- [ ] `local_path` is a file path — file written to that exact path; parent dirs created if needed
+- [ ] Workspace file with no `export_format` — `ValueError` with helpful message
+- [ ] Unknown `export_format` — `ValueError`
+- [ ] Non-existent `file_id` — API error propagates
+
+### `download_folder`
+- [ ] Folder with mixed file types — non-Workspace files downloaded, Workspace files skipped (no `export_format`)
+- [ ] With `export_format='pdf'` — Workspace files exported and downloaded alongside raw files
+- [ ] `mime_type_filter` — only matching files downloaded
+- [ ] `skip_if_exists=True` — files already present locally are skipped
+- [ ] `skip_if_exists=False` — all files downloaded, overwriting local copies
+- [ ] One file fails — others complete; failed entry in `failed` list
+- [ ] `size_bytes` reflects total bytes written
+- [ ] `local_path` created if it doesn't exist
+
+### `sync_folder`
+- [ ] `dry_run=True` — returns `actions` list with name/action/reason for every file; nothing transferred
+- [ ] Drive-only file, `direction='bidirectional'` — downloaded
+- [ ] Drive-only file, `direction='upload'` — skipped (appears in `skipped`)
+- [ ] Local-only file, `direction='bidirectional'` — uploaded
+- [ ] Local-only file, `direction='download'` — skipped
+- [ ] Both sides, local newer — uploaded under `bidirectional` and `upload`; conflict under `download`
+- [ ] Both sides, Drive newer — downloaded under `bidirectional` and `download`; conflict under `upload`
+- [ ] Both sides, within 5-second tolerance — skipped (in sync)
+- [ ] Upload preserves local mtime on Drive file — subsequent sync sees files as in-sync
+- [ ] Workspace file with no `export_format` — excluded from sync (not in any output list)
+- [ ] Workspace file with `export_format='pdf'` — participates in sync as `<name>.pdf`
+- [ ] `.DS_Store` excluded by default
+- [ ] Invalid `direction` — `ValueError`
+- [ ] Invalid `export_format` — `ValueError`
+- [ ] Folder cache invalidated after any upload or download
+
 ### `write_doc_content`
 - [ ] Write to empty doc — `end_index=2`, no `deleteContentRange`, only insert
 - [ ] Write to doc with existing content — existing content cleared, new content written
