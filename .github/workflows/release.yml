@@ -4,6 +4,9 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read  # default minimal; pypi-publish job overrides with id-token: write
+
 jobs:
   test:
     name: Run tests before release
