@@ -1405,3 +1405,54 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Checks**
 - `ValueError` raised immediately, before any API calls
 - Error message lists the valid direction values
+
+---
+
+## `list_drives`
+
+### TC-D120: List all shared drives
+
+**Prompt**
+> "List all shared drives I have access to"
+
+**Checks**
+- Returns a list; each item has `id`, `name`, `created_time`, `capabilities`
+- `capabilities` is a non-empty dict (e.g. contains `canAddChildren`)
+- No error if zero shared drives accessible — returns `[]`
+
+---
+
+### TC-D121: Filter by name
+
+**Prompt**
+> "List shared drives whose name contains 'Marketing'"
+
+**Checks**
+- `query='name contains "Marketing"'` passed to API
+- Only drives matching the filter are returned
+- Drives not matching the name are absent from results
+
+---
+
+### TC-D122: max_results clamping
+
+**Prompt**
+> "List shared drives with max_results=0" then "List shared drives with max_results=300"
+
+**Checks**
+- `max_results=0` clamped to 1; at most 1 drive returned
+- `max_results=300` clamped to 200; no more than 200 drives returned
+
+---
+
+### TC-D123: Pagination across multiple pages
+
+**Setup:** environment with more than 100 shared drives (or simulate via mock)
+
+**Prompt**
+> "List all shared drives with max_results=150"
+
+**Checks**
+- `nextPageToken` followed; second page fetched
+- Total results ≤ 150
+- No duplicate drives across pages

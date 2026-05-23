@@ -199,6 +199,14 @@ Strategic post-merge verification of every registered tool. Work through each se
 - [ ] Trashed files excluded (query includes `trashed=false`)
 - [ ] After `create_spreadsheet`/`create_doc`: `drive_folder_cache.mark_dirty` ensures next `list_files` re-fetches
 
+### `list_drives`
+- [ ] No args — returns all accessible shared drives with `id`, `name`, `created_time`, `capabilities`
+- [ ] `query='name contains "..."'` — filters results to matching drives only
+- [ ] No shared drives accessible — returns empty list without error
+- [ ] `max_results` clamped: 0 → 1, 300 → 200
+- [ ] More drives than one page — pagination exhausts all results up to `max_results`
+- [ ] `capabilities` present in each result (e.g. `canAddChildren`, `canManageMembers`)
+
 ### `get_doc_content`
 - [ ] Happy path — returns text, metadata, web link
 - [ ] Cache hit: second call returns cached result
