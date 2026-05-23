@@ -26,10 +26,25 @@ Items already done: `create_folder`, `move_file`, `rename_file`, `copy_file`, `d
 11. ~~`trash_file` / `delete_file`~~ ✓ — `permanent=False` trashes, `permanent=True` permanently deletes
 12. ~~`search_files`~~ ✓ — general Drive search across all MIME types, optional mime_type + folder_id filter
 13. ~~`get_file_metadata`~~ ✓ — fetch name, MIME type, parents, modified time, size, owners, trashed status
-14. `list_permissions` — who has access to a file (`permissions().list()`)
-15. `update_permission` — change a user's role (`permissions().update()`)
-16. `remove_permission` — revoke access (`permissions().delete()`)
-17. `share_file` — generalize `share_spreadsheet` to work on any file/folder, not just spreadsheets
+14. ~~`list_permissions`~~ ✓ — list all permissions on any file/folder (`permissions().list()`)
+15. ~~`update_permission`~~ ✓ — change role on an existing permission (`permissions().update()`)
+16. ~~`remove_permission`~~ ✓ — revoke a permission by ID (`permissions().delete()`)
+17. ~~`share_file`~~ ✓ — generalized `share_spreadsheet`; supports type=user/group/domain/anyone
+
+### QA — Drive permissions tools
+
+- [ ] `list_permissions(file_id)` — returns at least the owner entry; owner role is `owner`, type is `user`
+- [ ] `list_permissions(file_id)` on a shared file — shared user's email appears with correct role
+- [ ] `share_file` type=user — share with a test address as `reader`; `list_permissions` confirms new entry
+- [ ] `share_file` type=user — share with bad role `'admin'` — returns failure, not exception
+- [ ] `share_file` type=user — omit `email_address` — returns failure entry, not exception
+- [ ] `share_file` type=domain — share with a domain; `list_permissions` shows domain entry
+- [ ] `share_file` type=anyone role=reader — makes file public; `list_permissions` shows `anyone` entry
+- [ ] `update_permission` — downgrade a `writer` to `reader`; `list_permissions` reflects new role
+- [ ] `update_permission` — invalid role `'owner'` — returns `{"error": ...}`, not exception
+- [ ] `remove_permission` — removes a previously-added permission; `list_permissions` no longer shows it
+- [ ] `remove_permission` — invalid permission_id — Drive API raises; verify error surfaces cleanly
+- [ ] `share_file` on a folder — verify permissions propagate to children (manual check in Drive UI)
 18. ~~`list_drives`~~ ✓ — enumerate shared / Team Drives (`drives().list()`), with optional query filter and pagination
 19. ~~`export_file`~~ ✓ — download non-Google files and export Google files to PDF/DOCX/HTML (`files().export()` / `files().get_media()`)
 
