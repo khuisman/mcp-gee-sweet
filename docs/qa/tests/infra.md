@@ -227,4 +227,4 @@ Make a trivial change to a source file (e.g. add a space and save).
 **Checks**
 - 🔍 **Known issue:** uvicorn hot-reload may not complete while SSE connections are alive
 - Note whether reload fires, whether it completes, and whether the MCP client reconnects
-- See [roadmap.md](../../docs/roadmap.md) for context
+- See [roadmap.md](../../roadmap.md) for context

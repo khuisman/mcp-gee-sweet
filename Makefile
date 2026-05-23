@@ -28,6 +28,10 @@ logs: ## Tail container logs.
 sh: ## Open a shell in the container.
 	docker compose exec mcp-gee-sweet bash
 
+.PHONY: docs
+docs: ## Serve docs locally at http://127.0.0.1:8000 (live reload).
+	uv run mkdocs serve
+
 .PHONY: install-hooks
 install-hooks: ## Install pre-commit hooks into the local git repo.
 	uv run pre-commit install

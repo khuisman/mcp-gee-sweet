@@ -1,0 +1,55 @@
+site_name: mcp-gee-sweet
+site_description: MCP server for Google Workspace — Sheets, Drive, Docs, Calendar
+site_url: https://khuisman.github.io/mcp-gee-sweet
+repo_url: https://github.com/khuisman/mcp-gee-sweet
+repo_name: khuisman/mcp-gee-sweet
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - toc.integrate
+    - content.code.copy
+
+markdown_extensions:
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Design:
+    - Tool Philosophy: tool-philosophy.md
+    - Composite Tools: decision-composite-tools.md
+    - Project Fork: decision-fork.md
+  - Roadmap: roadmap.md
+  - Development:
+    - QA Overview: qa/README.md
+    - QA Checklist: qa-checklist.md
+    - QA Setup: qa/setup.md
+    - Test Cases:
+      - Calendar: qa/tests/calendar.md
+      - Charts: qa/tests/charts.md
+      - Drive: qa/tests/drive.md
+      - Infrastructure: qa/tests/infra.md
+      - Read: qa/tests/read.md
+      - Sheets: qa/tests/sheets.md
+      - Write: qa/tests/write.md
+    - Read API Notes: notes-read.md
