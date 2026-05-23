@@ -4,6 +4,7 @@ import io
 import json
 import logging
 import mimetypes
+from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -1568,4 +1569,319 @@ def register(tool):
             "skipped": skipped,
             "failed": failed,
             "size_bytes": total_bytes,
+        }
+
+    _SYNC_MTIME_TOLERANCE = 5  # seconds — absorbs clock skew and upload-time drift
+
+    @tool(annotations=ToolAnnotations(title="Sync Folder", destructiveHint=True))
+    def sync_folder(
+        folder_id: str,
+        local_path: str,
+        direction: str = "bidirectional",
+        export_format: str | None = None,
+        skip_system_files: bool = True,
+        dry_run: bool = False,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Sync files between a Google Drive folder and a local directory.
+
+        ## Sync logic
+
+        Files are matched by name. For Google Workspace files (Docs, Sheets, Slides),
+        the export extension is appended to form the local name — e.g. a Doc called
+        'Notes' with export_format='docx' matches the local file 'Notes.docx'.
+        Workspace files with no export_format are skipped entirely.
+
+        For each matched name the action is decided as follows:
+
+          Drive only  + direction includes download  → download
+          Drive only  + direction is 'upload'        → skip
+          Local only  + direction includes upload    → upload
+          Local only  + direction is 'download'      → skip
+          Both sides, mtimes within 5 s tolerance    → skip (already in sync)
+          Both sides, local newer by > 5 s           → upload  (if direction includes upload)
+          Both sides, Drive newer by > 5 s           → download (if direction includes download)
+          Both sides, conflict (direction mismatch)  → skip, listed under 'conflicts'
+
+        Modified times are compared in UTC. When a file is uploaded, its Drive
+        modifiedTime is set to the local file's mtime so future syncs stay accurate.
+
+        ## direction values
+
+          'bidirectional' (default) — newer side wins; Drive-only files are downloaded,
+                                      local-only files are uploaded.
+          'upload'                  — only push local changes to Drive; Drive-only files
+                                      and Drive-newer files are left alone.
+          'download'                — only pull Drive changes locally; local-only files
+                                      and local-newer files are left alone.
+
+        ## dry_run
+
+        When dry_run=True no files are transferred. The response includes an 'actions'
+        list showing every file and what would happen, with the reason.
+
+        Args:
+            folder_id: Google Drive folder ID to sync against.
+            local_path: Local directory path to sync against (created if needed).
+            direction: 'bidirectional', 'upload', or 'download'.
+            export_format: Required to include Workspace files in the sync. They are
+                           exported/compared using this format (e.g. 'pdf', 'docx', 'csv').
+            skip_system_files: Skip .DS_Store and similar OS metadata files (default True).
+            dry_run: If True, plan the sync but transfer nothing.
+
+        Returns:
+            uploaded, downloaded, skipped, conflicts, failed lists (filenames),
+            size_bytes transferred, dry_run flag, and — when dry_run=True — an
+            'actions' list with {name, action, reason} for every file considered.
+        """
+        from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+
+        _EXPORT_MIME: dict[str, tuple[str, str]] = {
+            "pdf": ("application/pdf", ".pdf"),
+            "html": ("text/html", ".html"),
+            "txt": ("text/plain", ".txt"),
+            "docx": (
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".docx",
+            ),
+            "odt": ("application/vnd.oasis.opendocument.text", ".odt"),
+            "rtf": ("application/rtf", ".rtf"),
+            "epub": ("application/epub+zip", ".epub"),
+            "csv": ("text/csv", ".csv"),
+            "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx"),
+            "ods": ("application/vnd.oasis.opendocument.spreadsheet", ".ods"),
+            "pptx": (
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                ".pptx",
+            ),
+        }
+
+        if direction not in ("bidirectional", "upload", "download"):
+            raise ValueError(
+                f"direction must be 'bidirectional', 'upload', or 'download', got '{direction}'"
+            )
+        if export_format and export_format not in _EXPORT_MIME:
+            raise ValueError(
+                f"Unknown export_format '{export_format}'. Valid: {', '.join(_EXPORT_MIME)}"
+            )
+
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+        dest_dir = Path(local_path)
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        # --- build Drive file map: local_name → {id, mimeType, drive_name, modifiedTime} ---
+        results = (
+            drive_service.files()
+            .list(
+                q=f"'{folder_id}' in parents and trashed=false",
+                spaces="drive",
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                fields="files(id, name, mimeType, modifiedTime)",
+                pageSize=1000,
+            )
+            .execute()
+        )
+        drive_map: dict[str, dict] = {}
+        for f in results.get("files", []):
+            is_workspace = f["mimeType"].startswith("application/vnd.google-apps.")
+            if is_workspace:
+                if not export_format:
+                    continue  # excluded without an export format
+                local_name = f["name"] + _EXPORT_MIME[export_format][1]
+            else:
+                local_name = f["name"]
+            drive_map[local_name] = f
+
+        # --- build local file map: name → Path ---
+        local_map: dict[str, Path] = {}
+        for p in dest_dir.iterdir():
+            if not p.is_file():
+                continue
+            if skip_system_files and p.name in _SYSTEM_FILES:
+                continue
+            local_map[p.name] = p
+
+        # --- plan actions ---
+        def _drive_mtime(entry: dict) -> datetime:
+            return datetime.fromisoformat(entry["modifiedTime"].replace("Z", "+00:00"))
+
+        def _local_mtime(p: Path) -> datetime:
+            return datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc)
+
+        plan: list[dict[str, str]] = []
+        for name in sorted(drive_map.keys() | local_map.keys()):
+            in_drive = name in drive_map
+            in_local = name in local_map
+
+            if in_drive and not in_local:
+                if direction in ("download", "bidirectional"):
+                    plan.append({"name": name, "action": "download", "reason": "drive only"})
+                else:
+                    plan.append(
+                        {"name": name, "action": "skip", "reason": "drive only, upload direction"}
+                    )
+
+            elif in_local and not in_drive:
+                if direction in ("upload", "bidirectional"):
+                    plan.append({"name": name, "action": "upload", "reason": "local only"})
+                else:
+                    plan.append(
+                        {"name": name, "action": "skip", "reason": "local only, download direction"}
+                    )
+
+            else:
+                dmtime = _drive_mtime(drive_map[name])
+                lmtime = _local_mtime(local_map[name])
+                diff = (lmtime - dmtime).total_seconds()
+
+                if abs(diff) <= _SYNC_MTIME_TOLERANCE:
+                    plan.append({"name": name, "action": "skip", "reason": "in sync"})
+                elif diff > 0:
+                    if direction in ("upload", "bidirectional"):
+                        plan.append(
+                            {
+                                "name": name,
+                                "action": "upload",
+                                "reason": f"local newer by {diff:.0f}s",
+                            }
+                        )
+                    else:
+                        plan.append(
+                            {
+                                "name": name,
+                                "action": "conflict",
+                                "reason": f"local newer by {diff:.0f}s but direction is download",
+                            }
+                        )
+                else:
+                    if direction in ("download", "bidirectional"):
+                        plan.append(
+                            {
+                                "name": name,
+                                "action": "download",
+                                "reason": f"drive newer by {-diff:.0f}s",
+                            }
+                        )
+                    else:
+                        plan.append(
+                            {
+                                "name": name,
+                                "action": "conflict",
+                                "reason": f"drive newer by {-diff:.0f}s but direction is upload",
+                            }
+                        )
+
+        if dry_run:
+            return {
+                "actions": plan,
+                "dry_run": True,
+                "uploaded": [],
+                "downloaded": [],
+                "skipped": [p["name"] for p in plan if p["action"] == "skip"],
+                "conflicts": [p["name"] for p in plan if p["action"] == "conflict"],
+                "failed": [],
+                "size_bytes": 0,
+            }
+
+        # --- execute ---
+        uploaded: list[str] = []
+        downloaded: list[str] = []
+        skipped: list[str] = []
+        conflicts: list[str] = []
+        failed: list[dict[str, str]] = []
+        total_bytes = 0
+
+        for step in plan:
+            name = step["name"]
+            action = step["action"]
+
+            if action == "skip":
+                skipped.append(name)
+                continue
+
+            if action == "conflict":
+                conflicts.append(name)
+                continue
+
+            if action == "upload":
+                p = local_map[name]
+                mime, _ = mimetypes.guess_type(str(p))
+                mime = mime or "application/octet-stream"
+                lmtime_str = datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc).strftime(
+                    "%Y-%m-%dT%H:%M:%S.000Z"
+                )
+
+                if name in drive_map:
+                    # update existing file
+                    fid = drive_map[name]["id"]
+                    try:
+                        media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
+                        drive_service.files().update(
+                            fileId=fid,
+                            body={"modifiedTime": lmtime_str},
+                            media_body=media,
+                            supportsAllDrives=True,
+                            fields="id",
+                        ).execute()
+                        uploaded.append(name)
+                        logger.debug("Synced (update) %s → Drive", name)
+                    except Exception as e:
+                        failed.append({"name": name, "error": str(e)})
+                else:
+                    # create new file
+                    try:
+                        media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
+                        drive_service.files().create(
+                            body={"name": name, "parents": [folder_id], "modifiedTime": lmtime_str},
+                            media_body=media,
+                            supportsAllDrives=True,
+                            fields="id",
+                        ).execute()
+                        uploaded.append(name)
+                        logger.debug("Synced (create) %s → Drive", name)
+                    except Exception as e:
+                        failed.append({"name": name, "error": str(e)})
+
+            elif action == "download":
+                entry = drive_map[name]
+                fid = entry["id"]
+                is_workspace = entry["mimeType"].startswith("application/vnd.google-apps.")
+                dest_file = dest_dir / name
+                try:
+                    if is_workspace:
+                        target_mime = _EXPORT_MIME[export_format][0]
+                        content = (
+                            drive_service.files().export(fileId=fid, mimeType=target_mime).execute()
+                        )
+                        if not isinstance(content, bytes):
+                            content = content.encode("utf-8")
+                        dest_file.write_bytes(content)
+                    else:
+                        request = drive_service.files().get_media(fileId=fid)
+                        with dest_file.open("wb") as fh:
+                            downloader = MediaIoBaseDownload(fh, request)
+                            done = False
+                            while not done:
+                                _, done = downloader.next_chunk()
+                    size = dest_file.stat().st_size
+                    total_bytes += size
+                    downloaded.append(name)
+                    logger.debug("Synced (download) Drive → %s (%d bytes)", name, size)
+                except Exception as e:
+                    failed.append({"name": name, "error": str(e)})
+
+        if uploaded or downloaded:
+            lc.drive_folder_cache.mark_dirty(folder_id)
+
+        return {
+            "uploaded": uploaded,
+            "downloaded": downloaded,
+            "skipped": skipped,
+            "conflicts": conflicts,
+            "failed": failed,
+            "size_bytes": total_bytes,
+            "dry_run": False,
         }
