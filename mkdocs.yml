@@ -39,6 +39,7 @@ nav:
     - Tool Philosophy: tool-philosophy.md
     - Composite Tools: decision-composite-tools.md
     - Project Fork: decision-fork.md
+    - Publishing Strategy: decision-publishing.md
   - Roadmap: roadmap.md
   - Development:
     - QA Overview: qa/README.md
