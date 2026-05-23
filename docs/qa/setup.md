@@ -49,6 +49,31 @@ Doc content: `<h1>Test Document</h1><p>This document is used for QA testing of m
 
 Record both IDs in `fixtures.local.md` (copy from `fixtures.template.md`).
 
+---
+
+## Calendar fixture setup
+
+Calendar tests require a calendar the service account can access. The service account cannot see calendars shared only with your personal account — it must be explicitly subscribed.
+
+**Seed prompt** (paste with MCP server connected):
+
+---
+
+> Set up my calendar QA fixtures for mcp-gee-sweet. Please do all of the following:
+>
+> 1. Call `list_calendars` — if a calendar called **"mcp-gee-sweet-qa"** already appears, skip to step 3.
+> 2. I will share my primary Google Calendar with the service account email manually in Google Calendar settings (Settings → Share with specific people). Once done, tell me to proceed.
+> 3. Create a test event in that calendar: title **"QA Test Event"**, tomorrow at 10:00–11:00 AM in my local timezone.
+> 4. Return the calendar ID and the event ID.
+
+---
+
+Record `CALENDAR_ID` and `EVENT_ID` in `fixtures.local.md`.
+
+> **Note:** If the service account still can't see the calendar after sharing, you may need to subscribe it manually. See the `Calendar API setup` memory entry for the `calendarList().insert()` workaround.
+
+---
+
 ## Resetting fixtures
 
-Re-run the seed prompt to get a fresh spreadsheet. Update `fixtures.local.md` with the new ID before continuing.
+Re-run the seed prompt to get a fresh spreadsheet. Update `fixtures.local.md` with the new IDs before continuing.

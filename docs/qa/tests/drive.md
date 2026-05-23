@@ -1456,3 +1456,198 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - `nextPageToken` followed; second page fetched
 - Total results ≤ 150
 - No duplicate drives across pages
+
+---
+
+## `list_permissions`
+
+### TC-D124: List permissions on a file — owner entry present
+
+**Prompt**
+> "List all permissions on {SPREADSHEET_ID}"
+
+**Checks**
+- Returns at least one entry (the owner)
+- Owner entry has `role: 'owner'` and `type: 'user'`
+- Each entry has `id`, `type`, `role` — no `KeyError` or missing fields
+
+---
+
+### TC-D125: List permissions after sharing — new entry visible
+
+**Setup:** run TC-D132 first (share with a test user as reader)
+
+**Prompt**
+> "List the permissions on {SPREADSHEET_ID}"
+
+**Checks**
+- The test user's email appears with `role: 'reader'`
+- Their `permission_id` is present for use in update/remove tests
+
+---
+
+### TC-D126: Non-existent file ID
+
+**Prompt**
+> "List permissions on file 'invalidid123xyz'"
+
+**Checks**
+- API error propagates — not a silent empty list or server crash
+
+---
+
+## `update_permission`
+
+### TC-D127: Downgrade writer → reader ⚠️ destructive
+
+**Setup:** share {SPREADSHEET_ID} with test-recipient@example.com as writer first (TC-D132 variant); note the `permission_id` returned
+
+**Prompt**
+> "Update permission {PERMISSION_ID} on {SPREADSHEET_ID} to 'reader'"
+
+**Checks**
+- Response `role` is `reader`
+- Follow-up `list_permissions` confirms the same permission ID now has `role: 'reader'`
+
+---
+
+### TC-D128: Invalid role value
+
+**Prompt**
+> "Update permission {PERMISSION_ID} on {SPREADSHEET_ID} to role 'owner'"
+
+**Checks**
+- Returns `{"error": "Invalid role 'owner'..."}` — not an exception
+- No API call made (validation fires client-side before Drive API)
+
+---
+
+### TC-D129: Non-existent permission ID
+
+**Prompt**
+> "Update permission 'fakepermid999' on {SPREADSHEET_ID} to 'reader'"
+
+**Checks**
+- Drive API error propagates — not a server crash
+- Error message references the invalid permission ID
+
+---
+
+## `remove_permission`
+
+### TC-D130: Remove a permission ⚠️ destructive
+
+**Setup:** share {SPREADSHEET_ID} with test-recipient@example.com first; note `permission_id` returned
+
+**Prompt**
+> "Remove permission {PERMISSION_ID} from {SPREADSHEET_ID}"
+
+**Checks**
+- Response: `{"fileId": ..., "permissionId": ..., "action": "removed"}`
+- Follow-up `list_permissions` no longer shows that permission ID
+- Removed user can no longer access the file (verify in Drive UI if using a real test account)
+
+---
+
+### TC-D131: Non-existent permission ID
+
+**Prompt**
+> "Remove permission 'fakepermid999' from {SPREADSHEET_ID}"
+
+**Checks**
+- Drive API error propagates — not a silent success or server crash
+
+---
+
+## `share_file`
+
+### TC-D132: Share with type=user as reader
+
+**Prompt**
+> "Share {SPREADSHEET_ID} with test-recipient@example.com as a reader using share_file"
+
+**Checks**
+- Response `successes` contains the entry with `type: 'user'`, `role: 'reader'`, and a `permissionId`
+- `failures` is empty
+- Follow-up `list_permissions` confirms the new entry
+
+---
+
+### TC-D133: Missing email_address for type=user
+
+**Prompt**
+> "Share {SPREADSHEET_ID} using share_file — pass a permission with type='user' and role='reader' but omit email_address"
+
+**Checks**
+- Entry goes to `failures` with a message about missing `email_address`
+- No API call attempted for that entry
+- Does not throw an unhandled exception
+
+---
+
+### TC-D134: Invalid role
+
+**Prompt**
+> "Share {SPREADSHEET_ID} with test@example.com using share_file with role='superuser'"
+
+**Checks**
+- Entry goes to `failures` with a message about the invalid role
+- `successes` is empty
+
+---
+
+### TC-D135: Share with type=domain
+
+**Prompt**
+> "Share {SPREADSHEET_ID} with everyone at example.com as a reader using share_file with type='domain'"
+
+**Checks**
+- Response `successes` contains an entry with `type: 'domain'` and `domain: 'example.com'`
+- Follow-up `list_permissions` shows the domain permission entry
+
+---
+
+### TC-D136: Share with type=anyone (public link)
+
+**Prompt**
+> "Make {SPREADSHEET_ID} publicly readable using share_file with type='anyone' and role='reader'"
+
+**Checks**
+- Response `successes` contains `type: 'anyone'`, `role: 'reader'`
+- Follow-up `list_permissions` shows an `anyone` entry
+- File accessible via its `web_link` without authentication (verify in incognito browser)
+
+---
+
+### TC-D137: Share a folder
+
+**Prompt**
+> "Share folder {FOLDER_ID} with test-recipient@example.com as a writer using share_file"
+
+**Checks**
+- Share succeeds; `successes` contains the entry
+- `list_permissions` on the folder shows the new permission
+- 🔍 **Note:** verify that child files inherit the permission (check in Drive UI)
+
+---
+
+### TC-D138: Mixed success and failure in one call
+
+**Prompt**
+> "Share {SPREADSHEET_ID} using share_file with two permissions: first type='user' email=test@example.com role='reader', second type='user' role='writer' (no email_address)"
+
+**Checks**
+- First entry in `successes`, second entry in `failures`
+- Both present in the same response — partial failure does not abort the batch
+
+---
+
+### TC-D139: send_notification=False for user share
+
+**Prompt**
+> "Share {SPREADSHEET_ID} with test-recipient@example.com as reader using share_file, but don't send a notification email"
+
+**Checks**
+- Share succeeds; `successes` populated
+- No notification email sent (use an email address you control to verify)
+- `send_notification=False` confirmed — `sendNotificationEmail=False` passed to the API

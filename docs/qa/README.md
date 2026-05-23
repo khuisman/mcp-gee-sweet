@@ -10,10 +10,10 @@ Prompt-driven integration tests for mcp-gee-sweet. Each test case is a natural l
 
 ## Steps
 
-1. **Set up fixtures** — follow [`setup.md`](setup.md) to create your test spreadsheet and doc. Takes about 2 minutes.
+1. **Set up fixtures** — follow [`setup.md`](setup.md) to create your test spreadsheet, doc, and calendar fixtures. Takes about 5 minutes.
 2. **Record your IDs** — copy `fixtures.template.md` → `fixtures.local.md` (gitignored) and fill in the IDs from step 1.
-3. **Run tests** — open a test file in `tests/`, substitute your IDs for the `{PLACEHOLDER}` values, and paste each prompt into Claude.
-4. **Verify** — check each item in the **Checks** list against what Claude returns.
+3. **Run tests** — paste the conductor prompt from [`run.md`](run.md) into a Claude session with the MCP server connected. Claude will execute the tests, evaluate results, and save a report to `results/`. Or run manually: open a test file in `tests/`, substitute your IDs, and paste each prompt.
+4. **Review the report** — check `results/<date>.md` for failures.
 5. **Report failures** — open a GitHub issue with the TC number, the exact prompt you used, and what you observed.
 
 ## Test files
