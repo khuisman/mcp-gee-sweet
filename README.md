@@ -351,6 +351,7 @@ This setup is **required** before running the server.
     *   `Google Sheets API`
     *   `Google Drive API`
     *   `Google Docs API`
+    *   `Google Calendar API` _(required for calendar tools)_
 3.  **Configure Credentials:** You need to choose *one* authentication method below (Service Account is recommended).
 
 ---
@@ -386,7 +387,7 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
 
 *   **Why?** For personal use or local development where interactive browser login is okay.
 *   **Steps:**
-    1.  **Configure OAuth Consent Screen:** In GCP Console -> "APIs & Services" -> "OAuth consent screen". Select "External", fill required info, add scopes (`.../auth/spreadsheets`, `.../auth/drive`, `.../auth/documents`), add test users if needed.
+    1.  **Configure OAuth Consent Screen:** In GCP Console -> "APIs & Services" -> "OAuth consent screen". Select "External", fill required info, add scopes (`.../auth/spreadsheets`, `.../auth/drive`, `.../auth/documents`, `.../auth/calendar`), add test users if needed.
     2.  **Create OAuth Client ID:** In GCP Console -> "APIs & Services" -> "Credentials". "+ CREATE CREDENTIALS" -> "OAuth client ID" -> Type: **Desktop app**. Name it. "CREATE". **Download JSON**.
     3.  **Set Environment Variables:**
         *   `CREDENTIALS_PATH`: Path to the downloaded OAuth credentials JSON file (default: `credentials.json`).
@@ -425,7 +426,7 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
     3.  Attached service account from metadata server (GKE, Compute Engine, etc.)
 *   **Setup:**
     *   **Local Development:** 
-        1. Run `gcloud auth application-default login --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/drive,https://www.googleapis.com/auth/documents` once
+        1. Run `gcloud auth application-default login --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/drive,https://www.googleapis.com/auth/documents,https://www.googleapis.com/auth/calendar` once
         2. Set a quota project: `gcloud auth application-default set-quota-project <project_id>` (replace `<project_id>` with your Google Cloud project ID)
     *   **Google Cloud:** Attach a service account to your compute resource
     *   **Environment Variable:** Set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json` (Google's standard)
