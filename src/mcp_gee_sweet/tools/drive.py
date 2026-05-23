@@ -450,6 +450,55 @@ def register(tool):
             for f in results.get("files", [])
         ]
 
+    @tool(annotations=ToolAnnotations(title="List Shared Drives", readOnlyHint=True))
+    def list_drives(
+        query: str | None = None,
+        max_results: int = 100,
+        ctx: Context = None,
+    ) -> list[dict[str, Any]]:
+        """
+        List shared (Team) Drives accessible to the authenticated account.
+
+        Args:
+            query: Optional filter string. Supports Drive query syntax, e.g.
+                   'name contains "Marketing"'. If omitted, all accessible
+                   shared drives are returned.
+            max_results: Maximum number of drives to return (default 100, max 200).
+
+        Returns:
+            List of shared drives, each with id, name, createdTime, and a
+            capabilities summary (canAddChildren, canManageMembers, etc.).
+        """
+        drive_service = ctx.request_context.lifespan_context.drive_service
+        max_results = min(max(1, max_results), 200)
+
+        kwargs: dict[str, Any] = {
+            "pageSize": min(max_results, 100),
+            "fields": "nextPageToken, drives(id, name, createdTime, capabilities)",
+        }
+        if query:
+            kwargs["q"] = query
+
+        drives: list[dict[str, Any]] = []
+        while len(drives) < max_results:
+            result = drive_service.drives().list(**kwargs).execute()
+            for d in result.get("drives", []):
+                drives.append(
+                    {
+                        "id": d["id"],
+                        "name": d["name"],
+                        "created_time": d.get("createdTime"),
+                        "capabilities": d.get("capabilities", {}),
+                    }
+                )
+            next_token = result.get("nextPageToken")
+            if not next_token or len(drives) >= max_results:
+                break
+            kwargs["pageToken"] = next_token
+
+        logger.debug("Found %d shared drives", len(drives))
+        return drives[:max_results]
+
     @tool(annotations=ToolAnnotations(title="Create Folder", destructiveHint=True))
     def create_folder(
         name: str, parent_folder_id: str | None = None, ctx: Context = None

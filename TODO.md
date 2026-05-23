@@ -29,7 +29,7 @@ Items already done: `create_folder`, `move_file`, `rename_file`, `copy_file`, `d
 15. `update_permission` — change a user's role (`permissions().update()`)
 16. `remove_permission` — revoke access (`permissions().delete()`)
 17. `share_file` — generalize `share_spreadsheet` to work on any file/folder, not just spreadsheets
-18. `list_drives` — enumerate shared / Team Drives (`drives().list()`)
+18. ~~`list_drives`~~ ✓ — enumerate shared / Team Drives (`drives().list()`), with optional query filter and pagination
 19. ~~`export_file`~~ ✓ — download non-Google files and export Google files to PDF/DOCX/HTML (`files().export()` / `files().get_media()`)
 
 ## Docs
