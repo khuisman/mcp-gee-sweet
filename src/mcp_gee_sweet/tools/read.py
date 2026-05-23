@@ -4,7 +4,7 @@ from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
 from ..cache import SheetInfo, fetch_sheets
-from ..helpers import _column_index_to_letter
+from ..helpers import _column_index_to_letter, _quote_sheet_name
 
 
 def register(tool):
@@ -33,7 +33,8 @@ def register(tool):
         """
         sheets_service = ctx.request_context.lifespan_context.sheets_service
 
-        full_range = f"{sheet}!{range}" if range else sheet
+        quoted = _quote_sheet_name(sheet)
+        full_range = f"{quoted}!{range}" if range else quoted
 
         if include_grid_data:
             result = (
@@ -72,7 +73,8 @@ def register(tool):
         """
         sheets_service = ctx.request_context.lifespan_context.sheets_service
 
-        full_range = f"{sheet}!{range}" if range else sheet
+        quoted = _quote_sheet_name(sheet)
+        full_range = f"{quoted}!{range}" if range else quoted
 
         result = (
             sheets_service.spreadsheets()
@@ -115,7 +117,7 @@ def register(tool):
                 continue
 
             try:
-                full_range = f"{sheet}!{range_str}"
+                full_range = f"{_quote_sheet_name(str(sheet))}!{range_str}"
                 result = (
                     sheets_service.spreadsheets()
                     .values()
@@ -206,7 +208,7 @@ def register(tool):
 
                     try:
                         max_row = max(1, rows_to_fetch)
-                        range_to_get = f"{sheet_info.title}!A1:{max_row}"
+                        range_to_get = f"{_quote_sheet_name(sheet_info.title)}!A1:{max_row}"
                         result = (
                             sheets_service.spreadsheets()
                             .values()
@@ -279,7 +281,7 @@ def register(tool):
                 response = (
                     sheets_service.spreadsheets()
                     .values()
-                    .get(spreadsheetId=spreadsheet_id, range=sheet_name)
+                    .get(spreadsheetId=spreadsheet_id, range=_quote_sheet_name(sheet_name))
                     .execute()
                 )
 
