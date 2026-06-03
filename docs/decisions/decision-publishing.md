@@ -1,5 +1,6 @@
 # Publishing Strategy — Proposal
 
+**Date:** 2026-05-23
 Status: **draft / under consideration**
 
 ## Goals

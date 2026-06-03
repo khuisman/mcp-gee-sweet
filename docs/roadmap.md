@@ -1,6 +1,6 @@
 # Feature Roadmap
 
-Features are grouped by category and ordered by practical priority within each tier. Items marked with a source were identified by auditing competing projects — see [decision-fork.md](decision-fork.md) for full credits.
+Features are grouped by category and ordered by practical priority within each tier. Items marked with a source were identified by auditing competing projects — see [decision-fork.md](decisions/decision-fork.md) for full credits.
 
 ## Tier 1 — High value, frequently needed
 
