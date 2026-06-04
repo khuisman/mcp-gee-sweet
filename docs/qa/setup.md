@@ -10,14 +10,19 @@ Setup has two steps: create the files in Drive, then run the seed prompt to popu
 
 ## Step 1 — Create the files in Drive
 
-Create an empty spreadsheet and an empty Google Doc in any Drive folder you want to use as your QA folder. The folder must be accessible to the authenticated account.
+How you create the fixture files depends on your auth method.
 
-> **Service account note:** If you are using the `SERVICE_ACCOUNT_PATH` or `CREDENTIALS_CONFIG` auth option, the service account cannot create or see files in your personal Drive unless they are explicitly shared with it. The easiest approach is:
-> 1. Create the spreadsheet and doc manually in Google Drive.
-> 2. Share the folder (or both files) with the service account email. Find your service account email in `service_account.json` → `client_email`.
-> 3. Continue to Step 2.
->
-> If you are using OAuth (`CREDENTIALS_PATH`/`TOKEN_PATH`) or Application Default Credentials, the files just need to be in a folder your account can access — no extra sharing required.
+### OAuth / Application Default Credentials
+
+The AI can create the folder structure for you. In a Claude session with the MCP server connected, run the `setup_fixtures` operation (see `operations.yaml`) and it will create the spreadsheet and doc, write their IDs to `.env`, and populate the fixture data — all in one go. Skip to Step 3 when done.
+
+### Service account (`SERVICE_ACCOUNT_PATH` / `CREDENTIALS_CONFIG`)
+
+Service accounts cannot create files in your personal Drive. You must create them manually:
+
+1. Create an empty spreadsheet and an empty Google Doc in any Drive folder.
+2. Share the folder (or both files) with the service account email. Find it in `service_account.json` → `client_email`.
+3. Continue to Step 2.
 
 ---
 
