@@ -20,16 +20,19 @@ Prompt-driven integration tests for mcp-gee-sweet. Each test case is a natural l
 
 | File | Category | TC prefix |
 |---|---|---|
-| [tests/read.md](tests/read.md) | Read tools | TC-R## |
-| [tests/write.md](tests/write.md) | Write tools | TC-W## |
-| [tests/sheets.md](tests/sheets.md) | Sheet management | TC-S## |
-| [tests/drive.md](tests/drive.md) | Drive tools | TC-D## |
-| [tests/charts.md](tests/charts.md) | Chart tools | TC-C## |
+| [tests/sheets_read.md](tests/sheets_read.md) | Sheets read tools | TC-R## |
+| [tests/sheets_write.md](tests/sheets_write.md) | Sheets write tools | TC-W## |
+| [tests/sheets_mgmt.md](tests/sheets_mgmt.md) | Sheets management tools | TC-S## |
+| [tests/sheets_charts.md](tests/sheets_charts.md) | Sheets chart tools | TC-C## |
+| [tests/drive.md](tests/drive.md) | Drive + Docs tools | TC-D## |
 | [tests/infra.md](tests/infra.md) | Infrastructure | TC-I## |
+| [tests/calendar.md](tests/calendar.md) | Calendar tools | TC-CAL## |
 
 ## Notes
 
 - Tests marked **⚠️ destructive** mutate the fixture spreadsheet. Run these last within their section or reset fixtures afterward using the seed prompt in `setup.md`.
+- Tests marked **⚠️ requires-oauth** need OAuth or ADC auth — service accounts cannot create or copy files in Drive (no storage quota). These tests are automatically skipped with a warning when `QA_AUTH_METHOD=service_account` in `.env`.
+- Tests marked **⚠️ local-filesystem** need file paths accessible to the MCP server process. These cannot run in an AI-session QA run and are always skipped.
 - Tests marked **🔍 product decision** have no single correct answer — note what you observed and open an issue if the behavior seems wrong.
 - Cache hit tests (TC-R17, TC-S02, etc.) require checking server logs: `make logs` or `docker compose logs mcp-gee-sweet`.
 

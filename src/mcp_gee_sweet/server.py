@@ -101,6 +101,57 @@ from .tools import register_all  # noqa: E402
 register_all(tool)
 
 
+_SA_LIMITED_TOOLS = [
+    "create_spreadsheet",
+    "create_doc",
+    "copy_file",
+    "upload_file",
+    "upload_local_file",
+    "upload_local_folder",
+    "sync_folder (upload and bidirectional directions)",
+]
+
+
+def _auth_status_json(auth_method: str) -> str:
+    """Return a JSON string describing the auth method and its Drive limitations."""
+    if auth_method == "service_account":
+        return json.dumps(
+            {
+                "auth_method": "service_account",
+                "can_create_in_personal_drive": False,
+                "limited_tools": _SA_LIMITED_TOOLS,
+                "reason": (
+                    "Service accounts have no Drive storage quota and cannot create "
+                    "or copy files in personal Drive. These tools will return an error "
+                    "unless a Shared Drive destination is used."
+                ),
+                "alternatives": "Switch to OAuth (CREDENTIALS_PATH) or ADC for full tool coverage.",
+            },
+            indent=2,
+        )
+    return json.dumps(
+        {
+            "auth_method": auth_method,
+            "can_create_in_personal_drive": True,
+            "limited_tools": [],
+            "reason": None,
+        },
+        indent=2,
+    )
+
+
+@mcp.resource("server://auth-status")
+def get_auth_status() -> str:
+    """
+    Current authentication method and its Drive capability limitations.
+
+    Returns a JSON summary of the active auth method and which tools are
+    restricted. Useful for deciding which tools to attempt before calling them.
+    """
+    context = mcp.get_lifespan_context()
+    return _auth_status_json(context.auth_method)
+
+
 @mcp.resource("spreadsheet://{spreadsheet_id}/info")
 def get_spreadsheet_info(spreadsheet_id: str) -> str:
     """

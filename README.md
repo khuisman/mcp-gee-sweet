@@ -222,6 +222,7 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
     *   `title` (string): The desired title for the spreadsheet. Example: "Quarterly Report Q4".
     *   `folder_id` (optional string): Google Drive folder ID where the spreadsheet should be created. Get from its URL. If omitted, uses configured default or root.
     *   _Returns:_ Object with spreadsheet info, including `spreadsheetId`, `title`, and `folder`.
+    *   **⚠️ Service account limitation:** Cannot create files in personal Drive (no storage quota). Use OAuth/ADC auth or a Shared Drive destination. Check the `server://auth-status` resource for your current auth method.
 *   **`get_sheet_data`**: Reads data from a range in a sheet/tab.
     *   `spreadsheet_id` (string): The spreadsheet ID (from its URL).
     *   `sheet` (string): Name of the sheet/tab (e.g., "Sheet1").
@@ -305,7 +306,7 @@ _Refer to the [ID Reference Guide](#-id-reference-guide) for more information ab
     *   `content` (optional string): Initial HTML or plain text content.
     *   `folder_id` (optional string): Drive folder to create the document in.
     *   _Returns:_ Object with document info including `documentId` and `title`.
-    *   **⚠️ Service Account limitation:** Creating docs (and spreadsheets) in a personal Drive folder fails with `storageQuotaExceeded` because the service account owns the new file but has no Drive storage quota. **Workaround:** create the file manually in the Drive UI, then use `write_doc_content` to populate it. This limitation does not apply to Shared Drives.
+    *   **⚠️ Service account limitation:** Cannot create files in personal Drive (no storage quota). Use OAuth/ADC auth or a Shared Drive destination. Workaround: create the file manually in Drive, then use `write_doc_content` to populate it. Check the `server://auth-status` resource for your current auth method.
 *   **`get_doc_content`**: Reads the content of a Google Doc.
     *   `file_id` (string): The document ID (from its URL).
     *   _Returns:_ Document content as structured text.
@@ -598,7 +599,7 @@ Google Docs Document ID:
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please open an issue to discuss bugs or feature requests. Pull requests are appreciated.
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for first-time setup, QA workflows, and PR guidelines.
 
 Before this project is published to PyPI, all items in [`docs/qa-checklist.md`](docs/qa-checklist.md) must be manually verified against a live Google account. If you're contributing new tools or fixing bugs, please add corresponding test cases and mark the relevant checklist items.
 

@@ -144,7 +144,7 @@ Set only `SERVICE_ACCOUNT_PATH` (path to service account JSON file). Remove `CRE
 
 ---
 
-### TC-I10: OAuth flow (CREDENTIALS_PATH / TOKEN_PATH)
+### TC-I10: OAuth flow (CREDENTIALS_PATH / TOKEN_PATH) ⚠️ requires-oauth
 
 **Setup**
 Set `CREDENTIALS_PATH` and `TOKEN_PATH`. Remove service account env vars. If no token exists, a browser window should open for Google login.

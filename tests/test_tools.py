@@ -1,6 +1,10 @@
 """Regression tests for four bugs fixed in the post-merge code review."""
 
+import json
 from unittest.mock import MagicMock
+
+import pytest
+from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import drive as drive_module
 from mcp_gee_sweet.tools import sheets as sheets_module
@@ -299,6 +303,21 @@ class TestDriveFolderCacheInvalidation:
         _drive_tools["delete_file"](file_id="fid1", permanent=True, ctx=ctx)
         folder_cache.mark_dirty.assert_called_once_with("par1")
 
+    def test_upload_file_quota_exceeded_returns_error_dict(self):
+        """upload_file should return {"error": ...} on storageQuotaExceeded, not raise."""
+        resp = MagicMock()
+        resp.status = 403
+        quota_err = HttpError(resp=resp, content=b'{"error": {"reason": "storageQuotaExceeded"}}')
+        mock = MagicMock()
+        mock.files.return_value.create.return_value.execute.side_effect = quota_err
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache, folder_id=None)
+        result = _drive_tools["upload_file"](name="test.txt", content="hello", ctx=ctx)
+        assert "error" in result
+        assert "storageQuotaExceeded" not in result["error"]  # raw message replaced
+        assert "Service accounts" in result["error"]
+        assert "server://auth-status" in result["error"]
+
     def test_upload_file_with_folder_marks_dirty(self):
         mock = MagicMock()
         mock.files.return_value.create.return_value.execute.return_value = (
@@ -312,3 +331,136 @@ class TestDriveFolderCacheInvalidation:
             name="doc.txt", content="hello", folder_id="target_folder", ctx=ctx
         )
         folder_cache.mark_dirty.assert_called_once_with("target_folder")
+
+
+def _quota_http_error():
+    """Build a 403 storageQuotaExceeded HttpError as returned by the Drive API."""
+    resp = MagicMock()
+    resp.status = 403
+    return HttpError(
+        resp=resp,
+        content=b'{"error": {"errors": [{"reason": "storageQuotaExceeded"}]}}',
+    )
+
+
+def _other_403_error():
+    """Build a generic 403 that is NOT quota-related."""
+    resp = MagicMock()
+    resp.status = 403
+    return HttpError(resp=resp, content=b'{"error": {"reason": "forbidden"}}')
+
+
+class TestServiceAccountQuotaErrors:
+    """Tools that create Drive files return a helpful error dict on storageQuotaExceeded.
+
+    The raw Google 403 is replaced with an actionable message pointing the caller
+    at server://auth-status and suggesting OAuth/ADC.  Non-quota 403s must still
+    propagate so callers can distinguish permission errors from quota errors.
+    """
+
+    def _quota_create_drive(self):
+        mock = MagicMock()
+        mock.files.return_value.create.return_value.execute.side_effect = _quota_http_error()
+        return mock
+
+    def _quota_copy_drive(self):
+        mock = MagicMock()
+        mock.files.return_value.copy.return_value.execute.side_effect = _quota_http_error()
+        return mock
+
+    def _assert_helpful_error(self, result):
+        assert "error" in result
+        assert "storageQuotaExceeded" not in result["error"]
+        assert "Service accounts" in result["error"]
+        assert "server://auth-status" in result["error"]
+
+    def test_create_spreadsheet_quota_returns_error_dict(self):
+        ctx = _make_ctx(
+            drive_service=self._quota_create_drive(),
+            drive_folder_cache=MagicMock(),
+            folder_id=None,
+        )
+        result = _drive_tools["create_spreadsheet"](title="Test", ctx=ctx)
+        self._assert_helpful_error(result)
+
+    def test_create_doc_quota_returns_error_dict(self):
+        ctx = _make_ctx(
+            drive_service=self._quota_create_drive(),
+            docs_service=MagicMock(),
+            drive_folder_cache=MagicMock(),
+            folder_id=None,
+        )
+        result = _drive_tools["create_doc"](title="Test", ctx=ctx)
+        self._assert_helpful_error(result)
+
+    def test_copy_file_quota_returns_error_dict(self):
+        ctx = _make_ctx(
+            drive_service=self._quota_copy_drive(),
+            drive_folder_cache=MagicMock(),
+        )
+        result = _drive_tools["copy_file"](file_id="fid", ctx=ctx)
+        self._assert_helpful_error(result)
+
+    def test_create_spreadsheet_non_quota_403_still_raises(self):
+        """A 403 that is not storageQuotaExceeded must propagate — not be swallowed."""
+        mock = MagicMock()
+        mock.files.return_value.create.return_value.execute.side_effect = _other_403_error()
+        ctx = _make_ctx(
+            drive_service=mock,
+            drive_folder_cache=MagicMock(),
+            folder_id=None,
+        )
+        with pytest.raises(HttpError):
+            _drive_tools["create_spreadsheet"](title="Test", ctx=ctx)
+
+    def test_create_doc_non_quota_403_still_raises(self):
+        mock = MagicMock()
+        mock.files.return_value.create.return_value.execute.side_effect = _other_403_error()
+        ctx = _make_ctx(
+            drive_service=mock,
+            docs_service=MagicMock(),
+            drive_folder_cache=MagicMock(),
+            folder_id=None,
+        )
+        with pytest.raises(HttpError):
+            _drive_tools["create_doc"](title="Test", ctx=ctx)
+
+
+class TestAuthStatusResource:
+    """server://auth-status resource returns correct capabilities per auth method."""
+
+    def _get_status(self, auth_method):
+        from mcp_gee_sweet.server import _auth_status_json
+
+        return json.loads(_auth_status_json(auth_method))
+
+    def test_service_account_cannot_create_in_personal_drive(self):
+        status = self._get_status("service_account")
+        assert status["auth_method"] == "service_account"
+        assert status["can_create_in_personal_drive"] is False
+
+    def test_service_account_lists_limited_tools(self):
+        status = self._get_status("service_account")
+        assert len(status["limited_tools"]) > 0
+        assert "create_spreadsheet" in status["limited_tools"]
+        assert "create_doc" in status["limited_tools"]
+        assert "copy_file" in status["limited_tools"]
+        assert "upload_file" in status["limited_tools"]
+
+    def test_service_account_includes_reason_and_alternative(self):
+        status = self._get_status("service_account")
+        assert status["reason"] is not None
+        assert "storage quota" in status["reason"].lower()
+        assert status["alternatives"] is not None
+
+    def test_oauth_can_create_in_personal_drive(self):
+        status = self._get_status("oauth")
+        assert status["auth_method"] == "oauth"
+        assert status["can_create_in_personal_drive"] is True
+        assert status["limited_tools"] == []
+        assert status["reason"] is None
+
+    def test_adc_can_create_in_personal_drive(self):
+        status = self._get_status("adc")
+        assert status["can_create_in_personal_drive"] is True
+        assert status["limited_tools"] == []
