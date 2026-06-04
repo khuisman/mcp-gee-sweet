@@ -104,6 +104,33 @@ These observations were noted during the QA run. Each needs a deliberate decisio
 - [ ] Update TC-W03 test case — API rejects oversized 2D arrays, does not silently truncate
 - [ ] Formatting integration spike — explore `effectiveFormat` API response shape; determine fixture strategy; assess whether API-level assertions cover formatting without a browser
 
+### Missing QA fixtures (from Phase 1 run)
+
+Tests skipped because a required fixture file, folder, or state didn't exist — not an auth or quota issue.
+
+| TC | What's needed |
+|---|---|
+| TC-D48 | A second, large-content doc fixture |
+| TC-D61 | A disposable file to move (moving the main fixture would break subsequent tests) |
+| TC-D62 | A second QA Drive folder |
+| TC-D64 | A disposable file to rename |
+| TC-D72 | A disposable file to permanently delete |
+| TC-D130 | A pre-shared permission on the fixture spreadsheet to remove |
+| Calendar (all) | TEST_CALENDAR_ID and TEST_EVENT_ID not configured — a shared calendar and a seed event |
+
+#### Under consideration — may not be worth creating fixtures
+
+| TC | Why it was skipped | Question |
+|---|---|---|
+| TC-D50 | No empty doc (quota blocked creation at the time) | Should reset_fixtures maintain a second empty doc, or write then clear the existing one? |
+| TC-D53 | Parallel execution order uncertainty | Test design issue — no fixture would fix it; needs explicit ordering or isolation |
+| TC-D56 | Not attempted | Is very long content worth a dedicated fixture, or generate inline? |
+| TC-D121 | No shared drives available | Worth setting up a shared drive for QA, or accept as environment-constrained? |
+| TC-D122 | No shared drives available | Same as above |
+| TC-D123 | Requires 100+ shared drives | Probably not feasible; mark as permanently skipped? |
+| TC-D135/137/138/139 | example.com blocked by Google for sharing without notify | Needs a real test Google account email; assess if worth the setup cost |
+| TC-D136 | Not attempted — public access risk | Decide whether to gate behind an explicit flag or skip permanently |
+
 ### 91 skipped tests from Phase 1 run
 
 Of the 91 tests skipped in the 2026-06-02 run, the breakdown by root cause is:
