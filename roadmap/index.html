@@ -808,17 +808,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#product-decisions-needed-from-phase-1-qa-run" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Product decisions needed (from Phase 1 QA run)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#testing" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -826,51 +815,6 @@
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Testing">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#missing-qa-fixtures-from-phase-1-run" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Missing QA fixtures (from Phase 1 run)
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Missing QA fixtures (from Phase 1 run)">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#under-consideration-may-not-be-worth-creating-fixtures" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Under consideration — may not be worth creating fixtures
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#91-skipped-tests-from-phase-1-run" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        91 skipped tests from Phase 1 run
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1505,6 +1449,7 @@
 
 
 <h1 id="feature-roadmap">Feature Roadmap<a class="headerlink" href="#feature-roadmap" title="Permanent link">&para;</a></h1>
+<p>This doc is a high-level orientation — feature ideas, architectural direction, and historical context. <strong>Active work is tracked in <a href="https://github.com/khuisman/mcp-gee-sweet/issues">GitHub Issues</a>.</strong> When a feature tier item is scheduled, an issue is opened; the checkbox here stays as a reference.</p>
 <p>Features are grouped by category and ordered by practical priority within each tier. Items marked with a source were identified by auditing competing projects — see <a href="../decisions/decision-fork/">decision-fork.md</a> for full credits.</p>
 <h2 id="tier-1-high-value-frequently-needed">Tier 1 — High value, frequently needed<a class="headerlink" href="#tier-1-high-value-frequently-needed" title="Permanent link">&para;</a></h2>
 <h3 id="sheet-management">Sheet management<a class="headerlink" href="#sheet-management" title="Permanent link">&para;</a></h3>
@@ -1581,24 +1526,6 @@ BAR charts (horizontal) have a horizontal value axis. Series must target <code>B
 The Sheets API requires each series in a COMBO chart to declare its own <code>type</code>. Fix: when <code>chart_type == "COMBO"</code>, add <code>type: COLUMN</code> to all series except the last, which gets <code>type: LINE</code>. ✅ Fixed.</p>
 <h3 id="tc-w03-test-case-assumption-wrong">TC-W03 — test case assumption wrong<a class="headerlink" href="#tc-w03-test-case-assumption-wrong" title="Permanent link">&para;</a></h3>
 <p>The test expected the API to silently truncate a 2D array that's wider than the target range. The API actually rejects it with a 400 error. The test case needs to be updated to reflect correct API behaviour. ✅ Fixed.</p>
-<hr />
-<h2 id="product-decisions-needed-from-phase-1-qa-run">Product decisions needed (from Phase 1 QA run)<a class="headerlink" href="#product-decisions-needed-from-phase-1-qa-run" title="Permanent link">&para;</a></h2>
-<p>These observations were noted during the QA run. Each needs a deliberate decision — see <code>docs/decisions/</code> for the ADR process.</p>
-<ul>
-<li><strong>TC-R04</strong>: <code>get_sheet_data</code> with a non-existent sheet surfaces as a tool exception, not a structured <code>{"error": ...}</code> field. Inconsistent with other tools that return error objects. Decide: standardise all errors as structured returns, or document the exception pattern?</li>
-<li><strong>TC-W08</strong>: <code>batch_update_cells</code> with an empty ranges dict succeeds silently (no-op). Decide: should empty input be a validation error or an accepted no-op?</li>
-<li><strong>TC-W16</strong>: <code>add_rows</code> with <code>count=1000</code> succeeds with no cap. Decide: should the tool cap large counts to prevent accidental bloat, and if so, what limit?</li>
-<li><strong>TC-S12</strong>: Same-name <code>rename_sheet</code> round-trips to the API rather than short-circuiting. Decide: add a client-side guard to skip the API call if names are identical?</li>
-<li><strong>TC-S16</strong>: <code>create_sheet</code> with a duplicate tab title returns an API error — no auto-suffix. Decide: is that the right UX, or should we auto-suffix (e.g. "Sales 2")?</li>
-<li><strong>TC-D04</strong>: Confirmed: service accounts cannot create files in personal Drive. Decide: should the tool return a clear structured error (already done) or also be omitted from the registered toolset when service account auth is detected?</li>
-<li><strong>TC-D15</strong>: <code>list_spreadsheets</code> with no folder returns all accessible spreadsheets, not Drive root. Decide: is this the right behaviour or should it be scoped to root?</li>
-<li><strong>TC-D25 / TC-D132</strong>: No ownership validation before sharing — any accessible file ID can be shared. Decide: add a check that the caller owns or has share permission before attempting, or document as-is?</li>
-<li><strong>TC-D34</strong>: Empty/whitespace <code>search_spreadsheets</code> query returns all accessible spreadsheets. Decide: validate non-empty input or keep the wildcard behaviour?</li>
-<li><strong>TC-D79</strong>: <code>get_file_metadata</code> returns <code>size: "1024"</code> for Workspace files (Docs, Sheets), not <code>null</code>. Decide: normalise to <code>null</code> for Workspace files to match Drive API docs, or document the quirk?</li>
-<li><strong>TC-D84</strong>: <code>write_doc_content</code> with <code>&lt;h2&gt;</code> input produces <code>&lt;h3&gt;</code> in the rendered doc (heading level shift). Decide: fix the heading mapping in <code>_html_to_doc_requests</code>, or document as a known limitation?</li>
-<li><strong>TC-C05/TC-C08</strong>: PIE and HISTOGRAM charts need separate code paths. Decide scope of BUG-1/BUG-2 fix: fix all types together or incrementally?</li>
-</ul>
-<hr />
 <h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
 <ul>
 <li>[x] Add <code>pytest</code> and <code>pytest-cov</code> as dev dependencies</li>
@@ -1608,153 +1535,16 @@ The Sheets API requires each series in a COMBO chart to declare its own <code>ty
 <li>[x] Unit tests for tool filtering — tools excluded when not in <code>ENABLED_TOOLS</code></li>
 <li>[x] Unit tests for service account quota error handling — <code>create_spreadsheet</code>, <code>create_doc</code>, <code>copy_file</code>, <code>upload_file</code> return structured error on 403 quota exceeded; non-quota 403s still raise</li>
 <li>[x] Unit tests for <code>server://auth-status</code> resource — correct capabilities returned for service_account, oauth, and adc</li>
-<li>[x] Fix BUG-1: <code>add_chart</code> multi-column range — split into per-column source ranges for domain and series</li>
-<li>[x] Fix BUG-2: <code>add_chart</code> HISTOGRAM — implement <code>histogramChart</code> spec path</li>
+<li>[x] Fix BUG-1–4: <code>add_chart</code> multi-column ranges, HISTOGRAM spec, BAR axis, COMBO per-series types</li>
 <li>[x] Update TC-W03 test case — API rejects oversized 2D arrays, does not silently truncate</li>
-<li>[ ] Formatting integration spike — explore <code>effectiveFormat</code> API response shape; determine fixture strategy; assess whether API-level assertions cover formatting without a browser</li>
-</ul>
-<h3 id="missing-qa-fixtures-from-phase-1-run">Missing QA fixtures (from Phase 1 run)<a class="headerlink" href="#missing-qa-fixtures-from-phase-1-run" title="Permanent link">&para;</a></h3>
-<p>Tests skipped because a required fixture file, folder, or state didn't exist — not an auth or quota issue.</p>
-<table>
-<thead>
-<tr>
-<th>TC</th>
-<th>What's needed</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>TC-D48</td>
-<td>A second, large-content doc fixture</td>
-</tr>
-<tr>
-<td>TC-D61</td>
-<td>A disposable file to move (moving the main fixture would break subsequent tests)</td>
-</tr>
-<tr>
-<td>TC-D62</td>
-<td>A second QA Drive folder</td>
-</tr>
-<tr>
-<td>TC-D64</td>
-<td>A disposable file to rename</td>
-</tr>
-<tr>
-<td>TC-D72</td>
-<td>A disposable file to permanently delete</td>
-</tr>
-<tr>
-<td>TC-D130</td>
-<td>A pre-shared permission on the fixture spreadsheet to remove</td>
-</tr>
-<tr>
-<td>Calendar (all)</td>
-<td>TEST_CALENDAR_ID and TEST_EVENT_ID not configured — a shared calendar and a seed event</td>
-</tr>
-</tbody>
-</table>
-<h4 id="under-consideration-may-not-be-worth-creating-fixtures">Under consideration — may not be worth creating fixtures<a class="headerlink" href="#under-consideration-may-not-be-worth-creating-fixtures" title="Permanent link">&para;</a></h4>
-<table>
-<thead>
-<tr>
-<th>TC</th>
-<th>Why it was skipped</th>
-<th>Question</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>TC-D50</td>
-<td>No empty doc (quota blocked creation at the time)</td>
-<td>Should reset_fixtures maintain a second empty doc, or write then clear the existing one?</td>
-</tr>
-<tr>
-<td>TC-D53</td>
-<td>Parallel execution order uncertainty</td>
-<td>Test design issue — no fixture would fix it; needs explicit ordering or isolation</td>
-</tr>
-<tr>
-<td>TC-D56</td>
-<td>Not attempted</td>
-<td>Is very long content worth a dedicated fixture, or generate inline?</td>
-</tr>
-<tr>
-<td>TC-D121</td>
-<td>No shared drives available</td>
-<td>Worth setting up a shared drive for QA, or accept as environment-constrained?</td>
-</tr>
-<tr>
-<td>TC-D122</td>
-<td>No shared drives available</td>
-<td>Same as above</td>
-</tr>
-<tr>
-<td>TC-D123</td>
-<td>Requires 100+ shared drives</td>
-<td>Probably not feasible; mark as permanently skipped?</td>
-</tr>
-<tr>
-<td>TC-D135/137/138/139</td>
-<td>example.com blocked by Google for sharing without notify</td>
-<td>Needs a real test Google account email; assess if worth the setup cost</td>
-</tr>
-<tr>
-<td>TC-D136</td>
-<td>Not attempted — public access risk</td>
-<td>Decide whether to gate behind an explicit flag or skip permanently</td>
-</tr>
-</tbody>
-</table>
-<h3 id="91-skipped-tests-from-phase-1-run">91 skipped tests from Phase 1 run<a class="headerlink" href="#91-skipped-tests-from-phase-1-run" title="Permanent link">&para;</a></h3>
-<p>Of the 91 tests skipped in the 2026-06-02 run, the breakdown by root cause is:</p>
-<table>
-<thead>
-<tr>
-<th>Bucket</th>
-<th>Count</th>
-<th>Root cause</th>
-<th>Path to coverage</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>OAuth/ADC required</td>
-<td>~22</td>
-<td>Service account quota blocks <code>create_spreadsheet</code>, <code>create_doc</code>, <code>copy_file</code>, <code>upload_file</code>, and cascade failures</td>
-<td>Re-run with <code>QA_AUTH_METHOD=oauth</code> set in <code>.env</code> and server started with OAuth credentials</td>
-</tr>
-<tr>
-<td>Local filesystem</td>
-<td>~27</td>
-<td><code>upload_local_file/folder</code>, <code>download_file/folder</code>, <code>sync_folder</code> — require file paths accessible to the MCP server process</td>
-<td>Needs a non-AI test runner with filesystem access; could use a headless Python script or a dedicated CI job with a temp directory</td>
-</tr>
-<tr>
-<td>Server restart / reconfig</td>
-<td>~13</td>
-<td>All infra tests (cache TTL, tool filtering, auth variants, transport) — each needs a server restart with different config</td>
-<td>Needs a test harness that can start/stop the server between cases; could be a pytest fixture with subprocess control</td>
-</tr>
-<tr>
-<td>Environment constraints</td>
-<td>~29</td>
-<td>No shared drives, Google blocks example.com addresses without notify, no second test Google account, no concurrent session support in AI runs</td>
-<td>Needs a dedicated test Google account, shared Drive setup, or mocked transport layer for the email/sharing tests</td>
-</tr>
-</tbody>
-</table>
-<ul>
-<li>[ ] <strong>Plan how to cover local-filesystem tests</strong> — investigate whether a pytest-subprocess harness (start <code>uv run mcp-gee-sweet</code>, issue HTTP calls, check results) can cover upload/download/sync without manual intervention</li>
-<li>[ ] <strong>Plan how to cover infra restart tests</strong> — same subprocess harness could start the server with different env vars per test; assess whether this is worth the setup cost at current scale</li>
-<li>[ ] <strong>Plan how to cover OAuth-gated tests</strong> — decide whether to maintain a second set of <code>.env</code> credentials for OAuth QA, or gate these behind a CI environment variable</li>
-<li>[ ] <strong>Plan how to cover environment-constraint tests</strong> — some (example.com sharing) need a real test Google account with known email; others (shared drives, concurrent sessions) may not be worth the setup cost; document which to invest in vs accept as permanently skipped</li>
+<li>See <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Aqa">GitHub Issues (label: qa)</a> for open QA gaps, missing fixtures, and testing infrastructure plans</li>
 </ul>
 <h2 id="infrastructure-internal">Infrastructure / internal<a class="headerlink" href="#infrastructure-internal" title="Permanent link">&para;</a></h2>
 <ul>
 <li>[x] Migrate cache persistence — replaced four <code>/tmp/*.json</code> files with a single SQLite DB (<code>/tmp/mcp_gee_sweet.db</code>, configurable via <code>CACHE_DB_PATH</code>); one table, four namespaces; WAL mode</li>
-<li>[ ] PyPI publish — set up trusted publishing (OIDC), create package on PyPI, do a test release; CI workflow already written</li>
 <li>[x] Open PR to xing5 from <code>upstream-observability</code> branch (structured logging, per-tool timing, <code>cache_discovery=False</code>) — <a href="https://github.com/xing5/mcp-google-sheets/pull/79">PR #79</a></li>
 <li>[x] Fork repo and rename to <code>mcp-gee-sweet</code>; README credits xing5, freema, and piotr-agier</li>
+<li>See <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Ainfrastructure">GitHub Issues (label: infrastructure)</a> for open infrastructure work (PyPI publish, etc.)</li>
 </ul>
 <h2 id="tasks">Tasks<a class="headerlink" href="#tasks" title="Permanent link">&para;</a></h2>
 <p>Requires <code>tasks/v1</code> client and <code>https://www.googleapis.com/auth/tasks</code> scope. Add <code>tasks_service</code> to <code>SpreadsheetContext</code> and wire up in <code>auth.py</code> lifespan alongside the existing clients.</p>
