@@ -33,11 +33,11 @@ Extract TEST_SPREADSHEET_ID, TEST_DOC_ID, TEST_FOLDER_ID, TEST_CALENDAR_ID, TEST
 
 Work through the test files in this order:
 1. `docs/qa/tests/infra.md`
-2. `docs/qa/tests/read.md`
-3. `docs/qa/tests/write.md`
-4. `docs/qa/tests/sheets.md`
-5. `docs/qa/tests/drive.md`
-6. `docs/qa/tests/charts.md`
+2. `docs/qa/tests/sheets_read.md`
+3. `docs/qa/tests/sheets_write.md`
+4. `docs/qa/tests/sheets_mgmt.md`
+5. `docs/qa/tests/sheets_charts.md`
+6. `docs/qa/tests/drive.md`
 7. `docs/qa/tests/calendar.md`
 
 For each test case:
@@ -74,11 +74,11 @@ After all test files are complete, write the final report to `docs/qa/results/<Y
 | Category | PASS | FAIL | SKIP | Total |
 |---|---|---|---|---|
 | Infrastructure | | | | |
-| Read | | | | |
-| Write | | | | |
-| Sheets | | | | |
-| Drive | | | | |
-| Charts | | | | |
+| Sheets Read | | | | |
+| Sheets Write | | | | |
+| Sheets Mgmt | | | | |
+| Sheets Charts | | | | |
+| Drive + Docs | | | | |
 | Calendar | | | | |
 | **Total** | | | | |
 

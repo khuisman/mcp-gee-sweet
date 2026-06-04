@@ -7,7 +7,7 @@
 # How to use:
 #   "Read docs/qa/operations.yaml and tell me what QA operations are available."
 #   "Read docs/qa/operations.yaml and run the setup_fixtures operation."
-#   "Read docs/qa/operations.yaml and run the run_group operation for sheets."
+#   "Read docs/qa/operations.yaml and run the run_group operation for sheets_read."
 
 version: "1"
 env_file: ".env"
@@ -128,17 +128,17 @@ operations:
         required: true
         type: enum
         values:
-          read:     "Read tools (TC-R##) — get_sheet_data, get_sheet_formulas, get_multiple_sheet_data, find_in_spreadsheet"
-          write:    "Write tools (TC-W##) — update_cells, batch_update_cells, add_rows, add_columns"
-          sheets:   "Sheet management (TC-S##) — create_sheet, rename_sheet, copy_sheet, list_sheets"
-          drive:    "Drive tools (TC-D##) — list_files, list_folders, list_spreadsheets, search_spreadsheets, share_spreadsheet, create_spreadsheet. NOTE: many drive tests are marked ⚠️ requires-oauth or ⚠️ local-filesystem — see pre-run warning."
-          charts:   "Chart tools (TC-C##) — add_chart"
-          calendar: "Calendar tools (TC-CAL##) — requires TEST_CALENDAR_ID and TEST_EVENT_ID"
-          infra:    "Infrastructure (TC-I##) — server startup, auth, caching, tool filtering, refresh_cache"
+          sheets_read:   "Sheets read tools (TC-R##) — get_sheet_data, get_sheet_formulas, get_multiple_sheet_data, find_in_spreadsheet"
+          sheets_write:  "Sheets write tools (TC-W##) — update_cells, batch_update_cells, add_rows, add_columns"
+          sheets_mgmt:   "Sheets management tools (TC-S##) — create_sheet, rename_sheet, copy_sheet, list_sheets"
+          sheets_charts: "Sheets chart tools (TC-C##) — add_chart"
+          drive:         "Drive + Docs tools (TC-D##) — list_files, list_folders, list_spreadsheets, search_spreadsheets, share_spreadsheet, create_spreadsheet, write_doc_content. NOTE: many tests are marked ⚠️ requires-oauth or ⚠️ local-filesystem — see pre-run warning."
+          calendar:      "Calendar tools (TC-CAL##) — requires TEST_CALENDAR_ID and TEST_EVENT_ID"
+          infra:         "Infrastructure (TC-I##) — server startup, auth, caching, tool filtering, refresh_cache"
     preconditions:
       - "mcp-gee-sweet tools available in this session"
       - "Fixture ID(s) for the requested group present in .env (see fixture_keys)"
-      - "read/write/sheets/charts: TEST_SPREADSHEET_ID"
+      - "sheets_read/sheets_write/sheets_mgmt/sheets_charts: TEST_SPREADSHEET_ID"
       - "drive: TEST_SPREADSHEET_ID + TEST_DOC_ID + TEST_FOLDER_ID"
       - "calendar: TEST_CALENDAR_ID + TEST_EVENT_ID"
       - "infra: no fixture IDs required"
@@ -195,13 +195,13 @@ operations:
         type: enum
         description: "Limit to one category. If omitted, steps through all categories in order."
         values:
-          read:     "Sheets read tools (TC-R##) — get_sheet_data, get_sheet_formulas, get_multiple_sheet_data, find_in_spreadsheet"
-          write:    "Sheets write tools (TC-W##) — update_cells, batch_update_cells, add_rows, add_columns"
-          sheets:   "Sheet management tools (TC-S##) — create_sheet, rename_sheet, copy_sheet, list_sheets"
-          drive:    "Drive + Docs tools (TC-D##) — list_files, list_folders, list_spreadsheets, search_spreadsheets, share_spreadsheet, create_spreadsheet, write_doc_content"
-          charts:   "Charts tools (TC-C##) — add_chart"
-          calendar: "Calendar tools (TC-CAL##) — requires TEST_CALENDAR_ID and TEST_EVENT_ID"
-          infra:    "Infrastructure (TC-I##) — server startup, auth, caching, tool filtering, refresh_cache"
+          sheets_read:   "Sheets read tools (TC-R##) — get_sheet_data, get_sheet_formulas, get_multiple_sheet_data, find_in_spreadsheet"
+          sheets_write:  "Sheets write tools (TC-W##) — update_cells, batch_update_cells, add_rows, add_columns"
+          sheets_mgmt:   "Sheets management tools (TC-S##) — create_sheet, rename_sheet, copy_sheet, list_sheets"
+          sheets_charts: "Sheets chart tools (TC-C##) — add_chart"
+          drive:         "Drive + Docs tools (TC-D##) — list_files, list_folders, list_spreadsheets, search_spreadsheets, share_spreadsheet, create_spreadsheet, write_doc_content"
+          calendar:      "Calendar tools (TC-CAL##) — requires TEST_CALENDAR_ID and TEST_EVENT_ID"
+          infra:         "Infrastructure (TC-I##) — server startup, auth, caching, tool filtering, refresh_cache"
     preconditions:
       - "mcp-gee-sweet tools available in this session"
       - "Fixture ID(s) for the requested group present in .env (see fixture_keys)"

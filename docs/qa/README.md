@@ -20,12 +20,13 @@ Prompt-driven integration tests for mcp-gee-sweet. Each test case is a natural l
 
 | File | Category | TC prefix |
 |---|---|---|
-| [tests/read.md](tests/read.md) | Read tools | TC-R## |
-| [tests/write.md](tests/write.md) | Write tools | TC-W## |
-| [tests/sheets.md](tests/sheets.md) | Sheet management | TC-S## |
-| [tests/drive.md](tests/drive.md) | Drive tools | TC-D## |
-| [tests/charts.md](tests/charts.md) | Chart tools | TC-C## |
+| [tests/sheets_read.md](tests/sheets_read.md) | Sheets read tools | TC-R## |
+| [tests/sheets_write.md](tests/sheets_write.md) | Sheets write tools | TC-W## |
+| [tests/sheets_mgmt.md](tests/sheets_mgmt.md) | Sheets management tools | TC-S## |
+| [tests/sheets_charts.md](tests/sheets_charts.md) | Sheets chart tools | TC-C## |
+| [tests/drive.md](tests/drive.md) | Drive + Docs tools | TC-D## |
 | [tests/infra.md](tests/infra.md) | Infrastructure | TC-I## |
+| [tests/calendar.md](tests/calendar.md) | Calendar tools | TC-CAL## |
 
 ## Notes
 
