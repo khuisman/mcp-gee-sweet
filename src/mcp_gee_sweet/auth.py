@@ -44,6 +44,7 @@ class SpreadsheetContext:
     docs_service: Any
     calendar_service: Any
     folder_id: str | None = None
+    auth_method: str = "unknown"  # "service_account" | "oauth" | "adc"
     cache: SheetStructureCache = field(default_factory=SheetStructureCache)
     sheet_data_cache: SheetDataCache = field(default_factory=SheetDataCache)
     drive_folder_cache: DriveFolderCache = field(default_factory=DriveFolderCache)
@@ -56,17 +57,20 @@ async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetCont
     from googleapiclient.discovery import build
 
     creds = None
+    auth_method = "unknown"
 
     if CREDENTIALS_CONFIG:
         creds = service_account.Credentials.from_service_account_info(
             json.loads(base64.b64decode(CREDENTIALS_CONFIG)), scopes=SCOPES
         )
+        auth_method = "service_account"
 
     if not creds and SERVICE_ACCOUNT_PATH and os.path.exists(SERVICE_ACCOUNT_PATH):
         try:
             creds = service_account.Credentials.from_service_account_file(
                 SERVICE_ACCOUNT_PATH, scopes=SCOPES
             )
+            auth_method = "service_account"
             logger.debug("Using service account authentication")
             logger.debug(
                 "Working with Google Drive folder ID: %s", DRIVE_FOLDER_ID or "Not specified"
@@ -105,6 +109,9 @@ async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetCont
                     logger.error("Error with OAuth flow: %s", e)
                     creds = None
 
+        if creds:
+            auth_method = "oauth"
+
     if not creds:
         try:
             logger.debug("Attempting to use Application Default Credentials (ADC)")
@@ -112,6 +119,7 @@ async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetCont
                 "ADC will check: GOOGLE_APPLICATION_CREDENTIALS, gcloud auth, and metadata service"
             )
             creds, project = google.auth.default(scopes=SCOPES)
+            auth_method = "adc"
             logger.debug("Successfully authenticated using ADC for project: %s", project)
         except Exception as e:
             logger.error("Error using Application Default Credentials: %s", e)
@@ -125,6 +133,8 @@ async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetCont
     docs_service = build("docs", "v1", credentials=creds, cache_discovery=False)
     calendar_service = build("calendar", "v3", credentials=creds, cache_discovery=False)
 
+    logger.debug("Auth method resolved: %s", auth_method)
+
     try:
         yield SpreadsheetContext(
             sheets_service=sheets_service,
@@ -132,6 +142,7 @@ async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetCont
             docs_service=docs_service,
             calendar_service=calendar_service,
             folder_id=DRIVE_FOLDER_ID if DRIVE_FOLDER_ID else None,
+            auth_method=auth_method,
             cache=SheetStructureCache(),
         )
     finally:

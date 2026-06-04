@@ -8,7 +8,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `create_spreadsheet`
 
-### TC-D01: Create in default folder
+### TC-D01: Create in default folder ⚠️ requires-oauth
 
 **Prompt**
 > "Create a new spreadsheet called 'QA-Create-Test' in my default folder"
@@ -20,7 +20,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D02: Create with explicit folder ID
+### TC-D02: Create with explicit folder ID ⚠️ requires-oauth
 
 **Prompt**
 > "Create a new spreadsheet called 'QA-Create-Explicit' in folder {FOLDER_ID}"
@@ -31,7 +31,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D03: Create without a folder (root of Drive)
+### TC-D03: Create without a folder (root of Drive) ⚠️ requires-oauth
 
 **Prompt**
 > "Create a new spreadsheet called 'QA-Create-Root' with no folder specified"
@@ -54,7 +54,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D05: Drive folder cache invalidated
+### TC-D05: Drive folder cache invalidated ⚠️ requires-oauth
 
 **Prompt**
 > "Create a spreadsheet called 'QA-Cache-Check' in {FOLDER_ID}, then list the files in that folder"
@@ -65,7 +65,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D06: Resulting spreadsheet has expected title
+### TC-D06: Resulting spreadsheet has expected title ⚠️ requires-oauth
 
 **Prompt**
 > "Create a spreadsheet called 'Exact Title Test' and confirm the title in the response"
@@ -77,7 +77,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `create_doc`
 
-### TC-D07: Create with no content
+### TC-D07: Create with no content ⚠️ requires-oauth
 
 **Prompt**
 > "Create a Google Doc called 'QA-Empty-Doc' with no content"
@@ -89,7 +89,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D08: Create with HTML content — formatting preserved
+### TC-D08: Create with HTML content — formatting preserved ⚠️ requires-oauth
 
 **Prompt**
 > "Create a Google Doc called 'QA-Formatted-Doc' with this content: `<h1>Main Title</h1><p>A paragraph.</p><ul><li>Item A</li><li>Item B</li></ul>`"
@@ -101,7 +101,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D09: Create with a link
+### TC-D09: Create with a link ⚠️ requires-oauth
 
 **Prompt**
 > "Create a Google Doc called 'QA-Link-Doc' with content: `<p>Visit <a href=\"https://example.com\">Example</a></p>`"
@@ -112,7 +112,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D10: Content with no block-level elements — batchUpdate skipped
+### TC-D10: Content with no block-level elements — batchUpdate skipped ⚠️ requires-oauth
 
 **Prompt**
 > "Create a Google Doc called 'QA-Inline-Doc' with content: `<span>just a span</span>`"
@@ -124,7 +124,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D11: Drive folder cache invalidated
+### TC-D11: Drive folder cache invalidated ⚠️ requires-oauth
 
 **Prompt**
 > "Create a doc called 'QA-DocCache' in {FOLDER_ID}, then list the files in that folder"
@@ -135,7 +135,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D12: Long content
+### TC-D12: Long content ⚠️ requires-oauth
 
 **Prompt**
 > "Create a Google Doc called 'QA-Long-Doc' with a very long paragraph — repeat the word 'test ' 500 times as the body content"
@@ -488,7 +488,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D43: Cache invalidated after create
+### TC-D43: Cache invalidated after create ⚠️ requires-oauth
 
 **Prompt**
 > "Create a spreadsheet called 'QA-ListFilesCache' in {FOLDER_ID}, then list files in that folder"
@@ -570,7 +570,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `write_doc_content`
 
-### TC-D50: Write to an empty doc
+### TC-D50: Write to an empty doc ⚠️ requires-oauth
 
 **Prompt**
 > "Create a new empty doc called 'QA-WriteEmpty', then write this content to it: `<h1>Hello</h1><p>World</p>`"
@@ -773,7 +773,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `copy_file`
 
-### TC-D67: Copy with auto-assigned name
+### TC-D67: Copy with auto-assigned name ⚠️ requires-oauth
 
 **Prompt**
 > "Copy the spreadsheet {SPREADSHEET_ID} without specifying a new name"
@@ -785,7 +785,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D68: Copy with explicit name and destination folder
+### TC-D68: Copy with explicit name and destination folder ⚠️ requires-oauth
 
 **Prompt**
 > "Copy {SPREADSHEET_ID} into {FOLDER_ID} and name the copy 'QA-Copy-Explicit'"
@@ -797,7 +797,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D69: Copy a Google Doc
+### TC-D69: Copy a Google Doc ⚠️ requires-oauth
 
 **Prompt**
 > "Copy {DOC_ID} and name it 'QA-Doc-Copy'"
@@ -834,7 +834,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D72: Permanently delete a file ⚠️ destructive
+### TC-D72: Permanently delete a file ⚠️ destructive ⚠️ requires-oauth
 
 **Prompt**
 > "Permanently delete the file 'QA-Copy-Explicit' from TC-D68 — use permanent=True"
@@ -1023,7 +1023,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `upload_file`
 
-### TC-D88: Upload plain text file
+### TC-D88: Upload plain text file ⚠️ requires-oauth
 
 **Prompt**
 > "Upload a plain text file called 'qa-upload.txt' to {FOLDER_ID} with content 'Hello from QA'"
@@ -1035,7 +1035,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D89: Upload Markdown as raw file (no conversion)
+### TC-D89: Upload Markdown as raw file (no conversion) ⚠️ requires-oauth
 
 **Prompt**
 > "Upload a markdown file called 'qa-notes.md' to {FOLDER_ID} with content '# Heading\n\n- item 1\n- item 2' and do not convert it to a doc"
@@ -1047,7 +1047,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D90: Upload Markdown and convert to Google Doc ⚠️ destructive
+### TC-D90: Upload Markdown and convert to Google Doc ⚠️ destructive ⚠️ requires-oauth
 
 **Prompt**
 > "Upload this markdown to {FOLDER_ID} as a Google Doc called 'QA-Markdown-Doc': `# My Title\n\n## Section One\n\n- Bullet A\n- Bullet B\n\nSome **bold** text and a [link](https://example.com).`"
@@ -1062,7 +1062,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D91: Upload HTML and convert to Google Doc
+### TC-D91: Upload HTML and convert to Google Doc ⚠️ requires-oauth
 
 **Prompt**
 > "Upload this HTML to {FOLDER_ID} as a Google Doc called 'QA-HTML-Doc': `<h1>HTML Title</h1><p>A paragraph.</p><ul><li>X</li><li>Y</li></ul>`"
@@ -1074,7 +1074,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D92: Upload Markdown with table
+### TC-D92: Upload Markdown with table ⚠️ requires-oauth
 
 **Prompt**
 > "Upload this markdown as a Google Doc called 'QA-Table-Doc' to {FOLDER_ID}: `# Table Test\n\n| Col A | Col B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |`"
@@ -1088,7 +1088,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `upload_local_file`
 
-### TC-D93: Upload a binary file
+### TC-D93: Upload a binary file ⚠️ local-filesystem ⚠️ requires-oauth
 
 **Prompt**
 > "Upload the local file `/tmp/qa-test.png` to {FOLDER_ID}" *(create any small PNG at that path first)*
@@ -1100,7 +1100,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D94: skip_if_exists prevents re-upload
+### TC-D94: skip_if_exists prevents re-upload ⚠️ local-filesystem ⚠️ requires-oauth
 
 **Prompt** (run twice, same file)
 > "Upload `/tmp/qa-test.png` to {FOLDER_ID} again"
@@ -1112,7 +1112,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D95: skip_if_exists=False creates duplicate
+### TC-D95: skip_if_exists=False creates duplicate ⚠️ local-filesystem ⚠️ requires-oauth
 
 **Prompt**
 > "Upload `/tmp/qa-test.png` to {FOLDER_ID} with skip_if_exists set to false"
@@ -1124,7 +1124,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D96: Non-existent local path
+### TC-D96: Non-existent local path ⚠️ local-filesystem
 
 **Prompt**
 > "Upload the file `/tmp/does-not-exist-qa.bin` to {FOLDER_ID}"
@@ -1135,7 +1135,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D97: Name override
+### TC-D97: Name override ⚠️ local-filesystem ⚠️ requires-oauth
 
 **Prompt**
 > "Upload `/tmp/qa-test.png` to {FOLDER_ID} but name it 'renamed-in-drive.png'"
@@ -1148,7 +1148,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `upload_local_folder`
 
-### TC-D98: Bulk upload of a mixed directory ⚠️ destructive
+### TC-D98: Bulk upload of a mixed directory ⚠️ destructive ⚠️ local-filesystem ⚠️ requires-oauth
 
 **Prompt**
 > "Upload all files from `/tmp/qa-folder/` to {FOLDER_ID}" *(create a directory with 2–3 files of different types)*
@@ -1160,7 +1160,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D99: .DS_Store excluded by default
+### TC-D99: .DS_Store excluded by default ⚠️ local-filesystem ⚠️ requires-oauth
 
 **Prompt**
 > "Upload the directory `/tmp/qa-folder/` to {FOLDER_ID}" *(ensure `.DS_Store` exists in that directory)*
@@ -1171,7 +1171,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D100: skip_if_exists batches the existence check
+### TC-D100: skip_if_exists batches the existence check ⚠️ local-filesystem ⚠️ requires-oauth
 
 **Prompt** (run twice)
 > "Upload `/tmp/qa-folder/` to {FOLDER_ID} again with skip_if_exists=True"
@@ -1185,7 +1185,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `download_file`
 
-### TC-D101: Download a non-Google file
+### TC-D101: Download a non-Google file ⚠️ local-filesystem
 
 **Prompt**
 > "Download the file {BINARY_FILE_ID} to `/tmp/qa-downloads/`" *(use the ID of the PNG uploaded in TC-D93)*
@@ -1197,7 +1197,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D102: Export Google Doc as plain text
+### TC-D102: Export Google Doc as plain text ⚠️ local-filesystem
 
 **Prompt**
 > "Download {DOC_ID} as a txt file to `/tmp/qa-downloads/`"
@@ -1209,7 +1209,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D103: Export Google Doc as PDF
+### TC-D103: Export Google Doc as PDF ⚠️ local-filesystem
 
 **Prompt**
 > "Download {DOC_ID} as a pdf to `/tmp/qa-downloads/`"
@@ -1221,7 +1221,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D104: Export Google Sheet as CSV
+### TC-D104: Export Google Sheet as CSV ⚠️ local-filesystem
 
 **Prompt**
 > "Download {SPREADSHEET_ID} as CSV to `/tmp/qa-downloads/`"
@@ -1232,7 +1232,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D105: Workspace file without export_format
+### TC-D105: Workspace file without export_format ⚠️ local-filesystem
 
 **Prompt**
 > "Download {DOC_ID} to `/tmp/qa-downloads/` without specifying a format"
@@ -1243,7 +1243,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D106: local_path as exact file path
+### TC-D106: local_path as exact file path ⚠️ local-filesystem
 
 **Prompt**
 > "Download {BINARY_FILE_ID} and save it to `/tmp/qa-specific-name.png`"
@@ -1256,7 +1256,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `download_folder`
 
-### TC-D107: Download folder with mixed content
+### TC-D107: Download folder with mixed content ⚠️ local-filesystem
 
 **Prompt**
 > "Download all files from {FOLDER_ID} to `/tmp/qa-folder-download/`"
@@ -1268,7 +1268,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D108: Download folder with export_format
+### TC-D108: Download folder with export_format ⚠️ local-filesystem
 
 **Prompt**
 > "Download all files from {FOLDER_ID} to `/tmp/qa-folder-export/` with export_format='pdf'"
@@ -1280,7 +1280,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D109: skip_if_exists=True skips existing local files
+### TC-D109: skip_if_exists=True skips existing local files ⚠️ local-filesystem
 
 **Prompt** (run twice)
 > "Download {FOLDER_ID} to `/tmp/qa-folder-download/` again"
@@ -1291,7 +1291,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D110: mime_type_filter
+### TC-D110: mime_type_filter ⚠️ local-filesystem
 
 **Prompt**
 > "Download only Google Docs from {FOLDER_ID} to `/tmp/qa-docs-only/` using export_format='txt'"
@@ -1304,7 +1304,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `sync_folder`
 
-### TC-D111: dry_run shows full action plan
+### TC-D111: dry_run shows full action plan ⚠️ local-filesystem
 
 **Prompt**
 > "Do a dry run sync of {FOLDER_ID} with `/tmp/qa-sync/` in bidirectional mode"
@@ -1316,7 +1316,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D112: Bidirectional — Drive-only file downloaded ⚠️ destructive
+### TC-D112: Bidirectional — Drive-only file downloaded ⚠️ destructive ⚠️ local-filesystem
 
 **Prompt**
 > "Sync {FOLDER_ID} with `/tmp/qa-sync/` bidirectionally" *(ensure at least one file exists in Drive but not locally)*
@@ -1327,7 +1327,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D113: Bidirectional — local-only file uploaded ⚠️ destructive
+### TC-D113: Bidirectional — local-only file uploaded ⚠️ destructive ⚠️ local-filesystem ⚠️ requires-oauth
 
 **Prompt**
 > "Sync {FOLDER_ID} with `/tmp/qa-sync/` bidirectionally" *(create a new file in `/tmp/qa-sync/` that doesn't exist in Drive)*
@@ -1338,7 +1338,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D114: Local newer → uploaded; Drive newer → downloaded
+### TC-D114: Local newer → uploaded; Drive newer → downloaded ⚠️ local-filesystem
 
 **Prompt**
 > "Sync {FOLDER_ID} with `/tmp/qa-sync/` and show me what gets uploaded vs downloaded"
@@ -1350,7 +1350,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D115: Upload preserves mtime for future sync accuracy
+### TC-D115: Upload preserves mtime for future sync accuracy ⚠️ local-filesystem ⚠️ requires-oauth
 
 **Prompt**
 > "Sync {FOLDER_ID} with `/tmp/qa-sync/` to upload a local file, then sync again immediately"
@@ -1362,7 +1362,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D116: direction='upload' — Drive-only file not downloaded
+### TC-D116: direction='upload' — Drive-only file not downloaded ⚠️ local-filesystem ⚠️ requires-oauth
 
 **Prompt**
 > "Sync {FOLDER_ID} with `/tmp/qa-sync/` using direction='upload'"
@@ -1374,7 +1374,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D117: direction='download' — local-only file not uploaded
+### TC-D117: direction='download' — local-only file not uploaded ⚠️ local-filesystem
 
 **Prompt**
 > "Sync {FOLDER_ID} with `/tmp/qa-sync/` using direction='download'"
@@ -1386,7 +1386,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D118: Workspace files excluded without export_format
+### TC-D118: Workspace files excluded without export_format ⚠️ local-filesystem
 
 **Prompt**
 > "Sync {FOLDER_ID} with `/tmp/qa-sync/` — the folder contains a Google Doc"
@@ -1397,7 +1397,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D119: Invalid direction raises error
+### TC-D119: Invalid direction raises error ⚠️ local-filesystem
 
 **Prompt**
 > "Sync {FOLDER_ID} with `/tmp/qa-sync/` using direction='mirror'"

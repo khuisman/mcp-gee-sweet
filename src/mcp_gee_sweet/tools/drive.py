@@ -10,11 +10,18 @@ from pathlib import Path
 from typing import Any
 
 import markdown as _md
+from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaInMemoryUpload, MediaIoBaseDownload
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
 logger = logging.getLogger(__name__)
+
+_SA_QUOTA_ERROR = (
+    "Service accounts cannot create or copy files in personal Drive (no storage quota). "
+    "Use OAuth or ADC auth for full Drive write access, or use a Shared Drive destination. "
+    "Check server://auth-status for your current auth method and affected tools."
+)
 
 _EXPORT_MIME: dict[str, tuple[str, str]] = {
     "pdf": ("application/pdf", ".pdf"),
@@ -199,6 +206,11 @@ def register(tool):
 
         Returns:
             Information about the newly created spreadsheet including its ID
+
+        Note:
+            Requires OAuth or ADC auth. Service accounts cannot create files in personal
+            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            Check server://auth-status for your current auth method.
         """
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
@@ -211,11 +223,16 @@ def register(tool):
         if target_folder_id:
             file_body["parents"] = [target_folder_id]
 
-        spreadsheet = (
-            drive_service.files()
-            .create(supportsAllDrives=True, body=file_body, fields="id, name, parents")
-            .execute()
-        )
+        try:
+            spreadsheet = (
+                drive_service.files()
+                .create(supportsAllDrives=True, body=file_body, fields="id, name, parents")
+                .execute()
+            )
+        except HttpError as e:
+            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+                return {"error": _SA_QUOTA_ERROR}
+            raise
 
         spreadsheet_id = spreadsheet.get("id")
         parents = spreadsheet.get("parents")
@@ -256,6 +273,13 @@ def register(tool):
 
         Returns:
             Information about the newly created document including its ID and web link
+
+        Note:
+            Requires OAuth or ADC auth. Service accounts cannot create files in personal
+            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            Workaround for service accounts: create the file manually in Drive, then use
+            write_doc_content to populate it. Check server://auth-status for your current
+            auth method.
         """
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
@@ -269,15 +293,20 @@ def register(tool):
         if target_folder_id:
             file_body["parents"] = [target_folder_id]
 
-        doc = (
-            drive_service.files()
-            .create(
-                supportsAllDrives=True,
-                body=file_body,
-                fields="id, name, parents, webViewLink",
+        try:
+            doc = (
+                drive_service.files()
+                .create(
+                    supportsAllDrives=True,
+                    body=file_body,
+                    fields="id, name, parents, webViewLink",
+                )
+                .execute()
             )
-            .execute()
-        )
+        except HttpError as e:
+            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+                return {"error": _SA_QUOTA_ERROR}
+            raise
 
         doc_id = doc.get("id")
         parents = doc.get("parents")
@@ -875,6 +904,11 @@ def register(tool):
 
         Returns:
             fileId, name, mimeType, parent, and webViewLink of the new copy.
+
+        Note:
+            Requires OAuth or ADC auth. Service accounts cannot copy files into personal
+            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            Check server://auth-status for your current auth method.
         """
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
@@ -885,16 +919,21 @@ def register(tool):
         if folder_id:
             body["parents"] = [folder_id]
 
-        copied = (
-            drive_service.files()
-            .copy(
-                fileId=file_id,
-                body=body,
-                supportsAllDrives=True,
-                fields="id, name, mimeType, parents, webViewLink",
+        try:
+            copied = (
+                drive_service.files()
+                .copy(
+                    fileId=file_id,
+                    body=body,
+                    supportsAllDrives=True,
+                    fields="id, name, mimeType, parents, webViewLink",
+                )
+                .execute()
             )
-            .execute()
-        )
+        except HttpError as e:
+            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+                return {"error": _SA_QUOTA_ERROR}
+            raise
 
         parents = copied.get("parents", [])
         for parent in parents:
@@ -1384,6 +1423,11 @@ def register(tool):
 
         Returns:
             fileId, name, parent folder ID, and webViewLink of the created file.
+
+        Note:
+            Requires OAuth or ADC auth. Service accounts cannot upload files to personal
+            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            Check server://auth-status for your current auth method.
         """
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
@@ -1411,16 +1455,21 @@ def register(tool):
             file_body["mimeType"] = "application/vnd.google-apps.document"
 
         media = MediaInMemoryUpload(upload_content, mimetype=upload_mime, resumable=False)
-        result = (
-            drive_service.files()
-            .create(
-                body=file_body,
-                media_body=media,
-                supportsAllDrives=True,
-                fields="id, name, parents, webViewLink",
+        try:
+            result = (
+                drive_service.files()
+                .create(
+                    body=file_body,
+                    media_body=media,
+                    supportsAllDrives=True,
+                    fields="id, name, parents, webViewLink",
+                )
+                .execute()
             )
-            .execute()
-        )
+        except HttpError as e:
+            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+                return {"error": _SA_QUOTA_ERROR}
+            raise
 
         file_id = result.get("id")
         parents = result.get("parents", [])
@@ -1458,6 +1507,11 @@ def register(tool):
 
         Returns:
             fileId, name, webViewLink, and 'skipped' (True if skip_if_exists fired).
+
+        Note:
+            Requires OAuth or ADC auth. Service accounts cannot upload files to personal
+            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            Check server://auth-status for your current auth method.
         """
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
@@ -1497,16 +1551,21 @@ def register(tool):
 
         metadata: dict[str, Any] = {"name": file_name, "parents": [parent_folder_id]}
         media = MediaFileUpload(local_path, mimetype=mime, resumable=True)
-        result = (
-            drive_service.files()
-            .create(
-                body=metadata,
-                media_body=media,
-                supportsAllDrives=True,
-                fields="id, name, webViewLink",
+        try:
+            result = (
+                drive_service.files()
+                .create(
+                    body=metadata,
+                    media_body=media,
+                    supportsAllDrives=True,
+                    fields="id, name, webViewLink",
+                )
+                .execute()
             )
-            .execute()
-        )
+        except HttpError as e:
+            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+                return {"error": _SA_QUOTA_ERROR}
+            raise
 
         lc.drive_folder_cache.mark_dirty(parent_folder_id)
         logger.debug("Uploaded %s → %s (%s)", local_path, result.get("id"), mime)
@@ -1538,6 +1597,11 @@ def register(tool):
 
         Returns:
             Summary with lists of 'uploaded', 'skipped', and 'failed' filenames.
+
+        Note:
+            Requires OAuth or ADC auth. Service accounts cannot upload files to personal
+            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            Check server://auth-status for your current auth method.
         """
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
