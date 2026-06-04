@@ -39,9 +39,9 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 > "Write these four values — Alpha, Beta, Gamma, Delta — into just cells A8:A9 of the Sales sheet in {SPREADSHEET_ID}"
 
 **Checks**
-- Only A8 and A9 are written (Alpha, Beta)
-- Gamma and Delta are silently truncated to fit the range
-- 🔍 **Product decision:** should truncation be silent or should the tool warn?
+- Returns an error — the API rejects an oversized array with a 400 "tried writing to row [N]" error
+- No values are written
+- 🔍 **Product decision:** should the tool pre-truncate the data to fit the range instead of letting the API error?
 
 ---
 

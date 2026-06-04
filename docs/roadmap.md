@@ -66,8 +66,16 @@ The tool passes the full data range (e.g. `A1:D5`) as a single `ChartSourceRange
 **Severity:** Medium — HISTOGRAM specifically broken even after BUG-1 fixed.
 `HISTOGRAM` is not a valid `BasicChartType` enum value. The Sheets API uses a `histogramChart` spec field rather than `basicChart.chartType`. Fix: detect `chart_type == "HISTOGRAM"` and build a `histogramChart` spec instead.
 
+### `add_chart` BAR — wrong series target axis (BUG-3)
+**Severity:** Medium — BAR charts fail with "series may only target the BOTTOM_AXIS".
+BAR charts (horizontal) have a horizontal value axis. Series must target `BOTTOM_AXIS`, not `LEFT_AXIS`. Fix: detect `chart_type == "BAR"` and set `targetAxis` accordingly. ✅ Fixed.
+
+### `add_chart` COMBO — no per-series type specified (BUG-4)
+**Severity:** Medium — COMBO charts fail with "No basic chart type specified".
+The Sheets API requires each series in a COMBO chart to declare its own `type`. Fix: when `chart_type == "COMBO"`, add `type: COLUMN` to all series except the last, which gets `type: LINE`. ✅ Fixed.
+
 ### TC-W03 — test case assumption wrong
-The test expected the API to silently truncate a 2D array that's wider than the target range. The API actually rejects it with a 400 error. The test case needs to be updated to reflect correct API behaviour.
+The test expected the API to silently truncate a 2D array that's wider than the target range. The API actually rejects it with a 400 error. The test case needs to be updated to reflect correct API behaviour. ✅ Fixed.
 
 ---
 
@@ -99,9 +107,9 @@ These observations were noted during the QA run. Each needs a deliberate decisio
 - [x] Unit tests for tool filtering — tools excluded when not in `ENABLED_TOOLS`
 - [x] Unit tests for service account quota error handling — `create_spreadsheet`, `create_doc`, `copy_file`, `upload_file` return structured error on 403 quota exceeded; non-quota 403s still raise
 - [x] Unit tests for `server://auth-status` resource — correct capabilities returned for service_account, oauth, and adc
-- [ ] Fix BUG-1: `add_chart` multi-column range — split into per-column source ranges for domain and series
-- [ ] Fix BUG-2: `add_chart` HISTOGRAM — implement `histogramChart` spec path
-- [ ] Update TC-W03 test case — API rejects oversized 2D arrays, does not silently truncate
+- [x] Fix BUG-1: `add_chart` multi-column range — split into per-column source ranges for domain and series
+- [x] Fix BUG-2: `add_chart` HISTOGRAM — implement `histogramChart` spec path
+- [x] Update TC-W03 test case — API rejects oversized 2D arrays, does not silently truncate
 - [ ] Formatting integration spike — explore `effectiveFormat` API response shape; determine fixture strategy; assess whether API-level assertions cover formatting without a browser
 
 ### Missing QA fixtures (from Phase 1 run)

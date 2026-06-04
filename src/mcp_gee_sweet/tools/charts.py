@@ -8,6 +8,28 @@ from ..helpers import _get_sheet_id, _parse_a1_notation
 _VALID_CHART_TYPES = ["COLUMN", "BAR", "LINE", "AREA", "PIE", "SCATTER", "COMBO", "HISTOGRAM"]
 
 
+def _per_column_ranges(sheet_id: int, indices: dict) -> list[dict]:
+    """Split a parsed A1 range into one source-range dict per column.
+
+    The Sheets addChart API requires each entry in a ChartSourceRange.sources
+    list to span exactly one row or one column.  Passing a multi-column
+    rectangle as a single source produces a 400 error.
+    """
+    row_start = indices.get("startRowIndex", 0)
+    row_end = indices.get("endRowIndex")
+    col_start = indices.get("startColumnIndex", 0)
+    col_end = indices.get("endColumnIndex", col_start + 1)
+
+    base = {"sheetId": sheet_id, "startRowIndex": row_start, "startColumnIndex": 0}
+    if row_end is not None:
+        base["endRowIndex"] = row_end
+
+    return [
+        {**base, "startColumnIndex": col, "endColumnIndex": col + 1}
+        for col in range(col_start, col_end)
+    ]
+
+
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Add Chart", destructiveHint=True))
     def add_chart(
@@ -94,30 +116,53 @@ def register(tool):
         except ValueError as e:
             return {"error": str(e)}
 
-        source_range = {"sheetId": sheet_id, **range_indices}
+        col_ranges = _per_column_ranges(sheet_id, range_indices)
+        domain_col = col_ranges[0]
+        series_cols = col_ranges[1:] if len(col_ranges) > 1 else col_ranges
 
         if chart_type == "PIE":
             chart_spec = {
                 "pieChart": {
                     "legendPosition": "RIGHT_LEGEND",
-                    "domain": {"sourceRange": {"sources": [source_range]}},
-                    "series": {"sourceRange": {"sources": [source_range]}},
+                    "domain": {"sourceRange": {"sources": [domain_col]}},
+                    "series": {"sourceRange": {"sources": [series_cols[0]]}},
                 }
             }
             if title:
                 chart_spec["title"] = title
+
+        elif chart_type == "HISTOGRAM":
+            chart_spec = {
+                "histogramChart": {
+                    "legendPosition": "RIGHT_LEGEND",
+                    "series": [{"data": {"sourceRange": {"sources": [col]}}} for col in col_ranges],
+                }
+            }
+            if title:
+                chart_spec["title"] = title
+
         else:
+            # BAR charts use a horizontal value axis; all other basic types use LEFT_AXIS.
+            series_axis = "BOTTOM_AXIS" if chart_type == "BAR" else "LEFT_AXIS"
+
+            def _series_entry(col, idx, total):
+                entry = {
+                    "series": {"sourceRange": {"sources": [col]}},
+                    "targetAxis": series_axis,
+                }
+                # COMBO requires an explicit per-series type; default to COLUMN + LINE overlay.
+                if chart_type == "COMBO":
+                    entry["type"] = "LINE" if idx == total - 1 else "COLUMN"
+                return entry
+
             chart_spec = {
                 "basicChart": {
                     "chartType": chart_type,
                     "legendPosition": "RIGHT_LEGEND",
                     "axis": [],
-                    "domains": [{"domain": {"sourceRange": {"sources": [source_range]}}}],
+                    "domains": [{"domain": {"sourceRange": {"sources": [domain_col]}}}],
                     "series": [
-                        {
-                            "series": {"sourceRange": {"sources": [source_range]}},
-                            "targetAxis": "LEFT_AXIS",
-                        }
+                        _series_entry(col, i, len(series_cols)) for i, col in enumerate(series_cols)
                     ],
                     "headerCount": 1,
                 }
@@ -125,9 +170,6 @@ def register(tool):
             if title:
                 chart_spec["title"] = title
 
-            # Note: For basic charts, using the same source_range for both domains and series
-            # allows the API to automatically interpret the first column as the domain (X-axis labels)
-            # and subsequent columns as data series (Y-axis values).
             chart_spec["basicChart"]["axis"].append(
                 {"position": "BOTTOM_AXIS", "title": x_axis_label}
                 if x_axis_label
