@@ -904,7 +904,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tests/charts/" class="md-nav__link">
+      <a href="../tests/charts.md" class="md-nav__link">
         
   
   
@@ -988,7 +988,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tests/read/" class="md-nav__link">
+      <a href="../tests/read.md" class="md-nav__link">
         
   
   
@@ -1016,7 +1016,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tests/sheets/" class="md-nav__link">
+      <a href="../tests/sheets.md" class="md-nav__link">
         
   
   
@@ -1044,7 +1044,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tests/write/" class="md-nav__link">
+      <a href="../tests/write.md" class="md-nav__link">
         
   
   
@@ -1133,8 +1133,8 @@
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ol>
 <li>mcp-gee-sweet server running and connected to this Claude session</li>
-<li><code>docs/qa/fixtures.local.md</code> exists and is filled in (see <code>setup.md</code> if not)</li>
-<li>For calendar tests: the service account has been subscribed to the calendar in <code>fixtures.local.md</code></li>
+<li><code>docs/qa/</code>.env<code>` exists and is filled in (see</code>setup.md` if not)</li>
+<li>For calendar tests: the service account has been subscribed to the calendar in <code>.env</code></li>
 </ol>
 <h2 id="how-to-start">How to start<a class="headerlink" href="#how-to-start" title="Permanent link">&para;</a></h2>
 <p>Copy everything in the <strong>Conductor prompt</strong> section below and paste it into the Claude chat.</p>
@@ -1146,25 +1146,25 @@
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>## Step 1 — Load fixtures
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>Read `docs/qa/fixtures.local.md`. If the file does not exist, stop immediately and say: &quot;fixtures.local.md not found — follow docs/qa/setup.md to create your fixtures first.&quot;
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>Read `.env` from the repo root. If the file does not exist or the TEST_* keys are missing, stop immediately and say: &quot;.env not found or TEST_* keys missing — follow docs/qa/setup.md to create your fixtures first.&quot;
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>Extract all key=value pairs (SPREADSHEET_ID, DOC_ID, FOLDER_ID, CALENDAR_ID, EVENT_ID, and any others present). Tell me the values you found, then wait for me to confirm before proceeding.
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>Extract TEST_SPREADSHEET_ID, TEST_DOC_ID, TEST_FOLDER_ID, TEST_CALENDAR_ID, TEST_EVENT_ID. Tell me the values you found, then wait for me to confirm before proceeding.
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>## Step 2 — Run tests
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>Work through the test files in this order:
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>1. `docs/qa/tests/infra.md`
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>2. `docs/qa/tests/read.md`
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>3. `docs/qa/tests/write.md`
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>4. `docs/qa/tests/sheets.md`
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>5. `docs/qa/tests/drive.md`
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>6. `docs/qa/tests/charts.md`
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>2. `docs/qa/tests/sheets_read.md`
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>3. `docs/qa/tests/sheets_write.md`
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>4. `docs/qa/tests/sheets_mgmt.md`
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>5. `docs/qa/tests/sheets_charts.md`
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>6. `docs/qa/tests/drive.md`
 <a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>7. `docs/qa/tests/calendar.md`
 <a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>
 <a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>For each test case:
 <a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>
 <a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>1. Announce the TC number and title.
-<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>2. Substitute fixture IDs into the prompt (replace {SPREADSHEET_ID}, {DOC_ID}, etc. with the values from fixtures.local.md).
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>2. Substitute fixture IDs into the prompt (replace {SPREADSHEET_ID}, {DOC_ID}, etc. with the values from `.env`).
 <a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>3. Execute the prompt using the MCP tools available in this session.
 <a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>4. Evaluate each item in the **Checks** list against the actual result.
 <a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>5. Record one of:
@@ -1195,11 +1195,11 @@
 <a id="__codelineno-0-51" name="__codelineno-0-51" href="#__codelineno-0-51"></a>| Category | PASS | FAIL | SKIP | Total |
 <a id="__codelineno-0-52" name="__codelineno-0-52" href="#__codelineno-0-52"></a>|---|---|---|---|---|
 <a id="__codelineno-0-53" name="__codelineno-0-53" href="#__codelineno-0-53"></a>| Infrastructure | | | | |
-<a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a>| Read | | | | |
-<a id="__codelineno-0-55" name="__codelineno-0-55" href="#__codelineno-0-55"></a>| Write | | | | |
-<a id="__codelineno-0-56" name="__codelineno-0-56" href="#__codelineno-0-56"></a>| Sheets | | | | |
-<a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a>| Drive | | | | |
-<a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a>| Charts | | | | |
+<a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a>| Sheets Read | | | | |
+<a id="__codelineno-0-55" name="__codelineno-0-55" href="#__codelineno-0-55"></a>| Sheets Write | | | | |
+<a id="__codelineno-0-56" name="__codelineno-0-56" href="#__codelineno-0-56"></a>| Sheets Mgmt | | | | |
+<a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a>| Sheets Charts | | | | |
+<a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a>| Drive + Docs | | | | |
 <a id="__codelineno-0-59" name="__codelineno-0-59" href="#__codelineno-0-59"></a>| Calendar | | | | |
 <a id="__codelineno-0-60" name="__codelineno-0-60" href="#__codelineno-0-60"></a>| **Total** | | | | |
 <a id="__codelineno-0-61" name="__codelineno-0-61" href="#__codelineno-0-61"></a>
@@ -1222,7 +1222,7 @@
 <a id="__codelineno-0-78" name="__codelineno-0-78" href="#__codelineno-0-78"></a>
 <a id="__codelineno-0-79" name="__codelineno-0-79" href="#__codelineno-0-79"></a>## Resuming an interrupted run
 <a id="__codelineno-0-80" name="__codelineno-0-80" href="#__codelineno-0-80"></a>
-<a id="__codelineno-0-81" name="__codelineno-0-81" href="#__codelineno-0-81"></a>If resuming: read the partial results file I specify, identify the last completed TC, and continue from the next one. Re-confirm fixture IDs from fixtures.local.md before continuing.
+<a id="__codelineno-0-81" name="__codelineno-0-81" href="#__codelineno-0-81"></a>If resuming: read the partial results file I specify, identify the last completed TC, and continue from the next one. Re-confirm fixture IDs from `.env` before continuing.
 </code></pre></div>
 <hr />
 <h2 id="results-location">Results location<a class="headerlink" href="#results-location" title="Permanent link">&para;</a></h2>

@@ -915,7 +915,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tests/charts/" class="md-nav__link">
+      <a href="tests/charts.md" class="md-nav__link">
         
   
   
@@ -999,7 +999,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tests/read/" class="md-nav__link">
+      <a href="tests/read.md" class="md-nav__link">
         
   
   
@@ -1027,7 +1027,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tests/sheets/" class="md-nav__link">
+      <a href="tests/sheets.md" class="md-nav__link">
         
   
   
@@ -1055,7 +1055,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tests/write/" class="md-nav__link">
+      <a href="tests/write.md" class="md-nav__link">
         
   
   
@@ -1166,40 +1166,47 @@
 </thead>
 <tbody>
 <tr>
-<td><a href="tests/read/">tests/read.md</a></td>
-<td>Read tools</td>
+<td><a href="tests/sheets_read/">tests/sheets_read.md</a></td>
+<td>Sheets read tools</td>
 <td>TC-R##</td>
 </tr>
 <tr>
-<td><a href="tests/write/">tests/write.md</a></td>
-<td>Write tools</td>
+<td><a href="tests/sheets_write/">tests/sheets_write.md</a></td>
+<td>Sheets write tools</td>
 <td>TC-W##</td>
 </tr>
 <tr>
-<td><a href="tests/sheets/">tests/sheets.md</a></td>
-<td>Sheet management</td>
+<td><a href="tests/sheets_mgmt/">tests/sheets_mgmt.md</a></td>
+<td>Sheets management tools</td>
 <td>TC-S##</td>
 </tr>
 <tr>
-<td><a href="tests/drive/">tests/drive.md</a></td>
-<td>Drive tools</td>
-<td>TC-D##</td>
+<td><a href="tests/sheets_charts/">tests/sheets_charts.md</a></td>
+<td>Sheets chart tools</td>
+<td>TC-C##</td>
 </tr>
 <tr>
-<td><a href="tests/charts/">tests/charts.md</a></td>
-<td>Chart tools</td>
-<td>TC-C##</td>
+<td><a href="tests/drive/">tests/drive.md</a></td>
+<td>Drive + Docs tools</td>
+<td>TC-D##</td>
 </tr>
 <tr>
 <td><a href="tests/infra/">tests/infra.md</a></td>
 <td>Infrastructure</td>
 <td>TC-I##</td>
 </tr>
+<tr>
+<td><a href="tests/calendar/">tests/calendar.md</a></td>
+<td>Calendar tools</td>
+<td>TC-CAL##</td>
+</tr>
 </tbody>
 </table>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Tests marked <strong>⚠️ destructive</strong> mutate the fixture spreadsheet. Run these last within their section or reset fixtures afterward using the seed prompt in <code>setup.md</code>.</li>
+<li>Tests marked <strong>⚠️ requires-oauth</strong> need OAuth or ADC auth — service accounts cannot create or copy files in Drive (no storage quota). These tests are automatically skipped with a warning when <code>QA_AUTH_METHOD=service_account</code> in <code>.env</code>.</li>
+<li>Tests marked <strong>⚠️ local-filesystem</strong> need file paths accessible to the MCP server process. These cannot run in an AI-session QA run and are always skipped.</li>
 <li>Tests marked <strong>🔍 product decision</strong> have no single correct answer — note what you observed and open an issue if the behavior seems wrong.</li>
 <li>Cache hit tests (TC-R17, TC-S02, etc.) require checking server logs: <code>make logs</code> or <code>docker compose logs mcp-gee-sweet</code>.</li>
 </ul>

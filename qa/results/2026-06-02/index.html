@@ -1,0 +1,2719 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/qa/results/2026-06-02/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>QA Run — 2026-06-02 - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#qa-run-2026-06-02" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              QA Run — 2026-06-02
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../qa-checklist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Checklist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_6" id="__nav_5_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/charts.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/drive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/read.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/write.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="qa-run-2026-06-02">QA Run — 2026-06-02<a class="headerlink" href="#qa-run-2026-06-02" title="Permanent link">&para;</a></h1>
+<p><strong>Fixtures:</strong> see <code>.env</code> — TEST_SPREADSHEET_ID, TEST_DOC_ID, TEST_FOLDER_ID</p>
+<p><strong>Run by:</strong> AI (Claude Sonnet 4.6) — Phase 1 of verification model (see <code>docs/decisions/decision-testing.md</code>)</p>
+<p><strong>Calendar tests:</strong> SKIPPED — TEST_CALENDAR_ID and TEST_EVENT_ID not configured</p>
+<hr />
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>PASS</th>
+<th>FAIL</th>
+<th>SKIP</th>
+<th>Total</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Infrastructure</td>
+<td>2</td>
+<td>0</td>
+<td>13</td>
+<td>15</td>
+</tr>
+<tr>
+<td>Read</td>
+<td>30</td>
+<td>0</td>
+<td>0</td>
+<td>30</td>
+</tr>
+<tr>
+<td>Write</td>
+<td>27</td>
+<td>1</td>
+<td>0</td>
+<td>28</td>
+</tr>
+<tr>
+<td>Sheets</td>
+<td>24</td>
+<td>0</td>
+<td>0</td>
+<td>24</td>
+</tr>
+<tr>
+<td>Drive</td>
+<td>62</td>
+<td>0</td>
+<td>77</td>
+<td>139</td>
+</tr>
+<tr>
+<td>Charts</td>
+<td>2</td>
+<td>9</td>
+<td>1</td>
+<td>12</td>
+</tr>
+<tr>
+<td>Calendar</td>
+<td>—</td>
+<td>—</td>
+<td>all</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>147</strong></td>
+<td><strong>10</strong></td>
+<td><strong>91</strong></td>
+<td><strong>248</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="failures">Failures<a class="headerlink" href="#failures" title="Permanent link">&para;</a></h2>
+<p><strong>TC-W03 — Range smaller than data provided</strong>
+Expected: oversized 2D array silently truncated to fit the range.
+Observed: API returns 400 error "tried writing to row [10]" — no silent truncation. Test assumption was wrong; this is an API constraint, not a bug.</p>
+<p><strong>TC-C01 — COLUMN chart</strong>
+Expected: chart created from A1:D5.
+Observed: API error "ChartSourceRange ranges require all rows or all columns to have length of 1". Root cause: tool passes entire range as a single <code>ChartSourceRange</code>; API requires per-column source ranges for domains and series.</p>
+<p><strong>TC-C02 — BAR chart</strong>
+Same root cause as TC-C01.</p>
+<p><strong>TC-C03 — LINE chart</strong>
+Same root cause as TC-C01.</p>
+<p><strong>TC-C04 — AREA chart</strong>
+Same root cause as TC-C01.</p>
+<p><strong>TC-C05 — PIE chart</strong>
+Same root cause as TC-C01 (A1:B5 is still multi-column × multi-row).</p>
+<p><strong>TC-C06 — SCATTER chart</strong>
+Same root cause as TC-C01.</p>
+<p><strong>TC-C07 — COMBO chart</strong>
+Same root cause as TC-C01.</p>
+<p><strong>TC-C08 — HISTOGRAM chart</strong>
+Two separate issues: (1) same multi-column range bug as TC-C01; (2) HISTOGRAM is not a valid <code>BasicChartType</code> — the Sheets API uses a separate <code>histogramChart</code> spec, not <code>basicChart</code>.</p>
+<p><strong>TC-C10 — Lowercase chart type input</strong>
+Same multi-column range bug as TC-C01. Lowercase normalization works (confirmed <code>.upper()</code> fires), but chart creation fails at the API.</p>
+<p><strong>TC-C12 — Custom position and size</strong>
+Same multi-column range bug as TC-C01.</p>
+<hr />
+<h2 id="bugs-to-file">Bugs to file<a class="headerlink" href="#bugs-to-file" title="Permanent link">&para;</a></h2>
+<h3 id="bug-1-add_chart-fails-for-any-multi-column-multi-row-data-range">BUG-1: <code>add_chart</code> fails for any multi-column, multi-row data range<a class="headerlink" href="#bug-1-add_chart-fails-for-any-multi-column-multi-row-data-range" title="Permanent link">&para;</a></h3>
+<p><strong>Severity:</strong> High — affects all practical chart use cases.
+<strong>Error:</strong> "ChartSourceRange ranges require all rows or all columns to have length of 1"
+<strong>Root cause:</strong> <code>charts.py</code> passes the full range as a single source range object. The Sheets <code>addChart</code> API requires separate source range objects for each column — one for the domain (X axis / categories, typically column A) and one per series (subsequent columns).
+<strong>Fix direction:</strong> Parse the A1 range into per-column ranges. Split into domain range (first column) and series ranges (remaining columns), pass as separate entries in <code>sources</code>.
+<strong>Confirmed workaround:</strong> Single-column ranges work (TC-C03 with B1:B5 passed).</p>
+<h3 id="bug-2-add_chart-histogram-type-uses-wrong-api-spec">BUG-2: <code>add_chart</code> HISTOGRAM type uses wrong API spec<a class="headerlink" href="#bug-2-add_chart-histogram-type-uses-wrong-api-spec" title="Permanent link">&para;</a></h3>
+<p><strong>Severity:</strong> Medium — HISTOGRAM specifically broken even after BUG-1 is fixed.
+<strong>Error:</strong> "Invalid value at <code>requests[0].add_chart.chart.spec.basic_chart.chart_type</code>, HISTOGRAM"
+<strong>Root cause:</strong> HISTOGRAM is not a valid <code>BasicChartType</code> enum value. The Sheets API uses <code>histogramChart</code> (a separate spec field) rather than <code>basicChart.chartType = HISTOGRAM</code>.
+<strong>Fix direction:</strong> In <code>charts.py</code>, detect <code>chart_type == "HISTOGRAM"</code> and build a <code>histogramChart</code> spec instead of a <code>basicChart</code> spec.</p>
+<hr />
+<h2 id="environment-findings">Environment findings<a class="headerlink" href="#environment-findings" title="Permanent link">&para;</a></h2>
+<h3 id="quota-blocker-service-account-drive-storage-quota-exhausted">Quota blocker: service account Drive storage quota exhausted<a class="headerlink" href="#quota-blocker-service-account-drive-storage-quota-exhausted" title="Permanent link">&para;</a></h3>
+<p>Affected TCs: TC-D01–D12 (create), TC-D43, TC-D67–D69 (copy_file), TC-D88–D92 (upload_file), all download/sync tests.
+Cause: The write test suite added 1000+ rows and 5+ columns to the fixture spreadsheet (TC-W16, W17–W20), consuming the service account's Drive storage quota. This is not a bug in the tools — all affected tools return clear <code>storageQuotaExceeded</code> errors. The service account documentation should note this limit.
+Recommendation: Add a note to <code>setup.md</code> that service accounts have limited Drive storage quota. Destructive write tests should reset fixtures promptly to avoid accumulating quota usage.</p>
+<hr />
+<h2 id="product-decisions-observed">Product decisions observed<a class="headerlink" href="#product-decisions-observed" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Observation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-R04</td>
+<td>Error for non-existent sheet surfaces as a tool exception, not a structured <code>error</code> field in the response body — inconsistent with tools that return <code>{"error": ...}</code></td>
+</tr>
+<tr>
+<td>TC-R19</td>
+<td><code>rows_to_fetch=0</code> clamped to 1 as documented</td>
+</tr>
+<tr>
+<td>TC-R22</td>
+<td><code>rows_to_fetch=3</code> with implicit full-width range returns all columns correctly</td>
+</tr>
+<tr>
+<td>TC-W03</td>
+<td>API rejects oversized 2D array with 400 error — does not silently truncate</td>
+</tr>
+<tr>
+<td>TC-W08</td>
+<td>Empty ranges dict to <code>batch_update_cells</code> is a no-op (success with no updates)</td>
+</tr>
+<tr>
+<td>TC-W16</td>
+<td>No cap on <code>add_rows</code> count — 1000 rows accepted</td>
+</tr>
+<tr>
+<td>TC-S12</td>
+<td>Same-name rename round-trips to the API (not a client-side no-op)</td>
+</tr>
+<tr>
+<td>TC-S16</td>
+<td>Duplicate tab title returns API error — no auto-suffix</td>
+</tr>
+<tr>
+<td>TC-S17</td>
+<td>100-character sheet title limit enforced by API</td>
+</tr>
+<tr>
+<td>TC-D15</td>
+<td><code>list_spreadsheets</code> with no folder returns all accessible spreadsheets, not Drive root</td>
+</tr>
+<tr>
+<td>TC-D18</td>
+<td><code>share_spreadsheet</code> with <code>send_notification=False</code> fails for non-Google-account emails — Google API constraint</td>
+</tr>
+<tr>
+<td>TC-D25</td>
+<td>No ownership validation before sharing — any accessible spreadsheet ID can be shared</td>
+</tr>
+<tr>
+<td>TC-D34</td>
+<td>Empty/whitespace <code>search_spreadsheets</code> query returns all accessible spreadsheets</td>
+</tr>
+<tr>
+<td>TC-D79</td>
+<td>Spreadsheet <code>get_file_metadata</code> returns <code>size: "1024"</code> — expected <code>null</code> for Workspace files</td>
+</tr>
+<tr>
+<td>TC-D84</td>
+<td>H2 input in <code>write_doc_content</code> renders as H3 in Google Docs — minor heading level shift</td>
+</tr>
+<tr>
+<td>TC-D86</td>
+<td>CSV export includes extra empty columns from prior write test insertions</td>
+</tr>
+<tr>
+<td>TC-D120</td>
+<td>No shared drives → returns <code>[]</code> cleanly</td>
+</tr>
+<tr>
+<td>TC-D127</td>
+<td>Cannot downgrade service account permission below inherited parent folder access</td>
+</tr>
+<tr>
+<td>TC-C08</td>
+<td>HISTOGRAM needs separate API spec (<code>histogramChart</code>), not <code>basicChart.chartType</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="infra-tests-requiring-manual-re-run">Infra tests requiring manual re-run<a class="headerlink" href="#infra-tests-requiring-manual-re-run" title="Permanent link">&para;</a></h2>
+<p>The following infrastructure tests were skipped because they require server restarts or alternative auth configurations. They should be run in a dedicated session with server control:</p>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Requirement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-I01</td>
+<td>CACHE_TTL=10 restart</td>
+</tr>
+<tr>
+<td>TC-I02</td>
+<td>Concurrent sessions</td>
+</tr>
+<tr>
+<td>TC-I03</td>
+<td>CACHE_DB_PATH restart</td>
+</tr>
+<tr>
+<td>TC-I04</td>
+<td>Server restart mid-test</td>
+</tr>
+<tr>
+<td>TC-I05–I07</td>
+<td>ENABLED_TOOLS / --include-tools restart</td>
+</tr>
+<tr>
+<td>TC-I08</td>
+<td>CREDENTIALS_CONFIG auth</td>
+</tr>
+<tr>
+<td>TC-I10</td>
+<td>OAuth credentials</td>
+</tr>
+<tr>
+<td>TC-I11</td>
+<td>ADC / gcloud login</td>
+</tr>
+<tr>
+<td>TC-I12</td>
+<td>No credentials (stop server)</td>
+</tr>
+<tr>
+<td>TC-I13</td>
+<td>stdio transport</td>
+</tr>
+<tr>
+<td>TC-I15</td>
+<td>Hot reload with source edit</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="full-results">Full results<a class="headerlink" href="#full-results" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Title</th>
+<th>Outcome</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-I01</td>
+<td>Cache TTL</td>
+<td>SKIP</td>
+<td>Requires CACHE_TTL=10 restart</td>
+</tr>
+<tr>
+<td>TC-I02</td>
+<td>SQLite WAL concurrent</td>
+<td>SKIP</td>
+<td>Requires concurrent sessions</td>
+</tr>
+<tr>
+<td>TC-I03</td>
+<td>CACHE_DB_PATH</td>
+<td>SKIP</td>
+<td>Requires server restart</td>
+</tr>
+<tr>
+<td>TC-I04</td>
+<td>Cache across restart</td>
+<td>SKIP</td>
+<td>Requires server restart mid-test</td>
+</tr>
+<tr>
+<td>TC-I05</td>
+<td>--include-tools flag</td>
+<td>SKIP</td>
+<td>Requires server restart</td>
+</tr>
+<tr>
+<td>TC-I06</td>
+<td>ENABLED_TOOLS env var</td>
+<td>SKIP</td>
+<td>Requires server restart</td>
+</tr>
+<tr>
+<td>TC-I07</td>
+<td>Unlisted tool by name</td>
+<td>SKIP</td>
+<td>Requires server restart</td>
+</tr>
+<tr>
+<td>TC-I08</td>
+<td>CREDENTIALS_CONFIG auth</td>
+<td>SKIP</td>
+<td>Requires auth swap</td>
+</tr>
+<tr>
+<td>TC-I09</td>
+<td>SERVICE_ACCOUNT_PATH auth</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-I10</td>
+<td>OAuth flow</td>
+<td>SKIP</td>
+<td>No OAuth credentials</td>
+</tr>
+<tr>
+<td>TC-I11</td>
+<td>ADC</td>
+<td>SKIP</td>
+<td>Not configured</td>
+</tr>
+<tr>
+<td>TC-I12</td>
+<td>No credentials</td>
+<td>SKIP</td>
+<td>Would break session</td>
+</tr>
+<tr>
+<td>TC-I13</td>
+<td>stdio transport</td>
+<td>SKIP</td>
+<td>Currently on SSE</td>
+</tr>
+<tr>
+<td>TC-I14</td>
+<td>SSE transport</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-I15</td>
+<td>Hot reload</td>
+<td>SKIP</td>
+<td>Requires source edit during live reload</td>
+</tr>
+<tr>
+<td>TC-R01</td>
+<td>Happy path — fetch all data</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R02</td>
+<td>Explicit range</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R03</td>
+<td>Grid data with formatting</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R04</td>
+<td>Non-existent sheet name</td>
+<td>PASS</td>
+<td>Error surfaces as exception not structured error field</td>
+</tr>
+<tr>
+<td>TC-R05</td>
+<td>Non-existent spreadsheet ID</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R06</td>
+<td>Range beyond data bounds</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R07</td>
+<td>Sheet name with spaces</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R08</td>
+<td>Formulas returned as strings</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R09</td>
+<td>Sheet with no formulas</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R10</td>
+<td>Mixed cells</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R11</td>
+<td>No range — fetches entire sheet</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R12</td>
+<td>Multiple valid queries</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R13</td>
+<td>One query missing required keys</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R14</td>
+<td>All queries fail</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R15</td>
+<td>Empty queries list</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R16</td>
+<td>Multiple spreadsheet summary</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R17</td>
+<td>Cache hit — second call</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R18</td>
+<td>rows_to_fetch=1</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R19</td>
+<td>rows_to_fetch=0</td>
+<td>PASS</td>
+<td>🔍 Clamped to 1</td>
+</tr>
+<tr>
+<td>TC-R20</td>
+<td>Empty sheet in summary</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R21</td>
+<td>Invalid spreadsheet ID in list</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R22</td>
+<td>Range format verification</td>
+<td>PASS</td>
+<td>🔍 All columns returned</td>
+</tr>
+<tr>
+<td>TC-R23</td>
+<td>Match in specific sheet</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R24</td>
+<td>Match across all sheets</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R25</td>
+<td>Case-insensitive match</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R26</td>
+<td>Case-sensitive match</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R27</td>
+<td>max_results respected</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R28</td>
+<td>No matches</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R29</td>
+<td>Sheet name not found</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-R30</td>
+<td>Multiple column matches</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W01</td>
+<td>Write simple values</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W02</td>
+<td>Write formula (USER_ENTERED)</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W03</td>
+<td>Range smaller than data</td>
+<td>FAIL</td>
+<td>API rejects oversized array — no silent truncation</td>
+</tr>
+<tr>
+<td>TC-W04</td>
+<td>Cache invalidated after write</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W05</td>
+<td>Non-existent sheet</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W06</td>
+<td>Multiple ranges batch</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W07</td>
+<td>Ranges on same sheet</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W08</td>
+<td>Empty ranges dict</td>
+<td>PASS</td>
+<td>🔍 No-op</td>
+</tr>
+<tr>
+<td>TC-W09</td>
+<td>Cache invalidated after batch write</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W10</td>
+<td>Add row at beginning</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W11</td>
+<td>Add row at explicit position</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W12</td>
+<td>start_row=0</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W13</td>
+<td>start_row=1</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W14</td>
+<td>Add 5 rows</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W15</td>
+<td>Invalid sheet name</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W16</td>
+<td>1000 rows</td>
+<td>PASS</td>
+<td>🔍 No cap enforced</td>
+</tr>
+<tr>
+<td>TC-W17</td>
+<td>Add column at beginning</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W18</td>
+<td>start_column=0</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W19</td>
+<td>start_column=1</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W20</td>
+<td>Add 3 columns</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W21</td>
+<td>Add sheet via raw request</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W22</td>
+<td>Rename sheet via raw request</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W23</td>
+<td>Insert dimension via raw</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W24</td>
+<td>Delete dimension — cache invalidated</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W25</td>
+<td>Empty requests list</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W26</td>
+<td>Non-dict in requests</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W27</td>
+<td>Invalid request structure</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-W28</td>
+<td>Both caches marked dirty</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S01</td>
+<td>List sheets happy path</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S02</td>
+<td>Cache hit on second call</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S03</td>
+<td>Cache invalidated after rename</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S04</td>
+<td>Copy within same spreadsheet</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S05</td>
+<td>Copy to different spreadsheet</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S06</td>
+<td>Copy — rename triggered</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S07</td>
+<td>Copy — rename skipped</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S08</td>
+<td>Source sheet not found</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S09</td>
+<td>Destination not writable</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S10</td>
+<td>Cache invalidated after copy</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S11</td>
+<td>Rename to new name</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S12</td>
+<td>Rename to same name</td>
+<td>PASS</td>
+<td>🔍 Round-trips to API</td>
+</tr>
+<tr>
+<td>TC-S13</td>
+<td>Sheet not found</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S14</td>
+<td>Cache invalidated after rename</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S15</td>
+<td>Create new tab</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S16</td>
+<td>Duplicate tab title</td>
+<td>PASS</td>
+<td>🔍 API error, no auto-suffix</td>
+</tr>
+<tr>
+<td>TC-S17</td>
+<td>Long title</td>
+<td>PASS</td>
+<td>🔍 100-char limit</td>
+</tr>
+<tr>
+<td>TC-S18</td>
+<td>Response shape</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S19</td>
+<td>Cache updated after create</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S20</td>
+<td>Refresh by spreadsheet ID</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S21</td>
+<td>Refresh by doc ID</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S22</td>
+<td>Refresh both</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S23</td>
+<td>Refresh all caches</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-S24</td>
+<td>Cache re-populated after refresh</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D01</td>
+<td>Create in default folder</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D02</td>
+<td>Create with explicit folder</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D03</td>
+<td>Create without folder</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D04</td>
+<td>Service account Drive limitation</td>
+<td>PASS</td>
+<td>Limitation confirmed and documented</td>
+</tr>
+<tr>
+<td>TC-D05</td>
+<td>Drive folder cache invalidated</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D06</td>
+<td>Exact title test</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D07</td>
+<td>Create doc — no content</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D08</td>
+<td>Create doc — HTML content</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D09</td>
+<td>Create doc — link</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D10</td>
+<td>Create doc — inline HTML</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D11</td>
+<td>Create doc — cache invalidated</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D12</td>
+<td>Create doc — long content</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D13</td>
+<td>List from configured folder</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D14</td>
+<td>List from explicit folder</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D15</td>
+<td>List from root</td>
+<td>PASS</td>
+<td>🔍 Returns all accessible, not root-only</td>
+</tr>
+<tr>
+<td>TC-D16</td>
+<td>Empty folder</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D17</td>
+<td>Pagination not implemented</td>
+<td>PASS</td>
+<td>🔍 Known limitation confirmed</td>
+</tr>
+<tr>
+<td>TC-D18</td>
+<td>Share as writer</td>
+<td>PASS</td>
+<td>🔍 example.com blocked without notify</td>
+</tr>
+<tr>
+<td>TC-D19</td>
+<td>Share as reader</td>
+<td>SKIP</td>
+<td>Same Google constraint</td>
+</tr>
+<tr>
+<td>TC-D20</td>
+<td>Share as commenter</td>
+<td>SKIP</td>
+<td>Same Google constraint</td>
+</tr>
+<tr>
+<td>TC-D21</td>
+<td>Invalid role</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D22</td>
+<td>Missing email</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D23</td>
+<td>Mixed success/failure</td>
+<td>SKIP</td>
+<td>Same Google constraint</td>
+</tr>
+<tr>
+<td>TC-D24</td>
+<td>send_notification=False</td>
+<td>SKIP</td>
+<td>Same Google constraint</td>
+</tr>
+<tr>
+<td>TC-D25</td>
+<td>Non-existent spreadsheet</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D26</td>
+<td>List folders in parent</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D27</td>
+<td>List from root</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D28</td>
+<td>Empty folder</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D29</td>
+<td>Basic name search</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D30</td>
+<td>Content search</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D31</td>
+<td>max_results respected</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D32</td>
+<td>Single quote injection fix</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D33</td>
+<td>No results</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D34</td>
+<td>Empty query</td>
+<td>PASS</td>
+<td>🔍 Returns all accessible</td>
+</tr>
+<tr>
+<td>TC-D35</td>
+<td>API error</td>
+<td>SKIP</td>
+<td>Cannot force auth error in current session</td>
+</tr>
+<tr>
+<td>TC-D36</td>
+<td>List all files</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D37</td>
+<td>Filter by MIME type</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D38</td>
+<td>Cache hit on second call</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D39</td>
+<td>mime_type=None cache key</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D40</td>
+<td>max_results clamped</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D41</td>
+<td>Pagination limit</td>
+<td>PASS</td>
+<td>🔍 Known limitation confirmed</td>
+</tr>
+<tr>
+<td>TC-D42</td>
+<td>Trashed files excluded</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D43</td>
+<td>Cache invalidated after create</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D44</td>
+<td>get_doc_content happy path</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D45</td>
+<td>Cache hit</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D46</td>
+<td>Non-doc file ID</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D47</td>
+<td>Non-existent file ID</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D48</td>
+<td>Large document</td>
+<td>SKIP</td>
+<td>No large doc available</td>
+</tr>
+<tr>
+<td>TC-D49</td>
+<td>Content decode branch</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D50</td>
+<td>Write to empty doc</td>
+<td>SKIP</td>
+<td>No empty doc (quota blocked creation)</td>
+</tr>
+<tr>
+<td>TC-D51</td>
+<td>Write to doc with existing content</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D52</td>
+<td>HTML headings and bullets</td>
+<td>PASS</td>
+<td>Browser verification deferred</td>
+</tr>
+<tr>
+<td>TC-D53</td>
+<td>HTML with link</td>
+<td>SKIP</td>
+<td>Parallel execution order uncertainty</td>
+</tr>
+<tr>
+<td>TC-D54</td>
+<td>Inline-only HTML</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D55</td>
+<td>Empty string content</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D56</td>
+<td>Very long content</td>
+<td>SKIP</td>
+<td>Not attempted</td>
+</tr>
+<tr>
+<td>TC-D57</td>
+<td>Cache invalidated after write</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D58</td>
+<td>Create folder in default</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D59</td>
+<td>Create folder at root</td>
+<td>SKIP</td>
+<td>Service account root access not available</td>
+</tr>
+<tr>
+<td>TC-D60</td>
+<td>Cache invalidated after create</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D61</td>
+<td>Move file</td>
+<td>SKIP</td>
+<td>Would remove fixture from folder</td>
+</tr>
+<tr>
+<td>TC-D62</td>
+<td>Move folder</td>
+<td>SKIP</td>
+<td>No second folder available</td>
+</tr>
+<tr>
+<td>TC-D63</td>
+<td>Non-existent file ID</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D64</td>
+<td>Rename a file</td>
+<td>SKIP</td>
+<td>No QA-Create-Test file (quota blocked)</td>
+</tr>
+<tr>
+<td>TC-D65</td>
+<td>Rename a folder</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D66</td>
+<td>Non-existent file ID</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D67</td>
+<td>Copy with auto-assigned name</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D68</td>
+<td>Copy with explicit name</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D69</td>
+<td>Copy a Google Doc</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D70</td>
+<td>Copy a folder</td>
+<td>PASS</td>
+<td>API error propagates cleanly</td>
+</tr>
+<tr>
+<td>TC-D71</td>
+<td>Trash a file</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D72</td>
+<td>Permanently delete</td>
+<td>SKIP</td>
+<td>No QA-Copy-Explicit file</td>
+</tr>
+<tr>
+<td>TC-D73</td>
+<td>Trash a folder</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D74</td>
+<td>Non-existent file ID</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D75</td>
+<td>Search by name</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D76</td>
+<td>Search with MIME filter</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D77</td>
+<td>Search with folder filter</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D78</td>
+<td>Query with single quote</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D79</td>
+<td>Metadata — spreadsheet</td>
+<td>PASS</td>
+<td>🔍 size="1024" not null</td>
+</tr>
+<tr>
+<td>TC-D80</td>
+<td>Metadata — doc</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D81</td>
+<td>Metadata — folder</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D82</td>
+<td>Non-existent file ID</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D83</td>
+<td>Export as txt</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D84</td>
+<td>Export as HTML</td>
+<td>PASS</td>
+<td>🔍 H2 → H3 heading shift</td>
+</tr>
+<tr>
+<td>TC-D85</td>
+<td>Export as PDF</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D86</td>
+<td>Export sheet as CSV</td>
+<td>PASS</td>
+<td>🔍 Extra columns from write tests</td>
+</tr>
+<tr>
+<td>TC-D87</td>
+<td>Unknown export format</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D88</td>
+<td>Upload plain text</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D89</td>
+<td>Upload markdown</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D90</td>
+<td>Upload markdown → doc</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D91</td>
+<td>Upload HTML → doc</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D92</td>
+<td>Upload markdown with table</td>
+<td>SKIP</td>
+<td>storageQuotaExceeded</td>
+</tr>
+<tr>
+<td>TC-D93–D100</td>
+<td>upload_local_file / folder</td>
+<td>SKIP</td>
+<td>Requires local filesystem</td>
+</tr>
+<tr>
+<td>TC-D101–D110</td>
+<td>download_file / folder</td>
+<td>SKIP</td>
+<td>Requires local filesystem</td>
+</tr>
+<tr>
+<td>TC-D111–D119</td>
+<td>sync_folder</td>
+<td>SKIP</td>
+<td>Requires local filesystem</td>
+</tr>
+<tr>
+<td>TC-D120</td>
+<td>List all shared drives</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D121</td>
+<td>Filter by name</td>
+<td>SKIP</td>
+<td>No shared drives</td>
+</tr>
+<tr>
+<td>TC-D122</td>
+<td>max_results clamping</td>
+<td>SKIP</td>
+<td>No shared drives</td>
+</tr>
+<tr>
+<td>TC-D123</td>
+<td>Pagination</td>
+<td>SKIP</td>
+<td>Requires 100+ shared drives</td>
+</tr>
+<tr>
+<td>TC-D124</td>
+<td>List permissions — owner present</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D125</td>
+<td>Permissions after sharing</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D126</td>
+<td>Non-existent file ID</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D127</td>
+<td>Downgrade writer → reader</td>
+<td>PASS</td>
+<td>🔍 Blocked by inherited parent permission</td>
+</tr>
+<tr>
+<td>TC-D128</td>
+<td>Invalid role</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D129</td>
+<td>Non-existent permission ID</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D130</td>
+<td>Remove a permission</td>
+<td>SKIP</td>
+<td>No test user permission to remove</td>
+</tr>
+<tr>
+<td>TC-D131</td>
+<td>Non-existent permission ID</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D132</td>
+<td>share_file type=user</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D133</td>
+<td>Missing email_address</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D134</td>
+<td>Invalid role</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-D135</td>
+<td>Share with type=domain</td>
+<td>SKIP</td>
+<td>example.com blocked</td>
+</tr>
+<tr>
+<td>TC-D136</td>
+<td>Share type=anyone</td>
+<td>SKIP</td>
+<td>Not attempted (public access risk)</td>
+</tr>
+<tr>
+<td>TC-D137</td>
+<td>Share a folder</td>
+<td>SKIP</td>
+<td>example.com blocked</td>
+</tr>
+<tr>
+<td>TC-D138</td>
+<td>Mixed success and failure</td>
+<td>SKIP</td>
+<td>example.com blocked</td>
+</tr>
+<tr>
+<td>TC-D139</td>
+<td>send_notification=False</td>
+<td>SKIP</td>
+<td>example.com blocked</td>
+</tr>
+<tr>
+<td>TC-C01</td>
+<td>COLUMN chart</td>
+<td>FAIL</td>
+<td>Multi-column range bug (BUG-1)</td>
+</tr>
+<tr>
+<td>TC-C02</td>
+<td>BAR chart</td>
+<td>FAIL</td>
+<td>Multi-column range bug (BUG-1)</td>
+</tr>
+<tr>
+<td>TC-C03</td>
+<td>LINE chart</td>
+<td>FAIL</td>
+<td>Multi-column range bug (BUG-1)</td>
+</tr>
+<tr>
+<td>TC-C04</td>
+<td>AREA chart</td>
+<td>FAIL</td>
+<td>Multi-column range bug (BUG-1)</td>
+</tr>
+<tr>
+<td>TC-C05</td>
+<td>PIE chart</td>
+<td>FAIL</td>
+<td>Multi-column range bug (BUG-1)</td>
+</tr>
+<tr>
+<td>TC-C06</td>
+<td>SCATTER chart</td>
+<td>FAIL</td>
+<td>Multi-column range bug (BUG-1)</td>
+</tr>
+<tr>
+<td>TC-C07</td>
+<td>COMBO chart</td>
+<td>FAIL</td>
+<td>Multi-column range bug (BUG-1)</td>
+</tr>
+<tr>
+<td>TC-C08</td>
+<td>HISTOGRAM chart</td>
+<td>FAIL</td>
+<td>BUG-1 + BUG-2 (wrong API spec)</td>
+</tr>
+<tr>
+<td>TC-C09</td>
+<td>Invalid chart type</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-C10</td>
+<td>Lowercase chart type</td>
+<td>FAIL</td>
+<td>BUG-1 (normalisation works, range fails)</td>
+</tr>
+<tr>
+<td>TC-C11</td>
+<td>Sheet not found</td>
+<td>PASS</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-C12</td>
+<td>Custom position and size</td>
+<td>FAIL</td>
+<td>BUG-1</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
