@@ -131,6 +131,22 @@ Pre-commit hooks run `ruff` on staged files. If a commit is blocked, fix the lin
 
 ---
 
+## Tracking work
+
+Active tasks, bugs, product decisions, and QA gaps are tracked in [GitHub Issues](https://github.com/khuisman/mcp-gee-sweet/issues). Labels:
+
+| Label | Used for |
+|---|---|
+| `bug` | Confirmed defects |
+| `decision-needed` | Observed behaviours that need a deliberate product or design decision |
+| `qa` | Missing fixtures, test infrastructure plans, QA gaps |
+| `infrastructure` | Build, CI, publishing, dev tooling |
+| `enhancement` | New features from the roadmap tiers |
+
+`docs/roadmap.md` is an orientation doc — feature ideas and historical context. Open an issue when a feature is scheduled to be built.
+
+---
+
 ## Pull requests
 
 - Open a feature branch before pushing (`feat/`, `fix/`, `docs/` prefixes).

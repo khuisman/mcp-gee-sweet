@@ -1,5 +1,7 @@
 # Feature Roadmap
 
+This doc is a high-level orientation — feature ideas, architectural direction, and historical context. **Active work is tracked in [GitHub Issues](https://github.com/khuisman/mcp-gee-sweet/issues).** When a feature tier item is scheduled, an issue is opened; the checkbox here stays as a reference.
+
 Features are grouped by category and ordered by practical priority within each tier. Items marked with a source were identified by auditing competing projects — see [decision-fork.md](decisions/decision-fork.md) for full credits.
 
 ## Tier 1 — High value, frequently needed
@@ -77,27 +79,6 @@ The Sheets API requires each series in a COMBO chart to declare its own `type`. 
 ### TC-W03 — test case assumption wrong
 The test expected the API to silently truncate a 2D array that's wider than the target range. The API actually rejects it with a 400 error. The test case needs to be updated to reflect correct API behaviour. ✅ Fixed.
 
----
-
-## Product decisions needed (from Phase 1 QA run)
-
-These observations were noted during the QA run. Each needs a deliberate decision — see `docs/decisions/` for the ADR process.
-
-- **TC-R04**: `get_sheet_data` with a non-existent sheet surfaces as a tool exception, not a structured `{"error": ...}` field. Inconsistent with other tools that return error objects. Decide: standardise all errors as structured returns, or document the exception pattern?
-- **TC-W08**: `batch_update_cells` with an empty ranges dict succeeds silently (no-op). Decide: should empty input be a validation error or an accepted no-op?
-- **TC-W16**: `add_rows` with `count=1000` succeeds with no cap. Decide: should the tool cap large counts to prevent accidental bloat, and if so, what limit?
-- **TC-S12**: Same-name `rename_sheet` round-trips to the API rather than short-circuiting. Decide: add a client-side guard to skip the API call if names are identical?
-- **TC-S16**: `create_sheet` with a duplicate tab title returns an API error — no auto-suffix. Decide: is that the right UX, or should we auto-suffix (e.g. "Sales 2")?
-- **TC-D04**: Confirmed: service accounts cannot create files in personal Drive. Decide: should the tool return a clear structured error (already done) or also be omitted from the registered toolset when service account auth is detected?
-- **TC-D15**: `list_spreadsheets` with no folder returns all accessible spreadsheets, not Drive root. Decide: is this the right behaviour or should it be scoped to root?
-- **TC-D25 / TC-D132**: No ownership validation before sharing — any accessible file ID can be shared. Decide: add a check that the caller owns or has share permission before attempting, or document as-is?
-- **TC-D34**: Empty/whitespace `search_spreadsheets` query returns all accessible spreadsheets. Decide: validate non-empty input or keep the wildcard behaviour?
-- **TC-D79**: `get_file_metadata` returns `size: "1024"` for Workspace files (Docs, Sheets), not `null`. Decide: normalise to `null` for Workspace files to match Drive API docs, or document the quirk?
-- **TC-D84**: `write_doc_content` with `<h2>` input produces `<h3>` in the rendered doc (heading level shift). Decide: fix the heading mapping in `_html_to_doc_requests`, or document as a known limitation?
-- **TC-C05/TC-C08**: PIE and HISTOGRAM charts need separate code paths. Decide scope of BUG-1/BUG-2 fix: fix all types together or incrementally?
-
----
-
 ## Testing
 
 - [x] Add `pytest` and `pytest-cov` as dev dependencies
@@ -107,60 +88,16 @@ These observations were noted during the QA run. Each needs a deliberate decisio
 - [x] Unit tests for tool filtering — tools excluded when not in `ENABLED_TOOLS`
 - [x] Unit tests for service account quota error handling — `create_spreadsheet`, `create_doc`, `copy_file`, `upload_file` return structured error on 403 quota exceeded; non-quota 403s still raise
 - [x] Unit tests for `server://auth-status` resource — correct capabilities returned for service_account, oauth, and adc
-- [x] Fix BUG-1: `add_chart` multi-column range — split into per-column source ranges for domain and series
-- [x] Fix BUG-2: `add_chart` HISTOGRAM — implement `histogramChart` spec path
+- [x] Fix BUG-1–4: `add_chart` multi-column ranges, HISTOGRAM spec, BAR axis, COMBO per-series types
 - [x] Update TC-W03 test case — API rejects oversized 2D arrays, does not silently truncate
-- [ ] Formatting integration spike — explore `effectiveFormat` API response shape; determine fixture strategy; assess whether API-level assertions cover formatting without a browser
-
-### Missing QA fixtures (from Phase 1 run)
-
-Tests skipped because a required fixture file, folder, or state didn't exist — not an auth or quota issue.
-
-| TC | What's needed |
-|---|---|
-| TC-D48 | A second, large-content doc fixture |
-| TC-D61 | A disposable file to move (moving the main fixture would break subsequent tests) |
-| TC-D62 | A second QA Drive folder |
-| TC-D64 | A disposable file to rename |
-| TC-D72 | A disposable file to permanently delete |
-| TC-D130 | A pre-shared permission on the fixture spreadsheet to remove |
-| Calendar (all) | TEST_CALENDAR_ID and TEST_EVENT_ID not configured — a shared calendar and a seed event |
-
-#### Under consideration — may not be worth creating fixtures
-
-| TC | Why it was skipped | Question |
-|---|---|---|
-| TC-D50 | No empty doc (quota blocked creation at the time) | Should reset_fixtures maintain a second empty doc, or write then clear the existing one? |
-| TC-D53 | Parallel execution order uncertainty | Test design issue — no fixture would fix it; needs explicit ordering or isolation |
-| TC-D56 | Not attempted | Is very long content worth a dedicated fixture, or generate inline? |
-| TC-D121 | No shared drives available | Worth setting up a shared drive for QA, or accept as environment-constrained? |
-| TC-D122 | No shared drives available | Same as above |
-| TC-D123 | Requires 100+ shared drives | Probably not feasible; mark as permanently skipped? |
-| TC-D135/137/138/139 | example.com blocked by Google for sharing without notify | Needs a real test Google account email; assess if worth the setup cost |
-| TC-D136 | Not attempted — public access risk | Decide whether to gate behind an explicit flag or skip permanently |
-
-### 91 skipped tests from Phase 1 run
-
-Of the 91 tests skipped in the 2026-06-02 run, the breakdown by root cause is:
-
-| Bucket | Count | Root cause | Path to coverage |
-|---|---|---|---|
-| OAuth/ADC required | ~22 | Service account quota blocks `create_spreadsheet`, `create_doc`, `copy_file`, `upload_file`, and cascade failures | Re-run with `QA_AUTH_METHOD=oauth` set in `.env` and server started with OAuth credentials |
-| Local filesystem | ~27 | `upload_local_file/folder`, `download_file/folder`, `sync_folder` — require file paths accessible to the MCP server process | Needs a non-AI test runner with filesystem access; could use a headless Python script or a dedicated CI job with a temp directory |
-| Server restart / reconfig | ~13 | All infra tests (cache TTL, tool filtering, auth variants, transport) — each needs a server restart with different config | Needs a test harness that can start/stop the server between cases; could be a pytest fixture with subprocess control |
-| Environment constraints | ~29 | No shared drives, Google blocks example.com addresses without notify, no second test Google account, no concurrent session support in AI runs | Needs a dedicated test Google account, shared Drive setup, or mocked transport layer for the email/sharing tests |
-
-- [ ] **Plan how to cover local-filesystem tests** — investigate whether a pytest-subprocess harness (start `uv run mcp-gee-sweet`, issue HTTP calls, check results) can cover upload/download/sync without manual intervention
-- [ ] **Plan how to cover infra restart tests** — same subprocess harness could start the server with different env vars per test; assess whether this is worth the setup cost at current scale
-- [ ] **Plan how to cover OAuth-gated tests** — decide whether to maintain a second set of `.env` credentials for OAuth QA, or gate these behind a CI environment variable
-- [ ] **Plan how to cover environment-constraint tests** — some (example.com sharing) need a real test Google account with known email; others (shared drives, concurrent sessions) may not be worth the setup cost; document which to invest in vs accept as permanently skipped
+- See [GitHub Issues (label: qa)](https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Aqa) for open QA gaps, missing fixtures, and testing infrastructure plans
 
 ## Infrastructure / internal
 
 - [x] Migrate cache persistence — replaced four `/tmp/*.json` files with a single SQLite DB (`/tmp/mcp_gee_sweet.db`, configurable via `CACHE_DB_PATH`); one table, four namespaces; WAL mode
-- [ ] PyPI publish — set up trusted publishing (OIDC), create package on PyPI, do a test release; CI workflow already written
 - [x] Open PR to xing5 from `upstream-observability` branch (structured logging, per-tool timing, `cache_discovery=False`) — [PR #79](https://github.com/xing5/mcp-google-sheets/pull/79)
 - [x] Fork repo and rename to `mcp-gee-sweet`; README credits xing5, freema, and piotr-agier
+- See [GitHub Issues (label: infrastructure)](https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Ainfrastructure) for open infrastructure work (PyPI publish, etc.)
 
 ## Tasks
 
