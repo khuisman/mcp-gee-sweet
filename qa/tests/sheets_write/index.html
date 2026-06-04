@@ -1062,9 +1062,9 @@
 <p>"Write these four values — Alpha, Beta, Gamma, Delta — into just cells A8:A9 of the Sales sheet in {SPREADSHEET_ID}"</p>
 </blockquote>
 <p><strong>Checks</strong>
-- Only A8 and A9 are written (Alpha, Beta)
-- Gamma and Delta are silently truncated to fit the range
-- 🔍 <strong>Product decision:</strong> should truncation be silent or should the tool warn?</p>
+- Returns an error — the API rejects an oversized array with a 400 "tried writing to row [N]" error
+- No values are written
+- 🔍 <strong>Product decision:</strong> should the tool pre-truncate the data to fit the range instead of letting the API error?</p>
 <hr />
 <h3 id="tc-w04-cache-invalidated-after-write">TC-W04: Cache invalidated after write<a class="headerlink" href="#tc-w04-cache-invalidated-after-write" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong> (run TC-R16 or TC-R17 first to warm the cache, then run this)</p>

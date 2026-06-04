@@ -770,6 +770,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#add_chart-bar-wrong-series-target-axis-bug-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_chart BAR — wrong series target axis (BUG-3)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add_chart-combo-no-per-series-type-specified-bug-4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_chart COMBO — no per-series type specified (BUG-4)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tc-w03-test-case-assumption-wrong" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1551,8 +1573,14 @@ The tool passes the full data range (e.g. <code>A1:D5</code>) as a single <code>
 <h3 id="add_chart-histogram-wrong-api-spec-bug-2"><code>add_chart</code> HISTOGRAM — wrong API spec (BUG-2)<a class="headerlink" href="#add_chart-histogram-wrong-api-spec-bug-2" title="Permanent link">&para;</a></h3>
 <p><strong>Severity:</strong> Medium — HISTOGRAM specifically broken even after BUG-1 fixed.
 <code>HISTOGRAM</code> is not a valid <code>BasicChartType</code> enum value. The Sheets API uses a <code>histogramChart</code> spec field rather than <code>basicChart.chartType</code>. Fix: detect <code>chart_type == "HISTOGRAM"</code> and build a <code>histogramChart</code> spec instead.</p>
+<h3 id="add_chart-bar-wrong-series-target-axis-bug-3"><code>add_chart</code> BAR — wrong series target axis (BUG-3)<a class="headerlink" href="#add_chart-bar-wrong-series-target-axis-bug-3" title="Permanent link">&para;</a></h3>
+<p><strong>Severity:</strong> Medium — BAR charts fail with "series may only target the BOTTOM_AXIS".
+BAR charts (horizontal) have a horizontal value axis. Series must target <code>BOTTOM_AXIS</code>, not <code>LEFT_AXIS</code>. Fix: detect <code>chart_type == "BAR"</code> and set <code>targetAxis</code> accordingly. ✅ Fixed.</p>
+<h3 id="add_chart-combo-no-per-series-type-specified-bug-4"><code>add_chart</code> COMBO — no per-series type specified (BUG-4)<a class="headerlink" href="#add_chart-combo-no-per-series-type-specified-bug-4" title="Permanent link">&para;</a></h3>
+<p><strong>Severity:</strong> Medium — COMBO charts fail with "No basic chart type specified".
+The Sheets API requires each series in a COMBO chart to declare its own <code>type</code>. Fix: when <code>chart_type == "COMBO"</code>, add <code>type: COLUMN</code> to all series except the last, which gets <code>type: LINE</code>. ✅ Fixed.</p>
 <h3 id="tc-w03-test-case-assumption-wrong">TC-W03 — test case assumption wrong<a class="headerlink" href="#tc-w03-test-case-assumption-wrong" title="Permanent link">&para;</a></h3>
-<p>The test expected the API to silently truncate a 2D array that's wider than the target range. The API actually rejects it with a 400 error. The test case needs to be updated to reflect correct API behaviour.</p>
+<p>The test expected the API to silently truncate a 2D array that's wider than the target range. The API actually rejects it with a 400 error. The test case needs to be updated to reflect correct API behaviour. ✅ Fixed.</p>
 <hr />
 <h2 id="product-decisions-needed-from-phase-1-qa-run">Product decisions needed (from Phase 1 QA run)<a class="headerlink" href="#product-decisions-needed-from-phase-1-qa-run" title="Permanent link">&para;</a></h2>
 <p>These observations were noted during the QA run. Each needs a deliberate decision — see <code>docs/decisions/</code> for the ADR process.</p>
@@ -1580,9 +1608,9 @@ The tool passes the full data range (e.g. <code>A1:D5</code>) as a single <code>
 <li>[x] Unit tests for tool filtering — tools excluded when not in <code>ENABLED_TOOLS</code></li>
 <li>[x] Unit tests for service account quota error handling — <code>create_spreadsheet</code>, <code>create_doc</code>, <code>copy_file</code>, <code>upload_file</code> return structured error on 403 quota exceeded; non-quota 403s still raise</li>
 <li>[x] Unit tests for <code>server://auth-status</code> resource — correct capabilities returned for service_account, oauth, and adc</li>
-<li>[ ] Fix BUG-1: <code>add_chart</code> multi-column range — split into per-column source ranges for domain and series</li>
-<li>[ ] Fix BUG-2: <code>add_chart</code> HISTOGRAM — implement <code>histogramChart</code> spec path</li>
-<li>[ ] Update TC-W03 test case — API rejects oversized 2D arrays, does not silently truncate</li>
+<li>[x] Fix BUG-1: <code>add_chart</code> multi-column range — split into per-column source ranges for domain and series</li>
+<li>[x] Fix BUG-2: <code>add_chart</code> HISTOGRAM — implement <code>histogramChart</code> spec path</li>
+<li>[x] Update TC-W03 test case — API rejects oversized 2D arrays, does not silently truncate</li>
 <li>[ ] Formatting integration spike — explore <code>effectiveFormat</code> API response shape; determine fixture strategy; assess whether API-level assertions cover formatting without a browser</li>
 </ul>
 <h3 id="missing-qa-fixtures-from-phase-1-run">Missing QA fixtures (from Phase 1 run)<a class="headerlink" href="#missing-qa-fixtures-from-phase-1-run" title="Permanent link">&para;</a></h3>
