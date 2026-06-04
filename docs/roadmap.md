@@ -62,11 +62,11 @@ Features are grouped by category and ordered by practical priority within each t
 
 ### `add_chart` — multi-column range fails (BUG-1)
 **Severity:** High — affects all practical chart use cases.
-The tool passes the full data range (e.g. `A1:D5`) as a single `ChartSourceRange`. The Sheets API requires separate source range objects per column — one for the domain (X axis / categories) and one per series. Fix: parse the A1 range, split into domain (first column) and series (remaining columns), pass as separate entries in `sources`.
+The tool passes the full data range (e.g. `A1:D5`) as a single `ChartSourceRange`. The Sheets API requires separate source range objects per column — one for the domain (X axis / categories) and one per series. Fix: parse the A1 range, split into domain (first column) and series (remaining columns), pass as separate entries in `sources`. ✅ Fixed.
 
 ### `add_chart` HISTOGRAM — wrong API spec (BUG-2)
 **Severity:** Medium — HISTOGRAM specifically broken even after BUG-1 fixed.
-`HISTOGRAM` is not a valid `BasicChartType` enum value. The Sheets API uses a `histogramChart` spec field rather than `basicChart.chartType`. Fix: detect `chart_type == "HISTOGRAM"` and build a `histogramChart` spec instead.
+`HISTOGRAM` is not a valid `BasicChartType` enum value. The Sheets API uses a `histogramChart` spec field rather than `basicChart.chartType`. Fix: detect `chart_type == "HISTOGRAM"` and build a `histogramChart` spec instead. ✅ Fixed.
 
 ### `add_chart` BAR — wrong series target axis (BUG-3)
 **Severity:** Medium — BAR charts fail with "series may only target the BOTTOM_AXIS".
