@@ -1309,6 +1309,10 @@ def register(tool):
         """
         Export or download a file from Google Drive.
 
+        **Prefer `download_file` when saving to disk** — this tool returns raw
+        base64-encoded bytes for binary formats (xlsx, pdf, docx, etc.) that require
+        manual decoding. Use `export_file` only when you need the file content in-memory.
+
         For Google Workspace files (Docs, Sheets, Slides) the file is converted to the
         requested format. For non-Google files the raw content is downloaded.
 
