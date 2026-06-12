@@ -1,9 +1,12 @@
+import logging
 from typing import Any
 
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
 from ..helpers import _get_sheet_id, _quote_sheet_name
+
+logger = logging.getLogger(__name__)
 
 
 def register(tool):
@@ -60,8 +63,16 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
+        # Normalize empty-array rows to rows of empty strings so the Sheets API
+        # counts them as written cells. [] rows are treated as no-ops by the API
+        # and are silently excluded from updatedRange, which causes callers to
+        # think the last data row was dropped and re-write it as a duplicate.
+        def _normalize(values: list[list]) -> list[list]:
+            width = max((len(r) for r in values if r), default=0)
+            return [r if r else [""] * width for r in values]
+
         data = [
-            {"range": f"{_quote_sheet_name(sheet)}!{range_str}", "values": values}
+            {"range": f"{_quote_sheet_name(sheet)}!{range_str}", "values": _normalize(values)}
             for range_str, values in ranges.items()
         ]
 
@@ -76,6 +87,14 @@ def register(tool):
         )
 
         lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+
+        logger.debug(
+            "batch_update_cells raw response: input_ranges=%s row_counts=%s response=%s",
+            list(ranges.keys()),
+            [len(v) for v in ranges.values()],
+            result,
+        )
+
         return result
 
     @tool(annotations=ToolAnnotations(title="Add Rows", destructiveHint=True))
