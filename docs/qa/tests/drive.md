@@ -1651,3 +1651,82 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Share succeeds; `successes` populated
 - No notification email sent (use an email address you control to verify)
 - `send_notification=False` confirmed — `sendNotificationEmail=False` passed to the API
+
+---
+
+## `write_doc_content` — table support (issue #62)
+
+### TC-D140: Simple 2×2 table created from HTML ⚠️ requires-oauth
+
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<table><tr><th>Name</th><th>Value</th></tr><tr><td>Alpha</td><td>1</td></tr></table>`"
+
+**Checks**
+- A real Google Docs table is visible in the doc — NOT flattened plain text
+- Table has 2 rows and 2 columns
+- Header row contains "Name" and "Value"; data row contains "Alpha" and "1"
+- Open in browser to verify
+
+---
+
+### TC-D141: Table after paragraph content ⚠️ requires-oauth
+
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<h1>Batch Comparison</h1><p>See the table below.</p><table><tr><th>Original</th><th>Double</th></tr><tr><td>2 cups flour</td><td>4 cups flour</td></tr><tr><td>1 egg</td><td>2 eggs</td></tr></table>`"
+
+**Checks**
+- Doc has "Batch Comparison" as a Heading 1
+- "See the table below." renders as a paragraph
+- A 3-row × 2-column table is present after the paragraph
+- Table cells contain correct text: "Original", "Double", "2 cups flour", "4 cups flour", etc.
+- 🔍 **Known limitation:** table appears after all paragraph content even if interleaved in HTML
+
+---
+
+### TC-D142: Table with empty cells ⚠️ requires-oauth
+
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<table><tr><td>A</td><td></td></tr><tr><td></td><td>D</td></tr></table>`"
+
+**Checks**
+- 2×2 table created
+- Cell (0,0) = "A", cell (0,1) = empty, cell (1,0) = empty, cell (1,1) = "D"
+- Empty cells don't cause an error — `insertText` is simply skipped for them
+
+---
+
+### TC-D143: Table-only HTML (no paragraphs) ⚠️ requires-oauth
+
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<table><tr><td>X</td><td>Y</td></tr></table>`"
+
+**Checks**
+- A 1-row × 2-column table is created
+- Cells contain "X" and "Y"
+- No paragraph text before the table
+- Confirms the early-return guard correctly handles tables-only input
+
+---
+
+### TC-D144: Multiple tables in one write ⚠️ requires-oauth
+
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<p>First table:</p><table><tr><td>A</td><td>B</td></tr></table><p>Second table:</p><table><tr><td>C</td><td>D</td></tr></table>`"
+
+**Checks**
+- Both tables are created in the document
+- First table has cells "A" and "B"; second has "C" and "D"
+- "First table:" and "Second table:" paragraphs appear before both tables
+- No index corruption or API error between the two table insertions
+
+---
+
+### TC-D145: HTML with `<th>` header cells treated as data ⚠️ requires-oauth
+
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<table><tr><th>Col1</th><th>Col2</th></tr><tr><td>Val1</td><td>Val2</td></tr></table>`"
+
+**Checks**
+- `<th>` cells are included in the table (not ignored)
+- First row contains "Col1" and "Col2", second row contains "Val1" and "Val2"
+- Google Docs doesn't distinguish th vs td styling — both rows are plain table cells
