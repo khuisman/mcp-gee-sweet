@@ -69,27 +69,79 @@ def _html_to_text(html_content: str) -> str:
     return "".join(extractor.parts).strip()
 
 
-def _html_to_doc_requests(html_content: str, start_index: int = 1) -> list[dict]:
+def _fill_table_cell_requests_from_doc(doc: dict, tables_data: list[list[list[str]]]) -> list[dict]:
+    """Return insertText requests for table cells using live cell indices from a fetched doc."""
+    doc_tables = [
+        element["table"] for element in doc.get("body", {}).get("content", []) if "table" in element
+    ]
+
+    fill_requests = []
+    for doc_table, table_data in zip(doc_tables, tables_data):
+        if not table_data:
+            continue
+        for r, table_row_entry in enumerate(doc_table.get("tableRows", [])):
+            if r >= len(table_data):
+                break
+            for c, doc_cell in enumerate(table_row_entry.get("tableCells", [])):
+                if c >= len(table_data[r]):
+                    break
+                cell_text = table_data[r][c]
+                if not cell_text:
+                    continue
+                cell_content = doc_cell.get("content", [])
+                if cell_content:
+                    fill_requests.append(
+                        {
+                            "insertText": {
+                                "location": {"index": cell_content[0]["startIndex"]},
+                                "text": cell_text,
+                            }
+                        }
+                    )
+
+    # Sort high → low so each insertion does not shift indices of unprocessed cells
+    fill_requests.sort(key=lambda r: r["insertText"]["location"]["index"], reverse=True)
+    return fill_requests
+
+
+def _fill_tables(docs_service, doc_id: str, tables: list[list[list[str]]]) -> None:
+    """Re-fetch doc and fill table cells in a second batchUpdate; no-op if tables is empty."""
+    if not tables:
+        return
+    live_doc = docs_service.documents().get(documentId=doc_id).execute()
+    fill_requests = _fill_table_cell_requests_from_doc(live_doc, tables)
+    if fill_requests:
+        docs_service.documents().batchUpdate(
+            documentId=doc_id, body={"requests": fill_requests}
+        ).execute()
+
+
+def _html_to_doc_requests(
+    html_content: str, start_index: int = 1
+) -> tuple[list[dict], list[list[list[str]]]]:
     """Convert HTML to Docs API batchUpdate requests with heading, bullet, link, and table formatting.
 
     Mapping: h1 → HEADING_1, h2-h6 → HEADING_3, li → bullet, <a href> → link,
-    <table> → Docs table. Tables are appended after all paragraph content.
-    Indices are UTF-16 code units; for BMP-only content Python len() is correct.
+    <table> → Docs table (empty structure, interleaved in document order). Indices are
+    UTF-16 code units; for BMP-only content Python len() is correct.
+
+    Returns (requests, tables_data). Table cells are NOT filled here — the caller must
+    execute a second batchUpdate using _fill_table_cell_requests_from_doc after fetching
+    the updated document to obtain actual cell indices.
     """
 
     class _DocParser(HTMLParser):
         def __init__(self):
             super().__init__()
-            self.segments: list[tuple[str, str, list]] = []  # (tag, text, links)
-            self.tables: list[list[list[str]]] = []  # tables[table][row][col]
+            # Ordered list of items as they appear in the HTML source.
+            # Each item is ("segment", tag, text, links) or ("table", rows).
+            self.items: list[tuple] = []
             self._tag: str | None = None
             self._buf: list[str] = []
-            self._pending_links: list[tuple[int, int, str]] = []  # (char_start, char_end, url)
+            self._pending_links: list[tuple[int, int, str]] = []
             self._in_anchor = False
             self._anchor_url: str | None = None
             self._anchor_char_start = 0
-            # Table state: _table_depth > 0 means we are inside a table.
-            # Only the outermost table (depth == 1) is captured; nested tables are ignored.
             self._table_depth = 0
             self._current_table: list[list[str]] = []
             self._current_row: list[str] = []
@@ -120,7 +172,7 @@ def _html_to_doc_requests(html_content: str, start_index: int = 1) -> list[dict]
         def handle_endtag(self, tag):
             if tag == "table":
                 if self._table_depth == 1 and self._current_table:
-                    self.tables.append(self._current_table)
+                    self.items.append(("table", self._current_table))
                     self._current_table = []
                 self._table_depth -= 1
             elif tag == "tr" and self._table_depth == 1:
@@ -140,7 +192,7 @@ def _html_to_doc_requests(html_content: str, start_index: int = 1) -> list[dict]
                         (max(0, s - leading_ws), max(0, e - leading_ws), u)
                         for s, e, u in self._pending_links
                     ]
-                    self.segments.append((self._tag, text, adjusted_links))
+                    self.items.append((self._tag, text, adjusted_links))
                 self._tag = None
                 self._buf = []
                 self._pending_links = []
@@ -174,116 +226,108 @@ def _html_to_doc_requests(html_content: str, start_index: int = 1) -> list[dict]
     parser = _DocParser()
     parser.feed(html_content)
 
-    if not parser.segments and not parser.tables:
-        return []
+    if not parser.items:
+        return [], []
+
+    # --- Build full text and per-segment metadata, tracking where tables belong ---
+    # All text segments are concatenated into one string. Table insertion positions are
+    # tracked as absolute document indices in the text-only document (after start_index).
+    # Tables are then appended to the request list in REVERSE order so each insertion
+    # does not shift the index of tables that precede it.
+    full_text = ""
+    segment_meta: list[tuple] = []  # (tag, doc_start, doc_end, links)
+    tables_data: list[list[list[str]]] = []
+    table_insert_positions: list[int] = []  # doc index where each table should be inserted
+
+    for item in parser.items:
+        if item[0] == "table":
+            _, table_rows = item
+            tables_data.append(table_rows)
+            # Table is inserted at the current end of the text in document index space
+            table_insert_positions.append(start_index + len(full_text))
+        else:
+            tag, text, links = item
+            doc_start = start_index + len(full_text)
+            full_text += text + "\n"
+            doc_end = start_index + len(full_text)
+            segment_meta.append((tag, doc_start, doc_end, links))
 
     requests: list[dict] = []
-    current_idx = start_index
 
-    # --- Text segments ---
-    if parser.segments:
-        full_text = "".join(text + "\n" for _, text, _ in parser.segments)
+    # --- One insertText for all paragraph content ---
+    if full_text:
         requests.append({"insertText": {"location": {"index": start_index}, "text": full_text}})
 
-        idx = start_index
-        for tag, text, links in parser.segments:
-            seg_end = idx + len(text) + 1  # +1 for the trailing \n
+        for tag, doc_start, doc_end, links in segment_meta:
+            rng = {"startIndex": doc_start, "endIndex": doc_end}
+
             if tag == "h1":
                 requests.append(
                     {
                         "updateParagraphStyle": {
-                            "range": {"startIndex": idx, "endIndex": seg_end},
+                            "range": rng,
                             "paragraphStyle": {"namedStyleType": "HEADING_1"},
                             "fields": "namedStyleType",
                         }
                     }
                 )
+                requests.append({"deleteParagraphBullets": {"range": rng}})
             elif tag in ("h2", "h3", "h4", "h5", "h6"):
                 requests.append(
                     {
                         "updateParagraphStyle": {
-                            "range": {"startIndex": idx, "endIndex": seg_end},
+                            "range": rng,
                             "paragraphStyle": {"namedStyleType": "HEADING_3"},
                             "fields": "namedStyleType",
                         }
                     }
                 )
+                requests.append({"deleteParagraphBullets": {"range": rng}})
+            elif tag == "p":
+                requests.append({"deleteParagraphBullets": {"range": rng}})
             elif tag == "li":
                 requests.append(
                     {
                         "createParagraphBullets": {
-                            "range": {"startIndex": idx, "endIndex": seg_end},
+                            "range": rng,
                             "bulletPreset": "BULLET_DISC_CIRCLE_SQUARE",
                         }
                     }
                 )
+
             for link_start, link_end, url in links:
                 requests.append(
                     {
                         "updateTextStyle": {
                             "range": {
-                                "startIndex": idx + link_start,
-                                "endIndex": idx + link_end,
+                                "startIndex": doc_start + link_start,
+                                "endIndex": doc_start + link_end,
                             },
                             "textStyle": {"link": {"url": url}},
                             "fields": "link",
                         }
                     }
                 )
-            idx = seg_end
-        current_idx = idx  # = start_index + len(full_text)
 
-    # --- Tables (appended after all paragraph content) ---
-    # Each empty Docs table cell contributes exactly one \n character to the document.
-    # Cell (r, c) in a table inserted at table_start has content index:
-    #   table_start + r * num_cols + c
-    # Inserting in reverse order (last cell first) means each insertion only shifts
-    # already-processed (higher-index) cells, keeping unprocessed cell indices stable.
-    for table_data in parser.tables:
-        if not table_data:
-            continue
-
-        num_rows = len(table_data)
-        num_cols = max(len(row) for row in table_data)
-        if num_cols == 0:
-            continue
-
-        # Normalize all rows to num_cols columns
-        normalized = [row + [""] * (num_cols - len(row)) for row in table_data]
-        table_start = current_idx
-
-        requests.append(
-            {
-                "insertTable": {
-                    "rows": num_rows,
-                    "columns": num_cols,
-                    "location": {"index": table_start},
+    # --- insertTable requests in REVERSE order ---
+    # Inserting last-to-first ensures each table's position is unaffected by later
+    # insertions (which only shift content at higher indices).
+    for i in range(len(tables_data) - 1, -1, -1):
+        table_rows = tables_data[i]
+        num_rows = len(table_rows)
+        num_cols = max((len(row) for row in table_rows), default=0)
+        if num_rows > 0 and num_cols > 0:
+            requests.append(
+                {
+                    "insertTable": {
+                        "rows": num_rows,
+                        "columns": num_cols,
+                        "location": {"index": table_insert_positions[i]},
+                    }
                 }
-            }
-        )
+            )
 
-        total_cell_len = sum(
-            len(normalized[r][c]) for r in range(num_rows) for c in range(num_cols)
-        )
-
-        for r in range(num_rows - 1, -1, -1):
-            for c in range(num_cols - 1, -1, -1):
-                cell_text = normalized[r][c]
-                if cell_text:
-                    requests.append(
-                        {
-                            "insertText": {
-                                "location": {"index": table_start + r * num_cols + c},
-                                "text": cell_text,
-                            }
-                        }
-                    )
-
-        # Advance past this table: R*C empty-cell \n chars + all inserted cell text.
-        # insertTable does not add a new paragraph when inserting at the end of the doc.
-        current_idx = table_start + num_rows * num_cols + total_cell_len
-
-    return requests
+    return requests, tables_data
 
 
 def register(tool):
@@ -412,11 +456,12 @@ def register(tool):
         )
 
         if content:
-            content_requests = _html_to_doc_requests(content, start_index=1)
+            content_requests, tables = _html_to_doc_requests(content, start_index=1)
             if content_requests:
                 docs_service.documents().batchUpdate(
                     documentId=doc_id, body={"requests": content_requests}
                 ).execute()
+            _fill_tables(docs_service, doc_id, tables)
 
         if target_folder_id:
             lc.drive_folder_cache.mark_dirty(target_folder_id)
@@ -1379,12 +1424,13 @@ def register(tool):
                 {"deleteContentRange": {"range": {"startIndex": 1, "endIndex": end_index - 1}}}
             )
 
-        content_requests = _html_to_doc_requests(content, start_index=1)
+        content_requests, tables = _html_to_doc_requests(content, start_index=1)
         all_requests = clear_requests + content_requests
         if all_requests:
             docs_service.documents().batchUpdate(
                 documentId=doc_id, body={"requests": all_requests}
             ).execute()
+        _fill_tables(docs_service, doc_id, tables)
 
         metadata = (
             drive_service.files()
