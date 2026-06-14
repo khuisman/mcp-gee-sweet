@@ -1,4 +1,4 @@
-from mcp_gee_sweet.tools.drive import _html_to_doc_requests, _html_to_text
+from mcp_gee_sweet.tools.docs import _html_to_doc_requests, _html_to_text
 
 
 class TestHtmlToText:

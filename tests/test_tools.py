@@ -6,10 +6,11 @@ from unittest.mock import MagicMock
 import pytest
 from googleapiclient.errors import HttpError
 
-from mcp_gee_sweet.tools import charts as charts_module
-from mcp_gee_sweet.tools import drive as drive_module
-from mcp_gee_sweet.tools import sheets as sheets_module
-from mcp_gee_sweet.tools import write as write_module
+from mcp_gee_sweet.tools import docs as docs_module
+from mcp_gee_sweet.tools.drive import files as drive_files_module
+from mcp_gee_sweet.tools.drive import transfer as drive_transfer_module
+from mcp_gee_sweet.tools.sheets import data as sheets_data_module
+from mcp_gee_sweet.tools.sheets import structure as sheets_structure_module
 
 
 def _make_tool_registry():
@@ -34,17 +35,23 @@ def _make_ctx(**services):
     return ctx
 
 
+# add_chart is now in sheets.structure
 _charts_tool, _charts_tools = _make_tool_registry()
-charts_module.register(_charts_tool)
+sheets_structure_module.register(_charts_tool)
 
+# drive tools split across files, transfer, and docs
 _drive_tool, _drive_tools = _make_tool_registry()
-drive_module.register(_drive_tool)
+drive_files_module.register(_drive_tool)
+drive_transfer_module.register(_drive_tool)
+docs_module.register(_drive_tool)
 
+# copy_sheet is now in sheets.structure
 _sheets_tool, _sheets_tools = _make_tool_registry()
-sheets_module.register(_sheets_tool)
+sheets_structure_module.register(_sheets_tool)
 
+# batch_update is now in sheets.data
 _write_tool, _write_tools = _make_tool_registry()
-write_module.register(_write_tool)
+sheets_data_module.register(_write_tool)
 
 
 class TestChartBugs:

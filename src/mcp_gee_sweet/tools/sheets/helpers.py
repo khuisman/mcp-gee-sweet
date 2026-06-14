@@ -2,7 +2,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .cache import SheetStructureCache
+    from ...cache import SheetStructureCache
 
 
 def _quote_sheet_name(name: str) -> str:
@@ -80,7 +80,7 @@ def _get_sheet_id(
 ) -> int | None:
     """Return the numeric sheet ID for sheet_name, or None if not found."""
     if cache is not None:
-        from .cache import fetch_sheets
+        from ...cache import fetch_sheets
 
         try:
             sheets = fetch_sheets(sheets_service, spreadsheet_id, cache)
