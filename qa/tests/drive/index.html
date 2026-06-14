@@ -2990,6 +2990,106 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#list_revisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_revisions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_revisions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-d146-list-revisions-for-a-spreadsheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D146: List revisions for a spreadsheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d147-list-revisions-for-a-non-existent-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D147: List revisions for a non-existent file
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#export_revision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        export_revision
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="export_revision">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-d148-export-a-revision-and-read-a-cell-range" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D148: Export a revision and read a cell range
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d149-export-revision-with-explicit-sheet-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D149: Export revision with explicit sheet name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d150-export-revision-no-range-returns-all-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D150: Export revision — no range returns all data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d151-export-revision-of-a-non-sheets-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D151: Export revision of a non-Sheets file
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4581,6 +4681,66 @@
 - <code>&lt;th&gt;</code> cells are included in the table (not ignored)
 - First row contains "Col1" and "Col2", second row contains "Val1" and "Val2"
 - Google Docs doesn't distinguish th vs td styling — both rows are plain table cells</p>
+<hr />
+<h2 id="list_revisions"><code>list_revisions</code><a class="headerlink" href="#list_revisions" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d146-list-revisions-for-a-spreadsheet">TC-D146: List revisions for a spreadsheet<a class="headerlink" href="#tc-d146-list-revisions-for-a-spreadsheet" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List the revisions for spreadsheet {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns a non-empty list of revisions
+- Each entry has <code>revisionId</code>, <code>modifiedTime</code>, <code>modifiedBy</code>, <code>keepForever</code>
+- Most recent revision appears last
+- <code>modifiedTime</code> values are ISO 8601 timestamps</p>
+<hr />
+<h3 id="tc-d147-list-revisions-for-a-non-existent-file">TC-D147: List revisions for a non-existent file<a class="headerlink" href="#tc-d147-list-revisions-for-a-non-existent-file" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List revisions for file ID 'invalid_file_id_xyz'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns a clear API error (404), not an unhandled exception</p>
+<hr />
+<h2 id="export_revision"><code>export_revision</code><a class="headerlink" href="#export_revision" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d148-export-a-revision-and-read-a-cell-range">TC-D148: Export a revision and read a cell range<a class="headerlink" href="#tc-d148-export-a-revision-and-read-a-cell-range" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> Make a known edit to {SPREADSHEET_ID} (e.g. write "BEFORE" to A1), then make another edit ("AFTER" to A1). List revisions and identify the revision ID from before the second edit.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export revision {REVISION_ID} of {SPREADSHEET_ID} and show me the value in range A1"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>values</code> with "BEFORE" in A1
+- <code>sheet</code> matches the first sheet name
+- <code>modifiedTime</code> matches the revision timestamp from <code>list_revisions</code></p>
+<hr />
+<h3 id="tc-d149-export-revision-with-explicit-sheet-name">TC-D149: Export revision with explicit sheet name<a class="headerlink" href="#tc-d149-export-revision-with-explicit-sheet-name" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export revision {REVISION_ID} of {SPREADSHEET_ID}, sheet 'Sheet2', range A1:B5"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns data from Sheet2, not the first sheet
+- Range is respected — only rows/columns within A1:B5 returned
+- Handles multi-sheet files correctly</p>
+<hr />
+<h3 id="tc-d150-export-revision-no-range-returns-all-data">TC-D150: Export revision — no range returns all data<a class="headerlink" href="#tc-d150-export-revision-no-range-returns-all-data" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export revision {REVISION_ID} of {SPREADSHEET_ID} with no range filter"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns all rows and columns of the first sheet
+- No error from omitting the range parameter</p>
+<hr />
+<h3 id="tc-d151-export-revision-of-a-non-sheets-file">TC-D151: Export revision of a non-Sheets file<a class="headerlink" href="#tc-d151-export-revision-of-a-non-sheets-file" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export revision {REVISION_ID} of a Google Doc file (not a spreadsheet)"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns a clear error: "No XLSX export available for this revision"
+- Does not crash</p>
 
 
 
