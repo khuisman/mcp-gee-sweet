@@ -1120,6 +1120,15 @@
 <p><strong>Checks</strong>
 - Summary reflects A8 = 'dirty'
 - Confirms <code>sheet_data_cache.mark_dirty</code> is called for <code>batch_update_cells</code></p>
+<h3 id="tc-w10-trailing-empty-array-rows-are-normalized">TC-W10: Trailing empty-array rows are normalized<a class="headerlink" href="#tc-w10-trailing-empty-array-rows-are-normalized" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"In {SPREADSHEET_ID}, batch update Sales!A8:B10 with these values: row 1 is ['hello', 'world'], rows 2 and 3 are empty (no data). Check that updatedRange in the response covers all three rows (A8:B10), not just the first."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updatedRange</code> in the response is <code>Sales!A8:B10</code>, not <code>Sales!A8:B8</code>
+- Rows A9 and A10 are cleared (blank) in the sheet
+- No duplicate row appended after the write</p>
 <hr />
 <h2 id="add_rows"><code>add_rows</code><a class="headerlink" href="#add_rows" title="Permanent link">&para;</a></h2>
 <h3 id="tc-w10-add-row-at-beginning-no-position-specified">TC-W10: Add row at beginning (no position specified)<a class="headerlink" href="#tc-w10-add-row-at-beginning-no-position-specified" title="Permanent link">&para;</a></h3>
