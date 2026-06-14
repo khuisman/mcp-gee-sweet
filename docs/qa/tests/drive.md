@@ -1694,3 +1694,78 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - `<th>` cells are included in the table (not ignored)
 - First row contains "Col1" and "Col2", second row contains "Val1" and "Val2"
 - Google Docs doesn't distinguish th vs td styling — both rows are plain table cells
+
+---
+
+## `list_revisions`
+
+### TC-D146: List revisions for a spreadsheet
+
+**Prompt**
+> "List the revisions for spreadsheet {SPREADSHEET_ID}"
+
+**Checks**
+- Returns a non-empty list of revisions
+- Each entry has `revisionId`, `modifiedTime`, `modifiedBy`, `keepForever`
+- Most recent revision appears last
+- `modifiedTime` values are ISO 8601 timestamps
+
+---
+
+### TC-D147: List revisions for a non-existent file
+
+**Prompt**
+> "List revisions for file ID 'invalid_file_id_xyz'"
+
+**Checks**
+- Returns a clear API error (404), not an unhandled exception
+
+---
+
+## `export_revision`
+
+### TC-D148: Export a revision and read a cell range
+
+**Setup:** Make a known edit to {SPREADSHEET_ID} (e.g. write "BEFORE" to A1), then make another edit ("AFTER" to A1). List revisions and identify the revision ID from before the second edit.
+
+**Prompt**
+> "Export revision {REVISION_ID} of {SPREADSHEET_ID} and show me the value in range A1"
+
+**Checks**
+- Returns `values` with "BEFORE" in A1
+- `sheet` matches the first sheet name
+- `modifiedTime` matches the revision timestamp from `list_revisions`
+
+---
+
+### TC-D149: Export revision with explicit sheet name
+
+**Prompt**
+> "Export revision {REVISION_ID} of {SPREADSHEET_ID}, sheet 'Sheet2', range A1:B5"
+
+**Checks**
+- Returns data from Sheet2, not the first sheet
+- Range is respected — only rows/columns within A1:B5 returned
+- Handles multi-sheet files correctly
+
+---
+
+### TC-D150: Export revision — no range returns all data
+
+**Prompt**
+> "Export revision {REVISION_ID} of {SPREADSHEET_ID} with no range filter"
+
+**Checks**
+- Returns all rows and columns of the first sheet
+- No error from omitting the range parameter
+
+---
+
+### TC-D151: Export revision of a non-Sheets file
+
+**Prompt**
+> "Export revision {REVISION_ID} of a Google Doc file (not a spreadsheet)"
+
+**Checks**
+- Returns a clear error: "No XLSX export available for this revision"
+- Does not crash
