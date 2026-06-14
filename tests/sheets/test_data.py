@@ -30,7 +30,7 @@ _data_tool, _data_tools = _make_tool_registry()
 sheets_data_module.register(_data_tool)
 
 
-class TestBatchUpdateCacheInvalidation:
+class TestBatchUpdate:
     """Bug: batch_update only invalidated sheet_data_cache, leaving structure cache stale."""
 
     def _mock_sheets(self):

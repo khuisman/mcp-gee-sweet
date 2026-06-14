@@ -1,8 +1,38 @@
+"""Tests for tools/drive/transfer.py (upload_file, _xlsx_range_values, etc.)."""
+
 import io
+from unittest.mock import MagicMock
 
 import openpyxl
+from googleapiclient.errors import HttpError
 
+from mcp_gee_sweet.tools.drive import transfer as transfer_module
 from mcp_gee_sweet.tools.drive.transfer import _xlsx_range_values
+
+
+def _make_tool_registry():
+    captured = {}
+
+    def tool(annotations=None):
+        def decorator(func):
+            captured[func.__name__] = func
+            return func
+
+        return decorator
+
+    return tool, captured
+
+
+def _make_ctx(**services):
+    ctx = MagicMock()
+    lc = ctx.request_context.lifespan_context
+    for k, v in services.items():
+        setattr(lc, k, v)
+    return ctx
+
+
+_transfer_tool, _transfer_tools = _make_tool_registry()
+transfer_module.register(_transfer_tool)
 
 
 def _make_wb(data: list[list]) -> openpyxl.Workbook:
@@ -21,6 +51,49 @@ def _roundtrip(wb: openpyxl.Workbook) -> openpyxl.Workbook:
     wb.save(buf)
     buf.seek(0)
     return openpyxl.load_workbook(buf, read_only=True, data_only=True)
+
+
+class TestUploadFile:
+    """upload_file returns a friendly error on quota exceeded and invalidates the folder cache."""
+
+    def _quota_err(self):
+        resp = MagicMock()
+        resp.status = 403
+        return HttpError(resp=resp, content=b'{"error": {"reason": "storageQuotaExceeded"}}')
+
+    def _drive_file_response(self):
+        return {
+            "id": "fid1",
+            "name": "file.txt",
+            "parents": ["parent1"],
+            "mimeType": "text/plain",
+            "webViewLink": "https://example.com",
+        }
+
+    def test_quota_exceeded_returns_friendly_error_dict(self):
+        """upload_file must return {"error": ...} on storageQuotaExceeded, not raise."""
+        mock = MagicMock()
+        mock.files.return_value.create.return_value.execute.side_effect = self._quota_err()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock(), folder_id=None)
+        result = _transfer_tools["upload_file"](name="test.txt", content="hello", ctx=ctx)
+        assert "error" in result
+        assert "storageQuotaExceeded" not in result["error"]  # raw message replaced
+        assert "Service accounts" in result["error"]
+        assert "server://auth-status" in result["error"]
+
+    def test_with_folder_marks_folder_cache_dirty(self):
+        mock = MagicMock()
+        mock.files.return_value.create.return_value.execute.return_value = (
+            self._drive_file_response()
+        )
+        folder_cache = MagicMock()
+        ctx = _make_ctx(
+            drive_service=mock, drive_folder_cache=folder_cache, folder_id="default_folder"
+        )
+        _transfer_tools["upload_file"](
+            name="doc.txt", content="hello", folder_id="target_folder", ctx=ctx
+        )
+        folder_cache.mark_dirty.assert_called_once_with("target_folder")
 
 
 class TestXlsxRangeValues:

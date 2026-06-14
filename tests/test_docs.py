@@ -2,6 +2,9 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+from googleapiclient.errors import HttpError
+
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs import _html_to_doc_requests, _html_to_text
 
@@ -208,7 +211,22 @@ class TestHtmlToDocRequests:
         )
 
 
-class TestCreateDocHtmlFormatting:
+def _quota_http_error():
+    resp = MagicMock()
+    resp.status = 403
+    return HttpError(
+        resp=resp,
+        content=b'{"error": {"errors": [{"reason": "storageQuotaExceeded"}]}}',
+    )
+
+
+def _other_403_error():
+    resp = MagicMock()
+    resp.status = 403
+    return HttpError(resp=resp, content=b'{"error": {"reason": "forbidden"}}')
+
+
+class TestCreateDoc:
     """Bug: create_doc used _html_to_text (plain text) instead of _html_to_doc_requests."""
 
     def _make_services(self, doc_id="doc123"):
@@ -263,3 +281,24 @@ class TestCreateDocHtmlFormatting:
         ctx = self._ctx(drive_svc, docs_svc)
         _docs_tools["create_doc"](title="Doc", content="<span>no blocks</span>", ctx=ctx)
         assert not docs_svc.documents.return_value.batchUpdate.called
+
+    def test_quota_exceeded_returns_error_dict(self):
+        """create_doc must return {"error": ...} on storageQuotaExceeded, not raise."""
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.side_effect = _quota_http_error()
+        docs_svc = MagicMock()
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = _docs_tools["create_doc"](title="Test", content="<p>hi</p>", ctx=ctx)
+        assert "error" in result
+        assert "storageQuotaExceeded" not in result["error"]
+        assert "Service accounts" in result["error"]
+        assert "server://auth-status" in result["error"]
+
+    def test_non_quota_403_still_raises(self):
+        """A 403 that is NOT storageQuotaExceeded must propagate — not be swallowed."""
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.side_effect = _other_403_error()
+        docs_svc = MagicMock()
+        ctx = self._ctx(drive_svc, docs_svc)
+        with pytest.raises(HttpError):
+            _docs_tools["create_doc"](title="Test", content="<p>hi</p>", ctx=ctx)

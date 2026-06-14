@@ -1,13 +1,11 @@
-"""Tests for tools/drive/files.py (create_folder, move_file, delete_file, search_spreadsheets, etc.)."""
+"""Tests for tools/drive/files.py (search_spreadsheets, create_folder, move_file, delete_file, etc.)."""
 
 from unittest.mock import MagicMock
 
 import pytest
 from googleapiclient.errors import HttpError
 
-from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.drive import files as drive_files_module
-from mcp_gee_sweet.tools.drive import transfer as drive_transfer_module
 
 
 def _make_tool_registry():
@@ -33,11 +31,9 @@ def _make_ctx(**services):
 
 _drive_tool, _drive_tools = _make_tool_registry()
 drive_files_module.register(_drive_tool)
-drive_transfer_module.register(_drive_tool)
-docs_module.register(_drive_tool)
 
 
-class TestSearchSpreadsheetsQueryEscape:
+class TestSearchSpreadsheets:
     """Bug: single quotes in query were interpolated raw into the Drive query string."""
 
     def _drive_service(self):
@@ -73,8 +69,8 @@ class TestSearchSpreadsheetsQueryEscape:
         assert "budget 2024" in q
 
 
-class TestDriveFolderCacheInvalidation:
-    """Verify that mutating Drive tools call drive_folder_cache.mark_dirty."""
+class TestFileMutations:
+    """Mutating file ops (create_folder, move_file, delete_file) must invalidate the folder cache."""
 
     def _drive_file_response(self, **kwargs):
         defaults = {
@@ -141,35 +137,6 @@ class TestDriveFolderCacheInvalidation:
         _drive_tools["delete_file"](file_id="fid1", permanent=True, ctx=ctx)
         folder_cache.mark_dirty.assert_called_once_with("par1")
 
-    def test_upload_file_quota_exceeded_returns_error_dict(self):
-        """upload_file should return {"error": ...} on storageQuotaExceeded, not raise."""
-        resp = MagicMock()
-        resp.status = 403
-        quota_err = HttpError(resp=resp, content=b'{"error": {"reason": "storageQuotaExceeded"}}')
-        mock = MagicMock()
-        mock.files.return_value.create.return_value.execute.side_effect = quota_err
-        folder_cache = MagicMock()
-        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache, folder_id=None)
-        result = _drive_tools["upload_file"](name="test.txt", content="hello", ctx=ctx)
-        assert "error" in result
-        assert "storageQuotaExceeded" not in result["error"]  # raw message replaced
-        assert "Service accounts" in result["error"]
-        assert "server://auth-status" in result["error"]
-
-    def test_upload_file_with_folder_marks_dirty(self):
-        mock = MagicMock()
-        mock.files.return_value.create.return_value.execute.return_value = (
-            self._drive_file_response()
-        )
-        folder_cache = MagicMock()
-        ctx = _make_ctx(
-            drive_service=mock, drive_folder_cache=folder_cache, folder_id="default_folder"
-        )
-        _drive_tools["upload_file"](
-            name="doc.txt", content="hello", folder_id="target_folder", ctx=ctx
-        )
-        folder_cache.mark_dirty.assert_called_once_with("target_folder")
-
 
 def _quota_http_error():
     """Build a 403 storageQuotaExceeded HttpError as returned by the Drive API."""
@@ -188,23 +155,13 @@ def _other_403_error():
     return HttpError(resp=resp, content=b'{"error": {"reason": "forbidden"}}')
 
 
-class TestServiceAccountQuotaErrors:
-    """Tools that create Drive files return a helpful error dict on storageQuotaExceeded.
+class TestQuotaErrors:
+    """create_spreadsheet and copy_file return a helpful error dict on storageQuotaExceeded.
 
     The raw Google 403 is replaced with an actionable message pointing the caller
     at server://auth-status and suggesting OAuth/ADC.  Non-quota 403s must still
     propagate so callers can distinguish permission errors from quota errors.
     """
-
-    def _quota_create_drive(self):
-        mock = MagicMock()
-        mock.files.return_value.create.return_value.execute.side_effect = _quota_http_error()
-        return mock
-
-    def _quota_copy_drive(self):
-        mock = MagicMock()
-        mock.files.return_value.copy.return_value.execute.side_effect = _quota_http_error()
-        return mock
 
     def _assert_helpful_error(self, result):
         assert "error" in result
@@ -213,29 +170,16 @@ class TestServiceAccountQuotaErrors:
         assert "server://auth-status" in result["error"]
 
     def test_create_spreadsheet_quota_returns_error_dict(self):
-        ctx = _make_ctx(
-            drive_service=self._quota_create_drive(),
-            drive_folder_cache=MagicMock(),
-            folder_id=None,
-        )
+        mock = MagicMock()
+        mock.files.return_value.create.return_value.execute.side_effect = _quota_http_error()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock(), folder_id=None)
         result = _drive_tools["create_spreadsheet"](title="Test", ctx=ctx)
         self._assert_helpful_error(result)
 
-    def test_create_doc_quota_returns_error_dict(self):
-        ctx = _make_ctx(
-            drive_service=self._quota_create_drive(),
-            docs_service=MagicMock(),
-            drive_folder_cache=MagicMock(),
-            folder_id=None,
-        )
-        result = _drive_tools["create_doc"](title="Test", ctx=ctx)
-        self._assert_helpful_error(result)
-
     def test_copy_file_quota_returns_error_dict(self):
-        ctx = _make_ctx(
-            drive_service=self._quota_copy_drive(),
-            drive_folder_cache=MagicMock(),
-        )
+        mock = MagicMock()
+        mock.files.return_value.copy.return_value.execute.side_effect = _quota_http_error()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock())
         result = _drive_tools["copy_file"](file_id="fid", ctx=ctx)
         self._assert_helpful_error(result)
 
@@ -243,22 +187,6 @@ class TestServiceAccountQuotaErrors:
         """A 403 that is not storageQuotaExceeded must propagate — not be swallowed."""
         mock = MagicMock()
         mock.files.return_value.create.return_value.execute.side_effect = _other_403_error()
-        ctx = _make_ctx(
-            drive_service=mock,
-            drive_folder_cache=MagicMock(),
-            folder_id=None,
-        )
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock(), folder_id=None)
         with pytest.raises(HttpError):
             _drive_tools["create_spreadsheet"](title="Test", ctx=ctx)
-
-    def test_create_doc_non_quota_403_still_raises(self):
-        mock = MagicMock()
-        mock.files.return_value.create.return_value.execute.side_effect = _other_403_error()
-        ctx = _make_ctx(
-            drive_service=mock,
-            docs_service=MagicMock(),
-            drive_folder_cache=MagicMock(),
-            folder_id=None,
-        )
-        with pytest.raises(HttpError):
-            _drive_tools["create_doc"](title="Test", ctx=ctx)

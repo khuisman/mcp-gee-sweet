@@ -30,7 +30,7 @@ _structure_tool, _structure_tools = _make_tool_registry()
 sheets_structure_module.register(_structure_tool)
 
 
-class TestChartBugs:
+class TestAddChart:
     """BUG-1: multi-column ranges must be split per-column; BUG-2: HISTOGRAM uses histogramChart spec."""
 
     def _sheets_service(self, sheet_id=0):
@@ -176,7 +176,7 @@ class TestChartBugs:
         assert all(s["type"] == "COLUMN" for s in series[:-1])
 
 
-class TestCopySheetRename:
+class TestCopySheet:
     """Bug: rename was silently skipped when API response omitted the 'title' key."""
 
     def _mock_sheets(self, copy_result):
