@@ -69,6 +69,20 @@ def _html_to_text(html_content: str) -> str:
     return "".join(extractor.parts).strip()
 
 
+def _xlsx_range_values(ws, range_str: str | None) -> list[list]:
+    """Return cell values from an openpyxl worksheet for the given A1 range (or all data)."""
+    if not range_str:
+        return [[c.value for c in row] for row in ws.iter_rows()]
+    cells = ws[range_str]
+    # ws[range] returns a tuple-of-tuples for a multi-cell range, a tuple of cells
+    # for a single row/column slice, or a single Cell for a single address.
+    if isinstance(cells, tuple) and cells and isinstance(cells[0], tuple):
+        return [[c.value for c in row] for row in cells]
+    if isinstance(cells, tuple):
+        return [[c.value for c in cells]]
+    return [[cells.value]]
+
+
 def _fill_table_cell_requests_from_doc(doc: dict, tables_data: list[list[list[str]]]) -> list[dict]:
     """Return insertText requests for table cells using live cell indices from a fetched doc."""
     doc_tables = [
@@ -1540,6 +1554,108 @@ def register(tool):
             "format": export_format,
             "encoding": "base64",
             "content": base64.b64encode(content_bytes).decode("ascii"),
+        }
+
+    @tool(annotations=ToolAnnotations(title="List Revisions", readOnlyHint=True))
+    def list_revisions(file_id: str, ctx: Context = None) -> list[dict[str, Any]]:
+        """
+        List available revisions for a Google Drive file (Sheets, Docs, or any file).
+
+        Returns revisions in chronological order with their ID, timestamp, and the
+        user who made the change. Use the revision ID with export_revision to read
+        cell data from a historical version of a spreadsheet.
+
+        Note: Google Drive retains all revisions for 30 days, then auto-prunes unless
+        keepForever is set on the revision.
+
+        Args:
+            file_id: The Google Drive file ID.
+
+        Returns:
+            List of revisions, each with revisionId, modifiedTime, modifiedBy, keepForever.
+        """
+        drive_service = ctx.request_context.lifespan_context.drive_service
+        result = (
+            drive_service.revisions()
+            .list(
+                fileId=file_id,
+                fields="revisions(id,modifiedTime,lastModifyingUser/displayName,keepForever)",
+            )
+            .execute()
+        )
+        return [
+            {
+                "revisionId": r["id"],
+                "modifiedTime": r.get("modifiedTime"),
+                "modifiedBy": r.get("lastModifyingUser", {}).get("displayName"),
+                "keepForever": r.get("keepForever", False),
+            }
+            for r in result.get("revisions", [])
+        ]
+
+    @tool(annotations=ToolAnnotations(title="Export Revision", readOnlyHint=True))
+    def export_revision(
+        file_id: str,
+        revision_id: str,
+        range: str | None = None,
+        sheet: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Export a historical revision of a Google Sheets file and return its cell data.
+
+        Downloads the revision as an XLSX file and returns the values for the requested
+        sheet and range. Use list_revisions to find the revision_id.
+
+        Typical recovery workflow:
+          1. list_revisions → find the revision ID from the timestamp before data was lost
+          2. export_revision → read the affected range from that revision
+          3. batch_update_cells → write the recovered values back to the current sheet
+
+        Note: each call downloads the full file — for large spreadsheets this may be slow.
+
+        Args:
+            file_id:     The Google Drive file ID of the spreadsheet.
+            revision_id: The revision ID from list_revisions.
+            range:       A1 notation range to return, e.g. "A1:D20". Omit for all data.
+            sheet:       Sheet (tab) name. Defaults to the first sheet.
+
+        Returns:
+            revisionId, modifiedTime, sheet name, range, and values as a list of rows.
+        """
+        import openpyxl
+
+        drive_service = ctx.request_context.lifespan_context.drive_service
+
+        revision = (
+            drive_service.revisions()
+            .get(fileId=file_id, revisionId=revision_id, fields="exportLinks,modifiedTime")
+            .execute()
+        )
+
+        xlsx_url = revision.get("exportLinks", {}).get(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        if not xlsx_url:
+            raise ValueError(
+                f"No XLSX export available for revision {revision_id}. "
+                "The file may not be a Google Sheets file."
+            )
+
+        _, content = drive_service._http.request(xlsx_url)
+        wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+
+        ws = wb[sheet] if sheet else wb.active
+        sheet_name = ws.title
+        values = _xlsx_range_values(ws, range)
+
+        wb.close()
+        return {
+            "revisionId": revision_id,
+            "modifiedTime": revision.get("modifiedTime"),
+            "sheet": sheet_name,
+            "range": range,
+            "values": values,
         }
 
     @tool(annotations=ToolAnnotations(title="Upload File", destructiveHint=True))
