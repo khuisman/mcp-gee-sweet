@@ -8,8 +8,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `create_spreadsheet`
 
-### TC-D01: Create in default folder ⚠️ requires-oauth
-
+### TC-D01: Create in default folder
 **Prompt**
 > "Create a new spreadsheet called 'QA-Create-Test' in my default folder"
 
@@ -20,8 +19,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D02: Create with explicit folder ID ⚠️ requires-oauth
-
+### TC-D02: Create with explicit folder ID
 **Prompt**
 > "Create a new spreadsheet called 'QA-Create-Explicit' in folder {FOLDER_ID}"
 
@@ -31,8 +29,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D03: Create without a folder (root of Drive) ⚠️ requires-oauth
-
+### TC-D03: Create without a folder (root of Drive)
 **Prompt**
 > "Create a new spreadsheet called 'QA-Create-Root' with no folder specified"
 
@@ -54,8 +51,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D05: Drive folder cache invalidated ⚠️ requires-oauth
-
+### TC-D05: Drive folder cache invalidated
 **Prompt**
 > "Create a spreadsheet called 'QA-Cache-Check' in {FOLDER_ID}, then list the files in that folder"
 
@@ -65,8 +61,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D06: Resulting spreadsheet has expected title ⚠️ requires-oauth
-
+### TC-D06: Resulting spreadsheet has expected title
 **Prompt**
 > "Create a spreadsheet called 'Exact Title Test' and confirm the title in the response"
 
@@ -77,8 +72,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `create_doc`
 
-### TC-D07: Create with no content ⚠️ requires-oauth
-
+### TC-D07: Create with no content
 **Prompt**
 > "Create a Google Doc called 'QA-Empty-Doc' with no content"
 
@@ -89,8 +83,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D08: Create with HTML content — formatting preserved ⚠️ requires-oauth
-
+### TC-D08: Create with HTML content — formatting preserved
 **Prompt**
 > "Create a Google Doc called 'QA-Formatted-Doc' with this content: `<h1>Main Title</h1><p>A paragraph.</p><ul><li>Item A</li><li>Item B</li></ul>`"
 
@@ -101,8 +94,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D09: Create with a link ⚠️ requires-oauth
-
+### TC-D09: Create with a link
 **Prompt**
 > "Create a Google Doc called 'QA-Link-Doc' with content: `<p>Visit <a href=\"https://example.com\">Example</a></p>`"
 
@@ -112,8 +104,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D10: Content with no block-level elements — batchUpdate skipped ⚠️ requires-oauth
-
+### TC-D10: Content with no block-level elements — batchUpdate skipped
 **Prompt**
 > "Create a Google Doc called 'QA-Inline-Doc' with content: `<span>just a span</span>`"
 
@@ -124,8 +115,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D11: Drive folder cache invalidated ⚠️ requires-oauth
-
+### TC-D11: Drive folder cache invalidated
 **Prompt**
 > "Create a doc called 'QA-DocCache' in {FOLDER_ID}, then list the files in that folder"
 
@@ -135,8 +125,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D12: Long content ⚠️ requires-oauth
-
+### TC-D12: Long content
 **Prompt**
 > "Create a Google Doc called 'QA-Long-Doc' with a very long paragraph — repeat the word 'test ' 500 times as the body content"
 
@@ -488,8 +477,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D43: Cache invalidated after create ⚠️ requires-oauth
-
+### TC-D43: Cache invalidated after create
 **Prompt**
 > "Create a spreadsheet called 'QA-ListFilesCache' in {FOLDER_ID}, then list files in that folder"
 
@@ -570,8 +558,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `write_doc_content`
 
-### TC-D50: Write to an empty doc ⚠️ requires-oauth
-
+### TC-D50: Write to an empty doc
 **Prompt**
 > "Create a new empty doc called 'QA-WriteEmpty', then write this content to it: `<h1>Hello</h1><p>World</p>`"
 
@@ -773,8 +760,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `copy_file`
 
-### TC-D67: Copy with auto-assigned name ⚠️ requires-oauth
-
+### TC-D67: Copy with auto-assigned name
 **Prompt**
 > "Copy the spreadsheet {SPREADSHEET_ID} without specifying a new name"
 
@@ -785,8 +771,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D68: Copy with explicit name and destination folder ⚠️ requires-oauth
-
+### TC-D68: Copy with explicit name and destination folder
 **Prompt**
 > "Copy {SPREADSHEET_ID} into {FOLDER_ID} and name the copy 'QA-Copy-Explicit'"
 
@@ -797,8 +782,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D69: Copy a Google Doc ⚠️ requires-oauth
-
+### TC-D69: Copy a Google Doc
 **Prompt**
 > "Copy {DOC_ID} and name it 'QA-Doc-Copy'"
 
@@ -834,8 +818,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D72: Permanently delete a file ⚠️ destructive ⚠️ requires-oauth
-
+### TC-D72: Permanently delete a file ⚠️ destructive
 **Prompt**
 > "Permanently delete the file 'QA-Copy-Explicit' from TC-D68 — use permanent=True"
 
@@ -1023,8 +1006,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `upload_file`
 
-### TC-D88: Upload plain text file ⚠️ requires-oauth
-
+### TC-D88: Upload plain text file
 **Prompt**
 > "Upload a plain text file called 'qa-upload.txt' to {FOLDER_ID} with content 'Hello from QA'"
 
@@ -1035,8 +1017,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D89: Upload Markdown as raw file (no conversion) ⚠️ requires-oauth
-
+### TC-D89: Upload Markdown as raw file (no conversion)
 **Prompt**
 > "Upload a markdown file called 'qa-notes.md' to {FOLDER_ID} with content '# Heading\n\n- item 1\n- item 2' and do not convert it to a doc"
 
@@ -1047,8 +1028,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D90: Upload Markdown and convert to Google Doc ⚠️ destructive ⚠️ requires-oauth
-
+### TC-D90: Upload Markdown and convert to Google Doc ⚠️ destructive
 **Prompt**
 > "Upload this markdown to {FOLDER_ID} as a Google Doc called 'QA-Markdown-Doc': `# My Title\n\n## Section One\n\n- Bullet A\n- Bullet B\n\nSome **bold** text and a [link](https://example.com).`"
 
@@ -1062,8 +1042,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D91: Upload HTML and convert to Google Doc ⚠️ requires-oauth
-
+### TC-D91: Upload HTML and convert to Google Doc
 **Prompt**
 > "Upload this HTML to {FOLDER_ID} as a Google Doc called 'QA-HTML-Doc': `<h1>HTML Title</h1><p>A paragraph.</p><ul><li>X</li><li>Y</li></ul>`"
 
@@ -1074,8 +1053,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D92: Upload Markdown with table ⚠️ requires-oauth
-
+### TC-D92: Upload Markdown with table
 **Prompt**
 > "Upload this markdown as a Google Doc called 'QA-Table-Doc' to {FOLDER_ID}: `# Table Test\n\n| Col A | Col B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |`"
 
@@ -1088,8 +1066,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `upload_local_file`
 
-### TC-D93: Upload a binary file ⚠️ local-filesystem ⚠️ requires-oauth
-
+### TC-D93: Upload a binary file ⚠️ local-filesystem
 **Prompt**
 > "Upload the local file `/tmp/qa-test.png` to {FOLDER_ID}" *(create any small PNG at that path first)*
 
@@ -1100,8 +1077,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D94: skip_if_exists prevents re-upload ⚠️ local-filesystem ⚠️ requires-oauth
-
+### TC-D94: skip_if_exists prevents re-upload ⚠️ local-filesystem
 **Prompt** (run twice, same file)
 > "Upload `/tmp/qa-test.png` to {FOLDER_ID} again"
 
@@ -1112,8 +1088,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D95: skip_if_exists=False creates duplicate ⚠️ local-filesystem ⚠️ requires-oauth
-
+### TC-D95: skip_if_exists=False creates duplicate ⚠️ local-filesystem
 **Prompt**
 > "Upload `/tmp/qa-test.png` to {FOLDER_ID} with skip_if_exists set to false"
 
@@ -1135,8 +1110,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D97: Name override ⚠️ local-filesystem ⚠️ requires-oauth
-
+### TC-D97: Name override ⚠️ local-filesystem
 **Prompt**
 > "Upload `/tmp/qa-test.png` to {FOLDER_ID} but name it 'renamed-in-drive.png'"
 
@@ -1148,8 +1122,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `upload_local_folder`
 
-### TC-D98: Bulk upload of a mixed directory ⚠️ destructive ⚠️ local-filesystem ⚠️ requires-oauth
-
+### TC-D98: Bulk upload of a mixed directory ⚠️ destructive ⚠️ local-filesystem
 **Prompt**
 > "Upload all files from `/tmp/qa-folder/` to {FOLDER_ID}" *(create a directory with 2–3 files of different types)*
 
@@ -1160,8 +1133,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D99: .DS_Store excluded by default ⚠️ local-filesystem ⚠️ requires-oauth
-
+### TC-D99: .DS_Store excluded by default ⚠️ local-filesystem
 **Prompt**
 > "Upload the directory `/tmp/qa-folder/` to {FOLDER_ID}" *(ensure `.DS_Store` exists in that directory)*
 
@@ -1171,8 +1143,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D100: skip_if_exists batches the existence check ⚠️ local-filesystem ⚠️ requires-oauth
-
+### TC-D100: skip_if_exists batches the existence check ⚠️ local-filesystem
 **Prompt** (run twice)
 > "Upload `/tmp/qa-folder/` to {FOLDER_ID} again with skip_if_exists=True"
 
@@ -1327,8 +1298,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D113: Bidirectional — local-only file uploaded ⚠️ destructive ⚠️ local-filesystem ⚠️ requires-oauth
-
+### TC-D113: Bidirectional — local-only file uploaded ⚠️ destructive ⚠️ local-filesystem
 **Prompt**
 > "Sync {FOLDER_ID} with `/tmp/qa-sync/` bidirectionally" *(create a new file in `/tmp/qa-sync/` that doesn't exist in Drive)*
 
@@ -1350,8 +1320,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D115: Upload preserves mtime for future sync accuracy ⚠️ local-filesystem ⚠️ requires-oauth
-
+### TC-D115: Upload preserves mtime for future sync accuracy ⚠️ local-filesystem
 **Prompt**
 > "Sync {FOLDER_ID} with `/tmp/qa-sync/` to upload a local file, then sync again immediately"
 
@@ -1362,8 +1331,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D116: direction='upload' — Drive-only file not downloaded ⚠️ local-filesystem ⚠️ requires-oauth
-
+### TC-D116: direction='upload' — Drive-only file not downloaded ⚠️ local-filesystem
 **Prompt**
 > "Sync {FOLDER_ID} with `/tmp/qa-sync/` using direction='upload'"
 
@@ -1651,3 +1619,78 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Share succeeds; `successes` populated
 - No notification email sent (use an email address you control to verify)
 - `send_notification=False` confirmed — `sendNotificationEmail=False` passed to the API
+
+---
+
+## `write_doc_content` — table support (issue #62)
+
+### TC-D140: Simple 2×2 table created from HTML
+
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<table><tr><th>Name</th><th>Value</th></tr><tr><td>Alpha</td><td>1</td></tr></table>`"
+
+**Checks**
+- A real Google Docs table is visible in the doc — NOT flattened plain text
+- Table has 2 rows and 2 columns
+- Header row contains "Name" and "Value"; data row contains "Alpha" and "1"
+- Open in browser to verify
+
+---
+
+### TC-D141: Table after paragraph content
+
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<h1>Batch Comparison</h1><p>See the table below.</p><table><tr><th>Original</th><th>Double</th></tr><tr><td>2 cups flour</td><td>4 cups flour</td></tr><tr><td>1 egg</td><td>2 eggs</td></tr></table>`"
+
+**Checks**
+- Doc has "Batch Comparison" as a Heading 1
+- "See the table below." renders as a paragraph
+- A 3-row × 2-column table is present after the paragraph
+- Table cells contain correct text: "Original", "Double", "2 cups flour", "4 cups flour", etc.
+- Table appears after the paragraph content (interleaved in HTML order)
+
+---
+
+### TC-D142: Table with empty cells
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<table><tr><td>A</td><td></td></tr><tr><td></td><td>D</td></tr></table>`"
+
+**Checks**
+- 2×2 table created
+- Cell (0,0) = "A", cell (0,1) = empty, cell (1,0) = empty, cell (1,1) = "D"
+- Empty cells don't cause an error — `insertText` is simply skipped for them
+
+---
+
+### TC-D143: Table-only HTML (no paragraphs)
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<table><tr><td>X</td><td>Y</td></tr></table>`"
+
+**Checks**
+- A 1-row × 2-column table is created
+- Cells contain "X" and "Y"
+- No paragraph text before the table
+- Confirms the early-return guard correctly handles tables-only input
+
+---
+
+### TC-D144: Multiple tables in one write
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<p>First table:</p><table><tr><td>A</td><td>B</td></tr></table><p>Second table:</p><table><tr><td>C</td><td>D</td></tr></table>`"
+
+**Checks**
+- Both tables are created in the document
+- First table has cells "A" and "B"; second has "C" and "D"
+- "First table:" and "Second table:" paragraphs appear before both tables
+- No index corruption or API error between the two table insertions
+
+---
+
+### TC-D145: HTML with `<th>` header cells treated as data
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<table><tr><th>Col1</th><th>Col2</th></tr><tr><td>Val1</td><td>Val2</td></tr></table>`"
+
+**Checks**
+- `<th>` cells are included in the table (not ignored)
+- First row contains "Col1" and "Col2", second row contains "Val1" and "Val2"
+- Google Docs doesn't distinguish th vs td styling — both rows are plain table cells

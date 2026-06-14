@@ -111,6 +111,16 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 - Summary reflects A8 = 'dirty'
 - Confirms `sheet_data_cache.mark_dirty` is called for `batch_update_cells`
 
+### TC-W10: Trailing empty-array rows are normalized
+
+**Prompt**
+> "In {SPREADSHEET_ID}, batch update Sales!A8:B10 with these values: row 1 is ['hello', 'world'], rows 2 and 3 are empty (no data). Check that updatedRange in the response covers all three rows (A8:B10), not just the first."
+
+**Checks**
+- `updatedRange` in the response is `Sales!A8:B10`, not `Sales!A8:B8`
+- Rows A9 and A10 are cleared (blank) in the sheet
+- No duplicate row appended after the write
+
 ---
 
 ## `add_rows`
