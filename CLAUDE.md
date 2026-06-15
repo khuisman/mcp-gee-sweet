@@ -25,11 +25,23 @@ docker run --rm -p 8000:8000 \
   mcp-gee-sweet
 ```
 
-There are no tests in this project.
+Tests live in `tests/` and can be run with `uv run pytest`.
 
 ## Architecture
 
-Logic is split across `src/mcp_gee_sweet/`: `server.py` (MCP setup, tool decorator, resource), `auth.py` (lifespan, `SpreadsheetContext`), and `tools/` (one file per category: `read.py`, `write.py`, `sheets.py`, `drive.py`, `charts.py`). `__init__.py` just re-exports `main()`.
+Logic is split across `src/mcp_gee_sweet/`: `server.py` (MCP setup, tool decorator, resources), `auth.py` (lifespan, `SpreadsheetContext`), and `tools/` (domain-based layout):
+
+- `tools/sheets/data.py` — read/write cell data (`get_sheet_data`, `get_sheet_formulas`, `get_multiple_*`, `find_in_spreadsheet`, `update_cells`, `batch_update_cells`, `batch_update`)
+- `tools/sheets/structure.py` — sheet structure (`list_sheets`, `copy_sheet`, `rename_sheet`, `create_sheet`, `add_rows`, `add_columns`, `add_chart`)
+- `tools/sheets/helpers.py` — A1 notation helpers (`_parse_a1_notation`, `_column_index_to_letter`, etc.)
+- `tools/drive/files.py` — file/folder operations (`create_spreadsheet`, `list_spreadsheets`, `list_files`, `search_files`, `create_folder`, `copy_file`, `move_file`, `rename_file`, `delete_file`, etc.)
+- `tools/drive/sharing.py` — permissions (`share_spreadsheet`, `share_file`, `list_permissions`, `update_permission`, `remove_permission`)
+- `tools/drive/transfer.py` — upload/download/sync/export/revisions
+- `tools/docs.py` — Google Docs (`create_doc`, `get_doc_content`, `write_doc_content`)
+- `tools/cache.py` — `refresh_cache`
+- `tools/calendar.py` — Calendar API tools
+
+`__init__.py` just re-exports `main()`.
 
 **Startup / auth** (`spreadsheet_lifespan`): FastMCP lifespan context manager that authenticates on server start and injects a `SpreadsheetContext` (holding `sheets_service` and `drive_service`) into every tool call via `ctx.request_context.lifespan_context`. Auth is attempted in priority order: `CREDENTIALS_CONFIG` (base64 service account) → `SERVICE_ACCOUNT_PATH` → OAuth flow (`CREDENTIALS_PATH`/`TOKEN_PATH`) → Application Default Credentials.
 
@@ -39,7 +51,7 @@ Logic is split across `src/mcp_gee_sweet/`: `server.py` (MCP setup, tool decorat
 
 **A1 notation helpers**: `_parse_a1_notation`, `_column_index_to_letter`, and `_letter_to_column_index` convert between A1 ranges and the 0-based row/column indices the Sheets batchUpdate API requires. The Sheets values API uses A1 notation directly; batchUpdate requires numeric indices — keep that distinction in mind when adding new tools.
 
-**MCP resource**: There's one registered resource (`spreadsheet://{spreadsheet_id}/info`) that uses `mcp.get_lifespan_context()` (not `ctx`) because resources don't receive a `Context` argument the same way tools do.
+**MCP resources**: Two resources are registered — `server://auth-status` (active auth method and Drive capability limits) and `spreadsheet://{spreadsheet_id}/info` (sheet list and grid properties). Both use `mcp.get_lifespan_context()` (not `ctx`) because resources don't receive a `Context` argument the same way tools do.
 
 **`batch_update` tool**: This is a passthrough to the Sheets `spreadsheets().batchUpdate()` endpoint and accepts raw request objects. It's the escape hatch for any operation not covered by the named tools (formatting, conditional formatting, dimension properties, etc.).
 

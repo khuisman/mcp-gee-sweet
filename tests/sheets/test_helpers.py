@@ -1,6 +1,6 @@
 import pytest
 
-from mcp_gee_sweet.helpers import (
+from mcp_gee_sweet.tools.sheets.helpers import (
     _column_index_to_letter,
     _letter_to_column_index,
     _parse_a1_notation,

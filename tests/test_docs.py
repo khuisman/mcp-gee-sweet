@@ -1,4 +1,37 @@
-from mcp_gee_sweet.tools.drive import _html_to_doc_requests, _html_to_text
+"""Tests for tools/docs.py (HTML helpers and create_doc tool)."""
+
+from unittest.mock import MagicMock
+
+import pytest
+from googleapiclient.errors import HttpError
+
+from mcp_gee_sweet.tools import docs as docs_module
+from mcp_gee_sweet.tools.docs import _html_to_doc_requests, _html_to_text
+
+
+def _make_tool_registry():
+    captured = {}
+
+    def tool(annotations=None):
+        def decorator(func):
+            captured[func.__name__] = func
+            return func
+
+        return decorator
+
+    return tool, captured
+
+
+def _make_ctx(**services):
+    ctx = MagicMock()
+    lc = ctx.request_context.lifespan_context
+    for k, v in services.items():
+        setattr(lc, k, v)
+    return ctx
+
+
+_docs_tool, _docs_tools = _make_tool_registry()
+docs_module.register(_docs_tool)
 
 
 class TestHtmlToText:
@@ -176,3 +209,96 @@ class TestHtmlToDocRequests:
         assert (
             t1_req["insertTable"]["location"]["index"] <= t2_req["insertTable"]["location"]["index"]
         )
+
+
+def _quota_http_error():
+    resp = MagicMock()
+    resp.status = 403
+    return HttpError(
+        resp=resp,
+        content=b'{"error": {"errors": [{"reason": "storageQuotaExceeded"}]}}',
+    )
+
+
+def _other_403_error():
+    resp = MagicMock()
+    resp.status = 403
+    return HttpError(resp=resp, content=b'{"error": {"reason": "forbidden"}}')
+
+
+class TestCreateDoc:
+    """Bug: create_doc used _html_to_text (plain text) instead of _html_to_doc_requests."""
+
+    def _make_services(self, doc_id="doc123"):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": doc_id,
+            "name": "Test",
+            "parents": ["folder1"],
+            "webViewLink": "https://example.com",
+        }
+        docs_svc = MagicMock()
+        return drive_svc, docs_svc
+
+    def _ctx(self, drive_svc, docs_svc):
+        return _make_ctx(
+            drive_service=drive_svc,
+            docs_service=docs_svc,
+            folder_id=None,
+            drive_folder_cache=MagicMock(),
+        )
+
+    def _batchupdate_requests(self, docs_svc):
+        return docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]["requests"]
+
+    def test_h1_produces_heading_style(self):
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        _docs_tools["create_doc"](title="Doc", content="<h1>Title</h1>", ctx=ctx)
+        heading_types = [
+            r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+            for r in self._batchupdate_requests(docs_svc)
+            if "updateParagraphStyle" in r
+        ]
+        assert "HEADING_1" in heading_types
+
+    def test_list_item_produces_bullet(self):
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        _docs_tools["create_doc"](title="Doc", content="<li>Item</li>", ctx=ctx)
+        bullets = [r for r in self._batchupdate_requests(docs_svc) if "createParagraphBullets" in r]
+        assert len(bullets) == 1
+
+    def test_no_content_skips_batchupdate(self):
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        _docs_tools["create_doc"](title="Doc", content=None, ctx=ctx)
+        assert not docs_svc.documents.return_value.batchUpdate.called
+
+    def test_inline_only_html_skips_batchupdate(self):
+        """Tags with no block-level elements produce no requests; batchUpdate should not fire."""
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        _docs_tools["create_doc"](title="Doc", content="<span>no blocks</span>", ctx=ctx)
+        assert not docs_svc.documents.return_value.batchUpdate.called
+
+    def test_quota_exceeded_returns_error_dict(self):
+        """create_doc must return {"error": ...} on storageQuotaExceeded, not raise."""
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.side_effect = _quota_http_error()
+        docs_svc = MagicMock()
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = _docs_tools["create_doc"](title="Test", content="<p>hi</p>", ctx=ctx)
+        assert "error" in result
+        assert "storageQuotaExceeded" not in result["error"]
+        assert "Service accounts" in result["error"]
+        assert "server://auth-status" in result["error"]
+
+    def test_non_quota_403_still_raises(self):
+        """A 403 that is NOT storageQuotaExceeded must propagate — not be swallowed."""
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.side_effect = _other_403_error()
+        docs_svc = MagicMock()
+        ctx = self._ctx(drive_svc, docs_svc)
+        with pytest.raises(HttpError):
+            _docs_tools["create_doc"](title="Test", content="<p>hi</p>", ctx=ctx)

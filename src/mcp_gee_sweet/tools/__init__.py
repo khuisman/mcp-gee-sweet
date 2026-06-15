@@ -1,10 +1,20 @@
-from . import calendar, charts, drive, read, sheets, write
+from . import calendar
 
 
 def register_all(tool):
-    read.register(tool)
-    write.register(tool)
-    sheets.register(tool)
-    drive.register(tool)
-    charts.register(tool)
+    from .sheets import data, structure
+
+    data.register(tool)
+    structure.register(tool)
+
+    from .drive import files, sharing, transfer
+
+    files.register(tool)
+    sharing.register(tool)
+    transfer.register(tool)
+
+    from . import cache, docs
+
+    docs.register(tool)
+    cache.register(tool)
     calendar.register(tool)
