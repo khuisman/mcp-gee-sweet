@@ -35,6 +35,9 @@ TOKEN_PATH = os.environ.get("TOKEN_PATH", "token.json")
 CREDENTIALS_PATH = os.environ.get("CREDENTIALS_PATH", "credentials.json")
 SERVICE_ACCOUNT_PATH = os.environ.get("SERVICE_ACCOUNT_PATH", "service_account.json")
 DRIVE_FOLDER_ID = os.environ.get("DRIVE_FOLDER_ID", "")
+# When unset, auth falls through: OAuth → service_account → ADC.
+# Explicit values pin to one method with no fallback: "oauth" | "service_account" | "adc"
+AUTH_METHOD = os.environ.get("AUTH_METHOD")
 
 
 @dataclass
@@ -52,88 +55,121 @@ class SpreadsheetContext:
     calendar_cache: CalendarCache = field(default_factory=CalendarCache)
 
 
+def _oauth_creds() -> Credentials:
+    """Obtain OAuth credentials, refreshing or running the interactive flow as needed."""
+    creds = None
+    if os.path.exists(TOKEN_PATH):
+        with open(TOKEN_PATH) as f:
+            creds = Credentials.from_authorized_user_info(json.load(f), SCOPES)
+
+    if creds and creds.expired and creds.refresh_token:
+        try:
+            logger.debug("Refreshing expired OAuth token...")
+            creds.refresh(Request())
+            with open(TOKEN_PATH, "w") as f:
+                f.write(creds.to_json())
+            logger.debug("Token refreshed successfully")
+            return creds
+        except Exception as e:
+            logger.warning("Token refresh failed: %s — re-running OAuth flow", e)
+            creds = None
+
+    if not creds or not creds.valid:
+        if not os.path.exists(CREDENTIALS_PATH):
+            raise RuntimeError(
+                f"{CREDENTIALS_PATH!r} not found. Set CREDENTIALS_PATH or provide credentials.json."
+            )
+        flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, SCOPES)
+        creds = flow.run_local_server(port=0)
+        with open(TOKEN_PATH, "w") as f:
+            f.write(creds.to_json())
+        logger.debug("OAuth flow completed successfully")
+
+    return creds
+
+
+def _service_account_creds() -> service_account.Credentials:
+    """Load service account credentials from env or file."""
+    if CREDENTIALS_CONFIG:
+        return service_account.Credentials.from_service_account_info(
+            json.loads(base64.b64decode(CREDENTIALS_CONFIG)), scopes=SCOPES
+        )
+    if SERVICE_ACCOUNT_PATH and os.path.exists(SERVICE_ACCOUNT_PATH):
+        return service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_PATH, scopes=SCOPES
+        )
+    return None
+
+
 @asynccontextmanager
 async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetContext]:
     from googleapiclient.discovery import build
 
-    creds = None
-    auth_method = "unknown"
+    logger.debug("AUTH_METHOD=%s", AUTH_METHOD or "auto (waterfall)")
 
-    if CREDENTIALS_CONFIG:
-        creds = service_account.Credentials.from_service_account_info(
-            json.loads(base64.b64decode(CREDENTIALS_CONFIG)), scopes=SCOPES
-        )
-        auth_method = "service_account"
+    # --- Strict override modes (AUTH_METHOD set explicitly) ---
 
-    if not creds and SERVICE_ACCOUNT_PATH and os.path.exists(SERVICE_ACCOUNT_PATH):
+    if AUTH_METHOD == "oauth":
+        creds = _oauth_creds()
+        resolved = "oauth"
+
+    elif AUTH_METHOD == "service_account":
+        creds = _service_account_creds()
+        if not creds:
+            raise RuntimeError(
+                "AUTH_METHOD=service_account but no credentials found. "
+                "Set CREDENTIALS_CONFIG or SERVICE_ACCOUNT_PATH."
+            )
+        resolved = "service_account"
+
+    elif AUTH_METHOD == "adc":
         try:
-            creds = service_account.Credentials.from_service_account_file(
-                SERVICE_ACCOUNT_PATH, scopes=SCOPES
-            )
-            auth_method = "service_account"
-            logger.debug("Using service account authentication")
-            logger.debug(
-                "Working with Google Drive folder ID: %s", DRIVE_FOLDER_ID or "Not specified"
-            )
-        except Exception as e:
-            logger.error("Error using service account authentication: %s", e)
-            creds = None
-
-    if not creds:
-        logger.debug("Trying OAuth authentication flow")
-        if os.path.exists(TOKEN_PATH):
-            with open(TOKEN_PATH) as token:
-                creds = Credentials.from_authorized_user_info(json.load(token), SCOPES)
-
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                try:
-                    logger.debug("Attempting to refresh expired token...")
-                    creds.refresh(Request())
-                    logger.debug("Token refreshed successfully")
-                    with open(TOKEN_PATH, "w") as token:
-                        token.write(creds.to_json())
-                except Exception as refresh_error:
-                    logger.warning("Token refresh failed: %s", refresh_error)
-                    logger.debug("Triggering reauthentication flow...")
-                    creds = None
-
-            if not creds:
-                try:
-                    flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, SCOPES)
-                    creds = flow.run_local_server(port=0)
-                    with open(TOKEN_PATH, "w") as token:
-                        token.write(creds.to_json())
-                    logger.debug("Successfully authenticated using OAuth flow")
-                except Exception as e:
-                    logger.error("Error with OAuth flow: %s", e)
-                    creds = None
-
-        if creds:
-            auth_method = "oauth"
-
-    if not creds:
-        try:
-            logger.debug("Attempting to use Application Default Credentials (ADC)")
-            logger.debug(
-                "ADC will check: GOOGLE_APPLICATION_CREDENTIALS, gcloud auth, and metadata service"
-            )
             creds, project = google.auth.default(scopes=SCOPES)
-            auth_method = "adc"
-            logger.debug("Successfully authenticated using ADC for project: %s", project)
+            logger.debug("ADC resolved project: %s", project)
+            resolved = "adc"
         except Exception as e:
-            logger.error("Error using Application Default Credentials: %s", e)
-            raise Exception(
-                "All authentication methods failed. Please configure credentials."
-            ) from e
+            raise RuntimeError("AUTH_METHOD=adc but ADC failed.") from e
+
+    # --- Waterfall (AUTH_METHOD not set) ---
+
+    else:
+        creds = None
+        resolved = "unknown"
+
+        # 1. OAuth
+        try:
+            creds = _oauth_creds()
+            resolved = "oauth"
+            logger.debug("Waterfall: using OAuth")
+        except Exception as e:
+            logger.debug("Waterfall: OAuth unavailable (%s), trying service account", e)
+
+        # 2. Service account
+        if not creds:
+            creds = _service_account_creds()
+            if creds:
+                resolved = "service_account"
+                logger.debug("Waterfall: using service account")
+                logger.debug("Drive folder ID: %s", DRIVE_FOLDER_ID or "not specified")
+
+        # 3. ADC
+        if not creds:
+            try:
+                creds, project = google.auth.default(scopes=SCOPES)
+                resolved = "adc"
+                logger.debug("Waterfall: using ADC for project: %s", project)
+            except Exception as e:
+                raise RuntimeError(
+                    "All authentication methods failed. Please configure credentials."
+                ) from e
+
+    logger.debug("Auth resolved: %s", resolved)
 
     # cache_discovery=False: file cache requires oauth2client<4.0; all auth paths here use google-auth
     sheets_service = build("sheets", "v4", credentials=creds, cache_discovery=False)
     drive_service = build("drive", "v3", credentials=creds, cache_discovery=False)
     docs_service = build("docs", "v1", credentials=creds, cache_discovery=False)
     calendar_service = build("calendar", "v3", credentials=creds, cache_discovery=False)
-
-    logger.debug("Auth method resolved: %s", auth_method)
 
     try:
         yield SpreadsheetContext(
@@ -142,7 +178,7 @@ async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetCont
             docs_service=docs_service,
             calendar_service=calendar_service,
             folder_id=DRIVE_FOLDER_ID if DRIVE_FOLDER_ID else None,
-            auth_method=auth_method,
+            auth_method=resolved,
             cache=SheetStructureCache(),
         )
     finally:
