@@ -97,9 +97,10 @@ def register(tool):
 
         Args:
             queries: A list of dictionaries, each specifying a query.
-                     Each dictionary should have 'spreadsheet_id', 'sheet', and 'range' keys.
+                     Each dictionary must have 'spreadsheet_id' and 'sheet' keys.
+                     'range' is optional; omitting it returns the entire sheet.
                      Example: [{'spreadsheet_id': 'abc', 'sheet': 'Sheet1', 'range': 'A1:B5'},
-                               {'spreadsheet_id': 'xyz', 'sheet': 'Data', 'range': 'C1:C10'}]
+                               {'spreadsheet_id': 'xyz', 'sheet': 'Data'}]
 
         Returns:
             A list of dictionaries, each containing the original query parameters
@@ -113,14 +114,13 @@ def register(tool):
             sheet = query.get("sheet")
             range_str = query.get("range")
 
-            if not all([spreadsheet_id, sheet, range_str]):
-                results.append(
-                    {**query, "error": "Missing required keys (spreadsheet_id, sheet, range)"}
-                )
+            if not all([spreadsheet_id, sheet]):
+                results.append({**query, "error": "Missing required keys (spreadsheet_id, sheet)"})
                 continue
 
             try:
-                full_range = f"{_quote_sheet_name(str(sheet))}!{range_str}"
+                quoted = _quote_sheet_name(str(sheet))
+                full_range = f"{quoted}!{range_str}" if range_str else quoted
                 result = (
                     sheets_service.spreadsheets()
                     .values()
