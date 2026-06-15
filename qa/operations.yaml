@@ -132,7 +132,7 @@ operations:
           sheets_write:  "Sheets write tools (TC-W##) — update_cells, batch_update_cells, add_rows, add_columns"
           sheets_mgmt:   "Sheets management tools (TC-S##) — create_sheet, rename_sheet, copy_sheet, list_sheets"
           sheets_charts: "Sheets chart tools (TC-C##) — add_chart"
-          drive:         "Drive + Docs tools (TC-D##) — list_files, list_folders, list_spreadsheets, search_spreadsheets, share_spreadsheet, create_spreadsheet, write_doc_content. NOTE: many tests are marked ⚠️ requires-oauth or ⚠️ local-filesystem — see pre-run warning."
+          drive:         "Drive, Docs, sharing, transfer, and revisions tools (TC-D##) — create/list/search spreadsheets, docs, files, folders; share_spreadsheet, share_file, list/update/remove permissions; upload, download, export_file, sync_folder; list_revisions, export_revision; get_file_metadata, rename_file, move_file, copy_file, delete_file, list_drives. NOTE: many tests are marked ⚠️ requires-oauth or ⚠️ local-filesystem — see pre-run warning."
           calendar:      "Calendar tools (TC-CAL##) — requires TEST_CALENDAR_ID and TEST_EVENT_ID"
           infra:         "Infrastructure (TC-I##) — server startup, auth, caching, tool filtering, refresh_cache"
     preconditions:
@@ -199,7 +199,7 @@ operations:
           sheets_write:  "Sheets write tools (TC-W##) — update_cells, batch_update_cells, add_rows, add_columns"
           sheets_mgmt:   "Sheets management tools (TC-S##) — create_sheet, rename_sheet, copy_sheet, list_sheets"
           sheets_charts: "Sheets chart tools (TC-C##) — add_chart"
-          drive:         "Drive + Docs tools (TC-D##) — list_files, list_folders, list_spreadsheets, search_spreadsheets, share_spreadsheet, create_spreadsheet, write_doc_content"
+          drive:         "Drive, Docs, sharing, transfer, and revisions tools (TC-D##) — create/list/search spreadsheets, docs, files, folders; share_spreadsheet, share_file, list/update/remove permissions; upload, download, export_file, sync_folder; list_revisions, export_revision; get_file_metadata, rename_file, move_file, copy_file, delete_file, list_drives"
           calendar:      "Calendar tools (TC-CAL##) — requires TEST_CALENDAR_ID and TEST_EVENT_ID"
           infra:         "Infrastructure (TC-I##) — server startup, auth, caching, tool filtering, refresh_cache"
     preconditions:
