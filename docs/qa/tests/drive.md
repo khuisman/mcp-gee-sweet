@@ -8,7 +8,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `create_spreadsheet`
 
-### TC-D01: Create in default folder
+### TC-D01: Create in default folder ⚠️ requires-oauth
 **Prompt**
 > "Create a new spreadsheet called 'QA-Create-Test' in my default folder"
 
@@ -19,7 +19,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D02: Create with explicit folder ID
+### TC-D02: Create with explicit folder ID ⚠️ requires-oauth
 **Prompt**
 > "Create a new spreadsheet called 'QA-Create-Explicit' in folder {FOLDER_ID}"
 
@@ -29,7 +29,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D03: Create without a folder (root of Drive)
+### TC-D03: Create without a folder (root of Drive) ⚠️ requires-oauth
 **Prompt**
 > "Create a new spreadsheet called 'QA-Create-Root' with no folder specified"
 
@@ -51,7 +51,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D05: Drive folder cache invalidated
+### TC-D05: Drive folder cache invalidated ⚠️ requires-oauth
 **Prompt**
 > "Create a spreadsheet called 'QA-Cache-Check' in {FOLDER_ID}, then list the files in that folder"
 
@@ -61,7 +61,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D06: Resulting spreadsheet has expected title
+### TC-D06: Resulting spreadsheet has expected title ⚠️ requires-oauth
 **Prompt**
 > "Create a spreadsheet called 'Exact Title Test' and confirm the title in the response"
 
@@ -72,7 +72,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `create_doc`
 
-### TC-D07: Create with no content
+### TC-D07: Create with no content ⚠️ requires-oauth
 **Prompt**
 > "Create a Google Doc called 'QA-Empty-Doc' with no content"
 
@@ -83,7 +83,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D08: Create with HTML content — formatting preserved
+### TC-D08: Create with HTML content — formatting preserved ⚠️ requires-oauth
 **Prompt**
 > "Create a Google Doc called 'QA-Formatted-Doc' with this content: `<h1>Main Title</h1><p>A paragraph.</p><ul><li>Item A</li><li>Item B</li></ul>`"
 
@@ -94,7 +94,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D09: Create with a link
+### TC-D09: Create with a link ⚠️ requires-oauth
 **Prompt**
 > "Create a Google Doc called 'QA-Link-Doc' with content: `<p>Visit <a href=\"https://example.com\">Example</a></p>`"
 
@@ -104,7 +104,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D10: Content with no block-level elements — batchUpdate skipped
+### TC-D10: Content with no block-level elements — batchUpdate skipped ⚠️ requires-oauth
 **Prompt**
 > "Create a Google Doc called 'QA-Inline-Doc' with content: `<span>just a span</span>`"
 
@@ -115,7 +115,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D11: Drive folder cache invalidated
+### TC-D11: Drive folder cache invalidated ⚠️ requires-oauth
 **Prompt**
 > "Create a doc called 'QA-DocCache' in {FOLDER_ID}, then list the files in that folder"
 
@@ -125,7 +125,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D12: Long content
+### TC-D12: Long content ⚠️ requires-oauth
 **Prompt**
 > "Create a Google Doc called 'QA-Long-Doc' with a very long paragraph — repeat the word 'test ' 500 times as the body content"
 
@@ -477,7 +477,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D43: Cache invalidated after create
+### TC-D43: Cache invalidated after create ⚠️ requires-oauth
 **Prompt**
 > "Create a spreadsheet called 'QA-ListFilesCache' in {FOLDER_ID}, then list files in that folder"
 
@@ -558,7 +558,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `write_doc_content`
 
-### TC-D50: Write to an empty doc
+### TC-D50: Write to an empty doc ⚠️ requires-oauth
 **Prompt**
 > "Create a new empty doc called 'QA-WriteEmpty', then write this content to it: `<h1>Hello</h1><p>World</p>`"
 
@@ -652,7 +652,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `create_folder`
 
-### TC-D58: Create in default folder
+### TC-D58: Create in default folder ⚠️ requires-oauth
 
 **Prompt**
 > "Create a new folder called 'QA-Folder-Test' in my default folder"
@@ -664,7 +664,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D59: Create at root (no parent)
+### TC-D59: Create at root (no parent) ⚠️ requires-oauth
 
 **Prompt**
 > "Create a folder called 'QA-Folder-Root' with no parent folder specified"
@@ -676,7 +676,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D60: Cache invalidated after create
+### TC-D60: Cache invalidated after create ⚠️ requires-oauth
 
 **Prompt**
 > "Create a folder called 'QA-Folder-Cache' in {FOLDER_ID}, then list files in that folder"
@@ -760,7 +760,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `copy_file`
 
-### TC-D67: Copy with auto-assigned name
+### TC-D67: Copy with auto-assigned name ⚠️ requires-oauth
 **Prompt**
 > "Copy the spreadsheet {SPREADSHEET_ID} without specifying a new name"
 
@@ -771,7 +771,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D68: Copy with explicit name and destination folder
+### TC-D68: Copy with explicit name and destination folder ⚠️ requires-oauth
 **Prompt**
 > "Copy {SPREADSHEET_ID} into {FOLDER_ID} and name the copy 'QA-Copy-Explicit'"
 
@@ -782,7 +782,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D69: Copy a Google Doc
+### TC-D69: Copy a Google Doc ⚠️ requires-oauth
 **Prompt**
 > "Copy {DOC_ID} and name it 'QA-Doc-Copy'"
 
@@ -793,7 +793,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D70: Attempt to copy a folder
+### TC-D70: Attempt to copy a folder ⚠️ requires-oauth
 
 **Prompt**
 > "Copy the folder from TC-D65 ('QA-Folder-Renamed') to see if folder copy is supported"
@@ -1006,7 +1006,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `upload_file`
 
-### TC-D88: Upload plain text file
+### TC-D88: Upload plain text file ⚠️ requires-oauth
 **Prompt**
 > "Upload a plain text file called 'qa-upload.txt' to {FOLDER_ID} with content 'Hello from QA'"
 
@@ -1017,7 +1017,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D89: Upload Markdown as raw file (no conversion)
+### TC-D89: Upload Markdown as raw file (no conversion) ⚠️ requires-oauth
 **Prompt**
 > "Upload a markdown file called 'qa-notes.md' to {FOLDER_ID} with content '# Heading\n\n- item 1\n- item 2' and do not convert it to a doc"
 
@@ -1042,7 +1042,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D91: Upload HTML and convert to Google Doc
+### TC-D91: Upload HTML and convert to Google Doc ⚠️ requires-oauth
 **Prompt**
 > "Upload this HTML to {FOLDER_ID} as a Google Doc called 'QA-HTML-Doc': `<h1>HTML Title</h1><p>A paragraph.</p><ul><li>X</li><li>Y</li></ul>`"
 
@@ -1053,7 +1053,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D92: Upload Markdown with table
+### TC-D92: Upload Markdown with table ⚠️ requires-oauth
 **Prompt**
 > "Upload this markdown as a Google Doc called 'QA-Table-Doc' to {FOLDER_ID}: `# Table Test\n\n| Col A | Col B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |`"
 
