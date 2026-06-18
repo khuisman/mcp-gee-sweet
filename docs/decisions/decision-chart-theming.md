@@ -25,7 +25,7 @@ Charts have no equivalent gap. `add_chart` parameters — chart type string, A1 
 
 ### 2. Should an external chart spec format (e.g. Vega-Lite) be adopted as input?
 
-Vega-Lite is the closest well-documented match: declarative JSON, a clear separation between data encoding and visual config, and a vocabulary (mark type, encoding channels, config block) that AI tools produce fluently. Its design language is legible and transferable.
+[Vega-Lite](https://vega.github.io/vega-lite/) is the closest well-documented match: declarative JSON, a clear separation between data encoding and visual config, and a vocabulary (mark type, encoding channels, config block) that AI tools produce fluently. Its design language is legible and transferable.
 
 However, formal adoption would create the same silent-drop problem the Docs decision identified in the HTML parser — just imported from outside rather than grown internally. Vega-Lite can express things the Sheets API cannot: faceting, arbitrary data transforms, layered marks with different encodings, interactive selections. A caller writing valid Vega-Lite would have no signal that features are silently unsupported. The contract would overpromise.
 
