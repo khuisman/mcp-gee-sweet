@@ -89,13 +89,16 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D158: Insert at multiple indices in one call ⚠️ requires-oauth ⚠️ destructive
+### TC-D158: Insert at multiple indices — high→low ordering verified ⚠️ requires-oauth ⚠️ destructive
+**Setup:** fetch structure; identify two paragraphs P1 (earlier) and P2 (later) with known indices. Record P1's `startIndex` as N1 and P2's `startIndex` as N2 (N2 > N1). Both insertions are short fixed strings so index arithmetic is checkable.
+
 **Prompt**
-> "Insert 'First addition.\n' at index {N1} and 'Second addition.\n' at index {N2} in doc {DOC_ID} (N2 > N1)"
+> "Insert 'AAA\n' at index {N1} and 'BBB\n' at index {N2} in doc {DOC_ID}"
 
 **Checks**
-- Both insertions land at the correct positions
-- Lower-index insertion is not shifted by the higher-index one (high→low ordering confirmed)
+- Re-fetch structure shows 'AAA' before P1 and 'BBB' before P2 (not shifted into wrong paragraphs)
+- 'BBB' paragraph's `startIndex` = N2 + 4 (len('AAA\n') inserted before it)
+- If tool processed low→high instead, 'BBB' would land 4 bytes early — use this arithmetic to confirm ordering
 - `insertions: 2` in response
 
 **Cleanup:** delete both inserted ranges
@@ -275,3 +278,148 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Checks**
 - Only one request emitted (the no-style cell is silently skipped)
 - `requests: 1` in response
+
+---
+
+## Multi-operation ordering and sequencing
+
+### TC-D173: Multi-delete high→low ordering verified ⚠️ requires-oauth ⚠️ destructive
+**Setup:** insert two known paragraphs ('DEL-A\n' and 'DEL-B\n') at known positions. Note their `startIndex`/`endIndex` after re-fetching. DEL-B has higher indices than DEL-A.
+
+**Prompt**
+> "Delete range {DEL-A start}–{DEL-A end} and range {DEL-B start}–{DEL-B end} from doc {DOC_ID} in one call"
+
+**Checks**
+- Both paragraphs absent from re-fetched structure
+- Content that followed DEL-B is now at DEL-B's original startIndex (no offset error)
+- If tool processed low→high, DEL-B's range would be stale after DEL-A shifts indices — verify neither deletion fails with an out-of-bounds error
+- `deletions: 2` in response
+
+---
+
+### TC-D174: style_doc_range round-trip — heading confirmed in get_doc_structure ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** `style_doc_range` was never called live during initial testing. This is the first live verification.
+
+**Setup:** insert a paragraph 'Style-test heading\n'; note its `startIndex`/`endIndex`
+
+**Prompt**
+> "Style the range {start}–{end} in doc {DOC_ID} as HEADING_1"
+
+**Checks**
+- Response contains `requests: 1`
+- Call `get_doc_structure` — the paragraph at that index shows `namedStyleType: "HEADING_1"`
+- Text content is unchanged ('Style-test heading')
+
+**Cleanup:** style back to NORMAL_TEXT, then delete the paragraph
+
+---
+
+### TC-D175: style_doc_range text styles round-trip ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** verify bold/italic/underline are readable back via get_doc_structure runs.
+
+**Setup:** insert a paragraph 'Bold-italic test\n'; note its index range
+
+**Prompt**
+> "Make the range {start}–{end} in doc {DOC_ID} bold and italic"
+
+**Checks**
+- Response contains `requests: 1`
+- `get_doc_structure` shows a run in that paragraph with `bold: true` and `italic: true`
+- `namedStyleType` is unchanged (updateTextStyle only, no updateParagraphStyle)
+
+**Cleanup:** delete the test paragraph
+
+---
+
+### TC-D176: style_doc_table_cells post-fix live verification ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** `style_doc_table_cells` was fixed (removed top-level `tableStartLocation` that conflicted with the `tableRange` oneof) but the fix was **never re-tested live**. This is the confirmation test.
+
+**Setup:** insert a 2×2 table; record its `tableStartIndex` from the response
+
+**Prompt**
+> "Style cell [0,0] of the table at index {tableStartIndex} in doc {DOC_ID} with background_color red=0.8 green=0.9 blue=1.0"
+
+**Checks**
+- Response succeeds (no API 400 error about `oneof field 'cells' is already set`)
+- `requests: 1` in response
+- 🔍 Visual check in Google Docs: cell [0,0] has light blue background
+
+**Cleanup:** delete the table
+
+---
+
+### TC-D177: Full end-to-end sequence — insert table then style cells ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** the complete `insert_doc_table` → `style_doc_table_cells` sequence was never run end-to-end in live testing. Covers both tools and the index handoff between them.
+
+**Setup:** fetch structure; note a suitable insertion index N
+
+**Prompt**
+> "Insert a 2×3 table at index {N} in doc {DOC_ID}, then style row 0 with grey background (red=0.85 green=0.85 blue=0.85) spanning all 3 columns, and add a solid black border (width 0.5) to every cell"
+
+**Checks**
+- `insert_doc_table` succeeds: `rows: 2`, `columns: 3`, 6 cells returned
+- `style_doc_table_cells` for row 0 grey background succeeds (`requests: 1`)
+- `style_doc_table_cells` for all 6 cells border succeeds (`requests: 6`)
+- Re-fetch `get_doc_structure` shows the table at `tableStartIndex`
+- 🔍 Visual check in Google Docs: styled header row and visible borders
+
+**Cleanup:** delete table range
+
+---
+
+### TC-D178: Insert text then insert table — index chaining ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** verify that indices returned by one operation are usable as input to a subsequent operation without re-fetching the full structure each time.
+
+**Setup:** start with a known doc structure; note `endIndex` of a paragraph as N
+
+**Step 1 prompt**
+> "Insert 'Intro paragraph.\n' at index {N} in doc {DOC_ID}"
+
+**Step 2 prompt** (using `N + len('Intro paragraph.\n')` as the new insertion point)
+> "Insert a 2×2 table at index {N + 17} in doc {DOC_ID}"
+
+**Checks**
+- Both operations succeed without error
+- Re-fetch structure shows the paragraph immediately followed by the table
+- Table `tableStartIndex` = N + 18 (paragraph 17 bytes + 1 for the Docs paragraph boundary offset)
+
+**Cleanup:** delete table then paragraph
+
+---
+
+## `style_doc_range` — additional coverage
+
+### TC-D179: Apply strikethrough ⚠️ requires-oauth ⚠️ destructive
+**Setup:** insert a paragraph; note its range
+
+**Prompt**
+> "Apply strikethrough to range {start}–{end} in doc {DOC_ID}"
+
+**Checks**
+- Response `requests: 1`
+- `get_doc_structure` shows run with `strikethrough: true`
+
+---
+
+### TC-D180: Apply font_size ⚠️ requires-oauth ⚠️ destructive
+**Setup:** insert a paragraph; note its range
+
+**Prompt**
+> "Set font size to 18pt for range {start}–{end} in doc {DOC_ID}"
+
+**Checks**
+- Response `requests: 1`
+- 🔍 Visual check: text is visibly larger
+
+---
+
+### TC-D181: Apply link_url ⚠️ requires-oauth ⚠️ destructive
+**Setup:** insert a paragraph 'Visit example\n'; note the range covering 'example'
+
+**Prompt**
+> "Apply link_url 'https://example.com' to range {start}–{end} in doc {DOC_ID}"
+
+**Checks**
+- Response `requests: 1`
+- `get_doc_structure` shows run with `link_url: "https://example.com"`
+- 🔍 Visual check: text appears as a hyperlink
