@@ -1033,7 +1033,7 @@
 
 <h1 id="qa-run-2026-06-14">QA Run — 2026-06-14<a class="headerlink" href="#qa-run-2026-06-14" title="Permanent link">&para;</a></h1>
 <p><strong>Auth:</strong> OAuth<br />
-<strong>Fixtures:</strong> SPREADSHEET_ID=<code>15hOwO1Jay26PyxjjYtq9Pq-gEd8lDa81g-C13-GyvCA</code></p>
+<strong>Fixtures:</strong> SPREADSHEET_ID=$TEST_SPREADSHEET_ID</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1248,7 +1248,7 @@ Observed: returns same data as default (5 rows), not clamped to 1 as the check e
 </table>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
-<li>TC-R01: fixture has dirty write-test data in rows 11–14 (leftover from prior write QA runs). Core 6 rows are correct.</li>
+<li>TC-R01: fixture had dirty write-test data in rows 11–14 (leftover from prior write QA runs). Cleaned on 2026-06-14 — rows 11–14 now empty.</li>
 <li>TC-R17: SKIP — cache-hit verification requires server log access (<code>make logs</code>); not available in an AI-driven session.</li>
 <li>TC-R20: verified via TC-R16 data (same call); not re-run separately.</li>
 </ul>
