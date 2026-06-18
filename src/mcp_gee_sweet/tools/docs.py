@@ -842,11 +842,17 @@ def register(tool):
         except Exception as e:
             return {"error": f"table inserted but re-fetch failed: {e}"}
 
-        for elem in doc.get("body", {}).get("content", []):
-            if "table" not in elem:
-                continue
-            if elem.get("startIndex") != index:
-                continue
+        # Find the table nearest to `index` (startIndex >= index - 1).
+        # The Docs API may insert a paragraph boundary before the table,
+        # so the actual startIndex is often index + 1, not index exactly.
+        table_elems = [
+            elem
+            for elem in doc.get("body", {}).get("content", [])
+            if "table" in elem and elem.get("startIndex", 0) >= index - 1
+        ]
+        table_elems.sort(key=lambda e: e.get("startIndex", 0))
+
+        for elem in table_elems:
             table = elem["table"]
             cells = []
             for r, row in enumerate(table.get("tableRows", [])):
@@ -958,7 +964,6 @@ def register(tool):
             requests.append(
                 {
                     "updateTableCellStyle": {
-                        "tableStartLocation": {"index": table_start_index},
                         "tableCellStyle": table_cell_style,
                         "tableRange": {
                             "tableCellLocation": {
