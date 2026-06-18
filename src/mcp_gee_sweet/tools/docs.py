@@ -800,7 +800,7 @@ def register(tool):
         """
         Insert an empty table at a specific position in a Google Doc.
 
-        The table is inserted at the given index and the document is re-fetched
+        The table is inserted at the given index. The document is re-fetched
         immediately to return the actual cell indices. Use those indices with
         insert_doc_text (targeting each cell's paragraphStartIndex) to fill cells,
         or with style_doc_table_cells to apply formatting.
@@ -814,8 +814,11 @@ def register(tool):
             columns: Number of table columns.
 
         Returns:
-            tableStartIndex, tableEndIndex, rows, columns, and a cells list
-            (each cell has row, col, startIndex, endIndex, paragraphStartIndex).
+            precedingParagraphIndex (= index), tableStartIndex (= index + 1),
+            tableEndIndex, rows, columns, and a cells list (each cell has row,
+            col, startIndex, endIndex, paragraphStartIndex).
+            To fully delete the table later, delete the range
+            [precedingParagraphIndex, tableEndIndex] in one call.
         """
         lc = ctx.request_context.lifespan_context
         try:
@@ -843,8 +846,10 @@ def register(tool):
             return {"error": f"table inserted but re-fetch failed: {e}"}
 
         # Find the table nearest to `index` (startIndex >= index - 1).
-        # The Docs API may insert a paragraph boundary before the table,
-        # so the actual startIndex is often index + 1, not index exactly.
+        # The Docs API inserts a required empty paragraph before the table,
+        # so the actual startIndex is index + 1. That paragraph cannot be
+        # deleted while the table exists. To fully remove the table later,
+        # delete [precedingParagraphIndex, tableEndIndex] in one range.
         table_elems = [
             elem
             for elem in doc.get("body", {}).get("content", [])
@@ -872,9 +877,11 @@ def register(tool):
             logger.debug(
                 "insert_doc_table: %dx%d at index %d in doc %s", rows, columns, index, doc_id
             )
+            table_start = elem.get("startIndex")
             return {
                 "docId": doc_id,
-                "tableStartIndex": elem.get("startIndex"),
+                "precedingParagraphIndex": table_start - 1,
+                "tableStartIndex": table_start,
                 "tableEndIndex": elem.get("endIndex"),
                 "rows": rows,
                 "columns": columns,

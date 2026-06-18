@@ -208,13 +208,13 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 > "Insert a 2-row, 3-column table at index {N} in doc {DOC_ID}"
 
 **Checks**
-- Response includes `tableStartIndex`, `tableEndIndex`, `rows: 2`, `columns: 3`
+- Response includes `precedingParagraphIndex`, `tableStartIndex`, `tableEndIndex`, `rows: 2`, `columns: 3`
 - `cells` list has 6 entries (rows × columns)
 - Each cell has `row`, `col`, `startIndex`, `endIndex`, `paragraphStartIndex`
-- `tableStartIndex` is `N + 1` (Docs API inserts a paragraph boundary before the table)
-- Re-fetch structure shows the table at the returned `tableStartIndex`
+- `precedingParagraphIndex` = N, `tableStartIndex` = N + 1 (Docs API always inserts a required empty paragraph before the table; it cannot be deleted while the table exists)
+- Re-fetch structure shows an empty paragraph at N, then the table at N + 1
 
-**Cleanup:** delete table range after verifying
+**Cleanup:** delete `[precedingParagraphIndex, tableEndIndex]` in one range — this removes both the required preceding paragraph and the table body together
 
 ---
 
@@ -381,11 +381,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Checks**
 - Both operations succeed without error
 - Re-fetch structure shows the paragraph immediately followed by the table
-- Table `tableStartIndex` = N + 18 (paragraph 17 bytes + 1 for the Docs paragraph boundary offset)
+- `precedingParagraphIndex` = N + 17, `tableStartIndex` = N + 18
 
-**Cleanup:** delete table range, then paragraph range (high→low). Note: each `insert_doc_table` call creates one extra empty paragraph boundary before the table. After deleting the table body, delete the extra empty paragraph too — it will be at the tableStartIndex − 1 position.
-
-**Confirmed:** verified live 2026-06-17
+**Cleanup:** for each table, delete `[precedingParagraphIndex, tableEndIndex]` in one range (high→low for the two tables).
 
 ---
 
