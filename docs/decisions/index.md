@@ -8,3 +8,4 @@ Point-in-time records of specific decisions — context, alternatives, and reaso
 | [Composite Tools](decision-composite-tools.md) | 2026-05-22 | decided | Case analysis of specific composite tools approved or ruled out |
 | [Testing Approach](decision-testing.md) | 2026-05-13 | decided | Why AI-directed manual verification over automated integration tests |
 | [Publishing Strategy](decision-publishing.md) | 2026-05-23 | draft | Two-track PyPI release (stable + edge); version injection open |
+| [Docs Formatting Architecture](decision-docs-formatting.md) | 2026-06-17 | decided | Two-layer approach (direct API tools + HTML abstraction via AST); phase plan for #41, #65–#70, #79–#82 |
