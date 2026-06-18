@@ -483,3 +483,507 @@ def register(tool):
         lc.doc_cache.mark_dirty(doc_id)
         logger.debug("Wrote content to doc %s", doc_id)
         return {"docId": doc_id, "web_link": metadata.get("webViewLink")}
+
+    @tool(annotations=ToolAnnotations(title="Get Document Structure", readOnlyHint=True))
+    def get_doc_structure(doc_id: str, ctx: Context = None) -> dict[str, Any]:
+        """
+        Return the full structural map of a Google Doc body with element indices.
+
+        Every batchUpdate operation (insert, delete, style, table) requires knowing
+        the startIndex and endIndex of the target element. This tool exposes those
+        indices alongside paragraph styles, text run formatting, and table cell positions.
+
+        Args:
+            doc_id: The Google Doc file ID.
+
+        Returns:
+            Dictionary with docId, title, and an elements list. Each element has:
+            - type: "paragraph" | "table" | "sectionBreak" | "tableOfContents"
+            - startIndex, endIndex
+            Paragraphs also include namedStyleType, text, and a runs list (each run
+            has text, bold, italic, underline, strikethrough, font_size, link_url).
+            Tables include rows, columns, and a cells list (each cell has row, col,
+            startIndex, endIndex, paragraphStartIndex, text).
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            doc = lc.docs_service.documents().get(documentId=doc_id).execute()
+        except Exception as e:
+            return {"error": str(e)}
+
+        elements = []
+        for elem in doc.get("body", {}).get("content", []):
+            if "paragraph" in elem:
+                para = elem["paragraph"]
+                named_style = para.get("paragraphStyle", {}).get("namedStyleType", "NORMAL_TEXT")
+                runs = []
+                for pe in para.get("elements", []):
+                    tr = pe.get("textRun")
+                    if not tr:
+                        continue
+                    ts = tr.get("textStyle", {})
+                    runs.append(
+                        {
+                            "text": tr.get("content", ""),
+                            "bold": ts.get("bold"),
+                            "italic": ts.get("italic"),
+                            "underline": ts.get("underline"),
+                            "strikethrough": ts.get("strikethrough"),
+                            "font_size": ts["fontSize"].get("magnitude")
+                            if "fontSize" in ts
+                            else None,
+                            "link_url": ts["link"].get("url") if "link" in ts else None,
+                        }
+                    )
+                elements.append(
+                    {
+                        "type": "paragraph",
+                        "startIndex": elem.get("startIndex", 0),
+                        "endIndex": elem.get("endIndex", 0),
+                        "namedStyleType": named_style,
+                        "text": "".join(r["text"] for r in runs),
+                        "runs": runs,
+                    }
+                )
+            elif "table" in elem:
+                table = elem["table"]
+                cells = []
+                for r, row in enumerate(table.get("tableRows", [])):
+                    for c, cell in enumerate(row.get("tableCells", [])):
+                        content = cell.get("content", [])
+                        para_start = content[0].get("startIndex") if content else None
+                        cell_text = "".join(
+                            pe.get("textRun", {}).get("content", "")
+                            for ce in content
+                            if "paragraph" in ce
+                            for pe in ce["paragraph"].get("elements", [])
+                        )
+                        cells.append(
+                            {
+                                "row": r,
+                                "col": c,
+                                "startIndex": cell.get("startIndex"),
+                                "endIndex": cell.get("endIndex"),
+                                "paragraphStartIndex": para_start,
+                                "text": cell_text.strip(),
+                            }
+                        )
+                elements.append(
+                    {
+                        "type": "table",
+                        "startIndex": elem.get("startIndex", 0),
+                        "endIndex": elem.get("endIndex", 0),
+                        "rows": table.get("rows", 0),
+                        "columns": table.get("columns", 0),
+                        "cells": cells,
+                    }
+                )
+            elif "sectionBreak" in elem:
+                elements.append(
+                    {
+                        "type": "sectionBreak",
+                        "startIndex": elem.get("startIndex", 0),
+                        "endIndex": elem.get("endIndex", 0),
+                    }
+                )
+            elif "tableOfContents" in elem:
+                elements.append(
+                    {
+                        "type": "tableOfContents",
+                        "startIndex": elem.get("startIndex", 0),
+                        "endIndex": elem.get("endIndex", 0),
+                    }
+                )
+
+        logger.debug("get_doc_structure: %d elements in doc %s", len(elements), doc_id)
+        return {
+            "docId": doc.get("documentId"),
+            "title": doc.get("title"),
+            "elements": elements,
+        }
+
+    @tool(annotations=ToolAnnotations(title="Insert Document Text", destructiveHint=True))
+    def insert_doc_text(
+        doc_id: str,
+        insertions: list[dict],
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Insert text at one or more positions in a Google Doc.
+
+        All indices are interpreted as positions in the document before any of
+        the insertions in this call. Insertions are applied high-index-first so
+        earlier indices are not shifted by later ones.
+
+        Use get_doc_structure to obtain the correct target indices.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            insertions: List of {"index": int, "text": str}. A "\\n" in text
+                creates a new paragraph; inserting "\\n" inside an existing paragraph
+                splits it at that point.
+
+        Returns:
+            Confirmation with docId and count of insertions applied.
+        """
+        lc = ctx.request_context.lifespan_context
+        if not insertions:
+            return {"error": "insertions list is empty"}
+        try:
+            sorted_ops = sorted(insertions, key=lambda x: x["index"], reverse=True)
+            requests = [
+                {"insertText": {"location": {"index": op["index"]}, "text": op["text"]}}
+                for op in sorted_ops
+            ]
+            lc.docs_service.documents().batchUpdate(
+                documentId=doc_id, body={"requests": requests}
+            ).execute()
+        except Exception as e:
+            return {"error": str(e)}
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug("insert_doc_text: %d insertions in doc %s", len(requests), doc_id)
+        return {"docId": doc_id, "insertions": len(requests)}
+
+    @tool(annotations=ToolAnnotations(title="Delete Document Range", destructiveHint=True))
+    def delete_doc_range(
+        doc_id: str,
+        deletions: list[dict],
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Delete one or more content ranges from a Google Doc.
+
+        All indices are interpreted as positions in the document before any of
+        the deletions in this call. Deletions are applied high-index-first so
+        earlier indices are not shifted by later ones.
+
+        Use get_doc_structure to obtain the correct start/end indices.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            deletions: List of {"start_index": int, "end_index": int}.
+                The range [start_index, end_index) is deleted (end_index is exclusive).
+                Do not include the document's final newline (last endIndex - 1).
+
+        Returns:
+            Confirmation with docId and count of deletions applied.
+        """
+        lc = ctx.request_context.lifespan_context
+        if not deletions:
+            return {"error": "deletions list is empty"}
+        try:
+            sorted_ops = sorted(deletions, key=lambda x: x["start_index"], reverse=True)
+            requests = [
+                {
+                    "deleteContentRange": {
+                        "range": {
+                            "startIndex": op["start_index"],
+                            "endIndex": op["end_index"],
+                        }
+                    }
+                }
+                for op in sorted_ops
+            ]
+            lc.docs_service.documents().batchUpdate(
+                documentId=doc_id, body={"requests": requests}
+            ).execute()
+        except Exception as e:
+            return {"error": str(e)}
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug("delete_doc_range: %d deletions in doc %s", len(requests), doc_id)
+        return {"docId": doc_id, "deletions": len(requests)}
+
+    @tool(annotations=ToolAnnotations(title="Style Document Range", destructiveHint=True))
+    def style_doc_range(
+        doc_id: str,
+        ranges: list[dict],
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Apply paragraph and/or text styles to one or more index ranges in a Google Doc.
+
+        Use get_doc_structure to obtain the startIndex and endIndex for each target range.
+        Multiple ranges can be styled in a single call; all batchUpdate requests are
+        sent together.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            ranges: List of range dicts. Each dict must include start_index and end_index,
+                plus any combination of the style fields below:
+
+                Paragraph style:
+                  named_style_type (str): NORMAL_TEXT, HEADING_1 … HEADING_6,
+                      TITLE, SUBTITLE
+
+                Text style:
+                  bold (bool), italic (bool), underline (bool), strikethrough (bool)
+                  font_size (float): size in points
+                  foreground_color (dict): {"red": 0-1, "green": 0-1, "blue": 0-1}
+                  link_url (str | null): set a hyperlink (null to clear)
+
+        Returns:
+            Confirmation with docId and count of batchUpdate requests sent.
+        """
+        lc = ctx.request_context.lifespan_context
+        if not ranges:
+            return {"error": "ranges list is empty"}
+
+        requests = []
+        for r in ranges:
+            rng = {"startIndex": r["start_index"], "endIndex": r["end_index"]}
+
+            if "named_style_type" in r:
+                requests.append(
+                    {
+                        "updateParagraphStyle": {
+                            "range": rng,
+                            "paragraphStyle": {"namedStyleType": r["named_style_type"]},
+                            "fields": "namedStyleType",
+                        }
+                    }
+                )
+
+            text_style = {}
+            text_fields = []
+            for key, api_key in [
+                ("bold", "bold"),
+                ("italic", "italic"),
+                ("underline", "underline"),
+                ("strikethrough", "strikethrough"),
+            ]:
+                if key in r:
+                    text_style[api_key] = r[key]
+                    text_fields.append(api_key)
+            if "font_size" in r:
+                text_style["fontSize"] = {"magnitude": r["font_size"], "unit": "PT"}
+                text_fields.append("fontSize")
+            if "foreground_color" in r:
+                text_style["foregroundColor"] = {"color": {"rgbColor": r["foreground_color"]}}
+                text_fields.append("foregroundColor")
+            if "link_url" in r:
+                text_style["link"] = {"url": r["link_url"]} if r["link_url"] else {}
+                text_fields.append("link")
+
+            if text_style:
+                requests.append(
+                    {
+                        "updateTextStyle": {
+                            "range": rng,
+                            "textStyle": text_style,
+                            "fields": ",".join(text_fields),
+                        }
+                    }
+                )
+
+        if not requests:
+            return {"error": "no recognised style fields in any range"}
+
+        try:
+            lc.docs_service.documents().batchUpdate(
+                documentId=doc_id, body={"requests": requests}
+            ).execute()
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug("style_doc_range: %d requests in doc %s", len(requests), doc_id)
+        return {"docId": doc_id, "requests": len(requests)}
+
+    @tool(annotations=ToolAnnotations(title="Insert Document Table", destructiveHint=True))
+    def insert_doc_table(
+        doc_id: str,
+        index: int,
+        rows: int,
+        columns: int,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Insert an empty table at a specific position in a Google Doc.
+
+        The table is inserted at the given index and the document is re-fetched
+        immediately to return the actual cell indices. Use those indices with
+        insert_doc_text (targeting each cell's paragraphStartIndex) to fill cells,
+        or with style_doc_table_cells to apply formatting.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            index: Document body index where the table should be inserted.
+                Use get_doc_structure to find a suitable position (e.g. the
+                endIndex of the paragraph before the intended location).
+            rows: Number of table rows.
+            columns: Number of table columns.
+
+        Returns:
+            tableStartIndex, tableEndIndex, rows, columns, and a cells list
+            (each cell has row, col, startIndex, endIndex, paragraphStartIndex).
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            lc.docs_service.documents().batchUpdate(
+                documentId=doc_id,
+                body={
+                    "requests": [
+                        {
+                            "insertTable": {
+                                "rows": rows,
+                                "columns": columns,
+                                "location": {"index": index},
+                            }
+                        }
+                    ]
+                },
+            ).execute()
+        except Exception as e:
+            return {"error": str(e)}
+
+        # Re-fetch to get actual cell indices
+        try:
+            doc = lc.docs_service.documents().get(documentId=doc_id).execute()
+        except Exception as e:
+            return {"error": f"table inserted but re-fetch failed: {e}"}
+
+        for elem in doc.get("body", {}).get("content", []):
+            if "table" not in elem:
+                continue
+            if elem.get("startIndex") != index:
+                continue
+            table = elem["table"]
+            cells = []
+            for r, row in enumerate(table.get("tableRows", [])):
+                for c, cell in enumerate(row.get("tableCells", [])):
+                    content = cell.get("content", [])
+                    para_start = content[0].get("startIndex") if content else None
+                    cells.append(
+                        {
+                            "row": r,
+                            "col": c,
+                            "startIndex": cell.get("startIndex"),
+                            "endIndex": cell.get("endIndex"),
+                            "paragraphStartIndex": para_start,
+                        }
+                    )
+            lc.doc_cache.mark_dirty(doc_id)
+            logger.debug(
+                "insert_doc_table: %dx%d at index %d in doc %s", rows, columns, index, doc_id
+            )
+            return {
+                "docId": doc_id,
+                "tableStartIndex": elem.get("startIndex"),
+                "tableEndIndex": elem.get("endIndex"),
+                "rows": rows,
+                "columns": columns,
+                "cells": cells,
+            }
+
+        return {"error": "table inserted but could not locate it in re-fetched doc"}
+
+    @tool(annotations=ToolAnnotations(title="Style Document Table Cells", destructiveHint=True))
+    def style_doc_table_cells(
+        doc_id: str,
+        table_start_index: int,
+        cells: list[dict],
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Apply border, padding, and background styles to table cells in a Google Doc.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            table_start_index: The startIndex of the table (from get_doc_structure or
+                insert_doc_table).
+            cells: List of cell style dicts. Each dict must include row_index and
+                column_index, plus any combination of:
+
+                background_color (dict): {"red": 0-1, "green": 0-1, "blue": 0-1}
+                padding_top, padding_right, padding_bottom, padding_left (float): points
+                border_color (dict): {"red": 0-1, "green": 0-1, "blue": 0-1}
+                    Applies the same color to all four borders.
+                border_width (float): border line width in points
+                border_dash_style (str): "SOLID", "DOT", "DASH", "DASH_DOT",
+                    "LONG_DASH", "LONG_DASH_DOT" (default SOLID)
+                row_span (int): default 1
+                column_span (int): default 1
+
+        Returns:
+            Confirmation with docId and count of batchUpdate requests sent.
+
+        Example — standard data-room table style (grey header, thin border, 3.6pt padding):
+            table_start_index: <from insert_doc_table>
+            cells: [
+              {"row_index": 0, "column_index": 0, "column_span": <num_cols>,
+               "background_color": {"red": 0.953, "green": 0.953, "blue": 0.953},
+               "padding_top": 3.6, "padding_right": 3.6,
+               "padding_bottom": 3.6, "padding_left": 3.6,
+               "border_color": {"red": 0, "green": 0, "blue": 0},
+               "border_width": 0.5, "border_dash_style": "SOLID"}
+            ]
+        """
+        lc = ctx.request_context.lifespan_context
+        if not cells:
+            return {"error": "cells list is empty"}
+
+        requests = []
+        for cell in cells:
+            table_cell_style = {}
+            fields = []
+
+            if "background_color" in cell:
+                table_cell_style["backgroundColor"] = {
+                    "color": {"rgbColor": cell["background_color"]}
+                }
+                fields.append("backgroundColor")
+
+            for side in ("top", "right", "bottom", "left"):
+                key = f"padding_{side}"
+                if key in cell:
+                    api_key = f"padding{side.capitalize()}"
+                    table_cell_style[api_key] = {"magnitude": cell[key], "unit": "PT"}
+                    fields.append(api_key)
+
+            if "border_color" in cell or "border_width" in cell or "border_dash_style" in cell:
+                border = {}
+                if "border_color" in cell:
+                    border["color"] = {"color": {"rgbColor": cell["border_color"]}}
+                if "border_width" in cell:
+                    border["width"] = {"magnitude": cell["border_width"], "unit": "PT"}
+                border["dashStyle"] = cell.get("border_dash_style", "SOLID")
+                for side in ("Top", "Right", "Bottom", "Left"):
+                    api_key = f"border{side}"
+                    table_cell_style[api_key] = border
+                    fields.append(api_key)
+
+            if not table_cell_style:
+                continue
+
+            requests.append(
+                {
+                    "updateTableCellStyle": {
+                        "tableStartLocation": {"index": table_start_index},
+                        "tableCellStyle": table_cell_style,
+                        "tableRange": {
+                            "tableCellLocation": {
+                                "tableStartLocation": {"index": table_start_index},
+                                "rowIndex": cell["row_index"],
+                                "columnIndex": cell["column_index"],
+                            },
+                            "rowSpan": cell.get("row_span", 1),
+                            "columnSpan": cell.get("column_span", 1),
+                        },
+                        "fields": ",".join(fields),
+                    }
+                }
+            )
+
+        if not requests:
+            return {"error": "no style fields found in any cell"}
+
+        try:
+            lc.docs_service.documents().batchUpdate(
+                documentId=doc_id, body={"requests": requests}
+            ).execute()
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug("style_doc_table_cells: %d requests in doc %s", len(requests), doc_id)
+        return {"docId": doc_id, "requests": len(requests)}
