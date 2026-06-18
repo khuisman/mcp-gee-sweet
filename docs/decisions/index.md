@@ -9,3 +9,4 @@ Point-in-time records of specific decisions — context, alternatives, and reaso
 | [Testing Approach](decision-testing.md) | 2026-05-13 | decided | Why AI-directed manual verification over automated integration tests |
 | [Publishing Strategy](decision-publishing.md) | 2026-05-23 | draft | Two-track PyPI release (stable + edge); version injection open |
 | [Docs Formatting Architecture](decision-docs-formatting.md) | 2026-06-17 | decided | Two-layer approach (direct API tools + HTML abstraction via AST); phase plan for #41, #65–#70, #79–#82 |
+| [Chart Theming and Phase 3 Integration](decision-chart-theming.md) | 2026-06-17 | decided | No parsing layer for charts; no Vega-Lite adoption; unified brand config (docs + charts sections) for Phase 3 theme system |
