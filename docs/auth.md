@@ -81,6 +81,8 @@ Enable these in GCP Console → APIs & Services → Library:
 
 ## Environment variable summary
 
+Auth-specific variables only — see [Configuration](configuration.md#environment-variables) for the full list including cache, tool filtering, and transport settings.
+
 | Variable | Auth method | Description | Default |
 |---|---|---|---|
 | `AUTH_METHOD` | all | Pin to one method: `oauth`, `service_account`, `adc` | waterfall |
