@@ -1,8 +1,10 @@
 import html as html_module
 import logging
 from html.parser import HTMLParser
+from pathlib import Path
 from typing import Any
 
+import markdown as _md
 from googleapiclient.errors import HttpError
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
@@ -46,16 +48,29 @@ def _html_to_text(html_content: str) -> str:
     return "".join(extractor.parts).strip()
 
 
-def _html_to_doc_requests(
-    html_content: str, start_index: int = 1
+def _md_to_html(md_text: str) -> str:
+    """Convert Markdown to HTML using the Python markdown library (tables, fenced_code, sane_lists extensions)."""
+    return _md.markdown(md_text, extensions=["tables", "fenced_code", "sane_lists"])
+
+
+def _to_doc_requests(
+    content: str, content_format: str = "html", start_index: int = 1
 ) -> tuple[list[dict], list[Table]]:
-    """Convert HTML to Docs API batchUpdate requests via the AST pipeline.
+    """Convert HTML or Markdown to Docs API batchUpdate requests via the AST pipeline.
 
     Returns (requests, tables) where tables is a list of Table AST nodes. Table cells
     are NOT filled here — call fill_tables() after executing the returned requests.
     """
-    nodes = html_to_ast(html_content)
+    if content_format == "markdown":
+        content = _md_to_html(content)
+    nodes = html_to_ast(content)
     return ast_to_requests(nodes, start_index)
+
+
+def _html_to_doc_requests(
+    html_content: str, start_index: int = 1
+) -> tuple[list[dict], list[Table]]:
+    return _to_doc_requests(html_content, "html", start_index)
 
 
 def register(tool):
@@ -64,20 +79,23 @@ def register(tool):
         title: str,
         content: str | None = None,
         folder_id: str | None = None,
+        content_format: str = "html",
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
         Create a new Google Doc, optionally with initial content.
 
-        Content is interpreted as HTML. Headings, paragraphs, lists, links, and tables
-        are converted to the corresponding Google Docs formatting. Tables are appended
-        after all paragraph content. Nested tables are not supported.
+        Content is interpreted as HTML by default. Pass content_format='markdown' to supply
+        Markdown instead (headings, bold, italic, lists, links, tables, fenced code blocks,
+        and task list items are all supported). Tables are appended after all paragraph
+        content. Nested tables are not supported.
 
         Args:
             title: The title of the new document
-            content: Optional HTML content for the document body
+            content: Optional content for the document body
             folder_id: Optional Google Drive folder ID where the document should be created.
                       If not provided, creates in the root of My Drive.
+            content_format: 'html' (default) or 'markdown'
 
         Returns:
             Information about the newly created document including its ID and web link
@@ -125,7 +143,7 @@ def register(tool):
         )
 
         if content:
-            content_requests, tables = _html_to_doc_requests(content, start_index=1)
+            content_requests, tables = _to_doc_requests(content, content_format, start_index=1)
             if content_requests:
                 docs_service.documents().batchUpdate(
                     documentId=doc_id, body={"requests": content_requests}
@@ -138,6 +156,96 @@ def register(tool):
         return {
             "docId": doc_id,
             "title": doc.get("name", title),
+            "folder": parents[0] if parents else "root",
+            "web_link": doc.get("webViewLink"),
+        }
+
+    @tool(annotations=ToolAnnotations(title="Create Document from File", destructiveHint=True))
+    def create_doc_from_file(
+        local_path: str,
+        title: str | None = None,
+        folder_id: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Create a Google Doc from a local .md or .html file.
+
+        The file format is inferred from the extension: .md files are parsed as
+        Markdown, .html / .htm files as HTML. The document title defaults to the
+        filename without extension if not supplied.
+
+        Args:
+            local_path: Absolute or relative path to the local file.
+            title: Document title. Defaults to the filename stem.
+            folder_id: Optional Google Drive folder ID. Defaults to server default folder.
+
+        Returns:
+            Information about the newly created document including its ID and web link.
+
+        Note:
+            Requires OAuth or ADC auth. Service accounts cannot create files in personal
+            Drive (no storage quota). Check server://auth-status for your current auth method.
+        """
+        path = Path(local_path)
+        if not path.exists():
+            return {"error": f"File not found: {local_path}"}
+
+        ext = path.suffix.lower()
+        if ext == ".md":
+            content_format = "markdown"
+        elif ext in (".html", ".htm"):
+            content_format = "html"
+        else:
+            return {"error": f"Unsupported file extension '{ext}'. Use .md or .html/.htm"}
+
+        content = path.read_text(encoding="utf-8")
+        doc_title = title or path.stem
+
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+        docs_service = lc.docs_service
+        target_folder_id = folder_id or lc.folder_id
+
+        file_body: dict[str, Any] = {
+            "name": doc_title,
+            "mimeType": "application/vnd.google-apps.document",
+        }
+        if target_folder_id:
+            file_body["parents"] = [target_folder_id]
+
+        try:
+            doc = (
+                drive_service.files()
+                .create(
+                    supportsAllDrives=True,
+                    body=file_body,
+                    fields="id, name, parents, webViewLink",
+                )
+                .execute()
+            )
+        except HttpError as e:
+            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+                return {"error": _SA_QUOTA_ERROR}
+            raise
+
+        doc_id = doc.get("id")
+        parents = doc.get("parents")
+        logger.debug("Doc created from file %s with ID: %s", local_path, doc_id)
+
+        if content:
+            content_requests, tables = _to_doc_requests(content, content_format, start_index=1)
+            if content_requests:
+                docs_service.documents().batchUpdate(
+                    documentId=doc_id, body={"requests": content_requests}
+                ).execute()
+            fill_tables(docs_service, doc_id, tables)
+
+        if target_folder_id:
+            lc.drive_folder_cache.mark_dirty(target_folder_id)
+
+        return {
+            "docId": doc_id,
+            "title": doc.get("name", doc_title),
             "folder": parents[0] if parents else "root",
             "web_link": doc.get("webViewLink"),
         }
@@ -187,19 +295,22 @@ def register(tool):
     def write_doc_content(
         doc_id: str,
         content: str,
+        content_format: str = "html",
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
         Replace the full content of an existing Google Doc.
 
-        Content is interpreted as HTML. Headings, paragraphs, lists, links, and tables
-        are converted to the corresponding Google Docs formatting. Tables are appended
-        after all paragraph content. Use this to populate a doc that was created
-        manually in Drive (bypassing service account storage quota limits).
+        Content is interpreted as HTML by default. Pass content_format='markdown' to supply
+        Markdown instead. Headings, paragraphs, lists, links, tables, fenced code blocks,
+        and task list items are all supported. Tables are appended after all
+        paragraph content. Use this to populate a doc created manually in Drive (bypassing
+        service account storage quota limits).
 
         Args:
             doc_id: The Google Doc file ID.
-            content: HTML content to write into the document body.
+            content: Content to write into the document body.
+            content_format: 'html' (default) or 'markdown'
 
         Returns:
             Confirmation with the document ID and web link.
@@ -218,7 +329,7 @@ def register(tool):
                 {"deleteContentRange": {"range": {"startIndex": 1, "endIndex": end_index - 1}}}
             )
 
-        content_requests, tables = _html_to_doc_requests(content, start_index=1)
+        content_requests, tables = _to_doc_requests(content, content_format, start_index=1)
         all_requests = clear_requests + content_requests
         if all_requests:
             docs_service.documents().batchUpdate(

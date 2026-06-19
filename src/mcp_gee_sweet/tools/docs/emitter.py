@@ -28,19 +28,23 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
             table_positions.append(start_index + len(full_text))
         else:
             doc_start = start_index + len(full_text)
-            text = "".join(r.text for r in node.runs)
+            # Checkbox glyph prefix for task list items
+            prefix = ""
+            if isinstance(node, BulletItem) and node.checked is not None:
+                prefix = "☑ " if node.checked else "☐ "
+            text = prefix + "".join(r.text for r in node.runs)
             if not text.strip():
                 continue
             full_text += text + "\n"
             doc_end = start_index + len(full_text)
-            segment_meta.append((node, doc_start, doc_end))
+            segment_meta.append((node, doc_start, doc_end, len(prefix)))
 
     requests: list[dict] = []
 
     if full_text:
         requests.append({"insertText": {"location": {"index": start_index}, "text": full_text}})
 
-        for node, doc_start, doc_end in segment_meta:
+        for node, doc_start, doc_end, prefix_len in segment_meta:
             rng = {"startIndex": doc_start, "endIndex": doc_end}
 
             if isinstance(node, Heading):
@@ -69,23 +73,16 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
                     }
                 )
 
-            # Inline link styles for non-table runs
-            offset = 0
+            # Inline run styles for non-table content (bold, italic, links, font_family, etc.)
+            # prefix_len skips past any checkbox glyph so run offsets stay accurate
+            offset = prefix_len
             for run in node.runs:
                 run_len = len(run.text)
-                if run.link_url:
-                    requests.append(
-                        {
-                            "updateTextStyle": {
-                                "range": {
-                                    "startIndex": doc_start + offset,
-                                    "endIndex": doc_start + offset + run_len,
-                                },
-                                "textStyle": {"link": {"url": run.link_url}},
-                                "fields": "link",
-                            }
-                        }
+                if run_len > 0:
+                    style_reqs = _run_style_requests(
+                        run, doc_start + offset, doc_start + offset + run_len
                     )
+                    requests.extend(style_reqs)
                 offset += run_len
 
     # insertTable requests in REVERSE order so earlier positions aren't shifted
@@ -126,6 +123,10 @@ def _run_style_requests(run: Run, start: int, end: int) -> list[dict]:
     if run.link_url is not None:
         text_style["link"] = {"url": run.link_url}
         fields.append("link")
+
+    if run.font_family is not None:
+        text_style["weightedFontFamily"] = {"fontFamily": run.font_family}
+        fields.append("weightedFontFamily")
 
     if not fields:
         return []

@@ -90,6 +90,7 @@ class BulletItem:
     runs: list[Run]
     depth: int = 0
     ordered: bool = False
+    checked: bool | None = None  # None = not a task item; True/False = ☑/☐
     paragraph_style: ParagraphStyle | None = None
 
 

@@ -30,14 +30,16 @@ class _AstParser(HTMLParser):
         self._nodes: list[DocNode] = []
 
         # --- block context ---
-        self._block_tag: str | None = None  # current block tag (h1–h6, p, li)
+        self._block_tag: str | None = None  # current block tag (h1–h6, p, li, pre)
         self._list_ordered: list[bool] = []  # stack: True=ol, False=ul
+        self._in_pre = False  # inside <pre>; text is literal, runs get font_family
 
         # --- inline formatting stacks ---
         self._bold_depth = 0
         self._italic_depth = 0
         self._underline_depth = 0
         self._strike_depth = 0
+        self._code_depth = 0  # inline <code> nesting; ignored inside <pre>
         self._link_url: list[str] = []  # stack of href values
 
         # --- current run buffer ---
@@ -65,6 +67,7 @@ class _AstParser(HTMLParser):
             underline=True if self._underline_depth > 0 else None,
             strikethrough=True if self._strike_depth > 0 else None,
             link_url=self._link_url[-1] if self._link_url else None,
+            font_family="Courier New" if (self._in_pre or self._code_depth > 0) else None,
         )
         self._pending_runs.append(run)
 
@@ -122,6 +125,14 @@ class _AstParser(HTMLParser):
             self._list_ordered.append(False)
             return
 
+        # --- pre / code block ---
+        if tag == "pre" and self._table_depth == 0:
+            self._block_tag = "pre"
+            self._in_pre = True
+            self._run_buf = []
+            self._pending_runs = []
+            return
+
         # --- block elements ---
         if tag in _BLOCK_TAGS and self._table_depth == 0:
             self._block_tag = tag
@@ -146,6 +157,8 @@ class _AstParser(HTMLParser):
                 href = attr_dict.get("href", "")
                 if href:
                     self._link_url.append(href)
+            elif tag == "code" and not self._in_pre:
+                self._code_depth += 1
             elif tag == "br":
                 self._run_buf.append("\n")
 
@@ -183,6 +196,20 @@ class _AstParser(HTMLParser):
                 self._list_ordered.pop()
             return
 
+        # --- pre / code block ---
+        if tag == "pre" and self._table_depth == 0 and self._block_tag == "pre":
+            runs = self._flush_pending_runs()
+            # Strip trailing newline that markdown adds inside <pre> content
+            if runs and runs[-1].text.endswith("\n"):
+                runs[-1].text = runs[-1].text.rstrip("\n")
+                if not runs[-1].text:
+                    runs.pop()
+            if runs:
+                self._nodes.append(Paragraph(runs=runs))
+            self._block_tag = None
+            self._in_pre = False
+            return
+
         # --- block elements ---
         if tag in _BLOCK_TAGS and self._table_depth == 0 and self._block_tag == tag:
             runs = self._flush_pending_runs()
@@ -194,7 +221,23 @@ class _AstParser(HTMLParser):
                 elif tag == "li":
                     ordered = self._list_ordered[-1] if self._list_ordered else False
                     depth = len(self._list_ordered) - 1
-                    self._nodes.append(BulletItem(runs=runs, depth=depth, ordered=ordered))
+                    # Detect task list markers written as literal [x] / [ ] by the markdown library
+                    checked = None
+                    if runs:
+                        first_text = runs[0].text
+                        if first_text.startswith(("[x] ", "[X] ")):
+                            checked = True
+                            runs[0].text = first_text[4:]
+                            if not runs[0].text:
+                                runs.pop(0)
+                        elif first_text.startswith("[ ] "):
+                            checked = False
+                            runs[0].text = first_text[4:]
+                            if not runs[0].text:
+                                runs.pop(0)
+                    self._nodes.append(
+                        BulletItem(runs=runs, depth=depth, ordered=ordered, checked=checked)
+                    )
                 else:
                     self._nodes.append(Paragraph(runs=runs))
             self._block_tag = None
@@ -215,6 +258,8 @@ class _AstParser(HTMLParser):
                 self._strike_depth = max(0, self._strike_depth - 1)
             elif tag == "a" and self._link_url:
                 self._link_url.pop()
+            elif tag == "code" and not self._in_pre:
+                self._code_depth = max(0, self._code_depth - 1)
 
     def handle_data(self, data):
         if self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell:

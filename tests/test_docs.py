@@ -6,7 +6,12 @@ import pytest
 from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import docs as docs_module
-from mcp_gee_sweet.tools.docs import _html_to_doc_requests, _html_to_text
+from mcp_gee_sweet.tools.docs import (
+    _html_to_doc_requests,
+    _html_to_text,
+    _md_to_html,
+    _to_doc_requests,
+)
 from mcp_gee_sweet.tools.docs.ast import BulletItem, Cell, Heading, Paragraph, Row, Run, Table
 from mcp_gee_sweet.tools.docs.emitter import (
     _build_fill_requests,
@@ -650,3 +655,472 @@ class TestCreateDoc:
         ctx = self._ctx(drive_svc, docs_svc)
         with pytest.raises(HttpError):
             _docs_tools["create_doc"](title="Test", content="<p>hi</p>", ctx=ctx)
+
+
+# ---------------------------------------------------------------------------
+# Markdown / code block / task list — html_parser
+# ---------------------------------------------------------------------------
+
+
+class TestInlineCode:
+    def test_inline_code_sets_font_family(self):
+        nodes = html_to_ast("<p>Use <code>x = 1</code> here</p>")
+        assert isinstance(nodes[0], Paragraph)
+        code_run = next(r for r in nodes[0].runs if r.font_family)
+        assert code_run.font_family == "Courier New"
+        assert code_run.text == "x = 1"
+
+    def test_inline_code_plain_text_no_font_family(self):
+        nodes = html_to_ast("<p>plain text</p>")
+        for run in nodes[0].runs:
+            assert run.font_family is None
+
+    def test_inline_code_preserves_surrounding_text(self):
+        nodes = html_to_ast("<p>before <code>fn()</code> after</p>")
+        texts = [r.text for r in nodes[0].runs]
+        assert "before " in texts
+        assert "fn()" in texts
+        assert " after" in texts
+
+
+class TestPreBlock:
+    def test_pre_code_creates_paragraph(self):
+        nodes = html_to_ast("<pre><code>hello</code></pre>")
+        assert len(nodes) == 1
+        assert isinstance(nodes[0], Paragraph)
+
+    def test_pre_code_sets_font_family_on_runs(self):
+        nodes = html_to_ast("<pre><code>def foo(): pass</code></pre>")
+        para = nodes[0]
+        assert isinstance(para, Paragraph)
+        assert all(r.font_family == "Courier New" for r in para.runs)
+
+    def test_pre_multiline_preserved_in_run_text(self):
+        nodes = html_to_ast("<pre><code>line1\nline2</code></pre>")
+        para = nodes[0]
+        full = "".join(r.text for r in para.runs)
+        assert "line1" in full
+        assert "line2" in full
+        assert "\n" in full
+
+    def test_pre_trailing_newline_stripped(self):
+        # The markdown library appends a trailing \n inside <pre>; we strip it
+        # so the emitter doesn't produce a spurious extra empty paragraph.
+        nodes = html_to_ast("<pre><code>code\n</code></pre>")
+        para = nodes[0]
+        full = "".join(r.text for r in para.runs)
+        assert not full.endswith("\n")
+
+    def test_pre_followed_by_paragraph(self):
+        nodes = html_to_ast("<pre><code>code</code></pre><p>text</p>")
+        assert len(nodes) == 2
+        assert isinstance(nodes[0], Paragraph)
+        assert isinstance(nodes[1], Paragraph)
+
+
+class TestTaskList:
+    def test_checked_item_sets_checked_true(self):
+        nodes = html_to_ast("<ul><li>[x] Done</li></ul>")
+        bullet = next(n for n in nodes if isinstance(n, BulletItem))
+        assert bullet.checked is True
+
+    def test_unchecked_item_sets_checked_false(self):
+        nodes = html_to_ast("<ul><li>[ ] Todo</li></ul>")
+        bullet = next(n for n in nodes if isinstance(n, BulletItem))
+        assert bullet.checked is False
+
+    def test_checked_prefix_stripped_from_runs(self):
+        nodes = html_to_ast("<ul><li>[x] Done</li></ul>")
+        bullet = nodes[0]
+        full_text = "".join(r.text for r in bullet.runs)
+        assert "[x]" not in full_text
+        assert "Done" in full_text
+
+    def test_unchecked_prefix_stripped_from_runs(self):
+        nodes = html_to_ast("<ul><li>[ ] Todo</li></ul>")
+        bullet = nodes[0]
+        full_text = "".join(r.text for r in bullet.runs)
+        assert "[ ]" not in full_text
+        assert "Todo" in full_text
+
+    def test_uppercase_X_also_recognised(self):
+        nodes = html_to_ast("<ul><li>[X] Done</li></ul>")
+        bullet = nodes[0]
+        assert bullet.checked is True
+
+    def test_normal_item_checked_is_none(self):
+        nodes = html_to_ast("<ul><li>Regular item</li></ul>")
+        bullet = nodes[0]
+        assert bullet.checked is None
+
+    def test_checked_with_bold_text(self):
+        nodes = html_to_ast("<ul><li>[x] <b>Important</b></li></ul>")
+        bullet = nodes[0]
+        assert bullet.checked is True
+        # The bold run should survive
+        bold_run = next((r for r in bullet.runs if r.bold), None)
+        assert bold_run is not None
+        assert bold_run.text == "Important"
+
+    def test_mixed_task_and_normal_items(self):
+        nodes = html_to_ast("<ul><li>[x] Done</li><li>[ ] Todo</li><li>Plain</li></ul>")
+        bullets = [n for n in nodes if isinstance(n, BulletItem)]
+        assert bullets[0].checked is True
+        assert bullets[1].checked is False
+        assert bullets[2].checked is None
+
+
+# ---------------------------------------------------------------------------
+# Emitter — inline run styles, font_family, task list glyphs
+# ---------------------------------------------------------------------------
+
+
+class TestRunStylesInParagraphs:
+    def test_bold_run_emits_update_text_style(self):
+        requests, _ = _to_doc_requests("<p><b>bold</b></p>")
+        bold_reqs = [
+            r
+            for r in requests
+            if "updateTextStyle" in r and r["updateTextStyle"]["textStyle"].get("bold") is True
+        ]
+        assert len(bold_reqs) == 1
+
+    def test_italic_run_emits_update_text_style(self):
+        requests, _ = _to_doc_requests("<p><i>italic</i></p>")
+        italic_reqs = [
+            r
+            for r in requests
+            if "updateTextStyle" in r and r["updateTextStyle"]["textStyle"].get("italic") is True
+        ]
+        assert len(italic_reqs) == 1
+
+    def test_bold_italic_combined(self):
+        requests, _ = _to_doc_requests("<p><b><i>both</i></b></p>")
+        styled = [r for r in requests if "updateTextStyle" in r]
+        ts = styled[0]["updateTextStyle"]["textStyle"]
+        assert ts.get("bold") is True
+        assert ts.get("italic") is True
+
+    def test_font_family_emits_weighted_font(self):
+        requests, _ = _to_doc_requests("<p><code>fn()</code></p>")
+        font_reqs = [
+            r
+            for r in requests
+            if "updateTextStyle" in r and "weightedFontFamily" in r["updateTextStyle"]["textStyle"]
+        ]
+        assert len(font_reqs) == 1
+        assert (
+            font_reqs[0]["updateTextStyle"]["textStyle"]["weightedFontFamily"]["fontFamily"]
+            == "Courier New"
+        )
+
+    def test_pre_block_font_family_emitted(self):
+        requests, _ = _to_doc_requests("<pre><code>x = 1</code></pre>")
+        font_reqs = [
+            r
+            for r in requests
+            if "updateTextStyle" in r and "weightedFontFamily" in r["updateTextStyle"]["textStyle"]
+        ]
+        assert len(font_reqs) == 1
+
+    def test_link_still_emitted(self):
+        requests, _ = _to_doc_requests('<p><a href="https://x.com">link</a></p>')
+        link_reqs = [
+            r
+            for r in requests
+            if "updateTextStyle" in r and "link" in r["updateTextStyle"]["textStyle"]
+        ]
+        assert len(link_reqs) == 1
+
+
+class TestTaskListEmitter:
+    def test_checked_item_inserts_check_glyph(self):
+        requests, _ = _to_doc_requests("<ul><li>[x] Done</li></ul>")
+        insert = next(r for r in requests if "insertText" in r)
+        assert "☑" in insert["insertText"]["text"]
+
+    def test_unchecked_item_inserts_ballot_glyph(self):
+        requests, _ = _to_doc_requests("<ul><li>[ ] Todo</li></ul>")
+        insert = next(r for r in requests if "insertText" in r)
+        assert "☐" in insert["insertText"]["text"]
+
+    def test_normal_item_no_glyph(self):
+        requests, _ = _to_doc_requests("<ul><li>Plain</li></ul>")
+        insert = next(r for r in requests if "insertText" in r)
+        assert "☑" not in insert["insertText"]["text"]
+        assert "☐" not in insert["insertText"]["text"]
+
+    def test_run_style_offset_skips_glyph(self):
+        # Bold run inside a checked item — its updateTextStyle range must NOT overlap the glyph.
+        # The glyph is 2 chars (☑ + space) at doc_start; the bold run starts at doc_start + 2.
+        requests, _ = _to_doc_requests("<ul><li>[x] <b>task</b></li></ul>")
+        insert = next(r for r in requests if "insertText" in r)
+        insert_idx = insert["insertText"]["location"]["index"]  # typically 1
+        bold_reqs = [
+            r
+            for r in requests
+            if "updateTextStyle" in r and r["updateTextStyle"]["textStyle"].get("bold") is True
+        ]
+        assert len(bold_reqs) == 1
+        bold_start = bold_reqs[0]["updateTextStyle"]["range"]["startIndex"]
+        # glyph "☑ " is 2 chars; bold run must start at least 2 chars after insert_idx
+        assert bold_start >= insert_idx + 2
+
+
+# ---------------------------------------------------------------------------
+# Markdown pipeline — _md_to_html and _to_doc_requests
+# ---------------------------------------------------------------------------
+
+
+class TestMdToHtml:
+    def test_heading_converts(self):
+        html = _md_to_html("# Title")
+        assert "<h1>" in html
+
+    def test_bold_converts(self):
+        html = _md_to_html("**bold**")
+        assert "<strong>" in html
+
+    def test_italic_converts(self):
+        html = _md_to_html("*italic*")
+        assert "<em>" in html
+
+    def test_unordered_list(self):
+        html = _md_to_html("- item one\n- item two\n")
+        assert "<ul>" in html
+        assert "<li>" in html
+
+    def test_ordered_list(self):
+        html = _md_to_html("1. first\n2. second\n")
+        assert "<ol>" in html
+
+    def test_link(self):
+        html = _md_to_html("[click](https://example.com)")
+        assert 'href="https://example.com"' in html
+
+    def test_pipe_table(self):
+        md = "| A | B |\n|---|---|\n| 1 | 2 |\n"
+        html = _md_to_html(md)
+        assert "<table>" in html
+
+    def test_fenced_code_block(self):
+        md = "```python\nx = 1\n```\n"
+        html = _md_to_html(md)
+        assert "<pre>" in html
+        assert "<code" in html  # may include class="language-python"
+
+
+class TestToDocRequestsMarkdown:
+    def test_h1_in_markdown_produces_heading_1(self):
+        requests, _ = _to_doc_requests("# Title", "markdown")
+        styles = [
+            r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+            for r in requests
+            if "updateParagraphStyle" in r
+        ]
+        assert "HEADING_1" in styles
+
+    def test_markdown_matches_html_for_heading(self):
+        md_reqs, _ = _to_doc_requests("# Title", "markdown")
+        html_reqs, _ = _to_doc_requests("<h1>Title</h1>", "html")
+        md_styles = [
+            r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+            for r in md_reqs
+            if "updateParagraphStyle" in r
+        ]
+        html_styles = [
+            r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+            for r in html_reqs
+            if "updateParagraphStyle" in r
+        ]
+        assert md_styles == html_styles
+
+    def test_markdown_list_produces_bullet(self):
+        requests, _ = _to_doc_requests("- item\n", "markdown")
+        assert any("createParagraphBullets" in r for r in requests)
+
+    def test_markdown_ordered_list_produces_numbered_bullet(self):
+        requests, _ = _to_doc_requests("1. first\n", "markdown")
+        bullet_reqs = [r for r in requests if "createParagraphBullets" in r]
+        assert any("NUMBERED" in r["createParagraphBullets"]["bulletPreset"] for r in bullet_reqs)
+
+    def test_markdown_bold_emits_text_style(self):
+        requests, _ = _to_doc_requests("**bold**\n", "markdown")
+        bold_reqs = [
+            r
+            for r in requests
+            if "updateTextStyle" in r and r["updateTextStyle"]["textStyle"].get("bold") is True
+        ]
+        assert len(bold_reqs) >= 1
+
+    def test_markdown_task_list_checked(self):
+        requests, _ = _to_doc_requests("- [x] Done\n", "markdown")
+        insert = next(r for r in requests if "insertText" in r)
+        assert "☑" in insert["insertText"]["text"]
+
+    def test_markdown_task_list_unchecked(self):
+        requests, _ = _to_doc_requests("- [ ] Todo\n", "markdown")
+        insert = next(r for r in requests if "insertText" in r)
+        assert "☐" in insert["insertText"]["text"]
+
+    def test_markdown_fenced_code_emits_font_family(self):
+        requests, _ = _to_doc_requests("```\nx = 1\n```\n", "markdown")
+        font_reqs = [
+            r
+            for r in requests
+            if "updateTextStyle" in r and "weightedFontFamily" in r["updateTextStyle"]["textStyle"]
+        ]
+        assert len(font_reqs) >= 1
+
+    def test_html_format_still_works(self):
+        requests, _ = _to_doc_requests("<h2>Sub</h2>", "html")
+        styles = [
+            r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+            for r in requests
+            if "updateParagraphStyle" in r
+        ]
+        assert "HEADING_2" in styles
+
+
+# ---------------------------------------------------------------------------
+# create_doc content_format and create_doc_from_file
+# ---------------------------------------------------------------------------
+
+
+class TestCreateDocMarkdown:
+    def _make_services(self, doc_id="doc123"):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": doc_id,
+            "name": "Test",
+            "parents": ["folder1"],
+            "webViewLink": "https://example.com",
+        }
+        docs_svc = MagicMock()
+        return drive_svc, docs_svc
+
+    def _ctx(self, drive_svc, docs_svc):
+        return _make_ctx(
+            drive_service=drive_svc,
+            docs_service=docs_svc,
+            folder_id=None,
+            drive_folder_cache=MagicMock(),
+        )
+
+    def _batchupdate_requests(self, docs_svc):
+        return docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]["requests"]
+
+    def test_markdown_heading_in_create_doc(self):
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        _docs_tools["create_doc"](
+            title="Doc", content="# Title", content_format="markdown", ctx=ctx
+        )
+        heading_types = [
+            r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+            for r in self._batchupdate_requests(docs_svc)
+            if "updateParagraphStyle" in r
+        ]
+        assert "HEADING_1" in heading_types
+
+    def test_html_format_default_unchanged(self):
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        _docs_tools["create_doc"](title="Doc", content="<h1>Title</h1>", ctx=ctx)
+        heading_types = [
+            r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+            for r in self._batchupdate_requests(docs_svc)
+            if "updateParagraphStyle" in r
+        ]
+        assert "HEADING_1" in heading_types
+
+
+class TestCreateDocFromFile:
+    def _make_services(self, doc_id="doc123"):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": doc_id,
+            "name": "myfile",
+            "parents": ["root"],
+            "webViewLink": "https://example.com",
+        }
+        docs_svc = MagicMock()
+        return drive_svc, docs_svc
+
+    def _ctx(self, drive_svc, docs_svc):
+        return _make_ctx(
+            drive_service=drive_svc,
+            docs_service=docs_svc,
+            folder_id=None,
+            drive_folder_cache=MagicMock(),
+        )
+
+    def _batchupdate_requests(self, docs_svc):
+        return docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]["requests"]
+
+    def test_md_file_creates_doc(self, tmp_path):
+        md_file = tmp_path / "notes.md"
+        md_file.write_text("# Hello\n\nParagraph text.\n")
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = _docs_tools["create_doc_from_file"](local_path=str(md_file), ctx=ctx)
+        assert "docId" in result
+        assert "error" not in result
+
+    def test_md_file_title_defaults_to_stem(self, tmp_path):
+        md_file = tmp_path / "my-notes.md"
+        md_file.write_text("# Content\n")
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        _docs_tools["create_doc_from_file"](local_path=str(md_file), ctx=ctx)
+        create_body = drive_svc.files.return_value.create.call_args.kwargs["body"]
+        assert create_body["name"] == "my-notes"
+
+    def test_md_file_explicit_title_used(self, tmp_path):
+        md_file = tmp_path / "notes.md"
+        md_file.write_text("# Content\n")
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        _docs_tools["create_doc_from_file"](local_path=str(md_file), title="My Doc", ctx=ctx)
+        create_body = drive_svc.files.return_value.create.call_args.kwargs["body"]
+        assert create_body["name"] == "My Doc"
+
+    def test_md_file_heading_emitted(self, tmp_path):
+        md_file = tmp_path / "doc.md"
+        md_file.write_text("# Section\n")
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        _docs_tools["create_doc_from_file"](local_path=str(md_file), ctx=ctx)
+        heading_types = [
+            r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+            for r in self._batchupdate_requests(docs_svc)
+            if "updateParagraphStyle" in r
+        ]
+        assert "HEADING_1" in heading_types
+
+    def test_html_file_accepted(self, tmp_path):
+        html_file = tmp_path / "page.html"
+        html_file.write_text("<h2>Hello</h2>")
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = _docs_tools["create_doc_from_file"](local_path=str(html_file), ctx=ctx)
+        assert "docId" in result
+        assert "error" not in result
+
+    def test_file_not_found_returns_error(self, tmp_path):
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = _docs_tools["create_doc_from_file"](
+            local_path=str(tmp_path / "missing.md"), ctx=ctx
+        )
+        assert "error" in result
+        assert "not found" in result["error"].lower()
+
+    def test_unsupported_extension_returns_error(self, tmp_path):
+        txt_file = tmp_path / "notes.txt"
+        txt_file.write_text("plain text")
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = _docs_tools["create_doc_from_file"](local_path=str(txt_file), ctx=ctx)
+        assert "error" in result
+        assert ".txt" in result["error"]
