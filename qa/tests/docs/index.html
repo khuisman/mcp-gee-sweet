@@ -1032,7 +1032,7 @@
 
 
 <h1 id="docs-direct-api-tools-qa-test-cases">Docs Direct API Tools — QA Test Cases<a class="headerlink" href="#docs-direct-api-tools-qa-test-cases" title="Permanent link">&para;</a></h1>
-<p>Source: <code>src/mcp_gee_sweet/tools/docs.py</code></p>
+<p>Source: <code>src/mcp_gee_sweet/tools/docs/</code> (package: <code>__init__.py</code>, <code>ast.py</code>, <code>html_parser.py</code>, <code>emitter.py</code>)</p>
 <p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute <code>{DOC_ID}</code> from <code>fixtures.local.md</code>.</p>
 <p>These tools operate on document body indices. Use <code>get_doc_structure</code> first in any session to obtain current indices before calling insert/delete/style operations.</p>
 <hr />
@@ -1377,6 +1377,75 @@
 - <code>get_doc_structure</code> shows run split at the link boundary: linked run has <code>link_url: "https://example.com"</code>, non-linked run has <code>link_url: null</code>
 - 🔍 <strong>Note:</strong> Google Docs automatically adds <code>underline: true</code> to the linked run — expected API behaviour, not a tool bug
 - 🔍 Visual check: text appears as a hyperlink</p>
+<hr />
+<h2 id="phase-2-write_doc_content-create_doc-translator-fixes">Phase 2 — <code>write_doc_content</code> / <code>create_doc</code> translator fixes<a class="headerlink" href="#phase-2-write_doc_content-create_doc-translator-fixes" title="Permanent link">&para;</a></h2>
+<p>These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All use <code>write_doc_content</code> against the fixture doc.</p>
+<h3 id="tc-d182-h2-maps-to-heading_2-not-heading_3-requires-oauth-destructive">TC-D182: <code>&lt;h2&gt;</code> maps to HEADING_2 (not HEADING_3) ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d182-h2-maps-to-heading_2-not-heading_3-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> Regression test for #41 — <code>&lt;h2&gt;</code>–<code>&lt;h6&gt;</code> previously all collapsed to HEADING_3.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;h1&gt;Level 1&lt;/h1&gt;&lt;h2&gt;Level 2&lt;/h2&gt;&lt;h3&gt;Level 3&lt;/h3&gt;&lt;h4&gt;Level 4&lt;/h4&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>get_doc_structure</code> on the doc after writing
+- First heading has <code>namedStyleType: "HEADING_1"</code>
+- Second heading has <code>namedStyleType: "HEADING_2"</code> (not HEADING_3 — the old bug)
+- Third heading has <code>namedStyleType: "HEADING_3"</code>
+- Fourth heading has <code>namedStyleType: "HEADING_4"</code></p>
+<p><strong>Cleanup:</strong> write fixture content back: <code>&lt;h1&gt;Test Document&lt;/h1&gt;&lt;p&gt;This document is used for QA testing of mcp-gee-sweet.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Item one&lt;/li&gt;&lt;li&gt;Item two&lt;/li&gt;&lt;/ul&gt;</code></p>
+<hr />
+<h3 id="tc-d183-th-cells-produce-bold-runs-requires-oauth-destructive">TC-D183: <code>&lt;th&gt;</code> cells produce bold runs ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d183-th-cells-produce-bold-runs-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> Regression test for #65 — <code>&lt;th&gt;</code> previously ignored; cells had no bold styling.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;th&gt;Name&lt;/th&gt;&lt;th&gt;Value&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Alpha&lt;/td&gt;&lt;td&gt;1&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>get_doc_structure</code> shows the table
+- Row 0 cells (<code>Name</code>, <code>Value</code>) have runs with <code>bold: true</code>
+- Row 1 cells (<code>Alpha</code>, <code>1</code>) have runs with <code>bold: null</code> (not bolded)
+- 🔍 Visual check: header row text is bold in Google Docs</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<hr />
+<h3 id="tc-d184-inline-formatting-inside-td-cells-requires-oauth-destructive">TC-D184: Inline formatting inside <code>&lt;td&gt;</code> cells ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d184-inline-formatting-inside-td-cells-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> Regression test for #69 — inline formatting inside table cells was previously lost.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;bold&lt;/b&gt; plain &lt;i&gt;italic&lt;/i&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>get_doc_structure</code> shows the table cell
+- Cell text includes 'bold', 'plain', 'italic'
+- Run with 'bold' has <code>bold: true</code>
+- Run with 'italic' has <code>italic: true</code>
+- Plain text run has <code>bold: null</code> and <code>italic: null</code>
+- 🔍 Visual check: cell shows mixed formatting</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<hr />
+<h3 id="tc-d185-colspan-produces-merged-cells-requires-oauth-destructive">TC-D185: <code>colspan</code> produces merged cells ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d185-colspan-produces-merged-cells-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> Regression test for #67 — <code>colspan</code> was previously ignored.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td colspan=\"2\"&gt;Wide cell&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;A&lt;/td&gt;&lt;td&gt;B&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows the table has 2 rows
+- Row 0 has 1 cell (merged), row 1 has 2 cells
+- 🔍 Visual check: top row spans both columns in Google Docs</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<hr />
+<h3 id="tc-d186-column-widths-from-html-requires-oauth-destructive">TC-D186: Column widths from HTML ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d186-column-widths-from-html-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> Regression test for #66 — <code>width</code> attributes on <code>&lt;col&gt;</code> were previously ignored.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;col width=\"144\"&gt;&lt;col width=\"288\"&gt;&lt;tr&gt;&lt;td&gt;Narrow&lt;/td&gt;&lt;td&gt;Wide&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- 🔍 Visual check: first column is narrower than second column in Google Docs
+- 🔍 Note: <code>get_doc_structure</code> does not expose column width properties; visual verification is the only check available without <code>effectiveFormat</code> API access (#54)</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
 
 
 
