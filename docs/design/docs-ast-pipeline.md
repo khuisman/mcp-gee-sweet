@@ -265,7 +265,38 @@ New tests to add:
 | Inline formatting in cells | Yes | #69 |
 | Column widths | Yes | #66 |
 | Colspan | Yes | #67 partial |
-| Rowspan | No | `Cell.rowspan` in AST; emitter deferred |
-| Nested tables | No | #68 deferred |
+| Rowspan | Yes | `Cell.rowspan` in AST; #91 added `mergeTableCells` in emitter |
+| Nested tables | Yes | `Cell.nested_table: Table \| None`; #92 added stages 3+5 in `fill_tables` |
 | Phase 3 styling fields (colors, fonts) | No | In AST as `None`; emitter ignores them |
 | `<ol>` ordered bullets | Yes | `BulletItem.ordered` → different bullet preset |
+
+---
+
+## Nested Table Design (#92)
+
+**Date:** 2026-06-19
+
+A `<table>` inside a `<td>` is now supported (one level of nesting).
+
+### Parser changes (`html_parser.py`)
+
+`_AstParser` previously guarded `<table>` pushes with `if self._table_depth == 1`. Removing that guard means a new `_TableBuilder` is pushed for every `<table>`, regardless of depth. On `</table>`, the completed `Table` is routed based on depth:
+- `depth == 1` → append to `_nodes` (document-level, existing behaviour)
+- `depth > 1` → assign to `self._table_stack[-1]._current_nested_table` (new: parent cell accumulates it)
+
+`_TableBuilder.end_cell` was extended to pass `nested_table=self._current_nested_table` to `Cell` and reset it to `None`. All `<tr>` / `<td>` / `<th>` handlers already reference `self._table_stack[-1]`, so they automatically operate on the innermost builder — no other changes needed.
+
+### Emitter changes (`emitter.py`)
+
+`fill_tables` gained two new phases:
+
+**Phase 3 — insert nested table shells**: `_build_nested_table_inserts(doc_tables, ast_tables)` iterates outer cells that have `nested_table` set and emits `insertTable` requests at each cell's `paragraphStartIndex`. Requests are sorted HIGH→LOW so earlier insertions don't shift later indices. Re-fetches live doc after.
+
+**Phase 5 — fill nested cells**: after outer cell text is filled (phase 4), indices shift. A second re-fetch is performed, then `_collect_nested_table_pairs(doc_tables, ast_tables)` traverses cell content to find the nested `table` element and pairs it with the AST `Table`. `_build_fill_requests` reuses the same logic as outer cells.
+
+### Known limitations (first pass)
+
+- One level of nesting only (table-in-table-in-table not supported)
+- Cells with `nested_table` should not also contain text runs (runs are dropped silently)
+- No `colspan`/`rowspan` inside nested tables
+- No `col_widths` on nested tables

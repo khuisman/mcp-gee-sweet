@@ -156,18 +156,29 @@ def _run_style_requests(run: Run, start: int, end: int) -> list[dict]:
 def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
     """Fill table cells and apply inline styles using live cell indices.
 
-    Two-phase for tables with colspan merges:
+    Phases:
       1. Re-fetch → get cell positions
-      2. If any colspan > 1: emit mergeTableCells, re-fetch again
-      3. Emit insertText + updateTextStyle for all cells (high→low)
-      4. Emit updateTableColumnProperties for tables with col_widths
+      2. If any colspan/rowspan > 1: emit mergeTableCells, re-fetch
+      3. If any cell has a nested_table: insert nested table shells, re-fetch
+      4. Emit insertText + updateTextStyle for outer cells (high→low)
+      5. If nested tables: re-fetch, fill nested cells (high→low)
+      6. Emit updateTableColumnProperties for tables with col_widths
+
+    Nested table limitations (first pass): one level of nesting only; cells
+    containing a nested_table should not also contain text runs (runs are
+    dropped); no colspan/rowspan or col_widths inside nested tables.
     """
     if not tables:
         return
 
-    # Phase A: check whether any merges are needed
     has_merges = any(
         cell.colspan > 1 or cell.rowspan > 1
+        for table in tables
+        for row in table.rows
+        for cell in row.cells
+    )
+    has_nested = any(
+        cell.nested_table is not None
         for table in tables
         for row in table.rows
         for cell in row.cells
@@ -175,37 +186,137 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
 
     # Step 1: re-fetch to get live cell positions
     live_doc = docs_service.documents().get(documentId=doc_id).execute()
-    doc_tables = [
-        elem["table"] for elem in live_doc.get("body", {}).get("content", []) if "table" in elem
-    ]
+    doc_tables = _top_level_tables(live_doc)
 
+    # Step 2: outer merges
     if has_merges:
         merge_requests = _build_merge_requests(doc_tables, tables)
         if merge_requests:
             docs_service.documents().batchUpdate(
                 documentId=doc_id, body={"requests": merge_requests}
             ).execute()
-            # Re-fetch to get post-merge cell positions
             live_doc = docs_service.documents().get(documentId=doc_id).execute()
-            doc_tables = [
-                elem["table"]
-                for elem in live_doc.get("body", {}).get("content", [])
-                if "table" in elem
-            ]
+            doc_tables = _top_level_tables(live_doc)
 
-    # Step 2: fill cell content
+    # Step 3: insert nested table shells into cells
+    if has_nested:
+        nested_inserts = _build_nested_table_inserts(doc_tables, tables)
+        if nested_inserts:
+            docs_service.documents().batchUpdate(
+                documentId=doc_id, body={"requests": nested_inserts}
+            ).execute()
+            live_doc = docs_service.documents().get(documentId=doc_id).execute()
+            doc_tables = _top_level_tables(live_doc)
+
+    # Step 4: fill outer cell text
     fill_requests = _build_fill_requests(doc_tables, tables)
     if fill_requests:
         docs_service.documents().batchUpdate(
             documentId=doc_id, body={"requests": fill_requests}
         ).execute()
 
-    # Step 3: column widths — requires table startIndex from live doc
+    # Step 5: fill nested table cells
+    if has_nested:
+        live_doc = docs_service.documents().get(documentId=doc_id).execute()
+        doc_tables = _top_level_tables(live_doc)
+        n_doc, n_ast = _collect_nested_table_pairs(doc_tables, tables)
+        nested_fill = _build_fill_requests(n_doc, n_ast)
+        if nested_fill:
+            docs_service.documents().batchUpdate(
+                documentId=doc_id, body={"requests": nested_fill}
+            ).execute()
+
+    # Step 6: column widths — requires table startIndex from live doc
     width_requests = _build_width_requests(live_doc, tables)
     if width_requests:
         docs_service.documents().batchUpdate(
             documentId=doc_id, body={"requests": width_requests}
         ).execute()
+
+
+def _top_level_tables(live_doc: dict) -> list[dict]:
+    return [
+        elem["table"] for elem in live_doc.get("body", {}).get("content", []) if "table" in elem
+    ]
+
+
+def _build_nested_table_inserts(doc_tables: list[dict], ast_tables: list[Table]) -> list[dict]:
+    """Emit insertTable requests (HIGH→LOW) for nested tables that live inside outer cells."""
+    inserts: list[tuple[int, dict]] = []
+    for doc_table, ast_table in zip(doc_tables, ast_tables):
+        doc_rows = doc_table.get("tableRows", [])
+        phantom = _build_phantom_set(ast_table)
+        total_cols = max((sum(c.colspan for c in row.cells) for row in ast_table.rows), default=0)
+        if total_cols == 0:
+            continue
+        for r, (doc_row_entry, ast_row) in enumerate(zip(doc_rows, ast_table.rows)):
+            doc_cells = sorted(
+                doc_row_entry.get("tableCells", []), key=lambda c: c.get("startIndex", 0)
+            )
+            mapping = _physical_to_ast_indices(r, ast_row, phantom, total_cols)
+            for doc_cell, ast_cell_idx in zip(doc_cells, mapping):
+                if ast_cell_idx is None:
+                    continue
+                nested = ast_row.cells[ast_cell_idx].nested_table
+                if nested is None:
+                    continue
+                num_rows = len(nested.rows)
+                num_cols = max(
+                    (sum(c.colspan for c in row.cells) for row in nested.rows), default=0
+                )
+                if num_rows == 0 or num_cols == 0:
+                    continue
+                cell_content = doc_cell.get("content", [])
+                if not cell_content:
+                    continue
+                para_start = cell_content[0].get("startIndex")
+                if para_start is None:
+                    continue
+                inserts.append(
+                    (
+                        para_start,
+                        {
+                            "insertTable": {
+                                "rows": num_rows,
+                                "columns": num_cols,
+                                "location": {"index": para_start},
+                            }
+                        },
+                    )
+                )
+    inserts.sort(key=lambda x: x[0], reverse=True)
+    return [req for _, req in inserts]
+
+
+def _collect_nested_table_pairs(
+    doc_tables: list[dict], ast_tables: list[Table]
+) -> tuple[list[dict], list[Table]]:
+    """Return (doc_table_list, ast_table_list) for nested tables found inside outer cells."""
+    nested_doc: list[dict] = []
+    nested_ast: list[Table] = []
+    for doc_table, ast_table in zip(doc_tables, ast_tables):
+        doc_rows = doc_table.get("tableRows", [])
+        phantom = _build_phantom_set(ast_table)
+        total_cols = max((sum(c.colspan for c in row.cells) for row in ast_table.rows), default=0)
+        if total_cols == 0:
+            continue
+        for r, (doc_row_entry, ast_row) in enumerate(zip(doc_rows, ast_table.rows)):
+            doc_cells = sorted(
+                doc_row_entry.get("tableCells", []), key=lambda c: c.get("startIndex", 0)
+            )
+            mapping = _physical_to_ast_indices(r, ast_row, phantom, total_cols)
+            for doc_cell, ast_cell_idx in zip(doc_cells, mapping):
+                if ast_cell_idx is None:
+                    continue
+                ast_cell = ast_row.cells[ast_cell_idx]
+                if ast_cell.nested_table is None:
+                    continue
+                for elem in doc_cell.get("content", []):
+                    if "table" in elem:
+                        nested_doc.append(elem["table"])
+                        nested_ast.append(ast_cell.nested_table)
+                        break
+    return nested_doc, nested_ast
 
 
 def _build_phantom_set(ast_table: Table) -> set[tuple[int, int]]:
