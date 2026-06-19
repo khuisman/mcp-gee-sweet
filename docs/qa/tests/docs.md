@@ -1,6 +1,6 @@
 # Docs Direct API Tools — QA Test Cases
 
-Source: `src/mcp_gee_sweet/tools/docs.py`
+Source: `src/mcp_gee_sweet/tools/docs/` (package: `__init__.py`, `ast.py`, `html_parser.py`, `emitter.py`)
 
 Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute `{DOC_ID}` from `fixtures.local.md`.
 
@@ -424,3 +424,89 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - `get_doc_structure` shows run split at the link boundary: linked run has `link_url: "https://example.com"`, non-linked run has `link_url: null`
 - 🔍 **Note:** Google Docs automatically adds `underline: true` to the linked run — expected API behaviour, not a tool bug
 - 🔍 Visual check: text appears as a hyperlink
+
+---
+
+## Phase 2 — `write_doc_content` / `create_doc` translator fixes
+
+These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All use `write_doc_content` against the fixture doc.
+
+### TC-D182: `<h2>` maps to HEADING_2 (not HEADING_3) ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** Regression test for #41 — `<h2>`–`<h6>` previously all collapsed to HEADING_3.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<h1>Level 1</h1><h2>Level 2</h2><h3>Level 3</h3><h4>Level 4</h4>`"
+
+**Checks**
+- Call `get_doc_structure` on the doc after writing
+- First heading has `namedStyleType: "HEADING_1"`
+- Second heading has `namedStyleType: "HEADING_2"` (not HEADING_3 — the old bug)
+- Third heading has `namedStyleType: "HEADING_3"`
+- Fourth heading has `namedStyleType: "HEADING_4"`
+
+**Cleanup:** write fixture content back: `<h1>Test Document</h1><p>This document is used for QA testing of mcp-gee-sweet.</p><ul><li>Item one</li><li>Item two</li></ul>`
+
+---
+
+### TC-D183: `<th>` cells produce bold runs ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** Regression test for #65 — `<th>` previously ignored; cells had no bold styling.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><th>Name</th><th>Value</th></tr><tr><td>Alpha</td><td>1</td></tr></table>`"
+
+**Checks**
+- `get_doc_structure` shows the table
+- Row 0 cells (`Name`, `Value`) have runs with `bold: true`
+- Row 1 cells (`Alpha`, `1`) have runs with `bold: null` (not bolded)
+- 🔍 Visual check: header row text is bold in Google Docs
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-D184: Inline formatting inside `<td>` cells ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** Regression test for #69 — inline formatting inside table cells was previously lost.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><td><b>bold</b> plain <i>italic</i></td></tr></table>`"
+
+**Checks**
+- `get_doc_structure` shows the table cell
+- Cell text includes 'bold', 'plain', 'italic'
+- Run with 'bold' has `bold: true`
+- Run with 'italic' has `italic: true`
+- Plain text run has `bold: null` and `italic: null`
+- 🔍 Visual check: cell shows mixed formatting
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-D185: `colspan` produces merged cells ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** Regression test for #67 — `colspan` was previously ignored.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><td colspan=\"2\">Wide cell</td></tr><tr><td>A</td><td>B</td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows the table has 2 rows
+- Row 0 has 1 cell (merged), row 1 has 2 cells
+- 🔍 Visual check: top row spans both columns in Google Docs
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-D186: Column widths from HTML ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** Regression test for #66 — `width` attributes on `<col>` were previously ignored.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<table><col width=\"144\"><col width=\"288\"><tr><td>Narrow</td><td>Wide</td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- 🔍 Visual check: first column is narrower than second column in Google Docs
+- 🔍 Note: `get_doc_structure` does not expose column width properties; visual verification is the only check available without `effectiveFormat` API access (#54)
+
+**Cleanup:** write fixture content back

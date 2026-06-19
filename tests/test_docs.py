@@ -1,4 +1,4 @@
-"""Tests for tools/docs.py (HTML helpers and create_doc tool)."""
+"""Tests for docs package — HTML pipeline and tool registration."""
 
 from unittest.mock import MagicMock
 
@@ -7,6 +7,8 @@ from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs import _html_to_doc_requests, _html_to_text
+from mcp_gee_sweet.tools.docs.ast import BulletItem, Heading, Paragraph, Table
+from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 
 
 def _make_tool_registry():
@@ -89,14 +91,14 @@ class TestHtmlToDocRequests:
         ]
         assert "HEADING_1" in styles
 
-    def test_h2_produces_heading_3(self):
+    def test_h2_produces_heading_2(self):
         requests, _ = _html_to_doc_requests("<h2>Subtitle</h2>")
         styles = [
             r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
             for r in requests
             if "updateParagraphStyle" in r
         ]
-        assert "HEADING_3" in styles
+        assert "HEADING_2" in styles
 
     def test_list_item_produces_bullet(self):
         requests, _ = _html_to_doc_requests("<li>Item</li>")
@@ -152,8 +154,12 @@ class TestHtmlToDocRequests:
             "<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>"
         )
         assert len(tables) == 1
-        assert tables[0][0] == ["A", "B"]
-        assert tables[0][1] == ["1", "2"]
+        # tables are now Table AST nodes
+        assert len(tables[0].rows) == 2
+        assert tables[0].rows[0].cells[0].runs[0].text == "A"
+        assert tables[0].rows[0].cells[1].runs[0].text == "B"
+        assert tables[0].rows[1].cells[0].runs[0].text == "1"
+        assert tables[0].rows[1].cells[1].runs[0].text == "2"
 
     def test_table_interleaved_with_text(self):
         html = "<h2>Before</h2><table><tr><td>X</td></tr></table><h2>After</h2>"
@@ -199,8 +205,8 @@ class TestHtmlToDocRequests:
         insert_tables = [r for r in requests if "insertTable" in r]
         assert len(insert_tables) == 2
         assert len(tables) == 2
-        assert tables[0][0][0] == "T1"
-        assert tables[1][0][0] == "T2"
+        assert tables[0].rows[0].cells[0].runs[0].text == "T1"
+        assert tables[1].rows[0].cells[0].runs[0].text == "T2"
         # Both tables share the same insert position (no text between them).
         # Reverse-order insertion means T1 ends up at a lower index than T2 in the doc,
         # so T1's position must be <= T2's position in the request list (last request = T1).
@@ -209,6 +215,114 @@ class TestHtmlToDocRequests:
         assert (
             t1_req["insertTable"]["location"]["index"] <= t2_req["insertTable"]["location"]["index"]
         )
+
+
+class TestHtmlToAst:
+    """Tests for the AST layer — html_to_ast and the nodes it produces."""
+
+    def test_h1_to_h6_correct_levels(self):
+        for level in range(1, 7):
+            nodes = html_to_ast(f"<h{level}>Title</h{level}>")
+            assert len(nodes) == 1
+            assert isinstance(nodes[0], Heading)
+            assert nodes[0].level == level
+
+    def test_paragraph_node(self):
+        nodes = html_to_ast("<p>Hello</p>")
+        assert len(nodes) == 1
+        assert isinstance(nodes[0], Paragraph)
+        assert nodes[0].runs[0].text == "Hello"
+
+    def test_bullet_item_from_ul(self):
+        nodes = html_to_ast("<ul><li>Item</li></ul>")
+        bullets = [n for n in nodes if isinstance(n, BulletItem)]
+        assert len(bullets) == 1
+        assert bullets[0].ordered is False
+
+    def test_bullet_item_from_ol(self):
+        nodes = html_to_ast("<ol><li>Item</li></ol>")
+        bullets = [n for n in nodes if isinstance(n, BulletItem)]
+        assert len(bullets) == 1
+        assert bullets[0].ordered is True
+
+    def test_inline_bold_in_paragraph(self):
+        nodes = html_to_ast("<p><b>bold</b> plain</p>")
+        assert isinstance(nodes[0], Paragraph)
+        runs = nodes[0].runs
+        bold_run = next(r for r in runs if r.bold)
+        assert bold_run.text == "bold"
+        plain_run = next(r for r in runs if not r.bold)
+        assert "plain" in plain_run.text
+
+    def test_inline_italic_in_paragraph(self):
+        nodes = html_to_ast("<p><i>italic</i></p>")
+        assert nodes[0].runs[0].italic is True
+
+    def test_inline_link_in_paragraph(self):
+        nodes = html_to_ast('<p><a href="https://example.com">click</a></p>')
+        link_run = next(r for r in nodes[0].runs if r.link_url)
+        assert link_run.link_url == "https://example.com"
+
+    def test_th_cell_has_bold_run(self):
+        nodes = html_to_ast("<table><tr><th>Header</th></tr></table>")
+        table = nodes[0]
+        assert isinstance(table, Table)
+        cell = table.rows[0].cells[0]
+        assert cell.is_header is True
+        assert cell.runs[0].bold is True
+
+    def test_td_cell_text(self):
+        nodes = html_to_ast("<table><tr><td>Data</td></tr></table>")
+        table = nodes[0]
+        cell = table.rows[0].cells[0]
+        assert cell.is_header is False
+        assert cell.runs[0].text == "Data"
+
+    def test_inline_bold_in_td(self):
+        nodes = html_to_ast("<table><tr><td><b>bold cell</b></td></tr></table>")
+        cell = nodes[0].rows[0].cells[0]
+        assert cell.runs[0].bold is True
+        assert cell.runs[0].text == "bold cell"
+
+    def test_inline_link_in_td(self):
+        nodes = html_to_ast('<table><tr><td><a href="https://x.com">link</a></td></tr></table>')
+        cell = nodes[0].rows[0].cells[0]
+        link_run = next(r for r in cell.runs if r.link_url)
+        assert link_run.link_url == "https://x.com"
+
+    def test_colspan_on_td(self):
+        nodes = html_to_ast('<table><tr><td colspan="2">wide</td></tr></table>')
+        cell = nodes[0].rows[0].cells[0]
+        assert cell.colspan == 2
+
+    def test_default_colspan_is_1(self):
+        nodes = html_to_ast("<table><tr><td>x</td></tr></table>")
+        assert nodes[0].rows[0].cells[0].colspan == 1
+
+    def test_col_width_parsed_from_col_tag(self):
+        # 96px → 72pt (96 * 72 / 96 = 72)
+        nodes = html_to_ast('<table><col width="96"><tr><td>x</td></tr></table>')
+        assert isinstance(nodes[0], Table)
+        widths = nodes[0].col_widths
+        assert len(widths) == 1
+        assert widths[0] == pytest.approx(72.0)
+
+    def test_col_width_parsed_from_td_first_row(self):
+        nodes = html_to_ast('<table><tr><td width="96">x</td></tr></table>')
+        assert isinstance(nodes[0], Table)
+        widths = nodes[0].col_widths
+        assert len(widths) == 1
+        assert widths[0] == pytest.approx(72.0)
+
+    def test_h3_to_h6_correct_heading_levels_in_requests(self):
+        for level in range(3, 7):
+            requests, _ = _html_to_doc_requests(f"<h{level}>Title</h{level}>")
+            styles = [
+                r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+                for r in requests
+                if "updateParagraphStyle" in r
+            ]
+            assert f"HEADING_{level}" in styles
 
 
 def _quota_http_error():
