@@ -713,7 +713,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D190: `data-style="title"` produces TITLE named style ⚠️ requires-oauth ⚠️ destructive
+### TC-D190: `data-style="title"` produces TITLE named style ⚠️ destructive
 **Purpose:** verify that `<p data-style="title">` is parsed as a `NamedBlock(TITLE)` and the emitter applies `updateParagraphStyle` with `namedStyleType: TITLE`.
 
 **Prompt**
@@ -727,9 +727,13 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** write fixture content back
 
+**Result (2026-06-19) ✅ PASS**
+- First paragraph `namedStyleType: "TITLE"`, text "My Document Title" confirmed via `get_doc_structure`.
+- Second paragraph `namedStyleType: "NORMAL_TEXT"`, text "Body paragraph." confirmed.
+
 ---
 
-### TC-D191: `data-style="subtitle"` produces SUBTITLE named style ⚠️ requires-oauth ⚠️ destructive
+### TC-D191: `data-style="subtitle"` produces SUBTITLE named style ⚠️ destructive
 **Purpose:** verify SUBTITLE works the same way as TITLE.
 
 **Prompt**
@@ -742,3 +746,6 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - Third paragraph: `namedStyleType: "NORMAL_TEXT"`, text "Body."
 
 **Cleanup:** write fixture content back
+
+**Result (2026-06-19) ✅ PASS**
+- All three paragraphs confirmed: `TITLE` / `SUBTITLE` / `NORMAL_TEXT` with correct text values.
