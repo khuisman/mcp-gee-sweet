@@ -1,0 +1,9 @@
+# Design Documents
+
+Detailed implementation design docs — file layouts, data models, algorithm choices, and trade-offs as they were understood when each piece of work was planned.
+
+These are more granular than the [decision records](../decisions/index.md), which capture *why* a direction was chosen. Design docs capture *how* something is built.
+
+| Doc | Date | Scope |
+|---|---|---|
+| [Docs AST Pipeline](docs-ast-pipeline.md) | 2026-06-17 | Phase 2 HTML→AST→Docs API pipeline — AST node design, file layout, emitter algorithm, test plan |
