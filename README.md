@@ -15,7 +15,21 @@ An MCP server that gives AI clients reliable, direct access to Google Workspace 
 
 ## Quick start
 
-### Docker (recommended)
+### Option A: `uv` — local use and development
+
+If you cloned the repo or just want to use the server from your machine, `uv` is all you need. No Docker required.
+
+```bash
+git clone https://github.com/khuisman/mcp-gee-sweet.git
+cd mcp-gee-sweet
+uv sync
+```
+
+Then point your MCP client at it using **stdio transport** (see [MCP client config](#mcp-client-config) below). The client spawns the server as a subprocess on demand — each session gets its own isolated process, so restarting the server for a code change or config update doesn't affect other open sessions.
+
+### Option B: Docker — persistent shared server (SSE)
+
+Use Docker when you want a single long-running server that multiple clients connect to over SSE — for example, Claude Desktop talking to the same instance as Claude Code.
 
 ```bash
 git clone https://github.com/khuisman/mcp-gee-sweet.git
@@ -27,15 +41,7 @@ make logs    # tail logs
 
 Point your MCP client at `http://localhost:47000/sse`.
 
-### Local with `uv`
-
-```bash
-git clone https://github.com/khuisman/mcp-gee-sweet.git
-cd mcp-gee-sweet
-uv sync
-uv run mcp-gee-sweet                 # stdio transport
-uv run mcp-gee-sweet --transport sse # SSE on port 8000
-```
+> **Note:** when using SSE, all clients share one server process. After a code change or restart (`make restart`), you must also restart each MCP client to reconnect.
 
 ---
 
