@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .ast import BulletItem, DocNode, Heading, Paragraph, Run, Table
+from .ast import BulletItem, DocNode, Heading, Paragraph, Row, Run, Table
 
 
 def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[dict], list[Table]]:
@@ -92,7 +92,7 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
     for i in range(len(tables) - 1, -1, -1):
         table = tables[i]
         num_rows = len(table.rows)
-        num_cols = max((len(row.cells) for row in table.rows), default=0)
+        num_cols = max((sum(c.colspan for c in row.cells) for row in table.rows), default=0)
         if num_rows > 0 and num_cols > 0:
             requests.append(
                 {
@@ -155,7 +155,10 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
 
     # Phase A: check whether any merges are needed
     has_merges = any(
-        cell.colspan > 1 for table in tables for row in table.rows for cell in row.cells
+        cell.colspan > 1 or cell.rowspan > 1
+        for table in tables
+        for row in table.rows
+        for cell in row.cells
     )
 
     # Step 1: re-fetch to get live cell positions
@@ -193,16 +196,75 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
         ).execute()
 
 
+def _build_phantom_set(ast_table: Table) -> set[tuple[int, int]]:
+    """Return (row, col) logical positions covered by rowspan from a cell in an earlier row."""
+    phantom: set[tuple[int, int]] = set()
+    for r, ast_row in enumerate(ast_table.rows):
+        col = 0
+        for ast_cell in ast_row.cells:
+            while (r, col) in phantom:
+                col += 1
+            for dr in range(ast_cell.rowspan):
+                for dc in range(ast_cell.colspan):
+                    if dr > 0 or dc > 0:
+                        phantom.add((r + dr, col + dc))
+            col += ast_cell.colspan
+    return phantom
+
+
+def _physical_to_ast_indices(
+    r: int, ast_row: Row, phantom: set[tuple[int, int]], total_cols: int
+) -> list[int | None]:
+    """Map each physical doc cell index in row r to an AST cell index, or None if phantom.
+
+    Physical cells = all logical columns except colspan-absorbed ones.
+    Rowspan phantom cells are still physical (present in the doc after merge) but are skipped.
+    """
+    # Determine which logical cols are absorbed by colspan (not physical cells)
+    absorbed: set[int] = set()
+    logical_col = 0
+    for ast_cell in ast_row.cells:
+        while (r, logical_col) in phantom:
+            logical_col += 1
+        for dc in range(1, ast_cell.colspan):
+            absorbed.add(logical_col + dc)
+        logical_col += ast_cell.colspan
+
+    mapping: list[int | None] = []
+    ast_idx = 0
+    for col in range(total_cols):
+        if col in absorbed:
+            # Colspan phantom — remains as a physical cell in the doc after mergeTableCells,
+            # just like a rowspan phantom. Map to None so it gets skipped during fill.
+            mapping.append(None)
+        elif (r, col) in phantom:
+            mapping.append(None)  # rowspan phantom — physical but owned by an earlier row
+        else:
+            mapping.append(ast_idx)
+            ast_idx += 1
+    return mapping
+
+
 def _build_merge_requests(doc_tables: list[dict], ast_tables: list[Table]) -> list[dict]:
-    """Emit mergeTableCells for any cell with colspan > 1."""
+    """Emit mergeTableCells for any cell with colspan > 1 or rowspan > 1."""
     requests: list[dict] = []
     for doc_table, ast_table in zip(doc_tables, ast_tables):
         table_start = _table_start_index(doc_table)
         if table_start is None:
             continue
-        for r, (doc_row, ast_row) in enumerate(zip(doc_table.get("tableRows", []), ast_table.rows)):
-            for c, ast_cell in enumerate(ast_row.cells):
-                if ast_cell.colspan > 1:
+
+        phantom = _build_phantom_set(ast_table)
+
+        for r, ast_row in enumerate(ast_table.rows):
+            logical_col = 0
+            # Each colspan merge removes (colspan-1) physical cells from this row;
+            # rowspan phantoms remain as physical cells and don't shift column indices.
+            colspan_removed = 0
+            for ast_cell in ast_row.cells:
+                while (r, logical_col) in phantom:
+                    logical_col += 1
+                if ast_cell.colspan > 1 or ast_cell.rowspan > 1:
+                    physical_col = logical_col - colspan_removed
                     requests.append(
                         {
                             "mergeTableCells": {
@@ -210,71 +272,70 @@ def _build_merge_requests(doc_tables: list[dict], ast_tables: list[Table]) -> li
                                     "tableCellLocation": {
                                         "tableStartLocation": {"index": table_start},
                                         "rowIndex": r,
-                                        "columnIndex": c,
+                                        "columnIndex": physical_col,
                                     },
-                                    "rowSpan": 1,
+                                    "rowSpan": ast_cell.rowspan,
                                     "columnSpan": ast_cell.colspan,
                                 }
                             }
                         }
                     )
+                if ast_cell.colspan > 1:
+                    colspan_removed += ast_cell.colspan - 1
+                logical_col += ast_cell.colspan
     return requests
 
 
 def _build_fill_requests(doc_tables: list[dict], ast_tables: list[Table]) -> list[dict]:
     """Build insertText + updateTextStyle requests for all table cells, sorted high→low."""
-    all_requests: list[tuple[int, list[dict]]] = []  # (index, requests_for_this_cell)
+    all_requests: list[tuple[int, list[dict]]] = []
 
     for doc_table, ast_table in zip(doc_tables, ast_tables):
         doc_rows = doc_table.get("tableRows", [])
-        ast_rows = ast_table.rows
+        phantom = _build_phantom_set(ast_table)
+        total_cols = max((sum(c.colspan for c in row.cells) for row in ast_table.rows), default=0)
+        if total_cols == 0:
+            continue
 
-        # After colspan merges, the physical doc may have fewer cells per row.
-        # We match doc cells to ast cells in order, skipping phantom positions.
-        # Simple approach: iterate doc cells and ast cells in parallel.
-        doc_cell_iter = (
-            (doc_cell, ast_row.cells[c] if c < len(ast_row.cells) else None)
-            for ast_row, doc_row_entry in zip(ast_rows, doc_rows)
-            for c, doc_cell in enumerate(doc_row_entry.get("tableCells", []))
-        )
-
-        for doc_cell, ast_cell in doc_cell_iter:
-            if ast_cell is None:
-                continue
-            cell_runs = ast_cell.runs
-            cell_text = "".join(r.text for r in cell_runs)
-            if not cell_text:
-                continue
-            cell_content = doc_cell.get("content", [])
-            if not cell_content:
-                continue
-            para_start = cell_content[0].get("startIndex")
-            if para_start is None:
-                continue
-
-            cell_requests: list[dict] = []
-            cell_requests.append(
-                {
-                    "insertText": {
-                        "location": {"index": para_start},
-                        "text": cell_text,
-                    }
-                }
+        for r, (doc_row_entry, ast_row) in enumerate(zip(doc_rows, ast_table.rows)):
+            # Sort by startIndex: after mergeTableCells, the API may return covered
+            # (phantom) cells last rather than in column order.
+            doc_cells = sorted(
+                doc_row_entry.get("tableCells", []), key=lambda c: c.get("startIndex", 0)
             )
-            # Style requests for individual runs
-            offset = 0
-            for run in cell_runs:
-                run_len = len(run.text)
-                if run_len > 0:
-                    style_reqs = _run_style_requests(
-                        run, para_start + offset, para_start + offset + run_len
-                    )
-                    cell_requests.extend(style_reqs)
-                offset += run_len
+            mapping = _physical_to_ast_indices(r, ast_row, phantom, total_cols)
 
-            all_requests.append((para_start, cell_requests))
+            for doc_cell, ast_cell_idx in zip(doc_cells, mapping):
+                if ast_cell_idx is None:
+                    continue  # rowspan phantom — skip
+                ast_cell = ast_row.cells[ast_cell_idx]
+                cell_runs = ast_cell.runs
+                cell_text = "".join(run.text for run in cell_runs)
+                if not cell_text:
+                    continue
+                cell_content = doc_cell.get("content", [])
+                if not cell_content:
+                    continue
+                para_start = cell_content[0].get("startIndex")
+                if para_start is None:
+                    continue
 
-    # Sort high→low by paragraph start index
+                cell_requests: list[dict] = []
+                cell_requests.append(
+                    {"insertText": {"location": {"index": para_start}, "text": cell_text}}
+                )
+                offset = 0
+                for run in cell_runs:
+                    run_len = len(run.text)
+                    if run_len > 0:
+                        style_reqs = _run_style_requests(
+                            run, para_start + offset, para_start + offset + run_len
+                        )
+                        cell_requests.extend(style_reqs)
+                    offset += run_len
+
+                all_requests.append((para_start, cell_requests))
+
     all_requests.sort(key=lambda x: x[0], reverse=True)
     return [req for _, reqs in all_requests for req in reqs]
 

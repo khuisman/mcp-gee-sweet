@@ -510,3 +510,55 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - 🔍 Note: `get_doc_structure` does not expose column width properties; visual verification is the only check available without `effectiveFormat` API access (#54)
 
 **Cleanup:** write fixture content back
+
+---
+
+### TC-D187: `rowspan` produces vertically merged cells ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** First live verification of issue #91 — rowspan support in the HTML→AST→emitter pipeline. A cell spanning two rows must produce a `mergeTableCells` request, and the phantom cell in the lower row must not be filled.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><td rowspan=\"2\">Tall</td><td>R0C1</td></tr><tr><td>R1C1</td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows the table has 2 rows and 2 columns
+- Row 0 has 2 physical cells; row 1 has 2 physical cells (Google Docs keeps the phantom cell as a physical slot post-merge)
+- Cell [0,0] text = 'Tall'; cell [0,1] text = 'R0C1'; cell [1,1] text = 'R1C1'
+- Cell [1,0] is the phantom slot — it must be empty (not filled with 'Tall' or any content)
+- 🔍 Visual check: first column shows 'Tall' spanning both rows in Google Docs
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-D188: Combined `rowspan` and `colspan` in the same table ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** verify that a single cell carrying both `rowspan` and `colspan` emits exactly one `mergeTableCells` request with both dimensions, and that physical column tracking stays correct for subsequent cells in the same row.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><td rowspan=\"2\" colspan=\"2\">Big</td><td>R0C2</td></tr><tr><td>R1C2</td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows 2 rows, 3 columns
+- Cell [0,0] text = 'Big'; cell [0,2] text = 'R0C2'; cell [1,2] text = 'R1C2'
+- Cells at [0,1], [1,0], [1,1] are phantom slots — must all be empty
+- 🔍 Visual check: top-left 2×2 block shows 'Big' spanning both rows and columns
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-D189: `rowspan` with header row — phantom not filled, real cells in correct columns ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** edge-case verification that when a rowspan pushes subsequent real cells to higher logical columns, the physical-to-AST index mapping resolves correctly and no cell gets the wrong content.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><th>Name</th><th>Type</th><th>Notes</th></tr><tr><td rowspan=\"2\">Alpha</td><td>A</td><td>first</td></tr><tr><td>B</td><td>second</td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- Row 0: header cells 'Name', 'Type', 'Notes' — all bold
+- Row 1: 'Alpha' in col 0 (rowspan=2), 'A' in col 1, 'first' in col 2
+- Row 2: col 0 is phantom (empty, not filled with any content), 'B' in col 1, 'second' in col 2
+- 🔍 Visual check: 'Alpha' spans rows 1 and 2 in Google Docs; row 2 col 1 shows 'B' (not shifted left)
+
+**Cleanup:** write fixture content back
