@@ -1843,6 +1843,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-d190-data-styletitle-produces-title-named-style-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D190: data-style="title" produces TITLE named style ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d191-data-stylesubtitle-produces-subtitle-named-style-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D191: data-style="subtitle" produces SUBTITLE named style ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2664,6 +2686,37 @@
 <p><strong>Result (2026-06-19) ✅ PASS</strong>
 - Paragraph text <code>Call my_function() with param=True to enable it.</code> confirmed; code spans at correct positions.
 - <code>weightedFontFamily: Courier New</code> confirmed via unit tests; not exposed by <code>get_doc_structure</code> (known gap).</p>
+<hr />
+<h3 id="tc-d190-data-styletitle-produces-title-named-style-destructive">TC-D190: <code>data-style="title"</code> produces TITLE named style ⚠️ destructive<a class="headerlink" href="#tc-d190-data-styletitle-produces-title-named-style-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> verify that <code>&lt;p data-style="title"&gt;</code> is parsed as a <code>NamedBlock(TITLE)</code> and the emitter applies <code>updateParagraphStyle</code> with <code>namedStyleType: TITLE</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;p data-style=\"title\"&gt;My Document Title&lt;/p&gt;&lt;p&gt;Body paragraph.&lt;/p&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows the first paragraph with <code>namedStyleType: "TITLE"</code> and text "My Document Title"
+- Second paragraph has <code>namedStyleType: "NORMAL_TEXT"</code> and text "Body paragraph."
+- 🔍 Visual check: "My Document Title" appears in the TITLE named style (large, prominent) in Google Docs</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅ PASS</strong>
+- First paragraph <code>namedStyleType: "TITLE"</code>, text "My Document Title" confirmed via <code>get_doc_structure</code>.
+- Second paragraph <code>namedStyleType: "NORMAL_TEXT"</code>, text "Body paragraph." confirmed.</p>
+<hr />
+<h3 id="tc-d191-data-stylesubtitle-produces-subtitle-named-style-destructive">TC-D191: <code>data-style="subtitle"</code> produces SUBTITLE named style ⚠️ destructive<a class="headerlink" href="#tc-d191-data-stylesubtitle-produces-subtitle-named-style-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> verify SUBTITLE works the same way as TITLE.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;p data-style=\"title\"&gt;Title&lt;/p&gt;&lt;p data-style=\"subtitle\"&gt;Subtitle text here&lt;/p&gt;&lt;p&gt;Body.&lt;/p&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- First paragraph: <code>namedStyleType: "TITLE"</code>, text "Title"
+- Second paragraph: <code>namedStyleType: "SUBTITLE"</code>, text "Subtitle text here"
+- Third paragraph: <code>namedStyleType: "NORMAL_TEXT"</code>, text "Body."</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅ PASS</strong>
+- All three paragraphs confirmed: <code>TITLE</code> / <code>SUBTITLE</code> / <code>NORMAL_TEXT</code> with correct text values.</p>
 
 
 
