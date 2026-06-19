@@ -784,6 +784,56 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#nested-table-design-92" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nested Table Design (#92)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Nested Table Design (#92)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parser-changes-html_parserpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parser changes (html_parser.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#emitter-changes-emitterpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Emitter changes (emitter.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#known-limitations-first-pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known limitations (first pass)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1898,13 +1948,13 @@ Test file imports <code>from mcp_gee_sweet.tools.docs import _html_to_doc_reques
 </tr>
 <tr>
 <td>Rowspan</td>
-<td>No</td>
-<td><code>Cell.rowspan</code> in AST; emitter deferred</td>
+<td>Yes</td>
+<td><code>Cell.rowspan</code> in AST; #91 added <code>mergeTableCells</code> in emitter</td>
 </tr>
 <tr>
 <td>Nested tables</td>
-<td>No</td>
-<td>#68 deferred</td>
+<td>Yes</td>
+<td><code>Cell.nested_table: Table \| None</code>; #92 added stages 3+5 in <code>fill_tables</code></td>
 </tr>
 <tr>
 <td>Phase 3 styling fields (colors, fonts)</td>
@@ -1918,6 +1968,26 @@ Test file imports <code>from mcp_gee_sweet.tools.docs import _html_to_doc_reques
 </tr>
 </tbody>
 </table>
+<hr />
+<h2 id="nested-table-design-92">Nested Table Design (#92)<a class="headerlink" href="#nested-table-design-92" title="Permanent link">&para;</a></h2>
+<p><strong>Date:</strong> 2026-06-19</p>
+<p>A <code>&lt;table&gt;</code> inside a <code>&lt;td&gt;</code> is now supported (one level of nesting).</p>
+<h3 id="parser-changes-html_parserpy">Parser changes (<code>html_parser.py</code>)<a class="headerlink" href="#parser-changes-html_parserpy" title="Permanent link">&para;</a></h3>
+<p><code>_AstParser</code> previously guarded <code>&lt;table&gt;</code> pushes with <code>if self._table_depth == 1</code>. Removing that guard means a new <code>_TableBuilder</code> is pushed for every <code>&lt;table&gt;</code>, regardless of depth. On <code>&lt;/table&gt;</code>, the completed <code>Table</code> is routed based on depth:
+- <code>depth == 1</code> → append to <code>_nodes</code> (document-level, existing behaviour)
+- <code>depth &gt; 1</code> → assign to <code>self._table_stack[-1]._current_nested_table</code> (new: parent cell accumulates it)</p>
+<p><code>_TableBuilder.end_cell</code> was extended to pass <code>nested_table=self._current_nested_table</code> to <code>Cell</code> and reset it to <code>None</code>. All <code>&lt;tr&gt;</code> / <code>&lt;td&gt;</code> / <code>&lt;th&gt;</code> handlers already reference <code>self._table_stack[-1]</code>, so they automatically operate on the innermost builder — no other changes needed.</p>
+<h3 id="emitter-changes-emitterpy">Emitter changes (<code>emitter.py</code>)<a class="headerlink" href="#emitter-changes-emitterpy" title="Permanent link">&para;</a></h3>
+<p><code>fill_tables</code> gained two new phases:</p>
+<p><strong>Phase 3 — insert nested table shells</strong>: <code>_build_nested_table_inserts(doc_tables, ast_tables)</code> iterates outer cells that have <code>nested_table</code> set and emits <code>insertTable</code> requests at each cell's <code>paragraphStartIndex</code>. Requests are sorted HIGH→LOW so earlier insertions don't shift later indices. Re-fetches live doc after.</p>
+<p><strong>Phase 5 — fill nested cells</strong>: after outer cell text is filled (phase 4), indices shift. A second re-fetch is performed, then <code>_collect_nested_table_pairs(doc_tables, ast_tables)</code> traverses cell content to find the nested <code>table</code> element and pairs it with the AST <code>Table</code>. <code>_build_fill_requests</code> reuses the same logic as outer cells.</p>
+<h3 id="known-limitations-first-pass">Known limitations (first pass)<a class="headerlink" href="#known-limitations-first-pass" title="Permanent link">&para;</a></h3>
+<ul>
+<li>One level of nesting only (table-in-table-in-table not supported)</li>
+<li>Cells with <code>nested_table</code> should not also contain text runs (runs are dropped silently)</li>
+<li>No <code>colspan</code>/<code>rowspan</code> inside nested tables</li>
+<li>No <code>col_widths</code> on nested tables</li>
+</ul>
 
 
 

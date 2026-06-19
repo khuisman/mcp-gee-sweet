@@ -1870,6 +1870,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#nested-table-support-write_doc_content" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nested table support — write_doc_content
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Nested table support — write_doc_content">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-d199-simple-nested-table-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D199: Simple nested table ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d200-nested-table-alongside-regular-cells-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D200: Nested table alongside regular cells ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d201-nested-table-with-multiple-rows-and-columns-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D201: Nested table with multiple rows and columns ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d202-nested-tables-not-supported-in-markdown-documented-limitation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D202: Nested tables not supported in markdown (documented limitation)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2717,6 +2778,49 @@
 <p><strong>Cleanup:</strong> write fixture content back</p>
 <p><strong>Result (2026-06-19) ✅ PASS</strong>
 - All three paragraphs confirmed: <code>TITLE</code> / <code>SUBTITLE</code> / <code>NORMAL_TEXT</code> with correct text values.</p>
+<hr />
+<h2 id="nested-table-support-write_doc_content">Nested table support — <code>write_doc_content</code><a class="headerlink" href="#nested-table-support-write_doc_content" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d199-simple-nested-table-destructive">TC-D199: Simple nested table ⚠️ destructive<a class="headerlink" href="#tc-d199-simple-nested-table-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Inner&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows the outer table (1 row × 1 col)
+- The outer cell contains a nested table element with cell text "Inner"
+- 🔍 Visual check: nested table visible inside the outer table cell in Google Docs</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅</strong> <code>write_doc_content</code> succeeded. <code>get_doc_structure</code> shows outer table: 1 row × 1 col, cell [0,0] startIndex=4 endIndex=17 text="" (empty text run confirms cell holds nested table, not text). Cell span (13 indices) is consistent with a 1×1 nested table containing "Inner". Note: <code>get_doc_structure</code> reports top-level body elements only; nested table cell content is not exposed by this tool.</p>
+<hr />
+<h3 id="tc-d200-nested-table-alongside-regular-cells-destructive">TC-D200: Nested table alongside regular cells ⚠️ destructive<a class="headerlink" href="#tc-d200-nested-table-alongside-regular-cells-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;Label&lt;/td&gt;&lt;td&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Val A&lt;/td&gt;&lt;td&gt;Val B&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Outer table has 1 row, 2 columns
+- Cell [0,0] text = "Label"
+- Cell [0,1] contains a nested table with 1 row × 2 cols, cells "Val A" and "Val B"
+- 🔍 Visual check: label in col 0, small inner table in col 1</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅</strong> <code>write_doc_content</code> succeeded. <code>get_doc_structure</code> shows outer table: 1 row × 2 cols. Cell [0,0] text="Label" ✅. Cell [0,1] text="" with span 11–31 (20 indices, consistent with 1×2 nested table holding "Val A" and "Val B") ✅.</p>
+<hr />
+<h3 id="tc-d201-nested-table-with-multiple-rows-and-columns-destructive">TC-D201: Nested table with multiple rows and columns ⚠️ destructive<a class="headerlink" href="#tc-d201-nested-table-with-multiple-rows-and-columns-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;R0C0&lt;/td&gt;&lt;td&gt;R0C1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;R1C0&lt;/td&gt;&lt;td&gt;R1C1&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Outer table: 1 row, 1 col
+- Nested table: 2 rows × 2 cols
+- All four nested cells filled correctly: R0C0, R0C1, R1C0, R1C1
+- 🔍 Visual check: 2×2 grid inside the outer cell</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅</strong> <code>write_doc_content</code> succeeded. <code>get_doc_structure</code> shows outer table: 1 row × 1 col, cell [0,0] text="" with span 4–35 (31 indices, consistent with a 2×2 nested table containing four 4-char cell values plus table overhead) ✅.</p>
+<hr />
+<h3 id="tc-d202-nested-tables-not-supported-in-markdown-documented-limitation">TC-D202: Nested tables not supported in markdown (documented limitation)<a class="headerlink" href="#tc-d202-nested-tables-not-supported-in-markdown-documented-limitation" title="Permanent link">&para;</a></h3>
+<p><strong>Note:</strong> The markdown pipeline does not produce nested tables — the <code>markdown</code> library does not support table-in-table syntax. Users who need nested tables must supply raw HTML via <code>content_format='html'</code>. No test to run; this entry documents the known limitation.</p>
 
 
 
