@@ -5,9 +5,10 @@ from __future__ import annotations
 import html as html_module
 from html.parser import HTMLParser
 
-from .ast import BulletItem, Cell, DocNode, Heading, Paragraph, Row, Run, Table
+from .ast import BulletItem, Cell, DocNode, Heading, NamedBlock, Paragraph, Row, Run, Table
 
 _BLOCK_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6", "p", "li"}
+_NAMED_BLOCK_STYLES = {"title": "TITLE", "subtitle": "SUBTITLE"}
 _HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
 _INLINE_BOLD = {"b", "strong"}
 _INLINE_ITALIC = {"i", "em"}
@@ -49,6 +50,9 @@ class _AstParser(HTMLParser):
         # --- table context ---
         self._table_depth = 0
         self._table_stack: list[_TableBuilder] = []
+
+        # --- named block style (data-style on <p>) ---
+        self._block_named_style: str | None = None
 
     # ------------------------------------------------------------------
     # helpers
@@ -138,6 +142,11 @@ class _AstParser(HTMLParser):
             self._block_tag = tag
             self._run_buf = []
             self._pending_runs = []
+            if tag == "p":
+                style = (attr_dict.get("data-style") or "").lower()
+                self._block_named_style = _NAMED_BLOCK_STYLES.get(style)
+            else:
+                self._block_named_style = None
             return
 
         # --- inline elements ---
@@ -238,8 +247,11 @@ class _AstParser(HTMLParser):
                     self._nodes.append(
                         BulletItem(runs=runs, depth=depth, ordered=ordered, checked=checked)
                     )
+                elif tag == "p" and self._block_named_style:
+                    self._nodes.append(NamedBlock(style_type=self._block_named_style, runs=runs))
                 else:
                     self._nodes.append(Paragraph(runs=runs))
+            self._block_named_style = None
             self._block_tag = None
             return
 

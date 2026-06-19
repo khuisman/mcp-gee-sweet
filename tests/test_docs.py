@@ -12,7 +12,16 @@ from mcp_gee_sweet.tools.docs import (
     _md_to_html,
     _to_doc_requests,
 )
-from mcp_gee_sweet.tools.docs.ast import BulletItem, Cell, Heading, Paragraph, Row, Run, Table
+from mcp_gee_sweet.tools.docs.ast import (
+    BulletItem,
+    Cell,
+    Heading,
+    NamedBlock,
+    Paragraph,
+    Row,
+    Run,
+    Table,
+)
 from mcp_gee_sweet.tools.docs.emitter import (
     _build_fill_requests,
     _build_merge_requests,
@@ -362,6 +371,59 @@ class TestHtmlToAst:
     def test_default_rowspan_is_1(self):
         nodes = html_to_ast("<table><tr><td>x</td></tr></table>")
         assert nodes[0].rows[0].cells[0].rowspan == 1
+
+    def test_data_style_title(self):
+        nodes = html_to_ast('<p data-style="title">My Title</p>')
+        assert len(nodes) == 1
+        assert isinstance(nodes[0], NamedBlock)
+        assert nodes[0].style_type == "TITLE"
+        assert nodes[0].runs[0].text == "My Title"
+
+    def test_data_style_subtitle(self):
+        nodes = html_to_ast('<p data-style="subtitle">Sub</p>')
+        assert isinstance(nodes[0], NamedBlock)
+        assert nodes[0].style_type == "SUBTITLE"
+
+    def test_p_no_data_style_is_paragraph(self):
+        nodes = html_to_ast("<p>Normal</p>")
+        assert isinstance(nodes[0], Paragraph)
+
+    def test_data_style_unknown_is_paragraph(self):
+        nodes = html_to_ast('<p data-style="bogus">X</p>')
+        assert isinstance(nodes[0], Paragraph)
+
+    def test_data_style_case_insensitive(self):
+        nodes = html_to_ast('<p data-style="TITLE">T</p>')
+        assert isinstance(nodes[0], NamedBlock)
+        assert nodes[0].style_type == "TITLE"
+
+
+class TestNamedBlockEmitter:
+    def test_title_emits_named_style_type(self):
+        requests, _ = _html_to_doc_requests('<p data-style="title">My Title</p>')
+        para_styles = [
+            r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+            for r in requests
+            if "updateParagraphStyle" in r
+        ]
+        assert "TITLE" in para_styles
+
+    def test_subtitle_emits_named_style_type(self):
+        requests, _ = _html_to_doc_requests('<p data-style="subtitle">Sub</p>')
+        para_styles = [
+            r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+            for r in requests
+            if "updateParagraphStyle" in r
+        ]
+        assert "SUBTITLE" in para_styles
+
+    def test_named_block_does_not_produce_bullet(self):
+        requests, _ = _html_to_doc_requests('<p data-style="title">T</p>')
+        assert not any("createParagraphBullets" in r for r in requests)
+
+    def test_named_block_produces_delete_bullets(self):
+        requests, _ = _html_to_doc_requests('<p data-style="title">T</p>')
+        assert any("deleteParagraphBullets" in r for r in requests)
 
 
 class TestColspanNumCols:
