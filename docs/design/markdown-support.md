@@ -18,6 +18,32 @@ does when `convert_to_doc=True`). Routing through our AST pipeline gives consist
 control and benefits from all the Phase 2 work (correct heading levels, colspan, header cells,
 column widths, etc.).
 
+## Why MD → HTML → AST (not a direct MD → AST parser)
+
+Markdown is defined by its spec as shorthand for HTML — the spec describes every construct
+in terms of its HTML output, not in terms of a semantic document model. So `markdown` the
+library isn't doing a lossy conversion; it's doing exactly what the format specifies. Chaining
+it into `html_to_ast` is two well-tested parsers each doing precisely what they were designed
+for, not two approximations stacked on top of each other.
+
+A direct MD → AST parser would duplicate all the logic already in `html_to_ast` (heading
+detection, inline formatting stacks, list depth tracking, table parsing) — more code, more
+edge cases, two things to maintain.
+
+**The one real exception**: constructs that don't survive the HTML round-trip cleanly:
+
+- **Code blocks** — `<pre><code>` carries no semantic signal that our HTML parser acts on, so
+  they fall through to plain text. A direct parser could emit a `CodeBlock` AST node. This
+  matters once Phase 3 text styles land (`font_family` → monospace), but there's nothing to
+  do with such a node until then.
+- **Task list state** — `- [x] item` emits `<input type="checkbox" checked>` in HTML. Our
+  HTML parser ignores `<input>`, so checked/unchecked state is lost. Google Docs has no native
+  checkbox API for paragraph bullets, so representation needs a decision (Unicode glyphs vs.
+  `BULLET_CHECKBOX` preset).
+
+Both are tracked as separate issues. The HTML intermediary is right for the base case; those
+two constructs are where targeted extensions will eventually be needed.
+
 ## File changed
 
 **Only one file**: `src/mcp_gee_sweet/tools/docs/__init__.py`
