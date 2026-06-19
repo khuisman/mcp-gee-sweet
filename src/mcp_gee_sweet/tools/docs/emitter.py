@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .ast import BulletItem, DocNode, Heading, Paragraph, Row, Run, Table
+from .ast import BulletItem, DocNode, Heading, NamedBlock, Paragraph, Row, Run, Table
 
 
 def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[dict], list[Table]]:
@@ -72,6 +72,17 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
                         }
                     }
                 )
+            elif isinstance(node, NamedBlock):
+                requests.append(
+                    {
+                        "updateParagraphStyle": {
+                            "range": rng,
+                            "paragraphStyle": {"namedStyleType": node.style_type},
+                            "fields": "namedStyleType",
+                        }
+                    }
+                )
+                requests.append({"deleteParagraphBullets": {"range": rng}})
 
             # Inline run styles for non-table content (bold, italic, links, font_family, etc.)
             # prefix_len skips past any checkbox glyph so run offsets stay accurate

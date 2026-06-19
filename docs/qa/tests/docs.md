@@ -710,3 +710,35 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Result (2026-06-19) ✅ PASS**
 - Paragraph text `Call my_function() with param=True to enable it.` confirmed; code spans at correct positions.
 - `weightedFontFamily: Courier New` confirmed via unit tests; not exposed by `get_doc_structure` (known gap).
+
+---
+
+### TC-D190: `data-style="title"` produces TITLE named style ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** verify that `<p data-style="title">` is parsed as a `NamedBlock(TITLE)` and the emitter applies `updateParagraphStyle` with `namedStyleType: TITLE`.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<p data-style=\"title\">My Document Title</p><p>Body paragraph.</p>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows the first paragraph with `namedStyleType: "TITLE"` and text "My Document Title"
+- Second paragraph has `namedStyleType: "NORMAL_TEXT"` and text "Body paragraph."
+- 🔍 Visual check: "My Document Title" appears in the TITLE named style (large, prominent) in Google Docs
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-D191: `data-style="subtitle"` produces SUBTITLE named style ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** verify SUBTITLE works the same way as TITLE.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<p data-style=\"title\">Title</p><p data-style=\"subtitle\">Subtitle text here</p><p>Body.</p>`"
+
+**Checks**
+- Call succeeds with no API error
+- First paragraph: `namedStyleType: "TITLE"`, text "Title"
+- Second paragraph: `namedStyleType: "SUBTITLE"`, text "Subtitle text here"
+- Third paragraph: `namedStyleType: "NORMAL_TEXT"`, text "Body."
+
+**Cleanup:** write fixture content back
