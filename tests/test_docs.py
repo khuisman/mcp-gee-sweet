@@ -7,7 +7,13 @@ from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs import _html_to_doc_requests, _html_to_text
-from mcp_gee_sweet.tools.docs.ast import BulletItem, Heading, Paragraph, Table
+from mcp_gee_sweet.tools.docs.ast import BulletItem, Cell, Heading, Paragraph, Row, Run, Table
+from mcp_gee_sweet.tools.docs.emitter import (
+    _build_fill_requests,
+    _build_merge_requests,
+    _build_phantom_set,
+    _physical_to_ast_indices,
+)
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 
 
@@ -34,6 +40,23 @@ def _make_ctx(**services):
 
 _docs_tool, _docs_tools = _make_tool_registry()
 docs_module.register(_docs_tool)
+
+
+# ---------------------------------------------------------------------------
+# AST construction helpers
+# ---------------------------------------------------------------------------
+
+
+def _cell(text: str, colspan: int = 1, rowspan: int = 1) -> Cell:
+    return Cell(runs=[Run(text)], colspan=colspan, rowspan=rowspan)
+
+
+def _row(*cells: Cell) -> Row:
+    return Row(cells=list(cells))
+
+
+def _table(*rows: Row) -> Table:
+    return Table(rows=list(rows))
 
 
 class TestHtmlToText:
@@ -323,6 +346,217 @@ class TestHtmlToAst:
                 if "updateParagraphStyle" in r
             ]
             assert f"HEADING_{level}" in styles
+
+    def test_rowspan_on_td(self):
+        nodes = html_to_ast(
+            '<table><tr><td rowspan="2">x</td><td>y</td></tr><tr><td>z</td></tr></table>'
+        )
+        cell = nodes[0].rows[0].cells[0]
+        assert cell.rowspan == 2
+
+    def test_default_rowspan_is_1(self):
+        nodes = html_to_ast("<table><tr><td>x</td></tr></table>")
+        assert nodes[0].rows[0].cells[0].rowspan == 1
+
+
+class TestColspanNumCols:
+    """num_cols must count colspan, not just cells, for insertTable requests."""
+
+    def test_single_colspan3_row_inserts_3_columns(self):
+        requests, _ = _html_to_doc_requests('<table><tr><td colspan="3">wide</td></tr></table>')
+        table_reqs = [r for r in requests if "insertTable" in r]
+        assert table_reqs[0]["insertTable"]["columns"] == 3
+
+    def test_mixed_rows_uses_max_logical_width(self):
+        # Row 0: [colspan=3]. Row 1: [1, 1, 1]. Max logical cols = 3.
+        html = (
+            "<table>"
+            '<tr><td colspan="3">header</td></tr>'
+            "<tr><td>a</td><td>b</td><td>c</td></tr>"
+            "</table>"
+        )
+        requests, _ = _html_to_doc_requests(html)
+        table_reqs = [r for r in requests if "insertTable" in r]
+        assert table_reqs[0]["insertTable"]["columns"] == 3
+
+
+class TestPhantomSet:
+    def test_no_merges_empty(self):
+        t = _table(_row(_cell("A"), _cell("B")), _row(_cell("C"), _cell("D")))
+        assert _build_phantom_set(t) == set()
+
+    def test_rowspan2_marks_phantom_below(self):
+        # A(rowspan=2) in row 0 col 0 → (1,0) is phantom
+        t = _table(_row(_cell("A", rowspan=2), _cell("B")), _row(_cell("C")))
+        assert _build_phantom_set(t) == {(1, 0)}
+
+    def test_rowspan3_marks_two_phantoms(self):
+        t = _table(
+            _row(_cell("A", rowspan=3), _cell("B")),
+            _row(_cell("C")),
+            _row(_cell("D")),
+        )
+        assert _build_phantom_set(t) == {(1, 0), (2, 0)}
+
+    def test_colspan_marks_same_row_phantom(self):
+        # colspan=2: (0,1) is covered by the spanning cell
+        t = _table(_row(_cell("A", colspan=2), _cell("B")))
+        assert _build_phantom_set(t) == {(0, 1)}
+
+    def test_combined_rowspan_colspan(self):
+        # A(rowspan=2, colspan=2) at (0,0) → phantoms at (0,1), (1,0), (1,1)
+        t = _table(_row(_cell("A", colspan=2, rowspan=2), _cell("B")), _row(_cell("C")))
+        assert _build_phantom_set(t) == {(0, 1), (1, 0), (1, 1)}
+
+    def test_rowspan_in_second_column(self):
+        # Row 0: [A, B(rowspan=2)], Row 1: [C] → phantom at (1,1)
+        t = _table(_row(_cell("A"), _cell("B", rowspan=2)), _row(_cell("C")))
+        assert _build_phantom_set(t) == {(1, 1)}
+
+
+class TestPhysicalToAstIndices:
+    def test_no_phantoms_no_colspan(self):
+        row = _row(_cell("A"), _cell("B"), _cell("C"))
+        assert _physical_to_ast_indices(0, row, set(), 3) == [0, 1, 2]
+
+    def test_phantom_at_col0_maps_none(self):
+        # Row 1: [C] at logical col 1; col 0 is phantom
+        row = _row(_cell("C"))
+        assert _physical_to_ast_indices(1, row, {(1, 0)}, 2) == [None, 0]
+
+    def test_colspan_absorbed_gets_none(self):
+        # Col 1 is absorbed by colspan=2 on col 0 but still physical in the doc after merge;
+        # mapping must include None for it so fill skips the right cell.
+        row = _row(_cell("A", colspan=2), _cell("B"))
+        assert _physical_to_ast_indices(0, row, set(), 3) == [0, None, 1]
+
+    def test_phantom_and_real_mixed(self):
+        # Row 1 with phantom at col 0, two real cells at cols 1 and 2
+        row = _row(_cell("X"), _cell("Y"))
+        assert _physical_to_ast_indices(1, row, {(1, 0)}, 3) == [None, 0, 1]
+
+
+class TestBuildMergeRequests:
+    def _doc_table(self, num_rows=2, num_cols=2, first_cell_start=7):
+        """Minimal doc table dict. _table_start_index returns first_cell_start - 2."""
+        rows = []
+        idx = first_cell_start
+        for _ in range(num_rows):
+            cells = [{"startIndex": idx + c * 3} for c in range(num_cols)]
+            rows.append({"tableCells": cells})
+            idx += num_cols * 3
+        return {"tableRows": rows}
+
+    def test_no_merges_empty(self):
+        t = _table(_row(_cell("A"), _cell("B")), _row(_cell("C"), _cell("D")))
+        assert _build_merge_requests([self._doc_table()], [t]) == []
+
+    def test_rowspan2_emits_merge(self):
+        t = _table(_row(_cell("A", rowspan=2), _cell("B")), _row(_cell("C")))
+        reqs = _build_merge_requests([self._doc_table()], [t])
+        assert len(reqs) == 1
+        tr = reqs[0]["mergeTableCells"]["tableRange"]
+        assert tr["rowSpan"] == 2
+        assert tr["columnSpan"] == 1
+        loc = tr["tableCellLocation"]
+        assert loc["rowIndex"] == 0
+        assert loc["columnIndex"] == 0
+
+    def test_colspan2_emits_merge(self):
+        t = _table(_row(_cell("A", colspan=2), _cell("B")))
+        reqs = _build_merge_requests([self._doc_table(num_rows=1, num_cols=3)], [t])
+        assert len(reqs) == 1
+        tr = reqs[0]["mergeTableCells"]["tableRange"]
+        assert tr["rowSpan"] == 1
+        assert tr["columnSpan"] == 2
+
+    def test_combined_rowspan_colspan_single_request(self):
+        t = _table(_row(_cell("A", colspan=2, rowspan=2), _cell("B")), _row(_cell("C")))
+        reqs = _build_merge_requests([self._doc_table(num_rows=2, num_cols=3)], [t])
+        assert len(reqs) == 1
+        tr = reqs[0]["mergeTableCells"]["tableRange"]
+        assert tr["rowSpan"] == 2
+        assert tr["columnSpan"] == 2
+
+    def test_colspan_removed_tracks_physical_col(self):
+        # Row: [A(colspan=2), B(colspan=2)] → A at physical 0, B at physical 1 (not logical 2)
+        t = _table(_row(_cell("A", colspan=2), _cell("B", colspan=2)))
+        reqs = _build_merge_requests([self._doc_table(num_rows=1, num_cols=4)], [t])
+        assert len(reqs) == 2
+        cols = [
+            r["mergeTableCells"]["tableRange"]["tableCellLocation"]["columnIndex"] for r in reqs
+        ]
+        assert cols[0] == 0
+        assert cols[1] == 1
+
+    def test_empty_doc_table_skipped(self):
+        t = _table(_row(_cell("A", colspan=2)))
+        assert _build_merge_requests([{"tableRows": []}], [t]) == []
+
+
+class TestRowspanFill:
+    def _doc_cell(self, start_index):
+        # startIndex at top level mirrors the real Docs API tableCells entry;
+        # content[0].startIndex is what fill uses as para_start.
+        return {"startIndex": start_index, "content": [{"startIndex": start_index + 1}]}
+
+    def _doc_row(self, *start_indices):
+        return {"tableCells": [self._doc_cell(i) for i in start_indices]}
+
+    def test_phantom_cell_not_filled(self):
+        # 2x2 table; A(rowspan=2) in col 0 → doc row 1 has 2 physical cells but col 0 is phantom
+        ast_t = _table(_row(_cell("A", rowspan=2), _cell("B")), _row(_cell("C")))
+        doc_t = {"tableRows": [self._doc_row(10, 20), self._doc_row(30, 40)]}
+        reqs = _build_fill_requests([doc_t], [ast_t])
+        # para_start = startIndex + 1; check on those values
+        insert_indices = [r["insertText"]["location"]["index"] for r in reqs if "insertText" in r]
+        assert 31 not in insert_indices  # phantom cell — must not be filled
+        assert 11 in insert_indices
+        assert 21 in insert_indices
+        assert 41 in insert_indices
+
+    def test_phantom_comes_last_in_api_response(self):
+        # After mergeTableCells, the Docs API returns covered (phantom) cells at the END
+        # of tableCells, not in column order. Sort by startIndex must fix this.
+        ast_t = _table(_row(_cell("A", rowspan=2), _cell("B")), _row(_cell("C")))
+        # Row 1: API returns [real_col1 at si=40, phantom_col0 at si=30] — reversed order
+        doc_t = {
+            "tableRows": [
+                {"tableCells": [self._doc_cell(10), self._doc_cell(20)]},
+                {"tableCells": [self._doc_cell(40), self._doc_cell(30)]},  # real first
+            ]
+        }
+        reqs = _build_fill_requests([doc_t], [ast_t])
+        insert_indices = [r["insertText"]["location"]["index"] for r in reqs if "insertText" in r]
+        assert 31 not in insert_indices  # phantom — must not be filled even when listed last
+        assert 41 in insert_indices  # real cell must be filled
+
+    def test_empty_cell_text_skipped(self):
+        ast_t = _table(_row(_cell(""), _cell("B")))
+        doc_t = {"tableRows": [self._doc_row(10, 20)]}
+        reqs = _build_fill_requests([doc_t], [ast_t])
+        insert_indices = [r["insertText"]["location"]["index"] for r in reqs if "insertText" in r]
+        assert 11 not in insert_indices  # para_start = startIndex + 1
+        assert 21 in insert_indices
+
+    def test_colspan_phantom_not_filled(self):
+        # After a colspan=2 merge, col 1 (phantom) remains as a physical cell.
+        # Fill must skip it and write to col 2 (the real cell).
+        ast_t = _table(_row(_cell("Wide", colspan=2), _cell("C2")))
+        # Row 0 post-merge: [merged_col0 at 10, colspan_phantom_col1 at 20, real_col2 at 30]
+        doc_t = {"tableRows": [self._doc_row(10, 20, 30)]}
+        reqs = _build_fill_requests([doc_t], [ast_t])
+        insert_indices = [r["insertText"]["location"]["index"] for r in reqs if "insertText" in r]
+        assert 21 not in insert_indices  # colspan phantom — must not be filled
+        assert 11 in insert_indices  # merged cell gets "Wide"
+        assert 31 in insert_indices  # real col 2 gets "C2"
+
+    def test_requests_sorted_high_to_low(self):
+        ast_t = _table(_row(_cell("A"), _cell("B")))
+        doc_t = {"tableRows": [self._doc_row(10, 50)]}
+        reqs = _build_fill_requests([doc_t], [ast_t])
+        insert_indices = [r["insertText"]["location"]["index"] for r in reqs if "insertText" in r]
+        assert insert_indices == sorted(insert_indices, reverse=True)
 
 
 def _quota_http_error():
