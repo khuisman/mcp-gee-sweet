@@ -562,3 +562,121 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - 🔍 Visual check: 'Alpha' spans rows 1 and 2 in Google Docs; row 2 col 1 shows 'B' (not shifted left)
 
 **Cleanup:** write fixture content back
+
+---
+
+## Markdown support — `create_doc` / `write_doc_content` / `create_doc_from_file`
+
+### TC-D190: Markdown headings via `write_doc_content` ⚠️ requires-oauth ⚠️ destructive
+**Purpose:** Verify that `content_format='markdown'` routes through the AST pipeline and produces correct heading styles.
+
+**Prompt**
+> "Write this markdown to doc {DOC_ID} using content_format='markdown': `# Heading 1\n## Heading 2\n### Heading 3\n`"
+
+**Checks**
+- Call `get_doc_structure` after writing
+- First heading has `namedStyleType: "HEADING_1"`
+- Second heading has `namedStyleType: "HEADING_2"`
+- Third heading has `namedStyleType: "HEADING_3"`
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-D191: Markdown bold and italic via `write_doc_content` ⚠️ requires-oauth ⚠️ destructive
+**Prompt**
+> "Write this markdown to doc {DOC_ID} using content_format='markdown': `**bold** and *italic* text`"
+
+**Checks**
+- `get_doc_structure` shows a run with `bold: true` for 'bold'
+- A run with `italic: true` for 'italic'
+- 🔍 Visual check: bold and italic render correctly in Google Docs
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-D192: Markdown task list ⚠️ requires-oauth ⚠️ destructive
+**Prompt**
+> "Write this markdown to doc {DOC_ID} using content_format='markdown': `- [x] Done item\n- [ ] Pending item\n- Plain item\n`"
+
+**Checks**
+- Doc contains `☑ Done item` and `☐ Pending item` as bullet items
+- Plain item has no checkbox glyph
+- 🔍 Visual check: checkboxes appear in the doc
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-D193: Markdown fenced code block ⚠️ requires-oauth ⚠️ destructive
+**Prompt**
+> "Write this markdown to doc {DOC_ID} using content_format='markdown' with a fenced Python code block containing `def hello(): return 'world'`"
+
+**Checks**
+- Doc contains the code text with monospace font (Courier New)
+- 🔍 Visual check: code block appears in monospace font in Google Docs
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-D194: Markdown table via `write_doc_content` ⚠️ requires-oauth ⚠️ destructive
+**Prompt**
+> "Write this markdown to doc {DOC_ID} using content_format='markdown': a pipe table with columns Name and Value, rows Alpha/1 and Beta/2"
+
+**Checks**
+- `get_doc_structure` shows a table with 3 rows (header + 2 data rows) and 2 columns
+- Cell text matches: 'Name', 'Value', 'Alpha', '1', 'Beta', '2'
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-D195: `create_doc_from_file` with a local .md file ⚠️ requires-oauth ⚠️ destructive
+**Setup:** create a local file `~/test-doc.md` with a heading, bold paragraph, task list items, and a pipe table
+
+**Prompt**
+> "Create a Google Doc from the file ~/test-doc.md"
+
+**Checks**
+- `docId` and `web_link` returned with no `error`
+- `get_doc_structure` shows HEADING_1, paragraphs, bullet items, and a table
+- Bullet items include `☑` and `☐` glyphs
+- 🔍 Visual check in Google Docs: heading, bold/italic text, task checkboxes, and table all render correctly
+
+**Cleanup:** delete the created doc
+
+---
+
+### TC-D196: `create_doc_from_file` with a local .html file ⚠️ requires-oauth ⚠️ destructive
+**Setup:** create a local file `~/test-doc.html` with `<h2>From HTML file</h2><p>Content</p>`
+
+**Prompt**
+> "Create a Google Doc from the file ~/test-doc.html"
+
+**Checks**
+- `docId` and `web_link` returned
+- `get_doc_structure` shows HEADING_2 and a paragraph
+
+**Cleanup:** delete the created doc
+
+---
+
+### TC-D197: `create_doc_from_file` file not found ⚠️ requires-oauth
+**Prompt**
+> "Create a Google Doc from the file ~/does-not-exist.md"
+
+**Checks**
+- Returns `{"error": "File not found: ..."}` — no exception raised
+
+---
+
+### TC-D198: `write_doc_content` inline code monospace ⚠️ requires-oauth ⚠️ destructive
+**Prompt**
+> "Write this markdown to doc {DOC_ID} using content_format='markdown': `Use the \`print()\` function`"
+
+**Checks**
+- 🔍 Visual check: `print()` appears in monospace (Courier New) inside the paragraph
+
+**Cleanup:** write fixture content back
