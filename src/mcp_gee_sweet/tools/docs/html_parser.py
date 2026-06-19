@@ -90,9 +90,7 @@ class _AstParser(HTMLParser):
         # --- table structure ---
         if tag == "table":
             self._table_depth += 1
-            if self._table_depth == 1:
-                # Collect col widths from the first row of <td width> or <col width>
-                self._table_stack.append(_TableBuilder())
+            self._table_stack.append(_TableBuilder())
             return
 
         if self._table_depth >= 1:
@@ -174,11 +172,14 @@ class _AstParser(HTMLParser):
     def handle_endtag(self, tag):
         # --- table structure ---
         if tag == "table":
-            if self._table_depth == 1 and self._table_stack:
+            if self._table_stack:
                 tb = self._table_stack.pop()
                 node = tb.build()
                 if node is not None:
-                    self._nodes.append(node)
+                    if self._table_depth == 1:
+                        self._nodes.append(node)
+                    elif self._table_stack:
+                        self._table_stack[-1]._current_nested_table = node
             self._table_depth -= 1
             return
 
@@ -298,6 +299,7 @@ class _TableBuilder:
         self._current_cell: dict | None = None  # metadata for current open cell
         self._cell_col_widths: list[float | None] = []  # widths from <td width>
         self.in_cell = False
+        self._current_nested_table: Table | None = None
 
     def start_row(self):
         self._current_row_cells = []
@@ -325,6 +327,7 @@ class _TableBuilder:
             self._cell_col_widths.append(meta["width_pt"])
         cell = Cell(
             runs=runs,
+            nested_table=self._current_nested_table,
             colspan=meta["colspan"],
             rowspan=meta["rowspan"],
             is_header=meta["is_header"],
@@ -332,6 +335,7 @@ class _TableBuilder:
         self._current_row_cells.append(cell)
         self._current_cell = None
         self.in_cell = False
+        self._current_nested_table = None
 
     def build(self) -> Table | None:
         if not self.rows:

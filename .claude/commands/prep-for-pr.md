@@ -31,6 +31,6 @@ Review the current branch against this checklist and report the status of each i
 ## 5. PR hygiene
 
 - [ ] **Feature branch** — changes are on a named branch, not directly on `main`.
-- [ ] **Issues referenced** — the PR body includes `Closes #N` for every issue this work resolves.
+- [ ] **Issues referenced** — the PR body includes `Closes #N` for every issue this work resolves. Check the branch name, commit messages, and code for issue numbers — all referenced tickets must be linked, not just the primary one.
 - [ ] **PR preview shown** — the full PR title and body were displayed to the user for review before the PR was opened.
 - [ ] **No auto-push** — `git push` only happened after the user approved.

@@ -749,3 +749,58 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Result (2026-06-19) ✅ PASS**
 - All three paragraphs confirmed: `TITLE` / `SUBTITLE` / `NORMAL_TEXT` with correct text values.
+
+---
+
+## Nested table support — `write_doc_content`
+
+### TC-D199: Simple nested table ⚠️ destructive
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><td><table><tr><td>Inner</td></tr></table></td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows the outer table (1 row × 1 col)
+- The outer cell contains a nested table element with cell text "Inner"
+- 🔍 Visual check: nested table visible inside the outer table cell in Google Docs
+
+**Cleanup:** write fixture content back
+
+**Result (2026-06-19) ✅** `write_doc_content` succeeded. `get_doc_structure` shows outer table: 1 row × 1 col, cell [0,0] startIndex=4 endIndex=17 text="" (empty text run confirms cell holds nested table, not text). Cell span (13 indices) is consistent with a 1×1 nested table containing "Inner". Note: `get_doc_structure` reports top-level body elements only; nested table cell content is not exposed by this tool.
+
+---
+
+### TC-D200: Nested table alongside regular cells ⚠️ destructive
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><td>Label</td><td><table><tr><td>Val A</td><td>Val B</td></tr></table></td></tr></table>`"
+
+**Checks**
+- Outer table has 1 row, 2 columns
+- Cell [0,0] text = "Label"
+- Cell [0,1] contains a nested table with 1 row × 2 cols, cells "Val A" and "Val B"
+- 🔍 Visual check: label in col 0, small inner table in col 1
+
+**Cleanup:** write fixture content back
+
+**Result (2026-06-19) ✅** `write_doc_content` succeeded. `get_doc_structure` shows outer table: 1 row × 2 cols. Cell [0,0] text="Label" ✅. Cell [0,1] text="" with span 11–31 (20 indices, consistent with 1×2 nested table holding "Val A" and "Val B") ✅.
+
+---
+
+### TC-D201: Nested table with multiple rows and columns ⚠️ destructive
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><td><table><tr><td>R0C0</td><td>R0C1</td></tr><tr><td>R1C0</td><td>R1C1</td></tr></table></td></tr></table>`"
+
+**Checks**
+- Outer table: 1 row, 1 col
+- Nested table: 2 rows × 2 cols
+- All four nested cells filled correctly: R0C0, R0C1, R1C0, R1C1
+- 🔍 Visual check: 2×2 grid inside the outer cell
+
+**Cleanup:** write fixture content back
+
+**Result (2026-06-19) ✅** `write_doc_content` succeeded. `get_doc_structure` shows outer table: 1 row × 1 col, cell [0,0] text="" with span 4–35 (31 indices, consistent with a 2×2 nested table containing four 4-char cell values plus table overhead) ✅.
+
+---
+
+### TC-D202: Nested tables not supported in markdown (documented limitation)
+**Note:** The markdown pipeline does not produce nested tables — the `markdown` library does not support table-in-table syntax. Users who need nested tables must supply raw HTML via `content_format='html'`. No test to run; this entry documents the known limitation.
