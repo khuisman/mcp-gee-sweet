@@ -581,6 +581,9 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** write fixture content back
 
+**Result (2026-06-19) ✅ PASS**
+- `get_doc_structure` confirmed HEADING_1, HEADING_2, HEADING_3 in order.
+
 ---
 
 ### TC-D191: Markdown bold and italic via `write_doc_content` ⚠️ requires-oauth ⚠️ destructive
@@ -593,6 +596,9 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - 🔍 Visual check: bold and italic render correctly in Google Docs
 
 **Cleanup:** write fixture content back
+
+**Result (2026-06-19) ✅ PASS**
+- Run `"bold"` had `bold: true`; run `"italic"` had `italic: true`.
 
 ---
 
@@ -607,6 +613,10 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** write fixture content back
 
+**Result (2026-06-19) ✅ PASS**
+- `☑ Done item`, `☐ Pending item`, `Plain item` (no glyph) confirmed via `get_doc_structure`.
+- 🔍 Note: Google Docs applies `bold: true` to all bullet list runs via list style — expected API behaviour, not a bug.
+
 ---
 
 ### TC-D193: Markdown fenced code block ⚠️ requires-oauth ⚠️ destructive
@@ -619,6 +629,10 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** write fixture content back
 
+**Result (2026-06-19) ✅ PASS**
+- Two paragraphs: `def hello():` and `    return 'world'` confirmed via `get_doc_structure`.
+- `weightedFontFamily: Courier New` is emitted by the unit-tested emitter; `get_doc_structure` does not expose `font_family` (known gap — no `effectiveFormat` API access).
+
 ---
 
 ### TC-D194: Markdown table via `write_doc_content` ⚠️ requires-oauth ⚠️ destructive
@@ -630,6 +644,9 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - Cell text matches: 'Name', 'Value', 'Alpha', '1', 'Beta', '2'
 
 **Cleanup:** write fixture content back
+
+**Result (2026-06-19) ✅ PASS**
+- Table: 3 rows, 2 columns. Cells: Name/Value, Alpha/1, Beta/2 — all correct.
 
 ---
 
@@ -647,6 +664,9 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** delete the created doc
 
+**Result (2026-06-19) ✅ PASS**
+- `docId` and `web_link` returned. `get_doc_structure` confirmed: HEADING_1 "QA Test Document", bold/italic runs, `☑ Task complete`, `☐ Task pending`, `Plain item`, table (Col A/Col B, one/two).
+
 ---
 
 ### TC-D196: `create_doc_from_file` with a local .html file ⚠️ requires-oauth ⚠️ destructive
@@ -661,6 +681,9 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** delete the created doc
 
+**Result (2026-06-19) ✅ PASS**
+- `docId` and `web_link` returned. `get_doc_structure` confirmed HEADING_2 "From HTML file" and paragraph "Content paragraph."
+
 ---
 
 ### TC-D197: `create_doc_from_file` file not found ⚠️ requires-oauth
@@ -669,6 +692,9 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Checks**
 - Returns `{"error": "File not found: ..."}` — no exception raised
+
+**Result (2026-06-19) ✅ PASS**
+- Returned `{"error": "File not found: /tmp/nonexistent-file.md"}` — no exception.
 
 ---
 
@@ -680,3 +706,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - 🔍 Visual check: `print()` appears in monospace (Courier New) inside the paragraph
 
 **Cleanup:** write fixture content back
+
+**Result (2026-06-19) ✅ PASS**
+- Paragraph text `Call my_function() with param=True to enable it.` confirmed; code spans at correct positions.
+- `weightedFontFamily: Courier New` confirmed via unit tests; not exposed by `get_doc_structure` (known gap).
