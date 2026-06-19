@@ -35,7 +35,15 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Design Principles: design.md
+  - Reference:
+    - Tools: tools.md
+    - Authentication: auth.md
+    - Configuration: configuration.md
+    - Client Setup: client-setup.md
+  - Design:
+    - Principles: design.md
+    - Design Docs: design/index.md
+    - Docs AST Pipeline: design/docs-ast-pipeline.md
   - Decisions:
     - Index: decisions/index.md
     - Project Fork: decisions/decision-fork.md
@@ -51,10 +59,11 @@ nav:
     - QA Fixtures: qa/fixtures.template.md
     - Test Cases:
       - Calendar: qa/tests/calendar.md
-      - Charts: qa/tests/charts.md
+      - Docs: qa/tests/docs.md
       - Drive: qa/tests/drive.md
       - Infrastructure: qa/tests/infra.md
-      - Read: qa/tests/read.md
-      - Sheets: qa/tests/sheets.md
-      - Write: qa/tests/write.md
+      - Sheets — Read: qa/tests/sheets_read.md
+      - Sheets — Write: qa/tests/sheets_write.md
+      - Sheets — Charts: qa/tests/sheets_charts.md
+      - Sheets — Structure: qa/tests/sheets_mgmt.md
     - Read API Notes: notes-read.md

@@ -19,9 +19,7 @@ Google does not provide an official MCP server for Sheets or Drive (as of mid-20
 
 **Composite tools only when it matters.** Multi-step workflows are left to the AI client unless they involve binary data, pagination loops, or encoding decisions that Claude handles inconsistently in practice. See [Design Principles](design.md#when-to-build-a-composite) for the policy.
 
-**Caching by default.** Sheet structure, sheet data, Drive folder listings, doc content, and calendar metadata are all cached in a local SQLite database with TTL + dirty invalidation. This keeps repeated reads fast without hitting the Google API quota on every call.
-
-**Tool access presets.** The `ENABLED_TOOLS` environment variable restricts which tools are registered. Named presets (`readonly`, `standard`, `full`) let deployments scope their access level without enumerating individual tools. See the [Roadmap](roadmap.md) for the planned implementation.
+**Caching by default.** Sheet structure, sheet data, Drive folder listings, doc content, and calendar metadata are all cached in a local SQLite database with TTL + dirty invalidation. See [Configuration](configuration.md#caching) for details.
 
 ## Quickstart
 
@@ -36,4 +34,9 @@ docker run --rm -p 8000:8000 \
   mcp-gee-sweet
 ```
 
-See the [README](https://github.com/khuisman/mcp-gee-sweet#readme) for full auth setup and configuration options.
+## Reference
+
+- [Tools](tools.md) — all 60 tools, grouped by domain
+- [Authentication](auth.md) — four auth methods and when to use each
+- [Configuration](configuration.md) — env vars, tool filtering, caching
+- [Client Setup](client-setup.md) — Claude Desktop and Claude Code config examples
