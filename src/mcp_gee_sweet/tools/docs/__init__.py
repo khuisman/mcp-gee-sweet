@@ -49,7 +49,7 @@ def _html_to_text(html_content: str) -> str:
 
 
 def _md_to_html(md_text: str) -> str:
-    """Convert GitHub-flavored Markdown to HTML using the markdown library."""
+    """Convert Markdown to HTML using the Python markdown library (tables, fenced_code, sane_lists extensions)."""
     return _md.markdown(md_text, extensions=["tables", "fenced_code", "sane_lists"])
 
 
@@ -86,9 +86,9 @@ def register(tool):
         Create a new Google Doc, optionally with initial content.
 
         Content is interpreted as HTML by default. Pass content_format='markdown' to supply
-        GitHub-flavored Markdown instead (headings, bold, italic, lists, links, tables,
-        fenced code blocks, and task list items are all supported). Tables are appended after
-        all paragraph content. Nested tables are not supported.
+        Markdown instead (headings, bold, italic, lists, links, tables, fenced code blocks,
+        and task list items are all supported). Tables are appended after all paragraph
+        content. Nested tables are not supported.
 
         Args:
             title: The title of the new document
@@ -171,8 +171,8 @@ def register(tool):
         Create a Google Doc from a local .md or .html file.
 
         The file format is inferred from the extension: .md files are parsed as
-        GitHub-flavored Markdown, .html / .htm files as HTML. The document title
-        defaults to the filename without extension if not supplied.
+        Markdown, .html / .htm files as HTML. The document title defaults to the
+        filename without extension if not supplied.
 
         Args:
             local_path: Absolute or relative path to the local file.
@@ -302,8 +302,8 @@ def register(tool):
         Replace the full content of an existing Google Doc.
 
         Content is interpreted as HTML by default. Pass content_format='markdown' to supply
-        GitHub-flavored Markdown instead. Headings, paragraphs, lists, links, tables, fenced
-        code blocks, and task list items are all supported. Tables are appended after all
+        Markdown instead. Headings, paragraphs, lists, links, tables, fenced code blocks,
+        and task list items are all supported. Tables are appended after all
         paragraph content. Use this to populate a doc created manually in Drive (bypassing
         service account storage quota limits).
 

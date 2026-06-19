@@ -10,7 +10,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ## `get_doc_structure`
 
-### TC-D152: Structure of a non-empty doc ⚠️ requires-oauth
+### TC-D152: Structure of a non-empty doc
 **Prompt**
 > "Get the structure of doc {DOC_ID}"
 
@@ -23,7 +23,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D153: Paragraph runs include style data ⚠️ requires-oauth
+### TC-D153: Paragraph runs include style data
 **Setup:** `{DOC_ID}` must contain at least one bold or italic run (use `write_doc_content` with `<b>` or `<i>` to set up)
 
 **Prompt**
@@ -36,7 +36,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D154: Structure of a doc containing a table ⚠️ requires-oauth
+### TC-D154: Structure of a doc containing a table
 **Setup:** `{DOC_ID}` must contain a table
 
 **Prompt**
@@ -50,7 +50,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D155: Structure of an empty doc ⚠️ requires-oauth
+### TC-D155: Structure of an empty doc
 **Setup:** doc with only the default empty paragraph
 
 **Prompt**
@@ -62,7 +62,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D156: Invalid doc ID returns error ⚠️ requires-oauth
+### TC-D156: Invalid doc ID returns error
 **Prompt**
 > "Get the structure of doc not-a-real-id"
 
@@ -74,7 +74,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ## `insert_doc_text`
 
-### TC-D157: Insert a single paragraph ⚠️ requires-oauth ⚠️ destructive
+### TC-D157: Insert a single paragraph ⚠️ destructive
 **Setup:** fetch current structure; note the `endIndex` of the last non-final paragraph
 
 **Prompt**
@@ -89,7 +89,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D158: Insert at multiple indices — high→low ordering verified ⚠️ requires-oauth ⚠️ destructive
+### TC-D158: Insert at multiple indices — high→low ordering verified ⚠️ destructive
 **Setup:** fetch structure; identify two paragraphs P1 (earlier) and P2 (later) with known indices. Record P1's `startIndex` as N1 and P2's `startIndex` as N2 (N2 > N1). Both insertions are short fixed strings so index arithmetic is checkable.
 
 **Prompt**
@@ -105,7 +105,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D159: Empty insertions list returns error ⚠️ requires-oauth
+### TC-D159: Empty insertions list returns error
 **Prompt**
 > "Call insert_doc_text on doc {DOC_ID} with an empty insertions list"
 
@@ -116,7 +116,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ## `delete_doc_range`
 
-### TC-D160: Delete a paragraph ⚠️ requires-oauth ⚠️ destructive
+### TC-D160: Delete a paragraph ⚠️ destructive
 **Setup:** insert a known paragraph first (TC-D157), note its `startIndex` and `endIndex`
 
 **Prompt**
@@ -129,7 +129,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D161: Cannot delete final segment newline ⚠️ requires-oauth
+### TC-D161: Cannot delete final segment newline
 **Setup:** fetch structure; note the final element's `endIndex`
 
 **Prompt**
@@ -141,7 +141,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D162: Empty deletions list returns error ⚠️ requires-oauth
+### TC-D162: Empty deletions list returns error
 **Prompt**
 > "Call delete_doc_range on doc {DOC_ID} with an empty deletions list"
 
@@ -152,7 +152,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ## `style_doc_range`
 
-### TC-D163: Apply named style type ⚠️ requires-oauth ⚠️ destructive
+### TC-D163: Apply named style type ⚠️ destructive
 **Setup:** insert a normal paragraph; note its index range
 
 **Prompt**
@@ -166,7 +166,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D164: Apply text styles (bold, italic, foreground color) ⚠️ requires-oauth ⚠️ destructive
+### TC-D164: Apply text styles (bold, italic, foreground color) ⚠️ destructive
 **Setup:** insert a normal paragraph; note its index range
 
 **Prompt**
@@ -180,7 +180,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D165: Apply both paragraph and text style in one range ⚠️ requires-oauth ⚠️ destructive
+### TC-D165: Apply both paragraph and text style in one range ⚠️ destructive
 **Prompt**
 > "Style range {start}–{end} in doc {DOC_ID} as HEADING_3 and bold"
 
@@ -190,7 +190,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D166: No recognised style fields returns error ⚠️ requires-oauth
+### TC-D166: No recognised style fields returns error
 **Prompt**
 > "Call style_doc_range on doc {DOC_ID} with a range that has no style fields"
 
@@ -201,7 +201,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ## `insert_doc_table`
 
-### TC-D167: Insert a 2×3 table ⚠️ requires-oauth ⚠️ destructive
+### TC-D167: Insert a 2×3 table ⚠️ destructive
 **Setup:** fetch structure; note a suitable insertion index (e.g. endIndex of a paragraph)
 
 **Prompt**
@@ -218,7 +218,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D168: Cell indices usable for insert_doc_text ⚠️ requires-oauth ⚠️ destructive
+### TC-D168: Cell indices usable for insert_doc_text ⚠️ destructive
 **Setup:** insert a table (TC-D167); use the returned `cells[0].paragraphStartIndex`
 
 **Prompt**
@@ -234,7 +234,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ## `style_doc_table_cells`
 
-### TC-D169: Apply grey header row background ⚠️ requires-oauth ⚠️ destructive
+### TC-D169: Apply grey header row background ⚠️ destructive
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
@@ -248,7 +248,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D170: Apply borders and padding ⚠️ requires-oauth ⚠️ destructive
+### TC-D170: Apply borders and padding ⚠️ destructive
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
@@ -260,7 +260,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D171: Empty cells list returns error ⚠️ requires-oauth
+### TC-D171: Empty cells list returns error
 **Prompt**
 > "Call style_doc_table_cells on doc {DOC_ID} with table_start_index {N} and an empty cells list"
 
@@ -269,7 +269,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D172: Cell with no style fields is skipped ⚠️ requires-oauth
+### TC-D172: Cell with no style fields is skipped
 **Setup:** insert a table; pass one valid cell and one cell with no style fields
 
 **Prompt**
@@ -283,7 +283,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ## Multi-operation ordering and sequencing
 
-### TC-D173: Multi-delete high→low ordering verified ⚠️ requires-oauth ⚠️ destructive
+### TC-D173: Multi-delete high→low ordering verified ⚠️ destructive
 **Setup:** insert two known paragraphs ('DEL-A\n' and 'DEL-B\n') at known positions. Note their `startIndex`/`endIndex` after re-fetching. DEL-B has higher indices than DEL-A.
 
 **Prompt**
@@ -297,7 +297,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D174: style_doc_range round-trip — heading confirmed in get_doc_structure ⚠️ requires-oauth ⚠️ destructive
+### TC-D174: style_doc_range round-trip — heading confirmed in get_doc_structure ⚠️ destructive
 **Purpose:** `style_doc_range` was never called live during initial testing. This is the first live verification.
 
 **Setup:** insert a paragraph 'Style-test heading\n'; note its `startIndex`/`endIndex`
@@ -314,7 +314,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D175: style_doc_range text styles round-trip ⚠️ requires-oauth ⚠️ destructive
+### TC-D175: style_doc_range text styles round-trip ⚠️ destructive
 **Purpose:** verify bold/italic/underline are readable back via get_doc_structure runs.
 
 **Setup:** insert a paragraph 'Bold-italic test\n'; note its index range
@@ -331,7 +331,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D176: style_doc_table_cells post-fix live verification ⚠️ requires-oauth ⚠️ destructive
+### TC-D176: style_doc_table_cells post-fix live verification ⚠️ destructive
 **Purpose:** `style_doc_table_cells` was fixed (removed top-level `tableStartLocation` that conflicted with the `tableRange` oneof) but the fix was **never re-tested live**. This is the confirmation test.
 
 **Setup:** insert a 2×2 table; record its `tableStartIndex` from the response
@@ -348,7 +348,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D177: Full end-to-end sequence — insert table then style cells ⚠️ requires-oauth ⚠️ destructive
+### TC-D177: Full end-to-end sequence — insert table then style cells ⚠️ destructive
 **Purpose:** the complete `insert_doc_table` → `style_doc_table_cells` sequence was never run end-to-end in live testing. Covers both tools and the index handoff between them.
 
 **Setup:** fetch structure; note a suitable insertion index N
@@ -367,7 +367,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D178: Insert text then insert table — index chaining ⚠️ requires-oauth ⚠️ destructive
+### TC-D178: Insert text then insert table — index chaining ⚠️ destructive
 **Purpose:** verify that indices returned by one operation are usable as input to a subsequent operation without re-fetching the full structure each time.
 
 **Setup:** start with a known doc structure; note `endIndex` of a paragraph as N
@@ -389,7 +389,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ## `style_doc_range` — additional coverage
 
-### TC-D179: Apply strikethrough ⚠️ requires-oauth ⚠️ destructive
+### TC-D179: Apply strikethrough ⚠️ destructive
 **Setup:** insert a paragraph; note its range
 
 **Prompt**
@@ -401,7 +401,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D180: Apply font_size ⚠️ requires-oauth ⚠️ destructive
+### TC-D180: Apply font_size ⚠️ destructive
 **Setup:** insert a paragraph; note its range
 
 **Prompt**
@@ -413,7 +413,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D181: Apply link_url ⚠️ requires-oauth ⚠️ destructive
+### TC-D181: Apply link_url ⚠️ destructive
 **Setup:** insert a paragraph 'Visit example\n'; note the range covering 'example'
 
 **Prompt**
@@ -431,7 +431,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All use `write_doc_content` against the fixture doc.
 
-### TC-D182: `<h2>` maps to HEADING_2 (not HEADING_3) ⚠️ requires-oauth ⚠️ destructive
+### TC-D182: `<h2>` maps to HEADING_2 (not HEADING_3) ⚠️ destructive
 **Purpose:** Regression test for #41 — `<h2>`–`<h6>` previously all collapsed to HEADING_3.
 
 **Prompt**
@@ -448,7 +448,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D183: `<th>` cells produce bold runs ⚠️ requires-oauth ⚠️ destructive
+### TC-D183: `<th>` cells produce bold runs ⚠️ destructive
 **Purpose:** Regression test for #65 — `<th>` previously ignored; cells had no bold styling.
 
 **Prompt**
@@ -464,7 +464,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D184: Inline formatting inside `<td>` cells ⚠️ requires-oauth ⚠️ destructive
+### TC-D184: Inline formatting inside `<td>` cells ⚠️ destructive
 **Purpose:** Regression test for #69 — inline formatting inside table cells was previously lost.
 
 **Prompt**
@@ -482,7 +482,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D185: `colspan` produces merged cells ⚠️ requires-oauth ⚠️ destructive
+### TC-D185: `colspan` produces merged cells ⚠️ destructive
 **Purpose:** Regression test for #67 — `colspan` was previously ignored.
 
 **Prompt**
@@ -498,7 +498,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D186: Column widths from HTML ⚠️ requires-oauth ⚠️ destructive
+### TC-D186: Column widths from HTML ⚠️ destructive
 **Purpose:** Regression test for #66 — `width` attributes on `<col>` were previously ignored.
 
 **Prompt**
@@ -513,7 +513,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D187: `rowspan` produces vertically merged cells ⚠️ requires-oauth ⚠️ destructive
+### TC-D187: `rowspan` produces vertically merged cells ⚠️ destructive
 **Purpose:** First live verification of issue #91 — rowspan support in the HTML→AST→emitter pipeline. A cell spanning two rows must produce a `mergeTableCells` request, and the phantom cell in the lower row must not be filled.
 
 **Prompt**
@@ -531,7 +531,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D188: Combined `rowspan` and `colspan` in the same table ⚠️ requires-oauth ⚠️ destructive
+### TC-D188: Combined `rowspan` and `colspan` in the same table ⚠️ destructive
 **Purpose:** verify that a single cell carrying both `rowspan` and `colspan` emits exactly one `mergeTableCells` request with both dimensions, and that physical column tracking stays correct for subsequent cells in the same row.
 
 **Prompt**
@@ -548,7 +548,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D189: `rowspan` with header row — phantom not filled, real cells in correct columns ⚠️ requires-oauth ⚠️ destructive
+### TC-D189: `rowspan` with header row — phantom not filled, real cells in correct columns ⚠️ destructive
 **Purpose:** edge-case verification that when a rowspan pushes subsequent real cells to higher logical columns, the physical-to-AST index mapping resolves correctly and no cell gets the wrong content.
 
 **Prompt**
@@ -567,7 +567,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ## Markdown support — `create_doc` / `write_doc_content` / `create_doc_from_file`
 
-### TC-D190: Markdown headings via `write_doc_content` ⚠️ requires-oauth ⚠️ destructive
+### TC-D190: Markdown headings via `write_doc_content` ⚠️ destructive
 **Purpose:** Verify that `content_format='markdown'` routes through the AST pipeline and produces correct heading styles.
 
 **Prompt**
@@ -586,7 +586,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D191: Markdown bold and italic via `write_doc_content` ⚠️ requires-oauth ⚠️ destructive
+### TC-D191: Markdown bold and italic via `write_doc_content` ⚠️ destructive
 **Prompt**
 > "Write this markdown to doc {DOC_ID} using content_format='markdown': `**bold** and *italic* text`"
 
@@ -602,7 +602,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D192: Markdown task list ⚠️ requires-oauth ⚠️ destructive
+### TC-D192: Markdown task list ⚠️ destructive
 **Prompt**
 > "Write this markdown to doc {DOC_ID} using content_format='markdown': `- [x] Done item\n- [ ] Pending item\n- Plain item\n`"
 
@@ -619,7 +619,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D193: Markdown fenced code block ⚠️ requires-oauth ⚠️ destructive
+### TC-D193: Markdown fenced code block ⚠️ destructive
 **Prompt**
 > "Write this markdown to doc {DOC_ID} using content_format='markdown' with a fenced Python code block containing `def hello(): return 'world'`"
 
@@ -635,7 +635,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D194: Markdown table via `write_doc_content` ⚠️ requires-oauth ⚠️ destructive
+### TC-D194: Markdown table via `write_doc_content` ⚠️ destructive
 **Prompt**
 > "Write this markdown to doc {DOC_ID} using content_format='markdown': a pipe table with columns Name and Value, rows Alpha/1 and Beta/2"
 
@@ -686,7 +686,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D197: `create_doc_from_file` file not found ⚠️ requires-oauth
+### TC-D197: `create_doc_from_file` file not found
 **Prompt**
 > "Create a Google Doc from the file ~/does-not-exist.md"
 
@@ -698,7 +698,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D198: `write_doc_content` inline code monospace ⚠️ requires-oauth ⚠️ destructive
+### TC-D198: `write_doc_content` inline code monospace ⚠️ destructive
 **Prompt**
 > "Write this markdown to doc {DOC_ID} using content_format='markdown': `Use the \`print()\` function`"
 

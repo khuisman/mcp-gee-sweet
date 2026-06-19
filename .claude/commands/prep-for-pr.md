@@ -1,0 +1,36 @@
+# PR Readiness Checklist
+
+Review the current branch against this checklist and report the status of each item. Be specific — name the files, test IDs, or code paths involved rather than answering generically.
+
+## 1. Tests
+
+- [ ] **Unit tests written** — are there new tests in `tests/` covering the changed code?
+- [ ] **Unit tests passing** — has `uv run python -m pytest tests/` been run and passed?
+- [ ] **Regression coverage** — were tests that touch the modified files (not just new tests) also run?
+- [ ] **QA test cases written** — are there AI-driven test cases in `docs/qa/tests/` for the new/changed tools?
+- [ ] **QA tests run** — have those test cases been executed live against the fixture doc?
+- [ ] **QA results recorded** — does each test case have a `**Result (date) ✅/❌**` entry with actual observed output?
+
+## 2. QA test case tags
+
+- [ ] **`⚠️ requires-oauth` accuracy** — scan all new and modified test cases:
+  - Tag IS present when: the tool itself requires OAuth (e.g. creates files in personal Drive: `create_doc`, `create_doc_from_file`)
+  - Tag IS NOT present when: the tool is auth-agnostic and only the test fixture happens to live in personal Drive (`write_doc_content`, `get_doc_structure`, `insert_doc_text`, `delete_doc_range`, `style_doc_range`, `style_doc_table_cells`, etc.)
+  - Tag IS NOT present on error-path tests that return before making any API call
+
+## 3. Safety
+
+- [ ] **No resource IDs committed** — no Google Drive/Docs/Sheets/Calendar IDs appear in committed files. IDs belong in `.env` or `fixtures.local.md` (both gitignored).
+- [ ] **No secrets or credentials** — no API keys, tokens, or service account JSON content committed.
+
+## 4. Documentation
+
+- [ ] **Design doc** — if the work involved an architectural decision or a non-obvious design choice, is it captured in `docs/design/`?
+- [ ] **CLAUDE.md** — if a new tool was added or the architecture changed, does `CLAUDE.md` reflect it?
+
+## 5. PR hygiene
+
+- [ ] **Feature branch** — changes are on a named branch, not directly on `main`.
+- [ ] **Issues referenced** — the PR body includes `Closes #N` for every issue this work resolves.
+- [ ] **PR preview shown** — the full PR title and body were displayed to the user for review before the PR was opened.
+- [ ] **No auto-push** — `git push` only happened after the user approved.
