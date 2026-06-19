@@ -1348,8 +1348,8 @@
 
 <h1 id="qa-run-2026-06-18">QA Run — 2026-06-18<a class="headerlink" href="#qa-run-2026-06-18" title="Permanent link">&para;</a></h1>
 <p><strong>Auth:</strong> OAuth<br />
-<strong>Branch:</strong> feat/issue-87<br />
-<strong>Scope:</strong> Phase 2 translator fixes (TC-D182–D186)</p>
+<strong>Branch:</strong> feat/issue-87 (Phase 2), feat/issue-91 (rowspan)<br />
+<strong>Scope:</strong> Phase 2 translator fixes (TC-D182–D186) + rowspan emitter (TC-D187–D189)</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1368,6 +1368,13 @@
 <td>0</td>
 <td>0</td>
 <td>5</td>
+</tr>
+<tr>
+<td>Docs — rowspan emitter</td>
+<td>3</td>
+<td>0</td>
+<td>0</td>
+<td>3</td>
 </tr>
 </tbody>
 </table>
@@ -1412,12 +1419,34 @@
 <td>PASS</td>
 <td>Call succeeded; column sizing is visual-only (get_doc_structure doesn't expose column properties)</td>
 </tr>
+<tr>
+<td>TC-D187</td>
+<td><code>rowspan=2</code> — phantom cell stays empty</td>
+<td>PASS</td>
+<td>[0,0]="A" [1,0]="" (phantom) [1,1]="R1C1" — correct; required sort-by-startIndex fix (Fix #1)</td>
+</tr>
+<tr>
+<td>TC-D188</td>
+<td><code>rowspan=2 colspan=2</code> — all four phantoms empty</td>
+<td>PASS</td>
+<td>[0,0]="Big" [0,1]="" [0,2]="R0C2" [1,0]="" [1,1]="" [1,2]="R1C2" — correct; required colspan-absorbed None fix (Fix #2)</td>
+</tr>
+<tr>
+<td>TC-D189</td>
+<td><code>rowspan=2</code> in non-first column with header row</td>
+<td>PASS</td>
+<td>[0,0]="Header A" [0,1]="Header B" [1,0]="R1C0" [1,1]="Tall" [2,0]="R2C0" [2,1]="" (phantom) — correct</td>
+</tr>
 </tbody>
 </table>
 <h2 id="observations">Observations<a class="headerlink" href="#observations" title="Permanent link">&para;</a></h2>
 <p><strong>Cell run formatting not exposed by get_doc_structure:</strong> TC-D183 and TC-D184 verify that the API calls succeed without error and the table is created with the correct shape, but the bold/italic styling within table cells cannot be confirmed via get_doc_structure (it only exposes paragraph-level runs, not table cell runs). Visual inspection of the fixture doc is the definitive check.</p>
 <p><strong>Connection resets on TC-D186:</strong> Two consecutive <code>write_doc_content</code> calls returned <code>[Errno 54] Connection reset by peer</code> before the third attempt succeeded. Likely transient network instability; no code change needed.</p>
 <p><strong>Fixture restored</strong> after all tests.</p>
+<hr />
+<h2 id="rowspan-emitter-bugs-found-and-fixed-tc-d187-d188">Rowspan emitter bugs found and fixed (TC-D187, D188)<a class="headerlink" href="#rowspan-emitter-bugs-found-and-fixed-tc-d187-d188" title="Permanent link">&para;</a></h2>
+<p><strong>Fix #1 — Sort doc_cells by startIndex</strong> (<code>_build_fill_requests</code>): After <code>mergeTableCells</code> for rowspan, the Docs API returns covered (phantom) cells last in the <code>tableCells</code> array rather than in column order. Without sorting, the mapping zip was misaligned — the real cell was skipped and the phantom was filled. Fixed by sorting <code>doc_cells</code> by <code>startIndex</code> before zipping.</p>
+<p><strong>Fix #2 — Colspan-absorbed cells emit None</strong> (<code>_physical_to_ast_indices</code>): For combined colspan+rowspan, the colspan-absorbed col remains as a physical cell post-merge (same as a rowspan phantom). Previously, absorbed cols were skipped with <code>continue</code>, producing no mapping entry, which caused the next zip pair to align against the wrong doc_cell. Fixed by appending <code>None</code> instead of skipping, keeping the mapping length aligned with physical cell count.</p>
 
 
 

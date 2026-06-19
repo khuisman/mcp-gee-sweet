@@ -1694,6 +1694,39 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-d187-rowspan-produces-vertically-merged-cells-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D187: rowspan produces vertically merged cells ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d188-combined-rowspan-and-colspan-in-the-same-table-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D188: Combined rowspan and colspan in the same table ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d189-rowspan-with-header-row-phantom-not-filled-real-cells-in-correct-columns-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D189: rowspan with header row — phantom not filled, real cells in correct columns ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2353,6 +2386,49 @@
 - Call succeeds with no API error
 - 🔍 Visual check: first column is narrower than second column in Google Docs
 - 🔍 Note: <code>get_doc_structure</code> does not expose column width properties; visual verification is the only check available without <code>effectiveFormat</code> API access (#54)</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<hr />
+<h3 id="tc-d187-rowspan-produces-vertically-merged-cells-requires-oauth-destructive">TC-D187: <code>rowspan</code> produces vertically merged cells ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d187-rowspan-produces-vertically-merged-cells-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> First live verification of issue #91 — rowspan support in the HTML→AST→emitter pipeline. A cell spanning two rows must produce a <code>mergeTableCells</code> request, and the phantom cell in the lower row must not be filled.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td rowspan=\"2\"&gt;Tall&lt;/td&gt;&lt;td&gt;R0C1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;R1C1&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows the table has 2 rows and 2 columns
+- Row 0 has 2 physical cells; row 1 has 2 physical cells (Google Docs keeps the phantom cell as a physical slot post-merge)
+- Cell [0,0] text = 'Tall'; cell [0,1] text = 'R0C1'; cell [1,1] text = 'R1C1'
+- Cell [1,0] is the phantom slot — it must be empty (not filled with 'Tall' or any content)
+- 🔍 Visual check: first column shows 'Tall' spanning both rows in Google Docs</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<hr />
+<h3 id="tc-d188-combined-rowspan-and-colspan-in-the-same-table-requires-oauth-destructive">TC-D188: Combined <code>rowspan</code> and <code>colspan</code> in the same table ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d188-combined-rowspan-and-colspan-in-the-same-table-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> verify that a single cell carrying both <code>rowspan</code> and <code>colspan</code> emits exactly one <code>mergeTableCells</code> request with both dimensions, and that physical column tracking stays correct for subsequent cells in the same row.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td rowspan=\"2\" colspan=\"2\"&gt;Big&lt;/td&gt;&lt;td&gt;R0C2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;R1C2&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows 2 rows, 3 columns
+- Cell [0,0] text = 'Big'; cell [0,2] text = 'R0C2'; cell [1,2] text = 'R1C2'
+- Cells at [0,1], [1,0], [1,1] are phantom slots — must all be empty
+- 🔍 Visual check: top-left 2×2 block shows 'Big' spanning both rows and columns</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<hr />
+<h3 id="tc-d189-rowspan-with-header-row-phantom-not-filled-real-cells-in-correct-columns-requires-oauth-destructive">TC-D189: <code>rowspan</code> with header row — phantom not filled, real cells in correct columns ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d189-rowspan-with-header-row-phantom-not-filled-real-cells-in-correct-columns-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> edge-case verification that when a rowspan pushes subsequent real cells to higher logical columns, the physical-to-AST index mapping resolves correctly and no cell gets the wrong content.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;th&gt;Name&lt;/th&gt;&lt;th&gt;Type&lt;/th&gt;&lt;th&gt;Notes&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td rowspan=\"2\"&gt;Alpha&lt;/td&gt;&lt;td&gt;A&lt;/td&gt;&lt;td&gt;first&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;B&lt;/td&gt;&lt;td&gt;second&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Row 0: header cells 'Name', 'Type', 'Notes' — all bold
+- Row 1: 'Alpha' in col 0 (rowspan=2), 'A' in col 1, 'first' in col 2
+- Row 2: col 0 is phantom (empty, not filled with any content), 'B' in col 1, 'second' in col 2
+- 🔍 Visual check: 'Alpha' spans rows 1 and 2 in Google Docs; row 2 col 1 shows 'B' (not shifted left)</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
 
 
