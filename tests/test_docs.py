@@ -10,6 +10,7 @@ from mcp_gee_sweet.tools.docs import (
     _html_to_doc_requests,
     _html_to_text,
     _md_to_html,
+    _read_named_styles,
     _to_doc_requests,
 )
 from mcp_gee_sweet.tools.docs.ast import (
@@ -18,17 +19,20 @@ from mcp_gee_sweet.tools.docs.ast import (
     Heading,
     NamedBlock,
     Paragraph,
+    RGBColor,
     Row,
     Run,
     Table,
 )
 from mcp_gee_sweet.tools.docs.emitter import (
+    _build_cell_style_requests,
     _build_fill_requests,
     _build_merge_requests,
     _build_nested_table_inserts,
     _build_phantom_set,
     _collect_nested_table_pairs,
     _physical_to_ast_indices,
+    _run_style_requests,
 )
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 
@@ -1421,3 +1425,293 @@ class TestCollectNestedTablePairs:
         n_doc, n_ast = _collect_nested_table_pairs([doc_table], [ast_table])
         assert len(n_ast) == 1
         assert n_ast[0] is inner_ast
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 — Run style fields
+# ---------------------------------------------------------------------------
+
+
+class TestRunStylePhase3:
+    def _run_req(self, run: Run) -> dict | None:
+        reqs = _run_style_requests(run, 10, 15)
+        return reqs[0]["updateTextStyle"] if reqs else None
+
+    def test_font_size_emits_fontSize(self):
+        req = self._run_req(Run("hello", font_size=14.0))
+        assert req is not None
+        assert req["textStyle"]["fontSize"] == {"magnitude": 14.0, "unit": "PT"}
+        assert "fontSize" in req["fields"]
+
+    def test_foreground_color_emits_foregroundColor(self):
+        color = RGBColor(red=1.0, green=0.0, blue=0.0)
+        req = self._run_req(Run("hello", foreground_color=color))
+        assert req is not None
+        rgb = req["textStyle"]["foregroundColor"]["color"]["rgbColor"]
+        assert rgb == {"red": 1.0, "green": 0.0, "blue": 0.0}
+        assert "foregroundColor" in req["fields"]
+
+    def test_background_color_emits_backgroundColor(self):
+        color = RGBColor(red=0.0, green=1.0, blue=0.0)
+        req = self._run_req(Run("hello", background_color=color))
+        assert req is not None
+        rgb = req["textStyle"]["backgroundColor"]["color"]["rgbColor"]
+        assert rgb == {"red": 0.0, "green": 1.0, "blue": 0.0}
+        assert "backgroundColor" in req["fields"]
+
+    def test_baseline_offset_emits_baselineOffset(self):
+        req = self._run_req(Run("hello", baseline_offset="SUPERSCRIPT"))
+        assert req is not None
+        assert req["textStyle"]["baselineOffset"] == "SUPERSCRIPT"
+        assert "baselineOffset" in req["fields"]
+
+    def test_small_caps_emits_smallCaps(self):
+        req = self._run_req(Run("hello", small_caps=True))
+        assert req is not None
+        assert req["textStyle"]["smallCaps"] is True
+        assert "smallCaps" in req["fields"]
+
+    def test_none_phase3_fields_not_emitted(self):
+        req = self._run_req(Run("hello", bold=True))
+        assert req is not None
+        assert "fontSize" not in req["textStyle"]
+        assert "foregroundColor" not in req["textStyle"]
+        assert "backgroundColor" not in req["textStyle"]
+        assert "baselineOffset" not in req["textStyle"]
+        assert "smallCaps" not in req["textStyle"]
+
+    def test_combined_phase2_and_phase3(self):
+        run = Run("hello", bold=True, font_size=12.0, foreground_color=RGBColor(0.5, 0.5, 0.5))
+        req = self._run_req(run)
+        assert req is not None
+        assert "bold" in req["fields"]
+        assert "fontSize" in req["fields"]
+        assert "foregroundColor" in req["fields"]
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 — Cell style requests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildCellStyleRequests:
+    def _doc_table(self, table_start: int = 5, num_rows: int = 1, num_cols: int = 2) -> dict:
+        rows = []
+        idx = table_start + 2
+        for _ in range(num_rows):
+            cells = []
+            for _ in range(num_cols):
+                cells.append({"startIndex": idx, "endIndex": idx + 3})
+                idx += 3
+            rows.append({"tableCells": cells})
+        return {"tableRows": rows}
+
+    def test_background_color_emitted(self):
+        color = RGBColor(red=0.9, green=0.9, blue=0.9)
+        ast_table = Table(rows=[Row(cells=[Cell(runs=[], background_color=color), _cell("b")])])
+        doc_table = self._doc_table()
+        reqs = _build_cell_style_requests([doc_table], [ast_table])
+        assert len(reqs) == 1
+        style = reqs[0]["updateTableCellStyle"]["tableCellStyle"]
+        assert "backgroundColor" in style
+        assert style["backgroundColor"]["color"]["rgbColor"] == {
+            "red": 0.9,
+            "green": 0.9,
+            "blue": 0.9,
+        }
+
+    def test_padding_emitted(self):
+        ast_table = Table(
+            rows=[
+                Row(
+                    cells=[
+                        Cell(
+                            runs=[],
+                            padding_top=3.6,
+                            padding_right=3.6,
+                            padding_bottom=3.6,
+                            padding_left=3.6,
+                        ),
+                    ]
+                )
+            ]
+        )
+        doc_table = self._doc_table(num_cols=1)
+        reqs = _build_cell_style_requests([doc_table], [ast_table])
+        assert len(reqs) == 1
+        style = reqs[0]["updateTableCellStyle"]["tableCellStyle"]
+        for side in ("paddingTop", "paddingRight", "paddingBottom", "paddingLeft"):
+            assert style[side] == {"magnitude": 3.6, "unit": "PT"}
+
+    def test_border_emitted_all_sides(self):
+        color = RGBColor(0.0, 0.0, 0.0)
+        ast_table = Table(
+            rows=[
+                Row(
+                    cells=[
+                        Cell(
+                            runs=[], border_color=color, border_width=0.5, border_dash_style="SOLID"
+                        ),
+                    ]
+                )
+            ]
+        )
+        doc_table = self._doc_table(num_cols=1)
+        reqs = _build_cell_style_requests([doc_table], [ast_table])
+        assert len(reqs) == 1
+        style = reqs[0]["updateTableCellStyle"]["tableCellStyle"]
+        for side in ("borderTop", "borderRight", "borderBottom", "borderLeft"):
+            assert side in style
+            assert style[side]["dashStyle"] == "SOLID"
+
+    def test_no_style_fields_skipped(self):
+        ast_table = Table(rows=[Row(cells=[_cell("plain")])])
+        doc_table = self._doc_table(num_cols=1)
+        reqs = _build_cell_style_requests([doc_table], [ast_table])
+        assert reqs == []
+
+
+# ---------------------------------------------------------------------------
+# Theme helpers
+# ---------------------------------------------------------------------------
+
+
+class TestThemeHelpers:
+    def test_read_named_styles_extracts_fields(self):
+        doc = {
+            "namedStyles": {
+                "styles": [
+                    {
+                        "namedStyleType": "HEADING_1",
+                        "textStyle": {
+                            "weightedFontFamily": {"fontFamily": "Arial"},
+                            "fontSize": {"magnitude": 20.0, "unit": "PT"},
+                            "bold": True,
+                        },
+                        "paragraphStyle": {
+                            "lineSpacing": 115,
+                            "spaceAbove": {"magnitude": 12.0, "unit": "PT"},
+                        },
+                    }
+                ]
+            }
+        }
+        theme = _read_named_styles(doc)
+        assert "HEADING_1" in theme
+        h1 = theme["HEADING_1"]
+        assert h1["font_family"] == "Arial"
+        assert h1["font_size"] == 20.0
+        assert h1["bold"] is True
+        assert h1["line_spacing"] == 115
+        assert h1["space_above"] == 12.0
+
+    def test_unknown_style_type_ignored(self):
+        doc = {
+            "namedStyles": {
+                "styles": [
+                    {"namedStyleType": "DEFAULT_PARAGRAPH_STYLE", "textStyle": {"bold": True}}
+                ]
+            }
+        }
+        theme = _read_named_styles(doc)
+        assert "DEFAULT_PARAGRAPH_STYLE" not in theme
+
+
+# ---------------------------------------------------------------------------
+# apply_theme / get_doc_theme tools
+# ---------------------------------------------------------------------------
+
+
+class TestApplyThemeTool:
+    def _setup(self):
+        tool, tools = _make_tool_registry()
+        docs_module.register(tool)
+        return tools
+
+    def _mock_doc_with_para(self, style_type="HEADING_1"):
+        return {
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 10,
+                        "paragraph": {
+                            "paragraphStyle": {"namedStyleType": style_type},
+                            "elements": [],
+                        },
+                    }
+                ]
+            }
+        }
+
+    def test_apply_theme_calls_batch_update(self):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = self._mock_doc_with_para("HEADING_1")
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = tools["apply_theme"](
+            doc_id="doc123",
+            theme={"HEADING_1": {"font_family": "Georgia"}},
+            ctx=ctx,
+        )
+        assert result["docId"] == "doc123"
+        assert result["requests"] >= 1
+        mock_docs.documents().batchUpdate.assert_called()
+
+    def test_apply_theme_empty_theme_returns_error(self):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        result = tools["apply_theme"](doc_id="doc123", theme={}, ctx=ctx)
+        assert "error" in result
+
+    def test_apply_theme_table_style(self):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "body": {"content": [{"table": {"rows": 2, "columns": 3}, "startIndex": 5}]}
+        }
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = tools["apply_theme"](
+            doc_id="doc123",
+            theme={"table": {"border_width": 0.5, "cell_padding": 3.6}},
+            ctx=ctx,
+        )
+        mock_docs.documents().get.assert_called_with(documentId="doc123")
+        assert result["requests"] > 0
+
+    def test_apply_theme_no_matching_paragraphs_returns_error(self):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = self._mock_doc_with_para("NORMAL_TEXT")
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = tools["apply_theme"](
+            doc_id="doc123",
+            theme={"HEADING_1": {"font_size": 20.0}},
+            ctx=ctx,
+        )
+        assert "error" in result
+
+    def test_get_doc_theme_returns_theme_dict(self):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "namedStyles": {
+                "styles": [
+                    {
+                        "namedStyleType": "HEADING_1",
+                        "textStyle": {"weightedFontFamily": {"fontFamily": "Arial"}},
+                        "paragraphStyle": {},
+                    }
+                ]
+            }
+        }
+        ctx = _make_ctx(docs_service=mock_docs)
+        result = tools["get_doc_theme"](doc_id="doc123", ctx=ctx)
+        assert "HEADING_1" in result
+        assert result["HEADING_1"]["font_family"] == "Arial"

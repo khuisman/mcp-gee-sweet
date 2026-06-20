@@ -804,3 +804,63 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-D202: Nested tables not supported in markdown (documented limitation)
 **Note:** The markdown pipeline does not produce nested tables — the `markdown` library does not support table-in-table syntax. Users who need nested tables must supply raw HTML via `content_format='html'`. No test to run; this entry documents the known limitation.
+
+---
+
+### TC-D203: `get_doc_theme` returns named style defaults
+**Prompt**
+> "Call `get_doc_theme` on doc {DOC_ID} and show me the result."
+
+**Checks**
+- Returns a dict with at least some of: NORMAL_TEXT, HEADING_1, HEADING_2, TITLE, SUBTITLE
+- Each entry has at least one of: font_family, font_size, bold, italic, color, line_spacing, space_above, space_below
+- No `error` key in result
+
+**Result (2026-06-20) ✅ PASS** Returned 9 keys: NORMAL_TEXT (font_family Arial, font_size 11, bold false, italic false, line_spacing 115), HEADING_1 through HEADING_6 (font sizes, colors, spacing), TITLE (font_size 26), SUBTITLE (Arial 15pt). No error key.
+
+---
+
+### TC-D204: `apply_theme` changes paragraph styles ⚠️ destructive
+**Note:** `apply_theme` applies styles to existing paragraphs matching each named style type — it does not change document defaults (the Docs API batchUpdate has no `updateNamedStyles` request type).
+
+**Prompt**
+> "Write `<h1>Heading One</h1><h2>Heading Two</h2><p>Normal body text.</p>` to doc {DOC_ID}, then apply theme `{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}`"
+
+**Checks**
+- `apply_theme` result contains `docId` and `requests > 0`
+- No `error` key
+- 🔍 Visual check: HEADING_1 paragraph in Georgia 22pt, body paragraph in Verdana 11pt
+
+**Cleanup:** write fixture content back
+
+**Result (2026-06-20) ✅ PASS** `apply_theme` returned `requests: 3` (updateParagraphStyle + updateTextStyle for HEADING_1, updateTextStyle for NORMAL_TEXT body paragraph). No error.
+
+---
+
+### TC-D205: `apply_theme` with table styling ⚠️ destructive
+**Prerequisite:** doc must contain at least one table (write one with `write_doc_content` first if needed)
+
+**Prompt**
+> "Apply this theme to doc {DOC_ID}: `{"table": {"border_color": {"red": 0, "green": 0, "blue": 0}, "border_width": 0.5, "border_dash_style": "SOLID", "cell_padding": 3.6, "header_background": {"red": 0.953, "green": 0.953, "blue": 0.953}}}`"
+
+**Checks**
+- Result contains `docId` and `requests > 0`
+- 🔍 Visual check: table cells have thin black border, 3.6pt padding, first row has light grey background
+
+**Cleanup:** write fixture content back
+
+**Result (2026-06-20) ✅ PASS** Wrote 2-row table, applied table theme → `requests: 2` (one updateTableCellStyle per row; row 0 got header_background + padding + borders, row 1 got padding + borders). No error. Fixture restored.
+
+---
+
+### TC-D206: `get_doc_theme` → `apply_theme` round-trip ⚠️ destructive
+**Prompt**
+> "Read the current theme from doc {DOC_ID} using `get_doc_theme`, then apply it back with `apply_theme`. Show me both the theme dict and the apply result."
+
+**Checks**
+- `get_doc_theme` returns a non-empty dict
+- `apply_theme` returns `requests > 0` (one updateParagraphStyle + updateTextStyle per matching paragraph)
+- No `error` in either result
+- 🔍 Visual check: doc appearance unchanged after round-trip
+
+**Result (2026-06-20) ✅ PASS** `get_doc_theme` returned 9 style keys. Applied theme subset (NORMAL_TEXT, HEADING_1, HEADING_2) back to doc with 3 paragraphs → `requests: 8` (mix of para+text style requests per paragraph). No error. Fixture restored.

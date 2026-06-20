@@ -139,6 +139,32 @@ def _run_style_requests(run: Run, start: int, end: int) -> list[dict]:
         text_style["weightedFontFamily"] = {"fontFamily": run.font_family}
         fields.append("weightedFontFamily")
 
+    if run.font_size is not None:
+        text_style["fontSize"] = {"magnitude": run.font_size, "unit": "PT"}
+        fields.append("fontSize")
+
+    if run.foreground_color is not None:
+        c = run.foreground_color
+        text_style["foregroundColor"] = {
+            "color": {"rgbColor": {"red": c.red, "green": c.green, "blue": c.blue}}
+        }
+        fields.append("foregroundColor")
+
+    if run.background_color is not None:
+        c = run.background_color
+        text_style["backgroundColor"] = {
+            "color": {"rgbColor": {"red": c.red, "green": c.green, "blue": c.blue}}
+        }
+        fields.append("backgroundColor")
+
+    if run.baseline_offset is not None:
+        text_style["baselineOffset"] = run.baseline_offset
+        fields.append("baselineOffset")
+
+    if run.small_caps is not None:
+        text_style["smallCaps"] = run.small_caps
+        fields.append("smallCaps")
+
     if not fields:
         return []
 
@@ -163,6 +189,7 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
       4. Emit insertText + updateTextStyle for outer cells (high→low)
       5. If nested tables: re-fetch, fill nested cells (high→low)
       6. Emit updateTableColumnProperties for tables with col_widths
+      7. If any cell has Phase 3 style fields: emit updateTableCellStyle
 
     Nested table limitations (first pass): one level of nesting only; cells
     containing a nested_table should not also contain text runs (runs are
@@ -232,6 +259,29 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
         docs_service.documents().batchUpdate(
             documentId=doc_id, body={"requests": width_requests}
         ).execute()
+
+    # Step 7: Phase 3 cell styling (background, padding, borders)
+    has_cell_styles = any(
+        cell.background_color is not None
+        or cell.padding_top is not None
+        or cell.padding_right is not None
+        or cell.padding_bottom is not None
+        or cell.padding_left is not None
+        or cell.border_color is not None
+        or cell.border_width is not None
+        or cell.border_dash_style is not None
+        for table in tables
+        for row in table.rows
+        for cell in row.cells
+    )
+    if has_cell_styles:
+        live_doc = docs_service.documents().get(documentId=doc_id).execute()
+        doc_tables = _top_level_tables(live_doc)
+        cell_style_requests = _build_cell_style_requests(doc_tables, tables)
+        if cell_style_requests:
+            docs_service.documents().batchUpdate(
+                documentId=doc_id, body={"requests": cell_style_requests}
+            ).execute()
 
 
 def _top_level_tables(live_doc: dict) -> list[dict]:
@@ -461,6 +511,88 @@ def _build_fill_requests(doc_tables: list[dict], ast_tables: list[Table]) -> lis
 
     all_requests.sort(key=lambda x: x[0], reverse=True)
     return [req for _, reqs in all_requests for req in reqs]
+
+
+def _build_cell_style_requests(doc_tables: list[dict], ast_tables: list[Table]) -> list[dict]:
+    """Build updateTableCellStyle requests for cells with Phase 3 style fields set."""
+    requests: list[dict] = []
+
+    def _rgb(color) -> dict:
+        return {"color": {"rgbColor": {"red": color.red, "green": color.green, "blue": color.blue}}}
+
+    def _pt(magnitude: float) -> dict:
+        return {"magnitude": magnitude, "unit": "PT"}
+
+    for doc_table, ast_table in zip(doc_tables, ast_tables):
+        table_start = _table_start_index(doc_table)
+        if table_start is None:
+            continue
+        phantom = _build_phantom_set(ast_table)
+        total_cols = max((sum(c.colspan for c in row.cells) for row in ast_table.rows), default=0)
+        if total_cols == 0:
+            continue
+
+        for r, ast_row in enumerate(ast_table.rows):
+            mapping = _physical_to_ast_indices(r, ast_row, phantom, total_cols)
+            for col, ast_cell_idx in enumerate(mapping):
+                if ast_cell_idx is None:
+                    continue
+                ast_cell = ast_row.cells[ast_cell_idx]
+
+                cell_style: dict = {}
+                style_fields: list[str] = []
+
+                if ast_cell.background_color is not None:
+                    cell_style["backgroundColor"] = _rgb(ast_cell.background_color)
+                    style_fields.append("backgroundColor")
+
+                if ast_cell.padding_top is not None:
+                    cell_style["paddingTop"] = _pt(ast_cell.padding_top)
+                    style_fields.append("paddingTop")
+                if ast_cell.padding_right is not None:
+                    cell_style["paddingRight"] = _pt(ast_cell.padding_right)
+                    style_fields.append("paddingRight")
+                if ast_cell.padding_bottom is not None:
+                    cell_style["paddingBottom"] = _pt(ast_cell.padding_bottom)
+                    style_fields.append("paddingBottom")
+                if ast_cell.padding_left is not None:
+                    cell_style["paddingLeft"] = _pt(ast_cell.padding_left)
+                    style_fields.append("paddingLeft")
+
+                if any([ast_cell.border_color, ast_cell.border_width, ast_cell.border_dash_style]):
+                    border: dict = {}
+                    if ast_cell.border_color is not None:
+                        border["color"] = _rgb(ast_cell.border_color)
+                    if ast_cell.border_width is not None:
+                        border["width"] = _pt(ast_cell.border_width)
+                    if ast_cell.border_dash_style is not None:
+                        border["dashStyle"] = ast_cell.border_dash_style
+                    for side in ("borderTop", "borderBottom", "borderLeft", "borderRight"):
+                        cell_style[side] = border
+                        style_fields.append(side)
+
+                if not style_fields:
+                    continue
+
+                requests.append(
+                    {
+                        "updateTableCellStyle": {
+                            "tableCellStyle": cell_style,
+                            "fields": ",".join(style_fields),
+                            "tableRange": {
+                                "tableCellLocation": {
+                                    "tableStartLocation": {"index": table_start},
+                                    "rowIndex": r,
+                                    "columnIndex": col,
+                                },
+                                "rowSpan": 1,
+                                "columnSpan": 1,
+                            },
+                        }
+                    }
+                )
+
+    return requests
 
 
 def _build_width_requests(live_doc: dict, ast_tables: list[Table]) -> list[dict]:

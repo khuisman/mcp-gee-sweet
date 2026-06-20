@@ -73,6 +73,57 @@ def _html_to_doc_requests(
     return _to_doc_requests(html_content, "html", start_index)
 
 
+_NAMED_STYLE_TYPES = frozenset(
+    {
+        "NORMAL_TEXT",
+        "HEADING_1",
+        "HEADING_2",
+        "HEADING_3",
+        "HEADING_4",
+        "HEADING_5",
+        "HEADING_6",
+        "TITLE",
+        "SUBTITLE",
+    }
+)
+
+
+def _read_named_styles(doc: dict) -> dict:
+    """Extract named style defaults from a Docs API document and return a theme dict."""
+    theme: dict = {}
+    for style in doc.get("namedStyles", {}).get("styles", []):
+        style_type = style.get("namedStyleType")
+        if style_type not in _NAMED_STYLE_TYPES:
+            continue
+        entry: dict = {}
+        ts = style.get("textStyle", {})
+        ff = ts.get("weightedFontFamily", {}).get("fontFamily")
+        if ff:
+            entry["font_family"] = ff
+        fs = ts.get("fontSize", {}).get("magnitude")
+        if fs is not None:
+            entry["font_size"] = fs
+        if "bold" in ts:
+            entry["bold"] = ts["bold"]
+        if "italic" in ts:
+            entry["italic"] = ts["italic"]
+        rgb = ts.get("foregroundColor", {}).get("color", {}).get("rgbColor")
+        if rgb:
+            entry["color"] = {k: rgb[k] for k in ("red", "green", "blue") if k in rgb}
+        ps = style.get("paragraphStyle", {})
+        if "lineSpacing" in ps:
+            entry["line_spacing"] = ps["lineSpacing"]
+        space_above = ps.get("spaceAbove", {}).get("magnitude")
+        if space_above is not None:
+            entry["space_above"] = space_above
+        space_below = ps.get("spaceBelow", {}).get("magnitude")
+        if space_below is not None:
+            entry["space_below"] = space_below
+        if entry:
+            theme[style_type] = entry
+    return theme
+
+
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Create Document", destructiveHint=True))
     def create_doc(
@@ -855,4 +906,220 @@ def register(tool):
 
         lc.doc_cache.mark_dirty(doc_id)
         logger.debug("style_doc_table_cells: %d requests in doc %s", len(requests), doc_id)
+        return {"docId": doc_id, "requests": len(requests)}
+
+    @tool(annotations=ToolAnnotations(title="Get Document Theme"))
+    def get_doc_theme(
+        doc_id: str,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Read a Google Doc's named style defaults and return them as a theme dict.
+
+        The returned dict uses named style type keys (NORMAL_TEXT, HEADING_1 through
+        HEADING_6, TITLE, SUBTITLE). Each entry contains the style's font_family,
+        font_size, bold, italic, color (RGB 0-1 components), line_spacing (100=single),
+        space_above, and space_below (points), where defined. Fields absent from the
+        doc's namedStyles are omitted.
+
+        Args:
+            doc_id: The Google Doc file ID.
+
+        Returns:
+            A theme dict suitable for passing directly to apply_theme.
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            doc = lc.docs_service.documents().get(documentId=doc_id).execute()
+        except Exception as e:
+            return {"error": str(e)}
+        return _read_named_styles(doc)
+
+    @tool(annotations=ToolAnnotations(title="Apply Document Theme", destructiveHint=True))
+    def apply_theme(
+        doc_id: str,
+        theme: dict,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Apply a theme dict to all existing paragraphs in a Google Doc.
+
+        Scans every paragraph in the document, groups them by namedStyleType (NORMAL_TEXT,
+        HEADING_1 through HEADING_6, TITLE, SUBTITLE), and applies the matching theme entry
+        as explicit paragraph and text style overrides. Only paragraphs whose namedStyleType
+        appears as a key in the theme are affected.
+
+        Theme entry fields (all optional):
+          font_family (str), font_size (float, points), bold (bool), italic (bool),
+          color (dict {"red": 0-1, "green": 0-1, "blue": 0-1}),
+          line_spacing (float, 100=single, 115=1.15×, 150=1.5×),
+          space_above (float, points), space_below (float, points)
+
+        An optional "table" key applies styling to every table currently in the document:
+          border_color (dict), border_width (float, points),
+          border_dash_style (str, default "SOLID"),
+          cell_padding (float, points — all four sides),
+          header_background (dict) — first row only
+
+        Args:
+            doc_id: The Google Doc file ID.
+            theme: Theme dict. See above for schema.
+
+        Returns:
+            Confirmation with docId and count of batchUpdate requests sent.
+        """
+        lc = ctx.request_context.lifespan_context
+
+        named_style_keys = {k: v for k, v in theme.items() if k in _NAMED_STYLE_TYPES}
+        table_style = theme.get("table")
+
+        if not named_style_keys and not table_style:
+            return {"error": "theme contains no recognised style keys"}
+
+        requests = []
+
+        try:
+            doc = lc.docs_service.documents().get(documentId=doc_id).execute()
+        except Exception as e:
+            return {"error": f"failed to fetch doc: {e}"}
+
+        if named_style_keys:
+            for elem in doc.get("body", {}).get("content", []):
+                para = elem.get("paragraph")
+                if not para:
+                    continue
+                style_type = para.get("paragraphStyle", {}).get("namedStyleType")
+                if style_type not in named_style_keys:
+                    continue
+                entry = named_style_keys[style_type]
+                rng = {"startIndex": elem["startIndex"], "endIndex": elem["endIndex"]}
+
+                ps: dict = {}
+                ps_fields: list[str] = []
+                if "line_spacing" in entry:
+                    ps["lineSpacing"] = entry["line_spacing"]
+                    ps_fields.append("lineSpacing")
+                if "space_above" in entry:
+                    ps["spaceAbove"] = {"magnitude": entry["space_above"], "unit": "PT"}
+                    ps_fields.append("spaceAbove")
+                if "space_below" in entry:
+                    ps["spaceBelow"] = {"magnitude": entry["space_below"], "unit": "PT"}
+                    ps_fields.append("spaceBelow")
+                if ps_fields:
+                    requests.append(
+                        {
+                            "updateParagraphStyle": {
+                                "range": rng,
+                                "paragraphStyle": ps,
+                                "fields": ",".join(ps_fields),
+                            }
+                        }
+                    )
+
+                ts: dict = {}
+                ts_fields: list[str] = []
+                if "font_family" in entry:
+                    ts["weightedFontFamily"] = {"fontFamily": entry["font_family"]}
+                    ts_fields.append("weightedFontFamily")
+                if "font_size" in entry:
+                    ts["fontSize"] = {"magnitude": entry["font_size"], "unit": "PT"}
+                    ts_fields.append("fontSize")
+                if "bold" in entry:
+                    ts["bold"] = entry["bold"]
+                    ts_fields.append("bold")
+                if "italic" in entry:
+                    ts["italic"] = entry["italic"]
+                    ts_fields.append("italic")
+                if "color" in entry:
+                    ts["foregroundColor"] = {"color": {"rgbColor": entry["color"]}}
+                    ts_fields.append("foregroundColor")
+                if ts_fields:
+                    requests.append(
+                        {
+                            "updateTextStyle": {
+                                "range": rng,
+                                "textStyle": ts,
+                                "fields": ",".join(ts_fields),
+                            }
+                        }
+                    )
+
+        if table_style:
+            has_borders = any(
+                k in table_style for k in ("border_color", "border_width", "border_dash_style")
+            )
+            border: dict = {}
+            if has_borders:
+                if "border_color" in table_style:
+                    border["color"] = {"color": {"rgbColor": table_style["border_color"]}}
+                if "border_width" in table_style:
+                    border["width"] = {"magnitude": table_style["border_width"], "unit": "PT"}
+                border["dashStyle"] = table_style.get("border_dash_style", "SOLID")
+
+            for elem in doc.get("body", {}).get("content", []):
+                if "table" not in elem:
+                    continue
+                table_start = elem.get("startIndex")
+                if table_start is None:
+                    continue
+                doc_table = elem["table"]
+                num_rows = doc_table.get("rows", 0)
+                num_cols = doc_table.get("columns", 0)
+                if num_rows == 0 or num_cols == 0:
+                    continue
+
+                for r in range(num_rows):
+                    cell_style: dict = {}
+                    style_fields: list[str] = []
+
+                    if r == 0 and "header_background" in table_style:
+                        cell_style["backgroundColor"] = {
+                            "color": {"rgbColor": table_style["header_background"]}
+                        }
+                        style_fields.append("backgroundColor")
+
+                    if "cell_padding" in table_style:
+                        pad = table_style["cell_padding"]
+                        for side in ("Top", "Right", "Bottom", "Left"):
+                            cell_style[f"padding{side}"] = {"magnitude": pad, "unit": "PT"}
+                            style_fields.append(f"padding{side}")
+
+                    if has_borders:
+                        for side in ("Top", "Right", "Bottom", "Left"):
+                            cell_style[f"border{side}"] = border
+                            style_fields.append(f"border{side}")
+
+                    if not style_fields:
+                        continue
+
+                    requests.append(
+                        {
+                            "updateTableCellStyle": {
+                                "tableCellStyle": cell_style,
+                                "fields": ",".join(style_fields),
+                                "tableRange": {
+                                    "tableCellLocation": {
+                                        "tableStartLocation": {"index": table_start},
+                                        "rowIndex": r,
+                                        "columnIndex": 0,
+                                    },
+                                    "rowSpan": 1,
+                                    "columnSpan": num_cols,
+                                },
+                            }
+                        }
+                    )
+
+        if not requests:
+            return {"error": "no matching paragraphs or tables found for the given theme keys"}
+
+        try:
+            lc.docs_service.documents().batchUpdate(
+                documentId=doc_id, body={"requests": requests}
+            ).execute()
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug("apply_theme: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}
