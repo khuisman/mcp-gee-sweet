@@ -301,6 +301,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - 'TempTab' no longer appears in `list_sheets`
 - No `error` field in response
 
+**Result (2026-06-21) ✅** TempTab created via `create_sheet`, then deleted. `list_sheets` returned `["Sales","Empty","Notes & Misc"]` — TempTab absent. No error field.
+
 ---
 
 ### TC-S26: Delete a non-existent sheet returns error
@@ -311,6 +313,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - Response contains `error` field mentioning the sheet name
 - No API call made (no batchUpdate)
+
+**Result (2026-06-21) ✅** Response: `{"error":"Sheet 'DoesNotExist' not found"}`. No batchUpdate issued.
 
 ---
 
@@ -327,6 +331,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Former row 5 content is gone; row 5 now contains what was row 6
 - Other rows unchanged
 
+**Result (2026-06-21) ✅** Row 4 (Gizmo/300/310/290) deleted. Former row 5 (Totals) shifted up. Totals recalculated to 350/360/415 reflecting the reduced data set.
+
 ---
 
 ### TC-S28: Delete a range of rows ⚠️ destructive
@@ -338,6 +344,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Three rows removed; subsequent rows shift up correctly
 - `startIndex: 2`, `endIndex: 5` in the deleteDimension request
 
+**Result (2026-06-21) ✅** Rows 2–4 (Gadget/Donut/Gizmo) removed. Widget and Totals remain; Totals recalculated to 100/120/140 (Widget only).
+
 ---
 
 ### TC-S29: Delete rows — sheet not found returns error
@@ -347,6 +355,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 **Checks**
 - Response contains `error` field
+
+**Result (2026-06-21) ✅** Response: `{"error":"Sheet 'NoSuchSheet' not found"}`.
 
 ---
 
@@ -363,6 +373,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Column B content removed; former column C shifts left to become B
 - `dimension: COLUMNS`, `startIndex: 1`, `endIndex: 2`
 
+**Result (2026-06-21) ✅** Column index 1 (Q1) deleted. Q2 and Q3 shifted left. Totals recalculated to 670/705 (Q2+Q3 only).
+
 ---
 
 ### TC-S31: Delete a range of columns ⚠️ destructive
@@ -374,6 +386,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Three columns removed; columns to the right shift left
 - `startIndex: 2`, `endIndex: 5`
 
+**Result (2026-06-21) ✅** Column indices 2–3 (Q2 and Q3) deleted (only 4 cols exist so effective range was 2–3). Only Product and Q1 remained. Inclusive end index correctly translated to exclusive endIndex in API call.
+
 ---
 
 ### TC-S32: Delete columns — sheet not found returns error
@@ -383,3 +397,5 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 **Checks**
 - Response contains `error` field
+
+**Result (2026-06-21) ✅** Response: `{"error":"Sheet 'NoSuchSheet' not found"}`.

@@ -355,6 +355,8 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 - Cell formatting (background color, borders, number format) is unchanged
 - No `error` field
 
+**Result (2026-06-21) ✅** A1:C5 cleared. `get_sheet_data` confirmed columns A–C rows 1–5 empty; column D (Q3) and row 6 (Totals) untouched. SUM formulas recalculated to 0 for cleared columns.
+
 ---
 
 ### TC-W30: Clear entire sheet ⚠️ destructive
@@ -367,6 +369,8 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 - No `error` field
 - Formatting preserved (not a full delete)
 
+**Result (2026-06-21) ✅** `clear_values` called with no range on Notes & Misc. `get_sheet_data` returned `values: []`. No error field. `clearedRange: "'Notes & Misc'!A1:Z1000"`.
+
 ---
 
 ### TC-W31: Clear values — sheet name with spaces
@@ -378,6 +382,8 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 - Range string sent to API is `'Notes & Misc'!B2:D4` (sheet name single-quoted)
 - Values cleared successfully
 
+**Result (2026-06-21) ✅** `clearedRange` in response was `'Notes & Misc'!B2:D4` — single-quoting applied correctly. No error.
+
 ---
 
 ### TC-W32: Clear non-existent range — API behaviour
@@ -387,3 +393,5 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 
 **Checks**
 - API returns a `clearedRange` with an adjusted or empty range (no error — the API accepts out-of-bounds ranges)
+
+**Result (2026-06-21) ✅** Response: `{"clearedRange":"Sales!Z100:Z200"}` — API accepted the out-of-bounds range and returned it as-is with no error.
