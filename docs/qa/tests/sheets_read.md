@@ -353,3 +353,77 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Checks**
 - Returns separate results for Q1, Q2, Q3 in row 1 (each column is its own result)
 - Confirms per-cell result granularity, not per-row
+
+---
+
+## `get_sheet_data` — effectiveFormat assertions
+
+These tests follow a setup→assert→teardown pattern. Apply format via `batch_update`, assert via `get_sheet_data(include_grid_data=True)`, then clear via `batch_update { cell: {}, fields: "userEnteredFormat" }`.
+
+See [`docs/design/effectiveformat-spike.md`](../../design/effectiveformat-spike.md) for full field reference and RGB precision notes.
+
+---
+
+### TC-R31: Bold text format readable via effectiveFormat
+
+**Setup**
+Apply bold to Sales A1 (`sheetId=0`, row 0, col 0) via `batch_update → repeatCell`, field mask `userEnteredFormat.textFormat.bold`.
+
+**Prompt**
+> "Get Sales A1:A1 from {SPREADSHEET_ID} with include_grid_data=True"
+
+**Checks**
+- `sheets[0].data[0].rowData[0].values[0].effectiveFormat.textFormat.bold` is `true`
+- `formattedValue` is `"Product"` (value unchanged)
+- `effectiveFormat.textFormat.italic` is `false` (only bold set)
+
+**Teardown**
+Clear `userEnteredFormat` from A1 via `batch_update → repeatCell { cell: {}, fields: "userEnteredFormat" }`.
+
+**Result (2026-06-20) ✅ PASS**
+- `effectiveFormat.textFormat.bold = true`, `italic = false`, `formattedValue = "Product"`
+
+---
+
+### TC-R32: Background color and italic readable via effectiveFormat
+
+**Setup**
+Apply `italic=true` and `backgroundColor={red:1, green:0.9, blue:0.6}` to Sales B1 (`sheetId=0`, row 0, col 1) via `batch_update → repeatCell`, field mask `userEnteredFormat.backgroundColor,userEnteredFormat.textFormat.italic`.
+
+**Prompt**
+> "Get Sales B1:B1 from {SPREADSHEET_ID} with include_grid_data=True"
+
+**Checks**
+- `effectiveFormat.textFormat.italic` is `true`
+- `effectiveFormat.backgroundColor.red` ≈ 1.0
+- `effectiveFormat.backgroundColor.green` ≈ 0.898 (API returns 229/255 ≈ 0.8980392)
+- `effectiveFormat.backgroundColor.blue` ≈ 0.6
+- `effectiveFormat.textFormat.bold` is `false`
+
+**Teardown**
+Clear `userEnteredFormat` from B1.
+
+**Result (2026-06-20) ✅ PASS**
+- `effectiveFormat.textFormat.italic = true`, `bold = false`, `backgroundColor = {red:1, green:0.8980392, blue:0.6}`
+
+---
+
+### TC-R33: Number format and formattedValue readable via effectiveFormat
+
+**Setup**
+Apply `numberFormat={type:"CURRENCY", pattern:"$#,##0.00"}` to Sales B2 (`sheetId=0`, row 1, col 1) via `batch_update → repeatCell`, field mask `userEnteredFormat.numberFormat`. (B2 contains the value 100.)
+
+**Prompt**
+> "Get Sales B2:B2 from {SPREADSHEET_ID} with include_grid_data=True"
+
+**Checks**
+- `effectiveFormat.numberFormat.type` is `"CURRENCY"`
+- `effectiveFormat.numberFormat.pattern` is `"$#,##0.00"`
+- `formattedValue` is `"$100.00"`
+- `effectiveValue.numberValue` is still `100` (underlying value unchanged)
+
+**Teardown**
+Clear `userEnteredFormat` from B2.
+
+**Result (2026-06-20) ✅ PASS**
+- `effectiveFormat.numberFormat = {type:"CURRENCY", pattern:"$#,##0.00"}`, `formattedValue = "$100.00"`, `effectiveValue.numberValue = 100`
