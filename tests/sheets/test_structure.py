@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+from mcp_gee_sweet.cache import SheetInfo
 from mcp_gee_sweet.tools.sheets import structure as sheets_structure_module
 
 
@@ -234,3 +235,123 @@ class TestCopySheet:
             ctx=ctx,
         )
         assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
+
+
+class TestDeleteSheet:
+    def _sheets_service(self, sheet_id=7):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _cache_with_sheet(self, title="Sheet1", sheet_id=7):
+        cache = MagicMock()
+        cache.get_sheets.return_value = [SheetInfo(title=title, sheet_id=sheet_id)]
+        return cache
+
+    def test_sends_delete_sheet_request(self):
+        svc = self._sheets_service(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["delete_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        assert body["requests"][0] == {"deleteSheet": {"sheetId": 7}}
+
+    def test_marks_cache_dirty_on_success(self):
+        svc = self._sheets_service()
+        cache = self._cache_with_sheet()
+        ctx = _make_ctx(sheets_service=svc, cache=cache)
+        _structure_tools["delete_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        cache.mark_dirty.assert_called_with("ss1")
+
+    def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = _structure_tools["delete_sheet"](spreadsheet_id="ss1", sheet="Missing", ctx=ctx)
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+
+class TestDeleteRows:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _dimension_range(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["deleteDimension"]["range"]
+
+    def test_single_row_end_index_is_start_plus_one(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["delete_rows"](spreadsheet_id="ss1", sheet="Sheet1", start_row=3, ctx=ctx)
+        r = self._dimension_range(svc)
+        assert r["startIndex"] == 3
+        assert r["endIndex"] == 4
+        assert r["dimension"] == "ROWS"
+
+    def test_range_of_rows_end_index_is_inclusive(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["delete_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=2, end_row=5, ctx=ctx
+        )
+        r = self._dimension_range(svc)
+        assert r["startIndex"] == 2
+        assert r["endIndex"] == 6  # end_row=5 inclusive → exclusive index 6
+
+    def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = _structure_tools["delete_rows"](
+            spreadsheet_id="ss1", sheet="Missing", start_row=0, ctx=ctx
+        )
+        assert "error" in result
+
+
+class TestDeleteColumns:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _dimension_range(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["deleteDimension"]["range"]
+
+    def test_single_column_end_index_is_start_plus_one(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["delete_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=0, ctx=ctx
+        )
+        r = self._dimension_range(svc)
+        assert r["startIndex"] == 0
+        assert r["endIndex"] == 1
+        assert r["dimension"] == "COLUMNS"
+
+    def test_range_of_columns_end_index_is_inclusive(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["delete_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=1, end_column=3, ctx=ctx
+        )
+        r = self._dimension_range(svc)
+        assert r["startIndex"] == 1
+        assert r["endIndex"] == 4  # end_column=3 inclusive → exclusive index 4
+
+    def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = _structure_tools["delete_columns"](
+            spreadsheet_id="ss1", sheet="Missing", start_column=0, ctx=ctx
+        )
+        assert "error" in result

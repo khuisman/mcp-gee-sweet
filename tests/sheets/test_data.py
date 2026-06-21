@@ -137,3 +137,39 @@ class TestBatchUpdate:
             ctx=ctx,
         )
         mock_data_cache.mark_dirty.assert_called_once_with("abc123")
+
+
+class TestClearValues:
+    def _sheets_service(self):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.values.return_value.clear.return_value.execute.return_value = {
+            "spreadsheetId": "ss1",
+            "clearedRange": "Sheet1!A1:Z1000",
+        }
+        return mock
+
+    def _clear_call_kwargs(self, svc):
+        return svc.spreadsheets.return_value.values.return_value.clear.call_args.kwargs
+
+    def test_with_range_builds_full_range(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc)
+        _data_tools["clear_values"](spreadsheet_id="ss1", sheet="Sheet1", range="A1:D10", ctx=ctx)
+        kw = self._clear_call_kwargs(svc)
+        assert kw["range"] == "Sheet1!A1:D10"
+        assert kw["spreadsheetId"] == "ss1"
+
+    def test_without_range_uses_sheet_name_only(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc)
+        _data_tools["clear_values"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        kw = self._clear_call_kwargs(svc)
+        assert kw["range"] == "Sheet1"
+        assert "!" not in kw["range"]
+
+    def test_sheet_name_with_spaces_is_quoted(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc)
+        _data_tools["clear_values"](spreadsheet_id="ss1", sheet="My Data", range="A1:B5", ctx=ctx)
+        kw = self._clear_call_kwargs(svc)
+        assert kw["range"].startswith("'My Data'!")

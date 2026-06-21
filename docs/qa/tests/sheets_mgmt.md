@@ -285,3 +285,117 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - Summary returns correct data (re-fetched, not stale)
 - Logs show a cache miss followed by a cache store
+
+---
+
+## `delete_sheet`
+
+### TC-S25: Delete an existing sheet tab ⚠️ destructive
+
+**Prompt**
+> "Delete the sheet called 'TempTab' from {SPREADSHEET_ID}"
+
+**Setup:** Create a throwaway tab called 'TempTab' first.
+
+**Checks**
+- 'TempTab' no longer appears in `list_sheets`
+- No `error` field in response
+
+**Result (2026-06-21) ✅** TempTab created via `create_sheet`, then deleted. `list_sheets` returned `["Sales","Empty","Notes & Misc"]` — TempTab absent. No error field.
+
+---
+
+### TC-S26: Delete a non-existent sheet returns error
+
+**Prompt**
+> "Delete a sheet called 'DoesNotExist' from {SPREADSHEET_ID}"
+
+**Checks**
+- Response contains `error` field mentioning the sheet name
+- No API call made (no batchUpdate)
+
+**Result (2026-06-21) ✅** Response: `{"error":"Sheet 'DoesNotExist' not found"}`. No batchUpdate issued.
+
+---
+
+## `delete_rows`
+
+### TC-S27: Delete a single row ⚠️ destructive
+
+**Prompt**
+> "Delete row 5 (0-based index 4) from the Sales sheet in {SPREADSHEET_ID}"
+
+**Setup:** Confirm rows 4 and 5 (0-based) have known values before deleting.
+
+**Checks**
+- Former row 5 content is gone; row 5 now contains what was row 6
+- Other rows unchanged
+
+**Result (2026-06-21) ✅** Row 4 (Gizmo/300/310/290) deleted. Former row 5 (Totals) shifted up. Totals recalculated to 350/360/415 reflecting the reduced data set.
+
+---
+
+### TC-S28: Delete a range of rows ⚠️ destructive
+
+**Prompt**
+> "Delete rows 3 through 5 (0-based indices 2–4) from the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- Three rows removed; subsequent rows shift up correctly
+- `startIndex: 2`, `endIndex: 5` in the deleteDimension request
+
+**Result (2026-06-21) ✅** Rows 2–4 (Gadget/Donut/Gizmo) removed. Widget and Totals remain; Totals recalculated to 100/120/140 (Widget only).
+
+---
+
+### TC-S29: Delete rows — sheet not found returns error
+
+**Prompt**
+> "Delete row 0 from a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"
+
+**Checks**
+- Response contains `error` field
+
+**Result (2026-06-21) ✅** Response: `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
+---
+
+## `delete_columns`
+
+### TC-S30: Delete a single column ⚠️ destructive
+
+**Prompt**
+> "Delete column B (0-based index 1) from the Sales sheet in {SPREADSHEET_ID}"
+
+**Setup:** Confirm column B has known content before deleting.
+
+**Checks**
+- Column B content removed; former column C shifts left to become B
+- `dimension: COLUMNS`, `startIndex: 1`, `endIndex: 2`
+
+**Result (2026-06-21) ✅** Column index 1 (Q1) deleted. Q2 and Q3 shifted left. Totals recalculated to 670/705 (Q2+Q3 only).
+
+---
+
+### TC-S31: Delete a range of columns ⚠️ destructive
+
+**Prompt**
+> "Delete columns C through E (0-based indices 2–4) from the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- Three columns removed; columns to the right shift left
+- `startIndex: 2`, `endIndex: 5`
+
+**Result (2026-06-21) ✅** Column indices 2–3 (Q2 and Q3) deleted (only 4 cols exist so effective range was 2–3). Only Product and Q1 remained. Inclusive end index correctly translated to exclusive endIndex in API call.
+
+---
+
+### TC-S32: Delete columns — sheet not found returns error
+
+**Prompt**
+> "Delete column 0 from a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"
+
+**Checks**
+- Response contains `error` field
+
+**Result (2026-06-21) ✅** Response: `{"error":"Sheet 'NoSuchSheet' not found"}`.

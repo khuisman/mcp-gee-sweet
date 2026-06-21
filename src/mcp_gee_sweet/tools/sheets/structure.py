@@ -316,6 +316,141 @@ def register(tool):
 
         return result
 
+    @tool(annotations=ToolAnnotations(title="Delete Sheet", destructiveHint=True))
+    def delete_sheet(spreadsheet_id: str, sheet: str, ctx: Context = None) -> dict[str, Any]:
+        """
+        Delete a sheet tab from a Google Spreadsheet.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet (found in the URL)
+            sheet: The name of the sheet to delete
+
+        Returns:
+            Result of the operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        result = (
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": [{"deleteSheet": {"sheetId": sheet_id}}]},
+            )
+            .execute()
+        )
+
+        lc.cache.mark_dirty(spreadsheet_id)
+        return result
+
+    @tool(annotations=ToolAnnotations(title="Delete Rows", destructiveHint=True))
+    def delete_rows(
+        spreadsheet_id: str,
+        sheet: str,
+        start_row: int,
+        end_row: int | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Delete rows from a sheet.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet (found in the URL)
+            sheet: The name of the sheet
+            start_row: 0-based index of the first row to delete
+            end_row: 0-based index of the last row to delete (inclusive).
+                     If omitted, deletes only start_row.
+
+        Returns:
+            Result of the operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        end_index = (end_row if end_row is not None else start_row) + 1  # exclusive
+
+        return (
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "deleteDimension": {
+                                "range": {
+                                    "sheetId": sheet_id,
+                                    "dimension": "ROWS",
+                                    "startIndex": start_row,
+                                    "endIndex": end_index,
+                                }
+                            }
+                        }
+                    ]
+                },
+            )
+            .execute()
+        )
+
+    @tool(annotations=ToolAnnotations(title="Delete Columns", destructiveHint=True))
+    def delete_columns(
+        spreadsheet_id: str,
+        sheet: str,
+        start_column: int,
+        end_column: int | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Delete columns from a sheet.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet (found in the URL)
+            sheet: The name of the sheet
+            start_column: 0-based index of the first column to delete (0 = column A)
+            end_column: 0-based index of the last column to delete (inclusive).
+                        If omitted, deletes only start_column.
+
+        Returns:
+            Result of the operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        end_index = (end_column if end_column is not None else start_column) + 1  # exclusive
+
+        return (
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "deleteDimension": {
+                                "range": {
+                                    "sheetId": sheet_id,
+                                    "dimension": "COLUMNS",
+                                    "startIndex": start_column,
+                                    "endIndex": end_index,
+                                }
+                            }
+                        }
+                    ]
+                },
+            )
+            .execute()
+        )
+
     @tool(annotations=ToolAnnotations(title="Add Chart", destructiveHint=True))
     def add_chart(
         spreadsheet_id: str,
