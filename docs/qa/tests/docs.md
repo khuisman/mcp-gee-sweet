@@ -804,3 +804,95 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-D202: Nested tables not supported in markdown (documented limitation)
 **Note:** The markdown pipeline does not produce nested tables — the `markdown` library does not support table-in-table syntax. Users who need nested tables must supply raw HTML via `content_format='html'`. No test to run; this entry documents the known limitation.
+
+---
+
+### TC-D203: `get_doc_theme` scans body paragraph styles
+**Note:** `get_doc_theme` reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.
+
+**Prompt**
+> "Call `get_doc_theme` on doc {DOC_ID} and show me the result."
+
+**Checks**
+- No `error` key in result
+- For a doc with explicit paragraph styles: returns a dict with at least one named style type key; each entry has at least one of font_family, font_size, bold, italic, color, line_spacing, space_above, space_below
+- For a doc with purely inherited styles: result is an empty dict `{}` (expected, not an error)
+
+**Result (2026-06-20) ✅ PASS** Called on a test doc created with `create_doc` (markdown content — inherited styles): returned `{}`. Called on the same doc after `apply_theme overwrite=True` (Georgia HEADING_1, Roboto NORMAL_TEXT): returned `{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}`. `font_size` and `bold` are not returned because the Docs API normalises explicit overrides that match the named style default back to inherited. No error key in either case.
+
+---
+
+### TC-D204: `apply_theme` updates named style definitions ⚠️ destructive
+**Note:** Default mode (`overwrite=False`) emits `updateNamedStyle` requests — one per named style key — updating the document's style defaults. Existing paragraphs with explicit overrides are unaffected. No doc fetch is needed. Use `overwrite=True` to also apply directly to all existing paragraphs.
+
+**Prompt**
+> "Apply theme `{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}` to doc {DOC_ID}"
+
+**Checks**
+- Result contains `docId` and `requests > 0`
+- No `error` key
+- `requests` equals the number of named style keys in the theme (one `updateNamedStyle` per key)
+
+**Result (2026-06-20) ✅ PASS** Called with HEADING_1 + HEADING_2 + NORMAL_TEXT → `{"docId": "...", "requests": 3}`. Each emitted one `updateNamedStyle` request with snake_case field mask (`named_style_type,text_style.weighted_font_family,text_style.font_size`). No error. Live API accepted all three requests.
+
+---
+
+### TC-D204b: `apply_theme` with `overwrite=True` also patches existing paragraphs ⚠️ destructive
+**Prompt**
+> "Write `<h1>Heading One</h1><p>Normal body text.</p>` to doc {DOC_ID}, then apply theme `{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}` with overwrite=True"
+
+**Checks**
+- Result contains `docId` and `requests > 0`
+- `requests` > number of named style keys (named style updates + per-paragraph updates)
+- No `error` key
+- 🔍 Visual check: HEADING_1 paragraph visually in Georgia 22pt, body in Verdana 11pt
+
+**Cleanup:** write fixture content back
+
+**Result (2026-06-20) ✅ PASS** Called with HEADING_1 + NORMAL_TEXT on a doc with HEADING_1, HEADING_2 (×2), HEADING_3, NORMAL_TEXT (×4) paragraphs → `{"docId": "...", "requests": 7}` (2 `updateNamedStyle` + 5 `updateTextStyle` for matching paragraphs). No error.
+
+---
+
+### TC-D205: `apply_theme` with table styling ⚠️ destructive
+**Prerequisite:** doc must contain at least one table (write one with `write_doc_content` first if needed)
+
+**Prompt**
+> "Apply this theme to doc {DOC_ID}: `{"table": {"border_color": {"red": 0, "green": 0, "blue": 0}, "border_width": 0.5, "border_dash_style": "SOLID", "cell_padding": 3.6, "header_background": {"red": 0.953, "green": 0.953, "blue": 0.953}}}`"
+
+**Checks**
+- Result contains `docId` and `requests > 0`
+- 🔍 Visual check: table cells have thin black border, 3.6pt padding, first row has light grey background
+
+**Cleanup:** write fixture content back
+
+**Result (2026-06-20) ✅ PASS** Wrote 2-row table, applied table theme → `requests: 2` (one updateTableCellStyle per row; row 0 got header_background + padding + borders, row 1 got padding + borders). No error. Fixture restored.
+
+---
+
+### TC-D206: `get_doc_theme` → `apply_theme` round-trip on an AI-generated doc ⚠️ destructive
+**Note:** Round-trip only produces meaningful output on docs where styles are explicit (AI-generated). For standard inherited-style docs, `get_doc_theme` returns `{}` and `apply_theme` with an empty theme returns an error.
+
+**Prompt**
+> "Write styled content to doc {DOC_ID} with explicit font overrides, then read the theme with `get_doc_theme`, then apply it back with `apply_theme overwrite=True`. Show me both results."
+
+**Checks**
+- `get_doc_theme` returns a non-empty dict (at least one named style key with at least one field)
+- `apply_theme` returns `requests > 0`
+- No `error` in either result
+
+**Result (2026-06-20) ✅ PASS** After `apply_theme overwrite=True` (Georgia HEADING_1, Roboto NORMAL_TEXT) on the test doc, `get_doc_theme` returned `{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}`. Applying that theme back → `requests: 2` (one `updateNamedStyle` per key). No error. (font_size/bold not in round-trip because API normalises them to inherited when they match the named style default.)
+
+---
+
+### TC-D207: `get_doc_named_styles` reads named style defaults set via the Docs UI
+**Note:** Named styles are only populated when the user explicitly goes to Format > Paragraph styles > Update X to match. Most docs leave named styles at Google's defaults — this tool returns empty or near-empty for those docs. Use `get_doc_theme` to read actual paragraph appearance instead.
+
+**Prompt**
+> "Call `get_doc_named_styles` on doc {DOC_ID} and show me the result."
+
+**Checks**
+- No `error` key in result
+- For a doc where named styles were explicitly set: returns a non-empty dict with named style type keys
+- For a standard doc: may return `{}` or only Google's default entries (expected, not an error)
+
+**Result (2026-06-20) ✅ PASS** Called on a doc that had `apply_theme` previously applied (Georgia HEADING_1/H2, Roboto NORMAL_TEXT). Returned 9 entries: NORMAL_TEXT (Roboto 11pt, line_spacing 115), HEADING_1 (Georgia 24pt bold, space_above 20), HEADING_2 (Georgia 18pt, space_above 18), HEADING_3–6 (Google defaults with font sizes and colors), TITLE, SUBTITLE. Confirms `apply_theme` default mode successfully writes to named styles, and `get_doc_named_styles` reads them back correctly. No error.
