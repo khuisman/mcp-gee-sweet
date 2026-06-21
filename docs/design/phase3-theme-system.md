@@ -14,38 +14,42 @@
 
 2. **Emitter Cell styling (Step 7)** — new `_build_cell_style_requests` helper; `fill_tables` now emits `updateTableCellStyle` for cells with `background_color`, `padding_*`, or `border_*` fields set.
 
-3. **`get_doc_theme` tool** — reads `doc.namedStyles.styles` from the Docs API and returns a theme dict keyed by named style type.
+3. **`get_doc_theme` tool** — scans `body.content` paragraphs and returns a theme dict keyed by named style type, reading the first paragraph per type as representative. Text-level fields come from the first non-empty text run; paragraph-level fields come from `paragraphStyle`. Only works for docs with *explicit* per-paragraph styles (AI-generated content); returns empty for docs whose styles are purely inherited from named style defaults.
 
-4. **`apply_theme` tool** — applies a theme dict to a doc by scanning existing paragraphs and emitting `updateParagraphStyle` / `updateTextStyle` for each matching paragraph. Also handles a `"table"` key via `updateTableCellStyle`.
+4. **`apply_theme` tool** — applies a theme dict by emitting `updateNamedStyle` requests (one per named style key) to update the document's named style definitions. An `overwrite=True` param additionally applies styles directly to all existing paragraphs via `updateParagraphStyle` / `updateTextStyle`. Also handles a `"table"` key via `updateTableCellStyle`.
 
 ---
 
-## Key API discovery: `updateNamedStyles` does not exist
+## Key API discovery: `updateNamedStyle` (singular) works
 
-The original design intended `apply_theme` to call `updateNamedStyles` in a `batchUpdate` to set the document's default named style templates (HEADING_1, NORMAL_TEXT, etc.). This would have changed the defaults for all future new paragraphs.
+The original implementation tried `updateNamedStyles` (plural), which returned HTTP 400 ("Unknown name"). The correct batchUpdate request type is `updateNamedStyle` (singular, camelCase). Confirmed via the Docs API discovery doc (`UpdateNamedStyleRequest` schema).
 
-**This does not work.** The Google Docs batchUpdate API has no `updateNamedStyles` request type. Sending such a request returns:
+**Field mask requirements (discovered during live QA):**
+- Paths are **snake_case** (`text_style.bold`, `paragraph_style.line_spacing`) — not camelCase
+- `named_style_type` **must always be included** in the field mask, or the API returns HTTP 400 "Named style type is required"
+- The root `named_style` prefix is implied and must not appear in the mask
 
-```
-HTTP 400 — Invalid JSON payload received. Unknown name "updateNamedStyles"
-at 'requests[0]': Cannot find field.
-```
+`get_doc_theme` originally read from `doc.namedStyles.styles` (the document's named style template defaults). This works for standard Google Docs but returns empty for AI-generated docs, which store styles as explicit per-paragraph and per-run overrides and leave `namedStyles` at Google's blank defaults. The implementation was replaced with a body paragraph scan.
 
-The `namedStyles` field is readable from `documents.get()` but is not writable via `batchUpdate`. There is no other Docs API method that exposes named style writes.
+## Chosen approach: `updateNamedStyle` + optional paragraph overwrite
 
-## Chosen approach: paragraph scanning
+`apply_theme` (default mode):
 
-`apply_theme` instead:
+1. For each named style key in the theme, emits one `updateNamedStyle` request
+2. Updates the document's named style definitions — affects all future paragraphs that inherit from those named styles
+3. Does **not** fetch the doc or touch existing paragraphs; existing explicit overrides are unaffected
+4. For the optional `"table"` key, fetches the doc and emits `updateTableCellStyle` rows per table
 
-1. Fetches the full doc via `documents.get()`
-2. Iterates `body.content` looking for paragraph elements
-3. Reads each paragraph's `paragraphStyle.namedStyleType`
-4. For any named style type that appears as a key in the theme, emits:
-   - `updateParagraphStyle` — for `line_spacing`, `space_above`, `space_below`
-   - `updateTextStyle` — for `font_family`, `font_size`, `bold`, `italic`, `color`
-5. For the optional `"table"` key, emits `updateTableCellStyle` rows per table
+`apply_theme` with `overwrite=True`:
 
-**Trade-off:** This applies styles to *existing* paragraphs only — it does not change the doc's named style defaults, so new paragraphs typed after the fact will not inherit the theme. For AI-generated docs (where all content is written programmatically), this is not a meaningful limitation: `apply_theme` can be called after writing content to enforce consistent styling.
+1. Same `updateNamedStyle` requests as above
+2. Additionally fetches the full doc and scans `body.content`
+3. For each paragraph matching a named style key, emits `updateParagraphStyle` / `updateTextStyle`
+4. This overwrites any existing per-paragraph style overrides
+
+**Trade-off (default mode):** Named style updates affect new paragraphs but may not visually change existing content if those paragraphs have explicit overrides (the override wins). Use `overwrite=True` to force-apply to all existing paragraphs.
+
+**Trade-off (`get_doc_theme` body scan):** Only returns data for docs where styles are stored as explicit paragraph/run overrides. For standard docs with inherited styles, returns empty. Combine with `overwrite=True` in an AI-generated-doc workflow where you know styles are explicit.
 
 ## Theme dict schema
 

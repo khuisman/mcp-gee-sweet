@@ -88,29 +88,25 @@ _NAMED_STYLE_TYPES = frozenset(
 )
 
 
-def _read_named_styles(doc: dict) -> dict:
-    """Extract named style defaults from a Docs API document and return a theme dict."""
+def _read_body_styles(doc: dict) -> dict:
+    """Derive a theme dict from body paragraph styles — first occurrence per named style type.
+
+    AI-generated docs apply explicit styles to individual paragraphs and runs rather than
+    setting namedStyles defaults. This function reads the actual applied styles from the body
+    so the returned theme reflects what the document looks like. Subsequent paragraphs of
+    the same namedStyleType with different styles are ignored (treated as intentional
+    individual overrides outside the theme system).
+    """
     theme: dict = {}
-    for style in doc.get("namedStyles", {}).get("styles", []):
-        style_type = style.get("namedStyleType")
-        if style_type not in _NAMED_STYLE_TYPES:
+    for elem in doc.get("body", {}).get("content", []):
+        para = elem.get("paragraph")
+        if not para:
+            continue
+        style_type = para.get("paragraphStyle", {}).get("namedStyleType")
+        if style_type not in _NAMED_STYLE_TYPES or style_type in theme:
             continue
         entry: dict = {}
-        ts = style.get("textStyle", {})
-        ff = ts.get("weightedFontFamily", {}).get("fontFamily")
-        if ff:
-            entry["font_family"] = ff
-        fs = ts.get("fontSize", {}).get("magnitude")
-        if fs is not None:
-            entry["font_size"] = fs
-        if "bold" in ts:
-            entry["bold"] = ts["bold"]
-        if "italic" in ts:
-            entry["italic"] = ts["italic"]
-        rgb = ts.get("foregroundColor", {}).get("color", {}).get("rgbColor")
-        if rgb:
-            entry["color"] = {k: rgb[k] for k in ("red", "green", "blue") if k in rgb}
-        ps = style.get("paragraphStyle", {})
+        ps = para.get("paragraphStyle", {})
         if "lineSpacing" in ps:
             entry["line_spacing"] = ps["lineSpacing"]
         space_above = ps.get("spaceAbove", {}).get("magnitude")
@@ -119,9 +115,85 @@ def _read_named_styles(doc: dict) -> dict:
         space_below = ps.get("spaceBelow", {}).get("magnitude")
         if space_below is not None:
             entry["space_below"] = space_below
+        for element in para.get("elements", []):
+            tr = element.get("textRun")
+            if not tr or not tr.get("content", "").strip():
+                continue
+            ts = tr.get("textStyle", {})
+            ff = ts.get("weightedFontFamily", {}).get("fontFamily")
+            if ff:
+                entry["font_family"] = ff
+            fs = ts.get("fontSize", {}).get("magnitude")
+            if fs is not None:
+                entry["font_size"] = fs
+            if "bold" in ts:
+                entry["bold"] = ts["bold"]
+            if "italic" in ts:
+                entry["italic"] = ts["italic"]
+            rgb = ts.get("foregroundColor", {}).get("color", {}).get("rgbColor")
+            if rgb:
+                entry["color"] = {k: rgb[k] for k in ("red", "green", "blue") if k in rgb}
+            break  # first non-empty run only
         if entry:
             theme[style_type] = entry
     return theme
+
+
+def _build_named_style_requests(style_type: str, entry: dict) -> list[dict]:
+    """Build an updateNamedStyle batchUpdate request for one named style type.
+
+    Field mask paths use snake_case (per Docs API spec) and must include
+    named_style_type. The root named_style prefix is implied by the API.
+    """
+    ts: dict = {}
+    ts_fields: list[str] = []
+    if "font_family" in entry:
+        ts["weightedFontFamily"] = {"fontFamily": entry["font_family"]}
+        ts_fields.append("text_style.weighted_font_family")
+    if "font_size" in entry:
+        ts["fontSize"] = {"magnitude": entry["font_size"], "unit": "PT"}
+        ts_fields.append("text_style.font_size")
+    if "bold" in entry:
+        ts["bold"] = entry["bold"]
+        ts_fields.append("text_style.bold")
+    if "italic" in entry:
+        ts["italic"] = entry["italic"]
+        ts_fields.append("text_style.italic")
+    if "color" in entry:
+        ts["foregroundColor"] = {"color": {"rgbColor": entry["color"]}}
+        ts_fields.append("text_style.foreground_color")
+
+    ps: dict = {}
+    ps_fields: list[str] = []
+    if "line_spacing" in entry:
+        ps["lineSpacing"] = entry["line_spacing"]
+        ps_fields.append("paragraph_style.line_spacing")
+    if "space_above" in entry:
+        ps["spaceAbove"] = {"magnitude": entry["space_above"], "unit": "PT"}
+        ps_fields.append("paragraph_style.space_above")
+    if "space_below" in entry:
+        ps["spaceBelow"] = {"magnitude": entry["space_below"], "unit": "PT"}
+        ps_fields.append("paragraph_style.space_below")
+
+    all_fields = ts_fields + ps_fields
+    if not all_fields:
+        return []
+
+    # named_style_type must always be present in the field mask
+    named_style: dict = {"namedStyleType": style_type}
+    if ts:
+        named_style["textStyle"] = ts
+    if ps:
+        named_style["paragraphStyle"] = ps
+
+    return [
+        {
+            "updateNamedStyle": {
+                "namedStyle": named_style,
+                "fields": "named_style_type," + ",".join(all_fields),
+            }
+        }
+    ]
 
 
 def register(tool):
@@ -914,42 +986,59 @@ def register(tool):
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
-        Read a Google Doc's named style defaults and return them as a theme dict.
+        Derive a theme dict from a Google Doc's actual paragraph styles.
 
-        The returned dict uses named style type keys (NORMAL_TEXT, HEADING_1 through
-        HEADING_6, TITLE, SUBTITLE). Each entry contains the style's font_family,
-        font_size, bold, italic, color (RGB 0-1 components), line_spacing (100=single),
-        space_above, and space_below (points), where defined. Fields absent from the
-        doc's namedStyles are omitted.
+        Scans the document body and reads the style of the first paragraph found for
+        each named style type (NORMAL_TEXT, HEADING_1 through HEADING_6, TITLE, SUBTITLE).
+        Text-level fields (font_family, font_size, bold, italic, color) come from the
+        first non-empty text run in that paragraph; paragraph-level fields (line_spacing,
+        space_above, space_below) come from the paragraph's paragraphStyle. Only named
+        style types that appear in the body are included.
+
+        Subsequent paragraphs of the same named style type that differ in style are
+        ignored — they are treated as intentional individual overrides outside the theme.
+
+        The returned dict is suitable for passing directly to apply_theme.
 
         Args:
             doc_id: The Google Doc file ID.
 
         Returns:
-            A theme dict suitable for passing directly to apply_theme.
+            Theme dict keyed by named style type.
         """
         lc = ctx.request_context.lifespan_context
         try:
             doc = lc.docs_service.documents().get(documentId=doc_id).execute()
         except Exception as e:
             return {"error": str(e)}
-        return _read_named_styles(doc)
+        return _read_body_styles(doc)
 
     @tool(annotations=ToolAnnotations(title="Apply Document Theme", destructiveHint=True))
     def apply_theme(
         doc_id: str,
         theme: dict,
+        overwrite: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
-        Apply a theme dict to all existing paragraphs in a Google Doc.
+        Apply a theme dict to a Google Doc by updating its named style definitions.
 
-        Scans every paragraph in the document, groups them by namedStyleType (NORMAL_TEXT,
-        HEADING_1 through HEADING_6, TITLE, SUBTITLE), and applies the matching theme entry
-        as explicit paragraph and text style overrides. Only paragraphs whose namedStyleType
-        appears as a key in the theme are affected.
+        By default (overwrite=False), theme entries are applied as document-level named
+        style defaults via updateNamedStyle. Paragraphs that have explicit individual style
+        overrides are unaffected — their styles take precedence over the named style
+        defaults. This preserves intentional per-paragraph variations (e.g. a section
+        deliberately styled in a different colour).
 
-        Theme entry fields (all optional):
+        For AI-generated docs where all content uses explicit paragraph/run styles, the
+        default mode updates the named style definitions but does not visually change
+        existing content. New paragraphs added without explicit styles will inherit the
+        updated named style defaults.
+
+        Set overwrite=True to also apply the theme directly to all existing paragraphs,
+        overwriting their current styles including any individual overrides.
+
+        Theme entry keys (NORMAL_TEXT, HEADING_1–6, TITLE, SUBTITLE). Each entry can
+        include (all optional):
           font_family (str), font_size (float, points), bold (bool), italic (bool),
           color (dict {"red": 0-1, "green": 0-1, "blue": 0-1}),
           line_spacing (float, 100=single, 115=1.15×, 150=1.5×),
@@ -964,6 +1053,8 @@ def register(tool):
         Args:
             doc_id: The Google Doc file ID.
             theme: Theme dict. See above for schema.
+            overwrite: If True, also apply styles directly to existing paragraphs,
+                overwriting individual per-paragraph style overrides.
 
         Returns:
             Confirmation with docId and count of batchUpdate requests sent.
@@ -978,12 +1069,20 @@ def register(tool):
 
         requests = []
 
-        try:
-            doc = lc.docs_service.documents().get(documentId=doc_id).execute()
-        except Exception as e:
-            return {"error": f"failed to fetch doc: {e}"}
+        # Always update named style definitions for each theme entry
+        for style_type, entry in named_style_keys.items():
+            requests.extend(_build_named_style_requests(style_type, entry))
 
-        if named_style_keys:
+        # Fetch the doc only when needed (overwrite mode or table styling)
+        doc: dict | None = None
+        if overwrite or table_style:
+            try:
+                doc = lc.docs_service.documents().get(documentId=doc_id).execute()
+            except Exception as e:
+                return {"error": f"failed to fetch doc: {e}"}
+
+        # When overwrite=True, also apply styles directly to all existing paragraphs
+        if overwrite and named_style_keys and doc:
             for elem in doc.get("body", {}).get("content", []):
                 para = elem.get("paragraph")
                 if not para:
@@ -1044,7 +1143,7 @@ def register(tool):
                         }
                     )
 
-        if table_style:
+        if table_style and doc:
             has_borders = any(
                 k in table_style for k in ("border_color", "border_width", "border_dash_style")
             )
@@ -1111,7 +1210,7 @@ def register(tool):
                     )
 
         if not requests:
-            return {"error": "no matching paragraphs or tables found for the given theme keys"}
+            return {"error": "no style requests could be built from the given theme"}
 
         try:
             lc.docs_service.documents().batchUpdate(

@@ -7,10 +7,11 @@ from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs import (
+    _build_named_style_requests,
     _html_to_doc_requests,
     _html_to_text,
     _md_to_html,
-    _read_named_styles,
+    _read_body_styles,
     _to_doc_requests,
 )
 from mcp_gee_sweet.tools.docs.ast import (
@@ -1576,27 +1577,56 @@ class TestBuildCellStyleRequests:
 # ---------------------------------------------------------------------------
 
 
-class TestThemeHelpers:
-    def test_read_named_styles_extracts_fields(self):
-        doc = {
-            "namedStyles": {
-                "styles": [
-                    {
-                        "namedStyleType": "HEADING_1",
-                        "textStyle": {
-                            "weightedFontFamily": {"fontFamily": "Arial"},
-                            "fontSize": {"magnitude": 20.0, "unit": "PT"},
-                            "bold": True,
-                        },
-                        "paragraphStyle": {
-                            "lineSpacing": 115,
-                            "spaceAbove": {"magnitude": 12.0, "unit": "PT"},
-                        },
-                    }
-                ]
+def _make_body_doc(paragraphs: list[dict]) -> dict:
+    """Build a minimal Docs API body dict from a list of paragraph specs."""
+    content = []
+    idx = 1
+    for p in paragraphs:
+        style_type = p["style_type"]
+        text = p.get("text", "Hello")
+        ts = p.get("text_style", {})
+        ps = p.get("para_style", {})
+        end = idx + len(text) + 1
+        content.append(
+            {
+                "startIndex": idx,
+                "endIndex": end,
+                "paragraph": {
+                    "paragraphStyle": {"namedStyleType": style_type, **ps},
+                    "elements": [
+                        {
+                            "startIndex": idx,
+                            "endIndex": end - 1,
+                            "textRun": {"content": text, "textStyle": ts},
+                        }
+                    ],
+                },
             }
-        }
-        theme = _read_named_styles(doc)
+        )
+        idx = end
+    return {"body": {"content": content}}
+
+
+class TestThemeHelpers:
+    def test_read_body_styles_extracts_fields(self):
+        doc = _make_body_doc(
+            [
+                {
+                    "style_type": "HEADING_1",
+                    "text": "My Heading",
+                    "text_style": {
+                        "weightedFontFamily": {"fontFamily": "Arial"},
+                        "fontSize": {"magnitude": 20.0, "unit": "PT"},
+                        "bold": True,
+                    },
+                    "para_style": {
+                        "lineSpacing": 115,
+                        "spaceAbove": {"magnitude": 12.0, "unit": "PT"},
+                    },
+                }
+            ]
+        )
+        theme = _read_body_styles(doc)
         assert "HEADING_1" in theme
         h1 = theme["HEADING_1"]
         assert h1["font_family"] == "Arial"
@@ -1605,16 +1635,54 @@ class TestThemeHelpers:
         assert h1["line_spacing"] == 115
         assert h1["space_above"] == 12.0
 
+    def test_first_paragraph_per_type_wins(self):
+        doc = _make_body_doc(
+            [
+                {
+                    "style_type": "NORMAL_TEXT",
+                    "text": "First",
+                    "text_style": {"weightedFontFamily": {"fontFamily": "Roboto"}},
+                },
+                {
+                    "style_type": "NORMAL_TEXT",
+                    "text": "Second",
+                    "text_style": {"weightedFontFamily": {"fontFamily": "Arial"}},
+                },
+            ]
+        )
+        theme = _read_body_styles(doc)
+        assert theme["NORMAL_TEXT"]["font_family"] == "Roboto"
+
     def test_unknown_style_type_ignored(self):
-        doc = {
-            "namedStyles": {
-                "styles": [
-                    {"namedStyleType": "DEFAULT_PARAGRAPH_STYLE", "textStyle": {"bold": True}}
-                ]
-            }
-        }
-        theme = _read_named_styles(doc)
+        doc = _make_body_doc(
+            [{"style_type": "DEFAULT_PARAGRAPH_STYLE", "text": "x", "text_style": {"bold": True}}]
+        )
+        theme = _read_body_styles(doc)
         assert "DEFAULT_PARAGRAPH_STYLE" not in theme
+
+    def test_build_named_style_requests_text_fields(self):
+        reqs = _build_named_style_requests(
+            "HEADING_1", {"font_family": "Georgia", "font_size": 18.0, "bold": True}
+        )
+        assert len(reqs) == 1
+        req = reqs[0]["updateNamedStyle"]
+        assert req["namedStyle"]["namedStyleType"] == "HEADING_1"
+        assert req["namedStyle"]["textStyle"]["weightedFontFamily"]["fontFamily"] == "Georgia"
+        assert "named_style_type" in req["fields"]
+        assert "text_style.weighted_font_family" in req["fields"]
+        assert "text_style.font_size" in req["fields"]
+        assert "text_style.bold" in req["fields"]
+
+    def test_build_named_style_requests_para_fields(self):
+        reqs = _build_named_style_requests("NORMAL_TEXT", {"line_spacing": 115, "space_above": 6.0})
+        req = reqs[0]["updateNamedStyle"]
+        assert "named_style_type" in req["fields"]
+        assert "paragraph_style.line_spacing" in req["fields"]
+        assert "paragraph_style.space_above" in req["fields"]
+        assert req["namedStyle"]["paragraphStyle"]["lineSpacing"] == 115
+
+    def test_build_named_style_requests_empty_entry_returns_empty(self):
+        assert _build_named_style_requests("NORMAL_TEXT", {}) == []
 
 
 # ---------------------------------------------------------------------------
@@ -1628,26 +1696,22 @@ class TestApplyThemeTool:
         docs_module.register(tool)
         return tools
 
-    def _mock_doc_with_para(self, style_type="HEADING_1"):
-        return {
-            "body": {
-                "content": [
-                    {
-                        "startIndex": 1,
-                        "endIndex": 10,
-                        "paragraph": {
-                            "paragraphStyle": {"namedStyleType": style_type},
-                            "elements": [],
-                        },
-                    }
-                ]
-            }
-        }
+    def _mock_doc_with_para(self, style_type="HEADING_1", font_family="Georgia"):
+        return _make_body_doc(
+            [
+                {
+                    "style_type": style_type,
+                    "text": "Sample text",
+                    "text_style": {
+                        "weightedFontFamily": {"fontFamily": font_family},
+                    },
+                }
+            ]
+        )
 
-    def test_apply_theme_calls_batch_update(self):
+    def test_apply_theme_emits_update_named_style(self):
         tools = self._setup()
         mock_docs = MagicMock()
-        mock_docs.documents().get().execute.return_value = self._mock_doc_with_para("HEADING_1")
         mock_docs.documents().batchUpdate().execute.return_value = {}
         ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
 
@@ -1658,7 +1722,11 @@ class TestApplyThemeTool:
         )
         assert result["docId"] == "doc123"
         assert result["requests"] >= 1
-        mock_docs.documents().batchUpdate.assert_called()
+        call_kwargs = mock_docs.documents().batchUpdate.call_args[1]
+        reqs = call_kwargs["body"]["requests"]
+        assert any("updateNamedStyle" in r for r in reqs)
+        # Default mode must NOT fetch the doc (no paragraph scan)
+        mock_docs.documents().get.assert_not_called()
 
     def test_apply_theme_empty_theme_returns_error(self):
         tools = self._setup()
@@ -1684,10 +1752,12 @@ class TestApplyThemeTool:
         mock_docs.documents().get.assert_called_with(documentId="doc123")
         assert result["requests"] > 0
 
-    def test_apply_theme_no_matching_paragraphs_returns_error(self):
+    def test_apply_theme_default_succeeds_without_matching_paragraphs(self):
+        # Default mode (overwrite=False) updates named style definitions regardless of
+        # which paragraphs currently exist in the doc.
         tools = self._setup()
         mock_docs = MagicMock()
-        mock_docs.documents().get().execute.return_value = self._mock_doc_with_para("NORMAL_TEXT")
+        mock_docs.documents().batchUpdate().execute.return_value = {}
         ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
 
         result = tools["apply_theme"](
@@ -1695,22 +1765,40 @@ class TestApplyThemeTool:
             theme={"HEADING_1": {"font_size": 20.0}},
             ctx=ctx,
         )
-        assert "error" in result
+        assert "error" not in result
+        assert result["requests"] == 1
+
+    def test_apply_theme_overwrite_also_updates_paragraphs(self):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = self._mock_doc_with_para("HEADING_1")
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = tools["apply_theme"](
+            doc_id="doc123",
+            theme={"HEADING_1": {"font_family": "Georgia"}},
+            overwrite=True,
+            ctx=ctx,
+        )
+        assert result["docId"] == "doc123"
+        call_kwargs = mock_docs.documents().batchUpdate.call_args[1]
+        reqs = call_kwargs["body"]["requests"]
+        assert any("updateNamedStyle" in r for r in reqs)
+        assert any("updateTextStyle" in r for r in reqs)
 
     def test_get_doc_theme_returns_theme_dict(self):
         tools = self._setup()
         mock_docs = MagicMock()
-        mock_docs.documents().get().execute.return_value = {
-            "namedStyles": {
-                "styles": [
-                    {
-                        "namedStyleType": "HEADING_1",
-                        "textStyle": {"weightedFontFamily": {"fontFamily": "Arial"}},
-                        "paragraphStyle": {},
-                    }
-                ]
-            }
-        }
+        mock_docs.documents().get().execute.return_value = _make_body_doc(
+            [
+                {
+                    "style_type": "HEADING_1",
+                    "text": "My Title",
+                    "text_style": {"weightedFontFamily": {"fontFamily": "Arial"}},
+                }
+            ]
+        )
         ctx = _make_ctx(docs_service=mock_docs)
         result = tools["get_doc_theme"](doc_id="doc123", ctx=ctx)
         assert "HEADING_1" in result

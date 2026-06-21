@@ -807,33 +807,49 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D203: `get_doc_theme` returns named style defaults
+### TC-D203: `get_doc_theme` scans body paragraph styles
+**Note:** `get_doc_theme` reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.
+
 **Prompt**
 > "Call `get_doc_theme` on doc {DOC_ID} and show me the result."
 
 **Checks**
-- Returns a dict with at least some of: NORMAL_TEXT, HEADING_1, HEADING_2, TITLE, SUBTITLE
-- Each entry has at least one of: font_family, font_size, bold, italic, color, line_spacing, space_above, space_below
 - No `error` key in result
+- For a doc with explicit paragraph styles: returns a dict with at least one named style type key; each entry has at least one of font_family, font_size, bold, italic, color, line_spacing, space_above, space_below
+- For a doc with purely inherited styles: result is an empty dict `{}` (expected, not an error)
 
-**Result (2026-06-20) ✅ PASS** Returned 9 keys: NORMAL_TEXT (font_family Arial, font_size 11, bold false, italic false, line_spacing 115), HEADING_1 through HEADING_6 (font sizes, colors, spacing), TITLE (font_size 26), SUBTITLE (Arial 15pt). No error key.
+**Result (2026-06-20) ✅ PASS** Called on a test doc created with `create_doc` (markdown content — inherited styles): returned `{}`. Called on the same doc after `apply_theme overwrite=True` (Georgia HEADING_1, Roboto NORMAL_TEXT): returned `{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}`. `font_size` and `bold` are not returned because the Docs API normalises explicit overrides that match the named style default back to inherited. No error key in either case.
 
 ---
 
-### TC-D204: `apply_theme` changes paragraph styles ⚠️ destructive
-**Note:** `apply_theme` applies styles to existing paragraphs matching each named style type — it does not change document defaults (the Docs API batchUpdate has no `updateNamedStyles` request type).
+### TC-D204: `apply_theme` updates named style definitions ⚠️ destructive
+**Note:** Default mode (`overwrite=False`) emits `updateNamedStyle` requests — one per named style key — updating the document's style defaults. Existing paragraphs with explicit overrides are unaffected. No doc fetch is needed. Use `overwrite=True` to also apply directly to all existing paragraphs.
 
 **Prompt**
-> "Write `<h1>Heading One</h1><h2>Heading Two</h2><p>Normal body text.</p>` to doc {DOC_ID}, then apply theme `{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}`"
+> "Apply theme `{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}` to doc {DOC_ID}"
 
 **Checks**
-- `apply_theme` result contains `docId` and `requests > 0`
+- Result contains `docId` and `requests > 0`
 - No `error` key
-- 🔍 Visual check: HEADING_1 paragraph in Georgia 22pt, body paragraph in Verdana 11pt
+- `requests` equals the number of named style keys in the theme (one `updateNamedStyle` per key)
+
+**Result (2026-06-20) ✅ PASS** Called with HEADING_1 + HEADING_2 + NORMAL_TEXT → `{"docId": "...", "requests": 3}`. Each emitted one `updateNamedStyle` request with snake_case field mask (`named_style_type,text_style.weighted_font_family,text_style.font_size`). No error. Live API accepted all three requests.
+
+---
+
+### TC-D204b: `apply_theme` with `overwrite=True` also patches existing paragraphs ⚠️ destructive
+**Prompt**
+> "Write `<h1>Heading One</h1><p>Normal body text.</p>` to doc {DOC_ID}, then apply theme `{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}` with overwrite=True"
+
+**Checks**
+- Result contains `docId` and `requests > 0`
+- `requests` > number of named style keys (named style updates + per-paragraph updates)
+- No `error` key
+- 🔍 Visual check: HEADING_1 paragraph visually in Georgia 22pt, body in Verdana 11pt
 
 **Cleanup:** write fixture content back
 
-**Result (2026-06-20) ✅ PASS** `apply_theme` returned `requests: 3` (updateParagraphStyle + updateTextStyle for HEADING_1, updateTextStyle for NORMAL_TEXT body paragraph). No error.
+**Result (2026-06-20) ✅ PASS** Called with HEADING_1 + NORMAL_TEXT on a doc with HEADING_1, HEADING_2 (×2), HEADING_3, NORMAL_TEXT (×4) paragraphs → `{"docId": "...", "requests": 7}` (2 `updateNamedStyle` + 5 `updateTextStyle` for matching paragraphs). No error.
 
 ---
 
@@ -853,14 +869,15 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D206: `get_doc_theme` → `apply_theme` round-trip ⚠️ destructive
+### TC-D206: `get_doc_theme` → `apply_theme` round-trip on an AI-generated doc ⚠️ destructive
+**Note:** Round-trip only produces meaningful output on docs where styles are explicit (AI-generated). For standard inherited-style docs, `get_doc_theme` returns `{}` and `apply_theme` with an empty theme returns an error.
+
 **Prompt**
-> "Read the current theme from doc {DOC_ID} using `get_doc_theme`, then apply it back with `apply_theme`. Show me both the theme dict and the apply result."
+> "Write styled content to doc {DOC_ID} with explicit font overrides, then read the theme with `get_doc_theme`, then apply it back with `apply_theme overwrite=True`. Show me both results."
 
 **Checks**
-- `get_doc_theme` returns a non-empty dict
-- `apply_theme` returns `requests > 0` (one updateParagraphStyle + updateTextStyle per matching paragraph)
+- `get_doc_theme` returns a non-empty dict (at least one named style key with at least one field)
+- `apply_theme` returns `requests > 0`
 - No `error` in either result
-- 🔍 Visual check: doc appearance unchanged after round-trip
 
-**Result (2026-06-20) ✅ PASS** `get_doc_theme` returned 9 style keys. Applied theme subset (NORMAL_TEXT, HEADING_1, HEADING_2) back to doc with 3 paragraphs → `requests: 8` (mix of para+text style requests per paragraph). No error. Fixture restored.
+**Result (2026-06-20) ✅ PASS** After `apply_theme overwrite=True` (Georgia HEADING_1, Roboto NORMAL_TEXT) on the test doc, `get_doc_theme` returned `{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}`. Applying that theme back → `requests: 2` (one `updateNamedStyle` per key). No error. (font_size/bold not in round-trip because API normalises them to inherited when they match the named style default.)
