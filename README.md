@@ -12,9 +12,9 @@ An MCP server that gives AI clients reliable, direct access to Google Workspace 
 uvx mcp-gee-sweet
 ```
 
-**Install (bleeding edge — every push to `develop`):**
+**Install (bleeding edge — every code change on `develop`):**
 ```bash
-pip install --pre mcp-gee-sweet
+uvx --prerelease=allow mcp-gee-sweet
 ```
 
 **[Full documentation →](https://khuisman.github.io/mcp-gee-sweet/)**

@@ -25,12 +25,26 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 
 ---
 
+## Release cadence
+
+| Version | Scope | Signal |
+|---------|-------|--------|
+| **v0.7.0** | ✅ First stable PyPI release — 63 tools across Sheets, Drive, Docs, Calendar | Published 2026-06-21 |
+| **v0.8.0** | Tier 1 complete — all "frequently needed" items across all domains (~14 tools) | "Complete for everyday use" |
+| **v0.9.0** | Tier 2 complete — power-user and structured-work layer (~20 tools) | Covers most real workflows |
+| **v1.0.0** | API stability declaration — Tier 3 items that make the cut + any breaking cleanups from v0.8–0.9 | Backwards-compatibility commitment |
+| **v1.1.0+** | Future domains — Tasks, Gmail (separate minor releases, each needs a new API client) | Expanded scope |
+
+Tier 4 items remain backlog with no assigned version.
+
+---
+
 ## Roadmap
 
-### Tier 1 — High value, frequently needed
+### Tier 1 — High value, frequently needed _(target: v0.8.0)_
 
 **Infrastructure**
-- [ ] PyPI publish — OIDC trusted publishing ([#55](https://github.com/khuisman/mcp-gee-sweet/issues/55))
+- [x] PyPI publish — OIDC trusted publishing ([#55](https://github.com/khuisman/mcp-gee-sweet/issues/55)) — v0.7.0 stable live; `uvx mcp-gee-sweet` works
 
 **Sheets**
 - [ ] `delete_sheet` — delete a tab by name or sheetId ([#115](https://github.com/khuisman/mcp-gee-sweet/issues/115)) _(freema/mcp-gsheets)_
@@ -54,7 +68,7 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 - [ ] `list_recent_files` — files recently accessed or modified ([#136](https://github.com/khuisman/mcp-gee-sweet/issues/136))
 - [ ] `get_storage_quota` — Drive storage usage and limits ([#137](https://github.com/khuisman/mcp-gee-sweet/issues/137))
 
-### Tier 2 — Useful for structured work
+### Tier 2 — Useful for structured work _(target: v0.9.0)_
 
 **Sheets**
 - [ ] `update_borders` — border style, width, color on a range ([#122](https://github.com/khuisman/mcp-gee-sweet/issues/122)) _(freema/mcp-gsheets)_
@@ -85,7 +99,7 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 - [ ] `create_shortcut` — create a Drive shortcut to a file ([#141](https://github.com/khuisman/mcp-gee-sweet/issues/141))
 - [ ] Drive Activity API — file change history ([#72](https://github.com/khuisman/mcp-gee-sweet/issues/72))
 
-### Tier 3 — Advanced / occasionally needed
+### Tier 3 — Advanced / occasionally needed _(target: v1.0.0)_
 
 **Sheets**
 - [ ] `add_conditional_formatting` / `delete_conditional_formatting` ([#129](https://github.com/khuisman/mcp-gee-sweet/issues/129)) _(freema/mcp-gsheets)_
@@ -110,7 +124,7 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 - [ ] Watch notifications — webhook push on file changes ([#143](https://github.com/khuisman/mcp-gee-sweet/issues/143))
 - [ ] Labels API — custom metadata labels on Drive files ([#144](https://github.com/khuisman/mcp-gee-sweet/issues/144))
 
-### Tier 4 — Nice to have / niche
+### Tier 4 — Nice to have / niche _(no assigned version)_
 
 **Sheets**
 - [ ] `get_sheet_dimensions` — read column widths, row heights, frozen counts ([#132](https://github.com/khuisman/mcp-gee-sweet/issues/132)) _(freema/mcp-gsheets)_
@@ -176,7 +190,9 @@ The test expected the API to silently truncate a 2D array that's wider than the 
 - [x] Migrate cache persistence — replaced four `/tmp/*.json` files with a single SQLite DB (`/tmp/mcp_gee_sweet.db`, configurable via `CACHE_DB_PATH`); one table, four namespaces; WAL mode
 - [x] Open PR to xing5 from `upstream-observability` branch (structured logging, per-tool timing, `cache_discovery=False`) — [PR #79](https://github.com/xing5/mcp-google-sheets/pull/79)
 - [x] Fork repo and rename to `mcp-gee-sweet`; README credits xing5, freema, and piotr-agier
-- See [GitHub Issues (label: infrastructure)](https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Ainfrastructure) for open infrastructure work (PyPI publish #55, etc.)
+- [x] PyPI publish — v0.7.0 stable on PyPI; dev track publishes `0.7.0.devN` on every push to `develop`
+- [ ] Live QA system — fixture setup, per-release run files (`docs/qa/runs/vX.Y.Z.md`), Playwright OAuth automation ([#173](https://github.com/khuisman/mcp-gee-sweet/issues/173)) _(gate for v0.8.0)_
+- See [GitHub Issues (label: infrastructure)](https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Ainfrastructure) for open infrastructure work
 
 ---
 
