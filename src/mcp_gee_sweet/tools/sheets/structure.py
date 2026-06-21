@@ -451,6 +451,350 @@ def register(tool):
             .execute()
         )
 
+    @tool(annotations=ToolAnnotations(title="Format Cells", destructiveHint=True))
+    def format_cells(
+        spreadsheet_id: str,
+        sheet: str,
+        range: str,
+        bold: bool | None = None,
+        italic: bool | None = None,
+        strikethrough: bool | None = None,
+        font_size: int | None = None,
+        font_color: dict | None = None,
+        background_color: dict | None = None,
+        horizontal_alignment: str | None = None,
+        vertical_alignment: str | None = None,
+        number_format_type: str | None = None,
+        number_format_pattern: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Apply formatting to a cell range (background color, font, alignment, number format).
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet
+            sheet: The name of the sheet
+            range: A1 notation range to format (e.g. "A1:D5")
+            bold: Set bold text
+            italic: Set italic text
+            strikethrough: Set strikethrough
+            font_size: Font size in points
+            font_color: RGB color dict, e.g. {"red": 1.0, "green": 0.0, "blue": 0.0}
+            background_color: RGB color dict for cell background
+            horizontal_alignment: "LEFT", "CENTER", or "RIGHT"
+            vertical_alignment: "TOP", "MIDDLE", or "BOTTOM"
+            number_format_type: "TEXT", "NUMBER", "PERCENT", "CURRENCY", "DATE",
+                                "TIME", "DATE_TIME", "SCIENTIFIC"
+            number_format_pattern: Custom number format pattern, e.g. "#,##0.00"
+
+        Returns:
+            Result of the batchUpdate operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        indices = _parse_a1_notation(range)
+
+        cell_format: dict[str, Any] = {}
+        fields: list[str] = []
+
+        text_format: dict[str, Any] = {}
+        if bold is not None:
+            text_format["bold"] = bold
+        if italic is not None:
+            text_format["italic"] = italic
+        if strikethrough is not None:
+            text_format["strikethrough"] = strikethrough
+        if font_size is not None:
+            text_format["fontSize"] = font_size
+        if font_color is not None:
+            text_format["foregroundColor"] = font_color
+        if text_format:
+            cell_format["textFormat"] = text_format
+            fields.append("userEnteredFormat.textFormat")
+
+        if background_color is not None:
+            cell_format["backgroundColor"] = background_color
+            fields.append("userEnteredFormat.backgroundColor")
+
+        if horizontal_alignment is not None:
+            cell_format["horizontalAlignment"] = horizontal_alignment.upper()
+            fields.append("userEnteredFormat.horizontalAlignment")
+
+        if vertical_alignment is not None:
+            cell_format["verticalAlignment"] = vertical_alignment.upper()
+            fields.append("userEnteredFormat.verticalAlignment")
+
+        if number_format_type is not None or number_format_pattern is not None:
+            number_format: dict[str, Any] = {}
+            if number_format_type is not None:
+                number_format["type"] = number_format_type.upper()
+            if number_format_pattern is not None:
+                number_format["pattern"] = number_format_pattern
+            cell_format["numberFormat"] = number_format
+            fields.append("userEnteredFormat.numberFormat")
+
+        if not fields:
+            return {"error": "No formatting parameters provided"}
+
+        grid_range = {
+            "sheetId": sheet_id,
+            "startRowIndex": indices.get("startRowIndex", 0),
+            "startColumnIndex": indices.get("startColumnIndex", 0),
+        }
+        if "endRowIndex" in indices:
+            grid_range["endRowIndex"] = indices["endRowIndex"]
+        if "endColumnIndex" in indices:
+            grid_range["endColumnIndex"] = indices["endColumnIndex"]
+
+        return (
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "repeatCell": {
+                                "range": grid_range,
+                                "cell": {"userEnteredFormat": cell_format},
+                                "fields": ",".join(fields),
+                            }
+                        }
+                    ]
+                },
+            )
+            .execute()
+        )
+
+    @tool(annotations=ToolAnnotations(title="Merge Cells", destructiveHint=True))
+    def merge_cells(
+        spreadsheet_id: str,
+        sheet: str,
+        range: str,
+        merge_type: str = "MERGE_ALL",
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Merge a range of cells into one cell.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet
+            sheet: The name of the sheet
+            range: A1 notation range to merge (e.g. "A1:C3")
+            merge_type: "MERGE_ALL" (default), "MERGE_COLUMNS" (merge each column
+                        independently), or "MERGE_ROWS" (merge each row independently)
+
+        Returns:
+            Result of the batchUpdate operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        indices = _parse_a1_notation(range)
+        grid_range = {
+            "sheetId": sheet_id,
+            "startRowIndex": indices.get("startRowIndex", 0),
+            "startColumnIndex": indices.get("startColumnIndex", 0),
+        }
+        if "endRowIndex" in indices:
+            grid_range["endRowIndex"] = indices["endRowIndex"]
+        if "endColumnIndex" in indices:
+            grid_range["endColumnIndex"] = indices["endColumnIndex"]
+
+        return (
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "mergeCells": {
+                                "range": grid_range,
+                                "mergeType": merge_type.upper(),
+                            }
+                        }
+                    ]
+                },
+            )
+            .execute()
+        )
+
+    @tool(annotations=ToolAnnotations(title="Unmerge Cells", destructiveHint=True))
+    def unmerge_cells(
+        spreadsheet_id: str,
+        sheet: str,
+        range: str,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Unmerge all merged cells in a range.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet
+            sheet: The name of the sheet
+            range: A1 notation range to unmerge (e.g. "A1:C3")
+
+        Returns:
+            Result of the batchUpdate operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        indices = _parse_a1_notation(range)
+        grid_range = {
+            "sheetId": sheet_id,
+            "startRowIndex": indices.get("startRowIndex", 0),
+            "startColumnIndex": indices.get("startColumnIndex", 0),
+        }
+        if "endRowIndex" in indices:
+            grid_range["endRowIndex"] = indices["endRowIndex"]
+        if "endColumnIndex" in indices:
+            grid_range["endColumnIndex"] = indices["endColumnIndex"]
+
+        return (
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": [{"unmergeCells": {"range": grid_range}}]},
+            )
+            .execute()
+        )
+
+    @tool(annotations=ToolAnnotations(title="Freeze Rows/Columns"))
+    def freeze(
+        spreadsheet_id: str,
+        sheet: str,
+        rows: int = 0,
+        columns: int = 0,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Freeze rows and/or columns in a sheet.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet
+            sheet: The name of the sheet
+            rows: Number of rows to freeze (0 to unfreeze all rows)
+            columns: Number of columns to freeze (0 to unfreeze all columns)
+
+        Returns:
+            Result of the batchUpdate operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        return (
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "updateSheetProperties": {
+                                "properties": {
+                                    "sheetId": sheet_id,
+                                    "gridProperties": {
+                                        "frozenRowCount": rows,
+                                        "frozenColumnCount": columns,
+                                    },
+                                },
+                                "fields": "gridProperties.frozenRowCount,gridProperties.frozenColumnCount",
+                            }
+                        }
+                    ]
+                },
+            )
+            .execute()
+        )
+
+    @tool(annotations=ToolAnnotations(title="Sort Range"))
+    def sort_range(
+        spreadsheet_id: str,
+        sheet: str,
+        range: str,
+        sort_order: list[dict] | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Sort a range by one or more columns.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet
+            sheet: The name of the sheet
+            range: A1 notation range to sort (e.g. "A1:D100")
+            sort_order: List of sort specs, each with:
+                        - "column_index": 0-based column index within the range
+                        - "order": "ASCENDING" (default) or "DESCENDING"
+                        If omitted, sorts by the first column ascending.
+
+        Returns:
+            Result of the batchUpdate operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        indices = _parse_a1_notation(range)
+        col_start = indices.get("startColumnIndex", 0)
+
+        grid_range = {
+            "sheetId": sheet_id,
+            "startRowIndex": indices.get("startRowIndex", 0),
+            "startColumnIndex": col_start,
+        }
+        if "endRowIndex" in indices:
+            grid_range["endRowIndex"] = indices["endRowIndex"]
+        if "endColumnIndex" in indices:
+            grid_range["endColumnIndex"] = indices["endColumnIndex"]
+
+        if sort_order is None:
+            sort_order = [{"column_index": 0, "order": "ASCENDING"}]
+
+        sort_specs = [
+            {
+                "dimensionIndex": col_start + s["column_index"],
+                "sortOrder": s.get("order", "ASCENDING").upper(),
+            }
+            for s in sort_order
+        ]
+
+        return (
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "sortRange": {
+                                "range": grid_range,
+                                "sortSpecs": sort_specs,
+                            }
+                        }
+                    ]
+                },
+            )
+            .execute()
+        )
+
     @tool(annotations=ToolAnnotations(title="Add Chart", destructiveHint=True))
     def add_chart(
         spreadsheet_id: str,
