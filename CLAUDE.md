@@ -34,7 +34,7 @@ Logic is split across `src/mcp_gee_sweet/`: `server.py` (MCP setup, tool decorat
 - `tools/sheets/data.py` — read/write cell data (`get_sheet_data`, `get_sheet_formulas`, `get_multiple_*`, `find_in_spreadsheet`, `clear_values`, `update_cells`, `batch_update_cells`, `batch_update`)
 - `tools/sheets/structure.py` — sheet structure (`list_sheets`, `copy_sheet`, `rename_sheet`, `create_sheet`, `delete_sheet`, `add_rows`, `add_columns`, `delete_rows`, `delete_columns`, `add_chart`)
 - `tools/sheets/helpers.py` — A1 notation helpers (`_parse_a1_notation`, `_column_index_to_letter`, etc.)
-- `tools/drive/files.py` — file/folder operations (`create_spreadsheet`, `list_spreadsheets`, `list_files`, `search_files`, `create_folder`, `copy_file`, `move_file`, `rename_file`, `delete_file`, etc.)
+- `tools/drive/files.py` — file/folder operations (`create_spreadsheet`, `list_spreadsheets`, `list_files`, `search_files`, `create_folder`, `copy_file`, `move_file`, `rename_file`, `delete_file`, `list_shared_with_me`, `list_recent_files`, `get_storage_quota`, etc.)
 - `tools/drive/sharing.py` — permissions (`share_spreadsheet`, `share_file`, `list_permissions`, `update_permission`, `remove_permission`)
 - `tools/drive/transfer.py` — upload/download/sync/export/revisions
 - `tools/docs/` — Google Docs package (`create_doc`, `get_doc_content`, `write_doc_content`, `create_doc_from_file`, `insert_doc_text`, `delete_doc_range`, `get_doc_structure`, `style_doc_range`, `style_doc_table_cells`, `get_doc_theme`, `get_doc_named_styles`, `apply_theme`); sub-modules: `ast.py` (dataclass schema), `html_parser.py` (HTML→AST), `emitter.py` (AST→Docs API requests + multi-phase table fill including nested table and cell styling support)
