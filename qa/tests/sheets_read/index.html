@@ -1660,6 +1660,56 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#get_sheet_data-effectiveformat-assertions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_sheet_data — effectiveFormat assertions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="get_sheet_data — effectiveFormat assertions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-r31-bold-text-format-readable-via-effectiveformat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-R31: Bold text format readable via effectiveFormat
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-r32-background-color-and-italic-readable-via-effectiveformat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-R32: Background color and italic readable via effectiveFormat
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-r33-number-format-and-formattedvalue-readable-via-effectiveformat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-R33: Number format and formattedValue readable via effectiveFormat
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2104,6 +2154,61 @@
 <p><strong>Checks</strong>
 - Returns separate results for Q1, Q2, Q3 in row 1 (each column is its own result)
 - Confirms per-cell result granularity, not per-row</p>
+<hr />
+<h2 id="get_sheet_data-effectiveformat-assertions"><code>get_sheet_data</code> — effectiveFormat assertions<a class="headerlink" href="#get_sheet_data-effectiveformat-assertions" title="Permanent link">&para;</a></h2>
+<p>These tests follow a setup→assert→teardown pattern. Apply format via <code>batch_update</code>, assert via <code>get_sheet_data(include_grid_data=True)</code>, then clear via <code>batch_update { cell: {}, fields: "userEnteredFormat" }</code>.</p>
+<p>See <a href="../../../design/effectiveformat-spike/"><code>docs/design/effectiveformat-spike.md</code></a> for full field reference and RGB precision notes.</p>
+<hr />
+<h3 id="tc-r31-bold-text-format-readable-via-effectiveformat">TC-R31: Bold text format readable via effectiveFormat<a class="headerlink" href="#tc-r31-bold-text-format-readable-via-effectiveformat" title="Permanent link">&para;</a></h3>
+<p><strong>Setup</strong>
+Apply bold to Sales A1 (<code>sheetId=0</code>, row 0, col 0) via <code>batch_update → repeatCell</code>, field mask <code>userEnteredFormat.textFormat.bold</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get Sales A1:A1 from {SPREADSHEET_ID} with include_grid_data=True"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>sheets[0].data[0].rowData[0].values[0].effectiveFormat.textFormat.bold</code> is <code>true</code>
+- <code>formattedValue</code> is <code>"Product"</code> (value unchanged)
+- <code>effectiveFormat.textFormat.italic</code> is <code>false</code> (only bold set)</p>
+<p><strong>Teardown</strong>
+Clear <code>userEnteredFormat</code> from A1 via <code>batch_update → repeatCell { cell: {}, fields: "userEnteredFormat" }</code>.</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- <code>effectiveFormat.textFormat.bold = true</code>, <code>italic = false</code>, <code>formattedValue = "Product"</code></p>
+<hr />
+<h3 id="tc-r32-background-color-and-italic-readable-via-effectiveformat">TC-R32: Background color and italic readable via effectiveFormat<a class="headerlink" href="#tc-r32-background-color-and-italic-readable-via-effectiveformat" title="Permanent link">&para;</a></h3>
+<p><strong>Setup</strong>
+Apply <code>italic=true</code> and <code>backgroundColor={red:1, green:0.9, blue:0.6}</code> to Sales B1 (<code>sheetId=0</code>, row 0, col 1) via <code>batch_update → repeatCell</code>, field mask <code>userEnteredFormat.backgroundColor,userEnteredFormat.textFormat.italic</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get Sales B1:B1 from {SPREADSHEET_ID} with include_grid_data=True"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>effectiveFormat.textFormat.italic</code> is <code>true</code>
+- <code>effectiveFormat.backgroundColor.red</code> ≈ 1.0
+- <code>effectiveFormat.backgroundColor.green</code> ≈ 0.898 (API returns 229/255 ≈ 0.8980392)
+- <code>effectiveFormat.backgroundColor.blue</code> ≈ 0.6
+- <code>effectiveFormat.textFormat.bold</code> is <code>false</code></p>
+<p><strong>Teardown</strong>
+Clear <code>userEnteredFormat</code> from B1.</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- <code>effectiveFormat.textFormat.italic = true</code>, <code>bold = false</code>, <code>backgroundColor = {red:1, green:0.8980392, blue:0.6}</code></p>
+<hr />
+<h3 id="tc-r33-number-format-and-formattedvalue-readable-via-effectiveformat">TC-R33: Number format and formattedValue readable via effectiveFormat<a class="headerlink" href="#tc-r33-number-format-and-formattedvalue-readable-via-effectiveformat" title="Permanent link">&para;</a></h3>
+<p><strong>Setup</strong>
+Apply <code>numberFormat={type:"CURRENCY", pattern:"$#,##0.00"}</code> to Sales B2 (<code>sheetId=0</code>, row 1, col 1) via <code>batch_update → repeatCell</code>, field mask <code>userEnteredFormat.numberFormat</code>. (B2 contains the value 100.)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get Sales B2:B2 from {SPREADSHEET_ID} with include_grid_data=True"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>effectiveFormat.numberFormat.type</code> is <code>"CURRENCY"</code>
+- <code>effectiveFormat.numberFormat.pattern</code> is <code>"$#,##0.00"</code>
+- <code>formattedValue</code> is <code>"$100.00"</code>
+- <code>effectiveValue.numberValue</code> is still <code>100</code> (underlying value unchanged)</p>
+<p><strong>Teardown</strong>
+Clear <code>userEnteredFormat</code> from B2.</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- <code>effectiveFormat.numberFormat = {type:"CURRENCY", pattern:"$#,##0.00"}</code>, <code>formattedValue = "$100.00"</code>, <code>effectiveValue.numberValue = 100</code></p>
 
 
 
