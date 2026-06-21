@@ -285,3 +285,101 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - Summary returns correct data (re-fetched, not stale)
 - Logs show a cache miss followed by a cache store
+
+---
+
+## `delete_sheet`
+
+### TC-S25: Delete an existing sheet tab ⚠️ destructive
+
+**Prompt**
+> "Delete the sheet called 'TempTab' from {SPREADSHEET_ID}"
+
+**Setup:** Create a throwaway tab called 'TempTab' first.
+
+**Checks**
+- 'TempTab' no longer appears in `list_sheets`
+- No `error` field in response
+
+---
+
+### TC-S26: Delete a non-existent sheet returns error
+
+**Prompt**
+> "Delete a sheet called 'DoesNotExist' from {SPREADSHEET_ID}"
+
+**Checks**
+- Response contains `error` field mentioning the sheet name
+- No API call made (no batchUpdate)
+
+---
+
+## `delete_rows`
+
+### TC-S27: Delete a single row ⚠️ destructive
+
+**Prompt**
+> "Delete row 5 (0-based index 4) from the Sales sheet in {SPREADSHEET_ID}"
+
+**Setup:** Confirm rows 4 and 5 (0-based) have known values before deleting.
+
+**Checks**
+- Former row 5 content is gone; row 5 now contains what was row 6
+- Other rows unchanged
+
+---
+
+### TC-S28: Delete a range of rows ⚠️ destructive
+
+**Prompt**
+> "Delete rows 3 through 5 (0-based indices 2–4) from the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- Three rows removed; subsequent rows shift up correctly
+- `startIndex: 2`, `endIndex: 5` in the deleteDimension request
+
+---
+
+### TC-S29: Delete rows — sheet not found returns error
+
+**Prompt**
+> "Delete row 0 from a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"
+
+**Checks**
+- Response contains `error` field
+
+---
+
+## `delete_columns`
+
+### TC-S30: Delete a single column ⚠️ destructive
+
+**Prompt**
+> "Delete column B (0-based index 1) from the Sales sheet in {SPREADSHEET_ID}"
+
+**Setup:** Confirm column B has known content before deleting.
+
+**Checks**
+- Column B content removed; former column C shifts left to become B
+- `dimension: COLUMNS`, `startIndex: 1`, `endIndex: 2`
+
+---
+
+### TC-S31: Delete a range of columns ⚠️ destructive
+
+**Prompt**
+> "Delete columns C through E (0-based indices 2–4) from the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- Three columns removed; columns to the right shift left
+- `startIndex: 2`, `endIndex: 5`
+
+---
+
+### TC-S32: Delete columns — sheet not found returns error
+
+**Prompt**
+> "Delete column 0 from a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"
+
+**Checks**
+- Response contains `error` field

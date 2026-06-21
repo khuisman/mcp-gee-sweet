@@ -338,3 +338,52 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 - `list_sheets` includes 'CacheCheck' — structure cache was invalidated
 - Summary reflects the new sheet — data cache was invalidated
 - Confirms both `cache.mark_dirty` and `sheet_data_cache.mark_dirty` are called
+
+---
+
+## `clear_values`
+
+### TC-W29: Clear a specific range ⚠️ destructive
+
+**Prompt**
+> "Clear the values in cells A1:C5 of the Sales sheet in {SPREADSHEET_ID}, leaving formatting intact"
+
+**Setup:** Confirm A1:C5 has values and formatting before clearing.
+
+**Checks**
+- Cells A1:C5 are empty (no values)
+- Cell formatting (background color, borders, number format) is unchanged
+- No `error` field
+
+---
+
+### TC-W30: Clear entire sheet ⚠️ destructive
+
+**Prompt**
+> "Clear all values from the Notes sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- Sheet is empty (all cells blank)
+- No `error` field
+- Formatting preserved (not a full delete)
+
+---
+
+### TC-W31: Clear values — sheet name with spaces
+
+**Prompt**
+> "Clear cells B2:D4 from the 'Notes & Misc' sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- Range string sent to API is `'Notes & Misc'!B2:D4` (sheet name single-quoted)
+- Values cleared successfully
+
+---
+
+### TC-W32: Clear non-existent range — API behaviour
+
+**Prompt**
+> "Clear cells Z100:Z200 from the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- API returns a `clearedRange` with an adjusted or empty range (no error — the API accepts out-of-bounds ranges)
