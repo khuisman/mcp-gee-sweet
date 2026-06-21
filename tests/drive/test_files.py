@@ -190,3 +190,157 @@ class TestQuotaErrors:
         ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock(), folder_id=None)
         with pytest.raises(HttpError):
             _drive_tools["create_spreadsheet"](title="Test", ctx=ctx)
+
+
+class TestListSharedWithMe:
+    def _drive_service(self, files=None):
+        mock = MagicMock()
+        mock.files.return_value.list.return_value.execute.return_value = {"files": files or []}
+        return mock
+
+    def _list_call_kwargs(self, svc):
+        return svc.files.return_value.list.call_args.kwargs
+
+    def test_query_includes_shared_with_me(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        _drive_tools["list_shared_with_me"](ctx=ctx)
+        kw = self._list_call_kwargs(svc)
+        assert "sharedWithMe=true" in kw["q"]
+        assert "trashed=false" in kw["q"]
+
+    def test_mime_type_filter_added_to_query(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        _drive_tools["list_shared_with_me"](
+            mime_type="application/vnd.google-apps.spreadsheet", ctx=ctx
+        )
+        kw = self._list_call_kwargs(svc)
+        assert "application/vnd.google-apps.spreadsheet" in kw["q"]
+
+    def test_max_results_capped_at_200(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        _drive_tools["list_shared_with_me"](max_results=999, ctx=ctx)
+        assert self._list_call_kwargs(svc)["pageSize"] == 200
+
+    def test_result_shape(self):
+        svc = self._drive_service(
+            files=[
+                {
+                    "id": "fid1",
+                    "name": "Shared Doc",
+                    "mimeType": "application/vnd.google-apps.document",
+                    "modifiedTime": "2026-06-01T00:00:00Z",
+                    "owners": [{"emailAddress": "owner@example.com"}],
+                    "webViewLink": "https://docs.google.com/fid1",
+                }
+            ]
+        )
+        ctx = _make_ctx(drive_service=svc)
+        result = _drive_tools["list_shared_with_me"](ctx=ctx)
+        assert len(result) == 1
+        assert result[0]["id"] == "fid1"
+        assert result[0]["owners"] == ["owner@example.com"]
+
+
+class TestListRecentFiles:
+    def _drive_service(self, files=None):
+        mock = MagicMock()
+        mock.files.return_value.list.return_value.execute.return_value = {"files": files or []}
+        return mock
+
+    def _list_call_kwargs(self, svc):
+        return svc.files.return_value.list.call_args.kwargs
+
+    def test_orders_by_modified_time_desc(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        _drive_tools["list_recent_files"](ctx=ctx)
+        assert self._list_call_kwargs(svc)["orderBy"] == "modifiedTime desc"
+
+    def test_days_filter_adds_modified_time_constraint(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        _drive_tools["list_recent_files"](days=7, ctx=ctx)
+        q = self._list_call_kwargs(svc)["q"]
+        assert "modifiedTime >" in q
+
+    def test_no_days_filter_omits_time_constraint(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        _drive_tools["list_recent_files"](ctx=ctx)
+        q = self._list_call_kwargs(svc)["q"]
+        assert "modifiedTime >" not in q
+
+    def test_max_results_capped_at_100(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        _drive_tools["list_recent_files"](max_results=500, ctx=ctx)
+        assert self._list_call_kwargs(svc)["pageSize"] == 100
+
+    def test_mime_type_filter_applied(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        _drive_tools["list_recent_files"](mime_type="application/pdf", ctx=ctx)
+        assert "application/pdf" in self._list_call_kwargs(svc)["q"]
+
+
+class TestGetStorageQuota:
+    def _drive_service(self, quota=None, user=None):
+        mock = MagicMock()
+        mock.about.return_value.get.return_value.execute.return_value = {
+            "storageQuota": quota
+            or {
+                "limit": "16106127360",
+                "usage": "1073741824",
+                "usageInDrive": "1000000000",
+                "usageInDriveTrash": "73741824",
+            },
+            "user": user
+            or {
+                "emailAddress": "test@example.com",
+                "displayName": "Test User",
+            },
+        }
+        return mock
+
+    def test_returns_byte_values_as_integers(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        result = _drive_tools["get_storage_quota"](ctx=ctx)
+        assert isinstance(result["limit_bytes"], int)
+        assert isinstance(result["usage_bytes"], int)
+        assert result["limit_bytes"] == 16106127360
+
+    def test_no_limit_key_returns_none(self):
+        svc = self._drive_service(
+            quota={"usage": "0", "usageInDrive": "0", "usageInDriveTrash": "0"}
+        )
+        ctx = _make_ctx(drive_service=svc)
+        result = _drive_tools["get_storage_quota"](ctx=ctx)
+        assert result["limit_bytes"] is None
+
+    def test_limit_zero_string_returns_zero(self):
+        # SA accounts: Drive API returns "0" (not absent), which casts to int 0
+        svc = self._drive_service(
+            quota={"limit": "0", "usage": "0", "usageInDrive": "0", "usageInDriveTrash": "0"}
+        )
+        ctx = _make_ctx(drive_service=svc)
+        result = _drive_tools["get_storage_quota"](ctx=ctx)
+        assert result["limit_bytes"] == 0
+
+    def test_includes_user_info(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        result = _drive_tools["get_storage_quota"](ctx=ctx)
+        assert result["email"] == "test@example.com"
+        assert result["display_name"] == "Test User"
+
+    def test_requests_correct_fields(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        _drive_tools["get_storage_quota"](ctx=ctx)
+        fields_arg = svc.about.return_value.get.call_args.kwargs["fields"]
+        assert "storageQuota" in fields_arg
+        assert "user" in fields_arg
