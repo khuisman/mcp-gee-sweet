@@ -1,7 +1,7 @@
 [project]
 name = "mcp-gee-sweet"
 dynamic = ["version"]
-description = "This MCP server integrates with your Google Drive and Google Sheets, to enable creating and modifying spreadsheets."
+description = "MCP server for Google Workspace — Sheets, Drive, Docs, and Calendar. 60+ tools for AI clients."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -17,8 +17,8 @@ dependencies = [
     "python-multipart>=0.0.31",
 ]
 [[project.authors]]
-name = "Xing Wu"
-email = "xingwu.cs@gmail.com"
+name = "Kevin Huisman"
+email = "khuisman@users.noreply.github.com"
 
 [project.urls]
 "Homepage" = "https://github.com/khuisman/mcp-gee-sweet"
@@ -34,7 +34,7 @@ source = "uv-dynamic-versioning"
 
 [tool.uv-dynamic-versioning]
 pattern = "default"
-strict = true
+strict = false
 fallback-version = "0.0.0"
 
 [project.scripts]
