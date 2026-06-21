@@ -12,6 +12,7 @@ from mcp_gee_sweet.tools.docs import (
     _html_to_text,
     _md_to_html,
     _read_body_styles,
+    _read_named_styles,
     _to_doc_requests,
 )
 from mcp_gee_sweet.tools.docs.ast import (
@@ -1684,6 +1685,54 @@ class TestThemeHelpers:
     def test_build_named_style_requests_empty_entry_returns_empty(self):
         assert _build_named_style_requests("NORMAL_TEXT", {}) == []
 
+    def test_read_named_styles_extracts_fields(self):
+        doc = {
+            "namedStyles": {
+                "styles": [
+                    {
+                        "namedStyleType": "HEADING_1",
+                        "textStyle": {
+                            "weightedFontFamily": {"fontFamily": "Arial"},
+                            "fontSize": {"magnitude": 20.0, "unit": "PT"},
+                            "bold": True,
+                        },
+                        "paragraphStyle": {
+                            "lineSpacing": 115,
+                            "spaceAbove": {"magnitude": 12.0, "unit": "PT"},
+                        },
+                    }
+                ]
+            }
+        }
+        theme = _read_named_styles(doc)
+        assert "HEADING_1" in theme
+        h1 = theme["HEADING_1"]
+        assert h1["font_family"] == "Arial"
+        assert h1["font_size"] == 20.0
+        assert h1["bold"] is True
+        assert h1["line_spacing"] == 115
+        assert h1["space_above"] == 12.0
+
+    def test_read_named_styles_unknown_type_ignored(self):
+        doc = {
+            "namedStyles": {
+                "styles": [
+                    {"namedStyleType": "DEFAULT_PARAGRAPH_STYLE", "textStyle": {"bold": True}}
+                ]
+            }
+        }
+        theme = _read_named_styles(doc)
+        assert "DEFAULT_PARAGRAPH_STYLE" not in theme
+
+    def test_read_named_styles_empty_entry_omitted(self):
+        doc = {
+            "namedStyles": {
+                "styles": [{"namedStyleType": "HEADING_1", "textStyle": {}, "paragraphStyle": {}}]
+            }
+        }
+        theme = _read_named_styles(doc)
+        assert "HEADING_1" not in theme
+
 
 # ---------------------------------------------------------------------------
 # apply_theme / get_doc_theme tools
@@ -1803,3 +1852,26 @@ class TestApplyThemeTool:
         result = tools["get_doc_theme"](doc_id="doc123", ctx=ctx)
         assert "HEADING_1" in result
         assert result["HEADING_1"]["font_family"] == "Arial"
+
+    def test_get_doc_named_styles_returns_named_style_dict(self):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "namedStyles": {
+                "styles": [
+                    {
+                        "namedStyleType": "HEADING_1",
+                        "textStyle": {
+                            "weightedFontFamily": {"fontFamily": "Georgia"},
+                            "fontSize": {"magnitude": 20.0, "unit": "PT"},
+                        },
+                        "paragraphStyle": {},
+                    }
+                ]
+            }
+        }
+        ctx = _make_ctx(docs_service=mock_docs)
+        result = tools["get_doc_named_styles"](doc_id="doc123", ctx=ctx)
+        assert "HEADING_1" in result
+        assert result["HEADING_1"]["font_family"] == "Georgia"
+        assert result["HEADING_1"]["font_size"] == 20.0

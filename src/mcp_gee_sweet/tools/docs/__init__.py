@@ -139,6 +139,48 @@ def _read_body_styles(doc: dict) -> dict:
     return theme
 
 
+def _read_named_styles(doc: dict) -> dict:
+    """Read a theme dict from a doc's namedStyles defaults.
+
+    Returns what was set via Format > Paragraph styles > Update X to match in the
+    Google Docs UI. For docs where styles were applied directly to paragraphs without
+    updating named styles, this will reflect Google's defaults rather than the doc's
+    actual appearance — use _read_body_styles in that case.
+    """
+    theme: dict = {}
+    for style in doc.get("namedStyles", {}).get("styles", []):
+        style_type = style.get("namedStyleType")
+        if style_type not in _NAMED_STYLE_TYPES:
+            continue
+        entry: dict = {}
+        ts = style.get("textStyle", {})
+        ff = ts.get("weightedFontFamily", {}).get("fontFamily")
+        if ff:
+            entry["font_family"] = ff
+        fs = ts.get("fontSize", {}).get("magnitude")
+        if fs is not None:
+            entry["font_size"] = fs
+        if "bold" in ts:
+            entry["bold"] = ts["bold"]
+        if "italic" in ts:
+            entry["italic"] = ts["italic"]
+        rgb = ts.get("foregroundColor", {}).get("color", {}).get("rgbColor")
+        if rgb:
+            entry["color"] = {k: rgb[k] for k in ("red", "green", "blue") if k in rgb}
+        ps = style.get("paragraphStyle", {})
+        if "lineSpacing" in ps:
+            entry["line_spacing"] = ps["lineSpacing"]
+        space_above = ps.get("spaceAbove", {}).get("magnitude")
+        if space_above is not None:
+            entry["space_above"] = space_above
+        space_below = ps.get("spaceBelow", {}).get("magnitude")
+        if space_below is not None:
+            entry["space_below"] = space_below
+        if entry:
+            theme[style_type] = entry
+    return theme
+
+
 def _build_named_style_requests(style_type: str, entry: dict) -> list[dict]:
     """Build an updateNamedStyle batchUpdate request for one named style type.
 
@@ -998,13 +1040,19 @@ def register(tool):
         Subsequent paragraphs of the same named style type that differ in style are
         ignored — they are treated as intentional individual overrides outside the theme.
 
+        Use this tool when styles were applied directly to paragraphs (the common case).
+        Use get_doc_named_styles instead when the human explicitly set named style defaults
+        via Format > Paragraph styles > Update X to match in the Google Docs UI. Calling
+        both and comparing results lets you detect whether explicit named styles are in use.
+
         The returned dict is suitable for passing directly to apply_theme.
 
         Args:
             doc_id: The Google Doc file ID.
 
         Returns:
-            Theme dict keyed by named style type.
+            Theme dict keyed by named style type. Empty dict if no explicit paragraph
+            styles are found (e.g. the doc uses purely inherited named style defaults).
         """
         lc = ctx.request_context.lifespan_context
         try:
@@ -1012,6 +1060,43 @@ def register(tool):
         except Exception as e:
             return {"error": str(e)}
         return _read_body_styles(doc)
+
+    @tool(annotations=ToolAnnotations(title="Get Document Named Styles"))
+    def get_doc_named_styles(
+        doc_id: str,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Read a Google Doc's named style defaults and return them as a theme dict.
+
+        Named styles are set via Format > Paragraph styles > Update X to match in the
+        Google Docs UI. They define the default appearance for each style type and are
+        inherited by paragraphs that have no explicit overrides.
+
+        Most docs leave named styles at Google's defaults even when paragraphs look
+        custom — because humans usually format text directly without updating named styles.
+        In that case this tool returns Google's defaults (Arial/Roboto etc.), which may
+        not reflect the doc's actual appearance. Use get_doc_theme to read what the doc
+        actually looks like based on applied paragraph styles.
+
+        Calling both tools and comparing results is useful: if they agree, named styles
+        are in sync with actual content; if they differ, styles were applied directly to
+        paragraphs without updating named style definitions.
+
+        Args:
+            doc_id: The Google Doc file ID.
+
+        Returns:
+            Theme dict keyed by named style type. Only entries with at least one
+            non-default field are included. Returns an empty dict if named styles
+            are at Google's defaults.
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            doc = lc.docs_service.documents().get(documentId=doc_id).execute()
+        except Exception as e:
+            return {"error": str(e)}
+        return _read_named_styles(doc)
 
     @tool(annotations=ToolAnnotations(title="Apply Document Theme", destructiveHint=True))
     def apply_theme(

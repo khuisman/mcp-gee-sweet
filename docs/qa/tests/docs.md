@@ -881,3 +881,18 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - No `error` in either result
 
 **Result (2026-06-20) ✅ PASS** After `apply_theme overwrite=True` (Georgia HEADING_1, Roboto NORMAL_TEXT) on the test doc, `get_doc_theme` returned `{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}`. Applying that theme back → `requests: 2` (one `updateNamedStyle` per key). No error. (font_size/bold not in round-trip because API normalises them to inherited when they match the named style default.)
+
+---
+
+### TC-D207: `get_doc_named_styles` reads named style defaults set via the Docs UI
+**Note:** Named styles are only populated when the user explicitly goes to Format > Paragraph styles > Update X to match. Most docs leave named styles at Google's defaults — this tool returns empty or near-empty for those docs. Use `get_doc_theme` to read actual paragraph appearance instead.
+
+**Prompt**
+> "Call `get_doc_named_styles` on doc {DOC_ID} and show me the result."
+
+**Checks**
+- No `error` key in result
+- For a doc where named styles were explicitly set: returns a non-empty dict with named style type keys
+- For a standard doc: may return `{}` or only Google's default entries (expected, not an error)
+
+**Result (2026-06-20) ✅ PASS** Called on a doc that had `apply_theme` previously applied (Georgia HEADING_1/H2, Roboto NORMAL_TEXT). Returned 9 entries: NORMAL_TEXT (Roboto 11pt, line_spacing 115), HEADING_1 (Georgia 24pt bold, space_above 20), HEADING_2 (Georgia 18pt, space_above 18), HEADING_3–6 (Google defaults with font sizes and colors), TITLE, SUBTITLE. Confirms `apply_theme` default mode successfully writes to named styles, and `get_doc_named_styles` reads them back correctly. No error.
