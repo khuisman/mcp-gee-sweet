@@ -1926,6 +1926,72 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-d203-get_doc_theme-scans-body-paragraph-styles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D203: get_doc_theme scans body paragraph styles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d204-apply_theme-updates-named-style-definitions-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D204: apply_theme updates named style definitions ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d204b-apply_theme-with-overwritetrue-also-patches-existing-paragraphs-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D204b: apply_theme with overwrite=True also patches existing paragraphs ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d205-apply_theme-with-table-styling-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D205: apply_theme with table styling ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d206-get_doc_theme-apply_theme-round-trip-on-an-ai-generated-doc-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D206: get_doc_theme → apply_theme round-trip on an AI-generated doc ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d207-get_doc_named_styles-reads-named-style-defaults-set-via-the-docs-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D207: get_doc_named_styles reads named style defaults set via the Docs UI
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2821,6 +2887,79 @@
 <hr />
 <h3 id="tc-d202-nested-tables-not-supported-in-markdown-documented-limitation">TC-D202: Nested tables not supported in markdown (documented limitation)<a class="headerlink" href="#tc-d202-nested-tables-not-supported-in-markdown-documented-limitation" title="Permanent link">&para;</a></h3>
 <p><strong>Note:</strong> The markdown pipeline does not produce nested tables — the <code>markdown</code> library does not support table-in-table syntax. Users who need nested tables must supply raw HTML via <code>content_format='html'</code>. No test to run; this entry documents the known limitation.</p>
+<hr />
+<h3 id="tc-d203-get_doc_theme-scans-body-paragraph-styles">TC-D203: <code>get_doc_theme</code> scans body paragraph styles<a class="headerlink" href="#tc-d203-get_doc_theme-scans-body-paragraph-styles" title="Permanent link">&para;</a></h3>
+<p><strong>Note:</strong> <code>get_doc_theme</code> reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call <code>get_doc_theme</code> on doc {DOC_ID} and show me the result."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- No <code>error</code> key in result
+- For a doc with explicit paragraph styles: returns a dict with at least one named style type key; each entry has at least one of font_family, font_size, bold, italic, color, line_spacing, space_above, space_below
+- For a doc with purely inherited styles: result is an empty dict <code>{}</code> (expected, not an error)</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong> Called on a test doc created with <code>create_doc</code> (markdown content — inherited styles): returned <code>{}</code>. Called on the same doc after <code>apply_theme overwrite=True</code> (Georgia HEADING_1, Roboto NORMAL_TEXT): returned <code>{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}</code>. <code>font_size</code> and <code>bold</code> are not returned because the Docs API normalises explicit overrides that match the named style default back to inherited. No error key in either case.</p>
+<hr />
+<h3 id="tc-d204-apply_theme-updates-named-style-definitions-destructive">TC-D204: <code>apply_theme</code> updates named style definitions ⚠️ destructive<a class="headerlink" href="#tc-d204-apply_theme-updates-named-style-definitions-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Note:</strong> Default mode (<code>overwrite=False</code>) emits <code>updateNamedStyle</code> requests — one per named style key — updating the document's style defaults. Existing paragraphs with explicit overrides are unaffected. No doc fetch is needed. Use <code>overwrite=True</code> to also apply directly to all existing paragraphs.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Apply theme <code>{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}</code> to doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Result contains <code>docId</code> and <code>requests &gt; 0</code>
+- No <code>error</code> key
+- <code>requests</code> equals the number of named style keys in the theme (one <code>updateNamedStyle</code> per key)</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong> Called with HEADING_1 + HEADING_2 + NORMAL_TEXT → <code>{"docId": "...", "requests": 3}</code>. Each emitted one <code>updateNamedStyle</code> request with snake_case field mask (<code>named_style_type,text_style.weighted_font_family,text_style.font_size</code>). No error. Live API accepted all three requests.</p>
+<hr />
+<h3 id="tc-d204b-apply_theme-with-overwritetrue-also-patches-existing-paragraphs-destructive">TC-D204b: <code>apply_theme</code> with <code>overwrite=True</code> also patches existing paragraphs ⚠️ destructive<a class="headerlink" href="#tc-d204b-apply_theme-with-overwritetrue-also-patches-existing-paragraphs-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write <code>&lt;h1&gt;Heading One&lt;/h1&gt;&lt;p&gt;Normal body text.&lt;/p&gt;</code> to doc {DOC_ID}, then apply theme <code>{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}</code> with overwrite=True"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Result contains <code>docId</code> and <code>requests &gt; 0</code>
+- <code>requests</code> &gt; number of named style keys (named style updates + per-paragraph updates)
+- No <code>error</code> key
+- 🔍 Visual check: HEADING_1 paragraph visually in Georgia 22pt, body in Verdana 11pt</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong> Called with HEADING_1 + NORMAL_TEXT on a doc with HEADING_1, HEADING_2 (×2), HEADING_3, NORMAL_TEXT (×4) paragraphs → <code>{"docId": "...", "requests": 7}</code> (2 <code>updateNamedStyle</code> + 5 <code>updateTextStyle</code> for matching paragraphs). No error.</p>
+<hr />
+<h3 id="tc-d205-apply_theme-with-table-styling-destructive">TC-D205: <code>apply_theme</code> with table styling ⚠️ destructive<a class="headerlink" href="#tc-d205-apply_theme-with-table-styling-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prerequisite:</strong> doc must contain at least one table (write one with <code>write_doc_content</code> first if needed)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Apply this theme to doc {DOC_ID}: <code>{"table": {"border_color": {"red": 0, "green": 0, "blue": 0}, "border_width": 0.5, "border_dash_style": "SOLID", "cell_padding": 3.6, "header_background": {"red": 0.953, "green": 0.953, "blue": 0.953}}}</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Result contains <code>docId</code> and <code>requests &gt; 0</code>
+- 🔍 Visual check: table cells have thin black border, 3.6pt padding, first row has light grey background</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong> Wrote 2-row table, applied table theme → <code>requests: 2</code> (one updateTableCellStyle per row; row 0 got header_background + padding + borders, row 1 got padding + borders). No error. Fixture restored.</p>
+<hr />
+<h3 id="tc-d206-get_doc_theme-apply_theme-round-trip-on-an-ai-generated-doc-destructive">TC-D206: <code>get_doc_theme</code> → <code>apply_theme</code> round-trip on an AI-generated doc ⚠️ destructive<a class="headerlink" href="#tc-d206-get_doc_theme-apply_theme-round-trip-on-an-ai-generated-doc-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Note:</strong> Round-trip only produces meaningful output on docs where styles are explicit (AI-generated). For standard inherited-style docs, <code>get_doc_theme</code> returns <code>{}</code> and <code>apply_theme</code> with an empty theme returns an error.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write styled content to doc {DOC_ID} with explicit font overrides, then read the theme with <code>get_doc_theme</code>, then apply it back with <code>apply_theme overwrite=True</code>. Show me both results."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>get_doc_theme</code> returns a non-empty dict (at least one named style key with at least one field)
+- <code>apply_theme</code> returns <code>requests &gt; 0</code>
+- No <code>error</code> in either result</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong> After <code>apply_theme overwrite=True</code> (Georgia HEADING_1, Roboto NORMAL_TEXT) on the test doc, <code>get_doc_theme</code> returned <code>{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}</code>. Applying that theme back → <code>requests: 2</code> (one <code>updateNamedStyle</code> per key). No error. (font_size/bold not in round-trip because API normalises them to inherited when they match the named style default.)</p>
+<hr />
+<h3 id="tc-d207-get_doc_named_styles-reads-named-style-defaults-set-via-the-docs-ui">TC-D207: <code>get_doc_named_styles</code> reads named style defaults set via the Docs UI<a class="headerlink" href="#tc-d207-get_doc_named_styles-reads-named-style-defaults-set-via-the-docs-ui" title="Permanent link">&para;</a></h3>
+<p><strong>Note:</strong> Named styles are only populated when the user explicitly goes to Format &gt; Paragraph styles &gt; Update X to match. Most docs leave named styles at Google's defaults — this tool returns empty or near-empty for those docs. Use <code>get_doc_theme</code> to read actual paragraph appearance instead.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call <code>get_doc_named_styles</code> on doc {DOC_ID} and show me the result."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- No <code>error</code> key in result
+- For a doc where named styles were explicitly set: returns a non-empty dict with named style type keys
+- For a standard doc: may return <code>{}</code> or only Google's default entries (expected, not an error)</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong> Called on a doc that had <code>apply_theme</code> previously applied (Georgia HEADING_1/H2, Roboto NORMAL_TEXT). Returned 9 entries: NORMAL_TEXT (Roboto 11pt, line_spacing 115), HEADING_1 (Georgia 24pt bold, space_above 20), HEADING_2 (Georgia 18pt, space_above 18), HEADING_3–6 (Google defaults with font sizes and colors), TITLE, SUBTITLE. Confirms <code>apply_theme</code> default mode successfully writes to named styles, and <code>get_doc_named_styles</code> reads them back correctly. No error.</p>
 
 
 

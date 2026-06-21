@@ -2,142 +2,146 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/auth/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/client-setup/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/configuration/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/design/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/notes-read/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa-checklist/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/roadmap/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/tools/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/decisions/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/decisions/decision-chart-theming/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/decisions/decision-composite-tools/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/decisions/decision-docs-formatting/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/decisions/decision-fork/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/decisions/decision-publishing/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/decisions/decision-testing/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/design/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/design/docs-ast-pipeline/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/design/markdown-support/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
+    </url>
+    <url>
+         <loc>https://khuisman.github.io/mcp-gee-sweet/design/phase3-theme-system/</loc>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/fixtures.template/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/run/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/setup/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/results/2026-06-02/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/results/2026-06-14/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/results/2026-06-17/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/results/2026-06-18/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/tests/calendar/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/tests/docs/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/tests/drive/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/tests/infra/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/tests/sheets_charts/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/tests/sheets_mgmt/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/tests/sheets_read/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
     <url>
          <loc>https://khuisman.github.io/mcp-gee-sweet/qa/tests/sheets_write/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-06-21</lastmod>
     </url>
 </urlset>
