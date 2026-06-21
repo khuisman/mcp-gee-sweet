@@ -36,6 +36,8 @@ source = "uv-dynamic-versioning"
 pattern = "default"
 strict = false
 fallback-version = "0.0.0"
+# omit local git hash (+abc1234) — PyPI rejects local version identifiers (PEP 440)
+format-jinja = "{% if distance == 0 %}{{ base }}{% else %}{{ base }}.dev{{ distance }}{% endif %}"
 
 [project.scripts]
 mcp-gee-sweet = "mcp_gee_sweet:main"
