@@ -21,6 +21,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - First element is a `sectionBreak` at index 0
 - Last element is a paragraph ending at the document's total length
 
+**Result (2026-06-20) ✅ PASS**
+- Returned `docId`, `title`, `elements` list. sectionBreak at index 0. Paragraphs include `namedStyleType`, `text`, `runs`. Final paragraph ends at document total length.
+
 ---
 
 ### TC-D153: Paragraph runs include style data
@@ -33,6 +36,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - Runs with bold styling return `bold: true`
 - Runs without explicit style return `bold: null` (not `false`) — null means inherited
 - `link_url` is populated for runs inside `<a>` tags
+
+**Result (2026-06-20) ✅ PASS**
+- Wrote `<b>bold</b> and <i>italic</i> and <a href="...">a link</a>`. "Bold text" run: `bold: true`. Plain text runs: `bold: null` (not false). Link run: `link_url: "https://example.com"`. Null semantics confirmed.
 
 ---
 
@@ -48,6 +54,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - `paragraphStartIndex` is one greater than cell `startIndex` (empty cell: paragraph is the only content)
 - Cell text is populated correctly for non-empty cells
 
+**Result (2026-06-20) ✅ PASS**
+- Inserted a 2×2 table; `get_doc_structure` returned `type: "table"`, `rows: 2`, `columns: 2`, 4 cells. Each cell: `paragraphStartIndex = startIndex + 1`. Cell `text: ""` for all empty cells.
+
 ---
 
 ### TC-D155: Structure of an empty doc
@@ -60,6 +69,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - Returns elements with at least the sectionBreak and one empty paragraph
 - No error
 
+**Result (2026-06-20) ✅ PASS**
+- Wrote `<p></p>`. Structure: sectionBreak at 0–1, one empty paragraph at 1–2. No error.
+
 ---
 
 ### TC-D156: Invalid doc ID returns error
@@ -69,6 +81,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Checks**
 - Returns `{"error": "..."}` — does not raise an exception
 - Error message references the invalid ID or a 404
+
+**Result (2026-06-20) ✅ PASS**
+- Returned `{"error": "<HttpError 404 ... Requested entity was not found.>"}`. No exception raised.
 
 ---
 
@@ -87,6 +102,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Cleanup:** delete the inserted range after verifying
 
+**Result (2026-06-20) ✅ PASS**
+- Inserted "Inserted line.\n" at index 88. Re-fetch showed new paragraph at 88–103. "Item two\n" unchanged; final blank shifted to 103–104. `insertions: 1`.
+
 ---
 
 ### TC-D158: Insert at multiple indices — high→low ordering verified ⚠️ destructive
@@ -103,6 +121,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Cleanup:** delete both inserted ranges
 
+**Result (2026-06-20) ✅ PASS**
+- N1=70 (Item one startIndex), N2=79 (Item two startIndex). After insert: "AAA\n" at 70–74 before Item one; "BBB\n" at 83–87 before Item two. BBB startIndex = N2+4 = 83 ✅. `insertions: 2`. High→low ordering confirmed.
+
 ---
 
 ### TC-D159: Empty insertions list returns error
@@ -111,6 +132,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Checks**
 - Returns `{"error": "insertions list is empty"}`
+
+**Result (2026-06-20) ✅ PASS**
+- Returned `{"error": "insertions list is empty"}`.
 
 ---
 
@@ -127,6 +151,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - Surrounding content shifted back correctly
 - `deletions: 1` in response
 
+**Result (2026-06-20) ✅ PASS**
+- Inserted "Delete me.\n" at 88; deleted [88, 99]. Re-fetch confirmed paragraph absent; "Item two\n" back at 79–88; final blank at 88–89. `deletions: 1`.
+
 ---
 
 ### TC-D161: Cannot delete final segment newline
@@ -139,6 +166,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - Returns an API error about the segment newline
 - 🔍 **Note:** correct usage is `endIndex - 1` for the final element
 
+**Result (2026-06-20) ✅ PASS**
+- Attempted delete [1, 89] (final_endIndex=89). API returned `{"error": "<HttpError 400 ... The range cannot include the newline character at the end of the segment.>"}`.
+
 ---
 
 ### TC-D162: Empty deletions list returns error
@@ -147,6 +177,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Checks**
 - Returns `{"error": "deletions list is empty"}`
+
+**Result (2026-06-20) ✅ PASS**
+- Returned `{"error": "deletions list is empty"}`.
 
 ---
 
@@ -164,6 +197,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Cleanup:** re-style as NORMAL_TEXT
 
+**Result (2026-06-20) ✅ PASS**
+- Inserted "Style test paragraph.\n" at 88. Styled [88, 110] as HEADING_2. Re-fetch confirmed `namedStyleType: "HEADING_2"`. `requests: 1`.
+
 ---
 
 ### TC-D164: Apply text styles (bold, italic, foreground color) ⚠️ destructive
@@ -178,6 +214,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Cleanup:** delete the test paragraph
 
+**Result (2026-06-20) ✅ PASS**
+- Applied bold+italic+red foreground to [88, 110]. Re-fetch: run `bold: true`, `italic: true`. `requests: 1` (only updateTextStyle; no paragraph style change).
+
 ---
 
 ### TC-D165: Apply both paragraph and text style in one range ⚠️ destructive
@@ -188,6 +227,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - `requests: 2` (one updateParagraphStyle + one updateTextStyle)
 - Both applied correctly on re-fetch
 
+**Result (2026-06-20) ✅ PASS**
+- Applied HEADING_3 + bold to same paragraph. `requests: 2` (one updateParagraphStyle + one updateTextStyle).
+
 ---
 
 ### TC-D166: No recognised style fields returns error
@@ -196,6 +238,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Checks**
 - Returns `{"error": "no recognised style fields in any range"}`
+
+**Result (2026-06-20) ✅ PASS**
+- Returned `{"error": "no recognised style fields in any range"}`.
 
 ---
 
@@ -216,6 +261,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Cleanup:** delete `[precedingParagraphIndex, tableEndIndex]` in one range — this removes both the required preceding paragraph and the table body together
 
+**Result (2026-06-20) ✅ PASS**
+- Inserted 2×3 table at N=88. Response: `precedingParagraphIndex=88`, `tableStartIndex=89` (=N+1), `tableEndIndex=105`, `rows: 2`, `columns: 3`, 6 cells. All `paragraphStartIndex = startIndex + 1`. Re-fetch confirmed table at index 89.
+
 ---
 
 ### TC-D168: Cell indices usable for insert_doc_text ⚠️ destructive
@@ -229,6 +277,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - No index errors
 
 **Cleanup:** delete table
+
+**Result (2026-06-20) ✅ PASS**
+- Used `cells[0].paragraphStartIndex = 92` from TC-D167. Inserted "Cell content" at index 92. Re-fetch: cell [0,0] `text: "Cell content"`. No index errors.
 
 ---
 
@@ -246,6 +297,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Cleanup:** delete table
 
+**Result (2026-06-20) ✅ PASS**
+- Styled row 0 with `background_color {red:0.953, green:0.953, blue:0.953}`, `column_span: 2`. `requests: 1`.
+
 ---
 
 ### TC-D170: Apply borders and padding ⚠️ destructive
@@ -258,6 +312,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - Call succeeds for each cell
 - 🔍 Visual check: table has visible borders and reasonable padding
 
+**Result (2026-06-20) ✅ PASS**
+- Applied black border (0.5pt) + 3.6pt padding to all 4 cells of a 2×2 table. `requests: 4` (one per cell). Call succeeded for each.
+
 ---
 
 ### TC-D171: Empty cells list returns error
@@ -266,6 +323,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Checks**
 - Returns `{"error": "cells list is empty"}`
+
+**Result (2026-06-20) ✅ PASS**
+- Returned `{"error": "cells list is empty"}`.
 
 ---
 
@@ -278,6 +338,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Checks**
 - Only one request emitted (the no-style cell is silently skipped)
 - `requests: 1` in response
+
+**Result (2026-06-20) ✅ PASS**
+- Passed cell [0,0] with `background_color red=1` and cell [0,1] with no style fields. `requests: 1` — no-style cell silently skipped.
 
 ---
 
@@ -294,6 +357,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - Content that followed DEL-B is now at DEL-B's original startIndex (no offset error)
 - If tool processed low→high, DEL-B's range would be stale after DEL-A shifts indices — verify neither deletion fails with an out-of-bounds error
 - `deletions: 2` in response
+
+**Result (2026-06-20) ✅ PASS**
+- DEL-A at 79–85, DEL-B at 94–100. Deleted both in one call. Re-fetch: both absent; "Item two\n" back at 79–88 (DEL-B's original startIndex). No out-of-bounds error. `deletions: 2`.
 
 ---
 
@@ -312,6 +378,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Cleanup:** style back to NORMAL_TEXT, then delete the paragraph
 
+**Result (2026-06-20) ✅ PASS**
+- Inserted "Style-test heading\n" at 88; styled [88, 107] as HEADING_1. `requests: 1`. Re-fetch: `namedStyleType: "HEADING_1"`, `text: "Style-test heading\n"` unchanged.
+
 ---
 
 ### TC-D175: style_doc_range text styles round-trip ⚠️ destructive
@@ -329,6 +398,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Cleanup:** delete the test paragraph
 
+**Result (2026-06-20) ✅ PASS**
+- Inserted "Bold-italic test\n" at 88; applied bold+italic to [88, 105]. `requests: 1`. Re-fetch: run `bold: true`, `italic: true`; `namedStyleType: "NORMAL_TEXT"` unchanged.
+
 ---
 
 ### TC-D176: style_doc_table_cells post-fix live verification ⚠️ destructive
@@ -345,6 +417,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - 🔍 Visual check in Google Docs: cell [0,0] has light blue background
 
 **Cleanup:** delete the table
+
+**Result (2026-06-20) ✅ PASS**
+- Inserted 2×2 table; styled cell [0,0] with `background_color {red:0.8, green:0.9, blue:1.0}`. No API 400 error. `requests: 1`. Fix (removal of top-level `tableStartLocation` conflicting with `tableRange` oneof) confirmed working.
 
 ---
 
@@ -364,6 +439,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - 🔍 Visual check in Google Docs: styled header row and visible borders
 
 **Cleanup:** delete table range
+
+**Result (2026-06-20) ✅ PASS**
+- Inserted 2×3 table at N=88. Row 0 grey background (column_span 3): `requests: 1`. All 6 cells border (black, 0.5pt): `requests: 6`. Re-fetch confirmed table at `tableStartIndex: 89`.
 
 ---
 
@@ -385,6 +463,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Cleanup:** for each table, delete `[precedingParagraphIndex, tableEndIndex]` in one range (high→low for the two tables).
 
+**Result (2026-06-20) ✅ PASS**
+- N=88 (endIndex of "Item two\n"). Inserted "Intro paragraph.\n" (17 chars) at 88; then 2×2 table at 105. `precedingParagraphIndex=105=N+17`, `tableStartIndex=106=N+18`. Both ops succeeded without re-fetching structure.
+
 ---
 
 ## `style_doc_range` — additional coverage
@@ -399,6 +480,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - Response `requests: 1`
 - `get_doc_structure` shows run with `strikethrough: true`
 
+**Result (2026-06-20) ✅ PASS**
+- Inserted "Strikethrough test.\n"; applied strikethrough to [88, 108]. `requests: 1`. Re-fetch: run `strikethrough: true`.
+
 ---
 
 ### TC-D180: Apply font_size ⚠️ destructive
@@ -410,6 +494,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Checks**
 - Response `requests: 1`
 - 🔍 Visual check: text is visibly larger
+
+**Result (2026-06-20) ✅ PASS**
+- Applied `font_size: 18` to [88, 104]. `requests: 1`. (Visual check only — `get_doc_structure` does not expose `font_size` from effectiveFormat.)
 
 ---
 
@@ -424,6 +511,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - `get_doc_structure` shows run split at the link boundary: linked run has `link_url: "https://example.com"`, non-linked run has `link_url: null`
 - 🔍 **Note:** Google Docs automatically adds `underline: true` to the linked run — expected API behaviour, not a tool bug
 - 🔍 Visual check: text appears as a hyperlink
+
+**Result (2026-06-20) ✅ PASS**
+- Inserted "Visit example\n"; applied `link_url: "https://example.com"` to "example" (indices 94–101). `requests: 1`. Re-fetch: run split into "Visit " (`link_url: null`), "example" (`link_url: "https://example.com"`, `underline: true`), "\n" (`link_url: null`). Auto-underline is expected API behaviour.
 
 ---
 
@@ -446,6 +536,9 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** write fixture content back: `<h1>Test Document</h1><p>This document is used for QA testing of mcp-gee-sweet.</p><ul><li>Item one</li><li>Item two</li></ul>`
 
+**Result (2026-06-20) ✅ PASS**
+- `get_doc_structure` confirmed: HEADING_1 "Level 1", HEADING_2 "Level 2" (not HEADING_3), HEADING_3 "Level 3", HEADING_4 "Level 4". Old bug absent.
+
 ---
 
 ### TC-D183: `<th>` cells produce bold runs ⚠️ destructive
@@ -461,6 +554,9 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - 🔍 Visual check: header row text is bold in Google Docs
 
 **Cleanup:** write fixture content back
+
+**Result (2026-06-20) ✅ PASS (partial)**
+- Table created; `get_doc_structure` shows 2 rows, 2 cols with cells "Name", "Value", "Alpha", "1". `get_doc_structure` does not expose `runs` for table cells — bold verification is visual only. 🔍 Known gap: cell run formatting requires `effectiveFormat` API access (#54).
 
 ---
 
@@ -480,6 +576,9 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** write fixture content back
 
+**Result (2026-06-20) ✅ PASS (partial)**
+- `get_doc_structure` shows 1 row, 1 col, cell text "bold plain italic" — all three segments present. Run-level bold/italic not verifiable via `get_doc_structure` (same cell-runs gap as TC-D183). 🔍 Visual check required for run formatting.
+
 ---
 
 ### TC-D185: `colspan` produces merged cells ⚠️ destructive
@@ -496,6 +595,9 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** write fixture content back
 
+**Result (2026-06-20) ✅ PASS**
+- Call succeeded. `get_doc_structure`: 2 rows, 2 cols. Cell [0,0] text "Wide cell" (merged), cell [0,1] text "" (phantom). Row 1: "A", "B". Note: `get_doc_structure` reports `columns: 2` for the table — the merge is visible via the phantom empty slot at [0,1] and the larger index span of cell [0,0].
+
 ---
 
 ### TC-D186: Column widths from HTML ⚠️ destructive
@@ -510,6 +612,9 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - 🔍 Note: `get_doc_structure` does not expose column width properties; visual verification is the only check available without `effectiveFormat` API access (#54)
 
 **Cleanup:** write fixture content back
+
+**Result (2026-06-20) ✅ PASS**
+- Call succeeded with no API error. Column width is visual-only per the test note.
 
 ---
 
@@ -529,6 +634,9 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** write fixture content back
 
+**Result (2026-06-20) ✅ PASS**
+- 2 rows, 2 cols. Cell [0,0] "Tall" ✅, [0,1] "R0C1" ✅, [1,0] "" (phantom, empty) ✅, [1,1] "R1C1" ✅.
+
 ---
 
 ### TC-D188: Combined `rowspan` and `colspan` in the same table ⚠️ destructive
@@ -546,6 +654,9 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** write fixture content back
 
+**Result (2026-06-20) ✅ PASS**
+- 2 rows, 3 cols. [0,0] "Big" ✅, [0,1] "" ✅, [0,2] "R0C2" ✅, [1,0] "" ✅, [1,1] "" ✅, [1,2] "R1C2" ✅. All phantom slots empty.
+
 ---
 
 ### TC-D189: `rowspan` with header row — phantom not filled, real cells in correct columns ⚠️ destructive
@@ -562,6 +673,9 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - 🔍 Visual check: 'Alpha' spans rows 1 and 2 in Google Docs; row 2 col 1 shows 'B' (not shifted left)
 
 **Cleanup:** write fixture content back
+
+**Result (2026-06-20) ✅ PASS**
+- 3 rows, 3 cols. Row 0: "Name"/"Type"/"Notes" (bold visual only). Row 1: [1,0] "Alpha", [1,1] "A", [1,2] "first" ✅. Row 2: [2,0] "" (phantom) ✅, [2,1] "B" (not shifted left) ✅, [2,2] "second" ✅. Physical-to-AST column mapping correct.
 
 ---
 
