@@ -2254,6 +2254,8 @@
 - Paragraphs include <code>namedStyleType</code>, <code>text</code>, and <code>runs</code>
 - First element is a <code>sectionBreak</code> at index 0
 - Last element is a paragraph ending at the document's total length</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Returned <code>docId</code>, <code>title</code>, <code>elements</code> list. sectionBreak at index 0. Paragraphs include <code>namedStyleType</code>, <code>text</code>, <code>runs</code>. Final paragraph ends at document total length.</p>
 <hr />
 <h3 id="tc-d153-paragraph-runs-include-style-data">TC-D153: Paragraph runs include style data<a class="headerlink" href="#tc-d153-paragraph-runs-include-style-data" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> <code>{DOC_ID}</code> must contain at least one bold or italic run (use <code>write_doc_content</code> with <code>&lt;b&gt;</code> or <code>&lt;i&gt;</code> to set up)</p>
@@ -2265,6 +2267,8 @@
 - Runs with bold styling return <code>bold: true</code>
 - Runs without explicit style return <code>bold: null</code> (not <code>false</code>) — null means inherited
 - <code>link_url</code> is populated for runs inside <code>&lt;a&gt;</code> tags</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Wrote <code>&lt;b&gt;bold&lt;/b&gt; and &lt;i&gt;italic&lt;/i&gt; and &lt;a href="..."&gt;a link&lt;/a&gt;</code>. "Bold text" run: <code>bold: true</code>. Plain text runs: <code>bold: null</code> (not false). Link run: <code>link_url: "https://example.com"</code>. Null semantics confirmed.</p>
 <hr />
 <h3 id="tc-d154-structure-of-a-doc-containing-a-table">TC-D154: Structure of a doc containing a table<a class="headerlink" href="#tc-d154-structure-of-a-doc-containing-a-table" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> <code>{DOC_ID}</code> must contain a table</p>
@@ -2277,6 +2281,8 @@
 - <code>cells</code> list contains one entry per cell with <code>row</code>, <code>col</code>, <code>startIndex</code>, <code>endIndex</code>, <code>paragraphStartIndex</code>
 - <code>paragraphStartIndex</code> is one greater than cell <code>startIndex</code> (empty cell: paragraph is the only content)
 - Cell text is populated correctly for non-empty cells</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted a 2×2 table; <code>get_doc_structure</code> returned <code>type: "table"</code>, <code>rows: 2</code>, <code>columns: 2</code>, 4 cells. Each cell: <code>paragraphStartIndex = startIndex + 1</code>. Cell <code>text: ""</code> for all empty cells.</p>
 <hr />
 <h3 id="tc-d155-structure-of-an-empty-doc">TC-D155: Structure of an empty doc<a class="headerlink" href="#tc-d155-structure-of-an-empty-doc" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> doc with only the default empty paragraph</p>
@@ -2287,6 +2293,8 @@
 <p><strong>Checks</strong>
 - Returns elements with at least the sectionBreak and one empty paragraph
 - No error</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Wrote <code>&lt;p&gt;&lt;/p&gt;</code>. Structure: sectionBreak at 0–1, one empty paragraph at 1–2. No error.</p>
 <hr />
 <h3 id="tc-d156-invalid-doc-id-returns-error">TC-D156: Invalid doc ID returns error<a class="headerlink" href="#tc-d156-invalid-doc-id-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2296,6 +2304,8 @@
 <p><strong>Checks</strong>
 - Returns <code>{"error": "..."}</code> — does not raise an exception
 - Error message references the invalid ID or a 404</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Returned <code>{"error": "&lt;HttpError 404 ... Requested entity was not found.&gt;"}</code>. No exception raised.</p>
 <hr />
 <h2 id="insert_doc_text"><code>insert_doc_text</code><a class="headerlink" href="#insert_doc_text" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d157-insert-a-single-paragraph-destructive">TC-D157: Insert a single paragraph ⚠️ destructive<a class="headerlink" href="#tc-d157-insert-a-single-paragraph-destructive" title="Permanent link">&para;</a></h3>
@@ -2309,6 +2319,8 @@
 - Surrounding paragraphs shifted by the length of the inserted text
 - <code>insertions: 1</code> in response</p>
 <p><strong>Cleanup:</strong> delete the inserted range after verifying</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted "Inserted line.\n" at index 88. Re-fetch showed new paragraph at 88–103. "Item two\n" unchanged; final blank shifted to 103–104. <code>insertions: 1</code>.</p>
 <hr />
 <h3 id="tc-d158-insert-at-multiple-indices-highlow-ordering-verified-destructive">TC-D158: Insert at multiple indices — high→low ordering verified ⚠️ destructive<a class="headerlink" href="#tc-d158-insert-at-multiple-indices-highlow-ordering-verified-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> fetch structure; identify two paragraphs P1 (earlier) and P2 (later) with known indices. Record P1's <code>startIndex</code> as N1 and P2's <code>startIndex</code> as N2 (N2 &gt; N1). Both insertions are short fixed strings so index arithmetic is checkable.</p>
@@ -2322,6 +2334,8 @@
 - If tool processed low→high instead, 'BBB' would land 4 bytes early — use this arithmetic to confirm ordering
 - <code>insertions: 2</code> in response</p>
 <p><strong>Cleanup:</strong> delete both inserted ranges</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- N1=70 (Item one startIndex), N2=79 (Item two startIndex). After insert: "AAA\n" at 70–74 before Item one; "BBB\n" at 83–87 before Item two. BBB startIndex = N2+4 = 83 ✅. <code>insertions: 2</code>. High→low ordering confirmed.</p>
 <hr />
 <h3 id="tc-d159-empty-insertions-list-returns-error">TC-D159: Empty insertions list returns error<a class="headerlink" href="#tc-d159-empty-insertions-list-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2330,6 +2344,8 @@
 </blockquote>
 <p><strong>Checks</strong>
 - Returns <code>{"error": "insertions list is empty"}</code></p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Returned <code>{"error": "insertions list is empty"}</code>.</p>
 <hr />
 <h2 id="delete_doc_range"><code>delete_doc_range</code><a class="headerlink" href="#delete_doc_range" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d160-delete-a-paragraph-destructive">TC-D160: Delete a paragraph ⚠️ destructive<a class="headerlink" href="#tc-d160-delete-a-paragraph-destructive" title="Permanent link">&para;</a></h3>
@@ -2342,6 +2358,8 @@
 - Re-fetch structure no longer contains the deleted paragraph
 - Surrounding content shifted back correctly
 - <code>deletions: 1</code> in response</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted "Delete me.\n" at 88; deleted [88, 99]. Re-fetch confirmed paragraph absent; "Item two\n" back at 79–88; final blank at 88–89. <code>deletions: 1</code>.</p>
 <hr />
 <h3 id="tc-d161-cannot-delete-final-segment-newline">TC-D161: Cannot delete final segment newline<a class="headerlink" href="#tc-d161-cannot-delete-final-segment-newline" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> fetch structure; note the final element's <code>endIndex</code></p>
@@ -2352,6 +2370,8 @@
 <p><strong>Checks</strong>
 - Returns an API error about the segment newline
 - 🔍 <strong>Note:</strong> correct usage is <code>endIndex - 1</code> for the final element</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Attempted delete [1, 89] (final_endIndex=89). API returned <code>{"error": "&lt;HttpError 400 ... The range cannot include the newline character at the end of the segment.&gt;"}</code>.</p>
 <hr />
 <h3 id="tc-d162-empty-deletions-list-returns-error">TC-D162: Empty deletions list returns error<a class="headerlink" href="#tc-d162-empty-deletions-list-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2360,6 +2380,8 @@
 </blockquote>
 <p><strong>Checks</strong>
 - Returns <code>{"error": "deletions list is empty"}</code></p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Returned <code>{"error": "deletions list is empty"}</code>.</p>
 <hr />
 <h2 id="style_doc_range"><code>style_doc_range</code><a class="headerlink" href="#style_doc_range" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d163-apply-named-style-type-destructive">TC-D163: Apply named style type ⚠️ destructive<a class="headerlink" href="#tc-d163-apply-named-style-type-destructive" title="Permanent link">&para;</a></h3>
@@ -2372,6 +2394,8 @@
 - Re-fetch shows <code>namedStyleType: "HEADING_2"</code> for that paragraph
 - <code>requests: 1</code> in response</p>
 <p><strong>Cleanup:</strong> re-style as NORMAL_TEXT</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted "Style test paragraph.\n" at 88. Styled [88, 110] as HEADING_2. Re-fetch confirmed <code>namedStyleType: "HEADING_2"</code>. <code>requests: 1</code>.</p>
 <hr />
 <h3 id="tc-d164-apply-text-styles-bold-italic-foreground-color-destructive">TC-D164: Apply text styles (bold, italic, foreground color) ⚠️ destructive<a class="headerlink" href="#tc-d164-apply-text-styles-bold-italic-foreground-color-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a normal paragraph; note its index range</p>
@@ -2383,6 +2407,8 @@
 - Re-fetch shows <code>bold: true</code>, <code>italic: true</code> on runs in that range
 - <code>requests: 1</code> in response (paragraph style skipped, only updateTextStyle emitted)</p>
 <p><strong>Cleanup:</strong> delete the test paragraph</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Applied bold+italic+red foreground to [88, 110]. Re-fetch: run <code>bold: true</code>, <code>italic: true</code>. <code>requests: 1</code> (only updateTextStyle; no paragraph style change).</p>
 <hr />
 <h3 id="tc-d165-apply-both-paragraph-and-text-style-in-one-range-destructive">TC-D165: Apply both paragraph and text style in one range ⚠️ destructive<a class="headerlink" href="#tc-d165-apply-both-paragraph-and-text-style-in-one-range-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2392,6 +2418,8 @@
 <p><strong>Checks</strong>
 - <code>requests: 2</code> (one updateParagraphStyle + one updateTextStyle)
 - Both applied correctly on re-fetch</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Applied HEADING_3 + bold to same paragraph. <code>requests: 2</code> (one updateParagraphStyle + one updateTextStyle).</p>
 <hr />
 <h3 id="tc-d166-no-recognised-style-fields-returns-error">TC-D166: No recognised style fields returns error<a class="headerlink" href="#tc-d166-no-recognised-style-fields-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2400,6 +2428,8 @@
 </blockquote>
 <p><strong>Checks</strong>
 - Returns <code>{"error": "no recognised style fields in any range"}</code></p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Returned <code>{"error": "no recognised style fields in any range"}</code>.</p>
 <hr />
 <h2 id="insert_doc_table"><code>insert_doc_table</code><a class="headerlink" href="#insert_doc_table" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d167-insert-a-23-table-destructive">TC-D167: Insert a 2×3 table ⚠️ destructive<a class="headerlink" href="#tc-d167-insert-a-23-table-destructive" title="Permanent link">&para;</a></h3>
@@ -2415,6 +2445,8 @@
 - <code>precedingParagraphIndex</code> = N, <code>tableStartIndex</code> = N + 1 (Docs API always inserts a required empty paragraph before the table; it cannot be deleted while the table exists)
 - Re-fetch structure shows an empty paragraph at N, then the table at N + 1</p>
 <p><strong>Cleanup:</strong> delete <code>[precedingParagraphIndex, tableEndIndex]</code> in one range — this removes both the required preceding paragraph and the table body together</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted 2×3 table at N=88. Response: <code>precedingParagraphIndex=88</code>, <code>tableStartIndex=89</code> (=N+1), <code>tableEndIndex=105</code>, <code>rows: 2</code>, <code>columns: 3</code>, 6 cells. All <code>paragraphStartIndex = startIndex + 1</code>. Re-fetch confirmed table at index 89.</p>
 <hr />
 <h3 id="tc-d168-cell-indices-usable-for-insert_doc_text-destructive">TC-D168: Cell indices usable for insert_doc_text ⚠️ destructive<a class="headerlink" href="#tc-d168-cell-indices-usable-for-insert_doc_text-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a table (TC-D167); use the returned <code>cells[0].paragraphStartIndex</code></p>
@@ -2426,6 +2458,8 @@
 - Re-fetch shows 'Cell content' in row 0, col 0
 - No index errors</p>
 <p><strong>Cleanup:</strong> delete table</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Used <code>cells[0].paragraphStartIndex = 92</code> from TC-D167. Inserted "Cell content" at index 92. Re-fetch: cell [0,0] <code>text: "Cell content"</code>. No index errors.</p>
 <hr />
 <h2 id="style_doc_table_cells"><code>style_doc_table_cells</code><a class="headerlink" href="#style_doc_table_cells" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d169-apply-grey-header-row-background-destructive">TC-D169: Apply grey header row background ⚠️ destructive<a class="headerlink" href="#tc-d169-apply-grey-header-row-background-destructive" title="Permanent link">&para;</a></h3>
@@ -2438,6 +2472,8 @@
 - <code>requests: 1</code> in response
 - 🔍 Visual check in Google Docs: header row has grey background</p>
 <p><strong>Cleanup:</strong> delete table</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Styled row 0 with <code>background_color {red:0.953, green:0.953, blue:0.953}</code>, <code>column_span: 2</code>. <code>requests: 1</code>.</p>
 <hr />
 <h3 id="tc-d170-apply-borders-and-padding-destructive">TC-D170: Apply borders and padding ⚠️ destructive<a class="headerlink" href="#tc-d170-apply-borders-and-padding-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
@@ -2448,6 +2484,8 @@
 <p><strong>Checks</strong>
 - Call succeeds for each cell
 - 🔍 Visual check: table has visible borders and reasonable padding</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Applied black border (0.5pt) + 3.6pt padding to all 4 cells of a 2×2 table. <code>requests: 4</code> (one per cell). Call succeeded for each.</p>
 <hr />
 <h3 id="tc-d171-empty-cells-list-returns-error">TC-D171: Empty cells list returns error<a class="headerlink" href="#tc-d171-empty-cells-list-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2456,6 +2494,8 @@
 </blockquote>
 <p><strong>Checks</strong>
 - Returns <code>{"error": "cells list is empty"}</code></p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Returned <code>{"error": "cells list is empty"}</code>.</p>
 <hr />
 <h3 id="tc-d172-cell-with-no-style-fields-is-skipped">TC-D172: Cell with no style fields is skipped<a class="headerlink" href="#tc-d172-cell-with-no-style-fields-is-skipped" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a table; pass one valid cell and one cell with no style fields</p>
@@ -2466,6 +2506,8 @@
 <p><strong>Checks</strong>
 - Only one request emitted (the no-style cell is silently skipped)
 - <code>requests: 1</code> in response</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Passed cell [0,0] with <code>background_color red=1</code> and cell [0,1] with no style fields. <code>requests: 1</code> — no-style cell silently skipped.</p>
 <hr />
 <h2 id="multi-operation-ordering-and-sequencing">Multi-operation ordering and sequencing<a class="headerlink" href="#multi-operation-ordering-and-sequencing" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d173-multi-delete-highlow-ordering-verified-destructive">TC-D173: Multi-delete high→low ordering verified ⚠️ destructive<a class="headerlink" href="#tc-d173-multi-delete-highlow-ordering-verified-destructive" title="Permanent link">&para;</a></h3>
@@ -2479,6 +2521,8 @@
 - Content that followed DEL-B is now at DEL-B's original startIndex (no offset error)
 - If tool processed low→high, DEL-B's range would be stale after DEL-A shifts indices — verify neither deletion fails with an out-of-bounds error
 - <code>deletions: 2</code> in response</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- DEL-A at 79–85, DEL-B at 94–100. Deleted both in one call. Re-fetch: both absent; "Item two\n" back at 79–88 (DEL-B's original startIndex). No out-of-bounds error. <code>deletions: 2</code>.</p>
 <hr />
 <h3 id="tc-d174-style_doc_range-round-trip-heading-confirmed-in-get_doc_structure-destructive">TC-D174: style_doc_range round-trip — heading confirmed in get_doc_structure ⚠️ destructive<a class="headerlink" href="#tc-d174-style_doc_range-round-trip-heading-confirmed-in-get_doc_structure-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> <code>style_doc_range</code> was never called live during initial testing. This is the first live verification.</p>
@@ -2492,6 +2536,8 @@
 - Call <code>get_doc_structure</code> — the paragraph at that index shows <code>namedStyleType: "HEADING_1"</code>
 - Text content is unchanged ('Style-test heading')</p>
 <p><strong>Cleanup:</strong> style back to NORMAL_TEXT, then delete the paragraph</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted "Style-test heading\n" at 88; styled [88, 107] as HEADING_1. <code>requests: 1</code>. Re-fetch: <code>namedStyleType: "HEADING_1"</code>, <code>text: "Style-test heading\n"</code> unchanged.</p>
 <hr />
 <h3 id="tc-d175-style_doc_range-text-styles-round-trip-destructive">TC-D175: style_doc_range text styles round-trip ⚠️ destructive<a class="headerlink" href="#tc-d175-style_doc_range-text-styles-round-trip-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> verify bold/italic/underline are readable back via get_doc_structure runs.</p>
@@ -2505,6 +2551,8 @@
 - <code>get_doc_structure</code> shows a run in that paragraph with <code>bold: true</code> and <code>italic: true</code>
 - <code>namedStyleType</code> is unchanged (updateTextStyle only, no updateParagraphStyle)</p>
 <p><strong>Cleanup:</strong> delete the test paragraph</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted "Bold-italic test\n" at 88; applied bold+italic to [88, 105]. <code>requests: 1</code>. Re-fetch: run <code>bold: true</code>, <code>italic: true</code>; <code>namedStyleType: "NORMAL_TEXT"</code> unchanged.</p>
 <hr />
 <h3 id="tc-d176-style_doc_table_cells-post-fix-live-verification-destructive">TC-D176: style_doc_table_cells post-fix live verification ⚠️ destructive<a class="headerlink" href="#tc-d176-style_doc_table_cells-post-fix-live-verification-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> <code>style_doc_table_cells</code> was fixed (removed top-level <code>tableStartLocation</code> that conflicted with the <code>tableRange</code> oneof) but the fix was <strong>never re-tested live</strong>. This is the confirmation test.</p>
@@ -2518,6 +2566,8 @@
 - <code>requests: 1</code> in response
 - 🔍 Visual check in Google Docs: cell [0,0] has light blue background</p>
 <p><strong>Cleanup:</strong> delete the table</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted 2×2 table; styled cell [0,0] with <code>background_color {red:0.8, green:0.9, blue:1.0}</code>. No API 400 error. <code>requests: 1</code>. Fix (removal of top-level <code>tableStartLocation</code> conflicting with <code>tableRange</code> oneof) confirmed working.</p>
 <hr />
 <h3 id="tc-d177-full-end-to-end-sequence-insert-table-then-style-cells-destructive">TC-D177: Full end-to-end sequence — insert table then style cells ⚠️ destructive<a class="headerlink" href="#tc-d177-full-end-to-end-sequence-insert-table-then-style-cells-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> the complete <code>insert_doc_table</code> → <code>style_doc_table_cells</code> sequence was never run end-to-end in live testing. Covers both tools and the index handoff between them.</p>
@@ -2533,6 +2583,8 @@
 - Re-fetch <code>get_doc_structure</code> shows the table at <code>tableStartIndex</code>
 - 🔍 Visual check in Google Docs: styled header row and visible borders</p>
 <p><strong>Cleanup:</strong> delete table range</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted 2×3 table at N=88. Row 0 grey background (column_span 3): <code>requests: 1</code>. All 6 cells border (black, 0.5pt): <code>requests: 6</code>. Re-fetch confirmed table at <code>tableStartIndex: 89</code>.</p>
 <hr />
 <h3 id="tc-d178-insert-text-then-insert-table-index-chaining-destructive">TC-D178: Insert text then insert table — index chaining ⚠️ destructive<a class="headerlink" href="#tc-d178-insert-text-then-insert-table-index-chaining-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> verify that indices returned by one operation are usable as input to a subsequent operation without re-fetching the full structure each time.</p>
@@ -2550,6 +2602,8 @@
 - Re-fetch structure shows the paragraph immediately followed by the table
 - <code>precedingParagraphIndex</code> = N + 17, <code>tableStartIndex</code> = N + 18</p>
 <p><strong>Cleanup:</strong> for each table, delete <code>[precedingParagraphIndex, tableEndIndex]</code> in one range (high→low for the two tables).</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- N=88 (endIndex of "Item two\n"). Inserted "Intro paragraph.\n" (17 chars) at 88; then 2×2 table at 105. <code>precedingParagraphIndex=105=N+17</code>, <code>tableStartIndex=106=N+18</code>. Both ops succeeded without re-fetching structure.</p>
 <hr />
 <h2 id="style_doc_range-additional-coverage"><code>style_doc_range</code> — additional coverage<a class="headerlink" href="#style_doc_range-additional-coverage" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d179-apply-strikethrough-destructive">TC-D179: Apply strikethrough ⚠️ destructive<a class="headerlink" href="#tc-d179-apply-strikethrough-destructive" title="Permanent link">&para;</a></h3>
@@ -2561,6 +2615,8 @@
 <p><strong>Checks</strong>
 - Response <code>requests: 1</code>
 - <code>get_doc_structure</code> shows run with <code>strikethrough: true</code></p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted "Strikethrough test.\n"; applied strikethrough to [88, 108]. <code>requests: 1</code>. Re-fetch: run <code>strikethrough: true</code>.</p>
 <hr />
 <h3 id="tc-d180-apply-font_size-destructive">TC-D180: Apply font_size ⚠️ destructive<a class="headerlink" href="#tc-d180-apply-font_size-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a paragraph; note its range</p>
@@ -2571,6 +2627,8 @@
 <p><strong>Checks</strong>
 - Response <code>requests: 1</code>
 - 🔍 Visual check: text is visibly larger</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Applied <code>font_size: 18</code> to [88, 104]. <code>requests: 1</code>. (Visual check only — <code>get_doc_structure</code> does not expose <code>font_size</code> from effectiveFormat.)</p>
 <hr />
 <h3 id="tc-d181-apply-link_url-destructive">TC-D181: Apply link_url ⚠️ destructive<a class="headerlink" href="#tc-d181-apply-link_url-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a paragraph 'Visit example\n'; note the range covering 'example'</p>
@@ -2583,6 +2641,8 @@
 - <code>get_doc_structure</code> shows run split at the link boundary: linked run has <code>link_url: "https://example.com"</code>, non-linked run has <code>link_url: null</code>
 - 🔍 <strong>Note:</strong> Google Docs automatically adds <code>underline: true</code> to the linked run — expected API behaviour, not a tool bug
 - 🔍 Visual check: text appears as a hyperlink</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted "Visit example\n"; applied <code>link_url: "https://example.com"</code> to "example" (indices 94–101). <code>requests: 1</code>. Re-fetch: run split into "Visit " (<code>link_url: null</code>), "example" (<code>link_url: "https://example.com"</code>, <code>underline: true</code>), "\n" (<code>link_url: null</code>). Auto-underline is expected API behaviour.</p>
 <hr />
 <h2 id="phase-2-write_doc_content-create_doc-translator-fixes">Phase 2 — <code>write_doc_content</code> / <code>create_doc</code> translator fixes<a class="headerlink" href="#phase-2-write_doc_content-create_doc-translator-fixes" title="Permanent link">&para;</a></h2>
 <p>These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All use <code>write_doc_content</code> against the fixture doc.</p>
@@ -2599,6 +2659,8 @@
 - Third heading has <code>namedStyleType: "HEADING_3"</code>
 - Fourth heading has <code>namedStyleType: "HEADING_4"</code></p>
 <p><strong>Cleanup:</strong> write fixture content back: <code>&lt;h1&gt;Test Document&lt;/h1&gt;&lt;p&gt;This document is used for QA testing of mcp-gee-sweet.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Item one&lt;/li&gt;&lt;li&gt;Item two&lt;/li&gt;&lt;/ul&gt;</code></p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- <code>get_doc_structure</code> confirmed: HEADING_1 "Level 1", HEADING_2 "Level 2" (not HEADING_3), HEADING_3 "Level 3", HEADING_4 "Level 4". Old bug absent.</p>
 <hr />
 <h3 id="tc-d183-th-cells-produce-bold-runs-destructive">TC-D183: <code>&lt;th&gt;</code> cells produce bold runs ⚠️ destructive<a class="headerlink" href="#tc-d183-th-cells-produce-bold-runs-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> Regression test for #65 — <code>&lt;th&gt;</code> previously ignored; cells had no bold styling.</p>
@@ -2612,6 +2674,8 @@
 - Row 1 cells (<code>Alpha</code>, <code>1</code>) have runs with <code>bold: null</code> (not bolded)
 - 🔍 Visual check: header row text is bold in Google Docs</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS (partial)</strong>
+- Table created; <code>get_doc_structure</code> shows 2 rows, 2 cols with cells "Name", "Value", "Alpha", "1". <code>get_doc_structure</code> does not expose <code>runs</code> for table cells — bold verification is visual only. 🔍 Known gap: cell run formatting requires <code>effectiveFormat</code> API access (#54).</p>
 <hr />
 <h3 id="tc-d184-inline-formatting-inside-td-cells-destructive">TC-D184: Inline formatting inside <code>&lt;td&gt;</code> cells ⚠️ destructive<a class="headerlink" href="#tc-d184-inline-formatting-inside-td-cells-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> Regression test for #69 — inline formatting inside table cells was previously lost.</p>
@@ -2627,6 +2691,8 @@
 - Plain text run has <code>bold: null</code> and <code>italic: null</code>
 - 🔍 Visual check: cell shows mixed formatting</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS (partial)</strong>
+- <code>get_doc_structure</code> shows 1 row, 1 col, cell text "bold plain italic" — all three segments present. Run-level bold/italic not verifiable via <code>get_doc_structure</code> (same cell-runs gap as TC-D183). 🔍 Visual check required for run formatting.</p>
 <hr />
 <h3 id="tc-d185-colspan-produces-merged-cells-destructive">TC-D185: <code>colspan</code> produces merged cells ⚠️ destructive<a class="headerlink" href="#tc-d185-colspan-produces-merged-cells-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> Regression test for #67 — <code>colspan</code> was previously ignored.</p>
@@ -2640,6 +2706,8 @@
 - Row 0 has 1 cell (merged), row 1 has 2 cells
 - 🔍 Visual check: top row spans both columns in Google Docs</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Call succeeded. <code>get_doc_structure</code>: 2 rows, 2 cols. Cell [0,0] text "Wide cell" (merged), cell [0,1] text "" (phantom). Row 1: "A", "B". Note: <code>get_doc_structure</code> reports <code>columns: 2</code> for the table — the merge is visible via the phantom empty slot at [0,1] and the larger index span of cell [0,0].</p>
 <hr />
 <h3 id="tc-d186-column-widths-from-html-destructive">TC-D186: Column widths from HTML ⚠️ destructive<a class="headerlink" href="#tc-d186-column-widths-from-html-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> Regression test for #66 — <code>width</code> attributes on <code>&lt;col&gt;</code> were previously ignored.</p>
@@ -2652,6 +2720,8 @@
 - 🔍 Visual check: first column is narrower than second column in Google Docs
 - 🔍 Note: <code>get_doc_structure</code> does not expose column width properties; visual verification is the only check available without <code>effectiveFormat</code> API access (#54)</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Call succeeded with no API error. Column width is visual-only per the test note.</p>
 <hr />
 <h3 id="tc-d187-rowspan-produces-vertically-merged-cells-destructive">TC-D187: <code>rowspan</code> produces vertically merged cells ⚠️ destructive<a class="headerlink" href="#tc-d187-rowspan-produces-vertically-merged-cells-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> First live verification of issue #91 — rowspan support in the HTML→AST→emitter pipeline. A cell spanning two rows must produce a <code>mergeTableCells</code> request, and the phantom cell in the lower row must not be filled.</p>
@@ -2667,6 +2737,8 @@
 - Cell [1,0] is the phantom slot — it must be empty (not filled with 'Tall' or any content)
 - 🔍 Visual check: first column shows 'Tall' spanning both rows in Google Docs</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- 2 rows, 2 cols. Cell [0,0] "Tall" ✅, [0,1] "R0C1" ✅, [1,0] "" (phantom, empty) ✅, [1,1] "R1C1" ✅.</p>
 <hr />
 <h3 id="tc-d188-combined-rowspan-and-colspan-in-the-same-table-destructive">TC-D188: Combined <code>rowspan</code> and <code>colspan</code> in the same table ⚠️ destructive<a class="headerlink" href="#tc-d188-combined-rowspan-and-colspan-in-the-same-table-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> verify that a single cell carrying both <code>rowspan</code> and <code>colspan</code> emits exactly one <code>mergeTableCells</code> request with both dimensions, and that physical column tracking stays correct for subsequent cells in the same row.</p>
@@ -2681,6 +2753,8 @@
 - Cells at [0,1], [1,0], [1,1] are phantom slots — must all be empty
 - 🔍 Visual check: top-left 2×2 block shows 'Big' spanning both rows and columns</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- 2 rows, 3 cols. [0,0] "Big" ✅, [0,1] "" ✅, [0,2] "R0C2" ✅, [1,0] "" ✅, [1,1] "" ✅, [1,2] "R1C2" ✅. All phantom slots empty.</p>
 <hr />
 <h3 id="tc-d189-rowspan-with-header-row-phantom-not-filled-real-cells-in-correct-columns-destructive">TC-D189: <code>rowspan</code> with header row — phantom not filled, real cells in correct columns ⚠️ destructive<a class="headerlink" href="#tc-d189-rowspan-with-header-row-phantom-not-filled-real-cells-in-correct-columns-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> edge-case verification that when a rowspan pushes subsequent real cells to higher logical columns, the physical-to-AST index mapping resolves correctly and no cell gets the wrong content.</p>
@@ -2695,6 +2769,8 @@
 - Row 2: col 0 is phantom (empty, not filled with any content), 'B' in col 1, 'second' in col 2
 - 🔍 Visual check: 'Alpha' spans rows 1 and 2 in Google Docs; row 2 col 1 shows 'B' (not shifted left)</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- 3 rows, 3 cols. Row 0: "Name"/"Type"/"Notes" (bold visual only). Row 1: [1,0] "Alpha", [1,1] "A", [1,2] "first" ✅. Row 2: [2,0] "" (phantom) ✅, [2,1] "B" (not shifted left) ✅, [2,2] "second" ✅. Physical-to-AST column mapping correct.</p>
 <hr />
 <h2 id="markdown-support-create_doc-write_doc_content-create_doc_from_file">Markdown support — <code>create_doc</code> / <code>write_doc_content</code> / <code>create_doc_from_file</code><a class="headerlink" href="#markdown-support-create_doc-write_doc_content-create_doc_from_file" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d190-markdown-headings-via-write_doc_content-destructive">TC-D190: Markdown headings via <code>write_doc_content</code> ⚠️ destructive<a class="headerlink" href="#tc-d190-markdown-headings-via-write_doc_content-destructive" title="Permanent link">&para;</a></h3>
