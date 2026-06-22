@@ -998,6 +998,277 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
+## `insert_inline_image` (#145)
+
+### TC-D208: Insert an image by public URI ⚠️ destructive
+**Setup:** fetch structure; note the `endIndex` of a paragraph to insert after
+
+**Prompt**
+> "Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/svg/googlelogo_clr_74x24px.svg' at index {N} in doc {DOC_ID}"
+
+**Checks**
+- Call succeeds with no API error
+- Response contains `docId` and `index: N`
+- 🔍 Visual check in Google Docs: image appears in the document at the insertion point
+
+**Cleanup:** delete the inserted image range (use `delete_doc_range` on the image's index span, visible in `get_doc_structure` as an element)
+
+**Result** ⏳ PENDING
+
+---
+
+### TC-D209: Insert an image with explicit size ⚠️ destructive
+**Setup:** same as TC-D208
+
+**Prompt**
+> "Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/svg/googlelogo_clr_74x24px.svg' at index {N} in doc {DOC_ID} with width 100 and height 50"
+
+**Checks**
+- Call succeeds with no API error
+- 🔍 Visual check: image is smaller than default size
+
+**Cleanup:** delete inserted image range
+
+**Result** ⏳ PENDING
+
+---
+
+### TC-D210: No source provided returns error
+**Prompt**
+> "Call insert_inline_image on doc {DOC_ID} at index 1 without providing a URI or drive_file_id"
+
+**Checks**
+- Returns `{"error": "Provide either uri or drive_file_id"}`
+
+**Result** ⏳ PENDING
+
+---
+
+### TC-D211: Both URI and drive_file_id provided returns error
+**Prompt**
+> "Call insert_inline_image on doc {DOC_ID} at index 1 with both uri 'https://example.com/img.png' and drive_file_id 'someid'"
+
+**Checks**
+- Returns `{"error": "Provide only one of uri or drive_file_id, not both"}`
+
+**Result** ⏳ PENDING
+
+---
+
+## `insert_table_row` / `delete_table_row` / `insert_table_column` / `delete_table_column` (#146)
+
+### TC-D212: Insert a row below an existing row ⚠️ destructive
+**Setup:** insert a 2×2 table; note its `tableStartIndex`
+
+**Prompt**
+> "Insert a row below row 0 in the table at index {tableStartIndex} in doc {DOC_ID}"
+
+**Checks**
+- Call succeeds with no API error
+- Response contains `docId`, `table_start_index`, `row_index: 0`
+- Re-fetch `get_doc_structure` shows the table now has 3 rows
+
+**Cleanup:** delete the table
+
+**Result** ⏳ PENDING
+
+---
+
+### TC-D213: Insert a row above an existing row ⚠️ destructive
+**Setup:** insert a 2×2 table; note its `tableStartIndex`
+
+**Prompt**
+> "Insert a row above row 1 in the table at index {tableStartIndex} in doc {DOC_ID} (insert_below=False)"
+
+**Checks**
+- Call succeeds with no API error
+- Re-fetch shows the table has 3 rows
+- New row appears at row 1 (between original rows 0 and 1)
+
+**Cleanup:** delete the table
+
+**Result** ⏳ PENDING
+
+---
+
+### TC-D214: Delete a row ⚠️ destructive
+**Setup:** insert a 3-row table; note its `tableStartIndex`
+
+**Prompt**
+> "Delete row 1 from the table at index {tableStartIndex} in doc {DOC_ID}"
+
+**Checks**
+- Call succeeds with no API error
+- Response contains `docId`, `table_start_index`, `row_index: 1`
+- Re-fetch shows the table has 2 rows
+
+**Cleanup:** delete the table
+
+**Result** ⏳ PENDING
+
+---
+
+### TC-D215: Insert a column to the right ⚠️ destructive
+**Setup:** insert a 2×2 table; note its `tableStartIndex`
+
+**Prompt**
+> "Insert a column to the right of column 0 in the table at index {tableStartIndex} in doc {DOC_ID}"
+
+**Checks**
+- Call succeeds with no API error
+- Response contains `docId`, `table_start_index`, `column_index: 0`
+- Re-fetch shows the table has 3 columns
+
+**Cleanup:** delete the table
+
+**Result** ⏳ PENDING
+
+---
+
+### TC-D216: Insert a column to the left ⚠️ destructive
+**Setup:** insert a 2×2 table; note its `tableStartIndex`
+
+**Prompt**
+> "Insert a column to the left of column 1 in the table at index {tableStartIndex} in doc {DOC_ID} (insert_right=False)"
+
+**Checks**
+- Call succeeds with no API error
+- Re-fetch shows the table has 3 columns
+
+**Cleanup:** delete the table
+
+**Result** ⏳ PENDING
+
+---
+
+### TC-D217: Delete a column ⚠️ destructive
+**Setup:** insert a 2×3 table; note its `tableStartIndex`
+
+**Prompt**
+> "Delete column 1 from the table at index {tableStartIndex} in doc {DOC_ID}"
+
+**Checks**
+- Call succeeds with no API error
+- Response contains `docId`, `table_start_index`, `column_index: 1`
+- Re-fetch shows the table has 2 columns
+
+**Cleanup:** delete the table
+
+**Result** ⏳ PENDING
+
+---
+
+### TC-D218: API error returned gracefully (out of bounds row)
+**Setup:** insert a 2×2 table; note its `tableStartIndex`
+
+**Prompt**
+> "Delete row 99 from the table at index {tableStartIndex} in doc {DOC_ID}"
+
+**Checks**
+- Returns `{"error": "..."}` — does not raise an exception
+- Error message references an API failure
+
+**Result** ⏳ PENDING
+
+---
+
+## `create_header` / `create_footer` (#147)
+
+### TC-D219: Create a default page header ⚠️ destructive
+**Prompt**
+> "Add a page header to doc {DOC_ID}"
+
+**Checks**
+- Call succeeds with no API error
+- Response contains `docId` and `headerId` (non-empty string)
+- 🔍 Visual check in Google Docs: document shows a header section
+
+**Cleanup:** none needed (headers persist; restore fixture doc if desired)
+
+**Result** ⏳ PENDING
+
+---
+
+### TC-D220: Create a header with content ⚠️ destructive
+**Prompt**
+> "Add a page header to doc {DOC_ID} with content 'Confidential — Internal Only'"
+
+**Checks**
+- Response contains `docId` and `headerId`
+- Two API calls were made (create + insert text) — verifiable via no error in response
+- 🔍 Visual check: header text "Confidential — Internal Only" appears in the document header
+
+**Cleanup:** none needed
+
+**Result** ⏳ PENDING
+
+---
+
+### TC-D221: Create a default page footer ⚠️ destructive
+**Prompt**
+> "Add a page footer to doc {DOC_ID}"
+
+**Checks**
+- Response contains `docId` and `footerId` (non-empty string)
+- 🔍 Visual check: document shows a footer section
+
+**Cleanup:** none needed
+
+**Result** ⏳ PENDING
+
+---
+
+### TC-D222: Create a footer with content ⚠️ destructive
+**Prompt**
+> "Add a page footer to doc {DOC_ID} with content 'Page 1'"
+
+**Checks**
+- Response contains `docId` and `footerId`
+- 🔍 Visual check: footer shows "Page 1"
+
+**Cleanup:** none needed
+
+**Result** ⏳ PENDING
+
+---
+
+### TC-D223: Invalid header_type returns error
+**Prompt**
+> "Call create_header on doc {DOC_ID} with header_type 'INVALID'"
+
+**Checks**
+- Returns `{"error": "Invalid header_type 'INVALID'..."}`
+
+**Result** ⏳ PENDING
+
+---
+
+### TC-D224: Invalid footer_type returns error
+**Prompt**
+> "Call create_footer on doc {DOC_ID} with footer_type 'INVALID'"
+
+**Checks**
+- Returns `{"error": "Invalid footer_type 'INVALID'..."}`
+
+**Result** ⏳ PENDING
+
+---
+
+### TC-D225: insert_doc_text with segment_id writes into header ⚠️ destructive
+**Setup:** call `create_header` first to get a `headerId`
+
+**Prompt**
+> "Insert the text 'Header text via insert_doc_text' at index 1 in doc {DOC_ID} using segment_id '{headerId}'"
+
+**Checks**
+- Call succeeds with no API error
+- Response contains `insertions: 1`
+- 🔍 Visual check: "Header text via insert_doc_text" appears in the document header
+
+**Result** ⏳ PENDING
+
+---
+
 ### TC-D207: `get_doc_named_styles` reads named style defaults set via the Docs UI
 **Note:** Named styles are only populated when the user explicitly goes to Format > Paragraph styles > Update X to match. Most docs leave named styles at Google's defaults — this tool returns empty or near-empty for those docs. Use `get_doc_theme` to read actual paragraph appearance instead.
 
