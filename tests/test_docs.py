@@ -2143,7 +2143,7 @@ class TestCreateHeader:
         _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
         body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
         assert body["requests"][0]["createHeader"]["type"] == "DEFAULT"
-        assert body["requests"][0]["createHeader"]["sectionBreakLocation"]["index"] == 1
+        assert "sectionBreakLocation" not in body["requests"][0]["createHeader"]
 
     def test_first_page_header_type(self):
         docs_svc = self._make_docs_svc()
@@ -2167,7 +2167,7 @@ class TestCreateHeader:
         insert_req = second_body["requests"][0]["insertText"]
         assert insert_req["text"] == "My Header"
         assert insert_req["location"]["segmentId"] == "hdr1"
-        assert insert_req["location"]["index"] == 1
+        assert insert_req["location"]["index"] == 0
 
     def test_no_content_single_api_call(self):
         docs_svc = self._make_docs_svc()
@@ -2183,6 +2183,30 @@ class TestCreateHeader:
         ctx = self._ctx(docs_svc=docs_svc)
         result = _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
         assert "error" in result
+
+    def test_empty_replies_falls_back_to_document_style(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": []
+        }
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentStyle": {"defaultHeaderId": "hdr-fallback"}
+        }
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
+        assert result == {"docId": "doc1", "headerId": "hdr-fallback"}
+
+    def test_already_exists_error_falls_back_to_document_style(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = HttpError(
+            resp=MagicMock(status=400), content=b"Default header already exists."
+        )
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentStyle": {"defaultHeaderId": "hdr-existing"}
+        }
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
+        assert result == {"docId": "doc1", "headerId": "hdr-existing"}
 
 
 class TestCreateFooter:
@@ -2208,7 +2232,7 @@ class TestCreateFooter:
         _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
         body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
         assert body["requests"][0]["createFooter"]["type"] == "DEFAULT"
-        assert body["requests"][0]["createFooter"]["sectionBreakLocation"]["index"] == 1
+        assert "sectionBreakLocation" not in body["requests"][0]["createFooter"]
 
     def test_first_page_footer_type(self):
         docs_svc = self._make_docs_svc()
@@ -2231,7 +2255,7 @@ class TestCreateFooter:
         insert_req = second_body["requests"][0]["insertText"]
         assert insert_req["text"] == "Page 1"
         assert insert_req["location"]["segmentId"] == "ftr1"
-        assert insert_req["location"]["index"] == 1
+        assert insert_req["location"]["index"] == 0
 
     def test_no_content_single_api_call(self):
         docs_svc = self._make_docs_svc()
@@ -2247,6 +2271,30 @@ class TestCreateFooter:
         ctx = self._ctx(docs_svc=docs_svc)
         result = _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
         assert "error" in result
+
+    def test_empty_replies_falls_back_to_document_style(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": []
+        }
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentStyle": {"defaultFooterId": "ftr-fallback"}
+        }
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
+        assert result == {"docId": "doc1", "footerId": "ftr-fallback"}
+
+    def test_already_exists_error_falls_back_to_document_style(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = HttpError(
+            resp=MagicMock(status=400), content=b"Default footer already exists."
+        )
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentStyle": {"defaultFooterId": "ftr-existing"}
+        }
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
+        assert result == {"docId": "doc1", "footerId": "ftr-existing"}
 
 
 # ---------------------------------------------------------------------------

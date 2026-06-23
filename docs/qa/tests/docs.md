@@ -1013,7 +1013,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** delete the inserted image range (use `delete_doc_range` on the image's index span, visible in `get_doc_structure` as an element)
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Inserted Google branding PNG at paragraph boundary. Response: `{docId, index}`. Image visible in doc. Occupies one index slot as an inline element in `get_doc_structure`.
 
 ---
 
@@ -1029,7 +1029,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** delete inserted image range
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Same PNG at same location with `width=100, height=50`. Call succeeded; image rendered smaller than the default-sized TC-D208 image.
 
 ---
 
@@ -1040,7 +1040,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Checks**
 - Returns `{"error": "Provide either uri or drive_file_id"}`
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Returned `{"error": "Provide either uri or drive_file_id, not both"}`. No API call made.
 
 ---
 
@@ -1051,7 +1051,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Checks**
 - Returns `{"error": "Provide only one of uri or drive_file_id, not both"}`
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Returned `{"error": "Provide only one of uri or drive_file_id, not both"}`. No API call made.
 
 ---
 
@@ -1070,7 +1070,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** delete the table
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Inserted 2×2 table; called `insert_table_row(row_index=0, insert_below=True)`. Response: `{docId, table_start_index, row_index: 0}`. Re-fetched structure showed 3 rows.
 
 ---
 
@@ -1087,7 +1087,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** delete the table
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Inserted 2×2 table; called `insert_table_row(row_index=1, insert_below=False)`. Re-fetched structure showed 3 rows.
 
 ---
 
@@ -1104,7 +1104,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** delete the table
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Inserted 3-row table; called `delete_table_row(row_index=1)`. Response: `{docId, table_start_index, row_index: 1}`. Re-fetched structure showed 2 rows.
 
 ---
 
@@ -1121,7 +1121,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** delete the table
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Inserted 2×2 table; called `insert_table_column(column_index=0, insert_right=True)`. Response: `{docId, table_start_index, column_index: 0}`. Re-fetched structure showed 3 columns.
 
 ---
 
@@ -1137,7 +1137,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** delete the table
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Inserted 2×2 table; called `insert_table_column(column_index=1, insert_right=False)`. Re-fetched structure showed 3 columns.
 
 ---
 
@@ -1154,7 +1154,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** delete the table
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Inserted 2×3 table; called `delete_table_column(column_index=1)`. Response: `{docId, table_start_index, column_index: 1}`. Re-fetched structure showed 2 columns.
 
 ---
 
@@ -1168,7 +1168,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - Returns `{"error": "..."}` — does not raise an exception
 - Error message references an API failure
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Called `delete_table_row(row_index=99)` on a 2×2 table. Returned `{"error": "..."}` with an API error message referencing an invalid row index. No exception raised.
 
 ---
 
@@ -1185,7 +1185,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** none needed (headers persist; restore fixture doc if desired)
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Called `create_header(doc_id=fixture)` (no content). Returned `{"docId": ..., "headerId": "kix.xxxxxxxxxx"}`. Header section visible in Google Docs. Note: on first call after a prior session created the header (due to index=1 bug), the "already exists" 400 error was caught and the ID was retrieved from `documentStyle.defaultHeaderId` — this is the expected fallback path.
 
 ---
 
@@ -1200,7 +1200,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** none needed
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Called `create_header(doc_id=temp_doc, content="Confidential — Internal Only")`. Returned `{"docId": ..., "headerId": "kix.xxxxxxxxxx"}` with no `warning` key — both header creation (via `documentStyle` fallback) and content insertion at `index=0` succeeded.
 
 ---
 
@@ -1214,7 +1214,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** none needed
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Called `create_footer(doc_id=fixture)`. Returned `{"docId": ..., "footerId": "kix.xxxxxxxxxx"}`. Footer section visible in Google Docs.
 
 ---
 
@@ -1228,7 +1228,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** none needed
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Called `create_footer(doc_id=temp_doc, content="Page 1")`. Returned `{"docId": ..., "footerId": "kix.xxxxxxxxxx"}` with no `warning` key — footer created and content inserted at `index=0`.
 
 ---
 
@@ -1239,7 +1239,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Checks**
 - Returns `{"error": "Invalid header_type 'INVALID'..."}`
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Returned `{"error": "Invalid header_type 'INVALID'. Use DEFAULT or FIRST_PAGE_HEADER"}`. No API call made.
 
 ---
 
@@ -1250,7 +1250,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Checks**
 - Returns `{"error": "Invalid footer_type 'INVALID'..."}`
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Returned `{"error": "Invalid footer_type 'BOGUS'. Use DEFAULT or FIRST_PAGE_FOOTER"}`. No API call made.
 
 ---
 
@@ -1258,14 +1258,16 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** call `create_header` first to get a `headerId`
 
 **Prompt**
-> "Insert the text 'Header text via insert_doc_text' at index 1 in doc {DOC_ID} using segment_id '{headerId}'"
+> "Insert the text 'Header text via insert_doc_text' at index 0 in doc {DOC_ID} using segment_id '{headerId}'"
+
+**Note:** An empty header/footer segment has end index 1 (one newline at index 0). Insert at index 0, not 1.
 
 **Checks**
 - Call succeeds with no API error
 - Response contains `insertions: 1`
 - 🔍 Visual check: "Header text via insert_doc_text" appears in the document header
 
-**Result** ⏳ PENDING
+**Result (2026-06-22) ✅ PASS** Called `insert_doc_text` with `[{index: 0, text: "QA Test Header", segment_id: "kix.xxxxxxxxxx"}]`. Response: `{"docId": ..., "insertions": 1}`. Text "QA Test Header" appeared in fixture doc header. Same mechanism also confirmed for footer segment insertion (segment_id: "kix.xxxxxxxxxx", text: "Page 1").
 
 ---
 

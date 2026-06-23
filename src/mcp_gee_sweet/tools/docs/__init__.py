@@ -1642,6 +1642,7 @@ def register(tool):
             }
 
         lc = ctx.request_context.lifespan_context
+        header_id = None
         try:
             response = (
                 lc.docs_service.documents()
@@ -1652,7 +1653,6 @@ def register(tool):
                             {
                                 "createHeader": {
                                     "type": header_type,
-                                    "sectionBreakLocation": {"index": 1},
                                 }
                             }
                         ]
@@ -1660,10 +1660,31 @@ def register(tool):
                 )
                 .execute()
             )
+            replies = response.get("replies") or []
+            if replies:
+                header_id = replies[0].get("createHeaderResponse", {}).get("headerId")
+        except HttpError as e:
+            if "already exists" not in str(e).lower():
+                return {"error": str(e)}
         except Exception as e:
             return {"error": str(e)}
 
-        header_id = response.get("replies", [{}])[0].get("createHeaderResponse", {}).get("headerId")
+        # Fallback: if headerId not in response (or header already existed), read from documentStyle
+        if header_id is None:
+            try:
+                doc = (
+                    lc.docs_service.documents()
+                    .get(documentId=doc_id, fields="documentStyle")
+                    .execute()
+                )
+                style = doc.get("documentStyle", {})
+                header_id = (
+                    style.get("defaultHeaderId")
+                    if header_type == "DEFAULT"
+                    else style.get("firstPageHeaderId")
+                )
+            except Exception:
+                pass
 
         if content and header_id:
             try:
@@ -1674,7 +1695,7 @@ def register(tool):
                             {
                                 "insertText": {
                                     "text": content,
-                                    "location": {"index": 1, "segmentId": header_id},
+                                    "location": {"index": 0, "segmentId": header_id},
                                 }
                             }
                         ]
@@ -1723,6 +1744,7 @@ def register(tool):
             }
 
         lc = ctx.request_context.lifespan_context
+        footer_id = None
         try:
             response = (
                 lc.docs_service.documents()
@@ -1733,7 +1755,6 @@ def register(tool):
                             {
                                 "createFooter": {
                                     "type": footer_type,
-                                    "sectionBreakLocation": {"index": 1},
                                 }
                             }
                         ]
@@ -1741,10 +1762,31 @@ def register(tool):
                 )
                 .execute()
             )
+            replies = response.get("replies") or []
+            if replies:
+                footer_id = replies[0].get("createFooterResponse", {}).get("footerId")
+        except HttpError as e:
+            if "already exists" not in str(e).lower():
+                return {"error": str(e)}
         except Exception as e:
             return {"error": str(e)}
 
-        footer_id = response.get("replies", [{}])[0].get("createFooterResponse", {}).get("footerId")
+        # Fallback: if footerId not in response (or footer already existed), read from documentStyle
+        if footer_id is None:
+            try:
+                doc = (
+                    lc.docs_service.documents()
+                    .get(documentId=doc_id, fields="documentStyle")
+                    .execute()
+                )
+                style = doc.get("documentStyle", {})
+                footer_id = (
+                    style.get("defaultFooterId")
+                    if footer_type == "DEFAULT"
+                    else style.get("firstPageFooterId")
+                )
+            except Exception:
+                pass
 
         if content and footer_id:
             try:
@@ -1755,7 +1797,7 @@ def register(tool):
                             {
                                 "insertText": {
                                     "text": content,
-                                    "location": {"index": 1, "segmentId": footer_id},
+                                    "location": {"index": 0, "segmentId": footer_id},
                                 }
                             }
                         ]
