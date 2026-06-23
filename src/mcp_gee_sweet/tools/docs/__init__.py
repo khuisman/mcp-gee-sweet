@@ -647,9 +647,13 @@ def register(tool):
 
         Args:
             doc_id: The Google Doc file ID.
-            insertions: List of {"index": int, "text": str}. A "\\n" in text
-                creates a new paragraph; inserting "\\n" inside an existing paragraph
-                splits it at that point.
+            insertions: List of insertion dicts. Required keys:
+                index (int): document position to insert at.
+                text (str): text to insert. "\\n" creates a new paragraph.
+              Optional keys:
+                segment_id (str): segmentId of the header or footer to insert into
+                    (the headerId / footerId returned by create_header / create_footer).
+                    Omit to insert into the document body.
 
         Returns:
             Confirmation with docId and count of insertions applied.
@@ -659,10 +663,12 @@ def register(tool):
             return {"error": "insertions list is empty"}
         try:
             sorted_ops = sorted(insertions, key=lambda x: x["index"], reverse=True)
-            requests = [
-                {"insertText": {"location": {"index": op["index"]}, "text": op["text"]}}
-                for op in sorted_ops
-            ]
+            requests = []
+            for op in sorted_ops:
+                location: dict[str, Any] = {"index": op["index"]}
+                if "segment_id" in op:
+                    location["segmentId"] = op["segment_id"]
+                requests.append({"insertText": {"location": location, "text": op["text"]}})
             lc.docs_service.documents().batchUpdate(
                 documentId=doc_id, body={"requests": requests}
             ).execute()
@@ -1307,3 +1313,504 @@ def register(tool):
         lc.doc_cache.mark_dirty(doc_id)
         logger.debug("apply_theme: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}
+
+    @tool(annotations=ToolAnnotations(title="Insert Inline Image", destructiveHint=True))
+    def insert_inline_image(
+        doc_id: str,
+        index: int,
+        uri: str | None = None,
+        drive_file_id: str | None = None,
+        width: float | None = None,
+        height: float | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Insert an inline image at a specific index in a Google Doc.
+
+        Provide either uri (a publicly accessible HTTPS image URL) or drive_file_id
+        (a Drive file ID for an image stored in Drive). The image is inserted at the
+        given document index.
+
+        Use get_doc_structure to find a suitable insertion index.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            index: Document body index where the image should be inserted.
+            uri: A publicly accessible image URI (HTTPS). Mutually exclusive with drive_file_id.
+            drive_file_id: A Google Drive file ID for an image stored in Drive.
+                The file must be accessible by the authenticated user.
+                Mutually exclusive with uri.
+            width: Optional image width in points.
+            height: Optional image height in points.
+
+        Returns:
+            Confirmation with docId and the insertion index.
+        """
+        if not uri and not drive_file_id:
+            return {"error": "Provide either uri or drive_file_id"}
+        if uri and drive_file_id:
+            return {"error": "Provide only one of uri or drive_file_id, not both"}
+
+        lc = ctx.request_context.lifespan_context
+
+        if drive_file_id:
+            try:
+                metadata = (
+                    lc.drive_service.files()
+                    .get(fileId=drive_file_id, fields="webContentLink", supportsAllDrives=True)
+                    .execute()
+                )
+                uri = metadata.get("webContentLink")
+                if not uri:
+                    return {"error": f"Could not get download link for Drive file {drive_file_id}"}
+            except Exception as e:
+                return {"error": f"Failed to get Drive file metadata: {e}"}
+
+        image_request: dict[str, Any] = {
+            "insertInlineImage": {
+                "location": {"index": index},
+                "uri": uri,
+            }
+        }
+        if width is not None or height is not None:
+            object_size: dict[str, Any] = {}
+            if width is not None:
+                object_size["width"] = {"magnitude": width, "unit": "PT"}
+            if height is not None:
+                object_size["height"] = {"magnitude": height, "unit": "PT"}
+            image_request["insertInlineImage"]["objectSize"] = object_size
+
+        try:
+            lc.docs_service.documents().batchUpdate(
+                documentId=doc_id, body={"requests": [image_request]}
+            ).execute()
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug("insert_inline_image: at index %d in doc %s", index, doc_id)
+        return {"docId": doc_id, "index": index}
+
+    @tool(annotations=ToolAnnotations(title="Insert Table Row", destructiveHint=True))
+    def insert_table_row(
+        doc_id: str,
+        table_start_index: int,
+        row_index: int,
+        insert_below: bool = True,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Insert a row into an existing table in a Google Doc.
+
+        Use get_doc_structure to find the table's startIndex and the row_index to
+        insert relative to.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            table_start_index: The startIndex of the table (from get_doc_structure).
+            row_index: The row to insert relative to.
+            insert_below: If True (default), insert below the specified row.
+                If False, insert above it.
+
+        Returns:
+            Confirmation with docId, table_start_index, and the row_index used.
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            lc.docs_service.documents().batchUpdate(
+                documentId=doc_id,
+                body={
+                    "requests": [
+                        {
+                            "insertTableRow": {
+                                "tableCellLocation": {
+                                    "tableStartLocation": {"index": table_start_index},
+                                    "rowIndex": row_index,
+                                    "columnIndex": 0,
+                                },
+                                "insertBelow": insert_below,
+                            }
+                        }
+                    ]
+                },
+            ).execute()
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug(
+            "insert_table_row: row %d (below=%s) in table at %d in doc %s",
+            row_index,
+            insert_below,
+            table_start_index,
+            doc_id,
+        )
+        return {"docId": doc_id, "table_start_index": table_start_index, "row_index": row_index}
+
+    @tool(annotations=ToolAnnotations(title="Delete Table Row", destructiveHint=True))
+    def delete_table_row(
+        doc_id: str,
+        table_start_index: int,
+        row_index: int,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Delete a row from an existing table in a Google Doc.
+
+        Use get_doc_structure to find the table's startIndex and the row_index to delete.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            table_start_index: The startIndex of the table (from get_doc_structure).
+            row_index: Zero-based index of the row to delete.
+
+        Returns:
+            Confirmation with docId, table_start_index, and deleted row_index.
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            lc.docs_service.documents().batchUpdate(
+                documentId=doc_id,
+                body={
+                    "requests": [
+                        {
+                            "deleteTableRow": {
+                                "tableCellLocation": {
+                                    "tableStartLocation": {"index": table_start_index},
+                                    "rowIndex": row_index,
+                                    "columnIndex": 0,
+                                }
+                            }
+                        }
+                    ]
+                },
+            ).execute()
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug(
+            "delete_table_row: row %d from table at %d in doc %s",
+            row_index,
+            table_start_index,
+            doc_id,
+        )
+        return {"docId": doc_id, "table_start_index": table_start_index, "row_index": row_index}
+
+    @tool(annotations=ToolAnnotations(title="Insert Table Column", destructiveHint=True))
+    def insert_table_column(
+        doc_id: str,
+        table_start_index: int,
+        column_index: int,
+        insert_right: bool = True,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Insert a column into an existing table in a Google Doc.
+
+        Use get_doc_structure to find the table's startIndex and the column_index to
+        insert relative to.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            table_start_index: The startIndex of the table (from get_doc_structure).
+            column_index: The column to insert relative to.
+            insert_right: If True (default), insert to the right of the specified column.
+                If False, insert to the left.
+
+        Returns:
+            Confirmation with docId, table_start_index, and the column_index used.
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            lc.docs_service.documents().batchUpdate(
+                documentId=doc_id,
+                body={
+                    "requests": [
+                        {
+                            "insertTableColumn": {
+                                "tableCellLocation": {
+                                    "tableStartLocation": {"index": table_start_index},
+                                    "rowIndex": 0,
+                                    "columnIndex": column_index,
+                                },
+                                "insertRight": insert_right,
+                            }
+                        }
+                    ]
+                },
+            ).execute()
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug(
+            "insert_table_column: col %d (right=%s) in table at %d in doc %s",
+            column_index,
+            insert_right,
+            table_start_index,
+            doc_id,
+        )
+        return {
+            "docId": doc_id,
+            "table_start_index": table_start_index,
+            "column_index": column_index,
+        }
+
+    @tool(annotations=ToolAnnotations(title="Delete Table Column", destructiveHint=True))
+    def delete_table_column(
+        doc_id: str,
+        table_start_index: int,
+        column_index: int,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Delete a column from an existing table in a Google Doc.
+
+        Use get_doc_structure to find the table's startIndex and the column_index to delete.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            table_start_index: The startIndex of the table (from get_doc_structure).
+            column_index: Zero-based index of the column to delete.
+
+        Returns:
+            Confirmation with docId, table_start_index, and deleted column_index.
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            lc.docs_service.documents().batchUpdate(
+                documentId=doc_id,
+                body={
+                    "requests": [
+                        {
+                            "deleteTableColumn": {
+                                "tableCellLocation": {
+                                    "tableStartLocation": {"index": table_start_index},
+                                    "rowIndex": 0,
+                                    "columnIndex": column_index,
+                                }
+                            }
+                        }
+                    ]
+                },
+            ).execute()
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug(
+            "delete_table_column: col %d from table at %d in doc %s",
+            column_index,
+            table_start_index,
+            doc_id,
+        )
+        return {
+            "docId": doc_id,
+            "table_start_index": table_start_index,
+            "column_index": column_index,
+        }
+
+    @tool(annotations=ToolAnnotations(title="Create Document Header", destructiveHint=True))
+    def create_header(
+        doc_id: str,
+        header_type: str = "DEFAULT",
+        content: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Add a page header to a Google Doc.
+
+        Creates a header section and optionally inserts plain text content into it.
+        For rich formatting, use insert_doc_text with the returned headerId as segmentId
+        after calling this tool.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            header_type: "DEFAULT" (all pages, default) or "FIRST_PAGE_HEADER"
+                (applies only to the first page — requires useFirstPageHeaderFooter to
+                be set on the document section, which the Docs UI handles automatically).
+            content: Optional plain text content to insert into the header.
+
+        Returns:
+            Confirmation with docId and headerId. Use headerId as the segmentId in
+            subsequent insert_doc_text calls to add formatted content.
+        """
+        if header_type not in ("DEFAULT", "FIRST_PAGE_HEADER"):
+            return {
+                "error": f"Invalid header_type '{header_type}'. Use DEFAULT or FIRST_PAGE_HEADER"
+            }
+
+        lc = ctx.request_context.lifespan_context
+        header_id = None
+        try:
+            response = (
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "createHeader": {
+                                    "type": header_type,
+                                }
+                            }
+                        ]
+                    },
+                )
+                .execute()
+            )
+            replies = response.get("replies") or []
+            if replies:
+                header_id = replies[0].get("createHeaderResponse", {}).get("headerId")
+        except HttpError as e:
+            if "already exists" not in str(e).lower():
+                return {"error": str(e)}
+        except Exception as e:
+            return {"error": str(e)}
+
+        # Fallback: if headerId not in response (or header already existed), read from documentStyle
+        if header_id is None:
+            try:
+                doc = (
+                    lc.docs_service.documents()
+                    .get(documentId=doc_id, fields="documentStyle")
+                    .execute()
+                )
+                style = doc.get("documentStyle", {})
+                header_id = (
+                    style.get("defaultHeaderId")
+                    if header_type == "DEFAULT"
+                    else style.get("firstPageHeaderId")
+                )
+            except Exception:
+                pass
+
+        if content and header_id:
+            try:
+                lc.docs_service.documents().batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "insertText": {
+                                    "text": content,
+                                    "location": {"index": 0, "segmentId": header_id},
+                                }
+                            }
+                        ]
+                    },
+                ).execute()
+            except Exception as e:
+                lc.doc_cache.mark_dirty(doc_id)
+                return {
+                    "docId": doc_id,
+                    "headerId": header_id,
+                    "warning": f"Header created but content insert failed: {e}",
+                }
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug("create_header: type=%s headerId=%s in doc %s", header_type, header_id, doc_id)
+        return {"docId": doc_id, "headerId": header_id}
+
+    @tool(annotations=ToolAnnotations(title="Create Document Footer", destructiveHint=True))
+    def create_footer(
+        doc_id: str,
+        footer_type: str = "DEFAULT",
+        content: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Add a page footer to a Google Doc.
+
+        Creates a footer section and optionally inserts plain text content into it.
+        For rich formatting, use insert_doc_text with the returned footerId as segmentId
+        after calling this tool.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            footer_type: "DEFAULT" (all pages, default) or "FIRST_PAGE_FOOTER"
+                (applies only to the first page — requires useFirstPageHeaderFooter to
+                be set on the document section, which the Docs UI handles automatically).
+            content: Optional plain text content to insert into the footer.
+
+        Returns:
+            Confirmation with docId and footerId. Use footerId as the segmentId in
+            subsequent insert_doc_text calls to add formatted content.
+        """
+        if footer_type not in ("DEFAULT", "FIRST_PAGE_FOOTER"):
+            return {
+                "error": f"Invalid footer_type '{footer_type}'. Use DEFAULT or FIRST_PAGE_FOOTER"
+            }
+
+        lc = ctx.request_context.lifespan_context
+        footer_id = None
+        try:
+            response = (
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "createFooter": {
+                                    "type": footer_type,
+                                }
+                            }
+                        ]
+                    },
+                )
+                .execute()
+            )
+            replies = response.get("replies") or []
+            if replies:
+                footer_id = replies[0].get("createFooterResponse", {}).get("footerId")
+        except HttpError as e:
+            if "already exists" not in str(e).lower():
+                return {"error": str(e)}
+        except Exception as e:
+            return {"error": str(e)}
+
+        # Fallback: if footerId not in response (or footer already existed), read from documentStyle
+        if footer_id is None:
+            try:
+                doc = (
+                    lc.docs_service.documents()
+                    .get(documentId=doc_id, fields="documentStyle")
+                    .execute()
+                )
+                style = doc.get("documentStyle", {})
+                footer_id = (
+                    style.get("defaultFooterId")
+                    if footer_type == "DEFAULT"
+                    else style.get("firstPageFooterId")
+                )
+            except Exception:
+                pass
+
+        if content and footer_id:
+            try:
+                lc.docs_service.documents().batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "insertText": {
+                                    "text": content,
+                                    "location": {"index": 0, "segmentId": footer_id},
+                                }
+                            }
+                        ]
+                    },
+                ).execute()
+            except Exception as e:
+                lc.doc_cache.mark_dirty(doc_id)
+                return {
+                    "docId": doc_id,
+                    "footerId": footer_id,
+                    "warning": f"Footer created but content insert failed: {e}",
+                }
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug("create_footer: type=%s footerId=%s in doc %s", footer_type, footer_id, doc_id)
+        return {"docId": doc_id, "footerId": footer_id}

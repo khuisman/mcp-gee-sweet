@@ -1875,3 +1875,478 @@ class TestApplyThemeTool:
         assert "HEADING_1" in result
         assert result["HEADING_1"]["font_family"] == "Georgia"
         assert result["HEADING_1"]["font_size"] == 20.0
+
+
+# ---------------------------------------------------------------------------
+# insert_inline_image (#145)
+# ---------------------------------------------------------------------------
+
+
+class TestInsertInlineImage:
+    def _ctx(self, docs_svc=None, drive_svc=None):
+        return _make_ctx(
+            docs_service=docs_svc or MagicMock(),
+            drive_service=drive_svc or MagicMock(),
+            doc_cache=MagicMock(),
+        )
+
+    def test_uri_only_sends_correct_request(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["insert_inline_image"](
+            doc_id="doc1", index=5, uri="https://example.com/img.png", ctx=ctx
+        )
+        assert result == {"docId": "doc1", "index": 5}
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        req = body["requests"][0]["insertInlineImage"]
+        assert req["location"]["index"] == 5
+        assert req["uri"] == "https://example.com/img.png"
+        assert "objectSize" not in req
+
+    def test_width_and_height_included(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        _docs_tools["insert_inline_image"](
+            doc_id="doc1",
+            index=1,
+            uri="https://example.com/img.png",
+            width=200.0,
+            height=100.0,
+            ctx=ctx,
+        )
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        req = body["requests"][0]["insertInlineImage"]
+        assert req["objectSize"]["width"] == {"magnitude": 200.0, "unit": "PT"}
+        assert req["objectSize"]["height"] == {"magnitude": 100.0, "unit": "PT"}
+
+    def test_drive_file_id_fetches_web_content_link(self):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "webContentLink": "https://drive.google.com/uc?id=file1"
+        }
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc)
+        result = _docs_tools["insert_inline_image"](
+            doc_id="doc1", index=3, drive_file_id="file1", ctx=ctx
+        )
+        assert "error" not in result
+        drive_svc.files.return_value.get.assert_called_with(
+            fileId="file1", fields="webContentLink", supportsAllDrives=True
+        )
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        req = body["requests"][0]["insertInlineImage"]
+        assert req["uri"] == "https://drive.google.com/uc?id=file1"
+
+    def test_missing_both_returns_error(self):
+        ctx = self._ctx()
+        result = _docs_tools["insert_inline_image"](doc_id="doc1", index=1, ctx=ctx)
+        assert "error" in result
+
+    def test_both_provided_returns_error(self):
+        ctx = self._ctx()
+        result = _docs_tools["insert_inline_image"](
+            doc_id="doc1",
+            index=1,
+            uri="https://example.com/img.png",
+            drive_file_id="file1",
+            ctx=ctx,
+        )
+        assert "error" in result
+
+    def test_drive_file_no_web_content_link_returns_error(self):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.get.return_value.execute.return_value = {}
+        ctx = self._ctx(drive_svc=drive_svc)
+        result = _docs_tools["insert_inline_image"](
+            doc_id="doc1", index=1, drive_file_id="file1", ctx=ctx
+        )
+        assert "error" in result
+
+    def test_api_error_returns_error(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "API error"
+        )
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["insert_inline_image"](
+            doc_id="doc1", index=1, uri="https://example.com/img.png", ctx=ctx
+        )
+        assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# Table structural ops (#146)
+# ---------------------------------------------------------------------------
+
+
+class TestInsertTableRow:
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    def test_insert_below_default(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["insert_table_row"](
+            doc_id="doc1", table_start_index=5, row_index=1, ctx=ctx
+        )
+        assert result == {"docId": "doc1", "table_start_index": 5, "row_index": 1}
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        req = body["requests"][0]["insertTableRow"]
+        assert req["tableCellLocation"]["tableStartLocation"]["index"] == 5
+        assert req["tableCellLocation"]["rowIndex"] == 1
+        assert req["tableCellLocation"]["columnIndex"] == 0
+        assert req["insertBelow"] is True
+
+    def test_insert_above(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        _docs_tools["insert_table_row"](
+            doc_id="doc1", table_start_index=5, row_index=0, insert_below=False, ctx=ctx
+        )
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        assert body["requests"][0]["insertTableRow"]["insertBelow"] is False
+
+    def test_api_error_returns_error(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "API error"
+        )
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["insert_table_row"](
+            doc_id="doc1", table_start_index=5, row_index=0, ctx=ctx
+        )
+        assert "error" in result
+
+
+class TestDeleteTableRow:
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    def test_sends_correct_request(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["delete_table_row"](
+            doc_id="doc1", table_start_index=5, row_index=2, ctx=ctx
+        )
+        assert result == {"docId": "doc1", "table_start_index": 5, "row_index": 2}
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        req = body["requests"][0]["deleteTableRow"]
+        assert req["tableCellLocation"]["tableStartLocation"]["index"] == 5
+        assert req["tableCellLocation"]["rowIndex"] == 2
+        assert req["tableCellLocation"]["columnIndex"] == 0
+
+    def test_api_error_returns_error(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "API error"
+        )
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["delete_table_row"](
+            doc_id="doc1", table_start_index=5, row_index=0, ctx=ctx
+        )
+        assert "error" in result
+
+
+class TestInsertTableColumn:
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    def test_insert_right_default(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["insert_table_column"](
+            doc_id="doc1", table_start_index=5, column_index=1, ctx=ctx
+        )
+        assert result == {"docId": "doc1", "table_start_index": 5, "column_index": 1}
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        req = body["requests"][0]["insertTableColumn"]
+        assert req["tableCellLocation"]["tableStartLocation"]["index"] == 5
+        assert req["tableCellLocation"]["columnIndex"] == 1
+        assert req["tableCellLocation"]["rowIndex"] == 0
+        assert req["insertRight"] is True
+
+    def test_insert_left(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        _docs_tools["insert_table_column"](
+            doc_id="doc1", table_start_index=5, column_index=0, insert_right=False, ctx=ctx
+        )
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        assert body["requests"][0]["insertTableColumn"]["insertRight"] is False
+
+    def test_api_error_returns_error(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "API error"
+        )
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["insert_table_column"](
+            doc_id="doc1", table_start_index=5, column_index=0, ctx=ctx
+        )
+        assert "error" in result
+
+
+class TestDeleteTableColumn:
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    def test_sends_correct_request(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["delete_table_column"](
+            doc_id="doc1", table_start_index=5, column_index=2, ctx=ctx
+        )
+        assert result == {"docId": "doc1", "table_start_index": 5, "column_index": 2}
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        req = body["requests"][0]["deleteTableColumn"]
+        assert req["tableCellLocation"]["tableStartLocation"]["index"] == 5
+        assert req["tableCellLocation"]["columnIndex"] == 2
+        assert req["tableCellLocation"]["rowIndex"] == 0
+
+    def test_api_error_returns_error(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "API error"
+        )
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["delete_table_column"](
+            doc_id="doc1", table_start_index=5, column_index=0, ctx=ctx
+        )
+        assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# create_header / create_footer (#147)
+# ---------------------------------------------------------------------------
+
+
+class TestCreateHeader:
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    def _make_docs_svc(self, header_id="hdr1"):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": [{"createHeaderResponse": {"headerId": header_id}}]
+        }
+        return docs_svc
+
+    def test_returns_header_id(self):
+        docs_svc = self._make_docs_svc("hdr-abc")
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
+        assert result == {"docId": "doc1", "headerId": "hdr-abc"}
+
+    def test_default_type_sent(self):
+        docs_svc = self._make_docs_svc()
+        ctx = self._ctx(docs_svc=docs_svc)
+        _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        assert body["requests"][0]["createHeader"]["type"] == "DEFAULT"
+        assert "sectionBreakLocation" not in body["requests"][0]["createHeader"]
+
+    def test_first_page_header_type(self):
+        docs_svc = self._make_docs_svc()
+        ctx = self._ctx(docs_svc=docs_svc)
+        _docs_tools["create_header"](doc_id="doc1", header_type="FIRST_PAGE_HEADER", ctx=ctx)
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        assert body["requests"][0]["createHeader"]["type"] == "FIRST_PAGE_HEADER"
+
+    def test_invalid_type_returns_error(self):
+        ctx = self._ctx()
+        result = _docs_tools["create_header"](doc_id="doc1", header_type="BOGUS", ctx=ctx)
+        assert "error" in result
+
+    def test_content_inserted_when_provided(self):
+        docs_svc = self._make_docs_svc("hdr1")
+        ctx = self._ctx(docs_svc=docs_svc)
+        _docs_tools["create_header"](doc_id="doc1", content="My Header", ctx=ctx)
+        # Two batchUpdate calls: one to create, one to insert text
+        assert docs_svc.documents.return_value.batchUpdate.call_count == 2
+        second_body = docs_svc.documents.return_value.batchUpdate.call_args_list[1].kwargs["body"]
+        insert_req = second_body["requests"][0]["insertText"]
+        assert insert_req["text"] == "My Header"
+        assert insert_req["location"]["segmentId"] == "hdr1"
+        assert insert_req["location"]["index"] == 0
+
+    def test_no_content_single_api_call(self):
+        docs_svc = self._make_docs_svc()
+        ctx = self._ctx(docs_svc=docs_svc)
+        _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
+        assert docs_svc.documents.return_value.batchUpdate.call_count == 1
+
+    def test_api_error_returns_error(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "API error"
+        )
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
+        assert "error" in result
+
+    def test_empty_replies_falls_back_to_document_style(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": []
+        }
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentStyle": {"defaultHeaderId": "hdr-fallback"}
+        }
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
+        assert result == {"docId": "doc1", "headerId": "hdr-fallback"}
+
+    def test_already_exists_error_falls_back_to_document_style(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = HttpError(
+            resp=MagicMock(status=400), content=b"Default header already exists."
+        )
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentStyle": {"defaultHeaderId": "hdr-existing"}
+        }
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
+        assert result == {"docId": "doc1", "headerId": "hdr-existing"}
+
+
+class TestCreateFooter:
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    def _make_docs_svc(self, footer_id="ftr1"):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": [{"createFooterResponse": {"footerId": footer_id}}]
+        }
+        return docs_svc
+
+    def test_returns_footer_id(self):
+        docs_svc = self._make_docs_svc("ftr-xyz")
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
+        assert result == {"docId": "doc1", "footerId": "ftr-xyz"}
+
+    def test_default_type_sent(self):
+        docs_svc = self._make_docs_svc()
+        ctx = self._ctx(docs_svc=docs_svc)
+        _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        assert body["requests"][0]["createFooter"]["type"] == "DEFAULT"
+        assert "sectionBreakLocation" not in body["requests"][0]["createFooter"]
+
+    def test_first_page_footer_type(self):
+        docs_svc = self._make_docs_svc()
+        ctx = self._ctx(docs_svc=docs_svc)
+        _docs_tools["create_footer"](doc_id="doc1", footer_type="FIRST_PAGE_FOOTER", ctx=ctx)
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        assert body["requests"][0]["createFooter"]["type"] == "FIRST_PAGE_FOOTER"
+
+    def test_invalid_type_returns_error(self):
+        ctx = self._ctx()
+        result = _docs_tools["create_footer"](doc_id="doc1", footer_type="BOGUS", ctx=ctx)
+        assert "error" in result
+
+    def test_content_inserted_when_provided(self):
+        docs_svc = self._make_docs_svc("ftr1")
+        ctx = self._ctx(docs_svc=docs_svc)
+        _docs_tools["create_footer"](doc_id="doc1", content="Page 1", ctx=ctx)
+        assert docs_svc.documents.return_value.batchUpdate.call_count == 2
+        second_body = docs_svc.documents.return_value.batchUpdate.call_args_list[1].kwargs["body"]
+        insert_req = second_body["requests"][0]["insertText"]
+        assert insert_req["text"] == "Page 1"
+        assert insert_req["location"]["segmentId"] == "ftr1"
+        assert insert_req["location"]["index"] == 0
+
+    def test_no_content_single_api_call(self):
+        docs_svc = self._make_docs_svc()
+        ctx = self._ctx(docs_svc=docs_svc)
+        _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
+        assert docs_svc.documents.return_value.batchUpdate.call_count == 1
+
+    def test_api_error_returns_error(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "API error"
+        )
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
+        assert "error" in result
+
+    def test_empty_replies_falls_back_to_document_style(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": []
+        }
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentStyle": {"defaultFooterId": "ftr-fallback"}
+        }
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
+        assert result == {"docId": "doc1", "footerId": "ftr-fallback"}
+
+    def test_already_exists_error_falls_back_to_document_style(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = HttpError(
+            resp=MagicMock(status=400), content=b"Default footer already exists."
+        )
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentStyle": {"defaultFooterId": "ftr-existing"}
+        }
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
+        assert result == {"docId": "doc1", "footerId": "ftr-existing"}
+
+
+# ---------------------------------------------------------------------------
+# insert_doc_text — segment_id support for headers/footers
+# ---------------------------------------------------------------------------
+
+
+class TestInsertDocTextSegmentId:
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    def test_segment_id_included_in_location(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        _docs_tools["insert_doc_text"](
+            doc_id="doc1",
+            insertions=[{"index": 1, "text": "Header text", "segment_id": "hdr1"}],
+            ctx=ctx,
+        )
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        loc = body["requests"][0]["insertText"]["location"]
+        assert loc["index"] == 1
+        assert loc["segmentId"] == "hdr1"
+
+    def test_no_segment_id_omits_field(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        _docs_tools["insert_doc_text"](
+            doc_id="doc1",
+            insertions=[{"index": 5, "text": "Body text"}],
+            ctx=ctx,
+        )
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        loc = body["requests"][0]["insertText"]["location"]
+        assert "segmentId" not in loc
+
+    def test_mixed_body_and_segment_insertions(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        _docs_tools["insert_doc_text"](
+            doc_id="doc1",
+            insertions=[
+                {"index": 10, "text": "Body"},
+                {"index": 1, "text": "Header", "segment_id": "hdr1"},
+            ],
+            ctx=ctx,
+        )
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        reqs = body["requests"]
+        assert len(reqs) == 2
+        # Sorted high-index-first: index=10 before index=1
+        assert reqs[0]["insertText"]["location"]["index"] == 10
+        assert "segmentId" not in reqs[0]["insertText"]["location"]
+        assert reqs[1]["insertText"]["location"]["index"] == 1
+        assert reqs[1]["insertText"]["location"]["segmentId"] == "hdr1"
