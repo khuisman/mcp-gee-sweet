@@ -1,9 +1,13 @@
-"""Tests for server.py (_parse_enabled_tools, _auth_status_json)."""
+"""Tests for server.py (_parse_enabled_tools, _auth_status_json, _timed)."""
 
 import json
+import logging
 import sys
+from unittest.mock import MagicMock
 
-from mcp_gee_sweet.server import _auth_status_json, _parse_enabled_tools
+import pytest
+
+from mcp_gee_sweet.server import _auth_status_json, _parse_enabled_tools, _timed
 
 
 class TestParseEnabledTools:
@@ -93,3 +97,108 @@ class TestAuthStatusResource:
         status = self._get_status("adc")
         assert status["can_create_in_personal_drive"] is True
         assert status["limited_tools"] == []
+
+
+class TestTimed:
+    """_timed wraps tool functions to emit a per-call access log line."""
+
+    @pytest.fixture(autouse=True)
+    def capture_access_log(self):
+        """Capture mcp_gee_sweet.access records regardless of propagation settings.
+
+        DEBUG_LEVEL in .env sets mcp_gee_sweet.propagate=False at import time,
+        so caplog's root handler never sees the records. We re-enable propagation
+        and attach a direct MemoryHandler to the access logger for the duration of
+        each test.
+        """
+        self._access_records = []
+
+        class _Capture(logging.Handler):
+            def emit(inner_self, record):
+                self._access_records.append(record)
+
+        self._capture_handler = _Capture(level=logging.DEBUG)
+        access_logger = logging.getLogger("mcp_gee_sweet.access")
+        access_logger.addHandler(self._capture_handler)
+        access_logger.setLevel(logging.DEBUG)
+        yield
+        access_logger.removeHandler(self._capture_handler)
+
+    def _access_messages(self):
+        return [r.getMessage() for r in self._access_records]
+
+    def test_returns_function_result(self):
+        @_timed
+        def my_func(**_kwargs):
+            return 42
+
+        assert my_func() == 42
+
+    def test_reraises_exception(self):
+        @_timed
+        def my_func(**_kwargs):
+            raise ValueError("boom")
+
+        with pytest.raises(ValueError, match="boom"):
+            my_func()
+
+    def test_logs_success_access_line(self):
+        @_timed
+        def list_files(**kwargs):
+            return []
+
+        list_files()
+
+        msgs = self._access_messages()
+        assert len(msgs) == 1
+        assert '"TOOL list_files"' in msgs[0]
+        assert "200" in msgs[0]
+
+    def test_logs_500_on_exception(self):
+        @_timed
+        def my_func(**_kwargs):
+            raise RuntimeError("fail")
+
+        with pytest.raises(RuntimeError):
+            my_func()
+
+        msgs = self._access_messages()
+        assert len(msgs) == 1
+        assert "500" in msgs[0]
+
+    def test_falls_back_to_dash_without_ctx(self):
+        @_timed
+        def my_func(**_kwargs):
+            return None
+
+        my_func()
+
+        msgs = self._access_messages()
+        assert len(msgs) == 1
+        assert '"-"' in msgs[0]
+
+    def test_extracts_ip_and_ua_from_ctx(self):
+        ctx = MagicMock()
+        ctx.request_context.request.client.host = "1.2.3.4"
+        ctx.request_context.request.headers = {"user-agent": "test-client/1.0"}
+
+        @_timed
+        def my_func(**_kwargs):
+            return None
+
+        my_func(ctx=ctx)
+
+        msgs = self._access_messages()
+        assert len(msgs) == 1
+        assert "1.2.3.4" in msgs[0]
+        assert "test-client/1.0" in msgs[0]
+
+    def test_elapsed_time_appears_in_log(self):
+        @_timed
+        def my_func(**_kwargs):
+            return None
+
+        my_func()
+
+        msgs = self._access_messages()
+        assert msgs[0].endswith("s")

@@ -41,7 +41,7 @@ Logic is split across `src/mcp_gee_sweet/`: `server.py` (MCP setup, tool decorat
 - `tools/cache.py` — `refresh_cache`
 - `tools/calendar.py` — Calendar API tools
 
-`__init__.py` just re-exports `main()`.
+`__init__.py` loads `src/mcp_gee_sweet/.env` via `python-dotenv` before importing `server`, so env vars from that file are in `os.environ` by the time any module-level `os.environ.get()` runs. Priority: real env var > `.env` > default.
 
 **Startup / auth** (`spreadsheet_lifespan`): FastMCP lifespan context manager that authenticates on server start and injects a `SpreadsheetContext` (holding `sheets_service` and `drive_service`) into every tool call via `ctx.request_context.lifespan_context`.
 
@@ -56,6 +56,8 @@ Set `AUTH_METHOD` to pin a specific method with no fallback — removes ambiguit
 - `AUTH_METHOD=oauth` — OAuth only; fails fast if credentials are missing
 - `AUTH_METHOD=service_account` — service account only; requires `CREDENTIALS_CONFIG` or `SERVICE_ACCOUNT_PATH`
 - `AUTH_METHOD=adc` — ADC only
+
+**Logging** (`DEBUG_LEVEL` env var): when set, configures the `mcp_gee_sweet` package logger and `uvicorn.access` logger to the given level (`DEBUG`, `INFO`, `WARNING`, `ERROR`). The `_timed` wrapper in `server.py` emits one `INFO` line per tool call to `mcp_gee_sweet.access` — format: `"IP" "UA" "TOOL name" status elapsed`. IP/UA come from `ctx.request_context` in SSE mode; fall back to `-` in stdio. `LOG_FILE` and `ACCESS_LOG_FILE` env vars write logs to file (required for stdio where stderr is dropped by the host). Runtime config lives in `src/mcp_gee_sweet/.env` (gitignored); template at `src/mcp_gee_sweet/.env.template`.
 
 **Tool registration** (`tool` decorator wrapper): A custom `@tool()` decorator wraps `@mcp.tool()`. It checks `ENABLED_TOOLS` (set via `ENABLED_TOOLS` env var or `--include-tools` CLI arg) and skips registration for any tool not in the allowlist. This is how tool filtering works — tools simply aren't registered with FastMCP rather than being conditionally hidden.
 
