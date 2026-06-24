@@ -24,6 +24,14 @@ recreate: ## Recreate container from scratch (removes historical logs).
 logs: ## Tail container logs.
 	docker compose logs -f
 
+.PHONY: dev-logs
+dev-logs: ## Tail MCP server log file (requires LOG_FILE set in src/mcp_gee_sweet/.env).
+	tail -f $$(grep -E '^LOG_FILE=' src/mcp_gee_sweet/.env | cut -d= -f2)
+
+.PHONY: access-logs
+access-logs: ## Tail HTTP access log (requires ACCESS_LOG_FILE set in src/mcp_gee_sweet/.env).
+	tail -f $$(grep -E '^ACCESS_LOG_FILE=' src/mcp_gee_sweet/.env | cut -d= -f2)
+
 .PHONY: sh
 sh: ## Open a shell in the container.
 	docker compose exec mcp-gee-sweet bash

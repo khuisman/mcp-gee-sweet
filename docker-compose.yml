@@ -9,7 +9,7 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8000
-      - DEBUG=${DEBUG:-1}
+      - DEBUG_LEVEL=${DEBUG_LEVEL:-DEBUG}
       - SERVICE_ACCOUNT_PATH=/run/secrets/service_account
       - DRIVE_FOLDER_ID=${DRIVE_FOLDER_ID}
     volumes:

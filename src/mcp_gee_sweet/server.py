@@ -19,15 +19,43 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 logging.getLogger("sse_starlette.sse").setLevel(logging.WARNING)  # suppress keepalive ping noise
-# Give our package a direct handler so uvicorn's dictConfig can't suppress DEBUG output.
-if os.getenv("DEBUG"):
+# DEBUG_LEVEL controls all package and access logging. Accepts standard level names (DEBUG, INFO, WARNING…).
+if _level_name := os.getenv("DEBUG_LEVEL"):
+    _level = getattr(logging, _level_name.upper(), logging.DEBUG)
+    _fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+
+    # Package logger — give it a direct handler so uvicorn's dictConfig can't suppress it.
     _pkg_logger = logging.getLogger("mcp_gee_sweet")
-    _pkg_logger.setLevel(logging.DEBUG)
+    _pkg_logger.setLevel(_level)
     _h = logging.StreamHandler(sys.stderr)
-    _h.setLevel(logging.DEBUG)
-    _h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    _h.setLevel(_level)
+    _h.setFormatter(_fmt)
     _pkg_logger.addHandler(_h)
+    if _log_file := os.getenv("LOG_FILE"):
+        _fh = logging.FileHandler(_log_file)
+        _fh.setLevel(_level)
+        _fh.setFormatter(_fmt)
+        _pkg_logger.addHandler(_fh)
     _pkg_logger.propagate = False
+
+    # uvicorn access logger — stderr (Docker captures it) + optional file for local SSE.
+    _access_fmt = logging.Formatter("%(asctime)s %(message)s")
+    _access_logger = logging.getLogger("uvicorn.access")
+    _access_logger.setLevel(_level)
+    _access_h = logging.StreamHandler(sys.stderr)
+    _access_h.setLevel(_level)
+    _access_h.setFormatter(_access_fmt)
+    _access_logger.addHandler(_access_h)
+    _access_logger.propagate = False
+
+    # mcp_gee_sweet.access — tool-level access log; propagates to parent for LOG_FILE.
+    # Optional ACCESS_LOG_FILE writes access lines separately (nginx-style, no debug noise).
+    if _access_log_file := os.getenv("ACCESS_LOG_FILE"):
+        _tool_access_logger = logging.getLogger("mcp_gee_sweet.access")
+        _tool_access_fh = logging.FileHandler(_access_log_file)
+        _tool_access_fh.setLevel(logging.INFO)
+        _tool_access_fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+        _tool_access_logger.addHandler(_tool_access_fh)
 
 from mcp.server.fastmcp import FastMCP  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402
@@ -69,14 +97,29 @@ mcp = FastMCP(
 app = mcp.sse_app()
 
 
+_tool_access_logger = logging.getLogger("mcp_gee_sweet.access")
+
+
 def _timed(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         start = time.perf_counter()
+        status = 200
         try:
             return func(*args, **kwargs)
+        except Exception:
+            status = 500
+            raise
         finally:
-            logger.debug("%s took %.3fs", func.__name__, time.perf_counter() - start)
+            elapsed = time.perf_counter() - start
+            ctx = kwargs.get("ctx")
+            req = getattr(ctx, "request_context", None)
+            req = getattr(req, "request", req)  # unwrap if nested
+            ip = getattr(getattr(req, "client", None), "host", None) or "-"
+            ua = (getattr(req, "headers", None) or {}).get("user-agent", "-")
+            _tool_access_logger.info(
+                '"%s" %s "TOOL %s" %d %.3fs', ip, ua, func.__name__, status, elapsed
+            )
 
     return wrapper
 
