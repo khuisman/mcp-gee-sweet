@@ -765,15 +765,14 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 ---
 
 ### TC-D195: `create_doc_from_file` with a local .md file ⚠️ requires-oauth ⚠️ destructive
-**Setup:** create a local file `~/test-doc.md` with a heading, bold paragraph, task list items, and a pipe table
+**Setup:** use `docs/qa/fixtures/tc-d195-create-doc.md` from the repo
 
 **Prompt**
-> "Create a Google Doc from the file ~/test-doc.md"
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d195-create-doc.md"
 
 **Checks**
 - `docId` and `web_link` returned with no `error`
-- `get_doc_structure` shows HEADING_1, paragraphs, bullet items, and a table
-- Bullet items include `☑` and `☐` glyphs
+- `get_doc_structure` shows HEADING_1 "QA Test Document", paragraphs with bold/italic runs, bullet items with `☑` and `☐` glyphs, and a table (Col A/Col B, one/two)
 - 🔍 Visual check in Google Docs: heading, bold/italic text, task checkboxes, and table all render correctly
 
 **Cleanup:** delete the created doc
@@ -784,14 +783,14 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 ---
 
 ### TC-D196: `create_doc_from_file` with a local .html file ⚠️ requires-oauth ⚠️ destructive
-**Setup:** create a local file `~/test-doc.html` with `<h2>From HTML file</h2><p>Content</p>`
+**Setup:** use `docs/qa/fixtures/tc-d196-create-doc.html` from the repo
 
 **Prompt**
-> "Create a Google Doc from the file ~/test-doc.html"
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d196-create-doc.html"
 
 **Checks**
-- `docId` and `web_link` returned
-- `get_doc_structure` shows HEADING_2 and a paragraph
+- `docId` and `web_link` returned with no `error`
+- `get_doc_structure` shows HEADING_2 "From HTML file" and paragraph "Content paragraph."
 
 **Cleanup:** delete the created doc
 
