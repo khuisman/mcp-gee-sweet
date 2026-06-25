@@ -1283,3 +1283,29 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - For a standard doc: may return `{}` or only Google's default entries (expected, not an error)
 
 **Result (2026-06-20) ✅ PASS** Called on a doc that had `apply_theme` previously applied (Georgia HEADING_1/H2, Roboto NORMAL_TEXT). Returned 9 entries: NORMAL_TEXT (Roboto 11pt, line_spacing 115), HEADING_1 (Georgia 24pt bold, space_above 20), HEADING_2 (Georgia 18pt, space_above 18), HEADING_3–6 (Google defaults with font sizes and colors), TITLE, SUBTITLE. Confirms `apply_theme` default mode successfully writes to named styles, and `get_doc_named_styles` reads them back correctly. No error.
+
+---
+
+### TC-D226: Table immediately after heading renders at Normal Text size ⚠️ requires-oauth ⚠️ destructive
+**Setup:** create a local file `~/test-heading-table.md` with this content:
+```markdown
+## HIGH
+
+| Finding | Severity | Ticket |
+|---|---|---|
+| Some finding | HIGH | KINDLY-123 |
+```
+
+**Prompt**
+> "Create a Google Doc from the file ~/test-heading-table.md"
+
+**Checks**
+- `docId` and `web_link` returned with no `error`
+- Open the doc in Google Docs
+- 🔍 Visual check: table cell text ("Finding", "Severity", "Ticket", "Some finding", "HIGH", "KINDLY-123") renders at Normal Text size (~11pt), **not** at the H2 heading size (~16pt)
+- Selecting a table cell and checking the toolbar shows "Normal Text" style at a normal font size (not oversized)
+- No blank paragraph is needed between the heading and the table to achieve correct sizing
+
+**Cleanup:** delete the created doc
+
+**Result (2026-06-24) ✅ PASS** "HIGH" heading renders visually larger than table text. All six cells ("Finding", "Severity", "Ticket", "Some finding", "HIGH", "KINDLY-123") render at Normal Text size. No blank paragraph between heading and table required. No oversized cell text observed.

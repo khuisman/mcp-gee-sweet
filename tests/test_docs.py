@@ -634,6 +634,73 @@ class TestRowspanFill:
         assert insert_indices == sorted(insert_indices, reverse=True)
 
 
+class TestFillRequestsFontSizeClear:
+    """Table cell text must not inherit font size from a preceding heading (issue #189)."""
+
+    def _doc_cell(self, start_index):
+        return {"startIndex": start_index, "content": [{"startIndex": start_index + 1}]}
+
+    def _doc_row(self, *start_indices):
+        return {"tableCells": [self._doc_cell(i) for i in start_indices]}
+
+    def test_fontSize_clear_emitted_after_insertText(self):
+        # A plain text cell must emit an updateTextStyle clearing fontSize immediately
+        # after its insertText so any heading-inherited fontSize is wiped out.
+        ast_t = _table(_row(_cell("Hello")))
+        doc_t = {"tableRows": [self._doc_row(10)]}
+        reqs = _build_fill_requests([doc_t], [ast_t])
+
+        insert_idx = next(i for i, r in enumerate(reqs) if "insertText" in r)
+        clear_idx = next(
+            i
+            for i, r in enumerate(reqs)
+            if "updateTextStyle" in r
+            and r["updateTextStyle"].get("fields") == "fontSize"
+            and r["updateTextStyle"].get("textStyle") == {}
+        )
+        # Clear must come after insertText in the request list
+        assert clear_idx > insert_idx
+
+    def test_fontSize_clear_covers_full_cell_text(self):
+        ast_t = _table(_row(_cell("Hello")))
+        doc_t = {"tableRows": [self._doc_row(10)]}
+        reqs = _build_fill_requests([doc_t], [ast_t])
+
+        clear = next(
+            r
+            for r in reqs
+            if "updateTextStyle" in r
+            and r["updateTextStyle"].get("fields") == "fontSize"
+            and r["updateTextStyle"].get("textStyle") == {}
+        )
+        rng = clear["updateTextStyle"]["range"]
+        # para_start = 10+1 = 11; text "Hello" = 5 chars → endIndex = 16
+        assert rng["startIndex"] == 11
+        assert rng["endIndex"] == 16
+
+    def test_explicit_run_font_size_applied_after_clear(self):
+        # If a run has an explicit font_size, it must appear AFTER the clear request.
+        sized_run = Run("Big", font_size=18.0)
+        cell = Cell(runs=[sized_run])
+        ast_t = _table(_row(cell))
+        doc_t = {"tableRows": [self._doc_row(10)]}
+        reqs = _build_fill_requests([doc_t], [ast_t])
+
+        clear_idx = next(
+            i
+            for i, r in enumerate(reqs)
+            if "updateTextStyle" in r
+            and r["updateTextStyle"].get("fields") == "fontSize"
+            and r["updateTextStyle"].get("textStyle") == {}
+        )
+        explicit_idx = next(
+            i
+            for i, r in enumerate(reqs)
+            if "updateTextStyle" in r and "fontSize" in r["updateTextStyle"].get("textStyle", {})
+        )
+        assert explicit_idx > clear_idx
+
+
 def _quota_http_error():
     resp = MagicMock()
     resp.status = 403

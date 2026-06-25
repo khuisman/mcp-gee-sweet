@@ -497,6 +497,23 @@ def _build_fill_requests(doc_tables: list[dict], ast_tables: list[Table]) -> lis
                 cell_requests.append(
                     {"insertText": {"location": {"index": para_start}, "text": cell_text}}
                 )
+                # Clear any fontSize inherited from a preceding heading. The cell paragraph
+                # namedStyleType is already NORMAL_TEXT, but when a table is inserted right
+                # after a heading the empty cell paragraphs absorb the heading's character
+                # style. Explicitly clearing fontSize here ensures cells render at Normal Text
+                # size; per-run font_size values are re-applied by the loop below.
+                cell_requests.append(
+                    {
+                        "updateTextStyle": {
+                            "range": {
+                                "startIndex": para_start,
+                                "endIndex": para_start + len(cell_text),
+                            },
+                            "textStyle": {},
+                            "fields": "fontSize",
+                        }
+                    }
+                )
                 offset = 0
                 for run in cell_runs:
                     run_len = len(run.text)
