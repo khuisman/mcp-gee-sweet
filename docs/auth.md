@@ -41,6 +41,8 @@ Authenticates as you — gives full access to your personal Drive. Requires a br
    - `CREDENTIALS_PATH` — path to the downloaded OAuth JSON (default: `credentials.json`)
    - `TOKEN_PATH` — where the refresh token is stored after login (default: `token.json`)
 
+**Re-authenticating after a scope change:** if you've already authenticated and a new scope has been added (e.g. `drive.activity.readonly`), delete `token.json` and restart the server to trigger a fresh OAuth flow.
+
 ## Method C: Base64 credential injection
 
 Useful in Docker/Kubernetes where file mounts are inconvenient. Encode your service account or OAuth JSON as Base64 and pass it via environment variable.
@@ -62,6 +64,7 @@ gcloud auth application-default login \
   --scopes=https://www.googleapis.com/auth/cloud-platform,\
 https://www.googleapis.com/auth/spreadsheets,\
 https://www.googleapis.com/auth/drive,\
+https://www.googleapis.com/auth/drive.activity.readonly,\
 https://www.googleapis.com/auth/documents,\
 https://www.googleapis.com/auth/calendar
 
@@ -76,6 +79,7 @@ Enable these in GCP Console → APIs & Services → Library:
 
 - Google Sheets API
 - Google Drive API
+- Google Drive Activity API (required for `list_file_activity`)
 - Google Docs API
 - Google Calendar API
 
