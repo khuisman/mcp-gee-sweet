@@ -37,13 +37,14 @@ Logic is split across `src/mcp_gee_sweet/`: `server.py` (MCP setup, tool decorat
 - `tools/drive/files.py` — file/folder operations (`create_spreadsheet`, `list_spreadsheets`, `list_files`, `search_files`, `create_folder`, `copy_file`, `move_file`, `rename_file`, `delete_file`, `list_shared_with_me`, `list_recent_files`, `get_storage_quota`, etc.)
 - `tools/drive/sharing.py` — permissions (`share_spreadsheet`, `share_file`, `list_permissions`, `update_permission`, `remove_permission`)
 - `tools/drive/transfer.py` — upload/download/sync/export/revisions
+- `tools/drive/activity.py` — `list_file_activity` (Drive Activity API v2; requires `drive.activity.readonly` scope)
 - `tools/docs/` — Google Docs package (`create_doc`, `get_doc_content`, `write_doc_content`, `create_doc_from_file`, `insert_doc_text`, `delete_doc_range`, `get_doc_structure`, `style_doc_range`, `style_doc_table_cells`, `get_doc_theme`, `get_doc_named_styles`, `apply_theme`, `insert_inline_image`, `insert_table_row`, `delete_table_row`, `insert_table_column`, `delete_table_column`, `create_header`, `create_footer`); sub-modules: `ast.py` (dataclass schema), `html_parser.py` (HTML→AST), `emitter.py` (AST→Docs API requests + multi-phase table fill including nested table and cell styling support)
 - `tools/cache.py` — `refresh_cache`
 - `tools/calendar.py` — Calendar API tools
 
 `__init__.py` loads `src/mcp_gee_sweet/.env` via `python-dotenv` before importing `server`, so env vars from that file are in `os.environ` by the time any module-level `os.environ.get()` runs. Priority: real env var > `.env` > default.
 
-**Startup / auth** (`spreadsheet_lifespan`): FastMCP lifespan context manager that authenticates on server start and injects a `SpreadsheetContext` (holding `sheets_service` and `drive_service`) into every tool call via `ctx.request_context.lifespan_context`.
+**Startup / auth** (`spreadsheet_lifespan`): FastMCP lifespan context manager that authenticates on server start and injects a `SpreadsheetContext` (holding `sheets_service`, `drive_service`, `docs_service`, `calendar_service`, and `activity_service`) into every tool call via `ctx.request_context.lifespan_context`.
 
 The project philosophy is to be as powerful and flexible as possible by default, while giving security-conscious users the configuration knobs to lock things down. Two mechanisms reflect this:
 
