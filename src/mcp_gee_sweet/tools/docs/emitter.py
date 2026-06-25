@@ -211,8 +211,16 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
         for cell in row.cells
     )
 
-    # Step 1: re-fetch to get live cell positions
+    # Step 1: fetch doc; delete blank paragraphs stranded immediately before tables (an
+    # artifact of phase-1 insertText displacing the doc's initial empty paragraph), then
+    # re-fetch only if deletions were needed.
     live_doc = docs_service.documents().get(documentId=doc_id).execute()
+    blank_deletes = _build_blank_para_before_table_deletes(live_doc)
+    if blank_deletes:
+        docs_service.documents().batchUpdate(
+            documentId=doc_id, body={"requests": blank_deletes}
+        ).execute()
+        live_doc = docs_service.documents().get(documentId=doc_id).execute()
     doc_tables = _top_level_tables(live_doc)
 
     # Step 2: outer merges
@@ -643,6 +651,37 @@ def _build_width_requests(live_doc: dict, ast_tables: list[Table]) -> list[dict]
             )
 
     return requests
+
+
+def _build_blank_para_before_table_deletes(live_doc: dict) -> list[dict]:
+    """Return deleteContentRange requests (high→low) for empty paragraphs immediately before tables.
+
+    Phase-1 insertText displaces the doc's initial empty paragraph, leaving a blank line
+    stranded between the preceding content and the table. This cleanup pass removes it.
+    Only paragraphs whose sole content is a newline are deleted.
+    """
+    content = live_doc.get("body", {}).get("content", [])
+    deletes: list[tuple[int, dict]] = []
+    for i, elem in enumerate(content):
+        if "table" not in elem or i == 0:
+            continue
+        prev = content[i - 1]
+        if "paragraph" not in prev:
+            continue
+        para_text = "".join(
+            el.get("textRun", {}).get("content", "") for el in prev["paragraph"].get("elements", [])
+        )
+        if para_text != "\n":
+            continue
+        start = prev.get("startIndex")
+        end = prev.get("endIndex")
+        if start is None or end is None:
+            continue
+        deletes.append(
+            (start, {"deleteContentRange": {"range": {"startIndex": start, "endIndex": end}}})
+        )
+    deletes.sort(key=lambda x: x[0], reverse=True)
+    return [req for _, req in deletes]
 
 
 def _table_start_index(doc_table: dict) -> int | None:

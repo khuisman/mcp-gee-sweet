@@ -165,7 +165,7 @@ The test expected the API to silently truncate a 2D array that's wider than the 
 
 ## Testing
 
-### Unit tests (449 passing as of 2026-06-24)
+### Unit tests (456 passing as of 2026-06-24)
 - [x] Add `pytest` and `pytest-cov` as dev dependencies
 - [x] Cache logic — TTL expiry, dirty flag, partial invalidation for all five cache classes; in-memory SQLite
 - [x] A1 notation helpers — `_parse_a1_notation`, `_column_index_to_letter`, `_letter_to_column_index`

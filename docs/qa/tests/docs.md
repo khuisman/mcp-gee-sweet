@@ -1300,3 +1300,20 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Cleanup:** delete the created doc
 
 **Result (2026-06-24) ✅ PASS** "HIGH" heading renders visually larger than table text. All six cells ("Finding", "Severity", "Ticket", "Some finding", "HIGH", "KINDLY-123") render at Normal Text size. No blank paragraph between heading and table required. No oversized cell text observed.
+
+---
+
+### TC-D227: No blank paragraph between heading and table in `create_doc_from_file` ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** use `docs/qa/fixtures/tc-d226-heading-table.md` (same fixture as TC-D226 — heading immediately followed by a table)
+
+**Prompt**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."
+
+**Checks**
+- `get_doc_structure` body elements: last element before the table is the `## HIGH` heading, not a blank paragraph
+- 🔍 Visual check: open the doc — no blank line visible between the "HIGH" heading and the table
+
+**Cleanup:** delete the created doc
+
+**Result:** Pending

@@ -27,6 +27,7 @@ from mcp_gee_sweet.tools.docs.ast import (
     Table,
 )
 from mcp_gee_sweet.tools.docs.emitter import (
+    _build_blank_para_before_table_deletes,
     _build_cell_style_requests,
     _build_fill_requests,
     _build_merge_requests,
@@ -2417,3 +2418,68 @@ class TestInsertDocTextSegmentId:
         assert "segmentId" not in reqs[0]["insertText"]["location"]
         assert reqs[1]["insertText"]["location"]["index"] == 1
         assert reqs[1]["insertText"]["location"]["segmentId"] == "hdr1"
+
+
+class TestBuildBlankParaBeforeTableDeletes:
+    """_build_blank_para_before_table_deletes removes empty paragraphs preceding tables."""
+
+    def _doc(self, content):
+        return {"body": {"content": content}}
+
+    def _blank_para(self, start, end):
+        return {
+            "startIndex": start,
+            "endIndex": end,
+            "paragraph": {"elements": [{"textRun": {"content": "\n"}}]},
+        }
+
+    def _text_para(self, start, end, text):
+        return {
+            "startIndex": start,
+            "endIndex": end,
+            "paragraph": {"elements": [{"textRun": {"content": text}}]},
+        }
+
+    def _table_elem(self, start):
+        return {"startIndex": start, "table": {}}
+
+    def test_no_tables_returns_empty(self):
+        doc = self._doc([self._blank_para(1, 2), self._text_para(2, 5, "Hi\n")])
+        assert _build_blank_para_before_table_deletes(doc) == []
+
+    def test_blank_para_before_table_deleted(self):
+        doc = self._doc([self._blank_para(1, 2), self._table_elem(2)])
+        result = _build_blank_para_before_table_deletes(doc)
+        assert len(result) == 1
+        assert result[0]["deleteContentRange"]["range"] == {"startIndex": 1, "endIndex": 2}
+
+    def test_non_blank_para_before_table_not_deleted(self):
+        doc = self._doc([self._text_para(1, 8, "Hello\n\n"), self._table_elem(8)])
+        assert _build_blank_para_before_table_deletes(doc) == []
+
+    def test_table_first_element_not_touched(self):
+        doc = self._doc([self._table_elem(1)])
+        assert _build_blank_para_before_table_deletes(doc) == []
+
+    def test_multiple_blank_paras_before_tables_sorted_high_to_low(self):
+        doc = self._doc(
+            [
+                self._blank_para(1, 2),
+                self._table_elem(2),
+                self._text_para(10, 15, "Text\n"),
+                self._blank_para(15, 16),
+                self._table_elem(16),
+            ]
+        )
+        result = _build_blank_para_before_table_deletes(doc)
+        assert len(result) == 2
+        assert result[0]["deleteContentRange"]["range"]["startIndex"] == 15
+        assert result[1]["deleteContentRange"]["range"]["startIndex"] == 1
+
+    def test_para_before_non_table_not_deleted(self):
+        doc = self._doc([self._blank_para(1, 2), self._text_para(2, 5, "Hi\n")])
+        assert _build_blank_para_before_table_deletes(doc) == []
+
+    def test_table_preceded_by_table_not_touched(self):
+        doc = self._doc([self._table_elem(1), self._table_elem(10)])
+        assert _build_blank_para_before_table_deletes(doc) == []
