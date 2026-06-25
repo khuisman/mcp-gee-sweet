@@ -1287,7 +1287,8 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 ---
 
 ### TC-D226: Table immediately after heading renders at Normal Text size ⚠️ requires-oauth ⚠️ destructive
-**Setup:** create a local file `~/test-heading-table.md` with this content:
+
+**Setup:** write `~/test-heading-table.md` with exactly this content:
 ```markdown
 ## HIGH
 
@@ -1296,16 +1297,15 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 | Some finding | HIGH | KINDLY-123 |
 ```
 
-**Prompt**
-> "Create a Google Doc from the file ~/test-heading-table.md"
+**Tool calls**
+1. `create_doc_from_file(local_path="~/test-heading-table.md", title="TC-D226 heading-table font size test")`
+2. `get_doc_structure(doc_id=<docId from step 1>)`
 
 **Checks**
-- `docId` and `web_link` returned with no `error`
-- Open the doc in Google Docs
-- 🔍 Visual check: table cell text ("Finding", "Severity", "Ticket", "Some finding", "HIGH", "KINDLY-123") renders at Normal Text size (~11pt), **not** at the H2 heading size (~16pt)
-- Selecting a table cell and checking the toolbar shows "Normal Text" style at a normal font size (not oversized)
-- No blank paragraph is needed between the heading and the table to achieve correct sizing
+- Step 1: `docId` and `web_link` in response, no `error` key
+- Step 2: one `table` element with 6 cells — texts "Finding", "Severity", "Ticket", "Some finding", "HIGH", "KINDLY-123"
+- 🔍 Visual check: open `web_link` — table cell text renders visually smaller than the "HIGH" H2 heading above it (~11pt vs ~16pt); no blank paragraph workaround needed
 
-**Cleanup:** delete the created doc
+**Cleanup:** `delete_file(file_id=<docId from step 1>)`
 
 **Result (2026-06-24) ✅ PASS** "HIGH" heading renders visually larger than table text. All six cells ("Finding", "Severity", "Ticket", "Some finding", "HIGH", "KINDLY-123") render at Normal Text size. No blank paragraph between heading and table required. No oversized cell text observed.
