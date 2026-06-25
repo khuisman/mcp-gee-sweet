@@ -12,14 +12,15 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 - **Structure:** `list_sheets`, `create_sheet`, `rename_sheet`, `copy_sheet`, `delete_sheet`, `add_rows`, `add_columns`, `delete_rows`, `delete_columns`, `add_chart`
 - **Data ops:** `clear_values`
 
-### Google Drive — 27 tools
+### Google Drive — 28 tools
 - **Files:** `list_files`, `list_spreadsheets`, `search_files`, `search_spreadsheets`, `list_folders`, `list_drives`, `get_file_metadata`, `create_spreadsheet`, `create_folder`, `copy_file`, `move_file`, `rename_file`, `delete_file`
 - **Sharing:** `share_spreadsheet`, `share_file`, `list_permissions`, `update_permission`, `remove_permission`
 - **Transfer:** `upload_file`, `upload_local_file`, `upload_local_folder`, `download_file`, `download_folder`, `sync_folder`, `export_file`, `export_revision`, `list_revisions`
 
-### Google Docs — 13 tools
-- **Content:** `create_doc`, `create_doc_from_file`, `get_doc_content`, `write_doc_content`, `insert_doc_text`, `delete_doc_range`, `get_doc_structure`, `insert_doc_table`
+### Google Docs — 20 tools
+- **Content:** `create_doc`, `create_doc_from_file`, `get_doc_content`, `write_doc_content`, `insert_doc_text`, `delete_doc_range`, `get_doc_structure`, `insert_doc_table`, `insert_inline_image`, `create_header`, `create_footer`
 - **Styling:** `style_doc_range`, `style_doc_table_cells`, `get_doc_theme`, `get_doc_named_styles`, `apply_theme`
+- **Table structure:** `insert_table_row`, `delete_table_row`, `insert_table_column`, `delete_table_column`
 
 ### Google Calendar — 8 tools
 `list_calendars`, `get_calendar`, `list_events`, `get_event`, `create_event`, `update_event`, `delete_event`, `find_free_slots`
@@ -57,12 +58,12 @@ Tier 4 items remain backlog with no assigned version.
 - [x] `sort_range` — sort a range by one or more columns ([#121](https://github.com/khuisman/mcp-gee-sweet/issues/121))
 
 **Calendar**
-- [ ] Recurring events — RRULE support in `create_event` and `update_event`; this/all/following modifiers ([#155](https://github.com/khuisman/mcp-gee-sweet/issues/155))
+- [x] Recurring events — RRULE support in `create_event` and `update_event`; `expand_recurring` in `list_events`; instance vs master scope documented ([#155](https://github.com/khuisman/mcp-gee-sweet/issues/155))
 
 **Docs**
-- [ ] `insert_inline_image` — insert an image at a document index ([#145](https://github.com/khuisman/mcp-gee-sweet/issues/145))
-- [ ] Table structural ops — `insert_table_row`, `delete_table_row`, `insert_table_column`, `delete_table_column` ([#146](https://github.com/khuisman/mcp-gee-sweet/issues/146))
-- [ ] `create_header` / `create_footer` — page headers and footers ([#147](https://github.com/khuisman/mcp-gee-sweet/issues/147))
+- [x] `insert_inline_image` — insert an image at a document index ([#145](https://github.com/khuisman/mcp-gee-sweet/issues/145))
+- [x] Table structural ops — `insert_table_row`, `delete_table_row`, `insert_table_column`, `delete_table_column` ([#146](https://github.com/khuisman/mcp-gee-sweet/issues/146))
+- [x] `create_header` / `create_footer` — page headers and footers ([#147](https://github.com/khuisman/mcp-gee-sweet/issues/147))
 
 **Drive**
 - [x] `list_shared_with_me` — files explicitly shared with the authenticated user ([#135](https://github.com/khuisman/mcp-gee-sweet/issues/135))
@@ -98,7 +99,7 @@ Tier 4 items remain backlog with no assigned version.
 - [ ] `star_file` / `unstar_file` — mark files with a star for easy retrieval ([#139](https://github.com/khuisman/mcp-gee-sweet/issues/139))
 - [ ] `transfer_ownership` — transfer a file to another user ([#140](https://github.com/khuisman/mcp-gee-sweet/issues/140))
 - [ ] `create_shortcut` — create a Drive shortcut to a file ([#141](https://github.com/khuisman/mcp-gee-sweet/issues/141))
-- [ ] Drive Activity API — file change history ([#72](https://github.com/khuisman/mcp-gee-sweet/issues/72))
+- [x] Drive Activity API — file change history ([#72](https://github.com/khuisman/mcp-gee-sweet/issues/72))
 
 ### Tier 3 — Advanced / occasionally needed _(target: v1.0.0)_
 
@@ -164,7 +165,7 @@ The test expected the API to silently truncate a 2D array that's wider than the 
 
 ## Testing
 
-### Unit tests (326 passing as of 2026-06-21)
+### Unit tests (449 passing as of 2026-06-24)
 - [x] Add `pytest` and `pytest-cov` as dev dependencies
 - [x] Cache logic — TTL expiry, dirty flag, partial invalidation for all five cache classes; in-memory SQLite
 - [x] A1 notation helpers — `_parse_a1_notation`, `_column_index_to_letter`, `_letter_to_column_index`

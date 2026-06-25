@@ -154,6 +154,61 @@ class TestCreateEvent:
         assert "error" in result
         cache.mark_dirty.assert_not_called()
 
+    def test_recurrence_is_passed_in_body_when_provided(self):
+        """RRULE strings must appear in body['recurrence'] when recurrence param is given."""
+        cal_svc = self._cal_svc()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        _cal_tools["create_event"](
+            calendar_id="primary",
+            summary="Weekly Standup",
+            start="2026-06-15T10:00:00Z",
+            end="2026-06-15T10:30:00Z",
+            recurrence=["RRULE:FREQ=WEEKLY;BYDAY=MO"],
+            ctx=ctx,
+        )
+        body = cal_svc.events.return_value.insert.call_args.kwargs["body"]
+        assert body["recurrence"] == ["RRULE:FREQ=WEEKLY;BYDAY=MO"]
+
+    def test_recurrence_absent_from_body_when_not_provided(self):
+        """When recurrence is omitted, body must not include a recurrence key."""
+        cal_svc = self._cal_svc()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        _cal_tools["create_event"](
+            calendar_id="primary",
+            summary="One-Off",
+            start="2026-06-15T10:00:00Z",
+            end="2026-06-15T11:00:00Z",
+            ctx=ctx,
+        )
+        body = cal_svc.events.return_value.insert.call_args.kwargs["body"]
+        assert "recurrence" not in body
+
+    def test_recurrence_included_in_response(self):
+        """When the API echoes recurrence, it must appear in the returned dict."""
+        cal_svc = MagicMock()
+        cal_svc.events.return_value.insert.return_value.execute.return_value = {
+            "id": "evt-2",
+            "summary": "Weekly",
+            "start": {"dateTime": "2026-06-15T10:00:00Z"},
+            "end": {"dateTime": "2026-06-15T10:30:00Z"},
+            "recurrence": ["RRULE:FREQ=WEEKLY;BYDAY=MO"],
+            "htmlLink": "https://example.com",
+            "status": "confirmed",
+        }
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        result = _cal_tools["create_event"](
+            calendar_id="primary",
+            summary="Weekly",
+            start="2026-06-15T10:00:00Z",
+            end="2026-06-15T10:30:00Z",
+            recurrence=["RRULE:FREQ=WEEKLY;BYDAY=MO"],
+            ctx=ctx,
+        )
+        assert result["recurrence"] == ["RRULE:FREQ=WEEKLY;BYDAY=MO"]
+
 
 class TestListEvents:
     """list_events clamps max_results and maps start/end correctly for all-day events."""
@@ -199,6 +254,50 @@ class TestListEvents:
 
         assert result[0]["start"] == "2026-07-04"
         assert result[0]["end"] == "2026-07-05"
+
+    def test_expand_recurring_false_sets_singleevents_false_and_omits_orderby(self):
+        """expand_recurring=False must pass singleEvents=False and omit orderBy."""
+        cal_svc = MagicMock()
+        cal_svc.events.return_value.list.return_value.execute.return_value = {"items": []}
+        ctx = _make_ctx(calendar_service=cal_svc)
+
+        _cal_tools["list_events"](calendar_id="primary", expand_recurring=False, ctx=ctx)
+
+        kwargs = cal_svc.events.return_value.list.call_args.kwargs
+        assert kwargs["singleEvents"] is False
+        assert "orderBy" not in kwargs
+
+    def test_expand_recurring_true_sets_singleevents_true_and_orderby_starttime(self):
+        """Default expand_recurring=True must pass singleEvents=True and orderBy='startTime'."""
+        cal_svc = MagicMock()
+        cal_svc.events.return_value.list.return_value.execute.return_value = {"items": []}
+        ctx = _make_ctx(calendar_service=cal_svc)
+
+        _cal_tools["list_events"](calendar_id="primary", ctx=ctx)
+
+        kwargs = cal_svc.events.return_value.list.call_args.kwargs
+        assert kwargs["singleEvents"] is True
+        assert kwargs["orderBy"] == "startTime"
+
+    def test_recurrence_included_in_list_events_response(self):
+        """Events with a recurrence field must include it in the returned dict."""
+        cal_svc = MagicMock()
+        cal_svc.events.return_value.list.return_value.execute.return_value = {
+            "items": [
+                {
+                    "id": "evt-1",
+                    "summary": "Weekly",
+                    "start": {"dateTime": "2026-06-15T10:00:00Z"},
+                    "end": {"dateTime": "2026-06-15T10:30:00Z"},
+                    "recurrence": ["RRULE:FREQ=WEEKLY;BYDAY=MO"],
+                }
+            ]
+        }
+        ctx = _make_ctx(calendar_service=cal_svc)
+
+        result = _cal_tools["list_events"](calendar_id="primary", expand_recurring=False, ctx=ctx)
+
+        assert result[0]["recurrence"] == ["RRULE:FREQ=WEEKLY;BYDAY=MO"]
 
 
 class TestFindFreeSlots:
@@ -336,6 +435,70 @@ class TestUpdateEvent:
             ctx=ctx,
         )
         cache.mark_dirty.assert_called_once_with("cal-2")
+
+    def test_recurrence_in_body_when_provided(self):
+        """When recurrence is provided, body must include it for the API call."""
+        cal_svc = self._cal_svc()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        _cal_tools["update_event"](
+            calendar_id="primary",
+            event_id="evt-1",
+            recurrence=["RRULE:FREQ=DAILY;COUNT=5"],
+            ctx=ctx,
+        )
+        body = cal_svc.events.return_value.patch.call_args.kwargs["body"]
+        assert body["recurrence"] == ["RRULE:FREQ=DAILY;COUNT=5"]
+
+    def test_empty_recurrence_list_removes_recurrence(self):
+        """Passing recurrence=[] must send an empty list to clear the recurring rule."""
+        cal_svc = self._cal_svc()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        _cal_tools["update_event"](
+            calendar_id="primary",
+            event_id="evt-1",
+            recurrence=[],
+            ctx=ctx,
+        )
+        body = cal_svc.events.return_value.patch.call_args.kwargs["body"]
+        assert body["recurrence"] == []
+
+    def test_recurrence_absent_from_body_when_not_provided(self):
+        """When recurrence is omitted, body must not include a recurrence key."""
+        cal_svc = self._cal_svc()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        _cal_tools["update_event"](
+            calendar_id="primary",
+            event_id="evt-1",
+            summary="Title only",
+            ctx=ctx,
+        )
+        body = cal_svc.events.return_value.patch.call_args.kwargs["body"]
+        assert "recurrence" not in body
+
+    def test_recurrence_included_in_response(self):
+        """When the API echoes recurrence, it must appear in the returned dict."""
+        cal_svc = MagicMock()
+        cal_svc.events.return_value.patch.return_value.execute.return_value = {
+            "id": "evt-1",
+            "summary": "Weekly",
+            "start": {"dateTime": "2026-06-15T10:00:00Z"},
+            "end": {"dateTime": "2026-06-15T10:30:00Z"},
+            "recurrence": ["RRULE:FREQ=WEEKLY;BYDAY=MO"],
+            "htmlLink": "https://example.com",
+            "status": "confirmed",
+        }
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        result = _cal_tools["update_event"](
+            calendar_id="primary",
+            event_id="evt-1",
+            recurrence=["RRULE:FREQ=WEEKLY;BYDAY=MO"],
+            ctx=ctx,
+        )
+        assert result["recurrence"] == ["RRULE:FREQ=WEEKLY;BYDAY=MO"]
 
 
 class TestDeleteEvent:

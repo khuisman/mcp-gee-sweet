@@ -439,3 +439,135 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Confirms the interval merge logic in `find_free_slots`
 
 ---
+
+## `create_event` — recurrence support
+
+### TC-CAL36: Create a weekly recurring event ⚠️ destructive
+
+**Prompt**
+> "Create a recurring event called 'QA-Weekly-Standup' in {CALENDAR_ID} every Monday from 9am to 9:30am Pacific time, starting 2026-07-07"
+
+**Checks**
+- Event created successfully
+- Response includes `recurrence` field containing an RRULE string with `FREQ=WEEKLY` and `BYDAY=MO`
+- `html_link` is present
+- Verify with `get_event` that the master event's `recurrence` field is non-null
+- Follow-up: `list_events(expand_recurring=True)` shows multiple Monday instances
+
+**Result (2026-06-24) ✅** — Event created with `id: 3n4mjvi13au7fg1ce0np9ca73k`, `recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO"]`, `status: confirmed`, `html_link` present. Confirmed master ID has no date suffix.
+
+---
+
+### TC-CAL37: Create a daily recurring event with COUNT limit ⚠️ destructive
+
+**Prompt**
+> "Create a recurring event called 'QA-Daily-5x' in {CALENDAR_ID} every day at 8am Pacific for exactly 5 occurrences, starting 2026-07-14"
+
+**Checks**
+- Response `recurrence` contains `RRULE:FREQ=DAILY;COUNT=5`
+- `list_events` with `expand_recurring=True` and appropriate time window returns exactly 5 instances
+- No events appear after the 5th occurrence
+
+**Result (2026-06-24) ✅** — Created with `recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]`. `list_events(expand_recurring=True)` for Jul 14–19 returned exactly 5 instances (Jul 14–18). No Jul 19+ instances returned. Each instance had `recurrence: null`.
+
+---
+
+### TC-CAL38: Recurrence absent when not provided
+
+**Prompt**
+> "Create a one-time event called 'QA-OneOff' in {CALENDAR_ID} on 2026-07-21 from 2pm to 3pm PT"
+
+**Checks**
+- Response `recurrence` is `null` (not set)
+- `list_events(expand_recurring=False)` does not include this event as a recurring series
+- Confirms non-recurring events are unaffected
+
+**Result (2026-06-24) ✅** — Created with `recurrence: null`. Appears in `list_events(expand_recurring=False)` with `recurrence: null` — confirms one-off events are unaffected by recurrence logic.
+
+---
+
+## `list_events` — expand_recurring
+
+### TC-CAL39: expand_recurring=False returns master events
+
+**Setup:** use the recurring event created in TC-CAL36
+
+**Prompt**
+> "List events in {CALENDAR_ID} with expand_recurring=False and no time filter"
+
+**Checks**
+- Response contains the master recurring event (not individual instances)
+- Each recurring event has a `recurrence` field with RRULE strings
+- The master event `id` does not contain an underscore + date suffix (instance IDs do)
+- Non-recurring events also appear (one entry each)
+
+**Result (2026-06-24) ✅** — `list_events(expand_recurring=False, query="QA-")` returned 3 items: QA-Weekly-Standup (recurrence: WEEKLY/MO), QA-Daily-5x (recurrence: DAILY/COUNT=5), QA-OneOff (recurrence: null). All master IDs had no date suffix. Confirms `singleEvents=False` path works correctly.
+
+---
+
+### TC-CAL40: expand_recurring=True (default) expands instances
+
+**Setup:** use the recurring event created in TC-CAL36
+
+**Prompt**
+> "List events in {CALENDAR_ID} between 2026-07-07T00:00:00Z and 2026-07-28T23:59:59Z"
+
+**Checks**
+- Response contains individual Monday instances (e.g. 4 Mondays in a 4-week window)
+- Each instance `id` contains the base event ID plus a date suffix
+- `recurrence` field is `null` on individual instances (it lives on the master)
+
+**Result (2026-06-24) ✅** — Returned 4 instances (Jul 7, 13, 20, 27). Each ID had the `_YYYYMMDDTHHMMSSZ` suffix. `recurrence: null` on all instances. Note: Jul 7 is the original start date (Tuesday); the API kept it as the first instance and subsequent occurrences fell on Mondays per BYDAY=MO.
+
+---
+
+## `update_event` — recurrence support
+
+### TC-CAL41: Update RRULE on a master event ⚠️ destructive
+
+**Setup:** use the weekly recurring event from TC-CAL36; retrieve its master event ID via `list_events(expand_recurring=False)`
+
+**Prompt**
+> "Update the recurring event 'QA-Weekly-Standup' in {CALENDAR_ID} — change it from weekly to every 2 weeks"
+
+**Checks**
+- Response `recurrence` reflects the new RRULE (e.g. `RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO`)
+- `list_events(expand_recurring=True)` for a 4-week window now returns 2 instances (not 4)
+- Other fields (`summary`, `start`, `end`) are unchanged
+
+**Result (2026-06-24) ✅** — Patched master with `recurrence: ["RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO"]`. Response echoed the new RRULE. `list_events(expand_recurring=True)` for Jul 7–28 returned 2 instances (Jul 7 and Jul 20) vs 4 previously. `summary` and `start`/`end` unchanged.
+
+---
+
+### TC-CAL42: Remove recurrence by passing an empty list ⚠️ destructive
+
+**Setup:** use the weekly recurring event from TC-CAL36 (master event ID)
+
+**Prompt**
+> "Update the master 'QA-Weekly-Standup' event in {CALENDAR_ID} and remove its recurrence to make it a one-off event — pass an empty recurrence list"
+
+**Checks**
+- Response `recurrence` is `null` or absent
+- Event no longer appears as a series in `list_events(expand_recurring=False)`
+- Only a single instance exists at the original start date
+
+**Result (2026-06-24) ✅** — Patched master with `recurrence: []`. Response returned `recurrence: null`. `list_events(expand_recurring=False)` showed QA-Weekly-Standup with `recurrence: null` — one entry, no series. Only the Jul 7 occurrence remains.
+
+---
+
+### TC-CAL43: Update a single instance without affecting the series ⚠️ destructive
+
+**Setup:** use the recurring event from TC-CAL37; get an instance event ID (contains date suffix) via `list_events(expand_recurring=True)`
+
+**Prompt**
+> "Update just the first occurrence of 'QA-Daily-5x' in {CALENDAR_ID} — rename it 'QA-Daily-5x (Modified)' using its instance event ID"
+
+**Checks**
+- That one instance has `summary: 'QA-Daily-5x (Modified)'`
+- Other instances still have `summary: 'QA-Daily-5x'` (unchanged)
+- The master event `summary` is unchanged (verify with `get_event` on the master ID)
+- Confirms instance-level patching creates an exception override, not a series update
+
+**Result (2026-06-24) ✅** — Patched instance `9lrphvbvegq03163gjh7fu35qo_20260714T150000Z` with `summary: 'QA-Daily-5x (Modified)'`. Jul 15–18 instances still returned `summary: 'QA-Daily-5x'`. `get_event` on master `9lrphvbvegq03163gjh7fu35qo` returned `summary: 'QA-Daily-5x'` and `recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]` unchanged. Instance-level exception confirmed.
+
+---

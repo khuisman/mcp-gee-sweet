@@ -79,6 +79,7 @@ def register(tool):
         time_max: str | None = None,
         query: str | None = None,
         max_results: int = 50,
+        expand_recurring: bool = True,
         ctx: Context = None,
     ) -> list[dict[str, Any]]:
         """
@@ -92,10 +93,14 @@ def register(tool):
             query: Free-text search terms to find events matching summary, description,
                    location, attendee names/emails.
             max_results: Maximum number of events to return (default 50, max 2500).
+            expand_recurring: When True (default), recurring events are expanded into
+                              individual instances. When False, each recurring series is
+                              returned as a single master event — useful for retrieving
+                              the master event ID needed to update all instances at once.
 
         Returns:
             List of events with id, summary, start, end, location, description,
-            organizer, attendees, html_link, and status.
+            organizer, attendees, recurrence, html_link, and status.
         """
         lc = ctx.request_context.lifespan_context
         max_results = min(max(1, max_results), 2500)
@@ -103,9 +108,10 @@ def register(tool):
         kwargs: dict[str, Any] = {
             "calendarId": calendar_id,
             "maxResults": max_results,
-            "singleEvents": True,
-            "orderBy": "startTime",
+            "singleEvents": expand_recurring,
         }
+        if expand_recurring:
+            kwargs["orderBy"] = "startTime"
         if time_min:
             kwargs["timeMin"] = time_min
         if time_max:
@@ -135,6 +141,7 @@ def register(tool):
                         {"email": a.get("email"), "response": a.get("responseStatus")}
                         for a in e.get("attendees", [])
                     ],
+                    "recurrence": e.get("recurrence"),
                     "html_link": e.get("htmlLink"),
                     "status": e.get("status"),
                 }
@@ -191,6 +198,7 @@ def register(tool):
         location: str | None = None,
         attendees: list[str] | None = None,
         timezone: str | None = None,
+        recurrence: list[str] | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -207,9 +215,14 @@ def register(tool):
             attendees: Optional list of attendee email addresses.
             timezone: IANA timezone name (e.g. 'America/Los_Angeles'). Required when
                       start/end are date-only (all-day events).
+            recurrence: RFC 5545 recurrence rules, e.g.
+                        ["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"] for Mon/Wed/Fri weekly,
+                        ["RRULE:FREQ=DAILY;COUNT=5"] for 5 occurrences,
+                        ["RRULE:FREQ=MONTHLY;UNTIL=20261231T000000Z"] until a date.
+                        EXDATE and RDATE lines are also accepted in the array.
 
         Returns:
-            Created event: id, summary, start, end, html_link, status.
+            Created event: id, summary, start, end, recurrence, html_link, status.
         """
         lc = ctx.request_context.lifespan_context
 
@@ -234,6 +247,8 @@ def register(tool):
             body["location"] = location
         if attendees:
             body["attendees"] = [{"email": email} for email in attendees]
+        if recurrence:
+            body["recurrence"] = recurrence
 
         try:
             e = lc.calendar_service.events().insert(calendarId=calendar_id, body=body).execute()
@@ -249,6 +264,7 @@ def register(tool):
             "summary": e.get("summary", ""),
             "start": ev_start.get("dateTime") or ev_start.get("date"),
             "end": ev_end.get("dateTime") or ev_end.get("date"),
+            "recurrence": e.get("recurrence"),
             "html_link": e.get("htmlLink"),
             "status": e.get("status"),
         }
@@ -264,15 +280,27 @@ def register(tool):
         location: str | None = None,
         attendees: list[str] | None = None,
         timezone: str | None = None,
+        recurrence: list[str] | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
         Update fields on an existing event using a partial update (patch semantics).
         Only the fields you provide are changed; omitted fields are left as-is.
 
+        **Recurring event scope** — the Calendar API controls which instances are
+        updated based on which event ID you pass:
+        - This event only: pass the instance event ID (e.g. "base_id_20260601T100000Z").
+          The API creates an exception override for that occurrence.
+        - All events in the series: pass the master (recurring) event ID. Use
+          list_events(expand_recurring=False) to retrieve master event IDs.
+        - This and following: not directly supported by the API. As a workaround, update
+          the master event's RRULE to add an UNTIL date before the target instance, then
+          create a new event starting from that date.
+
         Args:
             calendar_id: The calendar ID, or 'primary'.
-            event_id: The event ID to update.
+            event_id: The event ID to update (instance ID for single-occurrence changes,
+                      master ID for all-occurrence changes).
             summary: New event title.
             start: New start datetime (RFC 3339) or date ('YYYY-MM-DD').
             end: New end datetime (RFC 3339) or date ('YYYY-MM-DD').
@@ -280,9 +308,12 @@ def register(tool):
             location: New location.
             attendees: Replacement attendee list (full replacement, not append).
             timezone: IANA timezone for start/end when they are date-only.
+            recurrence: RFC 5545 recurrence rules to replace the event's RRULE, e.g.
+                        ["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"]. Pass an empty list ([])
+                        to remove recurrence and make the event a one-time occurrence.
 
         Returns:
-            Updated event: id, summary, start, end, html_link, status.
+            Updated event: id, summary, start, end, recurrence, html_link, status.
         """
         lc = ctx.request_context.lifespan_context
         patch: dict[str, Any] = {}
@@ -295,6 +326,8 @@ def register(tool):
             patch["location"] = location
         if attendees is not None:
             patch["attendees"] = [{"email": email} for email in attendees]
+        if recurrence is not None:
+            patch["recurrence"] = recurrence
 
         if start is not None:
             is_all_day = len(start) == 10
@@ -328,6 +361,7 @@ def register(tool):
             "summary": e.get("summary", ""),
             "start": ev_start.get("dateTime") or ev_start.get("date"),
             "end": ev_end.get("dateTime") or ev_end.get("date"),
+            "recurrence": e.get("recurrence"),
             "html_link": e.get("htmlLink"),
             "status": e.get("status"),
         }
