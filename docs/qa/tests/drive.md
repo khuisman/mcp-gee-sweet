@@ -1912,3 +1912,57 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - API returns these as strings (e.g. `"1073741824"`) — tool must cast them
 
 **Result (2026-06-21) ✅** Unit test confirms all byte values are `int` after cast from API string response.
+
+---
+
+## `list_file_activity`
+
+### TC-D163: Basic activity fetch returns timeline entries
+
+**Prompt**
+> "Show me the activity history for file {DOC_ID}"
+
+**Checks**
+- `file_id` matches `{DOC_ID}`
+- `activities` is a list (may be empty for brand-new fixtures)
+- Each entry has `timestamp`, `action`, and `actors` keys
+- `action` is one of: edit, create, move, rename, delete, restore, permission_change, comment, settings_change, system_event, unknown
+- No `error` key in result
+
+**Result:** ⏳ pending
+
+---
+
+### TC-D164: Known-user actor structure
+
+**Prompt**
+> "Show me the activity history for file {DOC_ID} — I want to see who made each change"
+
+**Checks**
+- At least one activity entry has an actor with `type: "user"`
+- That actor has a `person_name` field (e.g. `"people/12345"`)
+- `is_current_user` is a boolean
+
+**Result:** ⏳ pending
+
+---
+
+### TC-D165: Pagination — next_page_token present when results exceed page_size
+
+**Prompt**
+> "List file activity for {DOC_ID} with page_size=1"
+
+**Checks**
+- Response contains exactly 1 activity in `activities`
+- `next_page_token` is present in the response
+
+**Result:** ⏳ pending
+
+---
+
+### TC-D166: Invalid file ID returns error (unit test)
+
+**Checks (unit test)**
+- When the Drive Activity API returns an HTTP 403 or 404, the tool returns `{"error": "..."}` rather than raising an exception
+
+**Result (2026-06-24) ✅** Unit test `test_http_error_returns_error_dict` confirms HTTP errors are caught and returned as `{"error": str(e)}`.

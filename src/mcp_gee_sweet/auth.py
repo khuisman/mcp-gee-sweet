@@ -28,6 +28,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/drive.activity.readonly",
 ]
 
 CREDENTIALS_CONFIG = os.environ.get("CREDENTIALS_CONFIG")
@@ -46,6 +47,7 @@ class SpreadsheetContext:
     drive_service: Any
     docs_service: Any
     calendar_service: Any
+    activity_service: Any
     folder_id: str | None = None
     auth_method: str = "unknown"  # "service_account" | "oauth" | "adc"
     cache: SheetStructureCache = field(default_factory=SheetStructureCache)
@@ -170,6 +172,7 @@ async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetCont
     drive_service = build("drive", "v3", credentials=creds, cache_discovery=False)
     docs_service = build("docs", "v1", credentials=creds, cache_discovery=False)
     calendar_service = build("calendar", "v3", credentials=creds, cache_discovery=False)
+    activity_service = build("driveactivity", "v2", credentials=creds, cache_discovery=False)
 
     try:
         yield SpreadsheetContext(
@@ -177,6 +180,7 @@ async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetCont
             drive_service=drive_service,
             docs_service=docs_service,
             calendar_service=calendar_service,
+            activity_service=activity_service,
             folder_id=DRIVE_FOLDER_ID if DRIVE_FOLDER_ID else None,
             auth_method=resolved,
             cache=SheetStructureCache(),
