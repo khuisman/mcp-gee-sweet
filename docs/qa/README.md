@@ -39,3 +39,35 @@ Prompt-driven integration tests for mcp-gee-sweet. Each test case is a natural l
 ## Contributing
 
 If you find a bug or surprising behavior, open a GitHub issue. To add a new test case, submit a PR adding it to the relevant file in `tests/` with the next sequential TC number.
+
+## Test case format
+
+Each test case follows this structure:
+
+```markdown
+### TC-XNN: Short description [tags]
+
+**Setup:** <precondition — fixture file path or live doc state to establish>
+
+**Prompt**
+> "Natural language instruction to Claude"
+
+**Checks**
+- Specific key or value to verify in the response (e.g. "`docId` returned with no `error`")
+- Structural assertion (e.g. "`get_doc_structure` shows HEADING_1 "Foo" and a table")
+- 🔍 Visual check: anything that requires opening the doc/sheet in a browser
+
+**Cleanup:** what to delete or tear down
+
+**Result:** ⏳ pending  ← replaced with date + PASS/FAIL after live run
+```
+
+### Fixture files
+
+If a test needs a local file (e.g. a `.md` or `.html` to upload), **commit it to `docs/qa/fixtures/`** and reference it by repo path — don't ask the tester to write content by hand. Name fixtures after their TC number: `tc-d195-create-doc.md`.
+
+### Checks quality bar
+
+- Name specific keys, values, or text strings — not vague descriptions like "the response looks right"
+- Visual checks (`🔍`) are fine for things the API doesn't surface (e.g. rendered font size in Google Docs)
+- Error-path tests should name the exact error key or message fragment expected
