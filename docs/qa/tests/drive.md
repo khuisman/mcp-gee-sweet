@@ -1929,7 +1929,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - `action` is one of: edit, create, move, rename, delete, restore, permission_change, comment, settings_change, system_event, unknown
 - No `error` key in result
 
-**Result:** ⏳ pending
+**Result (2026-06-24) ✅ PASS** 52 activities returned. All entries have `timestamp`, `action`, and `actors`. Actions observed: `edit`, `rename`, `permission_change`, `create`. Actor types include `user` (known, `is_current_user: true/false`) and `system`. No `error` key.
 
 ---
 
@@ -1943,7 +1943,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - That actor has a `person_name` field (e.g. `"people/12345"`)
 - `is_current_user` is a boolean
 
-**Result:** ⏳ pending
+**Result (2026-06-24) ✅ PASS** Multiple user actors returned. Current-user entries have `person_name: "people/101951097007377611160"`, `is_current_user: true`. A second user (`people/114161724974780080071`, `is_current_user: false`) also appears. A `system` actor appears on the `permission_change` entry with `event: null`.
 
 ---
 
@@ -1953,10 +1953,10 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 > "List file activity for {DOC_ID} with page_size=1"
 
 **Checks**
-- Response contains exactly 1 activity in `activities`
+- At least 1 activity in `activities` (the Drive Activity API treats page_size as a hint and may return slightly more due to activity grouping — do not assert exactly 1)
 - `next_page_token` is present in the response
 
-**Result:** ⏳ pending
+**Result (2026-06-24) ✅ PASS** `page_size=1` returned 2 activities (Drive Activity API groups related events and does not hard-clip to the requested count). `next_page_token` present. Confirmed pagination works.
 
 ---
 
