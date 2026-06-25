@@ -1288,17 +1288,10 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-D226: Table immediately after heading renders at Normal Text size ⚠️ requires-oauth ⚠️ destructive
 
-**Setup:** write `~/test-heading-table.md` with exactly this content:
-```markdown
-## HIGH
-
-| Finding | Severity | Ticket |
-|---|---|---|
-| Some finding | HIGH | KINDLY-123 |
-```
+**Setup:** use `docs/qa/fixtures/tc-d226-heading-table.md` from the repo (absolute path: `<repo-root>/docs/qa/fixtures/tc-d226-heading-table.md`)
 
 **Prompt**
-> "Create a Google Doc from the file ~/test-heading-table.md, then show me its structure."
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."
 
 **Checks**
 - `docId` and `web_link` returned with no `error`
