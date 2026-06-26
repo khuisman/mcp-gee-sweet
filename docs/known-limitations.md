@@ -40,20 +40,6 @@ response). Related: #133.
 
 ---
 
-### Rowspan in table emitter
-
-**What:** Tables with `rowspan > 1` (cells that span multiple rows) in HTML/Markdown source are
-not correctly rendered via `create_doc_from_file` or `write_doc_content`.
-
-**Why:** The emitter's merge phase handles `mergeTableCells` for both colspan and rowspan, but
-the cell index mapping logic has a known gap for certain rowspan configurations that causes cells
-to be filled at incorrect positions.
-
-**Workaround:** None currently. Avoid rowspan in table source; use separate tables or colspan
-only. Related: #195.
-
----
-
 ## Google Drive
 
 ### Service account cannot create files in personal Drive
