@@ -35,8 +35,10 @@ Add the following to your `.env` file (create it at the repo root if it doesn't 
 TEST_SPREADSHEET_ID=<your spreadsheet ID>
 TEST_DOC_ID=<your doc ID>
 TEST_FOLDER_ID=<the folder ID that contains both files>
+TEST_LARGE_DOC_ID=         # large-content doc for TC-D48; create via setup_fixtures or manually
 TEST_CALENDAR_ID=          # leave blank until calendar fixtures are set up
 TEST_EVENT_ID=             # leave blank until calendar fixtures are set up
+TEST_PERMISSION_EMAIL=     # a second Google account email for permission add/remove tests (TC-D130)
 ```
 
 File and folder IDs are in the URL when you open them in Drive:

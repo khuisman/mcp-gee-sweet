@@ -602,6 +602,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - "here" is a clickable hyperlink to https://example.com
 - Surrounding text renders as normal paragraph
 
+> **Note:** `write_doc_content` replaces the full document content, so this test is self-contained regardless of run order.
+
 ---
 
 ### TC-D54: HTML with no recognizable tags
@@ -636,6 +638,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Checks**
 - Writes successfully or returns a clear API size limit error (~2MB per batchUpdate request)
 - Note any limit encountered
+
+> **Note:** Content is generated inline by the conductor — no fixture file needed.
 
 ---
 
@@ -689,15 +693,18 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `move_file`
 
-### TC-D61: Move a file to another folder ⚠️ destructive
+### TC-D61: Move a file to another folder ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** Create a throwaway spreadsheet to move — do not use the fixture spreadsheet.
 
 **Prompt**
-> "Move the file {SPREADSHEET_ID} to folder {FOLDER_ID}"
+> "Create a new spreadsheet called 'QA-Move-Test' in folder {FOLDER_ID}, then move it to the root of My Drive, then confirm its new parent"
 
 **Checks**
-- Response includes `fileId`, `name`, and updated `parent` matching `{FOLDER_ID}`
-- File no longer appears in its previous folder (list to verify)
+- Response includes `fileId`, `name`, and updated `parent` no longer matching `{FOLDER_ID}`
 - Both old and new parent caches invalidated — subsequent `list_files` reflects the change
+
+**Cleanup:** Trash 'QA-Move-Test' after the test.
 
 ---
 
@@ -725,15 +732,19 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `rename_file`
 
-### TC-D64: Rename a file ⚠️ destructive
+### TC-D64: Rename a file ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** Create a throwaway spreadsheet to rename.
 
 **Prompt**
-> "Rename the file 'QA-Create-Test' (from TC-D01) to 'QA-Renamed-File' — use its spreadsheet ID"
+> "Create a new spreadsheet called 'QA-Rename-Test' in folder {FOLDER_ID}, then rename it to 'QA-Renamed-File'"
 
 **Checks**
 - Response `name` is 'QA-Renamed-File'
 - File appears with new name in Drive
 - Parent folder cache invalidated — `list_files` reflects the new name
+
+**Cleanup:** Trash 'QA-Renamed-File' after the test.
 
 ---
 
@@ -818,9 +829,12 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D72: Permanently delete a file ⚠️ destructive
+### TC-D72: Permanently delete a file ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** Create a throwaway spreadsheet to permanently delete.
+
 **Prompt**
-> "Permanently delete the file 'QA-Copy-Explicit' from TC-D68 — use permanent=True"
+> "Create a new spreadsheet called 'QA-Delete-Permanent' in folder {FOLDER_ID}, then permanently delete it using permanent=True"
 
 **Checks**
 - Response: `{"fileId": ..., "action": "deleted"}`
