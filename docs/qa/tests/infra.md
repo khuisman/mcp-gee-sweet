@@ -4,6 +4,21 @@ Covers: cache behavior, tool filtering, auth fallback chain, and transport. Thes
 
 Fixtures: see [`docs/qa/setup.md`](../setup.md).
 
+## Coverage strategy
+
+Most infrastructure behaviours are verified by unit tests rather than live QA prompts. A subprocess-based pytest fixture (start/stop the server with different env vars per test) was assessed in issue #51 and **rejected** — the setup cost outweighs the benefit at current scale, and the logic under test is directly unit-testable by patching module-level constants and mocking credential calls.
+
+| TC range | Coverage strategy |
+|---|---|
+| TC-I01, I03 (cache TTL, DB path) | Unit-tested in `tests/test_cache.py` — TTL expiry and `db_path` override are exercised directly |
+| TC-I04 (cache persistence across restart) | SQLite persistence is a property of the DB file, not the server — not worth a subprocess test |
+| TC-I05–I07 (tool filtering) | Unit-tested in `tests/test_server.py` — `_parse_enabled_tools()` is fully covered |
+| TC-I08–I12 (auth variants) | Unit tests tracked in #98 — mock `_service_account_creds`, `_oauth_creds`, and ADC |
+| TC-I02 (WAL concurrency) | Manual / live QA only — requires true concurrent requests |
+| TC-I13, I14 (transport) | Manual / live QA only — verify once per environment setup |
+| TC-I15 (hot reload) | Manual / live QA only — known uvicorn + SSE limitation, observe and note |
+| TC-I16–I20 (logging) | ✅ Already live-tested and passed — see Result entries below |
+
 ---
 
 ## Cache behavior
