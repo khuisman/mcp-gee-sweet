@@ -1300,3 +1300,26 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Cleanup:** delete the created doc
 
 **Result (2026-06-24) ✅ PASS** "HIGH" heading renders visually larger than table text. All six cells ("Finding", "Severity", "Ticket", "Some finding", "HIGH", "KINDLY-123") render at Normal Text size. No blank paragraph between heading and table required. No oversized cell text observed.
+
+---
+
+### TC-D227: No visible blank line between heading and table in `create_doc_from_file` ⚠️ requires-oauth ⚠️ destructive
+
+**Background:** the Docs API inserts a structurally-required blank paragraph before every table;
+`deleteContentRange` is rejected for it. The fix collapses it to zero visual height via
+`updateParagraphStyle` (spaceAbove/Below=0, lineSpacing=1) + `updateTextStyle` (fontSize=1pt).
+
+**Setup:** use `docs/qa/fixtures/tc-d226-heading-table.md` (heading immediately followed by a table)
+
+**Prompt**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."
+
+**Checks**
+- Tool completes without error (no `HttpError 400`)
+- `get_doc_structure` returns a body with a heading and a table; a blank paragraph element may still be listed (it is structurally present), but its `paragraph.paragraphStyle` should show `lineSpacing: 1`, `spaceAbove: 0`, `spaceBelow: 0`
+- 🔍 Visual check: open the doc — no visible blank line between the "HIGH" heading and the table
+
+**Cleanup:** delete the created doc
+
+**Result (2026-06-25) ✅ PASS**
+- Tool completed without error. Structure: sectionBreak → HEADING_2 "HIGH\n" (1-6) → blank para "\n" (6-7, `font_size: 1` on its run confirming collapse applied) → table (7-70, cells filled correctly: Finding/Severity/Ticket header, Some finding/HIGH/KINDLY-123 data) → trailing para (70-71). Visual check: no visible gap between heading and table in the rendered doc.
