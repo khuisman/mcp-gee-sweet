@@ -16,6 +16,10 @@ Prompt-driven integration tests for mcp-gee-sweet. Each test case is a natural l
 4. **Review the report** — check `results/<date>.md` for failures.
 5. **Report failures** — open a GitHub issue with the TC number, the exact prompt you used, and what you observed.
 
+## Release runs
+
+`runs/` contains one file per stable release (`vX.Y.Z.md`). Each file is the sign-off record for that release — a checklist of required suites, links to result files, and a final sign-off. A completed run file is required before tagging any stable release. See [`runs/README.md`](runs/README.md) for suite tier definitions (smoke / domain / full regression).
+
 ## Test files
 
 | File | Category | TC prefix |
@@ -24,7 +28,8 @@ Prompt-driven integration tests for mcp-gee-sweet. Each test case is a natural l
 | [tests/sheets_write.md](tests/sheets_write.md) | Sheets write tools | TC-W## |
 | [tests/sheets_mgmt.md](tests/sheets_mgmt.md) | Sheets management tools | TC-S## |
 | [tests/sheets_charts.md](tests/sheets_charts.md) | Sheets chart tools | TC-C## |
-| [tests/drive.md](tests/drive.md) | Drive + Docs tools | TC-D## |
+| [tests/drive.md](tests/drive.md) | Drive + Docs (legacy combined) | TC-D## |
+| [tests/docs.md](tests/docs.md) | Docs direct API tools | TC-D## |
 | [tests/infra.md](tests/infra.md) | Infrastructure | TC-I## |
 | [tests/calendar.md](tests/calendar.md) | Calendar tools | TC-CAL## |
 

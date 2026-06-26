@@ -16,3 +16,4 @@ wheels/
 timings.log
 site/
 .workspace
+.playwright-mcp/
