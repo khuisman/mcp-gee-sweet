@@ -118,6 +118,17 @@ Add the returned IDs to `.env` as `TEST_CALENDAR_ID` and `TEST_EVENT_ID`.
 
 ---
 
+## OAuth token setup (for `⚠️ requires-oauth` tests)
+
+Tests tagged `⚠️ requires-oauth` need a valid OAuth token (`token.json`). If you're running with a service account or ADC, these tests will be skipped or will fail — they require personal Drive access.
+
+To acquire or refresh a token without manually clicking through Google's consent screen, see **[`docs/qa/playwright_oauth.md`](playwright_oauth.md)**. Two paths are documented:
+
+- **Playwright-assisted**: run `scripts/oauth_setup.py`, let Claude Code + Playwright MCP complete the browser flow
+- **Refresh token injection**: one-time manual flow, then store the refresh token as an env secret for all future runs (CI-friendly)
+
+---
+
 ## Resetting fixtures
 
 Re-run the Step 3 seed prompt against your existing IDs to restore known state. No need to create new files.
