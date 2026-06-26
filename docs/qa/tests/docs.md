@@ -10,7 +10,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ## `get_doc_structure`
 
-### TC-D152: Structure of a non-empty doc
+### TC-DOC01: Structure of a non-empty doc
 **Prompt**
 > "Get the structure of doc {DOC_ID}"
 
@@ -26,7 +26,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D153: Paragraph runs include style data
+### TC-DOC02: Paragraph runs include style data
 **Setup:** `{DOC_ID}` must contain at least one bold or italic run (use `write_doc_content` with `<b>` or `<i>` to set up)
 
 **Prompt**
@@ -42,7 +42,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D154: Structure of a doc containing a table
+### TC-DOC03: Structure of a doc containing a table
 **Setup:** `{DOC_ID}` must contain a table
 
 **Prompt**
@@ -59,7 +59,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D155: Structure of an empty doc
+### TC-DOC04: Structure of an empty doc
 **Setup:** doc with only the default empty paragraph
 
 **Prompt**
@@ -74,7 +74,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D156: Invalid doc ID returns error
+### TC-DOC05: Invalid doc ID returns error
 **Prompt**
 > "Get the structure of doc not-a-real-id"
 
@@ -89,7 +89,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ## `insert_doc_text`
 
-### TC-D157: Insert a single paragraph ⚠️ destructive
+### TC-DOC06: Insert a single paragraph ⚠️ destructive
 **Setup:** fetch current structure; note the `endIndex` of the last non-final paragraph
 
 **Prompt**
@@ -107,7 +107,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D158: Insert at multiple indices — high→low ordering verified ⚠️ destructive
+### TC-DOC07: Insert at multiple indices — high→low ordering verified ⚠️ destructive
 **Setup:** fetch structure; identify two paragraphs P1 (earlier) and P2 (later) with known indices. Record P1's `startIndex` as N1 and P2's `startIndex` as N2 (N2 > N1). Both insertions are short fixed strings so index arithmetic is checkable.
 
 **Prompt**
@@ -126,7 +126,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D159: Empty insertions list returns error
+### TC-DOC08: Empty insertions list returns error
 **Prompt**
 > "Call insert_doc_text on doc {DOC_ID} with an empty insertions list"
 
@@ -140,8 +140,8 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ## `delete_doc_range`
 
-### TC-D160: Delete a paragraph ⚠️ destructive
-**Setup:** insert a known paragraph first (TC-D157), note its `startIndex` and `endIndex`
+### TC-DOC09: Delete a paragraph ⚠️ destructive
+**Setup:** insert a known paragraph first (TC-DOC06), note its `startIndex` and `endIndex`
 
 **Prompt**
 > "Delete the range from index {start} to {end} in doc {DOC_ID}"
@@ -156,7 +156,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D161: Cannot delete final segment newline
+### TC-DOC10: Cannot delete final segment newline
 **Setup:** fetch structure; note the final element's `endIndex`
 
 **Prompt**
@@ -171,7 +171,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D162: Empty deletions list returns error
+### TC-DOC11: Empty deletions list returns error
 **Prompt**
 > "Call delete_doc_range on doc {DOC_ID} with an empty deletions list"
 
@@ -185,7 +185,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ## `style_doc_range`
 
-### TC-D163: Apply named style type ⚠️ destructive
+### TC-DOC12: Apply named style type ⚠️ destructive
 **Setup:** insert a normal paragraph; note its index range
 
 **Prompt**
@@ -202,7 +202,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D164: Apply text styles (bold, italic, foreground color) ⚠️ destructive
+### TC-DOC13: Apply text styles (bold, italic, foreground color) ⚠️ destructive
 **Setup:** insert a normal paragraph; note its index range
 
 **Prompt**
@@ -219,7 +219,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D165: Apply both paragraph and text style in one range ⚠️ destructive
+### TC-DOC14: Apply both paragraph and text style in one range ⚠️ destructive
 **Prompt**
 > "Style range {start}–{end} in doc {DOC_ID} as HEADING_3 and bold"
 
@@ -232,7 +232,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D166: No recognised style fields returns error
+### TC-DOC15: No recognised style fields returns error
 **Prompt**
 > "Call style_doc_range on doc {DOC_ID} with a range that has no style fields"
 
@@ -246,7 +246,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ## `insert_doc_table`
 
-### TC-D167: Insert a 2×3 table ⚠️ destructive
+### TC-DOC16: Insert a 2×3 table ⚠️ destructive
 **Setup:** fetch structure; note a suitable insertion index (e.g. endIndex of a paragraph)
 
 **Prompt**
@@ -266,8 +266,8 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D168: Cell indices usable for insert_doc_text ⚠️ destructive
-**Setup:** insert a table (TC-D167); use the returned `cells[0].paragraphStartIndex`
+### TC-DOC17: Cell indices usable for insert_doc_text ⚠️ destructive
+**Setup:** insert a table (TC-DOC16); use the returned `cells[0].paragraphStartIndex`
 
 **Prompt**
 > "Insert text 'Cell content' at the paragraphStartIndex of cell [0,0] returned by the table insertion"
@@ -279,13 +279,13 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Cleanup:** delete table
 
 **Result (2026-06-20) ✅ PASS**
-- Used `cells[0].paragraphStartIndex = 92` from TC-D167. Inserted "Cell content" at index 92. Re-fetch: cell [0,0] `text: "Cell content"`. No index errors.
+- Used `cells[0].paragraphStartIndex = 92` from TC-DOC16. Inserted "Cell content" at index 92. Re-fetch: cell [0,0] `text: "Cell content"`. No index errors.
 
 ---
 
 ## `style_doc_table_cells`
 
-### TC-D169: Apply grey header row background ⚠️ destructive
+### TC-DOC18: Apply grey header row background ⚠️ destructive
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
@@ -302,7 +302,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D170: Apply borders and padding ⚠️ destructive
+### TC-DOC19: Apply borders and padding ⚠️ destructive
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
@@ -317,7 +317,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D171: Empty cells list returns error
+### TC-DOC20: Empty cells list returns error
 **Prompt**
 > "Call style_doc_table_cells on doc {DOC_ID} with table_start_index {N} and an empty cells list"
 
@@ -329,7 +329,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D172: Cell with no style fields is skipped
+### TC-DOC21: Cell with no style fields is skipped
 **Setup:** insert a table; pass one valid cell and one cell with no style fields
 
 **Prompt**
@@ -346,7 +346,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ## Multi-operation ordering and sequencing
 
-### TC-D173: Multi-delete high→low ordering verified ⚠️ destructive
+### TC-DOC22: Multi-delete high→low ordering verified ⚠️ destructive
 **Setup:** insert two known paragraphs ('DEL-A\n' and 'DEL-B\n') at known positions. Note their `startIndex`/`endIndex` after re-fetching. DEL-B has higher indices than DEL-A.
 
 **Prompt**
@@ -363,7 +363,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D174: style_doc_range round-trip — heading confirmed in get_doc_structure ⚠️ destructive
+### TC-DOC23: style_doc_range round-trip — heading confirmed in get_doc_structure ⚠️ destructive
 **Purpose:** `style_doc_range` was never called live during initial testing. This is the first live verification.
 
 **Setup:** insert a paragraph 'Style-test heading\n'; note its `startIndex`/`endIndex`
@@ -383,7 +383,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D175: style_doc_range text styles round-trip ⚠️ destructive
+### TC-DOC24: style_doc_range text styles round-trip ⚠️ destructive
 **Purpose:** verify bold/italic/underline are readable back via get_doc_structure runs.
 
 **Setup:** insert a paragraph 'Bold-italic test\n'; note its index range
@@ -403,7 +403,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D176: style_doc_table_cells post-fix live verification ⚠️ destructive
+### TC-DOC25: style_doc_table_cells post-fix live verification ⚠️ destructive
 **Purpose:** `style_doc_table_cells` was fixed (removed top-level `tableStartLocation` that conflicted with the `tableRange` oneof) but the fix was **never re-tested live**. This is the confirmation test.
 
 **Setup:** insert a 2×2 table; record its `tableStartIndex` from the response
@@ -423,7 +423,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D177: Full end-to-end sequence — insert table then style cells ⚠️ destructive
+### TC-DOC26: Full end-to-end sequence — insert table then style cells ⚠️ destructive
 **Purpose:** the complete `insert_doc_table` → `style_doc_table_cells` sequence was never run end-to-end in live testing. Covers both tools and the index handoff between them.
 
 **Setup:** fetch structure; note a suitable insertion index N
@@ -445,7 +445,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D178: Insert text then insert table — index chaining ⚠️ destructive
+### TC-DOC27: Insert text then insert table — index chaining ⚠️ destructive
 **Purpose:** verify that indices returned by one operation are usable as input to a subsequent operation without re-fetching the full structure each time.
 
 **Setup:** start with a known doc structure; note `endIndex` of a paragraph as N
@@ -470,7 +470,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ## `style_doc_range` — additional coverage
 
-### TC-D179: Apply strikethrough ⚠️ destructive
+### TC-DOC28: Apply strikethrough ⚠️ destructive
 **Setup:** insert a paragraph; note its range
 
 **Prompt**
@@ -485,7 +485,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D180: Apply font_size ⚠️ destructive
+### TC-DOC29: Apply font_size ⚠️ destructive
 **Setup:** insert a paragraph; note its range
 
 **Prompt**
@@ -500,7 +500,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-D181: Apply link_url ⚠️ destructive
+### TC-DOC30: Apply link_url ⚠️ destructive
 **Setup:** insert a paragraph 'Visit example\n'; note the range covering 'example'
 
 **Prompt**
@@ -521,7 +521,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All use `write_doc_content` against the fixture doc.
 
-### TC-D182: `<h2>` maps to HEADING_2 (not HEADING_3) ⚠️ destructive
+### TC-DOC31: `<h2>` maps to HEADING_2 (not HEADING_3) ⚠️ destructive
 **Purpose:** Regression test for #41 — `<h2>`–`<h6>` previously all collapsed to HEADING_3.
 
 **Prompt**
@@ -541,7 +541,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D183: `<th>` cells produce bold runs ⚠️ destructive
+### TC-DOC32: `<th>` cells produce bold runs ⚠️ destructive
 **Purpose:** Regression test for #65 — `<th>` previously ignored; cells had no bold styling.
 
 **Prompt**
@@ -560,7 +560,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D184: Inline formatting inside `<td>` cells ⚠️ destructive
+### TC-DOC33: Inline formatting inside `<td>` cells ⚠️ destructive
 **Purpose:** Regression test for #69 — inline formatting inside table cells was previously lost.
 
 **Prompt**
@@ -577,11 +577,11 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Cleanup:** write fixture content back
 
 **Result (2026-06-20) ✅ PASS (partial)**
-- `get_doc_structure` shows 1 row, 1 col, cell text "bold plain italic" — all three segments present. Run-level bold/italic not verifiable via `get_doc_structure` (same cell-runs gap as TC-D183). 🔍 Visual check required for run formatting.
+- `get_doc_structure` shows 1 row, 1 col, cell text "bold plain italic" — all three segments present. Run-level bold/italic not verifiable via `get_doc_structure` (same cell-runs gap as TC-DOC32). 🔍 Visual check required for run formatting.
 
 ---
 
-### TC-D185: `colspan` produces merged cells ⚠️ destructive
+### TC-DOC34: `colspan` produces merged cells ⚠️ destructive
 **Purpose:** Regression test for #67 — `colspan` was previously ignored.
 
 **Prompt**
@@ -600,7 +600,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D186: Column widths from HTML ⚠️ destructive
+### TC-DOC35: Column widths from HTML ⚠️ destructive
 **Purpose:** Regression test for #66 — `width` attributes on `<col>` were previously ignored.
 
 **Prompt**
@@ -618,7 +618,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D187: `rowspan` produces vertically merged cells ⚠️ destructive
+### TC-DOC36: `rowspan` produces vertically merged cells ⚠️ destructive
 **Purpose:** First live verification of issue #91 — rowspan support in the HTML→AST→emitter pipeline. A cell spanning two rows must produce a `mergeTableCells` request, and the phantom cell in the lower row must not be filled.
 
 **Prompt**
@@ -639,7 +639,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D188: Combined `rowspan` and `colspan` in the same table ⚠️ destructive
+### TC-DOC37: Combined `rowspan` and `colspan` in the same table ⚠️ destructive
 **Purpose:** verify that a single cell carrying both `rowspan` and `colspan` emits exactly one `mergeTableCells` request with both dimensions, and that physical column tracking stays correct for subsequent cells in the same row.
 
 **Prompt**
@@ -659,7 +659,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D189: `rowspan` with header row — phantom not filled, real cells in correct columns ⚠️ destructive
+### TC-DOC38: `rowspan` with header row — phantom not filled, real cells in correct columns ⚠️ destructive
 **Purpose:** edge-case verification that when a rowspan pushes subsequent real cells to higher logical columns, the physical-to-AST index mapping resolves correctly and no cell gets the wrong content.
 
 **Prompt**
@@ -681,7 +681,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ## Markdown support — `create_doc` / `write_doc_content` / `create_doc_from_file`
 
-### TC-D190: Markdown headings via `write_doc_content` ⚠️ destructive
+### TC-DOC39: Markdown headings via `write_doc_content` ⚠️ destructive
 **Purpose:** Verify that `content_format='markdown'` routes through the AST pipeline and produces correct heading styles.
 
 **Prompt**
@@ -700,7 +700,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D191: Markdown bold and italic via `write_doc_content` ⚠️ destructive
+### TC-DOC40: Markdown bold and italic via `write_doc_content` ⚠️ destructive
 **Prompt**
 > "Write this markdown to doc {DOC_ID} using content_format='markdown': `**bold** and *italic* text`"
 
@@ -716,7 +716,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D192: Markdown task list ⚠️ destructive
+### TC-DOC41: Markdown task list ⚠️ destructive
 **Prompt**
 > "Write this markdown to doc {DOC_ID} using content_format='markdown': `- [x] Done item\n- [ ] Pending item\n- Plain item\n`"
 
@@ -733,7 +733,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D193: Markdown fenced code block ⚠️ destructive
+### TC-DOC42: Markdown fenced code block ⚠️ destructive
 **Prompt**
 > "Write this markdown to doc {DOC_ID} using content_format='markdown' with a fenced Python code block containing `def hello(): return 'world'`"
 
@@ -749,7 +749,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D194: Markdown table via `write_doc_content` ⚠️ destructive
+### TC-DOC43: Markdown table via `write_doc_content` ⚠️ destructive
 **Prompt**
 > "Write this markdown to doc {DOC_ID} using content_format='markdown': a pipe table with columns Name and Value, rows Alpha/1 and Beta/2"
 
@@ -764,7 +764,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D195: `create_doc_from_file` with a local .md file ⚠️ requires-oauth ⚠️ destructive
+### TC-DOC44: `create_doc_from_file` with a local .md file ⚠️ requires-oauth ⚠️ destructive
 **Setup:** use `docs/qa/fixtures/tc-d195-create-doc.md` from the repo
 
 **Prompt**
@@ -782,7 +782,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D196: `create_doc_from_file` with a local .html file ⚠️ requires-oauth ⚠️ destructive
+### TC-DOC45: `create_doc_from_file` with a local .html file ⚠️ requires-oauth ⚠️ destructive
 **Setup:** use `docs/qa/fixtures/tc-d196-create-doc.html` from the repo
 
 **Prompt**
@@ -799,7 +799,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D197: `create_doc_from_file` file not found
+### TC-DOC46: `create_doc_from_file` file not found
 **Prompt**
 > "Create a Google Doc from the file ~/does-not-exist.md"
 
@@ -811,7 +811,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D198: `write_doc_content` inline code monospace ⚠️ destructive
+### TC-DOC47: `write_doc_content` inline code monospace ⚠️ destructive
 **Prompt**
 > "Write this markdown to doc {DOC_ID} using content_format='markdown': `Use the \`print()\` function`"
 
@@ -826,7 +826,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D190: `data-style="title"` produces TITLE named style ⚠️ destructive
+### TC-DOC78: `data-style="title"` produces TITLE named style ⚠️ destructive
 **Purpose:** verify that `<p data-style="title">` is parsed as a `NamedBlock(TITLE)` and the emitter applies `updateParagraphStyle` with `namedStyleType: TITLE`.
 
 **Prompt**
@@ -846,7 +846,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D191: `data-style="subtitle"` produces SUBTITLE named style ⚠️ destructive
+### TC-DOC79: `data-style="subtitle"` produces SUBTITLE named style ⚠️ destructive
 **Purpose:** verify SUBTITLE works the same way as TITLE.
 
 **Prompt**
@@ -867,7 +867,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ## Nested table support — `write_doc_content`
 
-### TC-D199: Simple nested table ⚠️ destructive
+### TC-DOC48: Simple nested table ⚠️ destructive
 **Prompt**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><td><table><tr><td>Inner</td></tr></table></td></tr></table>`"
 
@@ -883,7 +883,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D200: Nested table alongside regular cells ⚠️ destructive
+### TC-DOC49: Nested table alongside regular cells ⚠️ destructive
 **Prompt**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><td>Label</td><td><table><tr><td>Val A</td><td>Val B</td></tr></table></td></tr></table>`"
 
@@ -899,7 +899,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D201: Nested table with multiple rows and columns ⚠️ destructive
+### TC-DOC50: Nested table with multiple rows and columns ⚠️ destructive
 **Prompt**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><td><table><tr><td>R0C0</td><td>R0C1</td></tr><tr><td>R1C0</td><td>R1C1</td></tr></table></td></tr></table>`"
 
@@ -915,12 +915,12 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D202: Nested tables not supported in markdown (documented limitation)
+### TC-DOC51: Nested tables not supported in markdown (documented limitation)
 **Note:** The markdown pipeline does not produce nested tables — the `markdown` library does not support table-in-table syntax. Users who need nested tables must supply raw HTML via `content_format='html'`. No test to run; this entry documents the known limitation.
 
 ---
 
-### TC-D203: `get_doc_theme` scans body paragraph styles
+### TC-DOC52: `get_doc_theme` scans body paragraph styles
 **Note:** `get_doc_theme` reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.
 
 **Prompt**
@@ -935,7 +935,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D204: `apply_theme` updates named style definitions ⚠️ destructive
+### TC-DOC53: `apply_theme` updates named style definitions ⚠️ destructive
 **Note:** Default mode (`overwrite=False`) emits `updateNamedStyle` requests — one per named style key — updating the document's style defaults. Existing paragraphs with explicit overrides are unaffected. No doc fetch is needed. Use `overwrite=True` to also apply directly to all existing paragraphs.
 
 **Prompt**
@@ -950,7 +950,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D204b: `apply_theme` with `overwrite=True` also patches existing paragraphs ⚠️ destructive
+### TC-DOC54: `apply_theme` with `overwrite=True` also patches existing paragraphs ⚠️ destructive
 **Prompt**
 > "Write `<h1>Heading One</h1><p>Normal body text.</p>` to doc {DOC_ID}, then apply theme `{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}` with overwrite=True"
 
@@ -966,7 +966,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D205: `apply_theme` with table styling ⚠️ destructive
+### TC-DOC55: `apply_theme` with table styling ⚠️ destructive
 **Prerequisite:** doc must contain at least one table (write one with `write_doc_content` first if needed)
 
 **Prompt**
@@ -982,7 +982,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D206: `get_doc_theme` → `apply_theme` round-trip on an AI-generated doc ⚠️ destructive
+### TC-DOC56: `get_doc_theme` → `apply_theme` round-trip on an AI-generated doc ⚠️ destructive
 **Note:** Round-trip only produces meaningful output on docs where styles are explicit (AI-generated). For standard inherited-style docs, `get_doc_theme` returns `{}` and `apply_theme` with an empty theme returns an error.
 
 **Prompt**
@@ -999,7 +999,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ## `insert_inline_image` (#145)
 
-### TC-D208: Insert an image by public URI ⚠️ destructive
+### TC-DOC57: Insert an image by public URI ⚠️ destructive
 **Setup:** fetch structure; note the `endIndex` of a paragraph to insert after
 
 **Prompt**
@@ -1016,8 +1016,8 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D209: Insert an image with explicit size ⚠️ destructive
-**Setup:** same as TC-D208
+### TC-DOC58: Insert an image with explicit size ⚠️ destructive
+**Setup:** same as TC-DOC57
 
 **Prompt**
 > "Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/svg/googlelogo_clr_74x24px.svg' at index {N} in doc {DOC_ID} with width 100 and height 50"
@@ -1028,11 +1028,11 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** delete inserted image range
 
-**Result (2026-06-22) ✅ PASS** Same PNG at same location with `width=100, height=50`. Call succeeded; image rendered smaller than the default-sized TC-D208 image.
+**Result (2026-06-22) ✅ PASS** Same PNG at same location with `width=100, height=50`. Call succeeded; image rendered smaller than the default-sized TC-DOC57 image.
 
 ---
 
-### TC-D210: No source provided returns error
+### TC-DOC59: No source provided returns error
 **Prompt**
 > "Call insert_inline_image on doc {DOC_ID} at index 1 without providing a URI or drive_file_id"
 
@@ -1043,7 +1043,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D211: Both URI and drive_file_id provided returns error
+### TC-DOC60: Both URI and drive_file_id provided returns error
 **Prompt**
 > "Call insert_inline_image on doc {DOC_ID} at index 1 with both uri 'https://example.com/img.png' and drive_file_id 'someid'"
 
@@ -1056,7 +1056,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ## `insert_table_row` / `delete_table_row` / `insert_table_column` / `delete_table_column` (#146)
 
-### TC-D212: Insert a row below an existing row ⚠️ destructive
+### TC-DOC61: Insert a row below an existing row ⚠️ destructive
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
@@ -1073,7 +1073,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D213: Insert a row above an existing row ⚠️ destructive
+### TC-DOC62: Insert a row above an existing row ⚠️ destructive
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
@@ -1090,7 +1090,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D214: Delete a row ⚠️ destructive
+### TC-DOC63: Delete a row ⚠️ destructive
 **Setup:** insert a 3-row table; note its `tableStartIndex`
 
 **Prompt**
@@ -1107,7 +1107,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D215: Insert a column to the right ⚠️ destructive
+### TC-DOC64: Insert a column to the right ⚠️ destructive
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
@@ -1124,7 +1124,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D216: Insert a column to the left ⚠️ destructive
+### TC-DOC65: Insert a column to the left ⚠️ destructive
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
@@ -1140,7 +1140,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D217: Delete a column ⚠️ destructive
+### TC-DOC66: Delete a column ⚠️ destructive
 **Setup:** insert a 2×3 table; note its `tableStartIndex`
 
 **Prompt**
@@ -1157,7 +1157,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D218: API error returned gracefully (out of bounds row)
+### TC-DOC67: API error returned gracefully (out of bounds row)
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
@@ -1173,7 +1173,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ## `create_header` / `create_footer` (#147)
 
-### TC-D219: Create a default page header ⚠️ destructive
+### TC-DOC68: Create a default page header ⚠️ destructive
 **Prompt**
 > "Add a page header to doc {DOC_ID}"
 
@@ -1188,7 +1188,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D220: Create a header with content ⚠️ destructive
+### TC-DOC69: Create a header with content ⚠️ destructive
 **Prompt**
 > "Add a page header to doc {DOC_ID} with content 'Confidential — Internal Only'"
 
@@ -1203,7 +1203,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D221: Create a default page footer ⚠️ destructive
+### TC-DOC70: Create a default page footer ⚠️ destructive
 **Prompt**
 > "Add a page footer to doc {DOC_ID}"
 
@@ -1217,7 +1217,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D222: Create a footer with content ⚠️ destructive
+### TC-DOC71: Create a footer with content ⚠️ destructive
 **Prompt**
 > "Add a page footer to doc {DOC_ID} with content 'Page 1'"
 
@@ -1231,7 +1231,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D223: Invalid header_type returns error
+### TC-DOC72: Invalid header_type returns error
 **Prompt**
 > "Call create_header on doc {DOC_ID} with header_type 'INVALID'"
 
@@ -1242,7 +1242,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D224: Invalid footer_type returns error
+### TC-DOC73: Invalid footer_type returns error
 **Prompt**
 > "Call create_footer on doc {DOC_ID} with footer_type 'INVALID'"
 
@@ -1253,7 +1253,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D225: insert_doc_text with segment_id writes into header ⚠️ destructive
+### TC-DOC74: insert_doc_text with segment_id writes into header ⚠️ destructive
 **Setup:** call `create_header` first to get a `headerId`
 
 **Prompt**
@@ -1270,7 +1270,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D207: `get_doc_named_styles` reads named style defaults set via the Docs UI
+### TC-DOC75: `get_doc_named_styles` reads named style defaults set via the Docs UI
 **Note:** Named styles are only populated when the user explicitly goes to Format > Paragraph styles > Update X to match. Most docs leave named styles at Google's defaults — this tool returns empty or near-empty for those docs. Use `get_doc_theme` to read actual paragraph appearance instead.
 
 **Prompt**
@@ -1285,7 +1285,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D226: Table immediately after heading renders at Normal Text size ⚠️ requires-oauth ⚠️ destructive
+### TC-DOC76: Table immediately after heading renders at Normal Text size ⚠️ requires-oauth ⚠️ destructive
 
 **Setup:** use `docs/qa/fixtures/tc-d226-heading-table.md` from the repo (absolute path: `<repo-root>/docs/qa/fixtures/tc-d226-heading-table.md`)
 
@@ -1303,7 +1303,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D227: No visible blank line between heading and table in `create_doc_from_file` ⚠️ requires-oauth ⚠️ destructive
+### TC-DOC77: No visible blank line between heading and table in `create_doc_from_file` ⚠️ requires-oauth ⚠️ destructive
 
 **Background:** the Docs API inserts a structurally-required blank paragraph before every table;
 `deleteContentRange` is rejected for it. The fix collapses it to zero visual height via
