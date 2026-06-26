@@ -113,6 +113,7 @@ Every new tool must have at least:
 - A happy-path test case
 - An error/edge-case test case
 - The tool included in the `docs/qa-checklist.md` attestation
+- The tool's happy-path TC added to the smoke suite in `docs/qa/runs/README.md`
 
 See [`docs/design.md`](design.md) for the tool inclusion criteria and composite tool rules.
 
@@ -153,3 +154,7 @@ Active tasks, bugs, product decisions, and QA gaps are tracked in [GitHub Issues
 - New tools require QA test cases and a checklist entry — PRs without them will be asked to add them.
 - Update `docs/design.md` if your change affects scope, tool inclusion criteria, or testing approach.
 - If your change warrants a new ADR, add it to `docs/decisions/` following the existing format.
+
+## Release gate
+
+A completed `docs/qa/runs/vX.Y.Z.md` — with all required suites checked off and results files linked — is required before tagging a stable release. See [`docs/qa/runs/README.md`](docs/qa/runs/README.md) for the suite tier definitions and how to run.
