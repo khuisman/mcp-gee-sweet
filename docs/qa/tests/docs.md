@@ -1303,16 +1303,21 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-D227: No blank paragraph between heading and table in `create_doc_from_file` ⚠️ requires-oauth ⚠️ destructive
+### TC-D227: No visible blank line between heading and table in `create_doc_from_file` ⚠️ requires-oauth ⚠️ destructive
 
-**Setup:** use `docs/qa/fixtures/tc-d226-heading-table.md` (same fixture as TC-D226 — heading immediately followed by a table)
+**Background:** the Docs API inserts a structurally-required blank paragraph before every table;
+`deleteContentRange` is rejected for it. The fix collapses it to zero visual height via
+`updateParagraphStyle` (spaceAbove/Below=0, lineSpacing=1) + `updateTextStyle` (fontSize=1pt).
+
+**Setup:** use `docs/qa/fixtures/tc-d226-heading-table.md` (heading immediately followed by a table)
 
 **Prompt**
 > "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."
 
 **Checks**
-- `get_doc_structure` body elements: last element before the table is the `## HIGH` heading, not a blank paragraph
-- 🔍 Visual check: open the doc — no blank line visible between the "HIGH" heading and the table
+- Tool completes without error (no `HttpError 400`)
+- `get_doc_structure` returns a body with a heading and a table; a blank paragraph element may still be listed (it is structurally present), but its `paragraph.paragraphStyle` should show `lineSpacing: 1`, `spaceAbove: 0`, `spaceBelow: 0`
+- 🔍 Visual check: open the doc — no visible blank line between the "HIGH" heading and the table
 
 **Cleanup:** delete the created doc
 

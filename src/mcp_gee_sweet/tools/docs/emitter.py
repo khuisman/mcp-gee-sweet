@@ -211,14 +211,15 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
         for cell in row.cells
     )
 
-    # Step 1: fetch doc; delete blank paragraphs stranded immediately before tables (an
-    # artifact of phase-1 insertText displacing the doc's initial empty paragraph), then
-    # re-fetch only if deletions were needed.
+    # Step 1: fetch doc; collapse blank paragraphs stranded immediately before tables (an
+    # artifact of phase-1 insertText displacing the doc's initial empty paragraph).  The
+    # Docs API rejects deleteContentRange on these paragraphs because a paragraph before a
+    # table is structurally required, so we shrink them to zero visual height instead.
     live_doc = docs_service.documents().get(documentId=doc_id).execute()
-    blank_deletes = _build_blank_para_before_table_deletes(live_doc)
-    if blank_deletes:
+    blank_collapses = _build_blank_para_before_table_collapses(live_doc)
+    if blank_collapses:
         docs_service.documents().batchUpdate(
-            documentId=doc_id, body={"requests": blank_deletes}
+            documentId=doc_id, body={"requests": blank_collapses}
         ).execute()
         live_doc = docs_service.documents().get(documentId=doc_id).execute()
     doc_tables = _top_level_tables(live_doc)
@@ -653,15 +654,18 @@ def _build_width_requests(live_doc: dict, ast_tables: list[Table]) -> list[dict]
     return requests
 
 
-def _build_blank_para_before_table_deletes(live_doc: dict) -> list[dict]:
-    """Return deleteContentRange requests (high→low) for empty paragraphs immediately before tables.
+def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
+    """Return updateParagraphStyle + updateTextStyle requests that collapse empty paragraphs
+    immediately before tables to zero visual height.
 
     Phase-1 insertText displaces the doc's initial empty paragraph, leaving a blank line
-    stranded between the preceding content and the table. This cleanup pass removes it.
-    Only paragraphs whose sole content is a newline are deleted.
+    stranded between the preceding content and the table.  deleteContentRange is rejected by
+    the Docs API for these paragraphs (a paragraph before a table is structurally required),
+    so we shrink them instead: spaceAbove/Below = 0, lineSpacing = 1 (1% of normal),
+    fontSize = 1 pt.  Only paragraphs whose sole content is a newline are affected.
     """
     content = live_doc.get("body", {}).get("content", [])
-    deletes: list[tuple[int, dict]] = []
+    requests: list[dict] = []
     for i, elem in enumerate(content):
         if "table" not in elem or i == 0:
             continue
@@ -677,11 +681,30 @@ def _build_blank_para_before_table_deletes(live_doc: dict) -> list[dict]:
         end = prev.get("endIndex")
         if start is None or end is None:
             continue
-        deletes.append(
-            (start, {"deleteContentRange": {"range": {"startIndex": start, "endIndex": end}}})
+        rng = {"startIndex": start, "endIndex": end}
+        requests.append(
+            {
+                "updateParagraphStyle": {
+                    "range": rng,
+                    "paragraphStyle": {
+                        "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                        "spaceBelow": {"magnitude": 0, "unit": "PT"},
+                        "lineSpacing": 1,
+                    },
+                    "fields": "spaceAbove,spaceBelow,lineSpacing",
+                }
+            }
         )
-    deletes.sort(key=lambda x: x[0], reverse=True)
-    return [req for _, req in deletes]
+        requests.append(
+            {
+                "updateTextStyle": {
+                    "range": rng,
+                    "textStyle": {"fontSize": {"magnitude": 1, "unit": "PT"}},
+                    "fields": "fontSize",
+                }
+            }
+        )
+    return requests
 
 
 def _table_start_index(doc_table: dict) -> int | None:
