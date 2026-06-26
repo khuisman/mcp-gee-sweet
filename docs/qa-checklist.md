@@ -335,6 +335,162 @@ Strategic post-merge verification of every registered tool. Work through each se
 - [ ] TC-D138: Mixed success and failure in one call
 - [ ] TC-D139: send_notification=False for user share
 
+### `write_doc_content` — HTML table tests
+- [ ] TC-D140: Simple 2×2 table created from HTML
+- [ ] TC-D141: Table after paragraph content
+- [ ] TC-D142: Table with empty cells
+- [ ] TC-D143: Table-only HTML (no paragraphs)
+- [ ] TC-D144: Multiple tables in one write
+- [ ] TC-D145: HTML with `<th>` header cells treated as data
+
+### `list_revisions`
+- [ ] TC-D146: List revisions for a spreadsheet
+- [ ] TC-D147: List revisions for a non-existent file
+
+### `export_revision`
+- [ ] TC-D148: Export a revision and read a cell range
+- [ ] TC-D149: Export revision with explicit sheet name
+- [ ] TC-D150: Export revision — no range returns all data
+- [ ] TC-D151: Export revision of a non-Sheets file
+
+### `list_shared_with_me`
+- [ ] TC-D152: List all files shared with me
+- [ ] TC-D153: Filter shared files by MIME type
+- [ ] TC-D154: Limit shared files with max_results
+- [ ] TC-D155: Single-quote in MIME type is escaped
+
+### `list_recent_files`
+- [ ] TC-D156: List recently modified files
+- [ ] TC-D157: Filter by days
+- [ ] TC-D158: Filter by MIME type
+- [ ] TC-D159: max_results capped at 100
+
+### `get_storage_quota`
+- [ ] TC-D160: Get storage quota
+- [ ] TC-D161: Fields requested include storageQuota and user
+- [ ] TC-D162: Byte values are integers not strings
+
+### `list_file_activity`
+- [ ] TC-D163: Basic activity fetch returns timeline entries
+- [ ] TC-D164: Known-user actor structure
+- [ ] TC-D165: Pagination — next_page_token present when results exceed page_size
+- [ ] TC-D166: Invalid file ID returns error (unit test)
+
+---
+
+## Docs Tools (`tools/docs/`)
+
+### `get_doc_structure`
+- [ ] TC-DOC01: Structure of a non-empty doc
+- [ ] TC-DOC02: Paragraph runs include style data
+- [ ] TC-DOC03: Structure of a doc containing a table
+- [ ] TC-DOC04: Structure of an empty doc
+- [ ] TC-DOC05: Invalid doc ID returns error
+
+### `insert_doc_text`
+- [ ] TC-DOC06: Insert a single paragraph ⚠️ destructive
+- [ ] TC-DOC07: Insert at multiple indices — high→low ordering verified ⚠️ destructive
+- [ ] TC-DOC08: Empty insertions list returns error
+
+### `delete_doc_range`
+- [ ] TC-DOC09: Delete a paragraph ⚠️ destructive
+- [ ] TC-DOC10: Cannot delete final segment newline
+- [ ] TC-DOC11: Empty deletions list returns error
+
+### `style_doc_range`
+- [ ] TC-DOC12: Apply named style type ⚠️ destructive
+- [ ] TC-DOC13: Apply text styles (bold, italic, foreground color) ⚠️ destructive
+- [ ] TC-DOC14: Apply both paragraph and text style in one range ⚠️ destructive
+- [ ] TC-DOC15: No recognised style fields returns error
+
+### `insert_doc_table`
+- [ ] TC-DOC16: Insert a 2×3 table ⚠️ destructive
+- [ ] TC-DOC17: Cell indices usable for insert_doc_text ⚠️ destructive
+
+### `style_doc_table_cells`
+- [ ] TC-DOC18: Apply grey header row background ⚠️ destructive
+- [ ] TC-DOC19: Apply borders and padding ⚠️ destructive
+- [ ] TC-DOC20: Empty cells list returns error
+- [ ] TC-DOC21: Cell with no style fields is skipped
+
+### Integration / ordering
+- [ ] TC-DOC22: Multi-delete high→low ordering verified ⚠️ destructive
+- [ ] TC-DOC23: style_doc_range round-trip — heading confirmed in get_doc_structure ⚠️ destructive
+- [ ] TC-DOC24: style_doc_range text styles round-trip ⚠️ destructive
+- [ ] TC-DOC25: style_doc_table_cells post-fix live verification ⚠️ destructive
+- [ ] TC-DOC26: Full end-to-end sequence — insert table then style cells ⚠️ destructive
+- [ ] TC-DOC27: Insert text then insert table — index chaining ⚠️ destructive
+- [ ] TC-DOC28: Apply strikethrough ⚠️ destructive
+- [ ] TC-DOC29: Apply font_size ⚠️ destructive
+- [ ] TC-DOC30: Apply link_url ⚠️ destructive
+
+### `write_doc_content` — HTML emitter
+- [ ] TC-DOC31: `<h2>` maps to HEADING_2 (not HEADING_3) ⚠️ destructive
+- [ ] TC-DOC32: `<th>` cells produce bold runs ⚠️ destructive
+- [ ] TC-DOC33: Inline formatting inside `<td>` cells ⚠️ destructive
+- [ ] TC-DOC34: `colspan` produces merged cells ⚠️ destructive
+- [ ] TC-DOC35: Column widths from HTML ⚠️ destructive
+- [ ] TC-DOC36: `rowspan` produces vertically merged cells ⚠️ destructive
+- [ ] TC-DOC37: Combined `rowspan` and `colspan` in the same table ⚠️ destructive
+- [ ] TC-DOC38: `rowspan` with header row — phantom not filled, real cells in correct columns ⚠️ destructive
+- [ ] TC-DOC39: Markdown headings via `write_doc_content` ⚠️ destructive
+- [ ] TC-DOC40: Markdown bold and italic via `write_doc_content` ⚠️ destructive
+- [ ] TC-DOC41: Markdown task list ⚠️ destructive
+- [ ] TC-DOC42: Markdown fenced code block ⚠️ destructive
+- [ ] TC-DOC43: Markdown table via `write_doc_content` ⚠️ destructive
+- [ ] TC-DOC47: `write_doc_content` inline code monospace ⚠️ destructive
+- [ ] TC-DOC78: `data-style="title"` produces TITLE named style ⚠️ destructive
+- [ ] TC-DOC79: `data-style="subtitle"` produces SUBTITLE named style ⚠️ destructive
+
+### `create_doc_from_file`
+- [ ] TC-DOC44: `create_doc_from_file` with a local .md file ⚠️ requires-oauth ⚠️ destructive
+- [ ] TC-DOC45: `create_doc_from_file` with a local .html file ⚠️ requires-oauth ⚠️ destructive
+- [ ] TC-DOC46: `create_doc_from_file` file not found
+
+### Nested tables
+- [ ] TC-DOC48: Simple nested table ⚠️ destructive
+- [ ] TC-DOC49: Nested table alongside regular cells ⚠️ destructive
+- [ ] TC-DOC50: Nested table with multiple rows and columns ⚠️ destructive
+- [ ] TC-DOC51: Nested tables not supported in markdown (documented limitation)
+
+### `get_doc_theme` / `apply_theme`
+- [ ] TC-DOC52: `get_doc_theme` scans body paragraph styles
+- [ ] TC-DOC53: `apply_theme` updates named style definitions ⚠️ destructive
+- [ ] TC-DOC54: `apply_theme` with `overwrite=True` also patches existing paragraphs ⚠️ destructive
+- [ ] TC-DOC55: `apply_theme` with table styling ⚠️ destructive
+- [ ] TC-DOC56: `get_doc_theme` → `apply_theme` round-trip on an AI-generated doc ⚠️ destructive
+
+### `insert_inline_image`
+- [ ] TC-DOC57: Insert an image by public URI ⚠️ destructive
+- [ ] TC-DOC58: Insert an image with explicit size ⚠️ destructive
+- [ ] TC-DOC59: No source provided returns error
+- [ ] TC-DOC60: Both URI and drive_file_id provided returns error
+
+### Table row/column operations
+- [ ] TC-DOC61: Insert a row below an existing row ⚠️ destructive
+- [ ] TC-DOC62: Insert a row above an existing row ⚠️ destructive
+- [ ] TC-DOC63: Delete a row ⚠️ destructive
+- [ ] TC-DOC64: Insert a column to the right ⚠️ destructive
+- [ ] TC-DOC65: Insert a column to the left ⚠️ destructive
+- [ ] TC-DOC66: Delete a column ⚠️ destructive
+- [ ] TC-DOC67: API error returned gracefully (out of bounds row)
+
+### `create_header` / `create_footer`
+- [ ] TC-DOC68: Create a default page header ⚠️ destructive
+- [ ] TC-DOC69: Create a header with content ⚠️ destructive
+- [ ] TC-DOC70: Create a default page footer ⚠️ destructive
+- [ ] TC-DOC71: Create a footer with content ⚠️ destructive
+- [ ] TC-DOC72: Invalid header_type returns error
+- [ ] TC-DOC73: Invalid footer_type returns error
+- [ ] TC-DOC74: insert_doc_text with segment_id writes into header ⚠️ destructive
+
+### `get_doc_named_styles`
+- [ ] TC-DOC75: `get_doc_named_styles` reads named style defaults set via the Docs UI
+
+### Integration / two-phase table fill
+- [ ] TC-DOC76: Table immediately after heading renders at Normal Text size ⚠️ requires-oauth ⚠️ destructive
+- [ ] TC-DOC77: No visible blank line between heading and table in `create_doc_from_file` ⚠️ requires-oauth ⚠️ destructive
+
 ---
 
 ## Calendar Tools (`calendar.py`)
@@ -389,6 +545,20 @@ Strategic post-merge verification of every registered tool. Work through each se
 - [ ] TC-CAL33: Invalid calendar ID in list
 - [ ] TC-CAL34: free_slots covers full window when no busy times
 - [ ] TC-CAL35: Contiguous busy periods merged in free_slots
+
+### `create_event` / `update_event` — recurrence (RRULE)
+- [ ] TC-CAL36: Create a weekly recurring event ⚠️ destructive
+- [ ] TC-CAL37: Create a daily recurring event with COUNT limit ⚠️ destructive
+- [ ] TC-CAL38: Recurrence absent when not provided
+
+### `list_events` — expand_recurring
+- [ ] TC-CAL39: expand_recurring=False returns master events
+- [ ] TC-CAL40: expand_recurring=True (default) expands instances
+
+### `update_event` — recurrence support
+- [ ] TC-CAL41: Update RRULE on a master event ⚠️ destructive
+- [ ] TC-CAL42: Remove recurrence by passing an empty list ⚠️ destructive
+- [ ] TC-CAL43: Update a single instance without affecting the series ⚠️ destructive
 
 ---
 
