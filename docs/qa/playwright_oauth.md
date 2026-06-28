@@ -67,17 +67,21 @@ python3 -c "import json; d=json.load(open('token.json')); print('refresh_token p
 
 ### Known limitations
 
-**Page load: ✅ confirmed working.** Google's sign-in page (`accounts.google.com/signin`) renders correctly in Playwright — the "Email or phone" field is present and accessible.
+**✅ Confirmed working (2026-06-27).** Full flow tested end-to-end:
+- Google sign-in page renders in Playwright
+- Manual login + MFA completed in the Playwright window
+- Consent screen loaded and "Allow" granted
+- `oauth_setup.py` received the callback and wrote `token.json` with a refresh token and all four scopes
 
-The remaining risk is at the credential-entry step. Google may apply bot detection after password entry:
+**Note:** If the account uses MFA, the human must complete the login step in the Playwright window before handing control back to the automation. This is expected — use Approach A for the initial token, then Approach B for all subsequent runs.
+
+Possible failure modes if the flow breaks in the future:
 
 | Symptom | Cause | Resolution |
 |---|---|---|
-| "This browser or app may not be secure" | Google flagged the automated browser post-login | Switch to Approach B (manual) then save refresh token |
-| CAPTCHA or phone verification prompt | Account triggered fraud detection | Use a test-only Google account with 2FA disabled and a trusted browser profile |
+| "This browser or app may not be secure" | Google flagged the automated browser | Complete login manually in Chrome, save refresh token via Approach B |
+| CAPTCHA or phone verification prompt | Account triggered fraud detection | Use a test-only Google account with a trusted browser profile |
 | Redirect loop or 400 error | `redirect_uri` mismatch | Ensure `credentials.json` has `http://localhost` in authorized redirect URIs |
-
-If Playwright is blocked after email/password entry, fall back to a one-time manual browser flow (paste the URL into Chrome) and then use Approach B for all future runs.
 
 ---
 

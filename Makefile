@@ -1,5 +1,29 @@
 .DEFAULT_GOAL = help
 
+.PHONY: run
+run: ## Run MCP server locally via stdio.
+	uv run mcp-gee-sweet
+
+.PHONY: run-sse
+run-sse: ## Run MCP server locally via SSE (http://localhost:8000).
+	uv run mcp-gee-sweet --transport sse
+
+.PHONY: package
+package: ## Build distributable wheel and sdist into dist/.
+	uv build
+
+.PHONY: sync
+sync: ## Sync dependencies from uv.lock.
+	uv sync
+
+.PHONY: oauth
+oauth: ## Start OAuth consent flow — prints URL, waits for browser callback, writes token.json.
+	uv run python scripts/oauth_setup.py
+
+.PHONY: oauth-from-token
+oauth-from-token: ## Reconstruct token.json from GOOGLE_OAUTH_REFRESH_TOKEN env var (CI / headless).
+	uv run python scripts/oauth_setup.py --from-refresh-token
+
 .PHONY: build
 build: ## Build container image.
 	docker compose build
