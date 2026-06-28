@@ -12,9 +12,9 @@ Prompt-driven integration tests for mcp-gee-sweet. Each test case is a natural l
 
 1. **Set up fixtures** — follow [`setup.md`](setup.md) to create your test spreadsheet, doc, and calendar fixtures. Takes about 5 minutes.
 2. **Record your IDs** — copy `fixtures.template.md` → `fixtures.local.md` (gitignored) and fill in the IDs from step 1.
-3. **Run tests** — paste the conductor prompt from [`run.md`](run.md) into a Claude session with the MCP server connected. Claude will execute the tests, evaluate results, and save a report to `results/`. Or run manually: open a test file in `tests/`, substitute your IDs, and paste each prompt.
-4. **Review the report** — check `results/<date>.md` for failures.
-5. **Report failures** — open a GitHub issue with the TC number, the exact prompt you used, and what you observed.
+3. **Run tests** — paste the conductor prompt from [`run.md`](run.md) into a Claude session that has **both the mcp-gee-sweet MCP server and the Playwright MCP connected**. Claude will execute the tests, visually verify mutations in the browser via Playwright, and save a report to `results/`.
+4. **Review the report** — check `results/<date>.md` for failures and the tool coverage checklist (lists every tool, which TCs exercise it, and which tools have no coverage at all).
+5. **Report failures** — open a GitHub issue with the TC number, the exact prompt used, what was observed, and what Playwright showed.
 
 ## Release runs
 

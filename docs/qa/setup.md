@@ -50,7 +50,7 @@ File and folder IDs are in the URL when you open them in Drive:
 
 ## Step 3 — Run the seed prompt
 
-Paste the seed prompt below into a Claude session with the MCP server connected. Claude will populate the spreadsheet and doc with the known fixture data.
+Paste the seed prompt below into a Claude session that has **both the mcp-gee-sweet MCP server and the Playwright MCP connected**. Claude will populate the spreadsheet and doc with the known fixture data, then open each file in Playwright to visually confirm the result.
 
 ```
 Set up my QA fixtures for mcp-gee-sweet using these IDs from my .env:
@@ -75,6 +75,8 @@ Please do all of the following in order:
    <h1>Test Document</h1><p>This document is used for QA testing of mcp-gee-sweet.</p><ul><li>Item one</li><li>Item two</li></ul>
 
 Confirm when done.
+
+Then open https://docs.google.com/spreadsheets/d/<TEST_SPREADSHEET_ID>/edit in Playwright and take a snapshot to visually confirm the sheet names and data are correct. Do the same for the doc at https://docs.google.com/document/d/<TEST_DOC_ID>/edit.
 ```
 
 ---
