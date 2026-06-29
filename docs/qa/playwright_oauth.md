@@ -8,9 +8,9 @@ How to acquire or refresh an OAuth token for QA runs without manually clicking t
 
 - Fresh environment with no `token.json`
 - `token.json` expired and cannot be refreshed (e.g. revoked, scopes changed)
-- Running `⚠️ requires-oauth` test cases in an automated QA session
+- Starting any QA run — OAuth is required so that Playwright can open Google Sheets/Docs/Drive/Calendar pages as your account for visual verification
 
-If `token.json` already exists and is valid, you don't need any of this — the server refreshes the access token automatically.
+If `token.json` already exists and is valid, you don't need any of this — the server refreshes the access token automatically. But you should still be logged into your Google account in the Playwright browser session before starting a QA run.
 
 ---
 
