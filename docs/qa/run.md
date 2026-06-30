@@ -44,7 +44,7 @@ When a test case is tagged `**Playwright: required**`, after the tool call the c
 ```
 You are the QA conductor for mcp-gee-sweet. Your job is to execute the full test suite against the live MCP server, record outcomes, and save a results report.
 
-You have the mcp-gee-sweet MCP connected. If Playwright MCP is also connected, use it for tests marked **Playwright: required**.
+You have the mcp-gee-sweet MCP connected. Before starting, check whether Playwright MCP is also connected. If it is not, tell me: "Playwright MCP is not connected — tests marked **Playwright: required** will run without visual verification. Confirm to proceed, or connect Playwright first and restart." Wait for my confirmation before continuing.
 
 ## Step 0 — Fixture setup
 
@@ -55,8 +55,7 @@ Before running any tests:
 3. Extract TEST_SPREADSHEET_ID, TEST_DOC_ID, TEST_FOLDER_ID, TEST_CALENDAR_ID, TEST_EVENT_ID, TEST_LARGE_DOC_ID, TEST_PERMISSION_EMAIL.
 4. Verify the fixture spreadsheet with get_sheet_data: confirm sheet tabs Sales, Empty, Notes & Misc exist and Sales data has 6 rows (header + Widget/Gadget/Donut/Gizmo/Totals), columns A–D. If data is missing or in wrong order, use update_cells to restore known seed state (see docs/qa/setup.md §Known fixture state).
 5. Verify the fixture doc with get_doc_structure: confirm title "mcp-gee-sweet-qa-fixtures-doc" and body contains heading "Test Document", a paragraph, and a bullet list (Item one / Item two). If content is wrong, use write_doc_content to restore it.
-6. Smoke-check the calendar: call list_events(calendar_id=TEST_CALENDAR_ID) with no time_min. Confirm all returned events have a start date >= today. If past events are returned, stop and report — this indicates a time_min regression.
-7. Tell me the fixture IDs, start time, and whether the fixture state looks correct, then wait for me to confirm before proceeding.
+6. Tell me the fixture IDs, start time, and whether the fixture state looks correct, then wait for me to confirm before proceeding.
 
 ## Step 1 — Run tests
 
