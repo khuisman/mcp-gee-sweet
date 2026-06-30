@@ -38,7 +38,14 @@ Logic is split across `src/mcp_gee_sweet/`: `server.py` (MCP setup, tool decorat
 - `tools/drive/sharing.py` — permissions (`share_spreadsheet`, `share_file`, `list_permissions`, `update_permission`, `remove_permission`)
 - `tools/drive/transfer.py` — upload/download/sync/export/revisions
 - `tools/drive/activity.py` — `list_file_activity` (Drive Activity API v2; requires `drive.activity.readonly` scope)
-- `tools/docs/` — Google Docs package (`create_doc`, `get_doc_content`, `write_doc_content`, `create_doc_from_file`, `insert_doc_text`, `delete_doc_range`, `get_doc_structure`, `style_doc_range`, `style_doc_table_cells`, `get_doc_theme`, `get_doc_named_styles`, `apply_theme`, `insert_inline_image`, `insert_table_row`, `delete_table_row`, `insert_table_column`, `delete_table_column`, `create_header`, `create_footer`); sub-modules: `ast.py` (dataclass schema), `html_parser.py` (HTML→AST), `emitter.py` (AST→Docs API requests + multi-phase table fill including nested table and cell styling support)
+- `tools/docs/` — Google Docs package; `__init__.py` is a thin dispatcher that delegates to four submodules:
+  - `docs/content.py` — helpers (`_html_to_text`, `_md_to_html`, `_to_doc_requests`, `_html_to_doc_requests`) and tools (`create_doc`, `get_doc_content`, `write_doc_content`, `create_doc_from_file`, `insert_doc_text`, `delete_doc_range`, `get_doc_structure`, `insert_inline_image`)
+  - `docs/tables.py` — tools (`insert_doc_table`, `insert_table_row`, `delete_table_row`, `insert_table_column`, `delete_table_column`)
+  - `docs/style.py` — helpers (`_NAMED_STYLE_TYPES`, `_read_body_styles`, `_read_named_styles`, `_build_named_style_requests`) and tools (`style_doc_range`, `style_doc_table_cells`, `get_doc_theme`, `get_doc_named_styles`, `apply_theme`)
+  - `docs/layout.py` — tools (`create_header`, `create_footer`)
+  - `docs/ast.py` — dataclass schema
+  - `docs/html_parser.py` — HTML→AST
+  - `docs/emitter.py` — AST→Docs API requests + multi-phase table fill including nested table and cell styling support
 - `tools/cache.py` — `refresh_cache`
 - `tools/calendar.py` — Calendar API tools
 
