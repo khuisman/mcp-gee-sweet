@@ -24,17 +24,40 @@ CREATE TABLE IF NOT EXISTS cache (
 """
 
 
-def _open(db_path: str) -> sqlite3.Connection:
-    # Each cache class holds its own connection to the same DB file. WAL mode lets
-    # them read concurrently without blocking each other. All cache I/O is synchronous
-    # on the asyncio event loop — acceptable at this scale; wrap in asyncio.to_thread()
-    # if it ever shows up in profiling.
-    conn = sqlite3.connect(db_path, check_same_thread=False)
+def _connect(path: str) -> sqlite3.Connection:
+    conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute(_DDL)
     conn.commit()
     return conn
+
+
+def _open(db_path: str) -> sqlite3.Connection:
+    # Each cache class holds its own connection to the same DB file. WAL mode lets
+    # them read concurrently without blocking each other. All cache I/O is synchronous
+    # on the asyncio event loop — acceptable at this scale; wrap in asyncio.to_thread()
+    # if it ever shows up in profiling.
+    try:
+        return _connect(db_path)
+    except sqlite3.OperationalError as exc:
+        # Stale/read-only/corrupted files (e.g. left by Docker with wrong perms).
+        # Try deleting and recreating; if that also fails, fall back to :memory:.
+        if db_path != ":memory:":
+            for suffix in ("", "-shm", "-wal"):
+                path = db_path + suffix
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+            logger.warning("Cache file unusable (%s), deleted and retrying: %s", exc, db_path)
+            try:
+                return _connect(db_path)
+            except sqlite3.OperationalError as exc2:
+                logger.warning("Cache file still unusable (%s), falling back to :memory:", exc2)
+        else:
+            logger.warning("In-memory cache failed to initialise (%s)", exc)
+        return _connect(":memory:")
 
 
 @dataclass
