@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from mcp.server.fastmcp import Context
@@ -88,7 +89,7 @@ def register(tool):
         Args:
             calendar_id: The calendar ID, or 'primary'.
             time_min: Lower bound (inclusive) for event start times, RFC 3339 format,
-                      e.g. '2026-01-01T00:00:00Z'. Defaults to now if omitted.
+                      e.g. '2026-01-01T00:00:00Z'. Defaults to the current UTC time.
             time_max: Upper bound (exclusive) for event end times, RFC 3339 format.
             query: Free-text search terms to find events matching summary, description,
                    location, attendee names/emails.
@@ -112,8 +113,7 @@ def register(tool):
         }
         if expand_recurring:
             kwargs["orderBy"] = "startTime"
-        if time_min:
-            kwargs["timeMin"] = time_min
+        kwargs["timeMin"] = time_min or datetime.now(timezone.utc).isoformat()
         if time_max:
             kwargs["timeMax"] = time_max
         if query:
@@ -214,7 +214,8 @@ def register(tool):
             location: Optional location string.
             attendees: Optional list of attendee email addresses.
             timezone: IANA timezone name (e.g. 'America/Los_Angeles'). Required when
-                      start/end are date-only (all-day events).
+                      start/end are date-only (all-day events) or when recurrence is
+                      set with datetime start/end.
             recurrence: RFC 5545 recurrence rules, e.g.
                         ["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"] for Mon/Wed/Fri weekly,
                         ["RRULE:FREQ=DAILY;COUNT=5"] for 5 occurrences,

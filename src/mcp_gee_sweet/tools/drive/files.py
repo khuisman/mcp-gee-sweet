@@ -128,7 +128,7 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        query = "mimeType='application/vnd.google-apps.folder'"
+        query = "mimeType='application/vnd.google-apps.folder' and trashed=false"
         if parent_folder_id:
             query += f" and '{parent_folder_id}' in parents"
             logger.debug("Searching for folders in parent folder: %s", parent_folder_id)
@@ -414,18 +414,23 @@ def register(tool):
             )
             .execute()
         )
-        return {
+        mime = f["mimeType"]
+        result: dict[str, Any] = {
             "id": f["id"],
             "name": f["name"],
-            "mimeType": f["mimeType"],
+            "mimeType": mime,
             "parents": f.get("parents", []),
             "created_time": f.get("createdTime"),
             "modified_time": f.get("modifiedTime"),
-            "size": f.get("size"),
             "owners": [o.get("emailAddress") for o in f.get("owners", [])],
             "web_link": f.get("webViewLink"),
             "trashed": f.get("trashed", False),
         }
+        # Workspace files (Docs, Sheets, Slides, etc.) don't consume storage quota;
+        # the Drive API returns quotaBytesUsed as "size", which is misleading.
+        if not mime.startswith("application/vnd.google-apps.") and f.get("size") is not None:
+            result["size"] = f["size"]
+        return result
 
     @tool(annotations=ToolAnnotations(title="Create Folder", destructiveHint=True))
     def create_folder(
