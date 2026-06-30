@@ -35,8 +35,10 @@ Add the following to your `.env` file (create it at the repo root if it doesn't 
 TEST_SPREADSHEET_ID=<your spreadsheet ID>
 TEST_DOC_ID=<your doc ID>
 TEST_FOLDER_ID=<the folder ID that contains both files>
+TEST_LARGE_DOC_ID=         # large-content doc for TC-D48; create via setup_fixtures or manually
 TEST_CALENDAR_ID=          # leave blank until calendar fixtures are set up
 TEST_EVENT_ID=             # leave blank until calendar fixtures are set up
+TEST_PERMISSION_EMAIL=     # a second Google account email for permission add/remove tests (TC-D130)
 ```
 
 File and folder IDs are in the URL when you open them in Drive:
@@ -48,7 +50,7 @@ File and folder IDs are in the URL when you open them in Drive:
 
 ## Step 3 — Run the seed prompt
 
-Paste the seed prompt below into a Claude session with the MCP server connected. Claude will populate the spreadsheet and doc with the known fixture data.
+Paste the seed prompt below into a Claude session that has **both the mcp-gee-sweet MCP server and the Playwright MCP connected**. Claude will populate the spreadsheet and doc with the known fixture data, then open each file in Playwright to visually confirm the result.
 
 ```
 Set up my QA fixtures for mcp-gee-sweet using these IDs from my .env:
@@ -73,6 +75,8 @@ Please do all of the following in order:
    <h1>Test Document</h1><p>This document is used for QA testing of mcp-gee-sweet.</p><ul><li>Item one</li><li>Item two</li></ul>
 
 Confirm when done.
+
+Then open https://docs.google.com/spreadsheets/d/<TEST_SPREADSHEET_ID>/edit in Playwright and take a snapshot to visually confirm the sheet names and data are correct. Do the same for the doc at https://docs.google.com/document/d/<TEST_DOC_ID>/edit.
 ```
 
 ---
@@ -113,6 +117,17 @@ Set up my calendar QA fixtures for mcp-gee-sweet:
 ```
 
 Add the returned IDs to `.env` as `TEST_CALENDAR_ID` and `TEST_EVENT_ID`.
+
+---
+
+## OAuth token setup (for `⚠️ requires-oauth` tests)
+
+Tests tagged `⚠️ requires-oauth` need a valid OAuth token (`token.json`). If you're running with a service account or ADC, these tests will be skipped or will fail — they require personal Drive access.
+
+To acquire or refresh a token without manually clicking through Google's consent screen, see **[`docs/qa/playwright_oauth.md`](playwright_oauth.md)**. Two paths are documented:
+
+- **Playwright-assisted**: run `scripts/oauth_setup.py`, let Claude Code + Playwright MCP complete the browser flow
+- **Refresh token injection**: one-time manual flow, then store the refresh token as an env secret for all future runs (CI-friendly)
 
 ---
 

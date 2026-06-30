@@ -211,8 +211,17 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
         for cell in row.cells
     )
 
-    # Step 1: re-fetch to get live cell positions
+    # Step 1: fetch doc; collapse blank paragraphs stranded immediately before tables (an
+    # artifact of phase-1 insertText displacing the doc's initial empty paragraph).  The
+    # Docs API rejects deleteContentRange on these paragraphs because a paragraph before a
+    # table is structurally required, so we shrink them to zero visual height instead.
     live_doc = docs_service.documents().get(documentId=doc_id).execute()
+    blank_collapses = _build_blank_para_before_table_collapses(live_doc)
+    if blank_collapses:
+        docs_service.documents().batchUpdate(
+            documentId=doc_id, body={"requests": blank_collapses}
+        ).execute()
+        live_doc = docs_service.documents().get(documentId=doc_id).execute()
     doc_tables = _top_level_tables(live_doc)
 
     # Step 2: outer merges
@@ -497,6 +506,23 @@ def _build_fill_requests(doc_tables: list[dict], ast_tables: list[Table]) -> lis
                 cell_requests.append(
                     {"insertText": {"location": {"index": para_start}, "text": cell_text}}
                 )
+                # Clear any fontSize inherited from a preceding heading. The cell paragraph
+                # namedStyleType is already NORMAL_TEXT, but when a table is inserted right
+                # after a heading the empty cell paragraphs absorb the heading's character
+                # style. Explicitly clearing fontSize here ensures cells render at Normal Text
+                # size; per-run font_size values are re-applied by the loop below.
+                cell_requests.append(
+                    {
+                        "updateTextStyle": {
+                            "range": {
+                                "startIndex": para_start,
+                                "endIndex": para_start + len(cell_text),
+                            },
+                            "textStyle": {},
+                            "fields": "fontSize",
+                        }
+                    }
+                )
                 offset = 0
                 for run in cell_runs:
                     run_len = len(run.text)
@@ -625,6 +651,59 @@ def _build_width_requests(live_doc: dict, ast_tables: list[Table]) -> list[dict]
                 }
             )
 
+    return requests
+
+
+def _build_blank_para_before_table_collapses(live_doc: dict) -> list[dict]:
+    """Return updateParagraphStyle + updateTextStyle requests that collapse empty paragraphs
+    immediately before tables to zero visual height.
+
+    Phase-1 insertText displaces the doc's initial empty paragraph, leaving a blank line
+    stranded between the preceding content and the table.  deleteContentRange is rejected by
+    the Docs API for these paragraphs (a paragraph before a table is structurally required),
+    so we shrink them instead: spaceAbove/Below = 0, lineSpacing = 1 (1% of normal),
+    fontSize = 1 pt.  Only paragraphs whose sole content is a newline are affected.
+    """
+    content = live_doc.get("body", {}).get("content", [])
+    requests: list[dict] = []
+    for i, elem in enumerate(content):
+        if "table" not in elem or i == 0:
+            continue
+        prev = content[i - 1]
+        if "paragraph" not in prev:
+            continue
+        para_text = "".join(
+            el.get("textRun", {}).get("content", "") for el in prev["paragraph"].get("elements", [])
+        )
+        if para_text != "\n":
+            continue
+        start = prev.get("startIndex")
+        end = prev.get("endIndex")
+        if start is None or end is None:
+            continue
+        rng = {"startIndex": start, "endIndex": end}
+        requests.append(
+            {
+                "updateParagraphStyle": {
+                    "range": rng,
+                    "paragraphStyle": {
+                        "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                        "spaceBelow": {"magnitude": 0, "unit": "PT"},
+                        "lineSpacing": 1,
+                    },
+                    "fields": "spaceAbove,spaceBelow,lineSpacing",
+                }
+            }
+        )
+        requests.append(
+            {
+                "updateTextStyle": {
+                    "range": rng,
+                    "textStyle": {"fontSize": {"magnitude": 1, "unit": "PT"}},
+                    "fields": "fontSize",
+                }
+            }
+        )
     return requests
 
 

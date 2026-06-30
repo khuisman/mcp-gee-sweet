@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from googleapiclient.errors import HttpError
@@ -127,7 +128,7 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        query = "mimeType='application/vnd.google-apps.folder'"
+        query = "mimeType='application/vnd.google-apps.folder' and trashed=false"
         if parent_folder_id:
             query += f" and '{parent_folder_id}' in parents"
             logger.debug("Searching for folders in parent folder: %s", parent_folder_id)
@@ -413,18 +414,23 @@ def register(tool):
             )
             .execute()
         )
-        return {
+        mime = f["mimeType"]
+        result: dict[str, Any] = {
             "id": f["id"],
             "name": f["name"],
-            "mimeType": f["mimeType"],
+            "mimeType": mime,
             "parents": f.get("parents", []),
             "created_time": f.get("createdTime"),
             "modified_time": f.get("modifiedTime"),
-            "size": f.get("size"),
             "owners": [o.get("emailAddress") for o in f.get("owners", [])],
             "web_link": f.get("webViewLink"),
             "trashed": f.get("trashed", False),
         }
+        # Workspace files (Docs, Sheets, Slides, etc.) don't consume storage quota;
+        # the Drive API returns quotaBytesUsed as "size", which is misleading.
+        if not mime.startswith("application/vnd.google-apps.") and f.get("size") is not None:
+            result["size"] = f["size"]
+        return result
 
     @tool(annotations=ToolAnnotations(title="Create Folder", destructiveHint=True))
     def create_folder(
@@ -613,6 +619,141 @@ def register(tool):
             "fileId": updated.get("id"),
             "name": updated.get("name"),
             "parent": parents[0] if parents else "root",
+        }
+
+    @tool(annotations=ToolAnnotations(title="List Shared With Me", readOnlyHint=True))
+    def list_shared_with_me(
+        mime_type: str | None = None,
+        max_results: int = 50,
+        ctx: Context = None,
+    ) -> list[dict[str, Any]]:
+        """
+        List files explicitly shared with the authenticated user.
+
+        Args:
+            mime_type: Optional MIME type filter, e.g.
+                       'application/vnd.google-apps.spreadsheet'.
+            max_results: Maximum number of files to return (default 50, max 200).
+
+        Returns:
+            List of shared files with id, name, mime_type, modified_time, owners,
+            and web_link, ordered by modification time descending.
+            Note: With service account auth, returns files shared with the service
+            account email, not files shared with a personal user.
+        """
+        drive_service = ctx.request_context.lifespan_context.drive_service
+        max_results = min(max(1, max_results), 200)
+
+        parts = ["sharedWithMe=true", "trashed=false"]
+        if mime_type:
+            parts.append(f"mimeType='{mime_type.replace(chr(39), chr(39) * 2)}'")
+
+        results = (
+            drive_service.files()
+            .list(
+                q=" and ".join(parts),
+                pageSize=max_results,
+                spaces="drive",
+                fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
+                orderBy="modifiedTime desc",
+            )
+            .execute()
+        )
+
+        return [
+            {
+                "id": f["id"],
+                "name": f["name"],
+                "mime_type": f["mimeType"],
+                "modified_time": f.get("modifiedTime"),
+                "owners": [o.get("emailAddress") for o in f.get("owners", [])],
+                "web_link": f.get("webViewLink"),
+            }
+            for f in results.get("files", [])
+        ]
+
+    @tool(annotations=ToolAnnotations(title="List Recent Files", readOnlyHint=True))
+    def list_recent_files(
+        max_results: int = 20,
+        days: int | None = None,
+        mime_type: str | None = None,
+        ctx: Context = None,
+    ) -> list[dict[str, Any]]:
+        """
+        List recently modified files in Drive, newest first.
+
+        Args:
+            max_results: Maximum number of files to return (default 20, max 100).
+            days: If provided, only return files modified within the last N days.
+            mime_type: Optional MIME type filter.
+
+        Returns:
+            List of files with id, name, mime_type, modified_time, owners, and web_link,
+            ordered by modification time descending.
+        """
+        drive_service = ctx.request_context.lifespan_context.drive_service
+        max_results = min(max(1, max_results), 100)
+
+        parts = ["trashed=false"]
+        if days is not None and days > 0:
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime(
+                "%Y-%m-%dT%H:%M:%S"
+            )
+            parts.append(f"modifiedTime > '{cutoff}'")
+        if mime_type:
+            parts.append(f"mimeType='{mime_type.replace(chr(39), chr(39) * 2)}'")
+
+        results = (
+            drive_service.files()
+            .list(
+                q=" and ".join(parts),
+                pageSize=max_results,
+                spaces="drive",
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
+                orderBy="modifiedTime desc",
+            )
+            .execute()
+        )
+
+        return [
+            {
+                "id": f["id"],
+                "name": f["name"],
+                "mime_type": f["mimeType"],
+                "modified_time": f.get("modifiedTime"),
+                "owners": [o.get("emailAddress") for o in f.get("owners", [])],
+                "web_link": f.get("webViewLink"),
+            }
+            for f in results.get("files", [])
+        ]
+
+    @tool(annotations=ToolAnnotations(title="Get Storage Quota", readOnlyHint=True))
+    def get_storage_quota(ctx: Context = None) -> dict[str, Any]:
+        """
+        Get Drive storage usage and limits for the authenticated account.
+
+        Returns:
+            Storage quota with limit_bytes, usage_bytes, usage_in_drive_bytes,
+            usage_in_trash_bytes, email, and display_name. All byte values are
+            integers. limit_bytes is None if the key is absent, or 0 if the API
+            returns "0" (typical for service accounts with no personal quota).
+        """
+        drive_service = ctx.request_context.lifespan_context.drive_service
+
+        about = drive_service.about().get(fields="storageQuota,user").execute()
+
+        quota = about.get("storageQuota", {})
+        user = about.get("user", {})
+
+        return {
+            "email": user.get("emailAddress"),
+            "display_name": user.get("displayName"),
+            "limit_bytes": int(quota["limit"]) if quota.get("limit") else None,
+            "usage_bytes": int(quota.get("usage", 0)),
+            "usage_in_drive_bytes": int(quota.get("usageInDrive", 0)),
+            "usage_in_trash_bytes": int(quota.get("usageInDriveTrash", 0)),
         }
 
     @tool(annotations=ToolAnnotations(title="Trash or Delete File", destructiveHint=True))

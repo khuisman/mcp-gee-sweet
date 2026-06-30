@@ -40,3 +40,4 @@ docker run --rm -p 8000:8000 \
 - [Authentication](auth.md) — four auth methods and when to use each
 - [Configuration](configuration.md) — env vars, tool filtering, caching
 - [Client Setup](client-setup.md) — Claude Desktop and Claude Code config examples
+- [Known Limitations](known-limitations.md) — API constraints and workarounds

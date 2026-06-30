@@ -6,55 +6,71 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 
 ## What's implemented
 
-### Google Sheets — 15 tools
+### Google Sheets — 19 tools
 - **Read:** `get_sheet_data`, `get_sheet_formulas`, `get_multiple_sheet_data`, `get_multiple_spreadsheet_summary`, `find_in_spreadsheet`
 - **Write:** `update_cells`, `batch_update_cells`, `batch_update` _(raw batchUpdate passthrough — escape hatch for anything not covered by named tools)_
-- **Structure:** `list_sheets`, `create_sheet`, `rename_sheet`, `copy_sheet`, `add_rows`, `add_columns`, `add_chart`
+- **Structure:** `list_sheets`, `create_sheet`, `rename_sheet`, `copy_sheet`, `delete_sheet`, `add_rows`, `add_columns`, `delete_rows`, `delete_columns`, `add_chart`
+- **Data ops:** `clear_values`
 
-### Google Drive — 27 tools
+### Google Drive — 28 tools
 - **Files:** `list_files`, `list_spreadsheets`, `search_files`, `search_spreadsheets`, `list_folders`, `list_drives`, `get_file_metadata`, `create_spreadsheet`, `create_folder`, `copy_file`, `move_file`, `rename_file`, `delete_file`
 - **Sharing:** `share_spreadsheet`, `share_file`, `list_permissions`, `update_permission`, `remove_permission`
 - **Transfer:** `upload_file`, `upload_local_file`, `upload_local_folder`, `download_file`, `download_folder`, `sync_folder`, `export_file`, `export_revision`, `list_revisions`
 
-### Google Docs — 13 tools
-- **Content:** `create_doc`, `create_doc_from_file`, `get_doc_content`, `write_doc_content`, `insert_doc_text`, `delete_doc_range`, `get_doc_structure`, `insert_doc_table`
+### Google Docs — 20 tools
+- **Content:** `create_doc`, `create_doc_from_file`, `get_doc_content`, `write_doc_content`, `insert_doc_text`, `delete_doc_range`, `get_doc_structure`, `insert_doc_table`, `insert_inline_image`, `create_header`, `create_footer`
 - **Styling:** `style_doc_range`, `style_doc_table_cells`, `get_doc_theme`, `get_doc_named_styles`, `apply_theme`
+- **Table structure:** `insert_table_row`, `delete_table_row`, `insert_table_column`, `delete_table_column`
 
 ### Google Calendar — 8 tools
 `list_calendars`, `get_calendar`, `list_events`, `get_event`, `create_event`, `update_event`, `delete_event`, `find_free_slots`
 
 ---
 
+## Release cadence
+
+| Version | Scope | Signal |
+|---------|-------|--------|
+| **v0.7.0** | ✅ First stable PyPI release — 63 tools across Sheets, Drive, Docs, Calendar | Published 2026-06-21 |
+| **v0.8.0** | Tier 1 complete — all "frequently needed" items across all domains (~14 tools) | "Complete for everyday use" |
+| **v0.9.0** | Tier 2 complete — power-user and structured-work layer (~20 tools) | Covers most real workflows |
+| **v1.0.0** | API stability declaration — Tier 3 items that make the cut + any breaking cleanups from v0.8–0.9 | Backwards-compatibility commitment |
+| **v1.1.0+** | Future domains — Tasks, Gmail (separate minor releases, each needs a new API client) | Expanded scope |
+
+Tier 4 items remain backlog with no assigned version.
+
+---
+
 ## Roadmap
 
-### Tier 1 — High value, frequently needed
+### Tier 1 — High value, frequently needed _(target: v0.8.0)_
 
 **Infrastructure**
-- [ ] PyPI publish — OIDC trusted publishing ([#55](https://github.com/khuisman/mcp-gee-sweet/issues/55))
+- [x] PyPI publish — OIDC trusted publishing ([#55](https://github.com/khuisman/mcp-gee-sweet/issues/55)) — v0.7.0 stable live; `uvx mcp-gee-sweet` works
 
 **Sheets**
-- [ ] `delete_sheet` — delete a tab by name or sheetId ([#115](https://github.com/khuisman/mcp-gee-sweet/issues/115)) _(freema/mcp-gsheets)_
-- [ ] `clear_values` — clear cell content in a range without touching formatting ([#116](https://github.com/khuisman/mcp-gee-sweet/issues/116)) _(freema/mcp-gsheets)_
-- [ ] `delete_rows` / `delete_columns` — remove rows or columns by index ([#117](https://github.com/khuisman/mcp-gee-sweet/issues/117)) _(freema/mcp-gsheets)_
-- [ ] `format_cells` — background color, font, alignment, number format on a range ([#118](https://github.com/khuisman/mcp-gee-sweet/issues/118)) _(freema/mcp-gsheets)_
-- [ ] `merge_cells` / `unmerge_cells` — merge a range into one cell ([#119](https://github.com/khuisman/mcp-gee-sweet/issues/119)) _(freema/mcp-gsheets)_
-- [ ] `freeze` — freeze rows and/or columns ([#120](https://github.com/khuisman/mcp-gee-sweet/issues/120))
-- [ ] `sort_range` — sort a range by one or more columns ([#121](https://github.com/khuisman/mcp-gee-sweet/issues/121))
+- [x] `delete_sheet` — delete a tab by name or sheetId ([#115](https://github.com/khuisman/mcp-gee-sweet/issues/115)) _(freema/mcp-gsheets)_
+- [x] `clear_values` — clear cell content in a range without touching formatting ([#116](https://github.com/khuisman/mcp-gee-sweet/issues/116)) _(freema/mcp-gsheets)_
+- [x] `delete_rows` / `delete_columns` — remove rows or columns by index ([#117](https://github.com/khuisman/mcp-gee-sweet/issues/117)) _(freema/mcp-gsheets)_
+- [x] `format_cells` — background color, font, alignment, number format on a range ([#118](https://github.com/khuisman/mcp-gee-sweet/issues/118)) _(freema/mcp-gsheets)_
+- [x] `merge_cells` / `unmerge_cells` — merge a range into one cell ([#119](https://github.com/khuisman/mcp-gee-sweet/issues/119)) _(freema/mcp-gsheets)_
+- [x] `freeze` — freeze rows and/or columns ([#120](https://github.com/khuisman/mcp-gee-sweet/issues/120))
+- [x] `sort_range` — sort a range by one or more columns ([#121](https://github.com/khuisman/mcp-gee-sweet/issues/121))
 
 **Calendar**
-- [ ] Recurring events — RRULE support in `create_event` and `update_event`; this/all/following modifiers ([#155](https://github.com/khuisman/mcp-gee-sweet/issues/155))
+- [x] Recurring events — RRULE support in `create_event` and `update_event`; `expand_recurring` in `list_events`; instance vs master scope documented ([#155](https://github.com/khuisman/mcp-gee-sweet/issues/155))
 
 **Docs**
-- [ ] `insert_inline_image` — insert an image at a document index ([#145](https://github.com/khuisman/mcp-gee-sweet/issues/145))
-- [ ] Table structural ops — `insert_table_row`, `delete_table_row`, `insert_table_column`, `delete_table_column` ([#146](https://github.com/khuisman/mcp-gee-sweet/issues/146))
-- [ ] `create_header` / `create_footer` — page headers and footers ([#147](https://github.com/khuisman/mcp-gee-sweet/issues/147))
+- [x] `insert_inline_image` — insert an image at a document index ([#145](https://github.com/khuisman/mcp-gee-sweet/issues/145))
+- [x] Table structural ops — `insert_table_row`, `delete_table_row`, `insert_table_column`, `delete_table_column` ([#146](https://github.com/khuisman/mcp-gee-sweet/issues/146))
+- [x] `create_header` / `create_footer` — page headers and footers ([#147](https://github.com/khuisman/mcp-gee-sweet/issues/147))
 
 **Drive**
-- [ ] `list_shared_with_me` — files explicitly shared with the authenticated user ([#135](https://github.com/khuisman/mcp-gee-sweet/issues/135))
-- [ ] `list_recent_files` — files recently accessed or modified ([#136](https://github.com/khuisman/mcp-gee-sweet/issues/136))
-- [ ] `get_storage_quota` — Drive storage usage and limits ([#137](https://github.com/khuisman/mcp-gee-sweet/issues/137))
+- [x] `list_shared_with_me` — files explicitly shared with the authenticated user ([#135](https://github.com/khuisman/mcp-gee-sweet/issues/135))
+- [x] `list_recent_files` — files recently accessed or modified ([#136](https://github.com/khuisman/mcp-gee-sweet/issues/136))
+- [x] `get_storage_quota` — Drive storage usage and limits ([#137](https://github.com/khuisman/mcp-gee-sweet/issues/137))
 
-### Tier 2 — Useful for structured work
+### Tier 2 — Useful for structured work _(target: v0.9.0)_
 
 **Sheets**
 - [ ] `update_borders` — border style, width, color on a range ([#122](https://github.com/khuisman/mcp-gee-sweet/issues/122)) _(freema/mcp-gsheets)_
@@ -83,9 +99,9 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 - [ ] `star_file` / `unstar_file` — mark files with a star for easy retrieval ([#139](https://github.com/khuisman/mcp-gee-sweet/issues/139))
 - [ ] `transfer_ownership` — transfer a file to another user ([#140](https://github.com/khuisman/mcp-gee-sweet/issues/140))
 - [ ] `create_shortcut` — create a Drive shortcut to a file ([#141](https://github.com/khuisman/mcp-gee-sweet/issues/141))
-- [ ] Drive Activity API — file change history ([#72](https://github.com/khuisman/mcp-gee-sweet/issues/72))
+- [x] Drive Activity API — file change history ([#72](https://github.com/khuisman/mcp-gee-sweet/issues/72))
 
-### Tier 3 — Advanced / occasionally needed
+### Tier 3 — Advanced / occasionally needed _(target: v1.0.0)_
 
 **Sheets**
 - [ ] `add_conditional_formatting` / `delete_conditional_formatting` ([#129](https://github.com/khuisman/mcp-gee-sweet/issues/129)) _(freema/mcp-gsheets)_
@@ -110,7 +126,7 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 - [ ] Watch notifications — webhook push on file changes ([#143](https://github.com/khuisman/mcp-gee-sweet/issues/143))
 - [ ] Labels API — custom metadata labels on Drive files ([#144](https://github.com/khuisman/mcp-gee-sweet/issues/144))
 
-### Tier 4 — Nice to have / niche
+### Tier 4 — Nice to have / niche _(no assigned version)_
 
 **Sheets**
 - [ ] `get_sheet_dimensions` — read column widths, row heights, frozen counts ([#132](https://github.com/khuisman/mcp-gee-sweet/issues/132)) _(freema/mcp-gsheets)_
@@ -149,7 +165,7 @@ The test expected the API to silently truncate a 2D array that's wider than the 
 
 ## Testing
 
-### Unit tests (326 passing as of 2026-06-21)
+### Unit tests (456 passing as of 2026-06-24)
 - [x] Add `pytest` and `pytest-cov` as dev dependencies
 - [x] Cache logic — TTL expiry, dirty flag, partial invalidation for all five cache classes; in-memory SQLite
 - [x] A1 notation helpers — `_parse_a1_notation`, `_column_index_to_letter`, `_letter_to_column_index`
@@ -176,7 +192,9 @@ The test expected the API to silently truncate a 2D array that's wider than the 
 - [x] Migrate cache persistence — replaced four `/tmp/*.json` files with a single SQLite DB (`/tmp/mcp_gee_sweet.db`, configurable via `CACHE_DB_PATH`); one table, four namespaces; WAL mode
 - [x] Open PR to xing5 from `upstream-observability` branch (structured logging, per-tool timing, `cache_discovery=False`) — [PR #79](https://github.com/xing5/mcp-google-sheets/pull/79)
 - [x] Fork repo and rename to `mcp-gee-sweet`; README credits xing5, freema, and piotr-agier
-- See [GitHub Issues (label: infrastructure)](https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Ainfrastructure) for open infrastructure work (PyPI publish #55, etc.)
+- [x] PyPI publish — v0.7.0 stable on PyPI; dev track publishes `0.7.0.devN` on every push to `develop`
+- [ ] Live QA system — fixture setup, per-release run files (`docs/qa/runs/vX.Y.Z.md`), Playwright OAuth automation ([#173](https://github.com/khuisman/mcp-gee-sweet/issues/173)) _(gate for v0.8.0)_
+- See [GitHub Issues (label: infrastructure)](https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Ainfrastructure) for open infrastructure work
 
 ---
 

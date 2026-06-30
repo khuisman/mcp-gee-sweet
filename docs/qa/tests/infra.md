@@ -4,6 +4,21 @@ Covers: cache behavior, tool filtering, auth fallback chain, and transport. Thes
 
 Fixtures: see [`docs/qa/setup.md`](../setup.md).
 
+## Coverage strategy
+
+Most infrastructure behaviours are verified by unit tests rather than live QA prompts. A subprocess-based pytest fixture (start/stop the server with different env vars per test) was assessed in issue #51 and **rejected** — the setup cost outweighs the benefit at current scale, and the logic under test is directly unit-testable by patching module-level constants and mocking credential calls.
+
+| TC range | Coverage strategy |
+|---|---|
+| TC-I01, I03 (cache TTL, DB path) | Unit-tested in `tests/test_cache.py` — TTL expiry and `db_path` override are exercised directly |
+| TC-I04 (cache persistence across restart) | SQLite persistence is a property of the DB file, not the server — not worth a subprocess test |
+| TC-I05–I07 (tool filtering) | Unit-tested in `tests/test_server.py` — `_parse_enabled_tools()` is fully covered |
+| TC-I08–I12 (auth variants) | Unit tests tracked in #98 — mock `_service_account_creds`, `_oauth_creds`, and ADC |
+| TC-I02 (WAL concurrency) | Manual / live QA only — requires true concurrent requests |
+| TC-I13, I14 (transport) | Manual / live QA only — verify once per environment setup |
+| TC-I15 (hot reload) | Manual / live QA only — known uvicorn + SSE limitation, observe and note |
+| TC-I16–I20 (logging) | ✅ Already live-tested and passed — see Result entries below |
+
 ---
 
 ## Cache behavior
@@ -213,6 +228,89 @@ Run `uv run mcp-gee-sweet --transport sse` or `make start`. Connect from Claude 
 - Connection established via SSE
 - Tool returns results normally
 - Server accessible at the configured port
+
+---
+
+## Logging
+
+### TC-I16: DEBUG_LEVEL=DEBUG — debug and access logs appear
+
+**Setup**
+Set `DEBUG_LEVEL=DEBUG` and `LOG_FILE=/tmp/mcp-gee-sweet.log` in `src/mcp_gee_sweet/.env`. Restart the server.
+
+**Prompt**
+> "List the sheets in {SPREADSHEET_ID}"
+
+**Checks**
+- `make dev-logs` shows cache-open DEBUG lines at startup
+- After the tool call, an INFO line from `mcp_gee_sweet.access` appears: `"-" - "TOOL list_sheets" 200 X.XXXs`
+- Both log levels present (`DEBUG` and `INFO`) and differentiated by logger name
+
+**Result (2026-06-23) ✅** `DEBUG_LEVEL=DEBUG` and `LOG_FILE` active via `.env`. After `list_spreadsheets`:
+- Startup: `DEBUG mcp_gee_sweet.cache` lines present (5 cache-open entries)
+- Access: `2026-06-23 23:00:34,893 INFO mcp_gee_sweet.access "-" - "TOOL list_spreadsheets" 200 0.668s`
+- Logger names correctly differentiated in same file
+
+---
+
+### TC-I17: DEBUG_LEVEL=INFO — access logs only, no debug lines
+
+**Setup**
+Set `DEBUG_LEVEL=INFO` and `LOG_FILE=/tmp/mcp-gee-sweet.log`. Restart the server.
+
+**Prompt**
+> "List the sheets in {SPREADSHEET_ID}"
+
+**Checks**
+- No `DEBUG` lines in the log (cache-open messages suppressed)
+- Access log `INFO mcp_gee_sweet.access` line still appears for the tool call
+
+**Result (2026-06-23) ✅** `DEBUG_LEVEL=INFO` set in `.env`, server restarted. After `list_spreadsheets`: only `INFO mcp_gee_sweet.access "-" - "TOOL list_spreadsheets" 200 0.612s` appeared — no `DEBUG` cache-open lines or drive search lines. Access log correctly fires at INFO level.
+
+---
+
+### TC-I18: LOG_FILE — server output written to file
+
+**Setup**
+Set `DEBUG_LEVEL=DEBUG` and `LOG_FILE=/tmp/mcp-gee-sweet.log`. Restart the server.
+
+**Checks**
+- `/tmp/mcp-gee-sweet.log` is created on startup
+- `make dev-logs` tails it correctly
+- File contains startup cache-open lines and per-call access lines
+
+**Result (2026-06-23) ✅** `/tmp/mcp-gee-sweet.log` created on startup (466 lines after one session). Contains cache-open DEBUG lines and per-call INFO access lines. `make dev-logs` tails it correctly.
+
+---
+
+### TC-I19: ACCESS_LOG_FILE — access lines written to separate file
+
+**Setup**
+Set `DEBUG_LEVEL=DEBUG`, `LOG_FILE=/tmp/mcp-gee-sweet.log`, and `ACCESS_LOG_FILE=/tmp/mcp-gee-sweet-access.log`. Restart the server.
+
+**Prompt**
+> "List the sheets in {SPREADSHEET_ID}"
+
+**Checks**
+- `make access-logs` shows only the `mcp_gee_sweet.access` line — no DEBUG noise
+- `make dev-logs` shows both debug lines and the access line (mixed)
+- The same tool call produces one entry in each file
+
+**Result (2026-06-23) ✅** `ACCESS_LOG_FILE=/tmp/mcp-gee-sweet-access.log` set in `.env`. After `list_spreadsheets`, the access log contains only: `"-" - "TOOL list_spreadsheets" 200 0.668s` — no DEBUG cache-open noise. Mixed output confirmed in LOG_FILE.
+
+---
+
+### TC-I20: .env file loaded at startup
+
+**Setup**
+Add `DEBUG_LEVEL=DEBUG` to `src/mcp_gee_sweet/.env` (no shell export, no MCP client config change). Restart the server.
+
+**Checks**
+- Debug logging is active without setting the env var in the shell or MCP client
+- `make dev-logs` shows startup and access log lines as expected
+- 🔍 Set `DEBUG_LEVEL=WARNING` in the shell alongside `DEBUG_LEVEL=DEBUG` in `.env` — shell env wins, no debug output appears
+
+**Result (2026-06-23) ✅** `DEBUG_LEVEL=DEBUG` and `LOG_FILE` set only in `src/mcp_gee_sweet/.env` (no shell export, no MCP client config). Server produced startup DEBUG lines and access log entries — confirms `.env` is loaded at startup. Env precedence test (shell override) pending separate verification.
 
 ---
 

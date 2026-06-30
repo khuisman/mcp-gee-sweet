@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+from mcp_gee_sweet.cache import SheetInfo
 from mcp_gee_sweet.tools.sheets import structure as sheets_structure_module
 
 
@@ -234,3 +235,422 @@ class TestCopySheet:
             ctx=ctx,
         )
         assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
+
+
+class TestDeleteSheet:
+    def _sheets_service(self, sheet_id=7):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _cache_with_sheet(self, title="Sheet1", sheet_id=7):
+        cache = MagicMock()
+        cache.get_sheets.return_value = [SheetInfo(title=title, sheet_id=sheet_id)]
+        return cache
+
+    def test_sends_delete_sheet_request(self):
+        svc = self._sheets_service(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["delete_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        assert body["requests"][0] == {"deleteSheet": {"sheetId": 7}}
+
+    def test_marks_cache_dirty_on_success(self):
+        svc = self._sheets_service()
+        cache = self._cache_with_sheet()
+        ctx = _make_ctx(sheets_service=svc, cache=cache)
+        _structure_tools["delete_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        cache.mark_dirty.assert_called_with("ss1")
+
+    def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = _structure_tools["delete_sheet"](spreadsheet_id="ss1", sheet="Missing", ctx=ctx)
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+
+class TestDeleteRows:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _dimension_range(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["deleteDimension"]["range"]
+
+    def test_single_row_end_index_is_start_plus_one(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["delete_rows"](spreadsheet_id="ss1", sheet="Sheet1", start_row=3, ctx=ctx)
+        r = self._dimension_range(svc)
+        assert r["startIndex"] == 3
+        assert r["endIndex"] == 4
+        assert r["dimension"] == "ROWS"
+
+    def test_range_of_rows_end_index_is_inclusive(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["delete_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=2, end_row=5, ctx=ctx
+        )
+        r = self._dimension_range(svc)
+        assert r["startIndex"] == 2
+        assert r["endIndex"] == 6  # end_row=5 inclusive → exclusive index 6
+
+    def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = _structure_tools["delete_rows"](
+            spreadsheet_id="ss1", sheet="Missing", start_row=0, ctx=ctx
+        )
+        assert "error" in result
+
+
+class TestDeleteColumns:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _dimension_range(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["deleteDimension"]["range"]
+
+    def test_single_column_end_index_is_start_plus_one(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["delete_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=0, ctx=ctx
+        )
+        r = self._dimension_range(svc)
+        assert r["startIndex"] == 0
+        assert r["endIndex"] == 1
+        assert r["dimension"] == "COLUMNS"
+
+    def test_range_of_columns_end_index_is_inclusive(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["delete_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=1, end_column=3, ctx=ctx
+        )
+        r = self._dimension_range(svc)
+        assert r["startIndex"] == 1
+        assert r["endIndex"] == 4  # end_column=3 inclusive → exclusive index 4
+
+    def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = _structure_tools["delete_columns"](
+            spreadsheet_id="ss1", sheet="Missing", start_column=0, ctx=ctx
+        )
+        assert "error" in result
+
+
+class TestFormatCells:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _repeat_cell_request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["repeatCell"]
+
+    def test_bold_sets_text_format_and_field(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["format_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1:B2", bold=True, ctx=ctx
+        )
+        rc = self._repeat_cell_request(svc)
+        assert rc["cell"]["userEnteredFormat"]["textFormat"]["bold"] is True
+        assert "userEnteredFormat.textFormat" in rc["fields"]
+
+    def test_background_color_sets_field(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        color = {"red": 1.0, "green": 0.0, "blue": 0.0}
+        _structure_tools["format_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", background_color=color, ctx=ctx
+        )
+        rc = self._repeat_cell_request(svc)
+        assert rc["cell"]["userEnteredFormat"]["backgroundColor"] == color
+        assert "userEnteredFormat.backgroundColor" in rc["fields"]
+
+    def test_horizontal_alignment_uppercased(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["format_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", horizontal_alignment="center", ctx=ctx
+        )
+        rc = self._repeat_cell_request(svc)
+        assert rc["cell"]["userEnteredFormat"]["horizontalAlignment"] == "CENTER"
+
+    def test_number_format_type_and_pattern(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["format_cells"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:A10",
+            number_format_type="number",
+            number_format_pattern="#,##0.00",
+            ctx=ctx,
+        )
+        rc = self._repeat_cell_request(svc)
+        nf = rc["cell"]["userEnteredFormat"]["numberFormat"]
+        assert nf["type"] == "NUMBER"
+        assert nf["pattern"] == "#,##0.00"
+
+    def test_no_params_returns_error(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = _structure_tools["format_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = _structure_tools["format_cells"](
+            spreadsheet_id="ss1", sheet="Missing", range="A1", bold=True, ctx=ctx
+        )
+        assert "error" in result
+
+    def test_multiple_format_params_produce_multiple_fields(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["format_cells"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            bold=True,
+            background_color={"red": 0.5},
+            horizontal_alignment="LEFT",
+            ctx=ctx,
+        )
+        rc = self._repeat_cell_request(svc)
+        fields = rc["fields"]
+        assert "userEnteredFormat.textFormat" in fields
+        assert "userEnteredFormat.backgroundColor" in fields
+        assert "userEnteredFormat.horizontalAlignment" in fields
+
+
+class TestMergeCells:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _merge_request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["mergeCells"]
+
+    def test_default_merge_type_is_merge_all(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["merge_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1:C3", ctx=ctx
+        )
+        assert self._merge_request(svc)["mergeType"] == "MERGE_ALL"
+
+    def test_merge_type_uppercased(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["merge_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1:C3", merge_type="merge_rows", ctx=ctx
+        )
+        assert self._merge_request(svc)["mergeType"] == "MERGE_ROWS"
+
+    def test_range_translated_to_grid_range(self):
+        svc = self._sheets_service(sheet_id=5)
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["merge_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="B2:D4", ctx=ctx
+        )
+        r = self._merge_request(svc)["range"]
+        assert r["sheetId"] == 5
+        assert r["startRowIndex"] == 1
+        assert r["startColumnIndex"] == 1
+
+    def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = _structure_tools["merge_cells"](
+            spreadsheet_id="ss1", sheet="Missing", range="A1:B2", ctx=ctx
+        )
+        assert "error" in result
+
+
+class TestUnmergeCells:
+    def _sheets_service(self):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": 0}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def test_sends_unmerge_request(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["unmerge_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1:C3", ctx=ctx
+        )
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        assert "unmergeCells" in body["requests"][0]
+
+    def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = _structure_tools["unmerge_cells"](
+            spreadsheet_id="ss1", sheet="Missing", range="A1:B2", ctx=ctx
+        )
+        assert "error" in result
+
+
+class TestFreeze:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _update_props_request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["updateSheetProperties"]
+
+    def test_freeze_rows_sets_frozen_row_count(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["freeze"](spreadsheet_id="ss1", sheet="Sheet1", rows=1, ctx=ctx)
+        props = self._update_props_request(svc)
+        assert props["properties"]["gridProperties"]["frozenRowCount"] == 1
+
+    def test_freeze_columns_sets_frozen_column_count(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["freeze"](spreadsheet_id="ss1", sheet="Sheet1", columns=2, ctx=ctx)
+        props = self._update_props_request(svc)
+        assert props["properties"]["gridProperties"]["frozenColumnCount"] == 2
+
+    def test_freeze_both_rows_and_columns(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["freeze"](spreadsheet_id="ss1", sheet="Sheet1", rows=1, columns=1, ctx=ctx)
+        grid = self._update_props_request(svc)["properties"]["gridProperties"]
+        assert grid["frozenRowCount"] == 1
+        assert grid["frozenColumnCount"] == 1
+
+    def test_fields_mask_covers_both_frozen_counts(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["freeze"](spreadsheet_id="ss1", sheet="Sheet1", rows=1, ctx=ctx)
+        fields = self._update_props_request(svc)["fields"]
+        assert "frozenRowCount" in fields
+        assert "frozenColumnCount" in fields
+
+    def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = _structure_tools["freeze"](spreadsheet_id="ss1", sheet="Missing", ctx=ctx)
+        assert "error" in result
+
+
+class TestSortRange:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _sort_request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["sortRange"]
+
+    def test_default_sort_is_first_column_ascending(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["sort_range"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1:D10", ctx=ctx
+        )
+        specs = self._sort_request(svc)["sortSpecs"]
+        assert len(specs) == 1
+        assert specs[0]["sortOrder"] == "ASCENDING"
+        assert specs[0]["dimensionIndex"] == 0  # column A
+
+    def test_sort_order_uppercased(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["sort_range"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:D10",
+            sort_order=[{"column_index": 1, "order": "descending"}],
+            ctx=ctx,
+        )
+        specs = self._sort_request(svc)["sortSpecs"]
+        assert specs[0]["sortOrder"] == "DESCENDING"
+
+    def test_column_index_offset_by_range_start(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        # range starts at column B (index 1); sort_order column_index 0 → dimensionIndex 1
+        _structure_tools["sort_range"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="B1:D10",
+            sort_order=[{"column_index": 0, "order": "ASCENDING"}],
+            ctx=ctx,
+        )
+        specs = self._sort_request(svc)["sortSpecs"]
+        assert specs[0]["dimensionIndex"] == 1
+
+    def test_multiple_sort_specs(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        _structure_tools["sort_range"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:C10",
+            sort_order=[
+                {"column_index": 0, "order": "ASCENDING"},
+                {"column_index": 2, "order": "DESCENDING"},
+            ],
+            ctx=ctx,
+        )
+        specs = self._sort_request(svc)["sortSpecs"]
+        assert len(specs) == 2
+        assert specs[1]["dimensionIndex"] == 2
+        assert specs[1]["sortOrder"] == "DESCENDING"
+
+    def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = _structure_tools["sort_range"](
+            spreadsheet_id="ss1", sheet="Missing", range="A1:D10", ctx=ctx
+        )
+        assert "error" in result

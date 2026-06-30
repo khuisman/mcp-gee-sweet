@@ -1,12 +1,12 @@
 # Running QA
 
-This file contains the conductor prompt. Paste it into a Claude session that has the mcp-gee-sweet MCP server connected. Claude will read your fixtures, execute every test case against the live server, evaluate the checks, and save a results report.
+This file contains the conductor prompt. Paste it into a Claude session that has the mcp-gee-sweet MCP server connected. Claude will read your fixtures, execute every test case against the live server, record outcomes, and save a results report.
 
 ## Prerequisites
 
 1. mcp-gee-sweet server running and connected to this Claude session
-2. `docs/qa/`.env`` exists and is filled in (see `setup.md` if not)
-3. For calendar tests: the service account has been subscribed to the calendar in ``.env``
+2. `docs/qa/.env` exists and is filled in (see `setup.md` if not)
+3. For calendar tests: the calendar in `.env` is accessible to the authenticated account
 
 ## How to start
 
@@ -23,13 +23,17 @@ To resume an interrupted run: paste the prompt and add "Resume from `docs/qa/res
 ```
 You are the QA conductor for mcp-gee-sweet. Your job is to execute the full test suite against the live MCP server, record outcomes, and save a results report.
 
-## Step 1 — Load fixtures
+## Step 0 — Fixture setup
 
-Read `.env` from the repo root. If the file does not exist or the TEST_* keys are missing, stop immediately and say: ".env not found or TEST_* keys missing — follow docs/qa/setup.md to create your fixtures first."
+Before running any tests, verify fixture state:
 
-Extract TEST_SPREADSHEET_ID, TEST_DOC_ID, TEST_FOLDER_ID, TEST_CALENDAR_ID, TEST_EVENT_ID. Tell me the values you found, then wait for me to confirm before proceeding.
+1. Read `.env` from the repo root. If the file does not exist or the TEST_* keys are missing, stop and say: ".env not found or TEST_* keys missing — follow docs/qa/setup.md to create your fixtures first."
+2. Extract TEST_SPREADSHEET_ID, TEST_DOC_ID, TEST_FOLDER_ID, TEST_CALENDAR_ID, TEST_EVENT_ID, TEST_LARGE_DOC_ID, TEST_PERMISSION_EMAIL.
+3. Verify the fixture spreadsheet with get_sheet_data: confirm sheet tabs Sales, Empty, Notes & Misc exist and Sales data has 6 rows (header + Widget/Gadget/Donut/Gizmo/Totals), columns A–D. If data is missing or in wrong order, use update_cells to restore known seed state (see docs/qa/setup.md §Known fixture state).
+4. Verify the fixture doc with get_doc_structure: confirm title "mcp-gee-sweet-qa-fixtures-doc" and body contains heading "Test Document", a paragraph, and a bullet list (Item one / Item two). If content is wrong, use write_doc_content to restore it.
+5. Tell me the fixture IDs and whether the fixture state looks correct, then wait for me to confirm before proceeding.
 
-## Step 2 — Run tests
+## Step 1 — Run tests
 
 Work through the test files in this order:
 1. `docs/qa/tests/infra.md`
@@ -38,35 +42,37 @@ Work through the test files in this order:
 4. `docs/qa/tests/sheets_mgmt.md`
 5. `docs/qa/tests/sheets_charts.md`
 6. `docs/qa/tests/drive.md`
-7. `docs/qa/tests/calendar.md`
+7. `docs/qa/tests/docs.md`
+8. `docs/qa/tests/calendar.md`
 
 For each test case:
 
 1. Announce the TC number and title.
 2. Substitute fixture IDs into the prompt (replace {SPREADSHEET_ID}, {DOC_ID}, etc. with the values from `.env`).
-3. Execute the prompt using the MCP tools available in this session.
+3. Execute the prompt using the mcp-gee-sweet tools available in this session.
 4. Evaluate each item in the **Checks** list against the actual result.
 5. Record one of:
    - **PASS** — every check met
    - **FAIL** — one or more checks failed; note exactly what was wrong
    - **SKIP** — with reason (e.g. "requires server restart", "skipped by user", "prerequisite TC failed")
-6. For tests marked ⚠️ destructive: ask me before running. If I say skip, record SKIP(destructive-skipped).
-7. For tests marked 🔍 product decision: always record PASS and note the observed behavior.
-8. Track intermediate IDs as you go — some tests produce IDs (permissionId, eventId, fileId) needed by later tests. Record them in your working notes and substitute them when referenced.
+7. For tests marked ⚠️ destructive: ask me before running. If I say skip, record SKIP(destructive-skipped).
+8. For tests marked 🔍 product decision: always record PASS and note the observed behavior.
+9. Track intermediate IDs as you go — some tests produce IDs (permissionId, eventId, fileId) needed by later tests. Record them in your working notes and substitute them when referenced.
 
-## Step 3 — Save progress
+## Step 2 — Save progress
 
 After completing each test file, write current results to `docs/qa/results/<YYYY-MM-DD>.md` (use today's date). If a file already exists for today, overwrite it with the fully updated version.
 
 If I say "pause" or "stop" at any point, save immediately to `docs/qa/results/<YYYY-MM-DD>-partial.md` before stopping.
 
-## Step 4 — Final report
+## Step 3 — Final report
 
 After all test files are complete, write the final report to `docs/qa/results/<YYYY-MM-DD>.md` using this format:
 
 ---
 # QA Run — <YYYY-MM-DD>
 
+**Auth:** OAuth  
 **Fixtures:** SPREADSHEET_ID=`<id>` · DOC_ID=`<id>` · FOLDER_ID=`<id>`
 
 ## Summary
@@ -79,6 +85,7 @@ After all test files are complete, write the final report to `docs/qa/results/<Y
 | Sheets Mgmt | | | | |
 | Sheets Charts | | | | |
 | Drive + Docs | | | | |
+| Docs Tools | | | | |
 | Calendar | | | | |
 | **Total** | | | | |
 
@@ -91,6 +98,19 @@ Observed: <what actually happened>
 
 *(none)* if all tests passed.
 
+## Tool coverage
+
+For every tool registered by the server, list which TCs exercise it and whether those TCs passed. Derive this by scanning the test files you ran.
+
+| Tool | TC(s) | Status |
+|---|---|---|
+| get_sheet_data | TC-R01, TC-R02, … | ✅ all pass |
+| create_spreadsheet | TC-D01 | ✅ pass |
+| create_calendar | (none) | ⚠️ no coverage |
+| … | | |
+
+Use ✅ if all covering TCs passed, ❌ if any failed, ⚠️ no coverage if no TC exercises the tool, and SKIP if all covering TCs were skipped.
+
 ## Full results
 
 | TC | Title | Outcome | Notes |
@@ -101,7 +121,7 @@ Observed: <what actually happened>
 
 ## Resuming an interrupted run
 
-If resuming: read the partial results file I specify, identify the last completed TC, and continue from the next one. Re-confirm fixture IDs from `.env` before continuing.
+If resuming: read the partial results file I specify, identify the last completed TC, and continue from the next one. Re-confirm fixture IDs from `.env` and re-verify fixture state before continuing.
 ```
 
 ---

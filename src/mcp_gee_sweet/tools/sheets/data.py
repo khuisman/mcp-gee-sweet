@@ -310,6 +310,36 @@ def register(tool):
         except Exception as e:
             return [{"error": f"Search failed: {e!s}"}]
 
+    @tool(annotations=ToolAnnotations(title="Clear Values", destructiveHint=True))
+    def clear_values(
+        spreadsheet_id: str,
+        sheet: str,
+        range: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Clear cell content in a range without touching formatting.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet (found in the URL)
+            sheet: The name of the sheet
+            range: A1 notation range to clear (e.g., 'A1:D10').
+                   If omitted, clears the entire sheet.
+
+        Returns:
+            Result of the clear operation
+        """
+        lc = ctx.request_context.lifespan_context
+        quoted = _quote_sheet_name(sheet)
+        full_range = f"{quoted}!{range}" if range else quoted
+
+        return (
+            lc.sheets_service.spreadsheets()
+            .values()
+            .clear(spreadsheetId=spreadsheet_id, range=full_range, body={})
+            .execute()
+        )
+
     @tool(annotations=ToolAnnotations(title="Update Cells", destructiveHint=True))
     def update_cells(
         spreadsheet_id: str, sheet: str, range: str, data: list[list[Any]], ctx: Context = None

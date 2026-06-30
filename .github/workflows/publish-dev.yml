@@ -3,6 +3,11 @@ name: Publish dev
 on:
   push:
     branches: ["develop"]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
 
 permissions:
   contents: read
@@ -13,12 +18,12 @@ jobs:
     name: Run tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0  # full history so uv-dynamic-versioning can read tags
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.1.0
+        uses: astral-sh/setup-uv@v8.2.0
 
       - name: Set up Python 3.12
         run: uv python install 3.12
@@ -35,12 +40,12 @@ jobs:
     needs: test
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0  # full history so uv-dynamic-versioning can read tags
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.1.0
+        uses: astral-sh/setup-uv@v8.2.0
 
       - name: Set up Python 3.12
         run: uv python install 3.12

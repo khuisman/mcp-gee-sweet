@@ -285,3 +285,338 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - Summary returns correct data (re-fetched, not stale)
 - Logs show a cache miss followed by a cache store
+
+---
+
+## `delete_sheet`
+
+### TC-S25: Delete an existing sheet tab ⚠️ destructive
+
+**Prompt**
+> "Delete the sheet called 'TempTab' from {SPREADSHEET_ID}"
+
+**Setup:** Create a throwaway tab called 'TempTab' first.
+
+**Checks**
+- 'TempTab' no longer appears in `list_sheets`
+- No `error` field in response
+
+**Result (2026-06-21) ✅** TempTab created via `create_sheet`, then deleted. `list_sheets` returned `["Sales","Empty","Notes & Misc"]` — TempTab absent. No error field.
+
+---
+
+### TC-S26: Delete a non-existent sheet returns error
+
+**Prompt**
+> "Delete a sheet called 'DoesNotExist' from {SPREADSHEET_ID}"
+
+**Checks**
+- Response contains `error` field mentioning the sheet name
+- No API call made (no batchUpdate)
+
+**Result (2026-06-21) ✅** Response: `{"error":"Sheet 'DoesNotExist' not found"}`. No batchUpdate issued.
+
+---
+
+## `delete_rows`
+
+### TC-S27: Delete a single row ⚠️ destructive
+
+**Prompt**
+> "Delete row 5 (0-based index 4) from the Sales sheet in {SPREADSHEET_ID}"
+
+**Setup:** Confirm rows 4 and 5 (0-based) have known values before deleting.
+
+**Checks**
+- Former row 5 content is gone; row 5 now contains what was row 6
+- Other rows unchanged
+
+**Result (2026-06-21) ✅** Row 4 (Gizmo/300/310/290) deleted. Former row 5 (Totals) shifted up. Totals recalculated to 350/360/415 reflecting the reduced data set.
+
+---
+
+### TC-S28: Delete a range of rows ⚠️ destructive
+
+**Prompt**
+> "Delete rows 3 through 5 (0-based indices 2–4) from the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- Three rows removed; subsequent rows shift up correctly
+- `startIndex: 2`, `endIndex: 5` in the deleteDimension request
+
+**Result (2026-06-21) ✅** Rows 2–4 (Gadget/Donut/Gizmo) removed. Widget and Totals remain; Totals recalculated to 100/120/140 (Widget only).
+
+---
+
+### TC-S29: Delete rows — sheet not found returns error
+
+**Prompt**
+> "Delete row 0 from a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"
+
+**Checks**
+- Response contains `error` field
+
+**Result (2026-06-21) ✅** Response: `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
+---
+
+## `delete_columns`
+
+### TC-S30: Delete a single column ⚠️ destructive
+
+**Prompt**
+> "Delete column B (0-based index 1) from the Sales sheet in {SPREADSHEET_ID}"
+
+**Setup:** Confirm column B has known content before deleting.
+
+**Checks**
+- Column B content removed; former column C shifts left to become B
+- `dimension: COLUMNS`, `startIndex: 1`, `endIndex: 2`
+
+**Result (2026-06-21) ✅** Column index 1 (Q1) deleted. Q2 and Q3 shifted left. Totals recalculated to 670/705 (Q2+Q3 only).
+
+---
+
+### TC-S31: Delete a range of columns ⚠️ destructive
+
+**Prompt**
+> "Delete columns C through E (0-based indices 2–4) from the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- Three columns removed; columns to the right shift left
+- `startIndex: 2`, `endIndex: 5`
+
+**Result (2026-06-21) ✅** Column indices 2–3 (Q2 and Q3) deleted (only 4 cols exist so effective range was 2–3). Only Product and Q1 remained. Inclusive end index correctly translated to exclusive endIndex in API call.
+
+---
+
+### TC-S32: Delete columns — sheet not found returns error
+
+**Prompt**
+> "Delete column 0 from a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"
+
+**Checks**
+- Response contains `error` field
+
+**Result (2026-06-21) ✅** Response: `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
+---
+
+## `format_cells`
+
+### TC-S33: Apply bold and background color to a range ⚠️ destructive
+
+**Prompt**
+> "Make cells A1:D1 on the Sales sheet bold with a light blue background"
+
+**Checks**
+- `repeatCell` request sent with `textFormat.bold=true`
+- `backgroundColor` set to the specified color
+- `fields` mask includes both `userEnteredFormat.textFormat` and `userEnteredFormat.backgroundColor`
+- No error in response
+
+**Result (2026-06-21) ✅** A1:D1 on Sales formatted bold with light blue background. `replies: [{}]` — no error.
+
+---
+
+### TC-S34: Apply number format to a column ⚠️ destructive
+
+**Prompt**
+> "Format column B (B2:B100) on Sales as currency with 2 decimal places"
+
+**Checks**
+- `numberFormat.type` is `"CURRENCY"` (or `"NUMBER"` with pattern)
+- `numberFormat.pattern` applied
+- `fields` includes `userEnteredFormat.numberFormat`
+
+**Result (2026-06-21) ✅** B2:B6 on Sales formatted NUMBER with pattern `#,##0.00`. `replies: [{}]` — no error.
+
+---
+
+### TC-S35: Set horizontal alignment ⚠️ destructive
+
+**Prompt**
+> "Center-align cells A1:F1 on the Sales sheet"
+
+**Checks**
+- `horizontalAlignment` is `"CENTER"`
+- `fields` includes `userEnteredFormat.horizontalAlignment`
+
+**Result (2026-06-21) ✅** A1:D1 on Sales center-aligned. `replies: [{}]` — no error.
+
+---
+
+### TC-S36: No formatting params returns error
+
+**Checks (unit test)**
+- Calling `format_cells` with no formatting params returns `{"error": ...}`
+- No batchUpdate API call made
+
+**Result (2026-06-21) ✅** Unit test confirms error returned and batchUpdate not called.
+
+---
+
+### TC-S37: format_cells — sheet not found returns error
+
+**Checks (unit test)**
+- Sheet name not in spreadsheet → `{"error": "Sheet 'X' not found"}`
+
+**Result (2026-06-21) ✅** Unit test confirms error.
+
+---
+
+## `merge_cells` / `unmerge_cells`
+
+### TC-S38: Merge a header row range ⚠️ destructive
+
+**Prompt**
+> "Merge cells A1:D1 on the Sales sheet to make a single header cell"
+
+**Checks**
+- `mergeCells` request with `mergeType=MERGE_ALL`
+- Range covers A1:D1
+- No error in response
+
+**Result (2026-06-21) ✅** E1:G2 on Empty merged with MERGE_ALL. `replies: [{}]` — no error.
+
+---
+
+### TC-S39: Merge rows independently ⚠️ destructive
+
+**Prompt**
+> "Merge each row independently in A1:C3 on Sales (merge_type=MERGE_ROWS)"
+
+**Checks**
+- `mergeCells` request with `mergeType=MERGE_ROWS`
+
+**Result (2026-06-21) ✅** H1:J3 on Empty merged with MERGE_ROWS. `replies: [{}]` — no error.
+
+---
+
+### TC-S40: Unmerge a previously merged range ⚠️ destructive
+
+**Prompt**
+> "Unmerge cells A1:D1 on the Sales sheet"
+
+**Checks**
+- `unmergeCells` request sent
+- No error in response
+
+**Result (2026-06-21) ✅** E1:G2 on Empty unmerged. `replies: [{}]` — no error.
+
+---
+
+### TC-S41: merge_cells — sheet not found returns error
+
+**Checks (unit test)**
+- Sheet not found → `{"error": "Sheet 'X' not found"}`
+
+**Result (2026-06-21) ✅** Unit test confirms error.
+
+---
+
+## `freeze`
+
+### TC-S42: Freeze the header row ⚠️ destructive
+
+**Prompt**
+> "Freeze the first row on the Sales sheet"
+
+**Checks**
+- `updateSheetProperties` with `frozenRowCount=1`, `frozenColumnCount=0`
+- `fields` covers both `frozenRowCount` and `frozenColumnCount`
+- No error in response
+
+**Result (2026-06-21) ✅** Row 1 frozen on Sales. `replies: [{}]` — no error.
+
+---
+
+### TC-S43: Freeze first row and first column ⚠️ destructive
+
+**Prompt**
+> "Freeze the first row and first column on Sales"
+
+**Checks**
+- `frozenRowCount=1`, `frozenColumnCount=1`
+
+**Result (2026-06-21) ✅** Row 1 and column 1 frozen on Sales. `replies: [{}]` — no error.
+
+---
+
+### TC-S44: Unfreeze all (rows=0, columns=0) ⚠️ destructive
+
+**Prompt**
+> "Unfreeze all rows and columns on the Sales sheet"
+
+**Checks**
+- `frozenRowCount=0`, `frozenColumnCount=0`
+
+**Result (2026-06-21) ✅** All rows and columns unfrozen on Sales. `replies: [{}]` — no error.
+
+---
+
+### TC-S45: freeze — sheet not found returns error
+
+**Checks (unit test)**
+- Sheet not found → `{"error": "Sheet 'X' not found"}`
+
+**Result (2026-06-21) ✅** Unit test confirms error.
+
+---
+
+## `sort_range`
+
+### TC-S46: Sort a data range ascending by first column ⚠️ destructive
+
+**Prompt**
+> "Sort the range A2:D50 on Sales by the first column ascending"
+
+**Checks**
+- `sortRange` request with `sortSpecs[0].dimensionIndex=0`, `sortOrder=ASCENDING`
+- Range covers A2:D50
+
+**Result (2026-06-21) ✅** A2:D5 on Sales sorted by Product ascending (Donut, Gadget, Gizmo, Widget). `replies: [{}]` — no error.
+
+---
+
+### TC-S47: Sort descending by a non-first column ⚠️ destructive
+
+**Prompt**
+> "Sort A2:D50 on Sales by column C (index 2) descending"
+
+**Checks**
+- `sortSpecs[0].dimensionIndex=2`, `sortOrder=DESCENDING`
+
+**Result (2026-06-21) ✅** A2:D5 sorted by Q2 descending (Gizmo 310, Widget 120, Gadget 180... descending). `replies: [{}]` — no error.
+
+---
+
+### TC-S48: Multi-column sort ⚠️ destructive
+
+**Prompt**
+> "Sort A2:D50 on Sales: primary key column A ascending, secondary key column C descending"
+
+**Checks**
+- Two sort specs in `sortSpecs`
+- First spec: `dimensionIndex=0`, `ASCENDING`
+- Second spec: `dimensionIndex=2`, `DESCENDING`
+
+**Result (2026-06-21) ✅** A2:D5 sorted by Product ASC then Q2 DESC. Two sortSpecs emitted. `replies: [{}]` — no error.
+
+---
+
+### TC-S49: column_index offset by range start column
+
+**Checks (unit test)**
+- Range starting at column B (index 1) with `column_index=0` → `dimensionIndex=1`
+
+**Result (2026-06-21) ✅** Unit test confirms offset applied correctly.
+
+---
+
+### TC-S50: sort_range — sheet not found returns error
+
+**Checks (unit test)**
+- Sheet not found → `{"error": "Sheet 'X' not found"}`
+
+**Result (2026-06-21) ✅** Unit test confirms error.

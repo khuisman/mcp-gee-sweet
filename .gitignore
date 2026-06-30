@@ -10,9 +10,15 @@ wheels/
 **/service_account.json
 
 .env
+docs/qa/fixtures.local.md
 
 # Virtual environments
 .venv
 timings.log
 site/
 .workspace
+.playwright-mcp/
+
+# QA run artifacts
+tc-*.png
+docs/qa/results/*-partial.md

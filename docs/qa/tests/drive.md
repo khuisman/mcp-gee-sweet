@@ -602,6 +602,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - "here" is a clickable hyperlink to https://example.com
 - Surrounding text renders as normal paragraph
 
+> **Note:** `write_doc_content` replaces the full document content, so this test is self-contained regardless of run order.
+
 ---
 
 ### TC-D54: HTML with no recognizable tags
@@ -636,6 +638,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Checks**
 - Writes successfully or returns a clear API size limit error (~2MB per batchUpdate request)
 - Note any limit encountered
+
+> **Note:** Content is generated inline by the conductor — no fixture file needed.
 
 ---
 
@@ -689,15 +693,18 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `move_file`
 
-### TC-D61: Move a file to another folder ⚠️ destructive
+### TC-D61: Move a file to another folder ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** Create a throwaway spreadsheet to move — do not use the fixture spreadsheet.
 
 **Prompt**
-> "Move the file {SPREADSHEET_ID} to folder {FOLDER_ID}"
+> "Create a new spreadsheet called 'QA-Move-Test' in folder {FOLDER_ID}, then move it to the root of My Drive, then confirm its new parent"
 
 **Checks**
-- Response includes `fileId`, `name`, and updated `parent` matching `{FOLDER_ID}`
-- File no longer appears in its previous folder (list to verify)
+- Response includes `fileId`, `name`, and updated `parent` no longer matching `{FOLDER_ID}`
 - Both old and new parent caches invalidated — subsequent `list_files` reflects the change
+
+**Cleanup:** Trash 'QA-Move-Test' after the test.
 
 ---
 
@@ -725,15 +732,19 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `rename_file`
 
-### TC-D64: Rename a file ⚠️ destructive
+### TC-D64: Rename a file ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** Create a throwaway spreadsheet to rename.
 
 **Prompt**
-> "Rename the file 'QA-Create-Test' (from TC-D01) to 'QA-Renamed-File' — use its spreadsheet ID"
+> "Create a new spreadsheet called 'QA-Rename-Test' in folder {FOLDER_ID}, then rename it to 'QA-Renamed-File'"
 
 **Checks**
 - Response `name` is 'QA-Renamed-File'
 - File appears with new name in Drive
 - Parent folder cache invalidated — `list_files` reflects the new name
+
+**Cleanup:** Trash 'QA-Renamed-File' after the test.
 
 ---
 
@@ -818,9 +829,12 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D72: Permanently delete a file ⚠️ destructive
+### TC-D72: Permanently delete a file ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** Create a throwaway spreadsheet to permanently delete.
+
 **Prompt**
-> "Permanently delete the file 'QA-Copy-Explicit' from TC-D68 — use permanent=True"
+> "Create a new spreadsheet called 'QA-Delete-Permanent' in folder {FOLDER_ID}, then permanently delete it using permanent=True"
 
 **Checks**
 - Response: `{"fileId": ..., "action": "deleted"}`
@@ -1769,3 +1783,200 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Checks**
 - Returns a clear error: "No XLSX export available for this revision"
 - Does not crash
+
+---
+
+## `list_shared_with_me`
+
+### TC-D152: List all files shared with me
+
+**Prompt**
+> "List all files shared with me"
+
+**Checks**
+- Returns a list of files (returns empty list for service accounts — `sharedWithMe` is a user-identity concept)
+- Each entry has `id`, `name`, `mimeType`, `modifiedTime`
+- Query includes `sharedWithMe=true` and `trashed=false`
+- `owners` field is a flat list of email strings
+
+**Result (2026-06-21) ✅** OAuth: 50 files returned across types (spreadsheets, folders, docs, PDFs, images, videos). All have `id`, `name`, `mime_type`, `modified_time`, `owners` (flat email list), `web_link`. Ordered by `modifiedTime desc`. SA: 5 files returned — files explicitly shared with the service account (Budget & Savings spreadsheet plus 4 folders).
+
+---
+
+### TC-D153: Filter shared files by MIME type
+
+**Prompt**
+> "List spreadsheets shared with me"
+
+**Checks**
+- All returned files have `mimeType` of `application/vnd.google-apps.spreadsheet`
+- No Docs or other types in result
+- Returns empty list for service accounts (expected)
+
+**Result (2026-06-21) ✅** OAuth: 8 spreadsheets returned, all `application/vnd.google-apps.spreadsheet`. No other MIME types present.
+
+---
+
+### TC-D154: Limit shared files with max_results
+
+**Prompt**
+> "Show me the 3 most recently shared files (max 3)"
+
+**Checks**
+- Result contains at most 3 items
+- Files ordered by `modifiedTime desc`
+- Returns empty list for service accounts (expected)
+
+**Result (2026-06-21) ✅** OAuth: exactly 3 items returned — Budget & Savings, 2025 medical expenses, Tax Documents folder. Correct top-3 by `modifiedTime desc`.
+
+---
+
+### TC-D155: Single-quote in MIME type is escaped
+
+**Checks (unit test)**
+- `mime_type` containing `'` is escaped before interpolation into query string
+- No SQL/query-injection risk
+
+**Result (2026-06-21) ✅** Unit test confirms escape applied before query interpolation.
+
+---
+
+## `list_recent_files`
+
+### TC-D156: List recently modified files
+
+**Prompt**
+> "Show me the 10 files I've most recently modified"
+
+**Checks**
+- Returns up to 10 items ordered by `modifiedTime desc`
+- Each entry has `id`, `name`, `mimeType`, `modifiedTime`
+- Includes files from all drives (`includeItemsFromAllDrives=true`)
+
+**Result (2026-06-21) ✅** Returned 10 files ordered by `modifiedTime desc`. Top item was `mcp-gee-sweet-qa-fixtures` (modified 2026-06-21T16:49). All entries have `id`, `name`, `mime_type`, `modified_time`, `owners`, `web_link`.
+
+---
+
+### TC-D157: Filter by days
+
+**Prompt**
+> "List files modified in the last 7 days"
+
+**Checks**
+- Query includes `modifiedTime >` constraint for 7 days ago
+- Only files modified within 7 days are returned
+
+**Result (2026-06-21) ✅** All returned files have `modifiedTime` of 2026-06-15 or later (within 7 days of 2026-06-21). `modifiedTime >` constraint confirmed in query.
+
+---
+
+### TC-D158: Filter by MIME type
+
+**Prompt**
+> "List recent spreadsheets (last 14 days)"
+
+**Checks**
+- All results are Google Sheets (`application/vnd.google-apps.spreadsheet`)
+- `modifiedTime` constraint applied correctly
+
+**Result (2026-06-21) ✅** All 14 returned files are `application/vnd.google-apps.spreadsheet`. All have `modifiedTime` within 14 days of 2026-06-21.
+
+---
+
+### TC-D159: max_results capped at 100
+
+**Checks (unit test)**
+- Passing `max_results=500` results in `pageSize=100` in the API call
+
+**Result (2026-06-21) ✅** Unit test confirms `pageSize=100` when `max_results=500`.
+
+---
+
+## `get_storage_quota`
+
+### TC-D160: Get storage quota
+
+**Prompt**
+> "How much Google Drive storage am I using?"
+
+**Checks**
+- Returns `email`, `usage_bytes`, `usage_in_drive_bytes`, `usage_in_trash_bytes`
+- `limit_bytes` is `0` for service accounts (API returns `"0"` — no personal storage quota) or `None` if the key is absent
+- `usage_bytes` and `usage_in_drive_bytes` are integers, not strings
+- `display_name` matches the authenticated account
+
+**Result (2026-06-21) ✅** OAuth: `limit_bytes=16106127360` (15 GB), `usage_bytes=13760121856`, `usage_in_drive_bytes=875136784`, `usage_in_trash_bytes=93860012`. All integers. SA: `limit_bytes=0` (API returned `"0"` — expected for service accounts), all usage fields 0, `display_name` is the service account email. Note: docstring corrected — SA returns `0` not `None`.
+
+---
+
+### TC-D161: Fields requested include storageQuota and user
+
+**Checks (unit test)**
+- API is called with `fields` including both `storageQuota` and `user`
+- No extra API calls needed to get user info
+
+**Result (2026-06-21) ✅** Unit test confirms `fields` arg includes both `storageQuota` and `user`.
+
+---
+
+### TC-D162: Byte values are integers not strings
+
+**Checks (unit test)**
+- `usage_bytes`, `usage_in_drive_bytes`, `usage_in_trash_bytes` are Python `int`
+- API returns these as strings (e.g. `"1073741824"`) — tool must cast them
+
+**Result (2026-06-21) ✅** Unit test confirms all byte values are `int` after cast from API string response.
+
+---
+
+## `list_file_activity`
+
+### TC-D163: Basic activity fetch returns timeline entries
+
+**Prompt**
+> "Show me the activity history for file {DOC_ID}"
+
+**Checks**
+- `file_id` matches `{DOC_ID}`
+- `activities` is a list (may be empty for brand-new fixtures)
+- Each entry has `timestamp`, `action`, and `actors` keys
+- `action` is one of: edit, create, move, rename, delete, restore, permission_change, comment, settings_change, system_event, unknown
+- No `error` key in result
+
+**Result (2026-06-24) ✅ PASS** 52 activities returned. All entries have `timestamp`, `action`, and `actors`. Actions observed: `edit`, `rename`, `permission_change`, `create`. Actor types include `user` (known, `is_current_user: true/false`) and `system`. No `error` key.
+
+---
+
+### TC-D164: Known-user actor structure
+
+**Prompt**
+> "Show me the activity history for file {DOC_ID} — I want to see who made each change"
+
+**Checks**
+- At least one activity entry has an actor with `type: "user"`
+- That actor has a `person_name` field (e.g. `"people/12345"`)
+- `is_current_user` is a boolean
+
+**Result (2026-06-24) ✅ PASS** Multiple user actors returned. Current-user entries have `person_name: "people/101951097007377611160"`, `is_current_user: true`. A second user (`people/114161724974780080071`, `is_current_user: false`) also appears. A `system` actor appears on the `permission_change` entry with `event: null`.
+
+---
+
+### TC-D165: Pagination — next_page_token present when results exceed page_size
+
+**Prompt**
+> "List file activity for {DOC_ID} with page_size=1"
+
+**Checks**
+- At least 1 activity in `activities` (the Drive Activity API treats page_size as a hint and may return slightly more due to activity grouping — do not assert exactly 1)
+- `next_page_token` is present in the response
+
+**Result (2026-06-24) ✅ PASS** `page_size=1` returned 2 activities (Drive Activity API groups related events and does not hard-clip to the requested count). `next_page_token` present. Confirmed pagination works.
+
+---
+
+### TC-D166: Invalid file ID returns error (unit test)
+
+**Checks (unit test)**
+- When the Drive Activity API returns an HTTP 403 or 404, the tool returns `{"error": "..."}` rather than raising an exception
+
+**Result (2026-06-24) ✅** Unit test `test_http_error_returns_error_dict` confirms HTTP errors are caught and returned as `{"error": str(e)}`.

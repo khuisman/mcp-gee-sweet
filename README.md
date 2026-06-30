@@ -5,16 +5,16 @@
 ![GitHub License](https://img.shields.io/github/license/khuisman/mcp-gee-sweet)
 </div>
 
-An MCP server that gives AI clients reliable, direct access to Google Workspace — Sheets, Drive, Docs, and Calendar. 60+ tools across four domains. Forked from [xing5/mcp-google-sheets](https://github.com/xing5/mcp-google-sheets) and expanded substantially.
+An MCP server that gives AI clients reliable, direct access to Google Workspace — Sheets, Drive, Docs, and Calendar. 75 tools across four domains. Forked from [xing5/mcp-google-sheets](https://github.com/xing5/mcp-google-sheets) and expanded substantially.
 
 **Install (stable):**
 ```bash
 uvx mcp-gee-sweet
 ```
 
-**Install (bleeding edge — every push to `develop`):**
+**Install (bleeding edge — every code change on `develop`):**
 ```bash
-pip install --pre mcp-gee-sweet
+uvx --prerelease=allow mcp-gee-sweet
 ```
 
 **[Full documentation →](https://khuisman.github.io/mcp-gee-sweet/)**
