@@ -470,6 +470,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#env-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        .env file
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#tool-filtering" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1520,30 +1542,68 @@
 <td>Port for SSE transport</td>
 <td><code>8000</code></td>
 </tr>
+<tr>
+<td><code>DEBUG_LEVEL</code></td>
+<td>Logging level: <code>DEBUG</code>, <code>INFO</code>, <code>WARNING</code>, <code>ERROR</code> — controls package and access logs</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>LOG_FILE</code></td>
+<td>Write server logs to this file path (requires <code>DEBUG_LEVEL</code>)</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>ACCESS_LOG_FILE</code></td>
+<td>Write tool access logs to this file path (requires <code>DEBUG_LEVEL</code>)</td>
+<td>—</td>
+</tr>
 </tbody>
 </table>
 <p>See <a href="../auth/">Authentication</a> for auth-specific variable details.</p>
+<h2 id="env-file">.env file<a class="headerlink" href="#env-file" title="Permanent link">&para;</a></h2>
+<p>The server loads <code>src/mcp_gee_sweet/.env</code> at startup (before any environment variables are read), so you can configure it without shell exports or MCP client config changes. A template with all available variables is at <code>src/mcp_gee_sweet/.env.template</code> — copy it to <code>.env</code> and uncomment what you need.</p>
+<p>Environment variables set by the OS or the MCP client always take precedence over <code>.env</code>.</p>
+<h2 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h2>
+<p>By default the server logs warnings and above to stderr. Set <code>DEBUG_LEVEL</code> to enable richer output — it controls both the package logger and uvicorn HTTP access logs with a single value.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># src/mcp_gee_sweet/.env</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="na">DEBUG_LEVEL</span><span class="o">=</span><span class="s">DEBUG</span><span class="w">   </span><span class="c1"># DEBUG | INFO | WARNING | ERROR</span>
+</code></pre></div>
+<p>Every tool call emits a single access log line at <code>INFO</code> level to the <code>mcp_gee_sweet.access</code> logger:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>2026-06-23 22:45:19 INFO mcp_gee_sweet.access &quot;127.0.0.1&quot; &quot;claude-code/1.x&quot; &quot;TOOL list_recent_files&quot; 200 0.475s
+</code></pre></div>
+<p>IP and user agent are populated from the HTTP request in SSE mode; they fall back to <code>-</code> in stdio mode.</p>
+<p><strong>Docker</strong> (<code>make logs</code>): <code>DEBUG_LEVEL=DEBUG</code> is the default in <code>docker-compose.yml</code>. Server logs, tool access lines, and uvicorn HTTP access logs all write to stderr; Docker captures everything in <code>make logs</code>.</p>
+<p><strong>stdio</strong> (OAuth server via Claude Code): stderr is dropped by the host. Set <code>LOG_FILE</code> to capture all output — server debug lines and access log lines are mixed in the same file, differentiated by logger name (<code>mcp_gee_sweet.server</code> vs <code>mcp_gee_sweet.access</code>). Set <code>ACCESS_LOG_FILE</code> to also write access lines to a separate file.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="na">DEBUG_LEVEL</span><span class="o">=</span><span class="s">DEBUG</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="na">LOG_FILE</span><span class="o">=</span><span class="s">/tmp/mcp-gee-sweet.log</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="na">ACCESS_LOG_FILE</span><span class="o">=</span><span class="s">/tmp/mcp-gee-sweet-access.log</span><span class="w">   </span><span class="c1"># optional, access-only view</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>dev-logs<span class="w">      </span><span class="c1"># tail mixed server + access logs</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make<span class="w"> </span>access-logs<span class="w">   </span><span class="c1"># tail access lines only (requires ACCESS_LOG_FILE)</span>
+</code></pre></div>
+<p>Access logs are emitted at <code>INFO</code> level — they appear when <code>DEBUG_LEVEL</code> is <code>DEBUG</code> or <code>INFO</code> and are suppressed at <code>WARNING</code> or above.</p>
+<p><strong>Claude Desktop:</strong> logs are written automatically to <code>~/Library/Logs/Claude/mcp-server-&lt;name&gt;.log</code> — no extra configuration needed.</p>
 <h2 id="tool-filtering">Tool filtering<a class="headerlink" href="#tool-filtering" title="Permanent link">&para;</a></h2>
 <p>By default all 60 tools are registered. Use <code>ENABLED_TOOLS</code> (or <code>--include-tools</code> on the CLI) to restrict the server to exactly the tools you need. This reduces the AI's context window cost — each registered tool is a name the model must reason about on every call.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Environment variable</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">ENABLED_TOOLS</span><span class="o">=</span>get_sheet_data,update_cells,list_spreadsheets,list_sheets
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># CLI flag</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>uv<span class="w"> </span>run<span class="w"> </span>mcp-gee-sweet<span class="w"> </span>--include-tools<span class="w"> </span>get_sheet_data,update_cells,list_spreadsheets
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Environment variable</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nv">ENABLED_TOOLS</span><span class="o">=</span>get_sheet_data,update_cells,list_spreadsheets,list_sheets
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># CLI flag</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>uv<span class="w"> </span>run<span class="w"> </span>mcp-gee-sweet<span class="w"> </span>--include-tools<span class="w"> </span>get_sheet_data,update_cells,list_spreadsheets
 </code></pre></div>
 <p>If neither is set, all tools are registered.</p>
 <h3 id="suggested-subsets">Suggested subsets<a class="headerlink" href="#suggested-subsets" title="Permanent link">&para;</a></h3>
 <p><strong>Read-only Sheets:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets
 </code></pre></div></p>
 <p><strong>Sheets read + write:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets,update_cells,batch_update_cells,create_sheet,rename_sheet,add_rows,add_columns
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets,update_cells,batch_update_cells,create_sheet,rename_sheet,add_rows,add_columns
 </code></pre></div></p>
 <p><strong>Docs only:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>create_doc,get_doc_content,get_doc_structure,write_doc_content,insert_doc_text,insert_doc_table,delete_doc_range,style_doc_range,style_doc_table_cells
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>create_doc,get_doc_content,get_doc_structure,write_doc_content,insert_doc_text,insert_doc_table,delete_doc_range,style_doc_range,style_doc_table_cells
 </code></pre></div></p>
 <p><strong>Calendar only:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>list_calendars,get_calendar,list_events,get_event,create_event,update_event,delete_event,find_free_slots
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>list_calendars,get_calendar,list_events,get_event,create_event,update_event,delete_event,find_free_slots
 </code></pre></div></p>
 <p>See <a href="../tools/">Tools</a> for the full list of tool names.</p>
 <h2 id="caching">Caching<a class="headerlink" href="#caching" title="Permanent link">&para;</a></h2>

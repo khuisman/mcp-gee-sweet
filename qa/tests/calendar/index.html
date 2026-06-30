@@ -1654,6 +1654,145 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#create_event-recurrence-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_event — recurrence support
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="create_event — recurrence support">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal36-create-a-weekly-recurring-event-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL36: Create a weekly recurring event ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal37-create-a-daily-recurring-event-with-count-limit-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL37: Create a daily recurring event with COUNT limit ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal38-recurrence-absent-when-not-provided" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL38: Recurrence absent when not provided
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#list_events-expand_recurring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_events — expand_recurring
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_events — expand_recurring">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal39-expand_recurringfalse-returns-master-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL39: expand_recurring=False returns master events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal40-expand_recurringtrue-default-expands-instances" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL40: expand_recurring=True (default) expands instances
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#update_event-recurrence-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        update_event — recurrence support
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="update_event — recurrence support">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal41-update-rrule-on-a-master-event-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL41: Update RRULE on a master event ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal42-remove-recurrence-by-passing-an-empty-list-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL42: Remove recurrence by passing an empty list ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal43-update-a-single-instance-without-affecting-the-series-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL43: Update a single instance without affecting the series ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2276,6 +2415,106 @@
 - The two busy periods are merged in the free slot calculation
 - <code>free_slots</code> does not include a zero-length or negative-length gap between them
 - Confirms the interval merge logic in <code>find_free_slots</code></p>
+<hr />
+<h2 id="create_event-recurrence-support"><code>create_event</code> — recurrence support<a class="headerlink" href="#create_event-recurrence-support" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal36-create-a-weekly-recurring-event-destructive">TC-CAL36: Create a weekly recurring event ⚠️ destructive<a class="headerlink" href="#tc-cal36-create-a-weekly-recurring-event-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a recurring event called 'QA-Weekly-Standup' in {CALENDAR_ID} every Monday from 9am to 9:30am Pacific time, starting 2026-07-07"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Event created successfully
+- Response includes <code>recurrence</code> field containing an RRULE string with <code>FREQ=WEEKLY</code> and <code>BYDAY=MO</code>
+- <code>html_link</code> is present
+- Verify with <code>get_event</code> that the master event's <code>recurrence</code> field is non-null
+- Follow-up: <code>list_events(expand_recurring=True)</code> shows multiple Monday instances</p>
+<p><strong>Result (2026-06-24) ✅</strong> — Event created with <code>id: 3n4mjvi13au7fg1ce0np9ca73k</code>, <code>recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO"]</code>, <code>status: confirmed</code>, <code>html_link</code> present. Confirmed master ID has no date suffix.</p>
+<hr />
+<h3 id="tc-cal37-create-a-daily-recurring-event-with-count-limit-destructive">TC-CAL37: Create a daily recurring event with COUNT limit ⚠️ destructive<a class="headerlink" href="#tc-cal37-create-a-daily-recurring-event-with-count-limit-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a recurring event called 'QA-Daily-5x' in {CALENDAR_ID} every day at 8am Pacific for exactly 5 occurrences, starting 2026-07-14"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response <code>recurrence</code> contains <code>RRULE:FREQ=DAILY;COUNT=5</code>
+- <code>list_events</code> with <code>expand_recurring=True</code> and appropriate time window returns exactly 5 instances
+- No events appear after the 5th occurrence</p>
+<p><strong>Result (2026-06-24) ✅</strong> — Created with <code>recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]</code>. <code>list_events(expand_recurring=True)</code> for Jul 14–19 returned exactly 5 instances (Jul 14–18). No Jul 19+ instances returned. Each instance had <code>recurrence: null</code>.</p>
+<hr />
+<h3 id="tc-cal38-recurrence-absent-when-not-provided">TC-CAL38: Recurrence absent when not provided<a class="headerlink" href="#tc-cal38-recurrence-absent-when-not-provided" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a one-time event called 'QA-OneOff' in {CALENDAR_ID} on 2026-07-21 from 2pm to 3pm PT"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response <code>recurrence</code> is <code>null</code> (not set)
+- <code>list_events(expand_recurring=False)</code> does not include this event as a recurring series
+- Confirms non-recurring events are unaffected</p>
+<p><strong>Result (2026-06-24) ✅</strong> — Created with <code>recurrence: null</code>. Appears in <code>list_events(expand_recurring=False)</code> with <code>recurrence: null</code> — confirms one-off events are unaffected by recurrence logic.</p>
+<hr />
+<h2 id="list_events-expand_recurring"><code>list_events</code> — expand_recurring<a class="headerlink" href="#list_events-expand_recurring" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal39-expand_recurringfalse-returns-master-events">TC-CAL39: expand_recurring=False returns master events<a class="headerlink" href="#tc-cal39-expand_recurringfalse-returns-master-events" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the recurring event created in TC-CAL36</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List events in {CALENDAR_ID} with expand_recurring=False and no time filter"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains the master recurring event (not individual instances)
+- Each recurring event has a <code>recurrence</code> field with RRULE strings
+- The master event <code>id</code> does not contain an underscore + date suffix (instance IDs do)
+- Non-recurring events also appear (one entry each)</p>
+<p><strong>Result (2026-06-24) ✅</strong> — <code>list_events(expand_recurring=False, query="QA-")</code> returned 3 items: QA-Weekly-Standup (recurrence: WEEKLY/MO), QA-Daily-5x (recurrence: DAILY/COUNT=5), QA-OneOff (recurrence: null). All master IDs had no date suffix. Confirms <code>singleEvents=False</code> path works correctly.</p>
+<hr />
+<h3 id="tc-cal40-expand_recurringtrue-default-expands-instances">TC-CAL40: expand_recurring=True (default) expands instances<a class="headerlink" href="#tc-cal40-expand_recurringtrue-default-expands-instances" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the recurring event created in TC-CAL36</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List events in {CALENDAR_ID} between 2026-07-07T00:00:00Z and 2026-07-28T23:59:59Z"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains individual Monday instances (e.g. 4 Mondays in a 4-week window)
+- Each instance <code>id</code> contains the base event ID plus a date suffix
+- <code>recurrence</code> field is <code>null</code> on individual instances (it lives on the master)</p>
+<p><strong>Result (2026-06-24) ✅</strong> — Returned 4 instances (Jul 7, 13, 20, 27). Each ID had the <code>_YYYYMMDDTHHMMSSZ</code> suffix. <code>recurrence: null</code> on all instances. Note: Jul 7 is the original start date (Tuesday); the API kept it as the first instance and subsequent occurrences fell on Mondays per BYDAY=MO.</p>
+<hr />
+<h2 id="update_event-recurrence-support"><code>update_event</code> — recurrence support<a class="headerlink" href="#update_event-recurrence-support" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal41-update-rrule-on-a-master-event-destructive">TC-CAL41: Update RRULE on a master event ⚠️ destructive<a class="headerlink" href="#tc-cal41-update-rrule-on-a-master-event-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the weekly recurring event from TC-CAL36; retrieve its master event ID via <code>list_events(expand_recurring=False)</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Update the recurring event 'QA-Weekly-Standup' in {CALENDAR_ID} — change it from weekly to every 2 weeks"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response <code>recurrence</code> reflects the new RRULE (e.g. <code>RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO</code>)
+- <code>list_events(expand_recurring=True)</code> for a 4-week window now returns 2 instances (not 4)
+- Other fields (<code>summary</code>, <code>start</code>, <code>end</code>) are unchanged</p>
+<p><strong>Result (2026-06-24) ✅</strong> — Patched master with <code>recurrence: ["RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO"]</code>. Response echoed the new RRULE. <code>list_events(expand_recurring=True)</code> for Jul 7–28 returned 2 instances (Jul 7 and Jul 20) vs 4 previously. <code>summary</code> and <code>start</code>/<code>end</code> unchanged.</p>
+<hr />
+<h3 id="tc-cal42-remove-recurrence-by-passing-an-empty-list-destructive">TC-CAL42: Remove recurrence by passing an empty list ⚠️ destructive<a class="headerlink" href="#tc-cal42-remove-recurrence-by-passing-an-empty-list-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the weekly recurring event from TC-CAL36 (master event ID)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Update the master 'QA-Weekly-Standup' event in {CALENDAR_ID} and remove its recurrence to make it a one-off event — pass an empty recurrence list"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response <code>recurrence</code> is <code>null</code> or absent
+- Event no longer appears as a series in <code>list_events(expand_recurring=False)</code>
+- Only a single instance exists at the original start date</p>
+<p><strong>Result (2026-06-24) ✅</strong> — Patched master with <code>recurrence: []</code>. Response returned <code>recurrence: null</code>. <code>list_events(expand_recurring=False)</code> showed QA-Weekly-Standup with <code>recurrence: null</code> — one entry, no series. Only the Jul 7 occurrence remains.</p>
+<hr />
+<h3 id="tc-cal43-update-a-single-instance-without-affecting-the-series-destructive">TC-CAL43: Update a single instance without affecting the series ⚠️ destructive<a class="headerlink" href="#tc-cal43-update-a-single-instance-without-affecting-the-series-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the recurring event from TC-CAL37; get an instance event ID (contains date suffix) via <code>list_events(expand_recurring=True)</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Update just the first occurrence of 'QA-Daily-5x' in {CALENDAR_ID} — rename it 'QA-Daily-5x (Modified)' using its instance event ID"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- That one instance has <code>summary: 'QA-Daily-5x (Modified)'</code>
+- Other instances still have <code>summary: 'QA-Daily-5x'</code> (unchanged)
+- The master event <code>summary</code> is unchanged (verify with <code>get_event</code> on the master ID)
+- Confirms instance-level patching creates an exception override, not a series update</p>
+<p><strong>Result (2026-06-24) ✅</strong> — Patched instance <code>9lrphvbvegq03163gjh7fu35qo_20260714T150000Z</code> with <code>summary: 'QA-Daily-5x (Modified)'</code>. Jul 15–18 instances still returned <code>summary: 'QA-Daily-5x'</code>. <code>get_event</code> on master <code>9lrphvbvegq03163gjh7fu35qo</code> returned <code>summary: 'QA-Daily-5x'</code> and <code>recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]</code> unchanged. Instance-level exception confirmed.</p>
 <hr />
 
 

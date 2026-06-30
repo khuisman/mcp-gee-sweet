@@ -1677,6 +1677,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#clear_values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        clear_values
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="clear_values">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-w29-clear-a-specific-range-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W29: Clear a specific range ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w30-clear-entire-sheet-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W30: Clear entire sheet ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w31-clear-values-sheet-name-with-spaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W31: Clear values — sheet name with spaces
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w32-clear-non-existent-range-api-behaviour" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W32: Clear non-existent range — API behaviour
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2080,6 +2141,49 @@
 - <code>list_sheets</code> includes 'CacheCheck' — structure cache was invalidated
 - Summary reflects the new sheet — data cache was invalidated
 - Confirms both <code>cache.mark_dirty</code> and <code>sheet_data_cache.mark_dirty</code> are called</p>
+<hr />
+<h2 id="clear_values"><code>clear_values</code><a class="headerlink" href="#clear_values" title="Permanent link">&para;</a></h2>
+<h3 id="tc-w29-clear-a-specific-range-destructive">TC-W29: Clear a specific range ⚠️ destructive<a class="headerlink" href="#tc-w29-clear-a-specific-range-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Clear the values in cells A1:C5 of the Sales sheet in {SPREADSHEET_ID}, leaving formatting intact"</p>
+</blockquote>
+<p><strong>Setup:</strong> Confirm A1:C5 has values and formatting before clearing.</p>
+<p><strong>Checks</strong>
+- Cells A1:C5 are empty (no values)
+- Cell formatting (background color, borders, number format) is unchanged
+- No <code>error</code> field</p>
+<p><strong>Result (2026-06-21) ✅</strong> A1:C5 cleared. <code>get_sheet_data</code> confirmed columns A–C rows 1–5 empty; column D (Q3) and row 6 (Totals) untouched. SUM formulas recalculated to 0 for cleared columns.</p>
+<hr />
+<h3 id="tc-w30-clear-entire-sheet-destructive">TC-W30: Clear entire sheet ⚠️ destructive<a class="headerlink" href="#tc-w30-clear-entire-sheet-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Clear all values from the Notes sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Sheet is empty (all cells blank)
+- No <code>error</code> field
+- Formatting preserved (not a full delete)</p>
+<p><strong>Result (2026-06-21) ✅</strong> <code>clear_values</code> called with no range on Notes &amp; Misc. <code>get_sheet_data</code> returned <code>values: []</code>. No error field. <code>clearedRange: "'Notes &amp; Misc'!A1:Z1000"</code>.</p>
+<hr />
+<h3 id="tc-w31-clear-values-sheet-name-with-spaces">TC-W31: Clear values — sheet name with spaces<a class="headerlink" href="#tc-w31-clear-values-sheet-name-with-spaces" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Clear cells B2:D4 from the 'Notes &amp; Misc' sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Range string sent to API is <code>'Notes &amp; Misc'!B2:D4</code> (sheet name single-quoted)
+- Values cleared successfully</p>
+<p><strong>Result (2026-06-21) ✅</strong> <code>clearedRange</code> in response was <code>'Notes &amp; Misc'!B2:D4</code> — single-quoting applied correctly. No error.</p>
+<hr />
+<h3 id="tc-w32-clear-non-existent-range-api-behaviour">TC-W32: Clear non-existent range — API behaviour<a class="headerlink" href="#tc-w32-clear-non-existent-range-api-behaviour" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Clear cells Z100:Z200 from the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- API returns a <code>clearedRange</code> with an adjusted or empty range (no error — the API accepts out-of-bounds ranges)</p>
+<p><strong>Result (2026-06-21) ✅</strong> Response: <code>{"clearedRange":"Sales!Z100:Z200"}</code> — API accepted the out-of-bounds range and returned it as-is with no error.</p>
 
 
 

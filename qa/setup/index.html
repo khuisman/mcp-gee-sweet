@@ -1093,6 +1093,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#oauth-token-setup-for-requires-oauth-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth token setup (for ⚠️ requires-oauth tests)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#resetting-fixtures" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1527,8 +1538,10 @@
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>TEST_SPREADSHEET_ID=&lt;your spreadsheet ID&gt;
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>TEST_DOC_ID=&lt;your doc ID&gt;
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>TEST_FOLDER_ID=&lt;the folder ID that contains both files&gt;
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>TEST_CALENDAR_ID=          # leave blank until calendar fixtures are set up
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>TEST_EVENT_ID=             # leave blank until calendar fixtures are set up
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>TEST_LARGE_DOC_ID=         # large-content doc for TC-D48; create via setup_fixtures or manually
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>TEST_CALENDAR_ID=          # leave blank until calendar fixtures are set up
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>TEST_EVENT_ID=             # leave blank until calendar fixtures are set up
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>TEST_PERMISSION_EMAIL=     # a second Google account email for permission add/remove tests (TC-D130)
 </code></pre></div>
 <p>File and folder IDs are in the URL when you open them in Drive:
 - Spreadsheet: <code>docs.google.com/spreadsheets/d/&lt;ID&gt;/edit</code>
@@ -1536,7 +1549,7 @@
 - Folder: <code>drive.google.com/drive/folders/&lt;ID&gt;</code></p>
 <hr />
 <h2 id="step-3-run-the-seed-prompt">Step 3 — Run the seed prompt<a class="headerlink" href="#step-3-run-the-seed-prompt" title="Permanent link">&para;</a></h2>
-<p>Paste the seed prompt below into a Claude session with the MCP server connected. Claude will populate the spreadsheet and doc with the known fixture data.</p>
+<p>Paste the seed prompt below into a Claude session that has <strong>both the mcp-gee-sweet MCP server and the Playwright MCP connected</strong>. Claude will populate the spreadsheet and doc with the known fixture data, then open each file in Playwright to visually confirm the result.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Set up my QA fixtures for mcp-gee-sweet using these IDs from my .env:
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>- Spreadsheet: &lt;TEST_SPREADSHEET_ID&gt;
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>- Doc: &lt;TEST_DOC_ID&gt;
@@ -1559,6 +1572,8 @@
 <a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>   &lt;h1&gt;Test Document&lt;/h1&gt;&lt;p&gt;This document is used for QA testing of mcp-gee-sweet.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Item one&lt;/li&gt;&lt;li&gt;Item two&lt;/li&gt;&lt;/ul&gt;
 <a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>
 <a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>Confirm when done.
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>Then open https://docs.google.com/spreadsheets/d/&lt;TEST_SPREADSHEET_ID&gt;/edit in Playwright and take a snapshot to visually confirm the sheet names and data are correct. Do the same for the doc at https://docs.google.com/document/d/&lt;TEST_DOC_ID&gt;/edit.
 </code></pre></div>
 <hr />
 <h2 id="known-fixture-state-after-seed">Known fixture state (after seed)<a class="headerlink" href="#known-fixture-state-after-seed" title="Permanent link">&para;</a></h2>
@@ -1664,6 +1679,14 @@
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>4. Return the calendar ID and the event ID.
 </code></pre></div>
 <p>Add the returned IDs to <code>.env</code> as <code>TEST_CALENDAR_ID</code> and <code>TEST_EVENT_ID</code>.</p>
+<hr />
+<h2 id="oauth-token-setup-for-requires-oauth-tests">OAuth token setup (for <code>⚠️ requires-oauth</code> tests)<a class="headerlink" href="#oauth-token-setup-for-requires-oauth-tests" title="Permanent link">&para;</a></h2>
+<p>Tests tagged <code>⚠️ requires-oauth</code> need a valid OAuth token (<code>token.json</code>). If you're running with a service account or ADC, these tests will be skipped or will fail — they require personal Drive access.</p>
+<p>To acquire or refresh a token without manually clicking through Google's consent screen, see <strong><a href="../playwright_oauth/"><code>docs/qa/playwright_oauth.md</code></a></strong>. Two paths are documented:</p>
+<ul>
+<li><strong>Playwright-assisted</strong>: run <code>scripts/oauth_setup.py</code>, let Claude Code + Playwright MCP complete the browser flow</li>
+<li><strong>Refresh token injection</strong>: one-time manual flow, then store the refresh token as an env secret for all future runs (CI-friendly)</li>
+</ul>
 <hr />
 <h2 id="resetting-fixtures">Resetting fixtures<a class="headerlink" href="#resetting-fixtures" title="Permanent link">&para;</a></h2>
 <p>Re-run the Step 3 seed prompt against your existing IDs to restore known state. No need to create new files.</p>

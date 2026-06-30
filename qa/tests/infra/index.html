@@ -1218,6 +1218,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#coverage-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coverage strategy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cache-behavior" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1434,6 +1445,78 @@
   
 </li>
         
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Logging">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-i16-debug_leveldebug-debug-and-access-logs-appear" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I16: DEBUG_LEVEL=DEBUG — debug and access logs appear
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i17-debug_levelinfo-access-logs-only-no-debug-lines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I17: DEBUG_LEVEL=INFO — access logs only, no debug lines
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i18-log_file-server-output-written-to-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I18: LOG_FILE — server output written to file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i19-access_log_file-access-lines-written-to-separate-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I19: ACCESS_LOG_FILE — access lines written to separate file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i20-env-file-loaded-at-startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I20: .env file loaded at startup
+      
+    </span>
+  </a>
+  
+</li>
+        
           <li class="md-nav__item">
   <a href="#tc-i15-hot-reload-with-sse" class="md-nav__link">
     <span class="md-ellipsis">
@@ -1637,6 +1720,50 @@
 <h1 id="infrastructure-qa-test-cases">Infrastructure — QA Test Cases<a class="headerlink" href="#infrastructure-qa-test-cases" title="Permanent link">&para;</a></h1>
 <p>Covers: cache behavior, tool filtering, auth fallback chain, and transport. These tests often require server-side configuration changes rather than just issuing a prompt.</p>
 <p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>.</p>
+<h2 id="coverage-strategy">Coverage strategy<a class="headerlink" href="#coverage-strategy" title="Permanent link">&para;</a></h2>
+<p>Most infrastructure behaviours are verified by unit tests rather than live QA prompts. A subprocess-based pytest fixture (start/stop the server with different env vars per test) was assessed in issue #51 and <strong>rejected</strong> — the setup cost outweighs the benefit at current scale, and the logic under test is directly unit-testable by patching module-level constants and mocking credential calls.</p>
+<table>
+<thead>
+<tr>
+<th>TC range</th>
+<th>Coverage strategy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-I01, I03 (cache TTL, DB path)</td>
+<td>Unit-tested in <code>tests/test_cache.py</code> — TTL expiry and <code>db_path</code> override are exercised directly</td>
+</tr>
+<tr>
+<td>TC-I04 (cache persistence across restart)</td>
+<td>SQLite persistence is a property of the DB file, not the server — not worth a subprocess test</td>
+</tr>
+<tr>
+<td>TC-I05–I07 (tool filtering)</td>
+<td>Unit-tested in <code>tests/test_server.py</code> — <code>_parse_enabled_tools()</code> is fully covered</td>
+</tr>
+<tr>
+<td>TC-I08–I12 (auth variants)</td>
+<td>Unit tests tracked in #98 — mock <code>_service_account_creds</code>, <code>_oauth_creds</code>, and ADC</td>
+</tr>
+<tr>
+<td>TC-I02 (WAL concurrency)</td>
+<td>Manual / live QA only — requires true concurrent requests</td>
+</tr>
+<tr>
+<td>TC-I13, I14 (transport)</td>
+<td>Manual / live QA only — verify once per environment setup</td>
+</tr>
+<tr>
+<td>TC-I15 (hot reload)</td>
+<td>Manual / live QA only — known uvicorn + SSE limitation, observe and note</td>
+</tr>
+<tr>
+<td>TC-I16–I20 (logging)</td>
+<td>✅ Already live-tested and passed — see Result entries below</td>
+</tr>
+</tbody>
+</table>
 <hr />
 <h2 id="cache-behavior">Cache behavior<a class="headerlink" href="#cache-behavior" title="Permanent link">&para;</a></h2>
 <h3 id="tc-i01-structure-cache-ttl-stale-entry-causes-re-fetch">TC-I01: Structure cache TTL — stale entry causes re-fetch<a class="headerlink" href="#tc-i01-structure-cache-ttl-stale-entry-causes-re-fetch" title="Permanent link">&para;</a></h3>
@@ -1800,6 +1927,66 @@ Run <code>uv run mcp-gee-sweet --transport sse</code> or <code>make start</code>
 - Connection established via SSE
 - Tool returns results normally
 - Server accessible at the configured port</p>
+<hr />
+<h2 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h2>
+<h3 id="tc-i16-debug_leveldebug-debug-and-access-logs-appear">TC-I16: DEBUG_LEVEL=DEBUG — debug and access logs appear<a class="headerlink" href="#tc-i16-debug_leveldebug-debug-and-access-logs-appear" title="Permanent link">&para;</a></h3>
+<p><strong>Setup</strong>
+Set <code>DEBUG_LEVEL=DEBUG</code> and <code>LOG_FILE=/tmp/mcp-gee-sweet.log</code> in <code>src/mcp_gee_sweet/.env</code>. Restart the server.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List the sheets in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>make dev-logs</code> shows cache-open DEBUG lines at startup
+- After the tool call, an INFO line from <code>mcp_gee_sweet.access</code> appears: <code>"-" - "TOOL list_sheets" 200 X.XXXs</code>
+- Both log levels present (<code>DEBUG</code> and <code>INFO</code>) and differentiated by logger name</p>
+<p><strong>Result (2026-06-23) ✅</strong> <code>DEBUG_LEVEL=DEBUG</code> and <code>LOG_FILE</code> active via <code>.env</code>. After <code>list_spreadsheets</code>:
+- Startup: <code>DEBUG mcp_gee_sweet.cache</code> lines present (5 cache-open entries)
+- Access: <code>2026-06-23 23:00:34,893 INFO mcp_gee_sweet.access "-" - "TOOL list_spreadsheets" 200 0.668s</code>
+- Logger names correctly differentiated in same file</p>
+<hr />
+<h3 id="tc-i17-debug_levelinfo-access-logs-only-no-debug-lines">TC-I17: DEBUG_LEVEL=INFO — access logs only, no debug lines<a class="headerlink" href="#tc-i17-debug_levelinfo-access-logs-only-no-debug-lines" title="Permanent link">&para;</a></h3>
+<p><strong>Setup</strong>
+Set <code>DEBUG_LEVEL=INFO</code> and <code>LOG_FILE=/tmp/mcp-gee-sweet.log</code>. Restart the server.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List the sheets in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- No <code>DEBUG</code> lines in the log (cache-open messages suppressed)
+- Access log <code>INFO mcp_gee_sweet.access</code> line still appears for the tool call</p>
+<p><strong>Result (2026-06-23) ✅</strong> <code>DEBUG_LEVEL=INFO</code> set in <code>.env</code>, server restarted. After <code>list_spreadsheets</code>: only <code>INFO mcp_gee_sweet.access "-" - "TOOL list_spreadsheets" 200 0.612s</code> appeared — no <code>DEBUG</code> cache-open lines or drive search lines. Access log correctly fires at INFO level.</p>
+<hr />
+<h3 id="tc-i18-log_file-server-output-written-to-file">TC-I18: LOG_FILE — server output written to file<a class="headerlink" href="#tc-i18-log_file-server-output-written-to-file" title="Permanent link">&para;</a></h3>
+<p><strong>Setup</strong>
+Set <code>DEBUG_LEVEL=DEBUG</code> and <code>LOG_FILE=/tmp/mcp-gee-sweet.log</code>. Restart the server.</p>
+<p><strong>Checks</strong>
+- <code>/tmp/mcp-gee-sweet.log</code> is created on startup
+- <code>make dev-logs</code> tails it correctly
+- File contains startup cache-open lines and per-call access lines</p>
+<p><strong>Result (2026-06-23) ✅</strong> <code>/tmp/mcp-gee-sweet.log</code> created on startup (466 lines after one session). Contains cache-open DEBUG lines and per-call INFO access lines. <code>make dev-logs</code> tails it correctly.</p>
+<hr />
+<h3 id="tc-i19-access_log_file-access-lines-written-to-separate-file">TC-I19: ACCESS_LOG_FILE — access lines written to separate file<a class="headerlink" href="#tc-i19-access_log_file-access-lines-written-to-separate-file" title="Permanent link">&para;</a></h3>
+<p><strong>Setup</strong>
+Set <code>DEBUG_LEVEL=DEBUG</code>, <code>LOG_FILE=/tmp/mcp-gee-sweet.log</code>, and <code>ACCESS_LOG_FILE=/tmp/mcp-gee-sweet-access.log</code>. Restart the server.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List the sheets in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>make access-logs</code> shows only the <code>mcp_gee_sweet.access</code> line — no DEBUG noise
+- <code>make dev-logs</code> shows both debug lines and the access line (mixed)
+- The same tool call produces one entry in each file</p>
+<p><strong>Result (2026-06-23) ✅</strong> <code>ACCESS_LOG_FILE=/tmp/mcp-gee-sweet-access.log</code> set in <code>.env</code>. After <code>list_spreadsheets</code>, the access log contains only: <code>"-" - "TOOL list_spreadsheets" 200 0.668s</code> — no DEBUG cache-open noise. Mixed output confirmed in LOG_FILE.</p>
+<hr />
+<h3 id="tc-i20-env-file-loaded-at-startup">TC-I20: .env file loaded at startup<a class="headerlink" href="#tc-i20-env-file-loaded-at-startup" title="Permanent link">&para;</a></h3>
+<p><strong>Setup</strong>
+Add <code>DEBUG_LEVEL=DEBUG</code> to <code>src/mcp_gee_sweet/.env</code> (no shell export, no MCP client config change). Restart the server.</p>
+<p><strong>Checks</strong>
+- Debug logging is active without setting the env var in the shell or MCP client
+- <code>make dev-logs</code> shows startup and access log lines as expected
+- 🔍 Set <code>DEBUG_LEVEL=WARNING</code> in the shell alongside <code>DEBUG_LEVEL=DEBUG</code> in <code>.env</code> — shell env wins, no debug output appears</p>
+<p><strong>Result (2026-06-23) ✅</strong> <code>DEBUG_LEVEL=DEBUG</code> and <code>LOG_FILE</code> set only in <code>src/mcp_gee_sweet/.env</code> (no shell export, no MCP client config). Server produced startup DEBUG lines and access log entries — confirms <code>.env</code> is loaded at startup. Env precedence test (shell override) pending separate verification.</p>
 <hr />
 <h3 id="tc-i15-hot-reload-with-sse">TC-I15: Hot reload with SSE<a class="headerlink" href="#tc-i15-hot-reload-with-sse" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
