@@ -245,6 +245,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 ### TC-CAL20: Timed event ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Create an event called 'QA-Timed-Test' in {CALENDAR_ID} on 2026-07-01 from 10:00am to 11:00am Pacific time"
 
 **Checks**
@@ -259,6 +260,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 ### TC-CAL21: All-day event ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Create an all-day event called 'QA-AllDay-Test' in {CALENDAR_ID} on 2026-07-02"
 
 **Checks**
@@ -271,6 +273,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 ### TC-CAL22: With description, location, and attendees ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Create an event called 'QA-Full-Test' in {CALENDAR_ID} for 2026-07-03 2pm-3pm PT with description 'QA test event', location 'Conference Room A', and attendee test@example.com"
 
 **Checks**
@@ -297,6 +300,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 ### TC-CAL24: Update summary only ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Update the event created in TC-CAL20 — change the title to 'QA-Timed-Updated'"
 
 **Checks**
@@ -309,6 +313,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 ### TC-CAL25: Update start and end ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Update the event from TC-CAL20 — move it to 2026-07-01 from 2pm to 3pm PT"
 
 **Checks**
@@ -320,6 +325,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 ### TC-CAL26: Update description and location ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Update the event from TC-CAL22 — change the description to 'Updated desc' and location to 'Room B'"
 
 **Checks**
@@ -344,6 +350,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 ### TC-CAL28: Delete an existing event ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Delete the event created in TC-CAL21 from {CALENDAR_ID}"
 
 **Checks**
@@ -445,6 +452,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 ### TC-CAL36: Create a weekly recurring event ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Create a recurring event called 'QA-Weekly-Standup' in {CALENDAR_ID} every Monday from 9am to 9:30am Pacific time, starting 2026-07-07"
 
 **Checks**
@@ -461,6 +469,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 ### TC-CAL37: Create a daily recurring event with COUNT limit ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Create a recurring event called 'QA-Daily-5x' in {CALENDAR_ID} every day at 8am Pacific for exactly 5 occurrences, starting 2026-07-14"
 
 **Checks**
@@ -475,6 +484,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 ### TC-CAL38: Recurrence absent when not provided
 
 **Prompt**
+**Playwright: required**
 > "Create a one-time event called 'QA-OneOff' in {CALENDAR_ID} on 2026-07-21 from 2pm to 3pm PT"
 
 **Checks**
@@ -493,6 +503,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Setup:** use the recurring event created in TC-CAL36
 
 **Prompt**
+**Playwright: required**
 > "List events in {CALENDAR_ID} with expand_recurring=False and no time filter"
 
 **Checks**
@@ -510,6 +521,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Setup:** use the recurring event created in TC-CAL36
 
 **Prompt**
+**Playwright: required**
 > "List events in {CALENDAR_ID} between 2026-07-07T00:00:00Z and 2026-07-28T23:59:59Z"
 
 **Checks**

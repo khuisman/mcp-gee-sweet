@@ -189,6 +189,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Setup:** insert a normal paragraph; note its index range
 
 **Prompt**
+**Playwright: required**
 > "Style the range from index {start} to {end} in doc {DOC_ID} as HEADING_2"
 
 **Checks**
@@ -206,6 +207,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Setup:** insert a normal paragraph; note its index range
 
 **Prompt**
+**Playwright: required**
 > "Make the range from index {start} to {end} in doc {DOC_ID} bold, italic, and red (foreground_color red=1 green=0 blue=0)"
 
 **Checks**
@@ -250,6 +252,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Setup:** fetch structure; note a suitable insertion index (e.g. endIndex of a paragraph)
 
 **Prompt**
+**Playwright: required**
 > "Insert a 2-row, 3-column table at index {N} in doc {DOC_ID}"
 
 **Checks**
@@ -289,6 +292,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
+**Playwright: required**
 > "Style row 0 of the table at index {tableStartIndex} in doc {DOC_ID} with background_color red=0.953 green=0.953 blue=0.953, column_span 2"
 
 **Checks**
@@ -306,6 +310,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
+**Playwright: required**
 > "Style all cells in the table at index {tableStartIndex} in doc {DOC_ID} with border_color black (0,0,0), border_width 0.5, border_dash_style SOLID, padding 3.6pt on all sides"
 
 **Checks**
@@ -409,6 +414,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Setup:** insert a 2×2 table; record its `tableStartIndex` from the response
 
 **Prompt**
+**Playwright: required**
 > "Style cell [0,0] of the table at index {tableStartIndex} in doc {DOC_ID} with background_color red=0.8 green=0.9 blue=1.0"
 
 **Checks**
@@ -429,6 +435,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Setup:** fetch structure; note a suitable insertion index N
 
 **Prompt**
+**Playwright: required**
 > "Insert a 2×3 table at index {N} in doc {DOC_ID}, then style row 0 with grey background (red=0.85 green=0.85 blue=0.85) spanning all 3 columns, and add a solid black border (width 0.5) to every cell"
 
 **Checks**
@@ -585,6 +592,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Purpose:** Regression test for #67 — `colspan` was previously ignored.
 
 **Prompt**
+**Playwright: required**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><td colspan=\"2\">Wide cell</td></tr><tr><td>A</td><td>B</td></tr></table>`"
 
 **Checks**
@@ -604,6 +612,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Purpose:** Regression test for #66 — `width` attributes on `<col>` were previously ignored.
 
 **Prompt**
+**Playwright: required**
 > "Write this HTML to doc {DOC_ID}: `<table><col width=\"144\"><col width=\"288\"><tr><td>Narrow</td><td>Wide</td></tr></table>`"
 
 **Checks**
@@ -622,6 +631,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Purpose:** First live verification of issue #91 — rowspan support in the HTML→AST→emitter pipeline. A cell spanning two rows must produce a `mergeTableCells` request, and the phantom cell in the lower row must not be filled.
 
 **Prompt**
+**Playwright: required**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><td rowspan=\"2\">Tall</td><td>R0C1</td></tr><tr><td>R1C1</td></tr></table>`"
 
 **Checks**
@@ -735,6 +745,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC42: Markdown fenced code block ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Write this markdown to doc {DOC_ID} using content_format='markdown' with a fenced Python code block containing `def hello(): return 'world'`"
 
 **Checks**
@@ -813,6 +824,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC47: `write_doc_content` inline code monospace ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Write this markdown to doc {DOC_ID} using content_format='markdown': `Use the \`print()\` function`"
 
 **Checks**
@@ -869,6 +881,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC48: Simple nested table ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><td><table><tr><td>Inner</td></tr></table></td></tr></table>`"
 
 **Checks**
@@ -952,6 +965,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC54: `apply_theme` with `overwrite=True` also patches existing paragraphs ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Write `<h1>Heading One</h1><p>Normal body text.</p>` to doc {DOC_ID}, then apply theme `{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}` with overwrite=True"
 
 **Checks**
@@ -970,6 +984,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Prerequisite:** doc must contain at least one table (write one with `write_doc_content` first if needed)
 
 **Prompt**
+**Playwright: required**
 > "Apply this theme to doc {DOC_ID}: `{"table": {"border_color": {"red": 0, "green": 0, "blue": 0}, "border_width": 0.5, "border_dash_style": "SOLID", "cell_padding": 3.6, "header_background": {"red": 0.953, "green": 0.953, "blue": 0.953}}}`"
 
 **Checks**
@@ -1003,6 +1018,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** fetch structure; note the `endIndex` of a paragraph to insert after
 
 **Prompt**
+**Playwright: required**
 > "Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/svg/googlelogo_clr_74x24px.svg' at index {N} in doc {DOC_ID}"
 
 **Checks**
@@ -1020,6 +1036,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** same as TC-DOC57
 
 **Prompt**
+**Playwright: required**
 > "Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/svg/googlelogo_clr_74x24px.svg' at index {N} in doc {DOC_ID} with width 100 and height 50"
 
 **Checks**
@@ -1077,6 +1094,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
+**Playwright: required**
 > "Insert a row above row 1 in the table at index {tableStartIndex} in doc {DOC_ID} (insert_below=False)"
 
 **Checks**
@@ -1094,6 +1112,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** insert a 3-row table; note its `tableStartIndex`
 
 **Prompt**
+**Playwright: required**
 > "Delete row 1 from the table at index {tableStartIndex} in doc {DOC_ID}"
 
 **Checks**
@@ -1111,6 +1130,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
+**Playwright: required**
 > "Insert a column to the right of column 0 in the table at index {tableStartIndex} in doc {DOC_ID}"
 
 **Checks**
@@ -1128,6 +1148,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
+**Playwright: required**
 > "Insert a column to the left of column 1 in the table at index {tableStartIndex} in doc {DOC_ID} (insert_right=False)"
 
 **Checks**
@@ -1144,6 +1165,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** insert a 2×3 table; note its `tableStartIndex`
 
 **Prompt**
+**Playwright: required**
 > "Delete column 1 from the table at index {tableStartIndex} in doc {DOC_ID}"
 
 **Checks**
@@ -1175,6 +1197,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC68: Create a default page header ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Add a page header to doc {DOC_ID}"
 
 **Checks**
@@ -1190,6 +1213,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC69: Create a header with content ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Add a page header to doc {DOC_ID} with content 'Confidential — Internal Only'"
 
 **Checks**
@@ -1205,6 +1229,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC70: Create a default page footer ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Add a page footer to doc {DOC_ID}"
 
 **Checks**
@@ -1219,6 +1244,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC71: Create a footer with content ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Add a page footer to doc {DOC_ID} with content 'Page 1'"
 
 **Checks**
@@ -1257,6 +1283,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** call `create_header` first to get a `headerId`
 
 **Prompt**
+**Playwright: required**
 > "Insert the text 'Header text via insert_doc_text' at index 0 in doc {DOC_ID} using segment_id '{headerId}'"
 
 **Note:** An empty header/footer segment has end index 1 (one newline at index 0). Insert at index 0, not 1.
@@ -1290,6 +1317,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** use `docs/qa/fixtures/tc-d226-heading-table.md` from the repo (absolute path: `<repo-root>/docs/qa/fixtures/tc-d226-heading-table.md`)
 
 **Prompt**
+**Playwright: required**
 > "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."
 
 **Checks**
@@ -1312,6 +1340,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** use `docs/qa/fixtures/tc-d226-heading-table.md` (heading immediately followed by a table)
 
 **Prompt**
+**Playwright: required**
 > "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."
 
 **Checks**

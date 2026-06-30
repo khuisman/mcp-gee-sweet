@@ -1543,10 +1543,12 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ## `share_file`
 
+> ⚠️ **Fixture requirement:** TC-D132, TC-D137, TC-D139 require `TEST_PERMISSION_EMAIL` in `.env` to be a **real Google account** you control (e.g. a secondary Gmail). `example.com` addresses are not valid Google accounts and Drive will reject sharing with them. TC-D135 (domain share) requires a Google Workspace domain — `example.com` will also fail; use your actual GWS domain or skip and note as environmental.
+
 ### TC-D132: Share with type=user as reader
 
 **Prompt**
-> "Share {SPREADSHEET_ID} with test-recipient@example.com as a reader using share_file"
+> "Share {SPREADSHEET_ID} with {TEST_PERMISSION_EMAIL} as a reader using share_file"
 
 **Checks**
 - Response `successes` contains the entry with `type: 'user'`, `role: 'reader'`, and a `permissionId`
@@ -1580,11 +1582,13 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ### TC-D135: Share with type=domain
 
+> ⚠️ **Environmental:** `example.com` is not a Google Workspace domain; Drive will reject this with a domain validation error. Replace with your actual GWS domain if available, or SKIP and record as environmental.
+
 **Prompt**
-> "Share {SPREADSHEET_ID} with everyone at example.com as a reader using share_file with type='domain'"
+> "Share {SPREADSHEET_ID} with everyone at {GWS_DOMAIN} as a reader using share_file with type='domain'"
 
 **Checks**
-- Response `successes` contains an entry with `type: 'domain'` and `domain: 'example.com'`
+- Response `successes` contains an entry with `type: 'domain'` and `domain: '{GWS_DOMAIN}'`
 - Follow-up `list_permissions` shows the domain permission entry
 
 ---
@@ -1604,7 +1608,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 ### TC-D137: Share a folder
 
 **Prompt**
-> "Share folder {FOLDER_ID} with test-recipient@example.com as a writer using share_file"
+> "Share folder {FOLDER_ID} with {TEST_PERMISSION_EMAIL} as a writer using share_file"
 
 **Checks**
 - Share succeeds; `successes` contains the entry
@@ -1627,12 +1631,14 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 ### TC-D139: send_notification=False for user share
 
 **Prompt**
-> "Share {SPREADSHEET_ID} with test-recipient@example.com as reader using share_file, but don't send a notification email"
+> "Share {SPREADSHEET_ID} with {TEST_PERMISSION_EMAIL} as reader using share_file, but don't send a notification email"
 
 **Checks**
 - Share succeeds; `successes` populated
-- No notification email sent (use an email address you control to verify)
+- No notification email sent — verify by checking the inbox of `TEST_PERMISSION_EMAIL`
 - `send_notification=False` confirmed — `sendNotificationEmail=False` passed to the API
+
+> ⚠️ **Note:** Drive requires `sendNotificationEmail=True` when sharing with non-Google Workspace accounts. If `TEST_PERMISSION_EMAIL` is a personal Gmail, this test may fail with a Drive API restriction — record as environmental, not a tool bug.
 
 ---
 
@@ -1740,13 +1746,19 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ### TC-D148: Export a revision and read a cell range
 
-**Setup:** Make a known edit to {SPREADSHEET_ID} (e.g. write "BEFORE" to A1), then make another edit ("AFTER" to A1). List revisions and identify the revision ID from before the second edit.
+**Setup:**
+1. Write "QA-BEFORE" to Sales!A1 using `update_cells`
+2. Wait at least 30 seconds (Drive may coalesce rapid writes into a single revision)
+3. Write "QA-AFTER" to Sales!A1
+4. Call `list_revisions` on {SPREADSHEET_ID} and identify the revision from between the two writes
+
+> ⚠️ **Known limitation:** Drive's revision API coalesces writes that occur within a short window into a single revision. If only one revision appears, both writes landed in it — SKIP and record as environmental. The 30-second pause reduces but does not eliminate this risk.
 
 **Prompt**
 > "Export revision {REVISION_ID} of {SPREADSHEET_ID} and show me the value in range A1"
 
 **Checks**
-- Returns `values` with "BEFORE" in A1
+- Returns `values` with "QA-BEFORE" in A1
 - `sheet` matches the first sheet name
 - `modifiedTime` matches the revision timestamp from `list_revisions`
 

@@ -407,6 +407,7 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 ### TC-S33: Apply bold and background color to a range ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Make cells A1:D1 on the Sales sheet bold with a light blue background"
 
 **Checks**
@@ -422,6 +423,7 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 ### TC-S34: Apply number format to a column ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Format column B (B2:B100) on Sales as currency with 2 decimal places"
 
 **Checks**
@@ -436,6 +438,7 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 ### TC-S35: Set horizontal alignment ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Center-align cells A1:F1 on the Sales sheet"
 
 **Checks**
@@ -470,6 +473,7 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 ### TC-S38: Merge a header row range ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Merge cells A1:D1 on the Sales sheet to make a single header cell"
 
 **Checks**
@@ -484,6 +488,7 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 ### TC-S39: Merge rows independently ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Merge each row independently in A1:C3 on Sales (merge_type=MERGE_ROWS)"
 
 **Checks**
@@ -496,6 +501,7 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 ### TC-S40: Unmerge a previously merged range ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Unmerge cells A1:D1 on the Sales sheet"
 
 **Checks**
@@ -520,6 +526,7 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 ### TC-S42: Freeze the header row ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Freeze the first row on the Sales sheet"
 
 **Checks**
@@ -534,6 +541,7 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 ### TC-S43: Freeze first row and first column ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Freeze the first row and first column on Sales"
 
 **Checks**
@@ -569,6 +577,7 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 ### TC-S46: Sort a data range ascending by first column ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Sort the range A2:D50 on Sales by the first column ascending"
 
 **Checks**
@@ -582,6 +591,7 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 ### TC-S47: Sort descending by a non-first column ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Sort A2:D50 on Sales by column C (index 2) descending"
 
 **Checks**
@@ -594,6 +604,7 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 ### TC-S48: Multi-column sort ⚠️ destructive
 
 **Prompt**
+**Playwright: required**
 > "Sort A2:D50 on Sales: primary key column A ascending, secondary key column C descending"
 
 **Checks**
