@@ -1,3 +1,4 @@
+import os
 import time
 
 from mcp_gee_sweet.cache import (
@@ -6,6 +7,7 @@ from mcp_gee_sweet.cache import (
     SheetDataCache,
     SheetInfo,
     SheetStructureCache,
+    _open,
 )
 
 # All tests use an in-memory SQLite database.
@@ -270,3 +272,52 @@ class TestSharedDb:
         struct.mark_all_dirty()
         assert struct.get_sheets("sid") is None
         assert doc.get("fid") is not None  # different namespace, unaffected
+
+
+class TestOpenFallback:
+    """_open() must survive a read-only or corrupted DB file without crashing."""
+
+    def test_readonly_file_deleted_and_retried(self, tmp_path):
+        # chmod 444 on the file — WAL pragma can't write, triggers OperationalError.
+        # Directory is still writable, so deletion succeeds and retry creates a fresh DB.
+        db = str(tmp_path / "test.db")
+        open(db, "w").close()
+        os.chmod(db, 0o444)
+        try:
+            conn = _open(db)
+            conn.execute("SELECT 1").fetchone()
+            conn.close()
+            # Retry succeeded — fresh file was created (not memory fallback)
+            assert os.path.exists(db)
+        finally:
+            os.chmod(db, 0o644)
+
+    def test_readonly_dir_falls_back_to_memory(self, tmp_path):
+        # chmod 444 on the directory — both the initial open and the retry fail,
+        # so _open must return a working :memory: connection without raising.
+        ro_dir = tmp_path / "ro"
+        ro_dir.mkdir()
+        db = str(ro_dir / "test.db")
+        os.chmod(str(ro_dir), 0o444)
+        try:
+            conn = _open(db)
+            conn.execute("SELECT 1").fetchone()
+            conn.close()
+        finally:
+            os.chmod(str(ro_dir), 0o755)
+
+    def test_memory_fallback_cache_is_functional(self, tmp_path):
+        # Full end-to-end: cache object backed by :memory: must store and retrieve.
+        ro_dir = tmp_path / "ro"
+        ro_dir.mkdir()
+        db = str(ro_dir / "test.db")
+        os.chmod(str(ro_dir), 0o444)
+        try:
+            cache = SheetStructureCache(db_path=db, ttl=60)
+            sheets = [SheetInfo(title="S1", sheet_id=0)]
+            cache.store("sid", sheets)
+            result = cache.get_sheets("sid")
+            assert result is not None
+            assert result[0].title == "S1"
+        finally:
+            os.chmod(str(ro_dir), 0o755)
