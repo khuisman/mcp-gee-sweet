@@ -84,11 +84,10 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 **Remaining defects to fix before cutting the release**
 - [ ] `get_sheet_data(include_grid_data=True)` without a range fetches the full padded grid instead of the used range ([#235](https://github.com/khuisman/mcp-gee-sweet/issues/235))
 - [ ] `create_doc_from_file` markdown `$` escape renders as literal backslash+dollar in the doc ([#213](https://github.com/khuisman/mcp-gee-sweet/issues/213))
-- [ ] Shared SQLite cache DB corrupts/crashes across concurrent sessions — unguarded reads/writes past the connect-time fix in PR #230, no `busy_timeout` ([#234](https://github.com/khuisman/mcp-gee-sweet/issues/234))
-- [ ] Refresh tool counts (README, `docs/tools.md` header, roadmap catalog), backfill the 15 tools missing from `docs/tools.md`, correct `known-limitations.md`'s `list_all_events` entry, and rework README's Configuration section to lead with OAuth (not service account) for local/dev quick-start — currently mismatches the project's own auth priority order and PyPI's page inherits it verbatim ([#236](https://github.com/khuisman/mcp-gee-sweet/issues/236))
+- [ ] Auto-generate `docs/tools.md` from tool source as a pre-commit hook — do this first; it makes the manual tools.md backfill in #236 unnecessary ([#94](https://github.com/khuisman/mcp-gee-sweet/issues/94))
+- [ ] Correct `docs/roadmap.md`'s own tool catalog counts, `known-limitations.md`'s `list_all_events` entry, and rework README's/`docs/client-setup.md`'s Configuration examples to lead with OAuth (not service account) for local/dev quick-start — currently mismatches the project's own auth priority order and PyPI's page inherits it verbatim ([#236](https://github.com/khuisman/mcp-gee-sweet/issues/236))
 - [ ] Rewrite `CONTRIBUTING.md` — fix broken links to removed README anchors, fix stale "Available Tool Names" and `bug`-label references, add better local-dev setup examples including observability (`DEBUG_LEVEL`/`LOG_FILE`/`ACCESS_LOG_FILE`) ([#95](https://github.com/khuisman/mcp-gee-sweet/issues/95))
 - [ ] Define and document community PR expectations — template, testing bar for non-tool PRs, scope/size convention, CLA/DCO/code-of-conduct decision, review turnaround ([#237](https://github.com/khuisman/mcp-gee-sweet/issues/237))
-- [ ] Auto-generate `docs/tools.md` from tool source as a pre-commit hook — the structural fix that prevents this drift from recurring ([#94](https://github.com/khuisman/mcp-gee-sweet/issues/94))
 
 ### Tier 2 — Useful for structured work, features only _(target: v0.9.0)_
 
@@ -127,7 +126,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [x] Drive Activity API — file change history ([#72](https://github.com/khuisman/mcp-gee-sweet/issues/72))
 
 **Infrastructure**
-- [ ] Runtime-configurable cache TTL and smarter invalidation for shared files ([#99](https://github.com/khuisman/mcp-gee-sweet/issues/99))
+- [ ] Cache reliability & configurability — runtime-configurable TTL, smarter invalidation for shared files ([#99](https://github.com/khuisman/mcp-gee-sweet/issues/99)); harden concurrent-session access — fail-open on cache read/write errors, `busy_timeout` ([#234](https://github.com/khuisman/mcp-gee-sweet/issues/234))
 
 ### Tier 3 — Advanced / occasionally needed _(target: v1.0.0)_
 
