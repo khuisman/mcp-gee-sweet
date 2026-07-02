@@ -32,8 +32,9 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 | Version | Scope | Signal |
 |---------|-------|--------|
 | **v0.7.0** | ✅ First stable PyPI release — 63 tools across Sheets, Drive, Docs, Calendar | Published 2026-06-21 |
-| **v0.8.0** | Tier 1 complete — all "frequently needed" items across all domains (~14 tools) | "Complete for everyday use" |
-| **v0.9.0** | Tier 2 complete — power-user and structured-work layer (~20 tools) | Covers most real workflows |
+| **v0.8.0** | ✅ Tier 1 complete — all "frequently needed" items across all domains (84 tools) | Published 2026-06-29 |
+| **v0.8.1** | Defect & documentation cleanup — no new tools, ships the QA/refactor work already on `develop` plus fixes for #235, #213, #234, #236 | Stabilizes before Tier 2 feature work begins |
+| **v0.9.0** | Tier 2 complete — power-user and structured-work layer, features only (~20 tools) | Covers most real workflows |
 | **v1.0.0** | API stability declaration — Tier 3 items that make the cut + any breaking cleanups from v0.8–0.9 | Backwards-compatibility commitment |
 | **v1.1.0+** | Future domains — Tasks, Gmail (separate minor releases, each needs a new API client) | Expanded scope |
 
@@ -70,7 +71,25 @@ Tier 4 items remain backlog with no assigned version.
 - [x] `list_recent_files` — files recently accessed or modified ([#136](https://github.com/khuisman/mcp-gee-sweet/issues/136))
 - [x] `get_storage_quota` — Drive storage usage and limits ([#137](https://github.com/khuisman/mcp-gee-sweet/issues/137))
 
-### Tier 2 — Useful for structured work _(target: v0.9.0)_
+### v0.8.1 — Defect & documentation cleanup _(target: v0.8.1, before Tier 2 begins)_
+
+No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature work.
+
+**Already on `develop`, awaiting release**
+- [x] Playwright per-test tagging policy, conductor prompt improvements (PR #228)
+- [x] QA test case fixes — `share_file` fixtures, TC-D148 setup, Playwright tags (PR #229)
+- [x] SQLite cache defensive recovery from read-only/corrupted DB files at connect time (PR #230)
+- [x] `tools/docs/__init__.py` split into `content.py`/`tables.py`/`style.py`/`layout.py` (PR #232)
+
+**Remaining defects to fix before cutting the release**
+- [ ] `get_sheet_data(include_grid_data=True)` without a range fetches the full padded grid instead of the used range ([#235](https://github.com/khuisman/mcp-gee-sweet/issues/235))
+- [ ] `create_doc_from_file` markdown `$` escape renders as literal backslash+dollar in the doc ([#213](https://github.com/khuisman/mcp-gee-sweet/issues/213))
+- [ ] Auto-generate `docs/tools.md` from tool source as a pre-commit hook — do this first; it makes the manual tools.md backfill in #236 unnecessary ([#94](https://github.com/khuisman/mcp-gee-sweet/issues/94))
+- [ ] Correct `docs/roadmap.md`'s own tool catalog counts, `known-limitations.md`'s `list_all_events` entry, and rework README's/`docs/client-setup.md`'s Configuration examples to lead with OAuth (not service account) for local/dev quick-start — currently mismatches the project's own auth priority order and PyPI's page inherits it verbatim ([#236](https://github.com/khuisman/mcp-gee-sweet/issues/236))
+- [ ] Rewrite `CONTRIBUTING.md` — fix broken links to removed README anchors, fix stale "Available Tool Names" and `bug`-label references, add better local-dev setup examples including observability (`DEBUG_LEVEL`/`LOG_FILE`/`ACCESS_LOG_FILE`) ([#95](https://github.com/khuisman/mcp-gee-sweet/issues/95))
+- [ ] Define and document community PR expectations — template, testing bar for non-tool PRs, scope/size convention, CLA/DCO/code-of-conduct decision, review turnaround ([#237](https://github.com/khuisman/mcp-gee-sweet/issues/237))
+
+### Tier 2 — Useful for structured work, features only _(target: v0.9.0)_
 
 **Sheets**
 - [ ] `update_borders` — border style, width, color on a range ([#122](https://github.com/khuisman/mcp-gee-sweet/issues/122)) _(freema/mcp-gsheets)_
@@ -79,18 +98,21 @@ Tier 4 items remain backlog with no assigned version.
 - [ ] `add_data_validation` / `get_data_validation` — dropdowns, checkboxes, value constraints ([#125](https://github.com/khuisman/mcp-gee-sweet/issues/125)) _(freema/mcp-gsheets)_
 - [ ] `update_sheet_properties` — tab color, hide/show gridlines ([#126](https://github.com/khuisman/mcp-gee-sweet/issues/126)) _(freema/mcp-gsheets)_
 - [ ] `duplicate_sheet` — copy a sheet within the same spreadsheet ([#127](https://github.com/khuisman/mcp-gee-sweet/issues/127))
+- [ ] Partial (rich-text) hyperlinks in `update_cells` ([#89](https://github.com/khuisman/mcp-gee-sweet/issues/89))
+- [ ] `import_csv_to_sheet` — populate a spreadsheet from a local CSV file ([#187](https://github.com/khuisman/mcp-gee-sweet/issues/187))
 
 **Calendar**
 - [ ] `create_calendar` / `update_calendar` / `delete_calendar` — calendar lifecycle ([#156](https://github.com/khuisman/mcp-gee-sweet/issues/156))
 - [ ] `add_calendar_to_list` / `remove_calendar_from_list` — subscribe/unsubscribe ([#157](https://github.com/khuisman/mcp-gee-sweet/issues/157))
 - [ ] Calendar ACL — share a calendar with users or groups ([#158](https://github.com/khuisman/mcp-gee-sweet/issues/158))
+- [ ] `list_all_events` — query all subscribed calendars in parallel _(decision needed — also tracked in Decisions Needed)_ ([#194](https://github.com/khuisman/mcp-gee-sweet/issues/194))
 
 **Docs**
 - [ ] `insert_page_break` — explicit page break at an index ([#148](https://github.com/khuisman/mcp-gee-sweet/issues/148))
 - [ ] `merge_table_cells` — merge cells in an existing table (distinct from write-time colspan) ([#150](https://github.com/khuisman/mcp-gee-sweet/issues/150))
 - [ ] Comments API — list, add, resolve doc comments ([#151](https://github.com/khuisman/mcp-gee-sweet/issues/151))
 - [ ] `create_named_range` / `create_bookmark` — anchor points for internal links ([#152](https://github.com/khuisman/mcp-gee-sweet/issues/152))
-- [ ] Rowspan emitter — AST `Cell.rowspan` field exists but emitter does not yet merge rows
+- [ ] Rowspan emitter — AST `Cell.rowspan` field exists but emitter does not yet merge rows ([#195](https://github.com/khuisman/mcp-gee-sweet/issues/195))
 - [ ] Warn/error on mixed text + nested table in same cell ([#108](https://github.com/khuisman/mcp-gee-sweet/issues/108))
 - [ ] colspan/rowspan inside nested tables ([#109](https://github.com/khuisman/mcp-gee-sweet/issues/109))
 
@@ -99,7 +121,12 @@ Tier 4 items remain backlog with no assigned version.
 - [ ] `star_file` / `unstar_file` — mark files with a star for easy retrieval ([#139](https://github.com/khuisman/mcp-gee-sweet/issues/139))
 - [ ] `transfer_ownership` — transfer a file to another user ([#140](https://github.com/khuisman/mcp-gee-sweet/issues/140))
 - [ ] `create_shortcut` — create a Drive shortcut to a file ([#141](https://github.com/khuisman/mcp-gee-sweet/issues/141))
+- [ ] `sync_folder` — option to convert markdown files to Google Docs on upload ([#211](https://github.com/khuisman/mcp-gee-sweet/issues/211))
+- [ ] `upload_local_file` with Drive format conversion (CSV→Sheets, MD→Docs) ([#188](https://github.com/khuisman/mcp-gee-sweet/issues/188))
 - [x] Drive Activity API — file change history ([#72](https://github.com/khuisman/mcp-gee-sweet/issues/72))
+
+**Infrastructure**
+- [ ] Cache reliability & configurability — runtime-configurable TTL, smarter invalidation for shared files ([#99](https://github.com/khuisman/mcp-gee-sweet/issues/99)); harden concurrent-session access — fail-open on cache read/write errors, `busy_timeout` ([#234](https://github.com/khuisman/mcp-gee-sweet/issues/234))
 
 ### Tier 3 — Advanced / occasionally needed _(target: v1.0.0)_
 
@@ -137,6 +164,23 @@ Tier 4 items remain backlog with no assigned version.
 **Calendar**
 - [ ] Working location / OOO / Focus time events ([#164](https://github.com/khuisman/mcp-gee-sweet/issues/164))
 - [ ] Watch notifications — webhook push on calendar or event changes ([#165](https://github.com/khuisman/mcp-gee-sweet/issues/165))
+
+### Decisions Needed — blocking backlog _(no assigned version)_
+
+Design questions raised during Phase 1 QA that need a deliberate product/API decision rather than just code. Each blocks whichever tool it names until resolved — pick these up opportunistically alongside the tool they affect, or dedicate a pass to clear the backlog.
+
+- [ ] `get_sheet_data` on an unknown sheet — exception vs structured error ([#31](https://github.com/khuisman/mcp-gee-sweet/issues/31))
+- [ ] `batch_update_cells` empty input — validation error vs silent no-op ([#32](https://github.com/khuisman/mcp-gee-sweet/issues/32))
+- [ ] `add_rows` count cap — accept unlimited or enforce a maximum ([#33](https://github.com/khuisman/mcp-gee-sweet/issues/33))
+- [ ] `rename_sheet` same-name — skip the API call or always round-trip ([#34](https://github.com/khuisman/mcp-gee-sweet/issues/34))
+- [ ] `create_sheet` duplicate title — API error or auto-suffix ([#35](https://github.com/khuisman/mcp-gee-sweet/issues/35))
+- [ ] Hide Drive-create tools from the toolset when service account auth is detected ([#36](https://github.com/khuisman/mcp-gee-sweet/issues/36))
+- [ ] `list_spreadsheets` with no folder — all accessible or Drive root ([#37](https://github.com/khuisman/mcp-gee-sweet/issues/37))
+- [ ] Validate ownership before `share_spreadsheet` / `share_file` ([#38](https://github.com/khuisman/mcp-gee-sweet/issues/38))
+- [ ] `search_spreadsheets` empty query — return all or require non-empty input ([#39](https://github.com/khuisman/mcp-gee-sweet/issues/39))
+- [ ] `get_file_metadata` size field for Workspace files — normalize or document ([#40](https://github.com/khuisman/mcp-gee-sweet/issues/40))
+- [ ] `rows_to_fetch=0` — clamp to 1 or return all rows ([#78](https://github.com/khuisman/mcp-gee-sweet/issues/78))
+- [ ] `list_all_events` — how to handle per-calendar failures when querying in parallel (partial results vs fail-fast) ([#194](https://github.com/khuisman/mcp-gee-sweet/issues/194))
 
 ---
 
@@ -183,6 +227,7 @@ The test expected the API to silently truncate a 2D array that's wider than the 
 - [x] Google Docs tools (all 13) — `docs.md`
 - [x] Calendar tools — `calendar.md`
 - [x] Infrastructure — `infra.md`
+- [ ] QA gaps targeted for v0.9 — second Drive folder fixture ([#44](https://github.com/khuisman/mcp-gee-sweet/issues/44)), shared drive coverage ([#48](https://github.com/khuisman/mcp-gee-sweet/issues/48)), domain/public sharing coverage ([#49](https://github.com/khuisman/mcp-gee-sweet/issues/49)), local-filesystem coverage ([#50](https://github.com/khuisman/mcp-gee-sweet/issues/50)), environment-constraint coverage ([#53](https://github.com/khuisman/mcp-gee-sweet/issues/53)), image fixtures for `insert_inline_image` ([#224](https://github.com/khuisman/mcp-gee-sweet/issues/224)), dedicated QA Google account ([#225](https://github.com/khuisman/mcp-gee-sweet/issues/225)), OAuth all-scopes token for faster setup ([#226](https://github.com/khuisman/mcp-gee-sweet/issues/226)), disposition of v0.8.0 SKIP entries ([#227](https://github.com/khuisman/mcp-gee-sweet/issues/227))
 - See [GitHub Issues (label: qa)](https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Aqa) for open QA gaps and fixture issues
 
 ---
