@@ -37,11 +37,24 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 ### TC-R03: Grid data with formatting
 
 **Prompt**
-> "Get the Sales sheet from {SPREADSHEET_ID} with full grid data including formatting"
+> "Get A1:D6 from the Sales sheet of {SPREADSHEET_ID} with full grid data including formatting"
 
 **Checks**
 - Response includes `rowData` field
 - `include_grid_data=True` was passed to the API (visible in raw response structure)
+- Call includes `range="A1:D6"` — as of issue #235, `include_grid_data=True` requires a range
+
+---
+
+### TC-R03b: Grid data without a range raises a validation error (issue #235)
+
+**Setup**
+Call `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", include_grid_data=True)` — no `range` argument.
+
+**Checks**
+- Call raises/returns an error before any Sheets API request is made — not a silent full-grid fetch
+- Error message mentions that `range` is required when `include_grid_data=True`
+- No "Connection closed" / oversized-response symptom (the original failure mode)
 
 ---
 

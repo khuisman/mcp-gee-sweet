@@ -25,10 +25,13 @@ def register(tool):
         Args:
             spreadsheet_id: The ID of the spreadsheet (found in the URL)
             sheet: The name of the sheet
-            range: Optional cell range in A1 notation (e.g., 'A1:C10'). If not provided, gets all data.
+            range: Cell range in A1 notation (e.g., 'A1:C10'). If not provided, gets all data —
+                required when include_grid_data=True (see below).
             include_grid_data: If True, includes cell formatting and other metadata in the response.
-                Note: Setting this to True will significantly increase the response size and token usage
-                when parsing the response, as it includes detailed cell formatting information.
+                Requires range to be set: sheets default to a padded 1000x26 grid regardless of
+                actual content, and fetching per-cell formatting for the full padded grid instead
+                of just your data can produce a response large enough to break the client
+                connection. Pass a range covering your content's actual extent.
                 Default is False (returns values only, more efficient).
 
         Returns:
@@ -40,6 +43,14 @@ def register(tool):
         full_range = f"{quoted}!{range}" if range else quoted
 
         if include_grid_data:
+            if not range:
+                raise ValueError(
+                    "get_sheet_data(include_grid_data=True) requires a range. Omitting it "
+                    "would fetch formatting for the sheet's full padded grid (often 1000x26 "
+                    "by default) rather than just its content, which can produce a response "
+                    "large enough to break the client connection. Pass a range covering the "
+                    "data you actually need, e.g. range='A1:C50'."
+                )
             result = (
                 sheets_service.spreadsheets()
                 .get(spreadsheetId=spreadsheet_id, ranges=[full_range], includeGridData=True)
