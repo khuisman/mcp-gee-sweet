@@ -19,6 +19,7 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I15 (hot reload) | Manual / live QA only — known uvicorn + SSE limitation, observe and note |
 | TC-I16–I20 (logging) | ✅ Already live-tested and passed — see Result entries below |
 | DB recovery (issue #212) | Unit-tested in `tests/test_cache.py` `TestOpenFallback` — read-only file, read-only dir, and `:memory:` fallback all covered |
+| Tool doc generation (issue #94) | `scripts/gen_tool_docs.py` is a build-time/pre-commit script, not an MCP tool — no live prompt applies. Unit-tested in `tests/test_gen_tool_docs.py`: every registered tool is covered by a section and has a docstring, subset validation catches unknown tool names, and `main()` is idempotent on a second run |
 
 ---
 

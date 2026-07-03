@@ -1,0 +1,340 @@
+#!/usr/bin/env python3
+"""
+Regenerate docs/tools.md and the "Suggested subsets" block of docs/configuration.md
+from the tool source in src/mcp_gee_sweet/tools/.
+
+Usage:
+    uv run python scripts/gen_tool_docs.py
+
+Wired into .pre-commit-config.yaml as a local hook. Both files are treated as
+generated output after this lands — hand edits to the tool tables will be
+overwritten on the next run. Prose that isn't mechanically derivable (escape
+hatch notes, enum values, auth caveats) lives in the SECTIONS/SUBSETS config
+below, not in the markdown files themselves.
+
+A tool with no docstring fails the run, since the description column is
+sourced entirely from it — see require_docstrings().
+"""
+
+import inspect
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
+
+from mcp_gee_sweet.tools import register_all  # noqa: E402
+
+TOOLS_MD = ROOT / "docs" / "tools.md"
+CONFIG_MD = ROOT / "docs" / "configuration.md"
+
+
+def collect_tools():
+    """Call register_all() with a capturing decorator instead of the real
+    FastMCP one, so this script never touches the mcp/auth machinery."""
+    captured = []
+
+    def tool(annotations=None):  # noqa: ARG001 — keyword must match the real tool() decorator
+        def decorator(func):
+            captured.append(func)
+            return func
+
+        return decorator
+
+    register_all(tool)
+    return captured
+
+
+def require_docstrings(funcs) -> None:
+    missing = sorted(f.__name__ for f in funcs if not inspect.getdoc(f))
+    if missing:
+        raise RuntimeError(
+            "gen_tool_docs: these tools have no docstring, so docs/tools.md can't "
+            f"describe them: {', '.join(missing)}. Add one and re-run."
+        )
+
+
+def summary(func) -> str:
+    doc = inspect.getdoc(func) or ""
+    paragraph = doc.split("\n\n")[0]
+    return " ".join(paragraph.split())
+
+
+def param_list(func) -> str:
+    sig = inspect.signature(func)
+    names = []
+    for name, p in sig.parameters.items():
+        if name == "ctx":
+            continue
+        optional = p.default is not inspect.Parameter.empty
+        names.append(f"`{name}{'?' if optional else ''}`")
+    return ", ".join(names) if names else "—"
+
+
+# Ordered (title, predicate, trailing notes) — predicate selects which
+# collected functions belong in this section. Order here is the order tools
+# appear in the generated file.
+SECTIONS = [
+    (
+        "Sheets — data",
+        lambda f: f.__module__ == "mcp_gee_sweet.tools.sheets.data",
+        "`batch_update` is the escape hatch for anything not covered by a named "
+        "tool (formatting, conditional formatting, dimension properties, etc.).",
+    ),
+    (
+        "Sheets — structure",
+        lambda f: f.__module__ == "mcp_gee_sweet.tools.sheets.structure",
+        "`add_chart` supports types: `COLUMN`, `BAR`, `LINE`, `AREA`, `PIE`, "
+        "`SCATTER`, `COMBO`, `HISTOGRAM`.",
+    ),
+    (
+        "Spreadsheets (Drive-level)",
+        lambda f: (
+            f.__module__ == "mcp_gee_sweet.tools.drive.files"
+            and f.__name__ in {"create_spreadsheet", "list_spreadsheets", "search_spreadsheets"}
+        ),
+        "`create_spreadsheet` cannot create files in a personal Drive when using "
+        "service account auth — use OAuth or a Shared Drive.",
+    ),
+    (
+        "Drive — files",
+        lambda f: (
+            f.__module__ == "mcp_gee_sweet.tools.drive.files"
+            and f.__name__ not in {"create_spreadsheet", "list_spreadsheets", "search_spreadsheets"}
+        ),
+        None,
+    ),
+    ("Drive — transfer", lambda f: f.__module__ == "mcp_gee_sweet.tools.drive.transfer", None),
+    (
+        "Drive — sharing",
+        lambda f: f.__module__ == "mcp_gee_sweet.tools.drive.sharing",
+        "`share_spreadsheet`'s `recipients` is a list of `{email_address, role}` "
+        "objects. Valid roles: `reader`, `commenter`, `writer`, `owner`.\n\n"
+        "`share_file`'s `permissions` is a list of `{type, role, ...}` objects — "
+        "`type` is `user`, `group`, `domain`, or `anyone`; `user`/`group` also "
+        "need `email_address`, `domain` needs `domain`. Valid roles: `reader`, "
+        "`commenter`, `writer`.",
+    ),
+    (
+        "Drive — activity",
+        lambda f: f.__module__ == "mcp_gee_sweet.tools.drive.activity",
+        "Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.",
+    ),
+    (
+        "Docs",
+        lambda f: f.__module__.startswith("mcp_gee_sweet.tools.docs."),
+        "`write_doc_content` accepts HTML and converts it to Docs API requests via "
+        "the HTML→AST→emitter pipeline. See [Docs AST Pipeline]"
+        "(design/docs-ast-pipeline.md) for the design.\n\n"
+        "`create_doc` cannot create files in a personal Drive when using service "
+        "account auth — see [Authentication]"
+        "(auth.md#method-a-service-account-recommended-for-servers).",
+    ),
+    (
+        "Calendar",
+        lambda f: f.__module__ == "mcp_gee_sweet.tools.calendar",
+        "**Note:** when using service account auth, calendars must be explicitly "
+        "shared with the service account. The service account must also subscribe "
+        "to shared calendars via `calendarList().insert()` before they appear in "
+        "`list_calendars`.",
+    ),
+    (
+        "Cache",
+        lambda f: f.__module__ == "mcp_gee_sweet.tools.cache",
+        "Omit all parameters to flush the entire cache. See [Configuration]"
+        "(configuration.md#caching) for TTL and path settings.",
+    ),
+]
+
+MCP_RESOURCES = """## MCP resources
+
+Two resources are available (read-only, not tools):
+
+| Resource | Description |
+|---|---|
+| `server://auth-status` | Active auth method and Drive capability limits |
+| `spreadsheet://{spreadsheet_id}/info` | Sheet list and grid properties for a spreadsheet |
+"""
+
+# Suggested ENABLED_TOOLS presets for docs/configuration.md. Every name here is
+# validated against the live tool set at generation time — a rename or removal
+# fails the run instead of silently documenting a dead tool name.
+SUBSETS = [
+    (
+        "Read-only Sheets",
+        [
+            "get_sheet_data",
+            "get_sheet_formulas",
+            "get_multiple_sheet_data",
+            "get_multiple_spreadsheet_summary",
+            "find_in_spreadsheet",
+            "list_sheets",
+            "list_spreadsheets",
+        ],
+    ),
+    (
+        "Sheets read + write",
+        [
+            "get_sheet_data",
+            "get_sheet_formulas",
+            "get_multiple_sheet_data",
+            "get_multiple_spreadsheet_summary",
+            "find_in_spreadsheet",
+            "list_sheets",
+            "list_spreadsheets",
+            "update_cells",
+            "batch_update_cells",
+            "create_sheet",
+            "rename_sheet",
+            "add_rows",
+            "add_columns",
+        ],
+    ),
+    (
+        "Docs only",
+        [
+            "create_doc",
+            "get_doc_content",
+            "get_doc_structure",
+            "write_doc_content",
+            "insert_doc_text",
+            "insert_doc_table",
+            "delete_doc_range",
+            "style_doc_range",
+            "style_doc_table_cells",
+        ],
+    ),
+    (
+        "Calendar only",
+        [
+            "list_calendars",
+            "get_calendar",
+            "list_events",
+            "get_event",
+            "create_event",
+            "update_event",
+            "delete_event",
+            "find_free_slots",
+        ],
+    ),
+]
+
+
+def render_tools_md(funcs) -> str:
+    lines = [
+        "# Tool Reference",
+        "",
+        f"{len(funcs)} tools. All tool names are lowercase with underscores — use "
+        "these exact strings with `ENABLED_TOOLS` or `--include-tools`.",
+        "",
+    ]
+    seen = set()
+    for title, predicate, notes in SECTIONS:
+        matched = [f for f in funcs if predicate(f)]
+        seen.update(matched)
+        lines.append(f"## {title}")
+        lines.append("")
+        lines.append("| Tool | Description | Key parameters |")
+        lines.append("|---|---|---|")
+        for func in matched:
+            lines.append(f"| `{func.__name__}` | {summary(func)} | {param_list(func)} |")
+        lines.append("")
+        if notes:
+            lines.append(notes)
+            lines.append("")
+
+    unmatched = [f for f in funcs if f not in seen]
+    if unmatched:
+        names = ", ".join(sorted(f.__name__ for f in unmatched))
+        raise RuntimeError(
+            f"gen_tool_docs: no SECTIONS entry matches these tools: {names}. "
+            "Add a section (or predicate) for them in scripts/gen_tool_docs.py."
+        )
+
+    lines.append(MCP_RESOURCES)
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_subsets_block(known_names: set[str]) -> str:
+    lines = [
+        "## Tool filtering",
+        "",
+        f"By default all {len(known_names)} tools are registered. Use `ENABLED_TOOLS` "
+        "(or `--include-tools` on the CLI) to restrict the server to exactly the "
+        "tools you need. This reduces the AI's context window cost — each "
+        "registered tool is a name the model must reason about on every call.",
+        "",
+        "```bash",
+        "# Environment variable",
+        "ENABLED_TOOLS=get_sheet_data,update_cells,list_spreadsheets,list_sheets",
+        "",
+        "# CLI flag",
+        "uv run mcp-gee-sweet --include-tools get_sheet_data,update_cells,list_spreadsheets",
+        "```",
+        "",
+        "If neither is set, all tools are registered.",
+        "",
+        "### Suggested subsets",
+        "",
+    ]
+    for name, tool_names in SUBSETS:
+        unknown = [t for t in tool_names if t not in known_names]
+        if unknown:
+            raise RuntimeError(
+                f"gen_tool_docs: subset {name!r} references unknown tool(s): "
+                f"{', '.join(unknown)}. Update SUBSETS in scripts/gen_tool_docs.py."
+            )
+        lines.append(f"**{name}:**")
+        lines.append("```")
+        lines.append(",".join(tool_names))
+        lines.append("```")
+        lines.append("")
+    lines.append("See [Tools](tools.md) for the full list of tool names.")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_if_changed(path: Path, content: str) -> bool:
+    if path.exists() and path.read_text() == content:
+        return False
+    path.write_text(content)
+    return True
+
+
+def main() -> int:
+    funcs = collect_tools()
+    require_docstrings(funcs)
+    known_names = {f.__name__ for f in funcs}
+
+    changed = write_if_changed(TOOLS_MD, render_tools_md(funcs))
+
+    config_text = CONFIG_MD.read_text()
+    new_block = render_subsets_block(known_names)
+    # backslash-escape the replacement so re.sub doesn't treat it as a backreference template
+    escaped_block = new_block.replace("\\", "\\\\") + "\n"
+    updated_config, n_subs = re.subn(
+        r"## Tool filtering\n.*?\n(?=## )",
+        escaped_block,
+        config_text,
+        count=1,
+        flags=re.DOTALL,
+    )
+    if n_subs == 0:
+        raise RuntimeError(
+            "gen_tool_docs: could not find '## Tool filtering' section in "
+            f"{CONFIG_MD.relative_to(ROOT)} to replace."
+        )
+    if updated_config != config_text:
+        CONFIG_MD.write_text(updated_config)
+        changed = True
+
+    if changed:
+        print("gen_tool_docs: regenerated docs/tools.md and/or docs/configuration.md")
+        return 1
+    print("gen_tool_docs: docs already up to date")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

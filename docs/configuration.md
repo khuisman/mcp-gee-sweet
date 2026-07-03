@@ -66,7 +66,7 @@ Access logs are emitted at `INFO` level — they appear when `DEBUG_LEVEL` is `D
 
 ## Tool filtering
 
-By default all 60 tools are registered. Use `ENABLED_TOOLS` (or `--include-tools` on the CLI) to restrict the server to exactly the tools you need. This reduces the AI's context window cost — each registered tool is a name the model must reason about on every call.
+By default all 84 tools are registered. Use `ENABLED_TOOLS` (or `--include-tools` on the CLI) to restrict the server to exactly the tools you need. This reduces the AI's context window cost — each registered tool is a name the model must reason about on every call.
 
 ```bash
 # Environment variable

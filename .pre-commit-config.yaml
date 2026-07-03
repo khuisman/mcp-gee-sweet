@@ -5,3 +5,11 @@ repos:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+  - repo: local
+    hooks:
+      - id: gen-tool-docs
+        name: Regenerate tool docs
+        entry: uv run python scripts/gen_tool_docs.py
+        language: system
+        pass_filenames: false
+        files: ^(src/mcp_gee_sweet/tools/.*\.py|docs/tools\.md|docs/configuration\.md)$
