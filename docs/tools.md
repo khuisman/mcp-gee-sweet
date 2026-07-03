@@ -8,7 +8,7 @@
 
 | Tool | Description | Key parameters |
 |---|---|---|
-| `get_sheet_data` | Get data from a specific sheet in a Google Spreadsheet. | `spreadsheet_id`, `sheet`, `range?`, `include_grid_data?` |
+| `get_sheet_data` | Get data from a specific sheet in a Google Spreadsheet. | `spreadsheet_id`, `sheet`, `range?`, `include_grid_data?`, `local_path?` |
 | `get_sheet_formulas` | Get formulas from a specific sheet in a Google Spreadsheet. | `spreadsheet_id`, `sheet`, `range?` |
 | `get_multiple_sheet_data` | Get data from multiple specific ranges in Google Spreadsheets. | `queries` |
 | `get_multiple_spreadsheet_summary` | Get a summary of multiple Google Spreadsheets, including sheet names, headers, and the first few rows of data for each sheet. | `spreadsheet_ids`, `rows_to_fetch?` |

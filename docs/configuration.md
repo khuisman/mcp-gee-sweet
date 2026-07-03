@@ -14,6 +14,7 @@
 | `ENABLED_TOOLS` | Comma-separated list of tool names to register | all tools |
 | `CACHE_DB_PATH` | Path to the SQLite cache database | `/tmp/mcp_gee_sweet.db` |
 | `CACHE_TTL` | Cache time-to-live in seconds | `1800` (30 min) |
+| `MAX_GRID_DATA_RESPONSE_CHARS` | Safety cap on `get_sheet_data(include_grid_data=True)` response size, in characters. Raise to match a raised `MAX_MCP_OUTPUT_TOKENS` in your MCP client (roughly 2 characters per token observed for this densely-formatted JSON) | `40000` |
 | `HOST` | Bind address for SSE transport | `0.0.0.0` |
 | `PORT` | Port for SSE transport | `8000` |
 | `DEBUG_LEVEL` | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR` — controls package and access logs | — |
