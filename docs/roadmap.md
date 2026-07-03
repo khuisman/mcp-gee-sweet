@@ -31,12 +31,12 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 
 | Version | Scope | Signal |
 |---------|-------|--------|
-| **v0.7.0** | ✅ First stable PyPI release — 63 tools across Sheets, Drive, Docs, Calendar | Published 2026-06-21 |
-| **v0.8.0** | ✅ Tier 1 complete — all "frequently needed" items across all domains (84 tools) | Published 2026-06-29 |
-| **v0.8.1** | Defect & documentation cleanup — no new tools, ships the QA/refactor work already on `develop` plus fixes for #235, #213, #239, #236 | Stabilizes before Tier 2 feature work begins |
-| **v0.9.0** | Tier 2 complete — power-user and structured-work layer, features only (~20 tools) | Covers most real workflows |
-| **v1.0.0** | API stability declaration — Tier 3 items that make the cut + any breaking cleanups from v0.8–0.9 | Backwards-compatibility commitment |
-| **v1.1.0+** | Future domains — Tasks, Gmail (separate minor releases, each needs a new API client) | Expanded scope |
+| [**v0.7.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.7) | ✅ First stable PyPI release — 63 tools across Sheets, Drive, Docs, Calendar | Published 2026-06-21 |
+| [**v0.8.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8) | ✅ Tier 1 complete — all "frequently needed" items across all domains (84 tools) | Published 2026-06-29 |
+| [**v0.8.1**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8.1) | Defect & documentation cleanup — no new tools, ships the QA/refactor work already on `develop` plus fixes for #235, #242, #213, #239, #236 | Stabilizes before Tier 2 feature work begins |
+| [**v0.9.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9) | Tier 2 complete — power-user and structured-work layer, features only (~20 tools) | Covers most real workflows |
+| [**v1.0.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0) | API stability declaration — Tier 3 items that make the cut + any breaking cleanups from v0.8–0.9 | Backwards-compatibility commitment |
+| [**v1.1.0+**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22v1.1%2B%22) | Future domains — Tasks, Gmail (separate minor releases, each needs a new API client) | Expanded scope |
 
 Tier 4 items remain backlog with no assigned version.
 
@@ -44,7 +44,7 @@ Tier 4 items remain backlog with no assigned version.
 
 ## Roadmap
 
-### Tier 1 — High value, frequently needed _(target: v0.8.0)_
+### Tier 1 — High value, frequently needed _(target: [v0.8.0](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8))_
 
 **Infrastructure**
 - [x] PyPI publish — OIDC trusted publishing ([#55](https://github.com/khuisman/mcp-gee-sweet/issues/55)) — v0.7.0 stable live; `uvx mcp-gee-sweet` works
@@ -71,7 +71,7 @@ Tier 4 items remain backlog with no assigned version.
 - [x] `list_recent_files` — files recently accessed or modified ([#136](https://github.com/khuisman/mcp-gee-sweet/issues/136))
 - [x] `get_storage_quota` — Drive storage usage and limits ([#137](https://github.com/khuisman/mcp-gee-sweet/issues/137))
 
-### v0.8.1 — Defect & documentation cleanup _(target: v0.8.1, before Tier 2 begins)_
+### v0.8.1 — Defect & documentation cleanup _(target: [v0.8.1](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8.1), before Tier 2 begins)_
 
 No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature work.
 
@@ -83,6 +83,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 
 **Remaining defects to fix before cutting the release**
 - [ ] `get_sheet_data(include_grid_data=True)` without a range fetches the full padded grid instead of the used range ([#235](https://github.com/khuisman/mcp-gee-sweet/issues/235))
+- [ ] Generalize the #235 response-size safety net (post-fetch size check + configurable cap + `local_path` bypass) to other tools that can return large responses — `export_file`, `get_doc_content`, `get_multiple_sheet_data`, `find_in_spreadsheet`, `list_file_activity`. Oversized responses silently kill the MCP session today (client-side output cap, e.g. Claude Code's `MAX_MCP_OUTPUT_TOKENS`), requiring a server restart to recover — confirmed live, not hypothetical. Verifying which tools/thresholds actually trigger it requires generating fixtures above the ceiling per tool, which gets most of the way to the fix anyway, so investigation and fix are scoped as one unit ([#242](https://github.com/khuisman/mcp-gee-sweet/issues/242))
 - [ ] `create_doc_from_file` markdown `$` escape renders as literal backslash+dollar in the doc ([#213](https://github.com/khuisman/mcp-gee-sweet/issues/213))
 - [ ] Unknown tool parameters are silently dropped instead of raising a validation error — FastMCP's generated pydantic arg models default to ignoring extra fields, so a typo'd kwarg (e.g. `parent_id` instead of `parent_folder_id`) silently falls back to default behavior instead of erroring ([#239](https://github.com/khuisman/mcp-gee-sweet/issues/239))
 - [x] Auto-generate `docs/tools.md` from tool source as a pre-commit hook — makes the manual tools.md backfill in #236 unnecessary (PR #240) ([#94](https://github.com/khuisman/mcp-gee-sweet/issues/94))
@@ -90,7 +91,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [ ] Rewrite `CONTRIBUTING.md` — fix broken links to removed README anchors, fix stale "Available Tool Names" and `bug`-label references, add better local-dev setup examples including observability (`DEBUG_LEVEL`/`LOG_FILE`/`ACCESS_LOG_FILE`) ([#95](https://github.com/khuisman/mcp-gee-sweet/issues/95))
 - [ ] Define and document community PR expectations — template, testing bar for non-tool PRs, scope/size convention, CLA/DCO/code-of-conduct decision, review turnaround ([#237](https://github.com/khuisman/mcp-gee-sweet/issues/237))
 
-### Tier 2 — Useful for structured work, features only _(target: v0.9.0)_
+### Tier 2 — Useful for structured work, features only _(target: [v0.9.0](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9))_
 
 **Sheets**
 - [ ] `update_borders` — border style, width, color on a range ([#122](https://github.com/khuisman/mcp-gee-sweet/issues/122)) _(freema/mcp-gsheets)_
@@ -129,7 +130,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 **Infrastructure**
 - [ ] Cache reliability & configurability — runtime-configurable TTL, smarter invalidation for shared files ([#99](https://github.com/khuisman/mcp-gee-sweet/issues/99)); harden concurrent-session access — fail-open on cache read/write errors, `busy_timeout` ([#234](https://github.com/khuisman/mcp-gee-sweet/issues/234))
 
-### Tier 3 — Advanced / occasionally needed _(target: v1.0.0)_
+### Tier 3 — Advanced / occasionally needed _(target: [v1.0.0](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0))_
 
 **Sheets**
 - [ ] `add_conditional_formatting` / `delete_conditional_formatting` ([#129](https://github.com/khuisman/mcp-gee-sweet/issues/129)) _(freema/mcp-gsheets)_
