@@ -33,7 +33,7 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 |---------|-------|--------|
 | **v0.7.0** | ✅ First stable PyPI release — 63 tools across Sheets, Drive, Docs, Calendar | Published 2026-06-21 |
 | **v0.8.0** | ✅ Tier 1 complete — all "frequently needed" items across all domains (84 tools) | Published 2026-06-29 |
-| **v0.8.1** | Defect & documentation cleanup — no new tools, ships the QA/refactor work already on `develop` plus fixes for #235, #213, #234, #236 | Stabilizes before Tier 2 feature work begins |
+| **v0.8.1** | Defect & documentation cleanup — no new tools, ships the QA/refactor work already on `develop` plus fixes for #235, #213, #239, #236 | Stabilizes before Tier 2 feature work begins |
 | **v0.9.0** | Tier 2 complete — power-user and structured-work layer, features only (~20 tools) | Covers most real workflows |
 | **v1.0.0** | API stability declaration — Tier 3 items that make the cut + any breaking cleanups from v0.8–0.9 | Backwards-compatibility commitment |
 | **v1.1.0+** | Future domains — Tasks, Gmail (separate minor releases, each needs a new API client) | Expanded scope |
@@ -84,7 +84,8 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 **Remaining defects to fix before cutting the release**
 - [ ] `get_sheet_data(include_grid_data=True)` without a range fetches the full padded grid instead of the used range ([#235](https://github.com/khuisman/mcp-gee-sweet/issues/235))
 - [ ] `create_doc_from_file` markdown `$` escape renders as literal backslash+dollar in the doc ([#213](https://github.com/khuisman/mcp-gee-sweet/issues/213))
-- [ ] Auto-generate `docs/tools.md` from tool source as a pre-commit hook — do this first; it makes the manual tools.md backfill in #236 unnecessary ([#94](https://github.com/khuisman/mcp-gee-sweet/issues/94))
+- [ ] Unknown tool parameters are silently dropped instead of raising a validation error — FastMCP's generated pydantic arg models default to ignoring extra fields, so a typo'd kwarg (e.g. `parent_id` instead of `parent_folder_id`) silently falls back to default behavior instead of erroring ([#239](https://github.com/khuisman/mcp-gee-sweet/issues/239))
+- [ ] Auto-generate `docs/tools.md` from tool source as a pre-commit hook — PR #240 open; makes the manual tools.md backfill in #236 unnecessary ([#94](https://github.com/khuisman/mcp-gee-sweet/issues/94))
 - [ ] Correct `docs/roadmap.md`'s own tool catalog counts, `known-limitations.md`'s `list_all_events` entry, and rework README's/`docs/client-setup.md`'s Configuration examples to lead with OAuth (not service account) for local/dev quick-start — currently mismatches the project's own auth priority order and PyPI's page inherits it verbatim ([#236](https://github.com/khuisman/mcp-gee-sweet/issues/236))
 - [ ] Rewrite `CONTRIBUTING.md` — fix broken links to removed README anchors, fix stale "Available Tool Names" and `bug`-label references, add better local-dev setup examples including observability (`DEBUG_LEVEL`/`LOG_FILE`/`ACCESS_LOG_FILE`) ([#95](https://github.com/khuisman/mcp-gee-sweet/issues/95))
 - [ ] Define and document community PR expectations — template, testing bar for non-tool PRs, scope/size convention, CLA/DCO/code-of-conduct decision, review turnaround ([#237](https://github.com/khuisman/mcp-gee-sweet/issues/237))
