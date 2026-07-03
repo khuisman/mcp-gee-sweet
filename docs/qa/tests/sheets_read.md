@@ -34,7 +34,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-R03: Grid data with formatting
+### TC-R03: Grid data with an explicit range
 
 **Prompt**
 > "Get A1:D6 from the Sales sheet of {SPREADSHEET_ID} with full grid data including formatting"
@@ -42,18 +42,19 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Checks**
 - Response includes `rowData` field
 - `include_grid_data=True` was passed to the API (visible in raw response structure)
-- Call includes `range="A1:D6"` — as of issue #235, `include_grid_data=True` requires a range
+- Call includes `range="A1:D6"` — no auto-detection probe request happens when a range is given
 
 ---
 
-### TC-R03b: Grid data without a range raises a validation error (issue #235)
+### TC-R03b: Grid data without a range auto-detects the used range (issue #235)
 
 **Setup**
-Call `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", include_grid_data=True)` — no `range` argument.
+Call `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", include_grid_data=True)` — no `range` argument. The Sales sheet has 6 rows x 4 columns of actual content but Sheets' default padded grid is 1000x26.
 
 **Checks**
-- Call raises/returns an error before any Sheets API request is made — not a silent full-grid fetch
-- Error message mentions that `range` is required when `include_grid_data=True`
+- No error — the call succeeds
+- Server makes a values-only probe request first (`get_sheet_data`'s access log should show this as reduced elapsed time vs. a full-grid request would take), then a grid-data request scoped to `A1:D6` — not the full padded grid
+- Response includes `rowData` only for the 6x4 used range, not ~26,000 padded cells
 - No "Connection closed" / oversized-response symptom (the original failure mode)
 
 ---

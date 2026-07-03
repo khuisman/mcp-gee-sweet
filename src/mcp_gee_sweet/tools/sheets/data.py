@@ -25,13 +25,17 @@ def register(tool):
         Args:
             spreadsheet_id: The ID of the spreadsheet (found in the URL)
             sheet: The name of the sheet
-            range: Cell range in A1 notation (e.g., 'A1:C10'). If not provided, gets all data —
-                required when include_grid_data=True (see below).
+            range: Optional cell range in A1 notation (e.g., 'A1:C10'). If not provided, gets all data.
+                With include_grid_data=True and no range, the used range is auto-detected (see below)
+                rather than fetching the sheet's full padded grid.
             include_grid_data: If True, includes cell formatting and other metadata in the response.
-                Requires range to be set: sheets default to a padded 1000x26 grid regardless of
-                actual content, and fetching per-cell formatting for the full padded grid instead
-                of just your data can produce a response large enough to break the client
-                connection. Pass a range covering your content's actual extent.
+                Note: Setting this to True will significantly increase the response size and token usage
+                when parsing the response, as it includes detailed cell formatting information.
+                If range is omitted, the actual used range is auto-detected first (one extra lightweight
+                values-only request) and formatting is fetched only for that — sheets default to a padded
+                1000x26 grid regardless of actual content, and fetching per-cell formatting for the full
+                padded grid instead of just your data can produce a response large enough to break the
+                client connection.
                 Default is False (returns values only, more efficient).
 
         Returns:
@@ -40,17 +44,26 @@ def register(tool):
         sheets_service = ctx.request_context.lifespan_context.sheets_service
 
         quoted = _quote_sheet_name(sheet)
+
+        if include_grid_data and not range:
+            # Auto-detect the used range so we don't fetch formatting for the sheet's full
+            # padded grid (often 1000x26 by default, regardless of actual content) — issue #235.
+            values_result = (
+                sheets_service.spreadsheets()
+                .values()
+                .get(spreadsheetId=spreadsheet_id, range=quoted)
+                .execute()
+            )
+            values = values_result.get("values", [])
+            if values:
+                last_col_index = max(len(row) for row in values) - 1
+                range = f"A1:{_column_index_to_letter(max(last_col_index, 0))}{len(values)}"
+            else:
+                range = "A1"
+
         full_range = f"{quoted}!{range}" if range else quoted
 
         if include_grid_data:
-            if not range:
-                raise ValueError(
-                    "get_sheet_data(include_grid_data=True) requires a range. Omitting it "
-                    "would fetch formatting for the sheet's full padded grid (often 1000x26 "
-                    "by default) rather than just its content, which can produce a response "
-                    "large enough to break the client connection. Pass a range covering the "
-                    "data you actually need, e.g. range='A1:C50'."
-                )
             result = (
                 sheets_service.spreadsheets()
                 .get(spreadsheetId=spreadsheet_id, ranges=[full_range], includeGridData=True)

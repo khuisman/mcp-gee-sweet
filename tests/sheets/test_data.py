@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from mcp_gee_sweet.tools.sheets import data as sheets_data_module
 
 
@@ -33,40 +31,50 @@ sheets_data_module.register(_data_tool)
 
 
 class TestGetSheetData:
-    """include_grid_data=True requires a range — omitting it would fetch formatting
-    for the sheet's full padded grid rather than its actual content (issue #235)."""
+    """include_grid_data=True without a range auto-detects the used range instead of
+    fetching formatting for the sheet's full padded grid (issue #235)."""
 
-    def _values_service(self, values):
+    def _service(self, values=None, grid_result=None):
         mock = MagicMock()
         mock.spreadsheets.return_value.values.return_value.get.return_value.execute.return_value = {
-            "values": values
+            "values": values or []
         }
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = grid_result or {}
         return mock
 
-    def _grid_service(self, grid_result):
-        mock = MagicMock()
-        mock.spreadsheets.return_value.get.return_value.execute.return_value = grid_result
-        return mock
-
-    def test_include_grid_data_without_range_raises(self):
-        ctx = _make_ctx(sheets_service=self._grid_service({}))
-        with pytest.raises(ValueError, match="requires a range"):
-            _data_tools["get_sheet_data"](
-                spreadsheet_id="ss1", sheet="Sheet1", include_grid_data=True, ctx=ctx
-            )
-
-    def test_include_grid_data_without_range_makes_no_api_call(self):
-        svc = self._grid_service({})
+    def test_include_grid_data_without_range_auto_detects_used_range(self):
+        svc = self._service(values=[["a", "b", "c"], ["1", "2", "3"]])
         ctx = _make_ctx(sheets_service=svc)
-        with pytest.raises(ValueError):
-            _data_tools["get_sheet_data"](
-                spreadsheet_id="ss1", sheet="Sheet1", include_grid_data=True, ctx=ctx
-            )
-        svc.spreadsheets.return_value.get.assert_not_called()
+        _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1", sheet="Sheet1", include_grid_data=True, ctx=ctx
+        )
+        probe_kwargs = svc.spreadsheets.return_value.values.return_value.get.call_args.kwargs
+        assert probe_kwargs["range"] == "Sheet1"
+        grid_kwargs = svc.spreadsheets.return_value.get.call_args.kwargs
+        assert grid_kwargs["ranges"] == ["Sheet1!A1:C2"]
+        assert grid_kwargs["includeGridData"] is True
 
-    def test_include_grid_data_with_range_succeeds(self):
+    def test_ragged_rows_use_max_column_count(self):
+        svc = self._service(values=[["a"], ["1", "2", "3"]])
+        ctx = _make_ctx(sheets_service=svc)
+        _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1", sheet="Sheet1", include_grid_data=True, ctx=ctx
+        )
+        grid_kwargs = svc.spreadsheets.return_value.get.call_args.kwargs
+        assert grid_kwargs["ranges"] == ["Sheet1!A1:C2"]
+
+    def test_empty_sheet_falls_back_to_a1(self):
+        svc = self._service(values=[])
+        ctx = _make_ctx(sheets_service=svc)
+        _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1", sheet="Sheet1", include_grid_data=True, ctx=ctx
+        )
+        grid_kwargs = svc.spreadsheets.return_value.get.call_args.kwargs
+        assert grid_kwargs["ranges"] == ["Sheet1!A1"]
+
+    def test_explicit_range_skips_auto_detection(self):
         grid_result = {"sheets": [{"data": [{"rowData": []}]}]}
-        svc = self._grid_service(grid_result)
+        svc = self._service(grid_result=grid_result)
         ctx = _make_ctx(sheets_service=svc)
         result = _data_tools["get_sheet_data"](
             spreadsheet_id="ss1",
@@ -75,13 +83,14 @@ class TestGetSheetData:
             include_grid_data=True,
             ctx=ctx,
         )
-        call_kwargs = svc.spreadsheets.return_value.get.call_args.kwargs
-        assert call_kwargs["ranges"] == ["Sheet1!A1:C10"]
-        assert call_kwargs["includeGridData"] is True
+        svc.spreadsheets.return_value.values.return_value.get.assert_not_called()
+        grid_kwargs = svc.spreadsheets.return_value.get.call_args.kwargs
+        assert grid_kwargs["ranges"] == ["Sheet1!A1:C10"]
+        assert grid_kwargs["includeGridData"] is True
         assert result == grid_result
 
     def test_without_grid_data_and_without_range_uses_sheet_name_only(self):
-        svc = self._values_service([["a"]])
+        svc = self._service(values=[["a"]])
         ctx = _make_ctx(sheets_service=svc)
         result = _data_tools["get_sheet_data"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
         call_kwargs = svc.spreadsheets.return_value.values.return_value.get.call_args.kwargs
@@ -89,7 +98,7 @@ class TestGetSheetData:
         assert result["valueRanges"][0]["values"] == [["a"]]
 
     def test_without_grid_data_range_is_optional_and_scoped_when_given(self):
-        svc = self._values_service([["a", "b"]])
+        svc = self._service(values=[["a", "b"]])
         ctx = _make_ctx(sheets_service=svc)
         _data_tools["get_sheet_data"](spreadsheet_id="ss1", sheet="Sheet1", range="A1:B1", ctx=ctx)
         call_kwargs = svc.spreadsheets.return_value.values.return_value.get.call_args.kwargs
