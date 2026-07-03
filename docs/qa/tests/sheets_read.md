@@ -53,9 +53,59 @@ Call `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", include_gri
 
 **Checks**
 - No error — the call succeeds
-- Server makes a values-only probe request first (`get_sheet_data`'s access log should show this as reduced elapsed time vs. a full-grid request would take), then a grid-data request scoped to `A1:D6` — not the full padded grid
+- Server makes a values-only probe request first, then a grid-data request scoped to `A1:D6` — not the full padded grid
 - Response includes `rowData` only for the 6x4 used range, not ~26,000 padded cells
 - No "Connection closed" / oversized-response symptom (the original failure mode)
+
+**Result (2026-07-02) ✅ PASS**
+Called live against the actual Sales fixture (`gridProperties: rowCount=3016, columnCount=33`). Response's `rowData` covered exactly the 6x4 used range (header row + Widget/Gadget/Donut/Gizmo + Totals row, matching TC-R01's known fixture content) — confirmed scoped down from the sheet's real 3016x33 padding, not just the smaller 1000x26 default. No error, no truncation.
+
+---
+
+### TC-R03c: Densely formatted range over the safety cap raises a clear error (issue #235)
+
+**Setup**
+Apply formatting across a range with `format_cells(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:Z200", bold=True, background_color={"red": 0.9, "green": 0.95, "blue": 1}, number_format_type="NUMBER")`, then call `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:Z200", include_grid_data=True)`.
+
+Note: cell *count* alone doesn't predict this — a live test found a 26,000-cell blank range costs almost nothing (Sheets omits `rowData` for untouched cells), while densely-formatted ranges cost ~700-780 bytes/cell. The cap check runs on the actual serialized response, after the fetch, not an estimate from range size. A live binary search against Claude Code's default MCP client found the real failure point around 48,000-51,000 characters — consistent with Claude Code's documented 25,000-token default per-tool-response cap (`MAX_MCP_OUTPUT_TOKENS`) at ~2 chars/token for this kind of repeated-key JSON. The server-side default (`MAX_GRID_DATA_RESPONSE_CHARS=40000`) sits below that with margin.
+
+**Checks**
+- The Sheets API fetch itself succeeds (it's fast either way) — the error comes from the size check on the result, not a failed API call
+- Error message states the actual response size in characters, the cap, and mentions narrowing the range, `local_path`, or `MAX_GRID_DATA_RESPONSE_CHARS` as options
+- Clean up: remove the formatting from A1:Z200 afterward so it doesn't affect other test cases
+
+**Result (2026-07-02) ✅ PASS**
+Tested against a scratch sheet (temp tab, deleted after) rather than formatting the shared Sales fixture directly, to avoid leaving unwanted formatting on it — same effective setup (`format_cells(range="A1:Z1000", bold=True, background_color=..., number_format_type="NUMBER")`, then `get_sheet_data(range="A1:Z200", include_grid_data=True)`). Raised:
+`get_sheet_data(include_grid_data=True): the response is 4325100 characters, over the 40000-character safety cap. ... Narrow the range; pass local_path to write the result to disk instead of returning it inline (bypasses this cap); or set MAX_GRID_DATA_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).`
+Exact size (4,325,100 chars) confirms the fetch completed before the check ran, as designed.
+
+---
+
+### TC-R03d: Grid data with local_path writes to disk instead of returning inline (issue #235)
+
+**Setup**
+Same formatted range as TC-R03c, but call `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:Z200", include_grid_data=True, local_path="/tmp/qa_grid_data.json")`.
+
+**Checks**
+- Call succeeds (no cap error) despite the response exceeding the cap
+- Response is a small dict — `local_path`, `spreadsheet_id`, `sheet`, `range`, `bytes_written` — not the grid data itself
+- `/tmp/qa_grid_data.json` exists and contains the full grid-data JSON (`rowData` present, formatting visible)
+
+**Result (2026-07-02) ✅ PASS**
+Same scratch-sheet setup as TC-R03c. Call returned `{"local_path": "/tmp/qa_grid_data_235.json", "spreadsheet_id": "...", "sheet": "SizeTest235d", "range": "SizeTest235d!A1:Z200", "bytes_written": 4325100}` — no error despite exceeding the cap. Verified on disk: file exists, `wc -c` matches `bytes_written` exactly (4,325,100), and contains real `rowData` with formatting. Scratch sheet and temp file both cleaned up afterward.
+
+---
+
+### TC-R03e: MAX_GRID_DATA_RESPONSE_CHARS raises the cap (issue #235)
+
+**Setup**
+Set `MAX_GRID_DATA_RESPONSE_CHARS=200000` in server config and restart the server (e.g. to match a `MAX_MCP_OUTPUT_TOKENS` raised in your MCP client config). Repeat the same call as TC-R03c: a formatted range whose response is over the *default* 40,000-character cap but under 200,000.
+
+**Checks**
+- Call now succeeds instead of raising — confirms the cap is actually read from the env var, not hardcoded
+- Restore `MAX_GRID_DATA_RESPONSE_CHARS` (unset it) after this test
+
+**Result:** ⏳ Pending — not yet live-tested. Unlike TC-R03b-d, this requires a server restart with a changed env var (not just an MCP reconnect), which wasn't done this pass. Covered by unit tests (`test_cap_is_configurable`, `test_env_var_sets_cap_at_import_time` in `tests/sheets/test_data.py`) in the meantime.
 
 ---
 

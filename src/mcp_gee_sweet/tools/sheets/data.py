@@ -1,4 +1,7 @@
+import json
 import logging
+import os
+from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import Context
@@ -9,6 +12,50 @@ from .helpers import _column_index_to_letter, _quote_sheet_name
 
 logger = logging.getLogger(__name__)
 
+# Cell count turned out not to predict response size at all: a live test found a
+# 26,000-cell *blank* range (a fresh sheet's default 1000x26 padding) returns almost
+# nothing — Sheets omits rowData entirely for cells with no explicit formatting. A
+# range with real formatting applied (bold, background, number format) costs roughly
+# 700-780 bytes/cell instead, consistent with issue #235's own numbers (150 cells ->
+# ~107KB, ~713 bytes/cell). Explicit per-cell CellFormat data is what's expensive, not
+# the range's raw dimensions, and we can't know how formatted a range is without
+# fetching it — so this checks the *actual* serialized response after the fetch, not
+# an estimate beforehand.
+#
+# A live binary search against this session's own client (same formatting applied,
+# range size varied) found the actual failure point much lower than expected:
+#   60 cells succeeded; 65 cells (51,208 chars) failed; 75 cells (58,784) failed;
+#   100 cells (77,694) failed; 500 cells (380,494) failed; 1,300 cells (983,982) failed.
+# That places the real limit around 48,000-51,000 characters. This matches Claude
+# Code's documented default of 25,000 tokens per MCP tool response (configurable via
+# MAX_MCP_OUTPUT_TOKENS): this densely-nested, repeated-key JSON tokenizes at roughly
+# 2 chars/token rather than the ~4 chars/token typical of prose, so 25,000 tokens lands
+# right around 50,000 characters. That token cap is a *client-side* setting the server
+# has no visibility into — a different client, or the same client with a raised
+# MAX_MCP_OUTPUT_TOKENS, will have a different real limit (likely higher; this project
+# happens to be developed against Claude Code, but isn't the only possible consumer).
+# 40,000 gives margin below what was actually observed here — still just one
+# environment's data point, not a universal constant. Set MAX_GRID_DATA_RESPONSE_CHARS
+# to match your own client's configured limit if you've raised it (roughly 2
+# characters per token observed for this kind of densely-formatted JSON, though the
+# exact ratio depends on content).
+_MAX_GRID_DATA_RESPONSE_CHARS = int(os.environ.get("MAX_GRID_DATA_RESPONSE_CHARS", "40000"))
+
+
+def _enforce_grid_data_response_cap(result: dict) -> None:
+    """Raise ValueError if the serialized grid-data result is too large to return inline."""
+    size = len(json.dumps(result))
+    if size > _MAX_GRID_DATA_RESPONSE_CHARS:
+        raise ValueError(
+            f"get_sheet_data(include_grid_data=True): the response is {size} characters, "
+            f"over the {_MAX_GRID_DATA_RESPONSE_CHARS}-character safety cap. Densely "
+            "formatted cells serialize to ~700+ bytes each, so even a modest range can "
+            "produce a response large enough to break the client connection. Narrow the "
+            "range; pass local_path to write the result to disk instead of returning it "
+            "inline (bypasses this cap); or set MAX_GRID_DATA_RESPONSE_CHARS if your MCP "
+            "client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS)."
+        )
+
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Get Sheet Data", readOnlyHint=True))
@@ -17,6 +64,7 @@ def register(tool):
         sheet: str,
         range: str | None = None,
         include_grid_data: bool = False,
+        local_path: str | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -30,16 +78,29 @@ def register(tool):
                 rather than fetching the sheet's full padded grid.
             include_grid_data: If True, includes cell formatting and other metadata in the response.
                 Note: Setting this to True will significantly increase the response size and token usage
-                when parsing the response, as it includes detailed cell formatting information.
+                when parsing the response, as it includes detailed cell formatting information —
+                densely formatted cells serialize to hundreds of bytes each.
                 If range is omitted, the actual used range is auto-detected first (one extra lightweight
                 values-only request) and formatting is fetched only for that — sheets default to a padded
                 1000x26 grid regardless of actual content, and fetching per-cell formatting for the full
                 padded grid instead of just your data can produce a response large enough to break the
                 client connection.
                 Default is False (returns values only, more efficient).
+                Raises ValueError if the actual response size exceeds a safety cap
+                (default 40,000 characters, set MAX_GRID_DATA_RESPONSE_CHARS to change it —
+                e.g. to match a raised MAX_MCP_OUTPUT_TOKENS in your MCP client) and
+                local_path is not set — narrow the range, retry, or pass local_path to
+                bypass the cap entirely.
+            local_path: Optional local filesystem path (file or directory) to write the result
+                to instead of returning it inline. Bypasses the include_grid_data response-size cap.
+                Same caveat as download_file/download_folder: this path is resolved on the
+                *server's* filesystem, not the caller's — over SSE that's only useful if the
+                path is on a volume the caller can also reach; for stdio it's the same machine.
 
         Returns:
-            Grid data structure with either full metadata or just values from Google Sheets API, depending on include_grid_data parameter
+            Grid data structure with either full metadata or just values from Google Sheets API,
+            depending on include_grid_data parameter. If local_path is set, returns
+            {local_path, spreadsheet_id, sheet, range, bytes_written} instead.
         """
         sheets_service = ctx.request_context.lifespan_context.sheets_service
 
@@ -69,6 +130,11 @@ def register(tool):
                 .get(spreadsheetId=spreadsheet_id, ranges=[full_range], includeGridData=True)
                 .execute()
             )
+            # Cell count doesn't predict response size — a blank padded range costs almost
+            # nothing, a densely formatted one can blow past a client's size limit even at a
+            # modest cell count (issue #235). Check the real serialized size, not an estimate.
+            if not local_path:
+                _enforce_grid_data_response_cap(result)
         else:
             values_result = (
                 sheets_service.spreadsheets()
@@ -79,6 +145,20 @@ def register(tool):
             result = {
                 "spreadsheetId": spreadsheet_id,
                 "valueRanges": [{"range": full_range, "values": values_result.get("values", [])}],
+            }
+
+        if local_path:
+            dest = Path(local_path)
+            if dest.is_dir():
+                dest = dest / f"{sheet}_data.json"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(json.dumps(result))
+            return {
+                "local_path": str(dest),
+                "spreadsheet_id": spreadsheet_id,
+                "sheet": sheet,
+                "range": full_range,
+                "bytes_written": dest.stat().st_size,
             }
 
         return result
