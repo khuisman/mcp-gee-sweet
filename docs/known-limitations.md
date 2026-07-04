@@ -61,17 +61,20 @@ Related: project memory `service_account_limit`.
 
 ## Calendar
 
-### `list_all_events` — async/httplib2 thread-safety blocker
+### `list_all_events` — not yet built, blocked on an async/httplib2 thread-safety issue
 
-**What:** `list_all_events` (fetching events across multiple calendars concurrently) is blocked
-on a thread-safety issue: the Google API Python client uses `httplib2` internally, and `httplib2`
-connections are not safe to share across threads.
+**What:** `list_all_events` (fetching events across multiple calendars concurrently) is planned
+([#194](https://github.com/khuisman/mcp-gee-sweet/issues/194), still open) but not yet
+implemented — it does not exist as a tool today. The blocker is a thread-safety issue: the
+Google API Python client uses `httplib2` internally, and `httplib2` connections are not safe to
+share across threads.
 
-**Why:** The implementation uses `ThreadPoolExecutor` to fan out calendar queries in parallel.
-Each thread needs its own HTTP connection, but reconstructing a full authorized service per
-thread via `build_from_document` + `google_auth_httplib2.AuthorizedHttp` adds significant
-overhead and complexity (Frankenstein code) rather than working cleanly through the SDK.
+**Why:** The planned implementation would use `ThreadPoolExecutor` to fan out calendar queries
+in parallel. Each thread needs its own HTTP connection, but reconstructing a full authorized
+service per thread via `build_from_document` + `google_auth_httplib2.AuthorizedHttp` adds
+significant overhead and complexity (Frankenstein code) rather than working cleanly through the
+SDK — this is why it's blocked on
+[#183](https://github.com/khuisman/mcp-gee-sweet/issues/183) (async tool execution strategy)
+rather than built ad hoc.
 
-**Workaround:** Use `list_events` per calendar individually. The `list_all_events` tool exists
-but may have reliability issues under concurrent load until #183 (async/httplib2 strategy) is
-resolved. Related: #194, #183.
+**Workaround:** Use `list_events` per calendar individually in the meantime.

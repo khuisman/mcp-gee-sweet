@@ -18,15 +18,14 @@ Add a block under `mcpServers` in `claude_desktop_config.json`. Choose stdio (cl
         "mcp-gee-sweet"
       ],
       "env": {
-        "SERVICE_ACCOUNT_PATH": "/path/to/service_account.json",
-        "DRIVE_FOLDER_ID": "your_drive_folder_id"
+        "CREDENTIALS_PATH": "/path/to/credentials.json"
       }
     }
   }
 }
 ```
 
-Replace `/path/to/mcp-gee-sweet` with your clone path. Swap the `env` block for your auth method — see [Authentication](auth.md).
+Replace `/path/to/mcp-gee-sweet` with your clone path. This uses OAuth (the default waterfall's first method, full personal Drive access) — swap the `env` block for a different auth method — see [Authentication](auth.md).
 
 ### SSE — Docker
 
@@ -62,7 +61,7 @@ To restrict tools at the client level, pass `--include-tools` as a CLI arg:
         "--include-tools", "get_sheet_data,update_cells,list_sheets,list_spreadsheets"
       ],
       "env": {
-        "SERVICE_ACCOUNT_PATH": "/path/to/service_account.json"
+        "CREDENTIALS_PATH": "/path/to/credentials.json"
       }
     }
   }
