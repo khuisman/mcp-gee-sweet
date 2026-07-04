@@ -6,16 +6,17 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 
 ## What's implemented
 
-### Google Sheets — 19 tools
+### Google Sheets — 24 tools
 - **Read:** `get_sheet_data`, `get_sheet_formulas`, `get_multiple_sheet_data`, `get_multiple_spreadsheet_summary`, `find_in_spreadsheet`
 - **Write:** `update_cells`, `batch_update_cells`, `batch_update` _(raw batchUpdate passthrough — escape hatch for anything not covered by named tools)_
-- **Structure:** `list_sheets`, `create_sheet`, `rename_sheet`, `copy_sheet`, `delete_sheet`, `add_rows`, `add_columns`, `delete_rows`, `delete_columns`, `add_chart`
+- **Structure:** `list_sheets`, `create_sheet`, `rename_sheet`, `copy_sheet`, `delete_sheet`, `add_rows`, `add_columns`, `delete_rows`, `delete_columns`, `format_cells`, `merge_cells`, `unmerge_cells`, `freeze`, `sort_range`, `add_chart`
 - **Data ops:** `clear_values`
 
-### Google Drive — 28 tools
-- **Files:** `list_files`, `list_spreadsheets`, `search_files`, `search_spreadsheets`, `list_folders`, `list_drives`, `get_file_metadata`, `create_spreadsheet`, `create_folder`, `copy_file`, `move_file`, `rename_file`, `delete_file`
+### Google Drive — 31 tools
+- **Files:** `list_files`, `list_spreadsheets`, `search_files`, `search_spreadsheets`, `list_folders`, `list_drives`, `get_file_metadata`, `create_spreadsheet`, `create_folder`, `copy_file`, `move_file`, `rename_file`, `delete_file`, `list_shared_with_me`, `list_recent_files`, `get_storage_quota`
 - **Sharing:** `share_spreadsheet`, `share_file`, `list_permissions`, `update_permission`, `remove_permission`
 - **Transfer:** `upload_file`, `upload_local_file`, `upload_local_folder`, `download_file`, `download_folder`, `sync_folder`, `export_file`, `export_revision`, `list_revisions`
+- **Activity:** `list_file_activity` _(Drive Activity API v2; requires `drive.activity.readonly` scope)_
 
 ### Google Docs — 20 tools
 - **Content:** `create_doc`, `create_doc_from_file`, `get_doc_content`, `write_doc_content`, `insert_doc_text`, `delete_doc_range`, `get_doc_structure`, `insert_doc_table`, `insert_inline_image`, `create_header`, `create_footer`
@@ -82,7 +83,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [x] `tools/docs/__init__.py` split into `content.py`/`tables.py`/`style.py`/`layout.py` (PR #232)
 
 **Remaining defects to fix before cutting the release**
-- [ ] `get_sheet_data(include_grid_data=True)` without a range fetches the full padded grid instead of the used range ([#235](https://github.com/khuisman/mcp-gee-sweet/issues/235))
+- [x] `get_sheet_data(include_grid_data=True)` without a range fetches the full padded grid instead of the used range ([#235](https://github.com/khuisman/mcp-gee-sweet/issues/235))
 - [x] Generalize the #235 response-size safety net (post-fetch size check + configurable cap + `local_path` bypass) to other tools that can return large responses — `export_file`, `get_doc_content`, `get_multiple_sheet_data`, `find_in_spreadsheet`, `list_file_activity`. Oversized responses silently kill the MCP session today (client-side output cap, e.g. Claude Code's `MAX_MCP_OUTPUT_TOKENS`), requiring a server restart to recover — confirmed live, not hypothetical. Renamed `MAX_GRID_DATA_RESPONSE_CHARS` to `MAX_TOOL_RESPONSE_CHARS` (single global cap); live-verified thresholds per tool ([#242](https://github.com/khuisman/mcp-gee-sweet/issues/242))
 - [x] `create_doc_from_file` markdown `$` escape renders as literal backslash+dollar in the doc — Python-Markdown's default `ESCAPED_CHARS` omitted `$` (unlike CommonMark); fixed via a small extension adding it, respecting code-span/fenced-code protection ([#213](https://github.com/khuisman/mcp-gee-sweet/issues/213))
 - [x] Unknown tool parameters are silently dropped instead of raising a validation error — FastMCP's generated pydantic arg models default to ignoring extra fields, so a typo'd kwarg (e.g. `parent_id` instead of `parent_folder_id`) silently falls back to default behavior instead of erroring. Fixed centrally in the `tool()` decorator (applies to all ~84 tools uniformly) ([#239](https://github.com/khuisman/mcp-gee-sweet/issues/239))

@@ -15,8 +15,8 @@
 | `CACHE_DB_PATH` | Path to the SQLite cache database | `/tmp/mcp_gee_sweet.db` |
 | `CACHE_TTL` | Cache time-to-live in seconds | `1800` (30 min) |
 | `MAX_TOOL_RESPONSE_CHARS` | Safety cap on response size, in characters, for tools that can return large inline payloads (`get_sheet_data`, `get_multiple_sheet_data`, `find_in_spreadsheet`, `get_doc_content`, `export_file`, `list_file_activity`). Raise to match a raised `MAX_MCP_OUTPUT_TOKENS` in your MCP client (roughly 2 characters per token observed for densely-formatted JSON) | `40000` |
-| `HOST` | Bind address for SSE transport | `0.0.0.0` |
-| `PORT` | Port for SSE transport | `8000` |
+| `HOST` (or `FASTMCP_HOST`) | Bind address for SSE transport. `FASTMCP_HOST` is a fallback if `HOST` isn't set | `0.0.0.0` |
+| `PORT` (or `FASTMCP_PORT`) | Port for SSE transport. `FASTMCP_PORT` is a fallback if `PORT` isn't set | `8000` |
 | `DEBUG_LEVEL` | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR` — controls package and access logs | — |
 | `LOG_FILE` | Write server logs to this file path (requires `DEBUG_LEVEL`) | — |
 | `ACCESS_LOG_FILE` | Write tool access logs to this file path (requires `DEBUG_LEVEL`) | — |
