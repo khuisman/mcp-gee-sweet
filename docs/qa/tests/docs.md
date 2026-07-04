@@ -1352,3 +1352,19 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Result (2026-06-25) ✅ PASS**
 - Tool completed without error. Structure: sectionBreak → HEADING_2 "HIGH\n" (1-6) → blank para "\n" (6-7, `font_size: 1` on its run confirming collapse applied) → table (7-70, cells filled correctly: Finding/Severity/Ticket header, Some finding/HIGH/KINDLY-123 data) → trailing para (70-71). Visual check: no visible gap between heading and table in the rendered doc.
+
+---
+
+### TC-DOC80: get_doc_content trips the response-size cap; cached path re-checks it too (issue #242)
+
+**Background:** #242 generalized #235's response-size safety net to `get_doc_content`. `doc_cache` previously returned a cached result *before* any cap check ran, so a cached oversized doc would bypass the cap on repeat calls — fixed so the check runs on both the cache-hit and cache-miss paths.
+
+**Setup:** `TEST_LARGE_DOC_ID` (`mcp-gee-sweet-qa-large-doc`), grown from its original ~5,300-character seed content to ~49,700 characters by inserting repeated padding text (permanent fixture growth — this doc's whole purpose is being a large-content fixture, and it was never previously large enough to exceed any cap since none existed for this tool before now).
+
+**Checks**
+- First call (fetch path) raises `ValueError` mentioning the actual response size, the cap, and `MAX_TOOL_RESPONSE_CHARS`
+- Second call (cache-hit path, no `refresh_cache` in between) raises the *same* error — proves the cache-hit path re-checks the cap rather than returning the stale oversized cached result
+- Same call with `local_path` set succeeds, returns `{local_path, id, bytes_written}`, and the file on disk contains the full content
+
+**Result (2026-07-03) ✅ PASS**
+Fetch-path call raised: `get_doc_content: the response is 49700 characters, over the 40000-character safety cap. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` Repeat call (served from `doc_cache`, confirmed via no additional Drive API round-trip) raised the identical error — confirms the cache-ordering fix. `local_path` call succeeded: `{"local_path":"/tmp/qa_doc_content_242.json","bytes_written":49700,"id":"{TEST_LARGE_DOC_ID}"}`; file verified then cleaned up.

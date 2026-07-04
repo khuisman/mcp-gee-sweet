@@ -1,13 +1,11 @@
-import json
 import logging
-import os
-from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
 from ...cache import SheetInfo, fetch_sheets
+from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .helpers import _column_index_to_letter, _quote_sheet_name
 
 logger = logging.getLogger(__name__)
@@ -20,41 +18,9 @@ logger = logging.getLogger(__name__)
 # ~107KB, ~713 bytes/cell). Explicit per-cell CellFormat data is what's expensive, not
 # the range's raw dimensions, and we can't know how formatted a range is without
 # fetching it — so this checks the *actual* serialized response after the fetch, not
-# an estimate beforehand.
-#
-# A live binary search against this session's own client (same formatting applied,
-# range size varied) found the actual failure point much lower than expected:
-#   60 cells succeeded; 65 cells (51,208 chars) failed; 75 cells (58,784) failed;
-#   100 cells (77,694) failed; 500 cells (380,494) failed; 1,300 cells (983,982) failed.
-# That places the real limit around 48,000-51,000 characters. This matches Claude
-# Code's documented default of 25,000 tokens per MCP tool response (configurable via
-# MAX_MCP_OUTPUT_TOKENS): this densely-nested, repeated-key JSON tokenizes at roughly
-# 2 chars/token rather than the ~4 chars/token typical of prose, so 25,000 tokens lands
-# right around 50,000 characters. That token cap is a *client-side* setting the server
-# has no visibility into — a different client, or the same client with a raised
-# MAX_MCP_OUTPUT_TOKENS, will have a different real limit (likely higher; this project
-# happens to be developed against Claude Code, but isn't the only possible consumer).
-# 40,000 gives margin below what was actually observed here — still just one
-# environment's data point, not a universal constant. Set MAX_GRID_DATA_RESPONSE_CHARS
-# to match your own client's configured limit if you've raised it (roughly 2
-# characters per token observed for this kind of densely-formatted JSON, though the
-# exact ratio depends on content).
-_MAX_GRID_DATA_RESPONSE_CHARS = int(os.environ.get("MAX_GRID_DATA_RESPONSE_CHARS", "40000"))
-
-
-def _enforce_grid_data_response_cap(result: dict) -> None:
-    """Raise ValueError if the serialized grid-data result is too large to return inline."""
-    size = len(json.dumps(result))
-    if size > _MAX_GRID_DATA_RESPONSE_CHARS:
-        raise ValueError(
-            f"get_sheet_data(include_grid_data=True): the response is {size} characters, "
-            f"over the {_MAX_GRID_DATA_RESPONSE_CHARS}-character safety cap. Densely "
-            "formatted cells serialize to ~700+ bytes each, so even a modest range can "
-            "produce a response large enough to break the client connection. Narrow the "
-            "range; pass local_path to write the result to disk instead of returning it "
-            "inline (bypasses this cap); or set MAX_GRID_DATA_RESPONSE_CHARS if your MCP "
-            "client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS)."
-        )
+# an estimate beforehand. See docs/decisions/decision-grid-data-size-cap.md and
+# docs/decisions/decision-response-size-cap-generalization.md for the full live-tested
+# numbers behind the shared MAX_TOOL_RESPONSE_CHARS cap (response_limits.py).
 
 
 def register(tool):
@@ -87,7 +53,7 @@ def register(tool):
                 client connection.
                 Default is False (returns values only, more efficient).
                 Raises ValueError if the actual response size exceeds a safety cap
-                (default 40,000 characters, set MAX_GRID_DATA_RESPONSE_CHARS to change it —
+                (default 40,000 characters, set MAX_TOOL_RESPONSE_CHARS to change it —
                 e.g. to match a raised MAX_MCP_OUTPUT_TOKENS in your MCP client) and
                 local_path is not set — narrow the range, retry, or pass local_path to
                 bypass the cap entirely.
@@ -134,7 +100,13 @@ def register(tool):
             # nothing, a densely formatted one can blow past a client's size limit even at a
             # modest cell count (issue #235). Check the real serialized size, not an estimate.
             if not local_path:
-                _enforce_grid_data_response_cap(result)
+                enforce_response_size_cap(
+                    result,
+                    tool_name="get_sheet_data(include_grid_data=True)",
+                    hint="Densely formatted cells serialize to ~700+ bytes each, so even a "
+                    "modest range can produce a response large enough to break the client "
+                    "connection. Narrow the range, or ",
+                )
         else:
             values_result = (
                 sheets_service.spreadsheets()
@@ -148,18 +120,16 @@ def register(tool):
             }
 
         if local_path:
-            dest = Path(local_path)
-            if dest.is_dir():
-                dest = dest / f"{sheet}_data.json"
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_text(json.dumps(result))
-            return {
-                "local_path": str(dest),
-                "spreadsheet_id": spreadsheet_id,
-                "sheet": sheet,
-                "range": full_range,
-                "bytes_written": dest.stat().st_size,
-            }
+            return write_capped_result_to_disk(
+                result,
+                local_path,
+                default_filename=f"{sheet}_data.json",
+                manifest_extra={
+                    "spreadsheet_id": spreadsheet_id,
+                    "sheet": sheet,
+                    "range": full_range,
+                },
+            )
 
         return result
 
@@ -194,8 +164,8 @@ def register(tool):
 
     @tool(annotations=ToolAnnotations(title="Get Multiple Sheet Data", readOnlyHint=True))
     def get_multiple_sheet_data(
-        queries: list[dict[str, str]], ctx: Context = None
-    ) -> list[dict[str, Any]]:
+        queries: list[dict[str, str]], local_path: str | None = None, ctx: Context = None
+    ) -> list[dict[str, Any]] | dict[str, Any]:
         """
         Get data from multiple specific ranges in Google Spreadsheets.
 
@@ -205,10 +175,18 @@ def register(tool):
                      'range' is optional; omitting it returns the entire sheet.
                      Example: [{'spreadsheet_id': 'abc', 'sheet': 'Sheet1', 'range': 'A1:B5'},
                                {'spreadsheet_id': 'xyz', 'sheet': 'Data'}]
+            local_path: Optional local filesystem path (file or directory) to write the
+                result to instead of returning it inline. Bypasses the response-size cap.
+                Same caveat as download_file/download_folder: this path is resolved on the
+                *server's* filesystem, not the caller's.
 
         Returns:
             A list of dictionaries, each containing the original query parameters
-            and the fetched 'data' or an 'error'.
+            and the fetched 'data' or an 'error'. Raises ValueError if the response
+            exceeds a safety cap (default 40,000 characters, set MAX_TOOL_RESPONSE_CHARS
+            to change it) and local_path is not set — split into fewer queries per call,
+            or pass local_path. If local_path is set, returns
+            {local_path, query_count, bytes_written} instead.
         """
         sheets_service = ctx.request_context.lifespan_context.sheets_service
         results = []
@@ -235,6 +213,15 @@ def register(tool):
             except Exception as e:
                 results.append({**query, "error": str(e)})
 
+        if local_path:
+            return write_capped_result_to_disk(
+                results,
+                local_path,
+                default_filename="multiple_sheet_data.json",
+                manifest_extra={"query_count": len(queries)},
+            )
+
+        enforce_response_size_cap(results, tool_name="get_multiple_sheet_data")
         return results
 
     @tool(annotations=ToolAnnotations(title="Get Multiple Spreadsheet Summary", readOnlyHint=True))
@@ -353,8 +340,9 @@ def register(tool):
         sheet: str | None = None,
         case_sensitive: bool = False,
         max_results: int = 50,
+        local_path: str | None = None,
         ctx: Context = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[dict[str, Any]] | dict[str, Any]:
         """
         Find cells containing a specific value in a Google Spreadsheet.
 
@@ -364,9 +352,19 @@ def register(tool):
             sheet: Optional sheet name to search in. If not provided, searches all sheets.
             case_sensitive: Whether the search should be case-sensitive (default False)
             max_results: Maximum number of results to return (default 50)
+            local_path: Optional local filesystem path (file or directory) to write the
+                result to instead of returning it inline. Bypasses the response-size cap.
+                Same caveat as download_file/download_folder: this path is resolved on the
+                *server's* filesystem, not the caller's.
 
         Returns:
-            List of found cells with their location (sheet, cell in A1 notation) and value
+            List of found cells with their location (sheet, cell in A1 notation) and value.
+            max_results bounds match count, not response size — matched cell values can
+            still be large. Raises ValueError if the response exceeds a safety cap
+            (default 40,000 characters, set MAX_TOOL_RESPONSE_CHARS to change it) and
+            local_path is not set — lower max_results, or pass local_path. If local_path
+            is set, returns {local_path, spreadsheet_id, query, match_count, bytes_written}
+            instead.
         """
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
@@ -377,42 +375,55 @@ def register(tool):
             sheets_to_search = [s.title for s in all_sheets if sheet is None or s.title == sheet]
 
             if not sheets_to_search:
-                return [{"error": f"Sheet '{sheet}' not found"}]
+                results = [{"error": f"Sheet '{sheet}' not found"}]
+            else:
+                search_query = query if case_sensitive else query.lower()
 
-            search_query = query if case_sensitive else query.lower()
-
-            for sheet_name in sheets_to_search:
-                if len(results) >= max_results:
-                    break
-
-                response = (
-                    sheets_service.spreadsheets()
-                    .values()
-                    .get(spreadsheetId=spreadsheet_id, range=_quote_sheet_name(sheet_name))
-                    .execute()
-                )
-
-                for row_idx, row in enumerate(response.get("values", [])):
+                for sheet_name in sheets_to_search:
                     if len(results) >= max_results:
                         break
-                    for col_idx, cell_value in enumerate(row):
+
+                    response = (
+                        sheets_service.spreadsheets()
+                        .values()
+                        .get(spreadsheetId=spreadsheet_id, range=_quote_sheet_name(sheet_name))
+                        .execute()
+                    )
+
+                    for row_idx, row in enumerate(response.get("values", [])):
                         if len(results) >= max_results:
                             break
-                        cell_str = str(cell_value)
-                        compare_value = cell_str if case_sensitive else cell_str.lower()
-                        if search_query in compare_value:
-                            results.append(
-                                {
-                                    "sheet": sheet_name,
-                                    "cell": f"{_column_index_to_letter(col_idx)}{row_idx + 1}",
-                                    "value": cell_value,
-                                }
-                            )
-
-            return results
+                        for col_idx, cell_value in enumerate(row):
+                            if len(results) >= max_results:
+                                break
+                            cell_str = str(cell_value)
+                            compare_value = cell_str if case_sensitive else cell_str.lower()
+                            if search_query in compare_value:
+                                results.append(
+                                    {
+                                        "sheet": sheet_name,
+                                        "cell": f"{_column_index_to_letter(col_idx)}{row_idx + 1}",
+                                        "value": cell_value,
+                                    }
+                                )
 
         except Exception as e:
-            return [{"error": f"Search failed: {e!s}"}]
+            results = [{"error": f"Search failed: {e!s}"}]
+
+        if local_path:
+            return write_capped_result_to_disk(
+                results,
+                local_path,
+                default_filename="find_in_spreadsheet_results.json",
+                manifest_extra={
+                    "spreadsheet_id": spreadsheet_id,
+                    "query": query,
+                    "match_count": len(results),
+                },
+            )
+
+        enforce_response_size_cap(results, tool_name="find_in_spreadsheet")
+        return results
 
     @tool(annotations=ToolAnnotations(title="Clear Values", destructiveHint=True))
     def clear_values(

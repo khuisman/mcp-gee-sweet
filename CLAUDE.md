@@ -48,6 +48,7 @@ Logic is split across `src/mcp_gee_sweet/`: `server.py` (MCP setup, tool decorat
   - `docs/emitter.py` — AST→Docs API requests + multi-phase table fill including nested table and cell styling support
 - `tools/cache.py` — `refresh_cache`
 - `tools/calendar.py` — Calendar API tools
+- `tools/response_limits.py` — shared response-size safety net (`enforce_response_size_cap`, `write_capped_result_to_disk`); imported cross-package the same way `tools/drive/__init__.py`'s `_SA_QUOTA_ERROR` is. Cap configured via `MAX_TOOL_RESPONSE_CHARS` (default 40000); see `docs/decisions/decision-response-size-cap-generalization.md`
 
 `__init__.py` loads `src/mcp_gee_sweet/.env` via `python-dotenv` before importing `server`, so env vars from that file are in `os.environ` by the time any module-level `os.environ.get()` runs. Priority: real env var > `.env` > default.
 

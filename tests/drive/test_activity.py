@@ -2,8 +2,10 @@
 
 from unittest.mock import MagicMock
 
+import pytest
 from googleapiclient.errors import HttpError
 
+from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.drive import activity as activity_module
 
 
@@ -65,6 +67,44 @@ class TestListFileActivity:
         list_file_activity(file_id="f", page_size=999, ctx=ctx)
         body = svc.activity.return_value.query.call_args.kwargs["body"]
         assert body["pageSize"] == 100
+
+    def test_oversized_result_raises(self, monkeypatch):
+        # A file with many collaborators can produce a large actors list on a single
+        # activity entry — page_size alone doesn't bound an individual entry's size.
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
+        activities = [
+            {
+                "timestamp": "2026-01-01T00:00:00Z",
+                "primaryActionDetail": {"edit": {}},
+                "actors": [
+                    {"user": {"knownUser": {"personName": f"people/{i}"}}} for i in range(50)
+                ],
+            }
+        ]
+        svc = _activity_svc(activities=activities)
+        ctx = _make_ctx(svc)
+        with pytest.raises(ValueError, match="safety cap"):
+            list_file_activity(file_id="abc123", ctx=ctx)
+
+    def test_error_points_to_page_size_not_local_path(self, monkeypatch):
+        # list_file_activity has no local_path param — page_size/pagination is the
+        # correct remedy, so the error must say so and must not reference local_path.
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
+        svc = _activity_svc(
+            activities=[
+                {
+                    "timestamp": "2026-01-01T00:00:00Z",
+                    "primaryActionDetail": {"edit": {}},
+                    "actors": [],
+                }
+            ]
+        )
+        ctx = _make_ctx(svc)
+        with pytest.raises(ValueError) as exc_info:
+            list_file_activity(file_id="abc123", ctx=ctx)
+        msg = str(exc_info.value)
+        assert "page_size" in msg
+        assert "local_path" not in msg
 
     def test_page_size_clamped_to_1(self):
         svc = _activity_svc()

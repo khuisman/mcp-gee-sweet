@@ -10,6 +10,7 @@ from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
 from ..drive import _SA_QUOTA_ERROR
+from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .ast import Table
 from .emitter import ast_to_requests, fill_tables
 from .html_parser import html_to_ast
@@ -251,44 +252,63 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Get Document Content", readOnlyHint=True))
-    def get_doc_content(file_id: str, ctx: Context = None) -> dict[str, Any]:
+    def get_doc_content(
+        file_id: str, local_path: str | None = None, ctx: Context = None
+    ) -> dict[str, Any]:
         """
         Get the plain text content of a Google Doc.
 
         Args:
             file_id: The Google Drive file ID of the document.
+            local_path: Optional local filesystem path (file or directory) to write the
+                result to instead of returning it inline. Bypasses the response-size cap.
+                Same caveat as download_file/download_folder: this path is resolved on the
+                *server's* filesystem, not the caller's.
 
         Returns:
             Dictionary with the document's text content and metadata. Results are
             cached; call refresh_cache(doc_id=file_id) to invalidate, or
-            refresh_cache() to clear all caches.
+            refresh_cache() to clear all caches. Raises ValueError if the response
+            exceeds a safety cap (default 40,000 characters, set MAX_TOOL_RESPONSE_CHARS
+            to change it) and local_path is not set. If local_path is set, returns
+            {local_path, id, bytes_written} instead.
         """
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
         doc_cache = lc.doc_cache
 
-        cached = doc_cache.get(file_id)
-        if cached is not None:
-            return cached
-
-        metadata = (
-            drive_service.files()
-            .get(
-                fileId=file_id, fields="id, name, modifiedTime, webViewLink", supportsAllDrives=True
+        result = doc_cache.get(file_id)
+        if result is None:
+            metadata = (
+                drive_service.files()
+                .get(
+                    fileId=file_id,
+                    fields="id, name, modifiedTime, webViewLink",
+                    supportsAllDrives=True,
+                )
+                .execute()
             )
-            .execute()
-        )
 
-        content = drive_service.files().export(fileId=file_id, mimeType="text/plain").execute()
+            content = drive_service.files().export(fileId=file_id, mimeType="text/plain").execute()
 
-        result = {
-            "id": metadata["id"],
-            "name": metadata["name"],
-            "modified_time": metadata.get("modifiedTime"),
-            "web_link": metadata.get("webViewLink"),
-            "content": content.decode("utf-8") if isinstance(content, bytes) else content,
-        }
-        doc_cache.store(file_id, result)
+            result = {
+                "id": metadata["id"],
+                "name": metadata["name"],
+                "modified_time": metadata.get("modifiedTime"),
+                "web_link": metadata.get("webViewLink"),
+                "content": content.decode("utf-8") if isinstance(content, bytes) else content,
+            }
+            doc_cache.store(file_id, result)
+
+        if local_path:
+            return write_capped_result_to_disk(
+                result,
+                local_path,
+                default_filename=f"{file_id}_content.json",
+                manifest_extra={"id": file_id},
+            )
+
+        enforce_response_size_cap(result, tool_name="get_doc_content")
         return result
 
     @tool(annotations=ToolAnnotations(title="Write Document Content", destructiveHint=True))

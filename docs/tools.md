@@ -10,9 +10,9 @@
 |---|---|---|
 | `get_sheet_data` | Get data from a specific sheet in a Google Spreadsheet. | `spreadsheet_id`, `sheet`, `range?`, `include_grid_data?`, `local_path?` |
 | `get_sheet_formulas` | Get formulas from a specific sheet in a Google Spreadsheet. | `spreadsheet_id`, `sheet`, `range?` |
-| `get_multiple_sheet_data` | Get data from multiple specific ranges in Google Spreadsheets. | `queries` |
+| `get_multiple_sheet_data` | Get data from multiple specific ranges in Google Spreadsheets. | `queries`, `local_path?` |
 | `get_multiple_spreadsheet_summary` | Get a summary of multiple Google Spreadsheets, including sheet names, headers, and the first few rows of data for each sheet. | `spreadsheet_ids`, `rows_to_fetch?` |
-| `find_in_spreadsheet` | Find cells containing a specific value in a Google Spreadsheet. | `spreadsheet_id`, `query`, `sheet?`, `case_sensitive?`, `max_results?` |
+| `find_in_spreadsheet` | Find cells containing a specific value in a Google Spreadsheet. | `spreadsheet_id`, `query`, `sheet?`, `case_sensitive?`, `max_results?`, `local_path?` |
 | `clear_values` | Clear cell content in a range without touching formatting. | `spreadsheet_id`, `sheet`, `range?` |
 | `update_cells` | Update cells in a Google Spreadsheet. | `spreadsheet_id`, `sheet`, `range`, `data` |
 | `batch_update_cells` | Batch update multiple ranges in a Google Spreadsheet. | `spreadsheet_id`, `sheet`, `ranges` |
@@ -112,7 +112,7 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 |---|---|---|
 | `create_doc` | Create a new Google Doc, optionally with initial content. | `title`, `content?`, `folder_id?`, `content_format?` |
 | `create_doc_from_file` | Create a Google Doc from a local .md or .html file. | `local_path`, `title?`, `folder_id?` |
-| `get_doc_content` | Get the plain text content of a Google Doc. | `file_id` |
+| `get_doc_content` | Get the plain text content of a Google Doc. | `file_id`, `local_path?` |
 | `write_doc_content` | Replace the full content of an existing Google Doc. | `doc_id`, `content`, `content_format?` |
 | `get_doc_structure` | Return the full structural map of a Google Doc body with element indices. | `doc_id` |
 | `insert_doc_text` | Insert text at one or more positions in a Google Doc. | `doc_id`, `insertions` |

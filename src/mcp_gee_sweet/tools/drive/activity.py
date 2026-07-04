@@ -5,6 +5,8 @@ from googleapiclient.errors import HttpError
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+from ..response_limits import enforce_response_size_cap
+
 logger = logging.getLogger(__name__)
 
 # Maps Drive Activity API primaryActionDetail keys to human-readable action types.
@@ -83,6 +85,10 @@ def register(tool):
             - file_id: echoed back for reference
             - activities: list of activity entries (timestamp, action, actors)
             - next_page_token: present when more results are available
+            Raises ValueError if the response exceeds a safety cap (default 40,000
+            characters, set MAX_TOOL_RESPONSE_CHARS to change it) — lower page_size and
+            paginate via next_page_token instead of raising the cap; a single activity's
+            actors list can be large on files with many collaborators.
 
         Note:
             The Drive Activity API requires the drive.activity.readonly OAuth scope.
@@ -117,6 +123,13 @@ def register(tool):
         result: dict[str, Any] = {"file_id": file_id, "activities": activities}
         if npt := response.get("nextPageToken"):
             result["next_page_token"] = npt
+
+        enforce_response_size_cap(
+            result,
+            tool_name="list_file_activity",
+            hint="Lower page_size and paginate via next_page_token, or ",
+            local_path_available=False,
+        )
 
         logger.debug("list_file_activity: %d activities for file %s", len(activities), file_id)
         return result
