@@ -1,7 +1,7 @@
 ---
 name: Bug report
 about: Something isn't working correctly
-labels: bug
+labels: defect
 ---
 
 ## What happened
