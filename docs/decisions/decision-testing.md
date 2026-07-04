@@ -3,7 +3,7 @@
 **Date:** 2026-05-13 (revised 2026-06-02, 2026-07-04)
 **Snapshot commit:** [`d94f81ab`](https://github.com/khuisman/mcp-gee-sweet/commit/d94f81ab9e313d8a3cc4c46d141777e4e8069c14) — QA framework as it existed when this decision was first made
 
-> This is a living decision record. The original decision (2026-05-13) established the QA framework structure. The 2026-06-02 revision corrected a mischaracterisation of Option C and laid out a phased evolution plan toward a hybrid human + AI verification system. The 2026-07-04 revision records that the framework evolved differently than that plan anticipated — see [What Actually Happened](#what-actually-happened-2026-07-04) below.
+> This is a living decision record. The original decision (2026-05-13) established the QA framework structure. The 2026-06-02 revision corrected a mischaracterisation of Option C and laid out a phased evolution plan toward a hybrid human + AI verification system. The 2026-07-04 revision records that the framework evolved differently than that plan anticipated — see [What Actually Happened](#what-actually-happened-2026-07-04) — and separately replaces the blanket "Full Regression before every stable release" rule with an explicit scoping process — see [Release Gate Scoping](#release-gate-scoping-2026-07-04).
 
 ---
 
@@ -124,6 +124,17 @@ Playwright MCP closed that gap directly instead: test cases that need visual con
 - **Phase 2 / Phase 3** — not built, and not currently planned. The `human_confirmation` operation they'd have formalized still exists in `docs/qa/operations.yaml`, but it's not the default path for `run_suite`/`run_group` — it's held in reserve for verification judgment calls that Playwright snapshots can't resolve on their own. Formatting and rendering-behavior work is the likely place this comes back: "is this the right font size" or "does this look right stylistically" is a harder call than "is the element present," and may need a human back in the loop for those specific cases rather than the general sign-off/invalidation machinery Phase 2/3 described.
 
 If Phase 2/3-style sign-off tracking becomes necessary later (e.g. Playwright snapshots prove insufficient for a category of checks), revisit this section rather than assuming the original plan still applies unchanged.
+
+## Release Gate Scoping (2026-07-04)
+
+The original decision required Full Regression before every stable release, full stop. That held fine while most stable releases carried a mix of new tools and fixes across many domains. v0.8.1 broke that assumption: of the commits since `v0.8.0`, only five actually changed tool behavior (touching `sheets_read`, `drive`, `docs`, and `infra`/cache), one was a large mechanical refactor with no intended behavior change (splitting `docs/__init__.py` into submodules), and the rest were documentation. Running Full Regression — every domain, including `sheets_write`, `sheets_mgmt`, `sheets_charts`, and `calendar`, none of which had a single line touched — would have spent hours re-verifying code that provably didn't change.
+
+The fix isn't "skip QA for boring releases" — it's replacing a blanket rule with an explicit audit: enumerate what changed since the last stable tag, classify each commit as a behavior change or a pure refactor, and require live coverage only for the domains actually implicated. Two things keep this from becoming a way to quietly under-test a release:
+
+- **The audit has to happen and get written down** — which commits were reviewed, how each was classified, which domains were included or excluded and why — in the release's `docs/qa/runs/vX.Y.Z.md`. A scoped gate without a documented audit trail is just skipping the gate.
+- **A pure refactor still needs a live Domain run if it's never had one.** Unit tests were updated in the `docs/__init__.py` split to assert the same things they always did, which proves the refactor didn't break what the tests check — it says nothing about behavior the tests don't cover, and nothing about the real Google API (unit tests mock it). "No intended behavior change" is a claim about intent, not evidence; a Domain run is the evidence.
+
+See [`docs/qa/runs/README.md`](../qa/runs/README.md#release-gate) for the mechanical process (the "how"); this section is the "why" it changed from the original all-or-nothing rule.
 
 ---
 
