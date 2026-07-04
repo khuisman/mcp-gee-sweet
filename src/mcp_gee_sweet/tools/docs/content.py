@@ -6,6 +6,7 @@ from typing import Any
 
 import markdown as _md
 from googleapiclient.errors import HttpError
+from markdown.extensions import Extension
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
@@ -49,9 +50,22 @@ def _html_to_text(html_content: str) -> str:
     return "".join(extractor.parts).strip()
 
 
+class _DollarEscapeExtension(Extension):
+    """Treat \\$ as an escape for a literal $, matching CommonMark's escapable-punctuation
+    set. Python-Markdown's default ESCAPED_CHARS omits $ (issue #213), so \\$ otherwise
+    passes through untouched into the rendered Doc as a literal backslash+dollar — visible
+    in prose written to defeat LaTeX/math renderers that treat $ as a delimiter."""
+
+    def extendMarkdown(self, md):
+        if "$" not in md.ESCAPED_CHARS:
+            md.ESCAPED_CHARS.append("$")
+
+
 def _md_to_html(md_text: str) -> str:
     """Convert Markdown to HTML using the Python markdown library (tables, fenced_code, sane_lists extensions)."""
-    return _md.markdown(md_text, extensions=["tables", "fenced_code", "sane_lists"])
+    return _md.markdown(
+        md_text, extensions=["tables", "fenced_code", "sane_lists", _DollarEscapeExtension()]
+    )
 
 
 def _to_doc_requests(

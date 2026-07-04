@@ -292,6 +292,34 @@ class TestMdToHtml:
         assert "<pre>" in html
         assert "<code" in html  # may include class="language-python"
 
+    def test_escaped_dollar_renders_literal_dollar(self):
+        # Python-Markdown's default ESCAPED_CHARS omits $ (unlike CommonMark), so \$
+        # otherwise passes through untouched as a literal backslash+dollar (issue #213).
+        html = _md_to_html(r"Cost: \$6,000")
+        assert "$6,000" in html
+        assert r"\$" not in html
+
+    def test_escaped_dollar_in_table_cell(self):
+        md = "| Deductible | \\$6,000 |\n|---|---|\n"
+        html = _md_to_html(md)
+        assert "$6,000" in html
+        assert r"\$" not in html
+
+    def test_unescaped_dollar_untouched(self):
+        html = _md_to_html("Price is $5 not six")
+        assert "Price is $5 not six" in html
+
+    def test_escaped_dollar_inside_fenced_code_stays_literal(self):
+        # The escape must respect code protection like every other ESCAPED_CHARS entry —
+        # a shell variable escape inside a code block is not the same $ as in prose.
+        md = "```\nvar=\\$5\n```\n"
+        html = _md_to_html(md)
+        assert r"\$5" in html
+
+    def test_escaped_dollar_inside_inline_code_stays_literal(self):
+        html = _md_to_html(r"Use `\$VAR` in shell")
+        assert r"\$VAR" in html
+
 
 class TestToDocRequestsMarkdown:
     def test_h1_in_markdown_produces_heading_1(self):
