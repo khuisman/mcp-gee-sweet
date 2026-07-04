@@ -183,10 +183,20 @@ Active tasks, defects, product decisions, and QA gaps are tracked in [GitHub Iss
 
 ## Pull requests
 
+This project has an opinionated roadmap and is maintained by one person. The direct path to a merged PR is a **bug fix with a clear reproduction**, or an **issue already labeled `ready-for-development`** (only maintainers can apply labels, so this is always a deliberate go-ahead, not a self-service queue). Broader feature ideas are welcome as issue discussions — they may get folded into the roadmap over time, but implementation is planned rather than crowd-sourced. If you're not sure which category your change falls into, open an issue first rather than a PR.
+
+- One issue per PR — keep scope matched to what the issue actually asks for.
 - Open a feature branch before pushing (`feat/`, `fix/`, `docs/` prefixes).
-- New tools require QA test cases and a checklist entry — PRs without them will be asked to add them.
+- Fill out the PR template: what changed and why, the issue it closes, and what testing confirms it. Testing bar by change type:
+  - **Bug fix** — a QA test case (or existing one) that reproduces the bug and confirms the fix.
+  - **Refactor** — existing unit tests and QA test cases for the touched code still pass; note explicitly if behavior is unchanged.
+  - **New tool** — QA test cases and a checklist entry, see [Adding a new tool](#adding-a-new-tool). PRs without them will be asked to add them.
+  - **Docs only** — no tests required, but run `make lint` and let pre-commit hooks pass.
 - Update `docs/design.md` if your change affects scope, tool inclusion criteria, or testing approach.
 - If your change warrants a new ADR, add it to `docs/decisions/` following the existing format.
+- Review turnaround is best-effort — there's no guaranteed response time.
+
+This project follows a [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Release gate
 
