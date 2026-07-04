@@ -187,8 +187,11 @@ operations:
     description: >
       Step through test cases one at a time. AI presents each prompt and its
       evaluation; human confirms the final verdict. Verdicts are recorded in
-      docs/qa/results/YYYY-MM-DD.md. This is Phase 2 of the verification model
-      described in docs/decisions/decision-testing.md.
+      docs/qa/results/YYYY-MM-DD.md. Not the current default for run_suite/run_group
+      (those use Playwright-backed visual verification instead — see run.md) — this
+      operation is held in reserve for verification judgment calls Playwright
+      snapshots can't resolve on their own. See "What Actually Happened" in
+      docs/decisions/decision-testing.md.
     parameters:
       - name: group
         required: false

@@ -1,9 +1,9 @@
 # Decision: Human-Led Verification with Phased AI Trust
 
-**Date:** 2026-05-13 (revised 2026-06-02)
+**Date:** 2026-05-13 (revised 2026-06-02, 2026-07-04)
 **Snapshot commit:** [`d94f81ab`](https://github.com/khuisman/mcp-gee-sweet/commit/d94f81ab9e313d8a3cc4c46d141777e4e8069c14) — QA framework as it existed when this decision was first made
 
-> This is a living decision record. The original decision (2026-05-13) established the QA framework structure. This revision corrects a mischaracterisation of Option C and extends the decision with a phased evolution plan toward a hybrid human + AI verification system.
+> This is a living decision record. The original decision (2026-05-13) established the QA framework structure. The 2026-06-02 revision corrected a mischaracterisation of Option C and laid out a phased evolution plan toward a hybrid human + AI verification system. The 2026-07-04 revision records that the framework evolved differently than that plan anticipated — see [What Actually Happened](#what-actually-happened-2026-07-04) below.
 
 ---
 
@@ -80,7 +80,7 @@ The framework consists of:
 
 The current framework works but leaves an open question: how much should AI evaluation be trusted, and how do we know when a previously-verified test still holds? The following phases describe the planned evolution.
 
-### Phase 1 — Run the suite; learn what AI verification actually produces (current)
+### Phase 1 — Run the suite; learn what AI verification actually produces (superseded — see below)
 
 Run the existing test suite with AI assistance evaluating results alongside the human. Goal: discover what works well and what doesn't. Specific things to learn:
 
@@ -111,6 +111,19 @@ Once sign-off tracking exists, introduce rules that automatically mark a previou
 - **Explicit override** — a human marks a TC as needing re-verification (e.g. after an API behavior change or a known regression)
 
 Tests invalidated by Phase 3 rules drop back to requiring human re-approval before AI-only re-runs resume. This creates a ratchet: verified tests stay verified until there's a stated reason they might not be.
+
+## What Actually Happened (2026-07-04)
+
+Phase 1 findings didn't lead to Phase 2. The open question Phase 2/3 were designed to answer — "how much should AI evaluation be trusted, and how do we know when a previously-verified test still holds" — turned out to be the wrong axis. The actual gap wasn't AI judgment on structured API responses (that was fine); it was the checks that could only be verified by *looking at the rendered result* — "confirm the doc's heading renders at the right size," "confirm the file is gone from the Drive UI." Those needed a human's eyes, not a human's sign-off on a checklist.
+
+Playwright MCP closed that gap directly instead: test cases that need visual confirmation are tagged `**Playwright: required**` in the test file (see `docs/qa/README.md`'s test case format and `docs/qa/run.md`'s Playwright section), and the conductor opens the affected page in a real browser and snapshots it as part of the same AI-driven run — no separate human step required. TC-D73 (`delete_file` on a folder) is the concrete case that validated this: the API said `"action: trashed"`, the cache still listed the folder, and Playwright showed it actually gone from Drive — a three-way comparison that caught a real cache bug a checklist sign-off would not have (full account in `docs/qa/retro-v0.8.0.md`).
+
+**Where this leaves the phases:**
+
+- **Phase 1** — effectively superseded. Its stated goal (learn where AI evaluation is trustworthy) was answered by adding Playwright rather than by more observation.
+- **Phase 2 / Phase 3** — not built, and not currently planned. The `human_confirmation` operation they'd have formalized still exists in `docs/qa/operations.yaml`, but it's not the default path for `run_suite`/`run_group` — it's held in reserve for verification judgment calls that Playwright snapshots can't resolve on their own. Formatting and rendering-behavior work is the likely place this comes back: "is this the right font size" or "does this look right stylistically" is a harder call than "is the element present," and may need a human back in the loop for those specific cases rather than the general sign-off/invalidation machinery Phase 2/3 described.
+
+If Phase 2/3-style sign-off tracking becomes necessary later (e.g. Playwright snapshots prove insufficient for a category of checks), revisit this section rather than assuming the original plan still applies unchanged.
 
 ---
 
