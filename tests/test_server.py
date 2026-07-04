@@ -1,4 +1,4 @@
-"""Tests for server.py (_parse_enabled_tools, _auth_status_json, _timed)."""
+"""Tests for server.py (_parse_enabled_tools, _auth_status_json, _timed, tool strict args)."""
 
 import json
 import logging
@@ -6,8 +6,9 @@ import sys
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import ValidationError
 
-from mcp_gee_sweet.server import _auth_status_json, _parse_enabled_tools, _timed
+from mcp_gee_sweet.server import _auth_status_json, _parse_enabled_tools, _timed, mcp, tool
 
 
 class TestParseEnabledTools:
@@ -202,3 +203,47 @@ class TestTimed:
 
         msgs = self._access_messages()
         assert msgs[0].endswith("s")
+
+
+class TestToolStrictArgs:
+    """tool() rejects unrecognized kwargs instead of silently ignoring them (issue #239).
+
+    FastMCP's auto-generated arg model defaults to extra="ignore" (pydantic's own
+    default); tool() flips it to extra="forbid" after registration via private
+    ToolManager/FuncMetadata internals — see _enforce_strict_tool_args's docstring.
+    """
+
+    def test_registers_dummy_tool_valid_args_still_pass(self):
+        @tool()
+        def _test_strict_dummy_tool(known_arg: str, ctx=None) -> str:
+            return known_arg
+
+        registered = mcp._tool_manager.get_tool("_test_strict_dummy_tool")
+        result = registered.fn_metadata.arg_model.model_validate({"known_arg": "x"})
+        assert result.known_arg == "x"
+
+    def test_registers_dummy_tool_unknown_kwarg_rejected(self):
+        @tool()
+        def _test_strict_dummy_tool_2(known_arg: str, ctx=None) -> str:
+            return known_arg
+
+        registered = mcp._tool_manager.get_tool("_test_strict_dummy_tool_2")
+        with pytest.raises(ValidationError, match="unexpected_kwarg"):
+            registered.fn_metadata.arg_model.model_validate(
+                {"known_arg": "x", "unexpected_kwarg": "y"}
+            )
+
+    def test_real_production_tool_rejects_unknown_kwarg(self):
+        # Proves the fix applies universally across all ~84 tools via the shared
+        # decorator (register_all(tool) already ran at module import), not just to a
+        # test-only registration.
+        registered = mcp._tool_manager.get_tool("list_sheets")
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            registered.fn_metadata.arg_model.model_validate(
+                {"spreadsheet_id": "abc123", "bogus_kwarg": "x"}
+            )
+
+    def test_real_production_tool_still_accepts_valid_args(self):
+        registered = mcp._tool_manager.get_tool("list_sheets")
+        result = registered.fn_metadata.arg_model.model_validate({"spreadsheet_id": "abc123"})
+        assert result.spreadsheet_id == "abc123"
