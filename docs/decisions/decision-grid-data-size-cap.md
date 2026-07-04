@@ -3,6 +3,8 @@
 **Date:** 2026-07-03
 **Snapshot commit:** branch `feat/issue-235-grid-data-range` — see `src/mcp_gee_sweet/tools/sheets/data.py`
 
+**Update (2026-07-03, issue #242):** `MAX_GRID_DATA_RESPONSE_CHARS` referenced below was renamed to `MAX_TOOL_RESPONSE_CHARS` and generalized to 5 more tools — see `docs/decisions/decision-response-size-cap-generalization.md`. This doc is left as-is below as the historical record of the original decision.
+
 ## Background
 
 Issue #235: `get_sheet_data(include_grid_data=True)` without a `range` fetches the sheet's full padded grid (often 1000x26 by default, regardless of actual content). In the reported case, the server-side Sheets API call succeeded (`200` in under a second), but the MCP client reported "Connection closed" — the failure was downstream of this server, in the client/transport layer, with no exception for the server to catch.

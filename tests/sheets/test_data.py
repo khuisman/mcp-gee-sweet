@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.sheets import data as sheets_data_module
 
 
@@ -112,7 +113,7 @@ class TestGetSheetData:
         grid_result = {"filler": "x" * 1000}
         svc = self._service(grid_result=grid_result)
         ctx = _make_ctx(sheets_service=svc)
-        monkeypatch.setattr(sheets_data_module, "_MAX_GRID_DATA_RESPONSE_CHARS", 500)
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 500)
         with pytest.raises(ValueError, match="safety cap"):
             _data_tools["get_sheet_data"](
                 spreadsheet_id="ss1",
@@ -121,17 +122,6 @@ class TestGetSheetData:
                 include_grid_data=True,
                 ctx=ctx,
             )
-
-    def test_env_var_sets_cap_at_import_time(self, monkeypatch):
-        import importlib
-
-        monkeypatch.setenv("MAX_GRID_DATA_RESPONSE_CHARS", "12345")
-        reloaded = importlib.reload(sheets_data_module)
-        try:
-            assert reloaded._MAX_GRID_DATA_RESPONSE_CHARS == 12345
-        finally:
-            monkeypatch.delenv("MAX_GRID_DATA_RESPONSE_CHARS", raising=False)
-            importlib.reload(sheets_data_module)
 
     def test_explicit_range_skips_auto_detection(self):
         grid_result = {"sheets": [{"data": [{"rowData": []}]}]}
@@ -294,6 +284,82 @@ class TestGetMultipleSheetData:
         ctx = self._ctx([])
         result = _data_tools["get_multiple_sheet_data"](queries=[], ctx=ctx)
         assert result == []
+
+    def test_oversized_result_raises(self, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        ctx = self._ctx([["x" * 1000]])
+        with pytest.raises(ValueError, match="safety cap"):
+            _data_tools["get_multiple_sheet_data"](
+                queries=[{"spreadsheet_id": "abc", "sheet": "Sheet1"}], ctx=ctx
+            )
+
+    def test_local_path_bypasses_cap_and_writes_results(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        ctx = self._ctx([["x" * 1000]])
+        dest = tmp_path / "out.json"
+        result = _data_tools["get_multiple_sheet_data"](
+            queries=[{"spreadsheet_id": "abc", "sheet": "Sheet1"}],
+            local_path=str(dest),
+            ctx=ctx,
+        )
+        assert result["local_path"] == str(dest)
+        assert result["query_count"] == 1
+        written = json.loads(dest.read_text())
+        assert written[0]["data"] == [["x" * 1000]]
+
+
+class TestFindInSpreadsheet:
+    def _service(self, sheet_titles, values):
+        svc = MagicMock()
+        svc.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [
+                {"properties": {"title": t, "sheetId": i}} for i, t in enumerate(sheet_titles)
+            ]
+        }
+        svc.spreadsheets.return_value.values.return_value.get.return_value.execute.return_value = {
+            "values": values
+        }
+        return svc
+
+    def _ctx(self, sheet_titles, values):
+        return _make_ctx(
+            sheets_service=self._service(sheet_titles, values),
+            cache=MagicMock(
+                get_sheets=MagicMock(return_value=None), get_title=MagicMock(return_value=None)
+            ),
+        )
+
+    def test_finds_matching_cell(self):
+        ctx = self._ctx(["Sheet1"], [["foo", "bar"], ["baz", "foobar"]])
+        result = _data_tools["find_in_spreadsheet"](spreadsheet_id="ss1", query="foo", ctx=ctx)
+        assert {r["cell"] for r in result} == {"A1", "B2"}
+
+    def test_max_results_caps_match_count_not_size(self):
+        # max_results bounds how many matches are returned, not how large each matched
+        # value is — a handful of huge matching cells can still blow the size cap.
+        ctx = self._ctx(["Sheet1"], [["foo" + "x" * 1000]])
+        result = _data_tools["find_in_spreadsheet"](
+            spreadsheet_id="ss1", query="foo", max_results=1, ctx=ctx
+        )
+        assert len(result) == 1
+
+    def test_oversized_result_raises(self, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        ctx = self._ctx(["Sheet1"], [["foo" + "x" * 1000]])
+        with pytest.raises(ValueError, match="safety cap"):
+            _data_tools["find_in_spreadsheet"](spreadsheet_id="ss1", query="foo", ctx=ctx)
+
+    def test_local_path_bypasses_cap_and_writes_results(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        ctx = self._ctx(["Sheet1"], [["foo" + "x" * 1000]])
+        dest = tmp_path / "out.json"
+        result = _data_tools["find_in_spreadsheet"](
+            spreadsheet_id="ss1", query="foo", local_path=str(dest), ctx=ctx
+        )
+        assert result["local_path"] == str(dest)
+        assert result["match_count"] == 1
+        written = json.loads(dest.read_text())
+        assert len(written) == 1
 
 
 class TestBatchUpdate:

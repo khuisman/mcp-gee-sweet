@@ -4,8 +4,10 @@ import io
 from unittest.mock import MagicMock
 
 import openpyxl
+import pytest
 from googleapiclient.errors import HttpError
 
+from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.drive import transfer as transfer_module
 from mcp_gee_sweet.tools.drive.transfer import _xlsx_range_values
 
@@ -135,3 +137,47 @@ class TestXlsxRangeValues:
         rb = _roundtrip(wb)
         result = _xlsx_range_values(rb["Sheet2"], "A1:B1")
         assert result == [["only", "here"]]
+
+
+class TestExportFile:
+    """export_file's base64 encoding inflates raw size ~33%, so it needs the response-size
+    safety net too (issue #242) — but points to download_file instead of a local_path
+    bypass, since download_file already writes raw bytes with no base64/JSON overhead."""
+
+    def _ctx(self, drive_svc):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = drive_svc
+        return ctx
+
+    def _workspace_svc(self, content_bytes, mime_type="application/vnd.google-apps.document"):
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = {
+            "id": "doc1",
+            "name": "Test Doc",
+            "mimeType": mime_type,
+        }
+        svc.files.return_value.export.return_value.execute.return_value = content_bytes
+        return svc
+
+    def test_small_export_succeeds(self):
+        ctx = self._ctx(self._workspace_svc(b"small pdf content"))
+        result = _transfer_tools["export_file"](file_id="doc1", export_format="pdf", ctx=ctx)
+        assert result["encoding"] == "base64"
+
+    def test_oversized_base64_content_raises(self, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
+        ctx = self._ctx(self._workspace_svc(b"x" * 1000))
+        with pytest.raises(ValueError, match="safety cap"):
+            _transfer_tools["export_file"](file_id="doc1", export_format="pdf", ctx=ctx)
+
+    def test_error_points_to_download_file_not_local_path(self, monkeypatch):
+        # export_file has no local_path param — download_file is the correct bypass
+        # (raw bytes to disk, no base64/JSON overhead), so the error must say so and
+        # must not reference a param this tool doesn't have.
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
+        ctx = self._ctx(self._workspace_svc(b"x" * 1000))
+        with pytest.raises(ValueError) as exc_info:
+            _transfer_tools["export_file"](file_id="doc1", export_format="pdf", ctx=ctx)
+        msg = str(exc_info.value)
+        assert "download_file" in msg
+        assert "local_path" not in msg

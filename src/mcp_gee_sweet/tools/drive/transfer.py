@@ -12,6 +12,7 @@ from googleapiclient.http import MediaFileUpload, MediaInMemoryUpload, MediaIoBa
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+from ..response_limits import enforce_response_size_cap
 from . import _SA_QUOTA_ERROR
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,12 @@ def register(tool):
         Returns:
             fileId, name, mime_type, format, encoding ('utf-8' or 'base64'), content.
             Text formats (txt, html, csv, rtf) are returned as plain strings; all others
-            are base64-encoded bytes.
+            are base64-encoded bytes. Raises ValueError if the response exceeds a safety
+            cap (default 40,000 characters, set MAX_TOOL_RESPONSE_CHARS to change it) —
+            base64 encoding inflates raw file size by ~33%, so binary exports hit this
+            cap at a much smaller *file* size than text ones. Call download_file instead
+            for anything but small files; it writes raw bytes straight to disk with no
+            base64/JSON overhead.
         """
         _TEXT_MIME_PREFIXES = ("text/",)
 
@@ -102,53 +108,40 @@ def register(tool):
             while not done:
                 _, done = downloader.next_chunk()
             raw_bytes = buf.getvalue()
-            is_text = any(file_mime.startswith(p) for p in _TEXT_MIME_PREFIXES)
-            if is_text:
-                return {
-                    "fileId": file_id,
-                    "name": metadata["name"],
-                    "mime_type": file_mime,
-                    "format": export_format,
-                    "encoding": "utf-8",
-                    "content": raw_bytes.decode("utf-8", errors="replace"),
-                }
-            return {
-                "fileId": file_id,
-                "name": metadata["name"],
-                "mime_type": file_mime,
-                "format": export_format,
-                "encoding": "base64",
-                "content": base64.b64encode(raw_bytes).decode("ascii"),
-            }
-
-        if export_format not in _EXPORT_MIME:
-            raise ValueError(
-                f"Unknown export_format '{export_format}'. "
-                f"Valid options: {', '.join(_EXPORT_MIME)}, raw"
+            target_mime = file_mime
+            content_bytes = raw_bytes
+        else:
+            if export_format not in _EXPORT_MIME:
+                raise ValueError(
+                    f"Unknown export_format '{export_format}'. "
+                    f"Valid options: {', '.join(_EXPORT_MIME)}, raw"
+                )
+            target_mime = _EXPORT_MIME[export_format][0]
+            content_bytes = (
+                drive_service.files().export(fileId=file_id, mimeType=target_mime).execute()
             )
-        target_mime = _EXPORT_MIME[export_format][0]
+            if isinstance(content_bytes, str):
+                content_bytes = content_bytes.encode("utf-8")
 
-        content_bytes = drive_service.files().export(fileId=file_id, mimeType=target_mime).execute()
         is_text = any(target_mime.startswith(p) for p in _TEXT_MIME_PREFIXES)
-        if is_text:
-            return {
-                "fileId": file_id,
-                "name": metadata["name"],
-                "mime_type": target_mime,
-                "format": export_format,
-                "encoding": "utf-8",
-                "content": content_bytes.decode("utf-8")
-                if isinstance(content_bytes, bytes)
-                else content_bytes,
-            }
-        return {
+        result = {
             "fileId": file_id,
             "name": metadata["name"],
             "mime_type": target_mime,
             "format": export_format,
-            "encoding": "base64",
-            "content": base64.b64encode(content_bytes).decode("ascii"),
+            "encoding": "utf-8" if is_text else "base64",
+            "content": content_bytes.decode("utf-8", errors="replace")
+            if is_text
+            else base64.b64encode(content_bytes).decode("ascii"),
         }
+        enforce_response_size_cap(
+            result,
+            tool_name="export_file",
+            hint="Base64 encoding inflates raw file size by ~33%. Call download_file "
+            "instead to write the file straight to disk without this overhead, or ",
+            local_path_available=False,
+        )
+        return result
 
     @tool(annotations=ToolAnnotations(title="List Revisions", readOnlyHint=True))
     def list_revisions(file_id: str, ctx: Context = None) -> list[dict[str, Any]]:

@@ -1,11 +1,13 @@
 """Tests for docs content tools and HTML/Markdown pipeline."""
 
+import json
 from unittest.mock import MagicMock
 
 import pytest
 from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import docs as docs_module
+from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.docs.ast import (
     BulletItem,
     Paragraph,
@@ -602,3 +604,54 @@ class TestInsertInlineImage:
             doc_id="doc1", index=1, uri="https://example.com/img.png", ctx=ctx
         )
         assert "error" in result
+
+
+class TestGetDocContent:
+    def _drive_svc(self, content=b"hello world"):
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = {
+            "id": "doc1",
+            "name": "Test Doc",
+            "modifiedTime": "2026-01-01T00:00:00Z",
+            "webViewLink": "https://example.com/doc1",
+        }
+        svc.files.return_value.export.return_value.execute.return_value = content
+        return svc
+
+    def _ctx(self, drive_svc=None, doc_cache=None):
+        return _make_ctx(
+            drive_service=drive_svc or self._drive_svc(),
+            doc_cache=doc_cache or MagicMock(get=MagicMock(return_value=None)),
+        )
+
+    def test_returns_content(self):
+        ctx = self._ctx()
+        result = _docs_tools["get_doc_content"](file_id="doc1", ctx=ctx)
+        assert result["content"] == "hello world"
+
+    def test_oversized_result_raises(self, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        ctx = self._ctx(drive_svc=self._drive_svc(content=b"x" * 1000))
+        with pytest.raises(ValueError, match="safety cap"):
+            _docs_tools["get_doc_content"](file_id="doc1", ctx=ctx)
+
+    def test_cached_oversized_result_also_raises(self, monkeypatch):
+        # Regression: the cap check used to run only on the fetch path (before the
+        # doc_cache early-return), so a cached oversized doc would bypass it on repeat
+        # calls (issue #242).
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        cached_result = {"id": "doc1", "content": "x" * 1000}
+        doc_cache = MagicMock(get=MagicMock(return_value=cached_result))
+        ctx = self._ctx(doc_cache=doc_cache)
+        with pytest.raises(ValueError, match="safety cap"):
+            _docs_tools["get_doc_content"](file_id="doc1", ctx=ctx)
+
+    def test_local_path_bypasses_cap_and_writes_content(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        ctx = self._ctx(drive_svc=self._drive_svc(content=b"x" * 1000))
+        dest = tmp_path / "out.json"
+        result = _docs_tools["get_doc_content"](file_id="doc1", local_path=str(dest), ctx=ctx)
+        assert result["local_path"] == str(dest)
+        assert result["id"] == "doc1"
+        written = json.loads(dest.read_text())
+        assert written["content"] == "x" * 1000
