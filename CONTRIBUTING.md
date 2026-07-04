@@ -23,11 +23,13 @@ make install-hooks
 
 ### 2. Configure auth and environment
 
-The server loads `src/mcp_gee_sweet/.env` at startup. Copy the template and fill in what you need:
+Two ways to supply configuration — pick whichever fits how you're running the server:
 
-```bash
-cp src/mcp_gee_sweet/.env.template src/mcp_gee_sweet/.env
-```
+- **`src/mcp_gee_sweet/.env` file** — the server loads it at startup, so this works regardless of transport. Copy the template and fill in what you need:
+  ```bash
+  cp src/mcp_gee_sweet/.env.template src/mcp_gee_sweet/.env
+  ```
+- **Your MCP client's config directly** — if you're pointing your client at `uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet` (the README's stdio quick-start), you can set env vars in the client's `env` block instead, the same way the [MCP client config](https://khuisman.github.io/mcp-gee-sweet/client-setup/) examples do. Many contributors find this a better day-to-day experience than maintaining a separate `.env` file — client config takes precedence over `.env` either way.
 
 At minimum you need one auth method and a Drive folder. Full details on all four methods (including GCP setup steps) are in [Authentication](https://khuisman.github.io/mcp-gee-sweet/auth/); the full environment variable reference is in [Configuration](https://khuisman.github.io/mcp-gee-sweet/configuration/).
 
@@ -120,9 +122,11 @@ The assistant will check preconditions (`.env` keys, server connectivity) and te
 
 Available groups: `read`, `write`, `sheets`, `drive`, `charts`, `calendar`, `infra`
 
-### Human confirmation flow
+### Visual verification with Playwright
 
-The `human_confirmation` operation steps through tests one at a time — the AI presents each prompt and its evaluation, you confirm the verdict. This is the primary QA method for new test cases and first-time verification. See [`docs/decisions/decision-testing.md`](docs/decisions/decision-testing.md) for the full rationale and phased trust model.
+The primary QA method today is `run_suite`/`run_group` with Playwright-backed visual verification: test cases tagged **Playwright: required** in their test file get a real browser check via the Playwright MCP after the tool call, confirming what the API response claims actually happened in Drive/Docs/Sheets/Calendar. See [`docs/qa/run.md`](docs/qa/run.md) for how the conductor drives this.
+
+`human_confirmation` (stepping through tests one at a time with a human sign-off on each verdict) is also defined in `docs/qa/operations.yaml`, but isn't the current default — it's held in reserve for verification judgment calls that Playwright snapshots can't resolve on their own, which is likely to matter more once formatting/rendering-behavior work picks up. See [`docs/decisions/decision-testing.md`](docs/decisions/decision-testing.md) for the full rationale, including what changed since the original phased-trust plan.
 
 ---
 
