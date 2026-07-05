@@ -2,10 +2,17 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from googleapiclient.errors import HttpError
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
 logger = logging.getLogger(__name__)
+
+_CANNOT_UNSUBSCRIBE_OWNED_ERROR = (
+    "Google does not allow removing a calendar you own from your own calendar list "
+    "(reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to "
+    "permanently delete it."
+)
 
 
 def register(tool):
@@ -271,6 +278,10 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         try:
             lc.calendar_service.calendarList().delete(calendarId=calendar_id).execute()
+        except HttpError as e:
+            if e.resp.status == 403 and b"cannotUnsubscribeFromOwnedCalendar" in (e.content or b""):
+                return {"error": _CANNOT_UNSUBSCRIBE_OWNED_ERROR}
+            return {"error": str(e)}
         except Exception as e:
             return {"error": str(e)}
 

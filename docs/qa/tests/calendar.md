@@ -344,9 +344,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Checks**
 - Returns `{"error": "..."}` — not a top-level exception
-- Error reflects Google's `cannotUnsubscribeFromOwnedCalendar` restriction — owners must use `delete_calendar` instead, not `remove_calendar_from_list`
+- The error message is actionable and names `delete_calendar` as the correct tool — `remove_calendar_from_list` detects the `cannotUnsubscribeFromOwnedCalendar` reason specifically and substitutes a friendly message instead of passing through the raw `HttpError` repr
 
-**Result (2026-07-05) ✅** — Attempted on a freshly created owned calendar; returned `{"error": "<HttpError 403 ... 'reason': 'cannotUnsubscribeFromOwnedCalendar', 'message': 'The data owner of a calendar cannot remove such a calendar from their calendar list.' ...>"}`. Confirms `delete_calendar` (not `remove_calendar_from_list`) is the correct tool for calendars you own — matches the docstring guidance already in both tools.
+**Result (2026-07-05) ✅** — First pass (before the friendly-message special-case was added) returned the raw passthrough: `{"error": "<HttpError 403 ... 'reason': 'cannotUnsubscribeFromOwnedCalendar', 'message': 'The data owner of a calendar cannot remove such a calendar from their calendar list.' ...>"}`. After adding the special-case (reviewer feedback on #269), re-ran against a freshly created owned calendar and got `{"error": "Google does not allow removing a calendar you own from your own calendar list (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to permanently delete it."}` — confirms the friendlier message is live and correctly names the fix.
 
 ---
 

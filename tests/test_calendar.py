@@ -2,7 +2,18 @@
 
 from unittest.mock import MagicMock
 
+from googleapiclient.errors import HttpError
+
 from mcp_gee_sweet.tools import calendar as calendar_module
+
+
+def _cannot_unsubscribe_owned_error():
+    resp = MagicMock()
+    resp.status = 403
+    return HttpError(
+        resp=resp,
+        content=b'{"error": {"errors": [{"reason": "cannotUnsubscribeFromOwnedCalendar"}]}}',
+    )
 
 
 def _make_tool_registry():
@@ -356,6 +367,36 @@ class TestRemoveCalendarFromList:
         result = _cal_tools["remove_calendar_from_list"](calendar_id="cal-missing", ctx=ctx)
 
         assert "error" in result
+        cache.mark_dirty.assert_not_called()
+
+    def test_cannot_unsubscribe_from_owned_calendar_returns_actionable_message(self):
+        """Google's cannotUnsubscribeFromOwnedCalendar 403 must map to a message pointing at delete_calendar."""
+        cal_svc = MagicMock()
+        cal_svc.calendarList.return_value.delete.return_value.execute.side_effect = (
+            _cannot_unsubscribe_owned_error()
+        )
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = _cal_tools["remove_calendar_from_list"](calendar_id="owned-cal", ctx=ctx)
+
+        assert "delete_calendar" in result["error"]
+        cache.mark_dirty.assert_not_called()
+
+    def test_other_403_error_falls_back_to_raw_message(self):
+        """A 403 for a different reason must not be swallowed by the owned-calendar special case."""
+        resp = MagicMock()
+        resp.status = 403
+        cal_svc = MagicMock()
+        cal_svc.calendarList.return_value.delete.return_value.execute.side_effect = HttpError(
+            resp=resp, content=b'{"error": {"errors": [{"reason": "forbidden"}]}}'
+        )
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = _cal_tools["remove_calendar_from_list"](calendar_id="cal-1", ctx=ctx)
+
+        assert "delete_calendar" not in result["error"]
         cache.mark_dirty.assert_not_called()
 
 
