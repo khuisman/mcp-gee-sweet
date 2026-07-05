@@ -1,0 +1,4695 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/qa/results/2026-06-28/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>QA Run — 2026-06-28 - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#qa-run-2026-06-28" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              QA Run — 2026-06-28
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../qa-checklist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Checklist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_6" id="__nav_6_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/drive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="qa-run-2026-06-28">QA Run — 2026-06-28<a class="headerlink" href="#qa-run-2026-06-28" title="Permanent link">&para;</a></h1>
+<p><strong>Auth:</strong> OAuth<br />
+<strong>Fixtures:</strong> SPREADSHEET_ID=<code>[see .env]</code> · DOC_ID=<code>[see .env]</code> · FOLDER_ID=<code>[see .env]</code><br />
+<strong>Playwright:</strong> Used for all mutation tests — API response + browser screenshot compared.<br />
+<strong>Unit tests:</strong> <code>uv run python -m pytest tests/</code> → <strong>476 passed</strong> in 5.49s (covers TC-I05–I12 infra auth/filter cases)</p>
+<hr />
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>PASS</th>
+<th>FAIL</th>
+<th>SKIP</th>
+<th>Total</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Infrastructure</td>
+<td>14</td>
+<td>0</td>
+<td>6</td>
+<td>20</td>
+</tr>
+<tr>
+<td>Sheets Read</td>
+<td>33</td>
+<td>0</td>
+<td>0</td>
+<td>33</td>
+</tr>
+<tr>
+<td>Sheets Write</td>
+<td>32</td>
+<td>0</td>
+<td>0</td>
+<td>32</td>
+</tr>
+<tr>
+<td>Sheets Mgmt</td>
+<td>50</td>
+<td>0</td>
+<td>0</td>
+<td>50</td>
+</tr>
+<tr>
+<td>Sheets Charts</td>
+<td>12</td>
+<td>0</td>
+<td>0</td>
+<td>12</td>
+</tr>
+<tr>
+<td>Drive + Docs (legacy)</td>
+<td>124</td>
+<td>7</td>
+<td>35</td>
+<td>166</td>
+</tr>
+<tr>
+<td>Docs Tools</td>
+<td>78</td>
+<td>0</td>
+<td>1</td>
+<td>79</td>
+</tr>
+<tr>
+<td>Calendar</td>
+<td>40</td>
+<td>1</td>
+<td>2</td>
+<td>43</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>383</strong></td>
+<td><strong>8</strong></td>
+<td><strong>44</strong></td>
+<td><strong>435</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="failures">Failures<a class="headerlink" href="#failures" title="Permanent link">&para;</a></h2>
+<p><strong>TC-D73 — Trash folder does not invalidate drive_folder_cache</strong><br />
+Expected: <code>list_folders</code> no longer shows <code>QA-Folder-Renamed-2</code> after <code>delete_file</code> trashes it.<br />
+Observed: <code>action:"trashed"</code> returned, but <code>list_folders</code> still shows the folder. Stale cache not cleared.<br />
+Playwright: <code>tc-d73-trash-folder.png</code> — folder truly absent from Drive UI, confirming the API call worked; the bug is solely in cache invalidation.<br />
+→ Bug: <code>delete_file</code> does not call <code>invalidate</code> on <code>drive_folder_cache</code> for the parent folder.</p>
+<p><strong>TC-D79 — get_file_metadata returns <code>size</code> for Google Sheets files</strong><br />
+Expected: <code>size</code> field absent for Google Workspace files (no storage quota consumed).<br />
+Observed: <code>size:"2274"</code> returned — Drive API returns <code>quotaBytesUsed</code> as <code>size</code> for Sheets files.<br />
+Playwright: n/a (API-only check).<br />
+→ Bug: Tool exposes <code>size</code> field that means <code>quotaBytesUsed</code>, not actual file size; misleading for Workspace files.</p>
+<p><strong>TC-D135 — share_file type=domain (environmental)</strong><br />
+Expected: sharing with <code>example.com</code> domain succeeds.<br />
+Observed: <code>failures:[{error:"The specified domain is invalid or not applicable..."}]</code>. <code>example.com</code> is not a Google Workspace domain.<br />
+→ Environmental: test requires a real GWS domain. Tool error handling is correct.</p>
+<p><strong>TC-D137 — share_file folder with non-Google account (environmental)</strong><br />
+Expected: sharing <code>QA-Folder-Renamed-2</code> with <code>test-recipient@example.com</code> succeeds.<br />
+Observed: <code>failures:[{error:"Forbidden...do not have a Google Account"}]</code>.<br />
+→ Environmental: <code>test-recipient@example.com</code> is not a real Google account. Error propagated correctly.</p>
+<p><strong>TC-D139 — share_file send_notification=False with non-Google account (environmental)</strong><br />
+Expected: <code>send_notification=False</code> suppresses notification email.<br />
+Observed: <code>failures:[{error:"Bad Request...must check 'Notify people' box...no Google account"}]</code>. Drive requires notification for non-Google account shares.<br />
+→ Environmental: same non-Google account limitation. Tool correctly propagates the Drive API error.</p>
+<p><strong>TC-D144 — write_doc_content multiple tables produces single merged table</strong><br />
+Expected: two separate <code>&lt;table&gt;</code> elements produce two separate tables in the doc.<br />
+Observed: both tables merged into one 2×2 table; "Second table:" paragraph absent.<br />
+Playwright: <code>tc-d144-multiple-tables.png</code> — confirmed single merged table.<br />
+→ Known gap (see project memory TC-D228): multi-table index corruption. <code>tables[1].startIndex</code> becomes stale after <code>tables[0]</code> is inserted; the emitter must re-fetch or compute offset adjustments between inserts.</p>
+<p><strong>TC-D148 — export_revision read range (environmental)</strong><br />
+Expected: earlier revision shows <code>A1="QA-BEFORE"</code>, later shows <code>A1="QA-AFTER"</code>.<br />
+Observed: Drive grouped both rapid writes into single revision 271; <code>A1="QA-AFTER"</code> on both.<br />
+→ Environmental: Drive revision API coalesces rapid writes. The tool mechanism itself works (revisionId/sheet/modifiedTime/values all returned correctly for revision 271).</p>
+<p><strong>TC-CAL09 — list_events time_min docstring bug</strong><br />
+Expected: when <code>time_min</code> is omitted, API defaults to "now" per docstring.<br />
+Observed: all past events returned (no <code>timeMin</code> set in API call). Implementation at <code>calendar.py:115</code> only sets <code>timeMin</code> when the parameter is explicitly provided.<br />
+→ Bug: docstring says <code>time_min</code> "Defaults to now if omitted" — implementation does not match. <code>timeMin</code> must be set explicitly or it is omitted from the API call, returning all historical events.</p>
+<hr />
+<h2 id="additional-notes-not-failures">Additional notes (not failures)<a class="headerlink" href="#additional-notes-not-failures" title="Permanent link">&para;</a></h2>
+<p><strong>TC-CAL36/37 — create_event <code>timezone</code> required for recurring events</strong><br />
+Docstring says <code>timezone</code> is required only for all-day events. It is also required when <code>recurrence</code> is set and the event uses <code>datetime</code> start/end (not all-day). First call failed with "Missing time zone definition for start time"; retry with <code>timezone='America/Los_Angeles'</code> succeeded.<br />
+→ Documentation gap: update <code>create_event</code> docstring to note timezone is also required for recurring datetime events.</p>
+<hr />
+<h2 id="tool-coverage">Tool coverage<a class="headerlink" href="#tool-coverage" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>TC(s)</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>get_sheet_data</code></td>
+<td>TC-R01–R07, TC-R31–R33</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>get_sheet_formulas</code></td>
+<td>TC-R08–R11</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>get_multiple_sheet_data</code></td>
+<td>TC-R12–R15</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>get_multiple_spreadsheet_summary</code></td>
+<td>TC-R16–R22</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>find_in_spreadsheet</code></td>
+<td>TC-R23–R30</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>update_cells</code></td>
+<td>TC-W01–W05</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>batch_update_cells</code></td>
+<td>TC-W06–W10a</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>add_rows</code></td>
+<td>TC-W10b–W16</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>add_columns</code></td>
+<td>TC-W17–W20</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>batch_update</code></td>
+<td>TC-W21–W28</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>clear_values</code></td>
+<td>TC-W29–W32</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>list_sheets</code></td>
+<td>TC-S01–S03</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>copy_sheet</code></td>
+<td>TC-S04–S10</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>rename_sheet</code></td>
+<td>TC-S11–S14</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>create_sheet</code></td>
+<td>TC-S15–S19</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>refresh_cache</code></td>
+<td>TC-S20–S24</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>delete_sheet</code></td>
+<td>TC-S25–S26</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>delete_rows</code></td>
+<td>TC-S27–S29</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>delete_columns</code></td>
+<td>TC-S30–S32</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>format_cells</code></td>
+<td>TC-S33–S37</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>merge_cells</code></td>
+<td>TC-S38–S39, TC-S41</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>unmerge_cells</code></td>
+<td>TC-S40</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>freeze</code></td>
+<td>TC-S42–S45</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>sort_range</code></td>
+<td>TC-S46–S50</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>add_chart</code></td>
+<td>TC-C01–C12</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>create_spreadsheet</code></td>
+<td>TC-D01–D06</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>list_spreadsheets</code></td>
+<td>TC-D13–D17</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>list_files</code></td>
+<td>TC-D36–D43</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>list_folders</code></td>
+<td>TC-D26–D28</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>list_drives</code></td>
+<td>TC-D120–D123</td>
+<td>✅ pass (D123 skip — no shared drives)</td>
+</tr>
+<tr>
+<td><code>search_spreadsheets</code></td>
+<td>TC-D29–D35</td>
+<td>✅ pass (D35 skip — cannot force auth error)</td>
+</tr>
+<tr>
+<td><code>search_files</code></td>
+<td>TC-D75–D78</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>create_folder</code></td>
+<td>TC-D58–D60</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>move_file</code></td>
+<td>TC-D61–D63</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>rename_file</code></td>
+<td>TC-D64–D66</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>copy_file</code></td>
+<td>TC-D67–D70</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>delete_file</code></td>
+<td>TC-D71–D74</td>
+<td>❌ TC-D73 FAIL (folder cache not invalidated)</td>
+</tr>
+<tr>
+<td><code>get_file_metadata</code></td>
+<td>TC-D79–D82</td>
+<td>❌ TC-D79 FAIL (size field exposed for Workspace files)</td>
+</tr>
+<tr>
+<td><code>export_file</code></td>
+<td>TC-D83–D87</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>upload_file</code></td>
+<td>TC-D88–D92</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>upload_local_file</code></td>
+<td>TC-D93–D97</td>
+<td>SKIP (⚠️ local-filesystem — all covering TCs skipped)</td>
+</tr>
+<tr>
+<td><code>upload_local_folder</code></td>
+<td>TC-D98–D102</td>
+<td>SKIP (⚠️ local-filesystem)</td>
+</tr>
+<tr>
+<td><code>download_file</code></td>
+<td>TC-D103–D107</td>
+<td>SKIP (⚠️ local-filesystem)</td>
+</tr>
+<tr>
+<td><code>download_folder</code></td>
+<td>TC-D108–D110</td>
+<td>SKIP (⚠️ local-filesystem)</td>
+</tr>
+<tr>
+<td><code>sync_folder</code></td>
+<td>TC-D111–D119</td>
+<td>SKIP (⚠️ local-filesystem)</td>
+</tr>
+<tr>
+<td><code>list_permissions</code></td>
+<td>TC-D124–D126</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>update_permission</code></td>
+<td>TC-D127–D129</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>remove_permission</code></td>
+<td>TC-D130–D131</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>share_spreadsheet</code></td>
+<td>TC-D18–D25</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>share_file</code></td>
+<td>TC-D132–D139</td>
+<td>❌ TC-D135, D137, D139 FAIL (all environmental — non-Google test accounts)</td>
+</tr>
+<tr>
+<td><code>list_revisions</code></td>
+<td>TC-D146–D147</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>export_revision</code></td>
+<td>TC-D148–D151</td>
+<td>❌ TC-D148 FAIL (env — Drive groups rapid writes)</td>
+</tr>
+<tr>
+<td><code>list_shared_with_me</code></td>
+<td>TC-D152–D155</td>
+<td>✅ pass (D155 skip — unit test check)</td>
+</tr>
+<tr>
+<td><code>list_recent_files</code></td>
+<td>TC-D156–D159</td>
+<td>✅ pass (D159 skip — unit test check)</td>
+</tr>
+<tr>
+<td><code>get_storage_quota</code></td>
+<td>TC-D160–D162</td>
+<td>✅ pass (D161, D162 skip — unit test checks)</td>
+</tr>
+<tr>
+<td><code>list_file_activity</code></td>
+<td>TC-D163–D166</td>
+<td>✅ pass (D166 skip — unit test check)</td>
+</tr>
+<tr>
+<td><code>create_doc</code></td>
+<td>TC-D07–D12</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>get_doc_content</code></td>
+<td>TC-D44–D49</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>write_doc_content</code></td>
+<td>TC-D50–D57, TC-D140–D145, TC-DOC31–D43, TC-DOC47–D50, TC-DOC78–D79</td>
+<td>❌ TC-D144 FAIL (multi-table gap); all others pass</td>
+</tr>
+<tr>
+<td><code>create_doc_from_file</code></td>
+<td>TC-DOC44–D46, TC-DOC76–D77</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>get_doc_structure</code></td>
+<td>TC-DOC01–D05</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>insert_doc_text</code></td>
+<td>TC-DOC06–D08, TC-DOC74</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>delete_doc_range</code></td>
+<td>TC-DOC09–D11</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>style_doc_range</code></td>
+<td>TC-DOC12–D15, TC-DOC23–D24, TC-DOC28–D30</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>insert_doc_table</code></td>
+<td>TC-DOC16–D17, TC-DOC26–D27</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>style_doc_table_cells</code></td>
+<td>TC-DOC18–D21, TC-DOC25–D26</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>insert_inline_image</code></td>
+<td>TC-DOC57–D60</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>insert_table_row</code></td>
+<td>TC-DOC61–D62</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>delete_table_row</code></td>
+<td>TC-DOC63, TC-DOC67</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>insert_table_column</code></td>
+<td>TC-DOC64–D65</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>delete_table_column</code></td>
+<td>TC-DOC66</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>create_header</code></td>
+<td>TC-DOC68–D69, TC-DOC72, TC-DOC74</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>create_footer</code></td>
+<td>TC-DOC70–D71, TC-DOC73, TC-DOC74</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>get_doc_theme</code></td>
+<td>TC-DOC52, TC-DOC56</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>apply_theme</code></td>
+<td>TC-DOC53–D56</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>get_doc_named_styles</code></td>
+<td>TC-DOC75</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>list_calendars</code></td>
+<td>TC-CAL01–CAL04</td>
+<td>✅ pass (CAL04 skip — fresh SA required)</td>
+</tr>
+<tr>
+<td><code>get_calendar</code></td>
+<td>TC-CAL05–CAL08</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>list_events</code></td>
+<td>TC-CAL09–CAL19</td>
+<td>❌ TC-CAL09 FAIL (time_min default bug); CAL10–19 pass</td>
+</tr>
+<tr>
+<td><code>get_event</code></td>
+<td>TC-CAL19–CAL20, TC-CAL41</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>create_event</code></td>
+<td>TC-CAL20–CAL23, TC-CAL36–CAL37, TC-CAL39–CAL40</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>update_event</code></td>
+<td>TC-CAL24–CAL27, TC-CAL42</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>delete_event</code></td>
+<td>TC-CAL28–CAL29, TC-CAL43</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td><code>find_free_slots</code></td>
+<td>TC-CAL30–CAL35</td>
+<td>✅ pass (CAL32 skip — second calendar required)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="full-results">Full results<a class="headerlink" href="#full-results" title="Permanent link">&para;</a></h2>
+<h3 id="infrastructure">Infrastructure<a class="headerlink" href="#infrastructure" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Title</th>
+<th>Outcome</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-I01</td>
+<td>Cache TTL — stale entry causes re-fetch</td>
+<td>SKIP</td>
+<td>✅ covered by <code>tests/test_cache.py</code> unit tests; requires server restart</td>
+</tr>
+<tr>
+<td>TC-I02</td>
+<td>SQLite WAL — concurrent reads during write</td>
+<td>SKIP</td>
+<td>Manual only — requires true concurrent requests</td>
+</tr>
+<tr>
+<td>TC-I03</td>
+<td>CACHE_DB_PATH env var respected</td>
+<td>SKIP</td>
+<td>✅ covered by <code>tests/test_cache.py</code>; requires server restart</td>
+</tr>
+<tr>
+<td>TC-I04</td>
+<td>Cache persists across restart</td>
+<td>SKIP</td>
+<td>SQLite persistence is a property of the DB file; requires restart</td>
+</tr>
+<tr>
+<td>TC-I05</td>
+<td>CLI flag — only specified tools registered</td>
+<td>PASS</td>
+<td><code>TestParseEnabledTools</code> — 8 cases, all pass (test_server.py)</td>
+</tr>
+<tr>
+<td>TC-I06</td>
+<td>ENABLED_TOOLS env var — same behavior</td>
+<td>PASS</td>
+<td>Same unit test coverage</td>
+</tr>
+<tr>
+<td>TC-I07</td>
+<td>Unlisted tool called by name</td>
+<td>PASS</td>
+<td>Same unit test coverage</td>
+</tr>
+<tr>
+<td>TC-I08</td>
+<td>CREDENTIALS_CONFIG (base64 SA)</td>
+<td>PASS</td>
+<td><code>tests/test_auth.py</code> — <code>_service_account_creds</code> unit-tested; 476 total pass</td>
+</tr>
+<tr>
+<td>TC-I09</td>
+<td>SERVICE_ACCOUNT_PATH</td>
+<td>PASS</td>
+<td>Unit-tested in test_auth.py</td>
+</tr>
+<tr>
+<td>TC-I10</td>
+<td>OAuth flow (CREDENTIALS_PATH / TOKEN_PATH)</td>
+<td>PASS</td>
+<td>Current session uses OAuth; tools return results as authenticated user; create_doc/create_spreadsheet land in personal Drive</td>
+</tr>
+<tr>
+<td>TC-I11</td>
+<td>Application Default Credentials (ADC)</td>
+<td>PASS</td>
+<td>Unit-tested in test_auth.py (waterfall coverage)</td>
+</tr>
+<tr>
+<td>TC-I12</td>
+<td>No credentials — clear error</td>
+<td>PASS</td>
+<td>Unit-tested in test_auth.py</td>
+</tr>
+<tr>
+<td>TC-I13</td>
+<td>stdio transport</td>
+<td>SKIP</td>
+<td>Requires stdio client config; current session is SSE</td>
+</tr>
+<tr>
+<td>TC-I14</td>
+<td>SSE transport</td>
+<td>PASS</td>
+<td>Live: <code>list_sheets</code> returned <code>["Sales","Empty","Notes &amp; Misc"]</code> via SSE; 400+ tool calls this session via SSE</td>
+</tr>
+<tr>
+<td>TC-I15</td>
+<td>Hot reload with SSE</td>
+<td>SKIP</td>
+<td>Requires <code>--reload</code> flag; known uvicorn + SSE limitation</td>
+</tr>
+<tr>
+<td>TC-I16</td>
+<td>DEBUG_LEVEL=DEBUG — debug and access logs appear</td>
+<td>PASS</td>
+<td>Result (2026-06-23): startup DEBUG cache lines + INFO access log both confirmed</td>
+</tr>
+<tr>
+<td>TC-I17</td>
+<td>DEBUG_LEVEL=INFO — access logs only</td>
+<td>PASS</td>
+<td>Result (2026-06-23): only INFO access line; no DEBUG cache-open noise</td>
+</tr>
+<tr>
+<td>TC-I18</td>
+<td>LOG_FILE — output written to file</td>
+<td>PASS</td>
+<td>Result (2026-06-23): <code>/tmp/mcp-gee-sweet.log</code> created; 466 lines after session</td>
+</tr>
+<tr>
+<td>TC-I19</td>
+<td>ACCESS_LOG_FILE — access lines to separate file</td>
+<td>PASS</td>
+<td>Result (2026-06-23): access-only log confirmed; no DEBUG noise</td>
+</tr>
+<tr>
+<td>TC-I20</td>
+<td>.env loaded at startup</td>
+<td>PASS</td>
+<td>Result (2026-06-23): DEBUG logging active from <code>.env</code> alone; no shell export required</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sheets-read">Sheets Read<a class="headerlink" href="#sheets-read" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Title</th>
+<th>Outcome</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-R01</td>
+<td>Fetch all Sales data</td>
+<td>PASS</td>
+<td>Playwright: 6 rows, correct values, matches API</td>
+</tr>
+<tr>
+<td>TC-R02</td>
+<td>Explicit range A1:C3</td>
+<td>PASS</td>
+<td>Playwright: 3 rows × 3 cols highlighted, sum=600</td>
+</tr>
+<tr>
+<td>TC-R03</td>
+<td>Grid data with formatting</td>
+<td>PASS</td>
+<td><code>rowData</code> confirmed in response; visual matches TC-R01</td>
+</tr>
+<tr>
+<td>TC-R04</td>
+<td>Non-existent sheet name</td>
+<td>PASS</td>
+<td>API 400 "Unable to parse range"; no visual possible</td>
+</tr>
+<tr>
+<td>TC-R05</td>
+<td>Non-existent spreadsheet ID</td>
+<td>PASS</td>
+<td>API 404 "Requested entity was not found"</td>
+</tr>
+<tr>
+<td>TC-R06</td>
+<td>Range beyond data bounds</td>
+<td>PASS</td>
+<td>Playwright: A100:Z200 all empty; API <code>values:[]</code></td>
+</tr>
+<tr>
+<td>TC-R07</td>
+<td>Sheet name with spaces</td>
+<td>PASS</td>
+<td>Playwright: Notes &amp; Misc — Date/Note headers, 6/27/2026</td>
+</tr>
+<tr>
+<td>TC-R08</td>
+<td>Formulas in Sales</td>
+<td>PASS</td>
+<td>Playwright: B6 formula bar = <code>=SUM(B2:B5)</code>, cell = 650</td>
+</tr>
+<tr>
+<td>TC-R09</td>
+<td>Formulas — empty sheet</td>
+<td>PASS</td>
+<td>Playwright: Empty tab all blank; API <code>result:[]</code></td>
+</tr>
+<tr>
+<td>TC-R10</td>
+<td>Formulas — Notes &amp; Misc</td>
+<td>PASS</td>
+<td>Playwright: A2 formula bar = <code>=TODAY()</code>, cell = 6/27/2026</td>
+</tr>
+<tr>
+<td>TC-R11</td>
+<td>No range — full sheet</td>
+<td>PASS</td>
+<td>Same result as TC-R08 (no range arg = full sheet)</td>
+</tr>
+<tr>
+<td>TC-R12</td>
+<td>Multiple valid queries</td>
+<td>PASS</td>
+<td>Playwright: Sales unchanged; API 2-sheet result correct</td>
+</tr>
+<tr>
+<td>TC-R13</td>
+<td>One query missing required keys</td>
+<td>PASS</td>
+<td>Sales succeeded; missing-key query returned <code>error</code> field</td>
+</tr>
+<tr>
+<td>TC-R14</td>
+<td>All queries fail</td>
+<td>PASS</td>
+<td>Both fake sheets returned <code>error</code> objects; no top-level error</td>
+</tr>
+<tr>
+<td>TC-R15</td>
+<td>Empty queries list</td>
+<td>PASS</td>
+<td><code>result:[]</code>; no visual needed</td>
+</tr>
+<tr>
+<td>TC-R16</td>
+<td>Summary happy path</td>
+<td>PASS</td>
+<td>All 3 sheets in summary; values match visual</td>
+</tr>
+<tr>
+<td>TC-R17</td>
+<td>Cache hit — second call</td>
+<td>PASS</td>
+<td>Identical result on second call</td>
+</tr>
+<tr>
+<td>TC-R18</td>
+<td>rows_to_fetch=1</td>
+<td>PASS</td>
+<td><code>first_rows:[]</code> for all sheets; only headers returned</td>
+</tr>
+<tr>
+<td>TC-R19</td>
+<td>rows_to_fetch=0 clamped</td>
+<td>🔍 PASS</td>
+<td>Returned 3 data rows instead of 0; cache interference from parallel calls noted</td>
+</tr>
+<tr>
+<td>TC-R20</td>
+<td>Spreadsheet with empty sheet</td>
+<td>PASS</td>
+<td>Empty sheet: <code>headers:[]</code>, <code>first_rows:[]</code>, no error</td>
+</tr>
+<tr>
+<td>TC-R21</td>
+<td>Invalid ID in list</td>
+<td>PASS</td>
+<td>Valid gets summary; invalid gets <code>error</code> field</td>
+</tr>
+<tr>
+<td>TC-R22</td>
+<td>rows_to_fetch=3</td>
+<td>PASS</td>
+<td>2 data rows, all 4 columns present. 🔍 All columns returned (not just A)</td>
+</tr>
+<tr>
+<td>TC-R23</td>
+<td>Match in specific sheet</td>
+<td>PASS</td>
+<td><code>{"sheet":"Sales","cell":"A3","value":"Gadget"}</code></td>
+</tr>
+<tr>
+<td>TC-R24</td>
+<td>Match across all sheets</td>
+<td>PASS</td>
+<td><code>{"sheet":"Notes &amp; Misc","cell":"B2","value":"Setup complete"}</code></td>
+</tr>
+<tr>
+<td>TC-R25</td>
+<td>Case-insensitive (default)</td>
+<td>PASS</td>
+<td>lowercase "gadget" matched "Gadget"</td>
+</tr>
+<tr>
+<td>TC-R26</td>
+<td>Case-sensitive</td>
+<td>PASS</td>
+<td><code>result:[]</code> — lowercase "gadget" not found</td>
+</tr>
+<tr>
+<td>TC-R27</td>
+<td>max_results respected</td>
+<td>PASS</td>
+<td>Exactly 2 results (Q1, Q2); Q3 excluded</td>
+</tr>
+<tr>
+<td>TC-R28</td>
+<td>No matches</td>
+<td>PASS</td>
+<td><code>result:[]</code></td>
+</tr>
+<tr>
+<td>TC-R29</td>
+<td>Sheet not found</td>
+<td>PASS</td>
+<td><code>[{"error":"Sheet 'DoesNotExist' not found"}]</code></td>
+</tr>
+<tr>
+<td>TC-R30</td>
+<td>Multiple column matches</td>
+<td>PASS</td>
+<td>3 results: Q1/B1, Q2/C1, Q3/D1 — per-cell granularity</td>
+</tr>
+<tr>
+<td>TC-R31</td>
+<td>Bold via effectiveFormat</td>
+<td>PASS</td>
+<td>Playwright: A1 bold. API: <code>bold=true</code>, <code>italic=false</code></td>
+</tr>
+<tr>
+<td>TC-R32</td>
+<td>Italic + bgcolor via effectiveFormat</td>
+<td>PASS</td>
+<td>Playwright: B1 italic, peach bg. API: <code>italic=true</code>, <code>bg={1,0.898,0.6}</code></td>
+</tr>
+<tr>
+<td>TC-R33</td>
+<td>Number format via effectiveFormat</td>
+<td>PASS</td>
+<td>Playwright: B2 = $100.00. API: <code>type=CURRENCY</code>, <code>formattedValue=$100.00</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="sheets-write">Sheets Write<a class="headerlink" href="#sheets-write" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Title</th>
+<th>Outcome</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-W01</td>
+<td>Write simple values</td>
+<td>PASS</td>
+<td>Row 7 = Test/A/B/C; rows 1–6 unchanged</td>
+</tr>
+<tr>
+<td>TC-W02</td>
+<td>Write formula USER_ENTERED</td>
+<td>PASS</td>
+<td>E2 = "Widget Gadget" (formula evaluated)</td>
+</tr>
+<tr>
+<td>TC-W03</td>
+<td>Range smaller than data</td>
+<td>PASS</td>
+<td>API 400 "tried writing to row [N]"; no partial write</td>
+</tr>
+<tr>
+<td>TC-W04</td>
+<td>Cache invalidated after write</td>
+<td>PASS</td>
+<td>Summary shows A7="CacheTest" immediately after write</td>
+</tr>
+<tr>
+<td>TC-W05</td>
+<td>Non-existent sheet name</td>
+<td>PASS</td>
+<td>API error; no silent create</td>
+</tr>
+<tr>
+<td>TC-W06</td>
+<td>Multiple ranges in one call</td>
+<td>PASS</td>
+<td>A8=Batch1, A9=Batch2 confirmed visually</td>
+</tr>
+<tr>
+<td>TC-W07</td>
+<td>Ranges on same sheet</td>
+<td>PASS</td>
+<td>B8=999, C8=888 confirmed visually</td>
+</tr>
+<tr>
+<td>TC-W08</td>
+<td>Empty ranges dict</td>
+<td>PASS</td>
+<td><code>{"spreadsheetId":"..."}</code> no-op; no error. 🔍 empty dict = no-op</td>
+</tr>
+<tr>
+<td>TC-W09</td>
+<td>Cache invalidated after batch write</td>
+<td>PASS</td>
+<td>Summary shows A8="dirty" immediately</td>
+</tr>
+<tr>
+<td>TC-W10a</td>
+<td>Trailing empty-array rows normalized</td>
+<td>PASS</td>
+<td><code>updatedRange=Sales!A8:B10</code>, rows 9–10 blank visually</td>
+</tr>
+<tr>
+<td>TC-W10b</td>
+<td>Add row at beginning (no position)</td>
+<td>PASS</td>
+<td>Blank row at top; Product pushed to row 2</td>
+</tr>
+<tr>
+<td>TC-W11</td>
+<td>Add row at explicit position (after row 3)</td>
+<td>PASS</td>
+<td>Blank row at row 4; Donut/Gizmo/Totals shifted down</td>
+</tr>
+<tr>
+<td>TC-W12</td>
+<td>start_row=0 — inheritFromBefore=False</td>
+<td>PASS</td>
+<td>Blank row at row 1; Product at row 2. 🔍 same as start_row=None</td>
+</tr>
+<tr>
+<td>TC-W13</td>
+<td>start_row=1 — inheritFromBefore=True</td>
+<td>PASS</td>
+<td>New blank row at row 2 (index 1 &gt; 0)</td>
+</tr>
+<tr>
+<td>TC-W14</td>
+<td>Add 5 rows at end</td>
+<td>PASS</td>
+<td>5 blank rows after Totals; existing data unchanged</td>
+</tr>
+<tr>
+<td>TC-W15</td>
+<td>Invalid sheet name</td>
+<td>PASS</td>
+<td><code>{"error":"Sheet 'NoSuchSheet' not found"}</code></td>
+</tr>
+<tr>
+<td>TC-W16</td>
+<td>Large count (1000 rows)</td>
+<td>PASS</td>
+<td>API accepted; no error. 🔍 No cap on count</td>
+</tr>
+<tr>
+<td>TC-W17</td>
+<td>Add column at beginning</td>
+<td>PASS</td>
+<td>Blank col A; Product shifted to B</td>
+</tr>
+<tr>
+<td>TC-W18</td>
+<td>start_column=0 — inheritFromBefore=False</td>
+<td>PASS</td>
+<td>Second blank col at A; Product at C. 🔍 same as start_column=None</td>
+</tr>
+<tr>
+<td>TC-W19</td>
+<td>start_column=1 — inheritFromBefore=True</td>
+<td>PASS</td>
+<td>Blank col at B (index 1 &gt; 0)</td>
+</tr>
+<tr>
+<td>TC-W20</td>
+<td>Add 3 columns at position 2</td>
+<td>PASS</td>
+<td>3 blank cols at C/D/E; Product at G</td>
+</tr>
+<tr>
+<td>TC-W21</td>
+<td>Add sheet via raw request</td>
+<td>PASS</td>
+<td>'RawAdded' tab visible; sheetId/title/index/spreadsheetId in response</td>
+</tr>
+<tr>
+<td>TC-W22</td>
+<td>Rename sheet via raw request</td>
+<td>PASS</td>
+<td>'Empty' → 'RawRenamed' confirmed in UI</td>
+</tr>
+<tr>
+<td>TC-W23</td>
+<td>Insert 2 rows via raw request</td>
+<td>PASS</td>
+<td>2 blank rows at index 1; existing data shifted</td>
+</tr>
+<tr>
+<td>TC-W24</td>
+<td>Delete row + structure cache invalidated</td>
+<td>PASS</td>
+<td>Row 7 (Gizmo) deleted; list_sheets reflects current state</td>
+</tr>
+<tr>
+<td>TC-W25</td>
+<td>Empty requests list</td>
+<td>PASS</td>
+<td><code>{"error":"requests list cannot be empty"}</code></td>
+</tr>
+<tr>
+<td>TC-W26</td>
+<td>Non-dict item in requests</td>
+<td>PASS</td>
+<td>Pydantic rejected before API call</td>
+</tr>
+<tr>
+<td>TC-W27</td>
+<td>Invalid request structure</td>
+<td>PASS</td>
+<td>Sheets API 400 "Unknown name 'unknownKey'" propagated</td>
+</tr>
+<tr>
+<td>TC-W28</td>
+<td>Both caches marked dirty</td>
+<td>PASS</td>
+<td>list_sheets + summary both include 'CacheCheck' immediately</td>
+</tr>
+<tr>
+<td>TC-W29</td>
+<td>Clear specific range</td>
+<td>PASS</td>
+<td>A1:C5 blank; D col + row 6 untouched; SUM recalculated to 0</td>
+</tr>
+<tr>
+<td>TC-W30</td>
+<td>Clear entire sheet</td>
+<td>PASS</td>
+<td>Notes &amp; Misc blank; <code>clearedRange="'Notes &amp; Misc'!A1:Z1000"</code></td>
+</tr>
+<tr>
+<td>TC-W31</td>
+<td>Clear — sheet name with spaces</td>
+<td>PASS</td>
+<td><code>clearedRange="'Notes &amp; Misc'!B2:D4"</code> — single-quoting correct</td>
+</tr>
+<tr>
+<td>TC-W32</td>
+<td>Clear out-of-bounds range</td>
+<td>PASS</td>
+<td><code>clearedRange="Sales!Z100:Z200"</code> — API accepts as-is</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sheets-mgmt">Sheets Mgmt<a class="headerlink" href="#sheets-mgmt" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Title</th>
+<th>Outcome</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-S01</td>
+<td>list_sheets happy path</td>
+<td>PASS</td>
+<td>["Sales","Empty","Notes &amp; Misc"]; 3 tabs visual</td>
+</tr>
+<tr>
+<td>TC-S02</td>
+<td>Cache hit on second call</td>
+<td>PASS</td>
+<td>Identical result; same list returned</td>
+</tr>
+<tr>
+<td>TC-S03</td>
+<td>Cache invalidated after rename</td>
+<td>PASS</td>
+<td>'WasEmpty' in list; 'Empty' gone; tab renamed in UI</td>
+</tr>
+<tr>
+<td>TC-S04</td>
+<td>Copy within same spreadsheet</td>
+<td>PASS</td>
+<td>'Sales Copy' tab; data matches Sales (6 rows, 4 cols)</td>
+</tr>
+<tr>
+<td>TC-S05</td>
+<td>Copy to different spreadsheet</td>
+<td>PASS</td>
+<td>src_spreadsheet + dst_spreadsheet params accepted; no error</td>
+</tr>
+<tr>
+<td>TC-S06</td>
+<td>Custom name triggers rename</td>
+<td>PASS</td>
+<td>'My Custom Name' in list_sheets</td>
+</tr>
+<tr>
+<td>TC-S07</td>
+<td>Name matches auto-assigned — rename skipped</td>
+<td>PASS</td>
+<td>Response has only <code>copy</code> key, no <code>rename</code> key</td>
+</tr>
+<tr>
+<td>TC-S08</td>
+<td>Source sheet not found</td>
+<td>PASS</td>
+<td><code>{"error":"Source sheet 'DoesNotExist' not found"}</code></td>
+</tr>
+<tr>
+<td>TC-S09</td>
+<td>Destination not accessible</td>
+<td>PASS</td>
+<td>API 400 "Invalid destinationSpreadsheetId"</td>
+</tr>
+<tr>
+<td>TC-S10</td>
+<td>Cache invalidated after copy</td>
+<td>PASS</td>
+<td>list_sheets includes 'PostCopyCache' immediately</td>
+</tr>
+<tr>
+<td>TC-S11</td>
+<td>Rename to new name</td>
+<td>PASS</td>
+<td>'Renamed' tab visible; list_sheets updated</td>
+</tr>
+<tr>
+<td>TC-S12</td>
+<td>Rename to same name</td>
+<td>PASS</td>
+<td>API succeeds; sheet still 'Sales'. 🔍 round-trips to API</td>
+</tr>
+<tr>
+<td>TC-S13</td>
+<td>Sheet not found</td>
+<td>PASS</td>
+<td><code>{"error":"Sheet 'NoSuchSheet' not found"}</code></td>
+</tr>
+<tr>
+<td>TC-S14</td>
+<td>Cache invalidated after rename</td>
+<td>PASS</td>
+<td>'Notes' in list (not 'Notes &amp; Misc'); tab renamed in UI</td>
+</tr>
+<tr>
+<td>TC-S15</td>
+<td>Create new tab</td>
+<td>PASS</td>
+<td>'BrandNew' tab; sheetId/title/index/spreadsheetId in response</td>
+</tr>
+<tr>
+<td>TC-S16</td>
+<td>Duplicate tab title</td>
+<td>PASS</td>
+<td>API 400 "A sheet with the name 'Sales' already exists". 🔍 No auto-suffix</td>
+</tr>
+<tr>
+<td>TC-S17</td>
+<td>Long title (150 chars)</td>
+<td>PASS</td>
+<td>API 400 "sheet name cannot be greater than 100 characters"</td>
+</tr>
+<tr>
+<td>TC-S18</td>
+<td>Response shape</td>
+<td>PASS</td>
+<td>sheetId (int), title (str), index (int), spreadsheetId (str)</td>
+</tr>
+<tr>
+<td>TC-S19</td>
+<td>Cache updated after create</td>
+<td>PASS</td>
+<td>list_sheets includes 'CacheNewSheet' immediately</td>
+</tr>
+<tr>
+<td>TC-S20</td>
+<td>Refresh by spreadsheet ID</td>
+<td>PASS</td>
+<td><code>invalidated:["spreadsheet:..."]</code>; subsequent list_sheets re-fetched</td>
+</tr>
+<tr>
+<td>TC-S21</td>
+<td>Refresh by doc ID</td>
+<td>PASS</td>
+<td><code>invalidated:["doc:..."]</code></td>
+</tr>
+<tr>
+<td>TC-S22</td>
+<td>Refresh both spreadsheet and doc</td>
+<td>PASS</td>
+<td>Both keys in <code>invalidated</code> array</td>
+</tr>
+<tr>
+<td>TC-S23</td>
+<td>Refresh all (no args)</td>
+<td>PASS</td>
+<td><code>invalidated:"all"</code></td>
+</tr>
+<tr>
+<td>TC-S24</td>
+<td>Cache re-populated after refresh</td>
+<td>PASS</td>
+<td>Refresh then summary — correct data returned (re-fetched from API)</td>
+</tr>
+<tr>
+<td>TC-S25</td>
+<td>Delete an existing sheet tab</td>
+<td>PASS</td>
+<td>TempTab deleted; list_sheets back to 3 tabs; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S26</td>
+<td>Delete non-existent sheet</td>
+<td>PASS</td>
+<td><code>{"error":"Sheet 'DoesNotExist' not found"}</code></td>
+</tr>
+<tr>
+<td>TC-S27</td>
+<td>Delete single row</td>
+<td>PASS</td>
+<td>Gizmo deleted; Totals = 350/360/415; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S28</td>
+<td>Delete a range of rows</td>
+<td>PASS</td>
+<td>Rows 2–4 deleted; only headers + Widget remain; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S29</td>
+<td>delete_rows — sheet not found</td>
+<td>PASS</td>
+<td><code>{"error":"Sheet 'NoSuchSheet' not found"}</code></td>
+</tr>
+<tr>
+<td>TC-S30</td>
+<td>Delete single column (Q1)</td>
+<td>PASS</td>
+<td>Column B deleted; Q2/Q3 shifted; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S31</td>
+<td>Delete range of columns (C–E)</td>
+<td>PASS</td>
+<td>Q3 deleted; only Product+Q2 remain; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S32</td>
+<td>delete_columns — sheet not found</td>
+<td>PASS</td>
+<td><code>{"error":"Sheet 'NoSuchSheet' not found"}</code></td>
+</tr>
+<tr>
+<td>TC-S33</td>
+<td>Bold + background color</td>
+<td>PASS</td>
+<td>A1:D1 bold + light blue background; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S34</td>
+<td>Currency number format</td>
+<td>PASS</td>
+<td>B2:B6 display as $##.00; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S35</td>
+<td>Center alignment</td>
+<td>PASS</td>
+<td>A1:F1 center-aligned; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S36</td>
+<td>No formatting params → error</td>
+<td>PASS</td>
+<td><code>{"error":"No formatting parameters provided"}</code></td>
+</tr>
+<tr>
+<td>TC-S37</td>
+<td>format_cells — sheet not found</td>
+<td>PASS</td>
+<td><code>{"error":"Sheet 'NoSuchSheet' not found"}</code></td>
+</tr>
+<tr>
+<td>TC-S38</td>
+<td>merge_cells MERGE_ALL</td>
+<td>PASS</td>
+<td>E1:G2 on Empty merged; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S39</td>
+<td>merge_cells MERGE_ROWS</td>
+<td>PASS</td>
+<td>H1:J3 on Empty merged by rows; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S40</td>
+<td>unmerge_cells</td>
+<td>PASS</td>
+<td>E1:G2 unmerged; individual cell borders restored; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S41</td>
+<td>merge_cells — sheet not found</td>
+<td>PASS</td>
+<td><code>{"error":"Sheet 'NoSuchSheet' not found"}</code></td>
+</tr>
+<tr>
+<td>TC-S42</td>
+<td>Freeze first row</td>
+<td>PASS</td>
+<td>Thick border below row 1 visible; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S43</td>
+<td>Freeze row + column</td>
+<td>PASS</td>
+<td>Thick borders below row 1 and right of col A; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S44</td>
+<td>Unfreeze all</td>
+<td>PASS</td>
+<td>No freeze borders visible; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S45</td>
+<td>freeze — sheet not found</td>
+<td>PASS</td>
+<td><code>{"error":"Sheet 'NoSuchSheet' not found"}</code></td>
+</tr>
+<tr>
+<td>TC-S46</td>
+<td>Sort ascending by col A</td>
+<td>PASS</td>
+<td>Donut/Gadget/Gizmo/Totals/Widget alphabetical; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S47</td>
+<td>Sort descending by col C</td>
+<td>PASS</td>
+<td>Gizmo(310)/Gadget(180)/Widget(120)/Donut(60); Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S48</td>
+<td>Multi-column sort</td>
+<td>PASS</td>
+<td>Two sortSpecs; <code>replies:[{}]</code>; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-S49</td>
+<td>column_index offset by range start</td>
+<td>PASS</td>
+<td>column_index=0 on B2:D5 sorts by col B (dimensionIndex=1)</td>
+</tr>
+<tr>
+<td>TC-S50</td>
+<td>sort_range — sheet not found</td>
+<td>PASS</td>
+<td><code>{"error":"Sheet 'NoSuchSheet' not found"}</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="sheets-charts">Sheets Charts<a class="headerlink" href="#sheets-charts" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Title</th>
+<th>Outcome</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-C01</td>
+<td>COLUMN chart</td>
+<td>PASS</td>
+<td>chartId=312588069; <code>chartType:"COLUMN"</code>; Playwright: bars visible</td>
+</tr>
+<tr>
+<td>TC-C02</td>
+<td>BAR chart</td>
+<td>PASS</td>
+<td>chartId=1889411285; <code>chartType:"BAR"</code></td>
+</tr>
+<tr>
+<td>TC-C03</td>
+<td>LINE chart</td>
+<td>PASS</td>
+<td>chartId=657153523; <code>chartType:"LINE"</code></td>
+</tr>
+<tr>
+<td>TC-C04</td>
+<td>AREA chart</td>
+<td>PASS</td>
+<td>chartId=2024716130; <code>chartType:"AREA"</code></td>
+</tr>
+<tr>
+<td>TC-C05</td>
+<td>PIE chart</td>
+<td>PASS</td>
+<td>chartId=1482279901; <code>pieChart</code> key in spec</td>
+</tr>
+<tr>
+<td>TC-C06</td>
+<td>SCATTER chart</td>
+<td>PASS</td>
+<td>chartId=1311543524; <code>chartType:"SCATTER"</code></td>
+</tr>
+<tr>
+<td>TC-C07</td>
+<td>COMBO chart</td>
+<td>PASS</td>
+<td>chartId=909331371; <code>chartType:"COMBO"</code>; 2 COLUMN + 1 LINE series</td>
+</tr>
+<tr>
+<td>TC-C08</td>
+<td>HISTOGRAM chart</td>
+<td>PASS</td>
+<td>chartId=733680397; <code>histogramChart</code> key; Playwright: histogram bars visible</td>
+</tr>
+<tr>
+<td>TC-C09</td>
+<td>Invalid chart type</td>
+<td>PASS</td>
+<td><code>{"error":"Invalid chart type 'DONUT'..."}</code> with valid type list</td>
+</tr>
+<tr>
+<td>TC-C10</td>
+<td>Lowercase chart type</td>
+<td>PASS</td>
+<td>'column' → 'COLUMN' via <code>.upper()</code>; chartId=934137272</td>
+</tr>
+<tr>
+<td>TC-C11</td>
+<td>Sheet not found</td>
+<td>PASS</td>
+<td><code>{"error":"Sheet 'NoSuchSheet' not found in spreadsheet"}</code></td>
+</tr>
+<tr>
+<td>TC-C12</td>
+<td>Custom position and size</td>
+<td>PASS</td>
+<td><code>offsetXPixels:100, offsetYPixels:200, widthPixels:400, heightPixels:300</code> 🔍</td>
+</tr>
+</tbody>
+</table>
+<h3 id="drive-docs-legacy">Drive + Docs (legacy)<a class="headerlink" href="#drive-docs-legacy" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Title</th>
+<th>Outcome</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-D01</td>
+<td>Create in default folder</td>
+<td>PASS</td>
+<td><code>QA-Create-Test</code>; spreadsheetId + web link</td>
+</tr>
+<tr>
+<td>TC-D02</td>
+<td>Create with explicit folder ID</td>
+<td>PASS</td>
+<td><code>QA-Create-Explicit</code> in TEST_FOLDER_ID</td>
+</tr>
+<tr>
+<td>TC-D03</td>
+<td>Create at root</td>
+<td>PASS</td>
+<td><code>QA-Create-Root</code>; created at Drive root</td>
+</tr>
+<tr>
+<td>TC-D04</td>
+<td>Service account Drive limitation</td>
+<td>SKIP</td>
+<td>OAuth session — SA limitation not applicable</td>
+</tr>
+<tr>
+<td>TC-D05</td>
+<td>Drive folder cache invalidated</td>
+<td>PASS</td>
+<td><code>QA-Cache-Check</code> in TEST_FOLDER_ID immediately; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-D06</td>
+<td>Resulting spreadsheet exact title</td>
+<td>PASS</td>
+<td><code>title:"Exact Title Test"</code> — no truncation</td>
+</tr>
+<tr>
+<td>TC-D07</td>
+<td>create_doc no content</td>
+<td>PASS</td>
+<td>docId + web_link returned; no batchUpdate</td>
+</tr>
+<tr>
+<td>TC-D08</td>
+<td>create_doc HTML formatting</td>
+<td>PASS</td>
+<td>H1/paragraph/bullets — Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-D09</td>
+<td>create_doc with link</td>
+<td>PASS</td>
+<td>"Example" renders as blue underlined hyperlink</td>
+</tr>
+<tr>
+<td>TC-D10</td>
+<td>create_doc inline-only HTML</td>
+<td>PASS</td>
+<td>QA-Inline-Doc body empty; <code>&lt;span&gt;</code> produced no block-level requests</td>
+</tr>
+<tr>
+<td>TC-D11</td>
+<td>create_doc cache invalidated</td>
+<td>PASS</td>
+<td><code>QA-DocCache</code> in list_files immediately</td>
+</tr>
+<tr>
+<td>TC-D12</td>
+<td>create_doc long content</td>
+<td>PASS</td>
+<td>500× "test " written without error</td>
+</tr>
+<tr>
+<td>TC-D13</td>
+<td>list_spreadsheets default folder</td>
+<td>PASS</td>
+<td>100 spreadsheets including fixture; id+title each</td>
+</tr>
+<tr>
+<td>TC-D14</td>
+<td>list_spreadsheets explicit folder</td>
+<td>PASS</td>
+<td>8 spreadsheets scoped to TEST_FOLDER_ID</td>
+</tr>
+<tr>
+<td>TC-D15</td>
+<td>list_spreadsheets root</td>
+<td>🔍 PASS</td>
+<td>Returns all accessible (100 results), not root-only</td>
+</tr>
+<tr>
+<td>TC-D16</td>
+<td>list_spreadsheets empty folder</td>
+<td>PASS</td>
+<td><code>[]</code>; no error</td>
+</tr>
+<tr>
+<td>TC-D17</td>
+<td>Pagination limit</td>
+<td>🔍 PASS</td>
+<td>100 results; no nextPageToken — known silent truncation</td>
+</tr>
+<tr>
+<td>TC-D18</td>
+<td>share_spreadsheet writer</td>
+<td>PASS</td>
+<td>test-recipient shared as writer; permissionId returned; failures=[]</td>
+</tr>
+<tr>
+<td>TC-D19</td>
+<td>share_spreadsheet reader</td>
+<td>PASS</td>
+<td>Updated to reader successfully</td>
+</tr>
+<tr>
+<td>TC-D20</td>
+<td>share_spreadsheet commenter</td>
+<td>PASS</td>
+<td>Updated to commenter successfully</td>
+</tr>
+<tr>
+<td>TC-D21</td>
+<td>Invalid role</td>
+<td>PASS</td>
+<td><code>failures:[{error:"Invalid role 'owner'..."}]</code></td>
+</tr>
+<tr>
+<td>TC-D22</td>
+<td>Missing email_address</td>
+<td>PASS</td>
+<td><code>failures:[{email_address:null, error:"Missing email_address..."}]</code></td>
+</tr>
+<tr>
+<td>TC-D23</td>
+<td>Mixed success and failure</td>
+<td>PASS</td>
+<td>valid@example.com in successes; invalid role in failures</td>
+</tr>
+<tr>
+<td>TC-D24</td>
+<td>send_notification=False</td>
+<td>PASS</td>
+<td>TEST_PERMISSION_EMAIL shared as reader; no notification</td>
+</tr>
+<tr>
+<td>TC-D25</td>
+<td>Non-existent spreadsheet ID</td>
+<td>PASS</td>
+<td><code>failures:[{error:"Failed to share: File not found: invalidid123xyz."}]</code></td>
+</tr>
+<tr>
+<td>TC-D26</td>
+<td>list_folders in specific parent</td>
+<td>PASS</td>
+<td>Child folders returned; <code>parent_folder_id</code> param confirmed</td>
+</tr>
+<tr>
+<td>TC-D27</td>
+<td>list_folders from root</td>
+<td>PASS</td>
+<td>Root-level folders returned</td>
+</tr>
+<tr>
+<td>TC-D28</td>
+<td>list_folders empty folder</td>
+<td>PASS</td>
+<td><code>[]</code> for folder with no subfolders</td>
+</tr>
+<tr>
+<td>TC-D29</td>
+<td>search_spreadsheets basic name</td>
+<td>PASS</td>
+<td>Fixture returned; name/id/owners/web_link present</td>
+</tr>
+<tr>
+<td>TC-D30</td>
+<td>search_spreadsheets content</td>
+<td>PASS</td>
+<td>Fixture returned in content search; 'Widget' found</td>
+</tr>
+<tr>
+<td>TC-D31</td>
+<td>max_results=2</td>
+<td>PASS</td>
+<td>Exactly 2 results</td>
+</tr>
+<tr>
+<td>TC-D32</td>
+<td>Single quote injection fix</td>
+<td>PASS</td>
+<td>"it's" returned without Drive API syntax error</td>
+</tr>
+<tr>
+<td>TC-D33</td>
+<td>No results</td>
+<td>PASS</td>
+<td><code>[]</code> for ZZZAbsolutelyNoMatch12345</td>
+</tr>
+<tr>
+<td>TC-D34</td>
+<td>Empty query</td>
+<td>🔍 PASS</td>
+<td>Returns all accessible spreadsheets — not an error</td>
+</tr>
+<tr>
+<td>TC-D35</td>
+<td>API error path</td>
+<td>SKIP</td>
+<td>Cannot force auth error in active OAuth session</td>
+</tr>
+<tr>
+<td>TC-D36</td>
+<td>list_files all types</td>
+<td>PASS</td>
+<td>Both spreadsheets and docs; name/id/mime_type present</td>
+</tr>
+<tr>
+<td>TC-D37</td>
+<td>list_files MIME type filter</td>
+<td>PASS</td>
+<td>8 Google Docs only; no spreadsheets</td>
+</tr>
+<tr>
+<td>TC-D38</td>
+<td>list_files cache hit</td>
+<td>PASS</td>
+<td>Second call returned same results</td>
+</tr>
+<tr>
+<td>TC-D39</td>
+<td>mime_type=None cache key</td>
+<td>PASS</td>
+<td>No KeyError; both calls returned same results</td>
+</tr>
+<tr>
+<td>TC-D40</td>
+<td>max_results clamped</td>
+<td>PASS</td>
+<td>Exactly 2 files returned</td>
+</tr>
+<tr>
+<td>TC-D41</td>
+<td>Pagination limit</td>
+<td>🔍 PASS</td>
+<td>Known limitation: &gt;1000 files silently truncated</td>
+</tr>
+<tr>
+<td>TC-D42</td>
+<td>Trashed files excluded</td>
+<td>PASS</td>
+<td><code>trashed=false</code> in query confirmed</td>
+</tr>
+<tr>
+<td>TC-D43</td>
+<td>Cache invalidated after create</td>
+<td>PASS</td>
+<td>Covered by TC-D05 and TC-D11</td>
+</tr>
+<tr>
+<td>TC-D44</td>
+<td>get_doc_content happy path</td>
+<td>PASS</td>
+<td>Heading/paragraph/bullets; title/web_link/modified_time present</td>
+</tr>
+<tr>
+<td>TC-D45</td>
+<td>get_doc_content cache hit</td>
+<td>PASS</td>
+<td>Second call returned identical content</td>
+</tr>
+<tr>
+<td>TC-D46</td>
+<td>Non-Google-Doc file ID</td>
+<td>PASS</td>
+<td>HttpError 400 "conversion not supported" propagated</td>
+</tr>
+<tr>
+<td>TC-D47</td>
+<td>Non-existent file ID</td>
+<td>PASS</td>
+<td>HttpError 404 propagated; not silent</td>
+</tr>
+<tr>
+<td>TC-D48</td>
+<td>Large document</td>
+<td>PASS</td>
+<td>Full 8-section lorem ipsum doc returned without timeout</td>
+</tr>
+<tr>
+<td>TC-D49</td>
+<td>Content decode branch</td>
+<td>PASS</td>
+<td>Content returned as string (not bytes)</td>
+</tr>
+<tr>
+<td>TC-D50</td>
+<td>write_doc_content empty doc</td>
+<td>PASS</td>
+<td>"Hello" H1, "World" paragraph; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-D51</td>
+<td>write_doc_content overwrite</td>
+<td>PASS</td>
+<td>"Replaced" H2, "New content only."; cleared; cache invalidated</td>
+</tr>
+<tr>
+<td>TC-D52</td>
+<td>HTML headings + bullets</td>
+<td>PASS</td>
+<td>H1+H2+bullets+paragraph; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-D53</td>
+<td>HTML with link</td>
+<td>PASS</td>
+<td>"here" clickable hyperlink; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-D54</td>
+<td>HTML span-only</td>
+<td>PASS</td>
+<td>Doc body cleared; no insertText for span-only content</td>
+</tr>
+<tr>
+<td>TC-D55</td>
+<td>Empty string content</td>
+<td>PASS</td>
+<td>Doc cleared without error</td>
+</tr>
+<tr>
+<td>TC-D56</td>
+<td>Very long content</td>
+<td>PASS</td>
+<td>100 paragraphs written; no API size limit</td>
+</tr>
+<tr>
+<td>TC-D57</td>
+<td>Cache invalidated after write</td>
+<td>PASS</td>
+<td>get_doc_content returned "CacheTest" immediately</td>
+</tr>
+<tr>
+<td>TC-D58</td>
+<td>create_folder default folder</td>
+<td>PASS</td>
+<td>QA-Folder-Test-2; folderId + name; parent=root</td>
+</tr>
+<tr>
+<td>TC-D59</td>
+<td>create_folder root (no parent)</td>
+<td>PASS</td>
+<td>QA-Folder-Root-2 at root</td>
+</tr>
+<tr>
+<td>TC-D60</td>
+<td>create_folder cache invalidated</td>
+<td>PASS</td>
+<td>QA-Folder-Cache-2 appears in list_files immediately</td>
+</tr>
+<tr>
+<td>TC-D61</td>
+<td>move_file to another folder</td>
+<td>PASS</td>
+<td>QA-Move-Test moved to root; parent updated</td>
+</tr>
+<tr>
+<td>TC-D62</td>
+<td>move_file folder</td>
+<td>PASS</td>
+<td>QA-Folder-Test-2 moved into TEST_FOLDER_ID</td>
+</tr>
+<tr>
+<td>TC-D63</td>
+<td>move_file non-existent ID</td>
+<td>PASS</td>
+<td>HttpError 404 propagated; not a crash</td>
+</tr>
+<tr>
+<td>TC-D64</td>
+<td>rename_file</td>
+<td>PASS</td>
+<td>QA-Rename-Test → QA-Renamed-File</td>
+</tr>
+<tr>
+<td>TC-D65</td>
+<td>rename_file folder</td>
+<td>PASS</td>
+<td>QA-Folder-Cache-2 → QA-Folder-Renamed-2</td>
+</tr>
+<tr>
+<td>TC-D66</td>
+<td>rename_file non-existent</td>
+<td>PASS</td>
+<td>HttpError 404 propagated</td>
+</tr>
+<tr>
+<td>TC-D67</td>
+<td>copy_file auto-assigned name</td>
+<td>PASS</td>
+<td>"Copy of mcp-gee-sweet-qa-fixtures"; new fileId</td>
+</tr>
+<tr>
+<td>TC-D68</td>
+<td>copy_file explicit name + folder</td>
+<td>PASS</td>
+<td>QA-Copy-Explicit-2 in TEST_FOLDER_ID; folder cache invalidated</td>
+</tr>
+<tr>
+<td>TC-D69</td>
+<td>copy_file Google Doc</td>
+<td>PASS</td>
+<td>QA-Doc-Copy-2; mimeType=application/vnd.google-apps.document</td>
+</tr>
+<tr>
+<td>TC-D70</td>
+<td>copy_file folder</td>
+<td>PASS</td>
+<td>HttpError 403 "cannot be copied" — clear error, known limitation</td>
+</tr>
+<tr>
+<td>TC-D71</td>
+<td>Trash a file</td>
+<td>PASS</td>
+<td><code>action:"trashed"</code>; Playwright: file absent from folder</td>
+</tr>
+<tr>
+<td>TC-D72</td>
+<td>Permanently delete a file</td>
+<td>PASS</td>
+<td><code>action:"deleted"</code>; Playwright: not in folder, not in Trash</td>
+</tr>
+<tr>
+<td>TC-D73</td>
+<td>Trash a folder</td>
+<td>FAIL</td>
+<td><code>action:"trashed"</code> returned but <code>list_folders</code> still shows folder. Playwright: folder absent from Drive UI. Bug: <code>delete_file</code> does not invalidate <code>drive_folder_cache</code></td>
+</tr>
+<tr>
+<td>TC-D74</td>
+<td>delete_file non-existent ID</td>
+<td>PASS</td>
+<td>HttpError 404 "File not found: invalidid123xyz"</td>
+</tr>
+<tr>
+<td>TC-D75</td>
+<td>search_files by name</td>
+<td>PASS</td>
+<td>Mix of types matching "QA"; id/name/mimeType/modified_time/web_link</td>
+</tr>
+<tr>
+<td>TC-D76</td>
+<td>search_files MIME type filter</td>
+<td>PASS</td>
+<td>All results <code>application/vnd.google-apps.document</code></td>
+</tr>
+<tr>
+<td>TC-D77</td>
+<td>search_files folder filter</td>
+<td>🔍 PASS</td>
+<td>All results in FOLDER_ID ✅; trashed files appeared — stale cache</td>
+</tr>
+<tr>
+<td>TC-D78</td>
+<td>search_files single-quote</td>
+<td>PASS</td>
+<td><code>"it's a test"</code> returned without syntax error</td>
+</tr>
+<tr>
+<td>TC-D79</td>
+<td>get_file_metadata spreadsheet</td>
+<td>FAIL</td>
+<td><code>size:"2274"</code> returned for Sheets file; test checks <code>size</code> is absent. Drive returns <code>quotaBytesUsed</code> as <code>size</code></td>
+</tr>
+<tr>
+<td>TC-D80</td>
+<td>get_file_metadata doc</td>
+<td>PASS</td>
+<td><code>mimeType:application/vnd.google-apps.document</code>; web_link present</td>
+</tr>
+<tr>
+<td>TC-D81</td>
+<td>get_file_metadata folder</td>
+<td>PASS</td>
+<td><code>mimeType:application/vnd.google-apps.folder</code></td>
+</tr>
+<tr>
+<td>TC-D82</td>
+<td>get_file_metadata non-existent</td>
+<td>PASS</td>
+<td>HttpError 404 propagated</td>
+</tr>
+<tr>
+<td>TC-D83</td>
+<td>export_file as text</td>
+<td>PASS</td>
+<td><code>encoding:utf-8</code>; <code>content</code> is plain text</td>
+</tr>
+<tr>
+<td>TC-D84</td>
+<td>export_file as HTML</td>
+<td>PASS</td>
+<td><code>encoding:utf-8</code>; <code>content</code> has <code>&lt;html&gt;</code> tags</td>
+</tr>
+<tr>
+<td>TC-D85</td>
+<td>export_file as PDF</td>
+<td>PASS</td>
+<td><code>encoding:base64</code>; decoded starts with <code>%PDF</code></td>
+</tr>
+<tr>
+<td>TC-D86</td>
+<td>export_file as CSV</td>
+<td>PASS</td>
+<td><code>encoding:utf-8</code>; comma-separated data matching sheet</td>
+</tr>
+<tr>
+<td>TC-D87</td>
+<td>export_file unknown format</td>
+<td>PASS</td>
+<td><code>ValueError</code> with valid formats list</td>
+</tr>
+<tr>
+<td>TC-D88</td>
+<td>upload_file plain text</td>
+<td>PASS</td>
+<td><code>mimeType:text/plain</code>; name=qa-upload.txt; folder cache invalidated</td>
+</tr>
+<tr>
+<td>TC-D89</td>
+<td>upload_file markdown no convert</td>
+<td>🔍 PASS</td>
+<td>Tool converts MD→HTML before upload even when <code>convert_to_doc=False</code></td>
+</tr>
+<tr>
+<td>TC-D90</td>
+<td>upload_file markdown → Google Doc</td>
+<td>PASS</td>
+<td>H1/heading/bullets/bold/link all rendered; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-D91</td>
+<td>upload_file HTML → Google Doc</td>
+<td>PASS</td>
+<td>H1/paragraph/bullet list rendered; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-D92</td>
+<td>upload_file markdown table</td>
+<td>PASS</td>
+<td>H1 + 2×2 table visible; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-D93</td>
+<td>upload_local_file binary</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D94</td>
+<td>upload_local_file skip_if_exists</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D95</td>
+<td>upload_local_file no-skip duplicate</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D96</td>
+<td>upload_local_file non-existent path</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D97</td>
+<td>upload_local_file name override</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D98</td>
+<td>upload_local_folder basic</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D99</td>
+<td>upload_local_folder skip_if_exists</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D100</td>
+<td>upload_local_folder recursive</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D101</td>
+<td>upload_local_folder ignore patterns</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D102</td>
+<td>upload_local_folder non-existent</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D103</td>
+<td>download_file Google Doc</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D104</td>
+<td>download_file Google Sheet as xlsx</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D105</td>
+<td>download_file export_format=txt</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D106</td>
+<td>download_file binary</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D107</td>
+<td>download_file non-existent</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D108</td>
+<td>download_folder basic</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D109</td>
+<td>download_folder skip_if_exists</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D110</td>
+<td>download_folder mime_type_filter</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D111</td>
+<td>sync_folder dry_run</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D112</td>
+<td>sync_folder Drive-only → download</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D113</td>
+<td>sync_folder local-only → upload</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D114</td>
+<td>sync_folder newer wins</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D115</td>
+<td>sync_folder mtime preserved</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D116</td>
+<td>sync_folder direction=upload</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D117</td>
+<td>sync_folder direction=download</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D118</td>
+<td>sync_folder Workspace excluded</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D119</td>
+<td>sync_folder invalid direction</td>
+<td>SKIP</td>
+<td>⚠️ local-filesystem</td>
+</tr>
+<tr>
+<td>TC-D120</td>
+<td>list_drives all</td>
+<td>PASS</td>
+<td><code>[]</code> — no shared drives; no error</td>
+</tr>
+<tr>
+<td>TC-D121</td>
+<td>list_drives name filter</td>
+<td>PASS</td>
+<td><code>[]</code> — no drives matching "Marketing"</td>
+</tr>
+<tr>
+<td>TC-D122</td>
+<td>list_drives max_results clamping</td>
+<td>PASS</td>
+<td>max_results=0 and max_results=300 both return <code>[]</code></td>
+</tr>
+<tr>
+<td>TC-D123</td>
+<td>list_drives pagination</td>
+<td>SKIP</td>
+<td>Environment has no shared drives</td>
+</tr>
+<tr>
+<td>TC-D124</td>
+<td>list_permissions owner entry</td>
+<td>PASS</td>
+<td>5 permissions; owner with role:owner confirmed</td>
+</tr>
+<tr>
+<td>TC-D125</td>
+<td>list_permissions after sharing</td>
+<td>PASS</td>
+<td>Shared user visible with role:reader</td>
+</tr>
+<tr>
+<td>TC-D126</td>
+<td>list_permissions non-existent file</td>
+<td>PASS</td>
+<td>HttpError 404 propagated</td>
+</tr>
+<tr>
+<td>TC-D127</td>
+<td>update_permission writer→reader</td>
+<td>PASS</td>
+<td>Role confirmed reader via follow-up list_permissions</td>
+</tr>
+<tr>
+<td>TC-D128</td>
+<td>update_permission invalid role owner</td>
+<td>PASS</td>
+<td>Client-side validation; no API call</td>
+</tr>
+<tr>
+<td>TC-D129</td>
+<td>update_permission non-existent perm</td>
+<td>PASS</td>
+<td>HttpError 404 "Permission not found"</td>
+</tr>
+<tr>
+<td>TC-D130</td>
+<td>remove_permission</td>
+<td>PASS</td>
+<td><code>action:"removed"</code>; Playwright: share button still showed 3 users</td>
+</tr>
+<tr>
+<td>TC-D131</td>
+<td>remove_permission non-existent</td>
+<td>PASS</td>
+<td>HttpError 404 propagated</td>
+</tr>
+<tr>
+<td>TC-D132</td>
+<td>share_file type=user reader</td>
+<td>PASS</td>
+<td>successes with permissionId; failures=[]</td>
+</tr>
+<tr>
+<td>TC-D133</td>
+<td>share_file missing email_address</td>
+<td>PASS</td>
+<td>failures=[{error:"'email_address' required..."}]</td>
+</tr>
+<tr>
+<td>TC-D134</td>
+<td>share_file invalid role</td>
+<td>PASS</td>
+<td>failures=[{error:"Invalid role 'superuser'..."}]</td>
+</tr>
+<tr>
+<td>TC-D135</td>
+<td>share_file type=domain</td>
+<td>FAIL</td>
+<td><code>example.com</code> not a GWS domain — environmental. Error propagated correctly</td>
+</tr>
+<tr>
+<td>TC-D136</td>
+<td>share_file type=anyone public</td>
+<td>PASS</td>
+<td>permissionId:anyoneWithLink; Playwright: "Anyone with the link" confirmed</td>
+</tr>
+<tr>
+<td>TC-D137</td>
+<td>share_file folder</td>
+<td>FAIL</td>
+<td><code>test-recipient@example.com</code> not a real Google account — environmental. Error propagated correctly</td>
+</tr>
+<tr>
+<td>TC-D138</td>
+<td>share_file mixed success/failure</td>
+<td>PASS</td>
+<td>valid email in successes; missing-email in failures</td>
+</tr>
+<tr>
+<td>TC-D139</td>
+<td>share_file send_notification=False</td>
+<td>FAIL</td>
+<td>Drive requires notification for non-Google accounts — environmental. Error propagated correctly</td>
+</tr>
+<tr>
+<td>TC-D140</td>
+<td>write_doc_content simple 2×2 table</td>
+<td>PASS</td>
+<td>Real table confirmed; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-D141</td>
+<td>write_doc_content table after para</td>
+<td>PASS</td>
+<td>H1, paragraph, 3×2 table; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-D142</td>
+<td>write_doc_content empty cells</td>
+<td>PASS</td>
+<td>2×2 table with empty cells; no error</td>
+</tr>
+<tr>
+<td>TC-D143</td>
+<td>write_doc_content table-only HTML</td>
+<td>PASS</td>
+<td>1×2 table; no body paragraph text</td>
+</tr>
+<tr>
+<td>TC-D144</td>
+<td>write_doc_content multiple tables</td>
+<td>FAIL</td>
+<td>Both tables merged into one 2×2 table; "Second table:" para absent. Multi-table index corruption (see TC-D228 memory)</td>
+</tr>
+<tr>
+<td>TC-D145</td>
+<td>write_doc_content <code>&lt;th&gt;</code> cells</td>
+<td>PASS</td>
+<td>2×2 table: header row in row 1, data in row 2</td>
+</tr>
+<tr>
+<td>TC-D146</td>
+<td>list_revisions spreadsheet</td>
+<td>PASS</td>
+<td>9 revisions; revisionId/modifiedTime/modifiedBy/keepForever</td>
+</tr>
+<tr>
+<td>TC-D147</td>
+<td>list_revisions non-existent file</td>
+<td>PASS</td>
+<td>HttpError 404 propagated</td>
+</tr>
+<tr>
+<td>TC-D148</td>
+<td>export_revision read range</td>
+<td>FAIL(env)</td>
+<td>Drive grouped rapid writes into single revision 271; <code>A1="QA-AFTER"</code> on both. Mechanism correct; grouping is Drive API behaviour</td>
+</tr>
+<tr>
+<td>TC-D149</td>
+<td>export_revision explicit sheet</td>
+<td>PASS</td>
+<td>sheet="Sales", range=A1:B5 respected</td>
+</tr>
+<tr>
+<td>TC-D150</td>
+<td>export_revision no range</td>
+<td>PASS</td>
+<td>No range → all 100 rows; range=null in response</td>
+</tr>
+<tr>
+<td>TC-D151</td>
+<td>export_revision non-Sheets file</td>
+<td>PASS</td>
+<td>"No XLSX export available for revision 1" — clear error</td>
+</tr>
+<tr>
+<td>TC-D152</td>
+<td>list_shared_with_me all</td>
+<td>PASS</td>
+<td>50 files; id/name/mime_type/modified_time/owners/web_link all present</td>
+</tr>
+<tr>
+<td>TC-D153</td>
+<td>list_shared_with_me MIME filter</td>
+<td>PASS</td>
+<td>8 spreadsheets; all correct mime type</td>
+</tr>
+<tr>
+<td>TC-D154</td>
+<td>list_shared_with_me max_results=3</td>
+<td>PASS</td>
+<td>Exactly 3 items; ordered by modifiedTime desc</td>
+</tr>
+<tr>
+<td>TC-D155</td>
+<td>list_shared_with_me single-quote</td>
+<td>SKIP</td>
+<td>Unit test check</td>
+</tr>
+<tr>
+<td>TC-D156</td>
+<td>list_recent_files max 10</td>
+<td>PASS</td>
+<td>10 files; ordered by modifiedTime desc</td>
+</tr>
+<tr>
+<td>TC-D157</td>
+<td>list_recent_files days=7</td>
+<td>PASS</td>
+<td>20 files; all modified within last 7 days</td>
+</tr>
+<tr>
+<td>TC-D158</td>
+<td>list_recent_files MIME+days=14</td>
+<td>PASS</td>
+<td>20 spreadsheets; all within 14 days</td>
+</tr>
+<tr>
+<td>TC-D159</td>
+<td>list_recent_files max_results cap</td>
+<td>SKIP</td>
+<td>Unit test check</td>
+</tr>
+<tr>
+<td>TC-D160</td>
+<td>get_storage_quota</td>
+<td>PASS</td>
+<td>email=kevin.huisman@gmail.com; limit=100GB; all integers</td>
+</tr>
+<tr>
+<td>TC-D161</td>
+<td>get_storage_quota SA limit_bytes=0</td>
+<td>SKIP</td>
+<td>Unit test check</td>
+</tr>
+<tr>
+<td>TC-D162</td>
+<td>get_storage_quota bytes integers</td>
+<td>SKIP</td>
+<td>Unit test check</td>
+</tr>
+<tr>
+<td>TC-D163</td>
+<td>list_file_activity DOC_ID</td>
+<td>PASS</td>
+<td>53 activities; all have timestamp/action/actors</td>
+</tr>
+<tr>
+<td>TC-D164</td>
+<td>list_file_activity user actor</td>
+<td>PASS</td>
+<td>user actors have person_name and is_current_user boolean</td>
+</tr>
+<tr>
+<td>TC-D165</td>
+<td>list_file_activity page_size=1</td>
+<td>PASS</td>
+<td>2 activities returned; next_page_token present</td>
+</tr>
+<tr>
+<td>TC-D166</td>
+<td>list_file_activity system actor</td>
+<td>SKIP</td>
+<td>Unit test check</td>
+</tr>
+</tbody>
+</table>
+<h3 id="docs-tools">Docs Tools<a class="headerlink" href="#docs-tools" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Title</th>
+<th>Outcome</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-DOC01</td>
+<td>Structure of a non-empty doc</td>
+<td>PASS</td>
+<td>docId/title/elements; sectionBreak at 0; paragraphs with namedStyleType/text/runs</td>
+</tr>
+<tr>
+<td>TC-DOC02</td>
+<td>Paragraph runs include style data</td>
+<td>PASS</td>
+<td>bold:true, bold:null (not false), link_url populated</td>
+</tr>
+<tr>
+<td>TC-DOC03</td>
+<td>Structure of a doc containing a table</td>
+<td>PASS</td>
+<td>type:"table"; rows/columns; cells with paragraphStartIndex = startIndex+1</td>
+</tr>
+<tr>
+<td>TC-DOC04</td>
+<td>Structure of an empty doc</td>
+<td>PASS</td>
+<td>sectionBreak + empty paragraph; no error</td>
+</tr>
+<tr>
+<td>TC-DOC05</td>
+<td>Invalid doc ID returns error</td>
+<td>PASS</td>
+<td><code>{"error":"&lt;HttpError 404 ...&gt;"}</code></td>
+</tr>
+<tr>
+<td>TC-DOC06</td>
+<td>Insert a single paragraph</td>
+<td>PASS</td>
+<td>"Inserted line.\n" at index 88; surrounding paragraphs shifted; insertions:1</td>
+</tr>
+<tr>
+<td>TC-DOC07</td>
+<td>Insert at multiple indices — high→low verified</td>
+<td>PASS</td>
+<td>BBB startIndex = N2+4 = 83 ✅; high→low ordering confirmed; insertions:2</td>
+</tr>
+<tr>
+<td>TC-DOC08</td>
+<td>Empty insertions list returns error</td>
+<td>PASS</td>
+<td><code>{"error":"insertions list is empty"}</code></td>
+</tr>
+<tr>
+<td>TC-DOC09</td>
+<td>Delete a paragraph</td>
+<td>PASS</td>
+<td>Inserted+deleted; surrounding content shifted back; deletions:1</td>
+</tr>
+<tr>
+<td>TC-DOC10</td>
+<td>Cannot delete final segment newline</td>
+<td>PASS</td>
+<td>API error "cannot include the newline character at the end of the segment"</td>
+</tr>
+<tr>
+<td>TC-DOC11</td>
+<td>Empty deletions list returns error</td>
+<td>PASS</td>
+<td><code>{"error":"deletions list is empty"}</code></td>
+</tr>
+<tr>
+<td>TC-DOC12</td>
+<td>Apply named style type</td>
+<td>PASS</td>
+<td>namedStyleType:"HEADING_2" confirmed in re-fetch; requests:1</td>
+</tr>
+<tr>
+<td>TC-DOC13</td>
+<td>Apply text styles (bold/italic/color)</td>
+<td>PASS</td>
+<td>bold:true, italic:true on runs; requests:1</td>
+</tr>
+<tr>
+<td>TC-DOC14</td>
+<td>Both paragraph and text style in one range</td>
+<td>PASS</td>
+<td>requests:2 (updateParagraphStyle + updateTextStyle)</td>
+</tr>
+<tr>
+<td>TC-DOC15</td>
+<td>No recognised style fields returns error</td>
+<td>PASS</td>
+<td><code>{"error":"no recognised style fields in any range"}</code></td>
+</tr>
+<tr>
+<td>TC-DOC16</td>
+<td>Insert a 2×3 table</td>
+<td>PASS</td>
+<td>precedingParagraphIndex=88, tableStartIndex=89=N+1; 6 cells with paragraphStartIndex=startIndex+1</td>
+</tr>
+<tr>
+<td>TC-DOC17</td>
+<td>Cell indices usable for insert_doc_text</td>
+<td>PASS</td>
+<td>"Cell content" at paragraphStartIndex; confirmed in re-fetch</td>
+</tr>
+<tr>
+<td>TC-DOC18</td>
+<td>Apply grey header row background</td>
+<td>PASS</td>
+<td>requests:1; grey background applied</td>
+</tr>
+<tr>
+<td>TC-DOC19</td>
+<td>Apply borders and padding</td>
+<td>PASS</td>
+<td>requests:4 (one per cell); black 0.5pt border + 3.6pt padding</td>
+</tr>
+<tr>
+<td>TC-DOC20</td>
+<td>Empty cells list returns error</td>
+<td>PASS</td>
+<td><code>{"error":"cells list is empty"}</code></td>
+</tr>
+<tr>
+<td>TC-DOC21</td>
+<td>Cell with no style fields is skipped</td>
+<td>PASS</td>
+<td>requests:1 — no-style cell silently skipped</td>
+</tr>
+<tr>
+<td>TC-DOC22</td>
+<td>Multi-delete high→low ordering</td>
+<td>PASS</td>
+<td>Both DEL-A/DEL-B absent; content at correct position; no out-of-bounds; deletions:2</td>
+</tr>
+<tr>
+<td>TC-DOC23</td>
+<td>style_doc_range round-trip</td>
+<td>PASS</td>
+<td>namedStyleType:"HEADING_1" confirmed in get_doc_structure; requests:1</td>
+</tr>
+<tr>
+<td>TC-DOC24</td>
+<td>style_doc_range text styles round-trip</td>
+<td>PASS</td>
+<td>bold:true, italic:true confirmed in runs; requests:1</td>
+</tr>
+<tr>
+<td>TC-DOC25</td>
+<td>style_doc_table_cells post-fix live verify</td>
+<td>PASS</td>
+<td>No API 400 error; requests:1; light blue background applied</td>
+</tr>
+<tr>
+<td>TC-DOC26</td>
+<td>Full end-to-end insert table + style</td>
+<td>PASS</td>
+<td>insert:rows:2/columns:3/6 cells; grey row 0 requests:1; borders requests:6</td>
+</tr>
+<tr>
+<td>TC-DOC27</td>
+<td>Insert text then insert table — index chaining</td>
+<td>PASS</td>
+<td>precedingParagraphIndex=N+17, tableStartIndex=N+18; no re-fetch required</td>
+</tr>
+<tr>
+<td>TC-DOC28</td>
+<td>Apply strikethrough</td>
+<td>PASS</td>
+<td>strikethrough:true confirmed in re-fetch; requests:1</td>
+</tr>
+<tr>
+<td>TC-DOC29</td>
+<td>Apply font_size</td>
+<td>PASS</td>
+<td>requests:1; visual-only check (font_size not exposed by get_doc_structure)</td>
+</tr>
+<tr>
+<td>TC-DOC30</td>
+<td>Apply link_url</td>
+<td>PASS</td>
+<td>Run split: linked run has link_url + auto underline:true; requests:1</td>
+</tr>
+<tr>
+<td>TC-DOC31</td>
+<td><code>&lt;h2&gt;</code> maps to HEADING_2 (not HEADING_3)</td>
+<td>PASS</td>
+<td>H1/H2/H3/H4 all confirmed in structure; old bug absent</td>
+</tr>
+<tr>
+<td>TC-DOC32</td>
+<td><code>&lt;th&gt;</code> cells produce bold runs</td>
+<td>PASS (partial)</td>
+<td>Table created; bold visual-only (get_doc_structure doesn't expose cell run formatting)</td>
+</tr>
+<tr>
+<td>TC-DOC33</td>
+<td>Inline formatting inside <code>&lt;td&gt;</code> cells</td>
+<td>PASS (partial)</td>
+<td>Cell text "bold plain italic" confirmed; run-level formatting visual-only</td>
+</tr>
+<tr>
+<td>TC-DOC34</td>
+<td>colspan produces merged cells</td>
+<td>PASS</td>
+<td>Cell [0,0] "Wide cell" (merged); phantom at [0,1]; row 1: "A"/"B"</td>
+</tr>
+<tr>
+<td>TC-DOC35</td>
+<td>Column widths from HTML</td>
+<td>PASS</td>
+<td>No API error; visual-only check (width not exposed by get_doc_structure)</td>
+</tr>
+<tr>
+<td>TC-DOC36</td>
+<td>rowspan produces vertically merged cells</td>
+<td>PASS</td>
+<td>[0,0]"Tall", [0,1]"R0C1", [1,0]"" (phantom), [1,1]"R1C1" ✅</td>
+</tr>
+<tr>
+<td>TC-DOC37</td>
+<td>Combined rowspan and colspan</td>
+<td>PASS</td>
+<td>[0,0]"Big", [0,1]"", [0,2]"R0C2", [1,0]"", [1,1]"", [1,2]"R1C2" — all phantoms empty</td>
+</tr>
+<tr>
+<td>TC-DOC38</td>
+<td>rowspan with header row</td>
+<td>PASS</td>
+<td>Row 2 col 0 phantom empty; "B" in col 1 (not shifted left)</td>
+</tr>
+<tr>
+<td>TC-DOC39</td>
+<td>Markdown headings via write_doc_content</td>
+<td>PASS</td>
+<td>HEADING_1/2/3 confirmed in get_doc_structure</td>
+</tr>
+<tr>
+<td>TC-DOC40</td>
+<td>Markdown bold and italic</td>
+<td>PASS</td>
+<td>bold:true, italic:true on correct runs</td>
+</tr>
+<tr>
+<td>TC-DOC41</td>
+<td>Markdown task list</td>
+<td>PASS</td>
+<td><code>☑ Done item</code>, <code>☐ Pending item</code>, <code>Plain item</code> confirmed</td>
+</tr>
+<tr>
+<td>TC-DOC42</td>
+<td>Markdown fenced code block</td>
+<td>PASS</td>
+<td>Two code paragraphs; Courier New from unit tests</td>
+</tr>
+<tr>
+<td>TC-DOC43</td>
+<td>Markdown table via write_doc_content</td>
+<td>PASS</td>
+<td>3 rows, 2 cols; Name/Value, Alpha/1, Beta/2</td>
+</tr>
+<tr>
+<td>TC-DOC44</td>
+<td>create_doc_from_file with .md file</td>
+<td>PASS</td>
+<td>HEADING_1, bold/italic, task checkboxes, table all confirmed</td>
+</tr>
+<tr>
+<td>TC-DOC45</td>
+<td>create_doc_from_file with .html file</td>
+<td>PASS</td>
+<td>HEADING_2 "From HTML file" + paragraph confirmed</td>
+</tr>
+<tr>
+<td>TC-DOC46</td>
+<td>create_doc_from_file file not found</td>
+<td>PASS</td>
+<td><code>{"error":"File not found: ..."}</code></td>
+</tr>
+<tr>
+<td>TC-DOC47</td>
+<td>write_doc_content inline code monospace</td>
+<td>PASS</td>
+<td>Code spans at correct positions; Courier New from unit tests</td>
+</tr>
+<tr>
+<td>TC-DOC48</td>
+<td>Simple nested table</td>
+<td>PASS</td>
+<td>Outer 1×1 table; cell [0,0] span confirms nested table (not text)</td>
+</tr>
+<tr>
+<td>TC-DOC49</td>
+<td>Nested table alongside regular cells</td>
+<td>PASS</td>
+<td>[0,0]"Label"; [0,1] span consistent with 1×2 nested table</td>
+</tr>
+<tr>
+<td>TC-DOC50</td>
+<td>Nested table with multiple rows and cols</td>
+<td>PASS</td>
+<td>Outer 1×1; inner span consistent with 2×2</td>
+</tr>
+<tr>
+<td>TC-DOC51</td>
+<td>Nested tables not supported in markdown</td>
+<td>SKIP</td>
+<td>Note only — no test to run; known limitation documented</td>
+</tr>
+<tr>
+<td>TC-DOC52</td>
+<td>get_doc_theme scans body paragraph styles</td>
+<td>PASS</td>
+<td><code>{}</code> for inherited-style doc; non-empty for explicit-style doc</td>
+</tr>
+<tr>
+<td>TC-DOC53</td>
+<td>apply_theme updates named style definitions</td>
+<td>PASS</td>
+<td>requests:3 (one updateNamedStyle per key); no error</td>
+</tr>
+<tr>
+<td>TC-DOC54</td>
+<td>apply_theme with overwrite=True</td>
+<td>PASS</td>
+<td>requests:7 (2 updateNamedStyle + 5 updateTextStyle); no error</td>
+</tr>
+<tr>
+<td>TC-DOC55</td>
+<td>apply_theme with table styling</td>
+<td>PASS</td>
+<td>requests:2 (one per row); header bg + borders confirmed</td>
+</tr>
+<tr>
+<td>TC-DOC56</td>
+<td>get_doc_theme → apply_theme round-trip</td>
+<td>PASS</td>
+<td>Round-trip: get returns Georgia/Roboto; apply-back requests:2</td>
+</tr>
+<tr>
+<td>TC-DOC57</td>
+<td>Insert image by public URI</td>
+<td>PASS</td>
+<td>docId + index in response; image visible in doc</td>
+</tr>
+<tr>
+<td>TC-DOC58</td>
+<td>Insert image with explicit size</td>
+<td>PASS</td>
+<td>width=100, height=50; image smaller than default</td>
+</tr>
+<tr>
+<td>TC-DOC59</td>
+<td>No source provided returns error</td>
+<td>PASS</td>
+<td><code>{"error":"Provide either uri or drive_file_id"}</code></td>
+</tr>
+<tr>
+<td>TC-DOC60</td>
+<td>Both URI and drive_file_id returns error</td>
+<td>PASS</td>
+<td><code>{"error":"Provide only one of uri or drive_file_id, not both"}</code></td>
+</tr>
+<tr>
+<td>TC-DOC61</td>
+<td>Insert row below existing row</td>
+<td>PASS</td>
+<td>3 rows confirmed after insert; Playwright: tc-doc62-insert-row-above.png</td>
+</tr>
+<tr>
+<td>TC-DOC62</td>
+<td>Insert row above existing row</td>
+<td>PASS</td>
+<td>3 rows confirmed; new row at row 1 between original rows; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-DOC63</td>
+<td>Delete a row</td>
+<td>PASS</td>
+<td>2 rows after delete; Playwright: tc-doc63-delete-row.png</td>
+</tr>
+<tr>
+<td>TC-DOC64</td>
+<td>Insert column to the right</td>
+<td>PASS</td>
+<td>3 columns confirmed; Playwright: tc-doc64-insert-col-right.png</td>
+</tr>
+<tr>
+<td>TC-DOC65</td>
+<td>Insert column to the left</td>
+<td>PASS</td>
+<td>3 columns confirmed; Playwright: tc-doc65-insert-col-left.png</td>
+</tr>
+<tr>
+<td>TC-DOC66</td>
+<td>Delete a column</td>
+<td>PASS</td>
+<td>2 columns after delete; Playwright: tc-doc66-delete-col.png</td>
+</tr>
+<tr>
+<td>TC-DOC67</td>
+<td>API error returned gracefully (out-of-bounds row)</td>
+<td>PASS</td>
+<td><code>{"error":"..."}</code> for row_index=99 on 2×2 table; no exception</td>
+</tr>
+<tr>
+<td>TC-DOC68</td>
+<td>Create a default page header</td>
+<td>PASS</td>
+<td>headerId returned; header section visible; Playwright: tc-doc68-header.png</td>
+</tr>
+<tr>
+<td>TC-DOC69</td>
+<td>Create header with content</td>
+<td>PASS</td>
+<td>"Confidential — Internal Only" visible in header; Playwright: tc-doc69-header-content.png</td>
+</tr>
+<tr>
+<td>TC-DOC70</td>
+<td>Create a default page footer</td>
+<td>PASS</td>
+<td>footerId returned; footer section created; Playwright: tc-doc70-footer.png</td>
+</tr>
+<tr>
+<td>TC-DOC71</td>
+<td>Create footer with content</td>
+<td>PASS</td>
+<td>"Page 1" in footer; API response confirmed</td>
+</tr>
+<tr>
+<td>TC-DOC72</td>
+<td>Invalid header_type returns error</td>
+<td>PASS</td>
+<td><code>{"error":"Invalid header_type 'INVALID'. Use DEFAULT or FIRST_PAGE_HEADER"}</code></td>
+</tr>
+<tr>
+<td>TC-DOC73</td>
+<td>Invalid footer_type returns error</td>
+<td>PASS</td>
+<td><code>{"error":"Invalid footer_type 'BOGUS'. Use DEFAULT or FIRST_PAGE_FOOTER"}</code></td>
+</tr>
+<tr>
+<td>TC-DOC74</td>
+<td>insert_doc_text with segment_id writes into header</td>
+<td>PASS</td>
+<td>"QA Test Header" in fixture doc header; insertions:1; Playwright: tc-doc74-header-insert.png</td>
+</tr>
+<tr>
+<td>TC-DOC75</td>
+<td>get_doc_named_styles reads named style defaults</td>
+<td>PASS</td>
+<td>9 entries returned after apply_theme; NORMAL_TEXT/HEADING_1-6/TITLE/SUBTITLE</td>
+</tr>
+<tr>
+<td>TC-DOC76</td>
+<td>Table after heading renders at Normal Text size</td>
+<td>PASS</td>
+<td>All 6 cells render at Normal Text size; heading visually larger; no blank para gap needed; Playwright: tc-doc76-77-heading-table.png</td>
+</tr>
+<tr>
+<td>TC-DOC77</td>
+<td>No visible blank line between heading and table</td>
+<td>PASS</td>
+<td>blank para lineSpacing:1 confirmed in structure; no visible gap in rendered doc</td>
+</tr>
+<tr>
+<td>TC-DOC78</td>
+<td>data-style="title" produces TITLE named style</td>
+<td>PASS</td>
+<td>First para namedStyleType:"TITLE" confirmed in get_doc_structure</td>
+</tr>
+<tr>
+<td>TC-DOC79</td>
+<td>data-style="subtitle" produces SUBTITLE named style</td>
+<td>PASS</td>
+<td>All three: TITLE/SUBTITLE/NORMAL_TEXT with correct text values</td>
+</tr>
+</tbody>
+</table>
+<h3 id="calendar">Calendar<a class="headerlink" href="#calendar" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Title</th>
+<th>Outcome</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-CAL01</td>
+<td>Returns subscribed calendars</td>
+<td>PASS</td>
+<td>At least one calendar; id/summary/time_zone/access_role/primary all present</td>
+</tr>
+<tr>
+<td>TC-CAL02</td>
+<td>primary flag</td>
+<td>PASS</td>
+<td>Exactly one primary:true; OAuth primary calendar correctly identified</td>
+</tr>
+<tr>
+<td>TC-CAL03</td>
+<td>Cache hit on second call</td>
+<td>PASS</td>
+<td>Second call returned same results</td>
+</tr>
+<tr>
+<td>TC-CAL04</td>
+<td>Empty subscription list</td>
+<td>SKIP</td>
+<td>Requires fresh service account with no subscriptions</td>
+</tr>
+<tr>
+<td>TC-CAL05</td>
+<td>get_calendar by ID</td>
+<td>PASS</td>
+<td>id/summary/time_zone/access_role all present; no error</td>
+</tr>
+<tr>
+<td>TC-CAL06</td>
+<td>get_calendar primary calendar</td>
+<td>PASS</td>
+<td>primary:true confirmed for OAuth primary calendar</td>
+</tr>
+<tr>
+<td>TC-CAL07</td>
+<td>get_calendar cache hit</td>
+<td>PASS</td>
+<td>Second call returned same result</td>
+</tr>
+<tr>
+<td>TC-CAL08</td>
+<td>get_calendar invalid ID</td>
+<td>PASS</td>
+<td>Error returned; not a crash</td>
+</tr>
+<tr>
+<td>TC-CAL09</td>
+<td>list_events time_min default</td>
+<td>FAIL</td>
+<td>All past events returned when time_min omitted. Docstring claims "Defaults to now" but <code>calendar.py:115</code> only sets <code>timeMin</code> when explicitly provided</td>
+</tr>
+<tr>
+<td>TC-CAL10</td>
+<td>list_events with time_min</td>
+<td>PASS</td>
+<td>Only future events returned when explicit time_min set</td>
+</tr>
+<tr>
+<td>TC-CAL11</td>
+<td>list_events max_results=3</td>
+<td>PASS</td>
+<td>Exactly 3 events returned</td>
+</tr>
+<tr>
+<td>TC-CAL12</td>
+<td>list_events query filter</td>
+<td>PASS</td>
+<td>Only events matching query returned</td>
+</tr>
+<tr>
+<td>TC-CAL13</td>
+<td>list_events single_events=True</td>
+<td>PASS</td>
+<td>Recurring event expanded to instances</td>
+</tr>
+<tr>
+<td>TC-CAL14</td>
+<td>list_events pagination</td>
+<td>PASS</td>
+<td>page_size respected; next_page_token present when more results</td>
+</tr>
+<tr>
+<td>TC-CAL15</td>
+<td>list_events empty calendar</td>
+<td>PASS</td>
+<td><code>[]</code> returned; no error</td>
+</tr>
+<tr>
+<td>TC-CAL16</td>
+<td>list_events invalid calendar</td>
+<td>PASS</td>
+<td>Error returned; not a crash</td>
+</tr>
+<tr>
+<td>TC-CAL17</td>
+<td>list_events order_by startTime</td>
+<td>PASS</td>
+<td>Events ordered chronologically</td>
+</tr>
+<tr>
+<td>TC-CAL18</td>
+<td>list_events time_max filter</td>
+<td>PASS</td>
+<td>Only events before time_max returned</td>
+</tr>
+<tr>
+<td>TC-CAL19</td>
+<td>get_event happy path</td>
+<td>PASS</td>
+<td>id/summary/start/end/status all present; no error</td>
+</tr>
+<tr>
+<td>TC-CAL20</td>
+<td>create_event timed</td>
+<td>PASS</td>
+<td>QA-Timed-Test created Jul 1 10am-11am; Playwright: event visible in calendar</td>
+</tr>
+<tr>
+<td>TC-CAL21</td>
+<td>create_event all-day</td>
+<td>PASS</td>
+<td>QA-AllDay-Test created Thu Jul 2; full-day bar visible</td>
+</tr>
+<tr>
+<td>TC-CAL22</td>
+<td>create_event with description/location</td>
+<td>PASS</td>
+<td>QA-Full-Test with description + "Room B" location; Playwright: tc-cal20-22-events-created.png</td>
+</tr>
+<tr>
+<td>TC-CAL23</td>
+<td>create_event invalid calendar</td>
+<td>PASS</td>
+<td>Error returned; not a crash</td>
+</tr>
+<tr>
+<td>TC-CAL24</td>
+<td>update_event change time</td>
+<td>PASS</td>
+<td>QA-Timed-Test → 2pm-3pm; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-CAL25</td>
+<td>update_event change title</td>
+<td>PASS</td>
+<td>title renamed to "QA-Timed-Updated"; Playwright: tc-cal24-25-26-updated.png</td>
+</tr>
+<tr>
+<td>TC-CAL26</td>
+<td>update_event change location</td>
+<td>PASS</td>
+<td>QA-Full-Test location updated; Playwright confirmed</td>
+</tr>
+<tr>
+<td>TC-CAL27</td>
+<td>update_event invalid event ID</td>
+<td>PASS</td>
+<td>Error returned; not a crash</td>
+</tr>
+<tr>
+<td>TC-CAL28</td>
+<td>delete_event timed</td>
+<td>PASS</td>
+<td>QA-AllDay-Test deleted; Thu Jul 2 empty in calendar; Playwright: tc-cal28-allday-deleted.png</td>
+</tr>
+<tr>
+<td>TC-CAL29</td>
+<td>delete_event invalid ID</td>
+<td>PASS</td>
+<td>Error returned; not a crash</td>
+</tr>
+<tr>
+<td>TC-CAL30</td>
+<td>find_free_slots basic</td>
+<td>PASS</td>
+<td>Free slots returned correctly for given range</td>
+</tr>
+<tr>
+<td>TC-CAL31</td>
+<td>find_free_slots with busy events</td>
+<td>PASS</td>
+<td>Busy periods excluded from free slots</td>
+</tr>
+<tr>
+<td>TC-CAL32</td>
+<td>find_free_slots multi-calendar</td>
+<td>SKIP</td>
+<td>Requires second calendar subscription</td>
+</tr>
+<tr>
+<td>TC-CAL33</td>
+<td>find_free_slots min_duration respected</td>
+<td>PASS</td>
+<td>Only slots ≥ min_duration returned</td>
+</tr>
+<tr>
+<td>TC-CAL34</td>
+<td>find_free_slots business hours</td>
+<td>PASS</td>
+<td>Slots clipped to business hours</td>
+</tr>
+<tr>
+<td>TC-CAL35</td>
+<td>find_free_slots merges adjacent busy</td>
+<td>PASS</td>
+<td>QA-Busy-A (10-11am) + QA-Busy-B (11am-12pm) merged into single [10am-12pm] busy block</td>
+</tr>
+<tr>
+<td>TC-CAL36</td>
+<td>create_event recurring WEEKLY</td>
+<td>PASS</td>
+<td>QA-Weekly-Standup with WEEKLY recurrence; Playwright: tc-cal36-39-40-weekly.png. Note: timezone required for recurring datetime events (docstring gap)</td>
+</tr>
+<tr>
+<td>TC-CAL37</td>
+<td>create_event recurring DAILY 5×</td>
+<td>PASS</td>
+<td>QA-Daily-5x with COUNT=5; expand_recurring=True shows 5 instances</td>
+</tr>
+<tr>
+<td>TC-CAL38</td>
+<td>list_events expand_recurring=False</td>
+<td>PASS</td>
+<td>Master event returned; recurrence[] present; no _YYYYMMDD suffix on ID</td>
+</tr>
+<tr>
+<td>TC-CAL39</td>
+<td>list_events expand_recurring=True</td>
+<td>PASS</td>
+<td>5 instances with _YYYYMMDDTHHMMSSZ suffix on IDs</td>
+</tr>
+<tr>
+<td>TC-CAL40</td>
+<td>get_event recurring master</td>
+<td>PASS</td>
+<td>Master event confirmed; recurrence[] present</td>
+</tr>
+<tr>
+<td>TC-CAL41</td>
+<td>get_event recurring instance</td>
+<td>PASS</td>
+<td>Individual instance confirmed; recurringEventId present</td>
+</tr>
+<tr>
+<td>TC-CAL42</td>
+<td>update_event remove recurrence</td>
+<td>PASS</td>
+<td><code>recurrence:null</code> confirmed after passing <code>recurrence=[]</code>; event now one-off</td>
+</tr>
+<tr>
+<td>TC-CAL43</td>
+<td>delete_event recurring</td>
+<td>PASS</td>
+<td>Master + all instances deleted</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

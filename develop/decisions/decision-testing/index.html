@@ -1,0 +1,1736 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/decisions/decision-testing/">
+      
+      
+        <link rel="prev" href="../decision-composite-tools/">
+      
+      
+        <link rel="next" href="../decision-publishing/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Testing Approach - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#decision-human-led-verification-with-phased-ai-trust" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Testing Approach
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#background" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Background
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#options-considered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Options Considered
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Options Considered">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#option-a-automated-integration-tests-against-real-google-apis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option A: Automated integration tests against real Google APIs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-b-mocked-unit-tests-for-tool-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option B: Mocked unit tests for tool behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-c-human-led-structured-verification-with-ai-assistance-chosen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option C: Human-led structured verification with AI assistance (chosen)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decision
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phased-evolution-toward-hybrid-human-ai-trust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phased Evolution: Toward Hybrid Human + AI Trust
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phased Evolution: Toward Hybrid Human + AI Trust">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-run-the-suite-learn-what-ai-verification-actually-produces-superseded-see-below" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 — Run the suite; learn what AI verification actually produces (superseded — see below)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-track-human-approval-through-structured-sign-off-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 — Track human approval through structured sign-off (next)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-invalidate-human-approval-on-stated-conditions-future" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 — Invalidate human approval on stated conditions (future)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-actually-happened-2026-07-04" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Actually Happened (2026-07-04)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#release-gate-scoping-2026-07-04" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release Gate Scoping (2026-07-04)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-to-re-evaluate-the-framework-itself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to Re-evaluate the Framework Itself
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa-checklist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Checklist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_6" id="__nav_6_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/drive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="decision-human-led-verification-with-phased-ai-trust">Decision: Human-Led Verification with Phased AI Trust<a class="headerlink" href="#decision-human-led-verification-with-phased-ai-trust" title="Permanent link">&para;</a></h1>
+<p><strong>Date:</strong> 2026-05-13 (revised 2026-06-02, 2026-07-04)
+<strong>Snapshot commit:</strong> <a href="https://github.com/khuisman/mcp-gee-sweet/commit/d94f81ab9e313d8a3cc4c46d141777e4e8069c14"><code>d94f81ab</code></a> — QA framework as it existed when this decision was first made</p>
+<blockquote>
+<p>This is a living decision record. The original decision (2026-05-13) established the QA framework structure. The 2026-06-02 revision corrected a mischaracterisation of Option C and laid out a phased evolution plan toward a hybrid human + AI verification system. The 2026-07-04 revision records that the framework evolved differently than that plan anticipated — see <a href="#what-actually-happened-2026-07-04">What Actually Happened</a> — and separately replaces the blanket "Full Regression before every stable release" rule with an explicit scoping process — see <a href="#release-gate-scoping-2026-07-04">Release Gate Scoping</a>.</p>
+</blockquote>
+<hr />
+<h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
+<p>As the tool count grew past 30 across Sheets, Drive, Docs, and Calendar, the question of how to verify correctness became real. Every tool is ultimately a wrapper around a live Google API — the interesting failure modes are things like malformed A1 notation, wrong MIME type handling, cache staleness after a write, and API edge cases that only surface against real data. The question was how to catch those reliably without building a full CI integration harness.</p>
+<p>Two categories of testing were already in place at this point:</p>
+<ul>
+<li><strong>Unit tests</strong> (<code>tests/test_tools.py</code>) — cover helpers, HTML conversion, tool filtering, cache TTL/invalidation logic, and A1 notation parsing. These don't require credentials and run in CI via <code>pytest</code>.</li>
+<li><strong>Ad hoc manual testing</strong> — tools were being exercised during development by issuing prompts against a running server, but there was no structure, no repeatability, and no shared record of what had been checked.</li>
+</ul>
+<p>The question was what to put in the gap between unit tests and shipping.</p>
+<h2 id="options-considered">Options Considered<a class="headerlink" href="#options-considered" title="Permanent link">&para;</a></h2>
+<h3 id="option-a-automated-integration-tests-against-real-google-apis">Option A: Automated integration tests against real Google APIs<a class="headerlink" href="#option-a-automated-integration-tests-against-real-google-apis" title="Permanent link">&para;</a></h3>
+<p>Write <code>pytest</code> tests that authenticate with a service account, call tools against real Drive/Sheets/Calendar resources, and assert on responses.</p>
+<p><strong>Pros:</strong>
+- Repeatable, runnable in CI
+- Catches regressions automatically</p>
+<p><strong>Cons:</strong>
+- Requires a dedicated Google test account, service account credentials stored in CI secrets, and a real Drive folder/spreadsheet/doc/calendar maintained as fixtures
+- API rate limits and quota introduce test flakiness that has nothing to do with correctness
+- Google Workspace APIs have no local equivalent — no sandbox, no emulator. "Integration test" means a real API call with real side effects
+- Credential rotation, fixture drift, and quota exhaustion are ongoing maintenance costs
+- Tests would need to clean up after themselves across Drive, Docs, Calendar, and Sheets — a substantial engineering surface</p>
+<h3 id="option-b-mocked-unit-tests-for-tool-behavior">Option B: Mocked unit tests for tool behavior<a class="headerlink" href="#option-b-mocked-unit-tests-for-tool-behavior" title="Permanent link">&para;</a></h3>
+<p>Mock the Google API clients and write unit tests that assert tools call the right methods with the right arguments.</p>
+<p><strong>Pros:</strong>
+- No credentials, fast, runnable in CI</p>
+<p><strong>Cons:</strong>
+- Tests the mock, not the API. The bugs that actually surface — wrong MIME type in an export, A1 notation that the Sheets API silently ignores, a Drive query that doesn't escape single quotes — are all behaviors of the real API, not of this project's code
+- A mocked test that passes is not evidence that the tool works</p>
+<h3 id="option-c-human-led-structured-verification-with-ai-assistance-chosen">Option C: Human-led structured verification with AI assistance (chosen)<a class="headerlink" href="#option-c-human-led-structured-verification-with-ai-assistance-chosen" title="Permanent link">&para;</a></h3>
+<p>Write structured test cases as natural language prompts paired with explicit check lists. A human runs each prompt against the live MCP server and evaluates the response against the checks. Claude assists by presenting prompts, interpreting structured output, and carrying state between tests — but human judgment is the verification step. Results are recorded in a QA checklist (<code>docs/qa-checklist.md</code>) that a human signs off on.</p>
+<blockquote>
+<p><strong>Correction from original write-up:</strong> The original description said "A Claude session evaluates the responses against the checks and saves a results report." That overstated AI autonomy. The intent was always human-driven: Claude surfaces the prompt and the checks, a person runs it and decides pass/fail.</p>
+</blockquote>
+<p><strong>Pros:</strong>
+- Tests run against the real Google APIs with real credentials — the same conditions as production
+- Natural language checks can express things that are hard to assert programmatically: "open the doc in a browser and verify the heading renders correctly", "confirm the file no longer appears in Drive UI"
+- Claude can carry intermediate state between tests (e.g. a <code>permissionId</code> returned by one test used in the next), handle test ordering, and prompt the user before destructive operations
+- Test cases are readable by anyone — no test framework knowledge required
+- Tests are grouped by tool category (<code>read.md</code>, <code>write.md</code>, <code>sheets.md</code>, <code>drive.md</code>, <code>charts.md</code>, <code>infra.md</code>) so a human can run one category at a time
+- The conductor prompt pattern makes a full suite run a single paste operation</p>
+<p><strong>Cons:</strong>
+- Not automated — requires a human to initiate a run
+- Not in CI — regressions aren't caught automatically on every commit
+- Pass/fail judgment rests with the human; AI assistance introduces a question of how much to trust AI evaluation</p>
+<h2 id="decision">Decision<a class="headerlink" href="#decision" title="Permanent link">&para;</a></h2>
+<p><strong>Use human-led structured verification as the primary QA method for tool correctness.</strong> Unit tests remain in CI for logic that doesn't require API calls (helpers, caching, filtering). Integration tests against real APIs are deferred — the cost/benefit doesn't make sense at current scale, and the structured human-led approach exercises real APIs with lower setup overhead.</p>
+<p>The framework consists of:</p>
+<ul>
+<li><strong><code>docs/qa/tests/*.md</code></strong> — one file per tool category, each test case a prompt + check list with a TC-prefixed identifier</li>
+<li><strong><code>docs/qa/setup.md</code></strong> — one-time fixture setup (a real spreadsheet, doc, folder, and calendar in Drive)</li>
+<li><strong><code>docs/qa/run.md</code></strong> — the conductor prompt; paste into a Claude session with the server connected to run the full suite</li>
+<li><strong><code>docs/qa-checklist.md</code></strong> — the attestation document; each TC is a checkbox that someone signs off on having run</li>
+</ul>
+<h2 id="phased-evolution-toward-hybrid-human-ai-trust">Phased Evolution: Toward Hybrid Human + AI Trust<a class="headerlink" href="#phased-evolution-toward-hybrid-human-ai-trust" title="Permanent link">&para;</a></h2>
+<p>The current framework works but leaves an open question: how much should AI evaluation be trusted, and how do we know when a previously-verified test still holds? The following phases describe the planned evolution.</p>
+<h3 id="phase-1-run-the-suite-learn-what-ai-verification-actually-produces-superseded-see-below">Phase 1 — Run the suite; learn what AI verification actually produces (superseded — see below)<a class="headerlink" href="#phase-1-run-the-suite-learn-what-ai-verification-actually-produces-superseded-see-below" title="Permanent link">&para;</a></h3>
+<p>Run the existing test suite with AI assistance evaluating results alongside the human. Goal: discover what works well and what doesn't. Specific things to learn:</p>
+<ul>
+<li>Where does AI evaluation agree with human judgment? Where does it diverge?</li>
+<li>Which test categories are well-suited to AI evaluation (structured output, deterministic checks) vs. require human eyes (rendering, Drive UI state)?</li>
+<li>Are there checks that are currently underspecified — ambiguous enough that AI and human reach different verdicts?</li>
+<li>What fixture assumptions break or drift in practice?</li>
+</ul>
+<p>Findings from this phase inform whether and how much AI evaluation can be trusted in Phase 2.</p>
+<h3 id="phase-2-track-human-approval-through-structured-sign-off-next">Phase 2 — Track human approval through structured sign-off (next)<a class="headerlink" href="#phase-2-track-human-approval-through-structured-sign-off-next" title="Permanent link">&para;</a></h3>
+<p>Build a sign-off record per test case that captures: who approved, when, at what commit. The checklist (<code>docs/qa-checklist.md</code>) becomes the source of truth for approval state.</p>
+<p>Rules:
+- <strong>New test cases</strong> always require human execution and sign-off before AI-only re-runs are permitted.
+- <strong>Sign-off record</strong> includes: TC identifier, approver, date, commit SHA of the tool file at time of approval, fixture version.
+- <strong>AI-only re-runs</strong> are permitted only for tests that have a human sign-off on record.</p>
+<p>This phase doesn't change how tests run — it adds the tracking layer on top of the existing workflow.</p>
+<h3 id="phase-3-invalidate-human-approval-on-stated-conditions-future">Phase 3 — Invalidate human approval on stated conditions (future)<a class="headerlink" href="#phase-3-invalidate-human-approval-on-stated-conditions-future" title="Permanent link">&para;</a></h3>
+<p>Once sign-off tracking exists, introduce rules that automatically mark a previously-approved TC as requiring re-verification:</p>
+<ul>
+<li><strong>Tool file changed</strong> — a commit touches the source file for the tool under test (e.g. <code>src/mcp_gee_sweet/tools/read.py</code> changed → all TC-R## approvals invalidated)</li>
+<li><strong>Fixture mutated</strong> — a destructive test ran and the fixture spreadsheet/doc/calendar was not reset (tracked via a fixture checksum or version marker in <code>fixtures.local.md</code>)</li>
+<li><strong>Explicit override</strong> — a human marks a TC as needing re-verification (e.g. after an API behavior change or a known regression)</li>
+</ul>
+<p>Tests invalidated by Phase 3 rules drop back to requiring human re-approval before AI-only re-runs resume. This creates a ratchet: verified tests stay verified until there's a stated reason they might not be.</p>
+<h2 id="what-actually-happened-2026-07-04">What Actually Happened (2026-07-04)<a class="headerlink" href="#what-actually-happened-2026-07-04" title="Permanent link">&para;</a></h2>
+<p>Phase 1 findings didn't lead to Phase 2. The open question Phase 2/3 were designed to answer — "how much should AI evaluation be trusted, and how do we know when a previously-verified test still holds" — turned out to be the wrong axis. The actual gap wasn't AI judgment on structured API responses (that was fine); it was the checks that could only be verified by <em>looking at the rendered result</em> — "confirm the doc's heading renders at the right size," "confirm the file is gone from the Drive UI." Those needed a human's eyes, not a human's sign-off on a checklist.</p>
+<p>Playwright MCP closed that gap directly instead: test cases that need visual confirmation are tagged <code>**Playwright: required**</code> in the test file (see <code>docs/qa/README.md</code>'s test case format and <code>docs/qa/run.md</code>'s Playwright section), and the conductor opens the affected page in a real browser and snapshots it as part of the same AI-driven run — no separate human step required. TC-D73 (<code>delete_file</code> on a folder) is the concrete case that validated this: the API said <code>"action: trashed"</code>, the cache still listed the folder, and Playwright showed it actually gone from Drive — a three-way comparison that caught a real cache bug a checklist sign-off would not have (full account in <code>docs/qa/retro-v0.8.0.md</code>).</p>
+<p><strong>Where this leaves the phases:</strong></p>
+<ul>
+<li><strong>Phase 1</strong> — effectively superseded. Its stated goal (learn where AI evaluation is trustworthy) was answered by adding Playwright rather than by more observation.</li>
+<li><strong>Phase 2 / Phase 3</strong> — not built, and not currently planned. The <code>human_confirmation</code> operation they'd have formalized still exists in <code>docs/qa/operations.yaml</code>, but it's not the default path for <code>run_suite</code>/<code>run_group</code> — it's held in reserve for verification judgment calls that Playwright snapshots can't resolve on their own. Formatting and rendering-behavior work is the likely place this comes back: "is this the right font size" or "does this look right stylistically" is a harder call than "is the element present," and may need a human back in the loop for those specific cases rather than the general sign-off/invalidation machinery Phase 2/3 described.</li>
+</ul>
+<p>If Phase 2/3-style sign-off tracking becomes necessary later (e.g. Playwright snapshots prove insufficient for a category of checks), revisit this section rather than assuming the original plan still applies unchanged.</p>
+<h2 id="release-gate-scoping-2026-07-04">Release Gate Scoping (2026-07-04)<a class="headerlink" href="#release-gate-scoping-2026-07-04" title="Permanent link">&para;</a></h2>
+<p>The original decision required Full Regression before every stable release, full stop. That held fine while most stable releases carried a mix of new tools and fixes across many domains. v0.8.1 broke that assumption: of the commits since <code>v0.8.0</code>, only five actually changed tool behavior (touching <code>sheets_read</code>, <code>drive</code>, <code>docs</code>, and <code>infra</code>/cache), one was a large mechanical refactor with no intended behavior change (splitting <code>docs/__init__.py</code> into submodules), and the rest were documentation. Running Full Regression — every domain, including <code>sheets_write</code>, <code>sheets_mgmt</code>, <code>sheets_charts</code>, and <code>calendar</code>, none of which had a single line touched — would have spent hours re-verifying code that provably didn't change.</p>
+<p>The fix isn't "skip QA for boring releases" — it's replacing a blanket rule with an explicit audit: enumerate what changed since the last stable tag, classify each commit as a behavior change or a pure refactor, and require live coverage only for the domains actually implicated. Two things keep this from becoming a way to quietly under-test a release:</p>
+<ul>
+<li><strong>The audit has to happen and get written down</strong> — which commits were reviewed, how each was classified, which domains were included or excluded and why — in the release's <code>docs/qa/runs/vX.Y.Z.md</code>. A scoped gate without a documented audit trail is just skipping the gate.</li>
+<li><strong>A pure refactor still needs a live Domain run if it's never had one.</strong> Unit tests were updated in the <code>docs/__init__.py</code> split to assert the same things they always did, which proves the refactor didn't break what the tests check — it says nothing about behavior the tests don't cover, and nothing about the real Google API (unit tests mock it). "No intended behavior change" is a claim about intent, not evidence; a Domain run is the evidence.</li>
+</ul>
+<p><strong>Addendum — structural vs. non-structural scoping within a domain.</strong> The first pass at doing this audit for v0.8.1 assumed "Domain implicated → run its full test file" was the smallest safe unit. Counting actual test cases showed that assumption has a real cost: <code>drive.md</code> alone is 168 test cases across ~34 tool sections, but the only source changes in it since <code>v0.8.0</code> were two narrow, additive fixes to <code>export_file</code> and <code>list_file_activity</code> (11 test cases combined) — nothing else in that file had a line touched. Running all 168 to protect 11 isn't rigor, it's re-running an already-passing v0.8.0 result under a new name. Contrast with <code>docs.md</code>: also a large combined file, but it underwent the <code>docs/__init__.py</code> submodule split — a structural reorganization touching the whole module, which is exactly the case the "no intended behavior change is a claim, not evidence" rule above is for.</p>
+<p>The distinction that separates these: did the change reorganize the file/module (structural), or touch one or a few isolated tool sections in place without reorganizing anything (non-structural)? Structural changes still get the full domain file, full stop. Non-structural changes can be scoped to just the changed tools' test sections, identified from the actual diff rather than from what the originating issue says it touched — a fix's real footprint can be larger or smaller than its issue description. See <a href="../../qa/runs/#release-gate"><code>docs/qa/runs/README.md</code></a> step 6 for the mechanical rule.</p>
+<p>See <a href="../../qa/runs/#release-gate"><code>docs/qa/runs/README.md</code></a> for the mechanical process (the "how"); this section is the "why" it changed from the original all-or-nothing rule.</p>
+<hr />
+<h2 id="when-to-re-evaluate-the-framework-itself">When to Re-evaluate the Framework Itself<a class="headerlink" href="#when-to-re-evaluate-the-framework-itself" title="Permanent link">&para;</a></h2>
+<p>This decision should be revisited if:</p>
+<ul>
+<li>The project gains contributors who need a way to verify correctness without a Google account configured</li>
+<li>A CI-friendly Google API sandbox or emulator becomes available</li>
+<li>Repeated regressions in a specific area make the manual cycle too slow to catch them</li>
+<li>Phase 1 findings show AI evaluation is unreliable enough to make Phase 2/3 not worth building</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

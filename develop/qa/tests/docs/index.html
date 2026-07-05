@@ -1,0 +1,3749 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/qa/tests/docs/">
+      
+      
+        <link rel="prev" href="../calendar/">
+      
+      
+        <link rel="next" href="../drive/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Docs - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#docs-direct-api-tools-qa-test-cases" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Docs
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../qa-checklist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Checklist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6_6" id="__nav_6_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#get_doc_structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_doc_structure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="get_doc_structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc01-structure-of-a-non-empty-doc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC01: Structure of a non-empty doc
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc02-paragraph-runs-include-style-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC02: Paragraph runs include style data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc03-structure-of-a-doc-containing-a-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC03: Structure of a doc containing a table
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc04-structure-of-an-empty-doc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC04: Structure of an empty doc
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc05-invalid-doc-id-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC05: Invalid doc ID returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#insert_doc_text" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        insert_doc_text
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="insert_doc_text">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc06-insert-a-single-paragraph-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC06: Insert a single paragraph ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc07-insert-at-multiple-indices-highlow-ordering-verified-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC07: Insert at multiple indices — high→low ordering verified ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc08-empty-insertions-list-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC08: Empty insertions list returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#delete_doc_range" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        delete_doc_range
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="delete_doc_range">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc09-delete-a-paragraph-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC09: Delete a paragraph ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc10-cannot-delete-final-segment-newline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC10: Cannot delete final segment newline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc11-empty-deletions-list-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC11: Empty deletions list returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#style_doc_range" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        style_doc_range
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="style_doc_range">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc12-apply-named-style-type-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC12: Apply named style type ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc13-apply-text-styles-bold-italic-foreground-color-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC13: Apply text styles (bold, italic, foreground color) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc14-apply-both-paragraph-and-text-style-in-one-range-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC14: Apply both paragraph and text style in one range ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc15-no-recognised-style-fields-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC15: No recognised style fields returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#insert_doc_table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        insert_doc_table
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="insert_doc_table">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc16-insert-a-23-table-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC16: Insert a 2×3 table ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc17-cell-indices-usable-for-insert_doc_text-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC17: Cell indices usable for insert_doc_text ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#style_doc_table_cells" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        style_doc_table_cells
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="style_doc_table_cells">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc18-apply-grey-header-row-background-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC18: Apply grey header row background ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc19-apply-borders-and-padding-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC19: Apply borders and padding ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc20-empty-cells-list-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC20: Empty cells list returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc21-cell-with-no-style-fields-is-skipped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC21: Cell with no style fields is skipped
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-operation-ordering-and-sequencing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-operation ordering and sequencing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Multi-operation ordering and sequencing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc22-multi-delete-highlow-ordering-verified-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC22: Multi-delete high→low ordering verified ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc23-style_doc_range-round-trip-heading-confirmed-in-get_doc_structure-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC23: style_doc_range round-trip — heading confirmed in get_doc_structure ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc24-style_doc_range-text-styles-round-trip-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC24: style_doc_range text styles round-trip ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc25-style_doc_table_cells-post-fix-live-verification-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC25: style_doc_table_cells post-fix live verification ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc26-full-end-to-end-sequence-insert-table-then-style-cells-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC26: Full end-to-end sequence — insert table then style cells ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc27-insert-text-then-insert-table-index-chaining-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC27: Insert text then insert table — index chaining ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#style_doc_range-additional-coverage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        style_doc_range — additional coverage
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="style_doc_range — additional coverage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc28-apply-strikethrough-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC28: Apply strikethrough ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc29-apply-font_size-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC29: Apply font_size ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc30-apply-link_url-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC30: Apply link_url ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-2-write_doc_content-create_doc-translator-fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 — write_doc_content / create_doc translator fixes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 2 — write_doc_content / create_doc translator fixes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc31-h2-maps-to-heading_2-not-heading_3-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC31: &lt;h2&gt; maps to HEADING_2 (not HEADING_3) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc32-th-cells-produce-bold-runs-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC32: &lt;th&gt; cells produce bold runs ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc33-inline-formatting-inside-td-cells-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC33: Inline formatting inside &lt;td&gt; cells ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc34-colspan-produces-merged-cells-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC34: colspan produces merged cells ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc35-column-widths-from-html-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC35: Column widths from HTML ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc36-rowspan-produces-vertically-merged-cells-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC36: rowspan produces vertically merged cells ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc37-combined-rowspan-and-colspan-in-the-same-table-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC37: Combined rowspan and colspan in the same table ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc38-rowspan-with-header-row-phantom-not-filled-real-cells-in-correct-columns-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC38: rowspan with header row — phantom not filled, real cells in correct columns ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#markdown-support-create_doc-write_doc_content-create_doc_from_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Markdown support — create_doc / write_doc_content / create_doc_from_file
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Markdown support — create_doc / write_doc_content / create_doc_from_file">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc39-markdown-headings-via-write_doc_content-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC39: Markdown headings via write_doc_content ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc40-markdown-bold-and-italic-via-write_doc_content-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC40: Markdown bold and italic via write_doc_content ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc41-markdown-task-list-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC41: Markdown task list ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc42-markdown-fenced-code-block-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC42: Markdown fenced code block ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc43-markdown-table-via-write_doc_content-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC43: Markdown table via write_doc_content ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc44-create_doc_from_file-with-a-local-md-file-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC44: create_doc_from_file with a local .md file ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc45-create_doc_from_file-with-a-local-html-file-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC45: create_doc_from_file with a local .html file ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc46-create_doc_from_file-file-not-found" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC46: create_doc_from_file file not found
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc47-write_doc_content-inline-code-monospace-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC47: write_doc_content inline code monospace ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc78-data-styletitle-produces-title-named-style-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC78: data-style="title" produces TITLE named style ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc79-data-stylesubtitle-produces-subtitle-named-style-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC79: data-style="subtitle" produces SUBTITLE named style ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nested-table-support-write_doc_content" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nested table support — write_doc_content
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Nested table support — write_doc_content">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc48-simple-nested-table-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC48: Simple nested table ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc49-nested-table-alongside-regular-cells-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC49: Nested table alongside regular cells ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc50-nested-table-with-multiple-rows-and-columns-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC50: Nested table with multiple rows and columns ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc51-nested-tables-not-supported-in-markdown-documented-limitation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC51: Nested tables not supported in markdown (documented limitation)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc52-get_doc_theme-scans-body-paragraph-styles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC52: get_doc_theme scans body paragraph styles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc53-apply_theme-updates-named-style-definitions-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC53: apply_theme updates named style definitions ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc54-apply_theme-with-overwritetrue-also-patches-existing-paragraphs-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC54: apply_theme with overwrite=True also patches existing paragraphs ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc55-apply_theme-with-table-styling-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC55: apply_theme with table styling ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc56-get_doc_theme-apply_theme-round-trip-on-an-ai-generated-doc-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC56: get_doc_theme → apply_theme round-trip on an AI-generated doc ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#insert_inline_image-145" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        insert_inline_image (#145)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="insert_inline_image (#145)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc57-insert-an-image-by-public-uri-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC57: Insert an image by public URI ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc58-insert-an-image-with-explicit-size-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC58: Insert an image with explicit size ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc59-no-source-provided-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC59: No source provided returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc60-both-uri-and-drive_file_id-provided-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC60: Both URI and drive_file_id provided returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#insert_table_row-delete_table_row-insert_table_column-delete_table_column-146" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        insert_table_row / delete_table_row / insert_table_column / delete_table_column (#146)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="insert_table_row / delete_table_row / insert_table_column / delete_table_column (#146)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc61-insert-a-row-below-an-existing-row-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC61: Insert a row below an existing row ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc62-insert-a-row-above-an-existing-row-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC62: Insert a row above an existing row ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc63-delete-a-row-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC63: Delete a row ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc64-insert-a-column-to-the-right-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC64: Insert a column to the right ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc65-insert-a-column-to-the-left-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC65: Insert a column to the left ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc66-delete-a-column-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC66: Delete a column ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc67-api-error-returned-gracefully-out-of-bounds-row" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC67: API error returned gracefully (out of bounds row)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create_header-create_footer-147" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_header / create_footer (#147)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="create_header / create_footer (#147)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc68-create-a-default-page-header-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC68: Create a default page header ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc69-create-a-header-with-content-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC69: Create a header with content ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc70-create-a-default-page-footer-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC70: Create a default page footer ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc71-create-a-footer-with-content-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC71: Create a footer with content ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc72-invalid-header_type-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC72: Invalid header_type returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc73-invalid-footer_type-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC73: Invalid footer_type returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc74-insert_doc_text-with-segment_id-writes-into-header-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC74: insert_doc_text with segment_id writes into header ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc75-get_doc_named_styles-reads-named-style-defaults-set-via-the-docs-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC75: get_doc_named_styles reads named style defaults set via the Docs UI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc76-table-immediately-after-heading-renders-at-normal-text-size-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC76: Table immediately after heading renders at Normal Text size ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc77-no-visible-blank-line-between-heading-and-table-in-create_doc_from_file-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC77: No visible blank line between heading and table in create_doc_from_file ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc80-get_doc_content-trips-the-response-size-cap-cached-path-re-checks-it-too-issue-242" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC80: get_doc_content trips the response-size cap; cached path re-checks it too (issue #242)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc81-create_doc_from_file-renders-escape-as-literal-issue-213-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC81: create_doc_from_file renders \$ escape as literal $ (issue #213) ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc82-create_doc-autolinks-bare-urls-in-markdown-content-issue-248-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC82: create_doc autolinks bare URLs in markdown content (issue #248) ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc83-autolink_urlsfalse-leaves-bare-urls-as-plain-text-issue-248-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC83: autolink_urls=False leaves bare URLs as plain text (issue #248) ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../drive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="docs-direct-api-tools-qa-test-cases">Docs Direct API Tools — QA Test Cases<a class="headerlink" href="#docs-direct-api-tools-qa-test-cases" title="Permanent link">&para;</a></h1>
+<p>Source: <code>src/mcp_gee_sweet/tools/docs/</code> (package: <code>__init__.py</code>, <code>ast.py</code>, <code>html_parser.py</code>, <code>emitter.py</code>)</p>
+<p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute <code>{DOC_ID}</code> from <code>fixtures.local.md</code>.</p>
+<p>These tools operate on document body indices. Use <code>get_doc_structure</code> first in any session to obtain current indices before calling insert/delete/style operations.</p>
+<hr />
+<h2 id="get_doc_structure"><code>get_doc_structure</code><a class="headerlink" href="#get_doc_structure" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc01-structure-of-a-non-empty-doc">TC-DOC01: Structure of a non-empty doc<a class="headerlink" href="#tc-doc01-structure-of-a-non-empty-doc" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get the structure of doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>docId</code>, <code>title</code>, and <code>elements</code> list
+- Each element has <code>type</code>, <code>startIndex</code>, <code>endIndex</code>
+- Paragraphs include <code>namedStyleType</code>, <code>text</code>, and <code>runs</code>
+- First element is a <code>sectionBreak</code> at index 0
+- Last element is a paragraph ending at the document's total length</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Returned <code>docId</code>, <code>title</code>, <code>elements</code> list. sectionBreak at index 0. Paragraphs include <code>namedStyleType</code>, <code>text</code>, <code>runs</code>. Final paragraph ends at document total length.</p>
+<hr />
+<h3 id="tc-doc02-paragraph-runs-include-style-data">TC-DOC02: Paragraph runs include style data<a class="headerlink" href="#tc-doc02-paragraph-runs-include-style-data" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>{DOC_ID}</code> must contain at least one bold or italic run (use <code>write_doc_content</code> with <code>&lt;b&gt;</code> or <code>&lt;i&gt;</code> to set up)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get the structure of doc {DOC_ID} and show me the formatting on each run"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Runs with bold styling return <code>bold: true</code>
+- Runs without explicit style return <code>bold: null</code> (not <code>false</code>) — null means inherited
+- <code>link_url</code> is populated for runs inside <code>&lt;a&gt;</code> tags</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Wrote <code>&lt;b&gt;bold&lt;/b&gt; and &lt;i&gt;italic&lt;/i&gt; and &lt;a href="..."&gt;a link&lt;/a&gt;</code>. "Bold text" run: <code>bold: true</code>. Plain text runs: <code>bold: null</code> (not false). Link run: <code>link_url: "https://example.com"</code>. Null semantics confirmed.</p>
+<hr />
+<h3 id="tc-doc03-structure-of-a-doc-containing-a-table">TC-DOC03: Structure of a doc containing a table<a class="headerlink" href="#tc-doc03-structure-of-a-doc-containing-a-table" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>{DOC_ID}</code> must contain a table</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get the structure of doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Table element has <code>type: "table"</code>, <code>rows</code>, <code>columns</code>
+- <code>cells</code> list contains one entry per cell with <code>row</code>, <code>col</code>, <code>startIndex</code>, <code>endIndex</code>, <code>paragraphStartIndex</code>
+- <code>paragraphStartIndex</code> is one greater than cell <code>startIndex</code> (empty cell: paragraph is the only content)
+- Cell text is populated correctly for non-empty cells</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted a 2×2 table; <code>get_doc_structure</code> returned <code>type: "table"</code>, <code>rows: 2</code>, <code>columns: 2</code>, 4 cells. Each cell: <code>paragraphStartIndex = startIndex + 1</code>. Cell <code>text: ""</code> for all empty cells.</p>
+<hr />
+<h3 id="tc-doc04-structure-of-an-empty-doc">TC-DOC04: Structure of an empty doc<a class="headerlink" href="#tc-doc04-structure-of-an-empty-doc" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> doc with only the default empty paragraph</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get the structure of doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns elements with at least the sectionBreak and one empty paragraph
+- No error</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Wrote <code>&lt;p&gt;&lt;/p&gt;</code>. Structure: sectionBreak at 0–1, one empty paragraph at 1–2. No error.</p>
+<hr />
+<h3 id="tc-doc05-invalid-doc-id-returns-error">TC-DOC05: Invalid doc ID returns error<a class="headerlink" href="#tc-doc05-invalid-doc-id-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get the structure of doc not-a-real-id"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — does not raise an exception
+- Error message references the invalid ID or a 404</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Returned <code>{"error": "&lt;HttpError 404 ... Requested entity was not found.&gt;"}</code>. No exception raised.</p>
+<hr />
+<h2 id="insert_doc_text"><code>insert_doc_text</code><a class="headerlink" href="#insert_doc_text" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc06-insert-a-single-paragraph-destructive">TC-DOC06: Insert a single paragraph ⚠️ destructive<a class="headerlink" href="#tc-doc06-insert-a-single-paragraph-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> fetch current structure; note the <code>endIndex</code> of the last non-final paragraph</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Insert the text 'Inserted line.\n' at index {N} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Re-fetch structure shows new paragraph at the expected position
+- Surrounding paragraphs shifted by the length of the inserted text
+- <code>insertions: 1</code> in response</p>
+<p><strong>Cleanup:</strong> delete the inserted range after verifying</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted "Inserted line.\n" at index 88. Re-fetch showed new paragraph at 88–103. "Item two\n" unchanged; final blank shifted to 103–104. <code>insertions: 1</code>.</p>
+<hr />
+<h3 id="tc-doc07-insert-at-multiple-indices-highlow-ordering-verified-destructive">TC-DOC07: Insert at multiple indices — high→low ordering verified ⚠️ destructive<a class="headerlink" href="#tc-doc07-insert-at-multiple-indices-highlow-ordering-verified-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> fetch structure; identify two paragraphs P1 (earlier) and P2 (later) with known indices. Record P1's <code>startIndex</code> as N1 and P2's <code>startIndex</code> as N2 (N2 &gt; N1). Both insertions are short fixed strings so index arithmetic is checkable.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Insert 'AAA\n' at index {N1} and 'BBB\n' at index {N2} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Re-fetch structure shows 'AAA' before P1 and 'BBB' before P2 (not shifted into wrong paragraphs)
+- 'BBB' paragraph's <code>startIndex</code> = N2 + 4 (len('AAA\n') inserted before it)
+- If tool processed low→high instead, 'BBB' would land 4 bytes early — use this arithmetic to confirm ordering
+- <code>insertions: 2</code> in response</p>
+<p><strong>Cleanup:</strong> delete both inserted ranges</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- N1=70 (Item one startIndex), N2=79 (Item two startIndex). After insert: "AAA\n" at 70–74 before Item one; "BBB\n" at 83–87 before Item two. BBB startIndex = N2+4 = 83 ✅. <code>insertions: 2</code>. High→low ordering confirmed.</p>
+<hr />
+<h3 id="tc-doc08-empty-insertions-list-returns-error">TC-DOC08: Empty insertions list returns error<a class="headerlink" href="#tc-doc08-empty-insertions-list-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call insert_doc_text on doc {DOC_ID} with an empty insertions list"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "insertions list is empty"}</code></p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Returned <code>{"error": "insertions list is empty"}</code>.</p>
+<hr />
+<h2 id="delete_doc_range"><code>delete_doc_range</code><a class="headerlink" href="#delete_doc_range" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc09-delete-a-paragraph-destructive">TC-DOC09: Delete a paragraph ⚠️ destructive<a class="headerlink" href="#tc-doc09-delete-a-paragraph-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a known paragraph first (TC-DOC06), note its <code>startIndex</code> and <code>endIndex</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete the range from index {start} to {end} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Re-fetch structure no longer contains the deleted paragraph
+- Surrounding content shifted back correctly
+- <code>deletions: 1</code> in response</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted "Delete me.\n" at 88; deleted [88, 99]. Re-fetch confirmed paragraph absent; "Item two\n" back at 79–88; final blank at 88–89. <code>deletions: 1</code>.</p>
+<hr />
+<h3 id="tc-doc10-cannot-delete-final-segment-newline">TC-DOC10: Cannot delete final segment newline<a class="headerlink" href="#tc-doc10-cannot-delete-final-segment-newline" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> fetch structure; note the final element's <code>endIndex</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete the range from index 1 to {final_endIndex} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns an API error about the segment newline
+- 🔍 <strong>Note:</strong> correct usage is <code>endIndex - 1</code> for the final element</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Attempted delete [1, 89] (final_endIndex=89). API returned <code>{"error": "&lt;HttpError 400 ... The range cannot include the newline character at the end of the segment.&gt;"}</code>.</p>
+<hr />
+<h3 id="tc-doc11-empty-deletions-list-returns-error">TC-DOC11: Empty deletions list returns error<a class="headerlink" href="#tc-doc11-empty-deletions-list-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call delete_doc_range on doc {DOC_ID} with an empty deletions list"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "deletions list is empty"}</code></p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Returned <code>{"error": "deletions list is empty"}</code>.</p>
+<hr />
+<h2 id="style_doc_range"><code>style_doc_range</code><a class="headerlink" href="#style_doc_range" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc12-apply-named-style-type-destructive">TC-DOC12: Apply named style type ⚠️ destructive<a class="headerlink" href="#tc-doc12-apply-named-style-type-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a normal paragraph; note its index range</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Style the range from index {start} to {end} in doc {DOC_ID} as HEADING_2"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Re-fetch shows <code>namedStyleType: "HEADING_2"</code> for that paragraph
+- <code>requests: 1</code> in response</p>
+<p><strong>Cleanup:</strong> re-style as NORMAL_TEXT</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted "Style test paragraph.\n" at 88. Styled [88, 110] as HEADING_2. Re-fetch confirmed <code>namedStyleType: "HEADING_2"</code>. <code>requests: 1</code>.</p>
+<hr />
+<h3 id="tc-doc13-apply-text-styles-bold-italic-foreground-color-destructive">TC-DOC13: Apply text styles (bold, italic, foreground color) ⚠️ destructive<a class="headerlink" href="#tc-doc13-apply-text-styles-bold-italic-foreground-color-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a normal paragraph; note its index range</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Make the range from index {start} to {end} in doc {DOC_ID} bold, italic, and red (foreground_color red=1 green=0 blue=0)"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Re-fetch shows <code>bold: true</code>, <code>italic: true</code> on runs in that range
+- <code>requests: 1</code> in response (paragraph style skipped, only updateTextStyle emitted)</p>
+<p><strong>Cleanup:</strong> delete the test paragraph</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Applied bold+italic+red foreground to [88, 110]. Re-fetch: run <code>bold: true</code>, <code>italic: true</code>. <code>requests: 1</code> (only updateTextStyle; no paragraph style change).</p>
+<hr />
+<h3 id="tc-doc14-apply-both-paragraph-and-text-style-in-one-range-destructive">TC-DOC14: Apply both paragraph and text style in one range ⚠️ destructive<a class="headerlink" href="#tc-doc14-apply-both-paragraph-and-text-style-in-one-range-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Style range {start}–{end} in doc {DOC_ID} as HEADING_3 and bold"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>requests: 2</code> (one updateParagraphStyle + one updateTextStyle)
+- Both applied correctly on re-fetch</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Applied HEADING_3 + bold to same paragraph. <code>requests: 2</code> (one updateParagraphStyle + one updateTextStyle).</p>
+<hr />
+<h3 id="tc-doc15-no-recognised-style-fields-returns-error">TC-DOC15: No recognised style fields returns error<a class="headerlink" href="#tc-doc15-no-recognised-style-fields-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call style_doc_range on doc {DOC_ID} with a range that has no style fields"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "no recognised style fields in any range"}</code></p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Returned <code>{"error": "no recognised style fields in any range"}</code>.</p>
+<hr />
+<h2 id="insert_doc_table"><code>insert_doc_table</code><a class="headerlink" href="#insert_doc_table" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc16-insert-a-23-table-destructive">TC-DOC16: Insert a 2×3 table ⚠️ destructive<a class="headerlink" href="#tc-doc16-insert-a-23-table-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> fetch structure; note a suitable insertion index (e.g. endIndex of a paragraph)</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Insert a 2-row, 3-column table at index {N} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response includes <code>precedingParagraphIndex</code>, <code>tableStartIndex</code>, <code>tableEndIndex</code>, <code>rows: 2</code>, <code>columns: 3</code>
+- <code>cells</code> list has 6 entries (rows × columns)
+- Each cell has <code>row</code>, <code>col</code>, <code>startIndex</code>, <code>endIndex</code>, <code>paragraphStartIndex</code>
+- <code>precedingParagraphIndex</code> = N, <code>tableStartIndex</code> = N + 1 (Docs API always inserts a required empty paragraph before the table; it cannot be deleted while the table exists)
+- Re-fetch structure shows an empty paragraph at N, then the table at N + 1</p>
+<p><strong>Cleanup:</strong> delete <code>[precedingParagraphIndex, tableEndIndex]</code> in one range — this removes both the required preceding paragraph and the table body together</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted 2×3 table at N=88. Response: <code>precedingParagraphIndex=88</code>, <code>tableStartIndex=89</code> (=N+1), <code>tableEndIndex=105</code>, <code>rows: 2</code>, <code>columns: 3</code>, 6 cells. All <code>paragraphStartIndex = startIndex + 1</code>. Re-fetch confirmed table at index 89.</p>
+<hr />
+<h3 id="tc-doc17-cell-indices-usable-for-insert_doc_text-destructive">TC-DOC17: Cell indices usable for insert_doc_text ⚠️ destructive<a class="headerlink" href="#tc-doc17-cell-indices-usable-for-insert_doc_text-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a table (TC-DOC16); use the returned <code>cells[0].paragraphStartIndex</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Insert text 'Cell content' at the paragraphStartIndex of cell [0,0] returned by the table insertion"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Re-fetch shows 'Cell content' in row 0, col 0
+- No index errors</p>
+<p><strong>Cleanup:</strong> delete table</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Used <code>cells[0].paragraphStartIndex = 92</code> from TC-DOC16. Inserted "Cell content" at index 92. Re-fetch: cell [0,0] <code>text: "Cell content"</code>. No index errors.</p>
+<hr />
+<h2 id="style_doc_table_cells"><code>style_doc_table_cells</code><a class="headerlink" href="#style_doc_table_cells" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc18-apply-grey-header-row-background-destructive">TC-DOC18: Apply grey header row background ⚠️ destructive<a class="headerlink" href="#tc-doc18-apply-grey-header-row-background-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Style row 0 of the table at index {tableStartIndex} in doc {DOC_ID} with background_color red=0.953 green=0.953 blue=0.953, column_span 2"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>requests: 1</code> in response
+- 🔍 Visual check in Google Docs: header row has grey background</p>
+<p><strong>Cleanup:</strong> delete table</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Styled row 0 with <code>background_color {red:0.953, green:0.953, blue:0.953}</code>, <code>column_span: 2</code>. <code>requests: 1</code>.</p>
+<hr />
+<h3 id="tc-doc19-apply-borders-and-padding-destructive">TC-DOC19: Apply borders and padding ⚠️ destructive<a class="headerlink" href="#tc-doc19-apply-borders-and-padding-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Style all cells in the table at index {tableStartIndex} in doc {DOC_ID} with border_color black (0,0,0), border_width 0.5, border_dash_style SOLID, padding 3.6pt on all sides"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds for each cell
+- 🔍 Visual check: table has visible borders and reasonable padding</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Applied black border (0.5pt) + 3.6pt padding to all 4 cells of a 2×2 table. <code>requests: 4</code> (one per cell). Call succeeded for each.</p>
+<hr />
+<h3 id="tc-doc20-empty-cells-list-returns-error">TC-DOC20: Empty cells list returns error<a class="headerlink" href="#tc-doc20-empty-cells-list-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call style_doc_table_cells on doc {DOC_ID} with table_start_index {N} and an empty cells list"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "cells list is empty"}</code></p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Returned <code>{"error": "cells list is empty"}</code>.</p>
+<hr />
+<h3 id="tc-doc21-cell-with-no-style-fields-is-skipped">TC-DOC21: Cell with no style fields is skipped<a class="headerlink" href="#tc-doc21-cell-with-no-style-fields-is-skipped" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a table; pass one valid cell and one cell with no style fields</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Style the table at index {N}: cell [0,0] with background red=1, and cell [0,1] with no style fields"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Only one request emitted (the no-style cell is silently skipped)
+- <code>requests: 1</code> in response</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Passed cell [0,0] with <code>background_color red=1</code> and cell [0,1] with no style fields. <code>requests: 1</code> — no-style cell silently skipped.</p>
+<hr />
+<h2 id="multi-operation-ordering-and-sequencing">Multi-operation ordering and sequencing<a class="headerlink" href="#multi-operation-ordering-and-sequencing" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc22-multi-delete-highlow-ordering-verified-destructive">TC-DOC22: Multi-delete high→low ordering verified ⚠️ destructive<a class="headerlink" href="#tc-doc22-multi-delete-highlow-ordering-verified-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert two known paragraphs ('DEL-A\n' and 'DEL-B\n') at known positions. Note their <code>startIndex</code>/<code>endIndex</code> after re-fetching. DEL-B has higher indices than DEL-A.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete range {DEL-A start}–{DEL-A end} and range {DEL-B start}–{DEL-B end} from doc {DOC_ID} in one call"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Both paragraphs absent from re-fetched structure
+- Content that followed DEL-B is now at DEL-B's original startIndex (no offset error)
+- If tool processed low→high, DEL-B's range would be stale after DEL-A shifts indices — verify neither deletion fails with an out-of-bounds error
+- <code>deletions: 2</code> in response</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- DEL-A at 79–85, DEL-B at 94–100. Deleted both in one call. Re-fetch: both absent; "Item two\n" back at 79–88 (DEL-B's original startIndex). No out-of-bounds error. <code>deletions: 2</code>.</p>
+<hr />
+<h3 id="tc-doc23-style_doc_range-round-trip-heading-confirmed-in-get_doc_structure-destructive">TC-DOC23: style_doc_range round-trip — heading confirmed in get_doc_structure ⚠️ destructive<a class="headerlink" href="#tc-doc23-style_doc_range-round-trip-heading-confirmed-in-get_doc_structure-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> <code>style_doc_range</code> was never called live during initial testing. This is the first live verification.</p>
+<p><strong>Setup:</strong> insert a paragraph 'Style-test heading\n'; note its <code>startIndex</code>/<code>endIndex</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Style the range {start}–{end} in doc {DOC_ID} as HEADING_1"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>requests: 1</code>
+- Call <code>get_doc_structure</code> — the paragraph at that index shows <code>namedStyleType: "HEADING_1"</code>
+- Text content is unchanged ('Style-test heading')</p>
+<p><strong>Cleanup:</strong> style back to NORMAL_TEXT, then delete the paragraph</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted "Style-test heading\n" at 88; styled [88, 107] as HEADING_1. <code>requests: 1</code>. Re-fetch: <code>namedStyleType: "HEADING_1"</code>, <code>text: "Style-test heading\n"</code> unchanged.</p>
+<hr />
+<h3 id="tc-doc24-style_doc_range-text-styles-round-trip-destructive">TC-DOC24: style_doc_range text styles round-trip ⚠️ destructive<a class="headerlink" href="#tc-doc24-style_doc_range-text-styles-round-trip-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> verify bold/italic/underline are readable back via get_doc_structure runs.</p>
+<p><strong>Setup:</strong> insert a paragraph 'Bold-italic test\n'; note its index range</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Make the range {start}–{end} in doc {DOC_ID} bold and italic"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>requests: 1</code>
+- <code>get_doc_structure</code> shows a run in that paragraph with <code>bold: true</code> and <code>italic: true</code>
+- <code>namedStyleType</code> is unchanged (updateTextStyle only, no updateParagraphStyle)</p>
+<p><strong>Cleanup:</strong> delete the test paragraph</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted "Bold-italic test\n" at 88; applied bold+italic to [88, 105]. <code>requests: 1</code>. Re-fetch: run <code>bold: true</code>, <code>italic: true</code>; <code>namedStyleType: "NORMAL_TEXT"</code> unchanged.</p>
+<hr />
+<h3 id="tc-doc25-style_doc_table_cells-post-fix-live-verification-destructive">TC-DOC25: style_doc_table_cells post-fix live verification ⚠️ destructive<a class="headerlink" href="#tc-doc25-style_doc_table_cells-post-fix-live-verification-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> <code>style_doc_table_cells</code> was fixed (removed top-level <code>tableStartLocation</code> that conflicted with the <code>tableRange</code> oneof) but the fix was <strong>never re-tested live</strong>. This is the confirmation test.</p>
+<p><strong>Setup:</strong> insert a 2×2 table; record its <code>tableStartIndex</code> from the response</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Style cell [0,0] of the table at index {tableStartIndex} in doc {DOC_ID} with background_color red=0.8 green=0.9 blue=1.0"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response succeeds (no API 400 error about <code>oneof field 'cells' is already set</code>)
+- <code>requests: 1</code> in response
+- 🔍 Visual check in Google Docs: cell [0,0] has light blue background</p>
+<p><strong>Cleanup:</strong> delete the table</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted 2×2 table; styled cell [0,0] with <code>background_color {red:0.8, green:0.9, blue:1.0}</code>. No API 400 error. <code>requests: 1</code>. Fix (removal of top-level <code>tableStartLocation</code> conflicting with <code>tableRange</code> oneof) confirmed working.</p>
+<hr />
+<h3 id="tc-doc26-full-end-to-end-sequence-insert-table-then-style-cells-destructive">TC-DOC26: Full end-to-end sequence — insert table then style cells ⚠️ destructive<a class="headerlink" href="#tc-doc26-full-end-to-end-sequence-insert-table-then-style-cells-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> the complete <code>insert_doc_table</code> → <code>style_doc_table_cells</code> sequence was never run end-to-end in live testing. Covers both tools and the index handoff between them.</p>
+<p><strong>Setup:</strong> fetch structure; note a suitable insertion index N</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Insert a 2×3 table at index {N} in doc {DOC_ID}, then style row 0 with grey background (red=0.85 green=0.85 blue=0.85) spanning all 3 columns, and add a solid black border (width 0.5) to every cell"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>insert_doc_table</code> succeeds: <code>rows: 2</code>, <code>columns: 3</code>, 6 cells returned
+- <code>style_doc_table_cells</code> for row 0 grey background succeeds (<code>requests: 1</code>)
+- <code>style_doc_table_cells</code> for all 6 cells border succeeds (<code>requests: 6</code>)
+- Re-fetch <code>get_doc_structure</code> shows the table at <code>tableStartIndex</code>
+- 🔍 Visual check in Google Docs: styled header row and visible borders</p>
+<p><strong>Cleanup:</strong> delete table range</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted 2×3 table at N=88. Row 0 grey background (column_span 3): <code>requests: 1</code>. All 6 cells border (black, 0.5pt): <code>requests: 6</code>. Re-fetch confirmed table at <code>tableStartIndex: 89</code>.</p>
+<hr />
+<h3 id="tc-doc27-insert-text-then-insert-table-index-chaining-destructive">TC-DOC27: Insert text then insert table — index chaining ⚠️ destructive<a class="headerlink" href="#tc-doc27-insert-text-then-insert-table-index-chaining-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> verify that indices returned by one operation are usable as input to a subsequent operation without re-fetching the full structure each time.</p>
+<p><strong>Setup:</strong> start with a known doc structure; note <code>endIndex</code> of a paragraph as N</p>
+<p><strong>Step 1 prompt</strong></p>
+<blockquote>
+<p>"Insert 'Intro paragraph.\n' at index {N} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Step 2 prompt</strong> (using <code>N + len('Intro paragraph.\n')</code> as the new insertion point)</p>
+<blockquote>
+<p>"Insert a 2×2 table at index {N + 17} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Both operations succeed without error
+- Re-fetch structure shows the paragraph immediately followed by the table
+- <code>precedingParagraphIndex</code> = N + 17, <code>tableStartIndex</code> = N + 18</p>
+<p><strong>Cleanup:</strong> for each table, delete <code>[precedingParagraphIndex, tableEndIndex]</code> in one range (high→low for the two tables).</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- N=88 (endIndex of "Item two\n"). Inserted "Intro paragraph.\n" (17 chars) at 88; then 2×2 table at 105. <code>precedingParagraphIndex=105=N+17</code>, <code>tableStartIndex=106=N+18</code>. Both ops succeeded without re-fetching structure.</p>
+<hr />
+<h2 id="style_doc_range-additional-coverage"><code>style_doc_range</code> — additional coverage<a class="headerlink" href="#style_doc_range-additional-coverage" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc28-apply-strikethrough-destructive">TC-DOC28: Apply strikethrough ⚠️ destructive<a class="headerlink" href="#tc-doc28-apply-strikethrough-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a paragraph; note its range</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Apply strikethrough to range {start}–{end} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response <code>requests: 1</code>
+- <code>get_doc_structure</code> shows run with <code>strikethrough: true</code></p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted "Strikethrough test.\n"; applied strikethrough to [88, 108]. <code>requests: 1</code>. Re-fetch: run <code>strikethrough: true</code>.</p>
+<hr />
+<h3 id="tc-doc29-apply-font_size-destructive">TC-DOC29: Apply font_size ⚠️ destructive<a class="headerlink" href="#tc-doc29-apply-font_size-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a paragraph; note its range</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Set font size to 18pt for range {start}–{end} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response <code>requests: 1</code>
+- 🔍 Visual check: text is visibly larger</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Applied <code>font_size: 18</code> to [88, 104]. <code>requests: 1</code>. (Visual check only — <code>get_doc_structure</code> does not expose <code>font_size</code> from effectiveFormat.)</p>
+<hr />
+<h3 id="tc-doc30-apply-link_url-destructive">TC-DOC30: Apply link_url ⚠️ destructive<a class="headerlink" href="#tc-doc30-apply-link_url-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a paragraph 'Visit example\n'; note the range covering 'example'</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Apply link_url 'https://example.com' to range {start}–{end} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response <code>requests: 1</code>
+- <code>get_doc_structure</code> shows run split at the link boundary: linked run has <code>link_url: "https://example.com"</code>, non-linked run has <code>link_url: null</code>
+- 🔍 <strong>Note:</strong> Google Docs automatically adds <code>underline: true</code> to the linked run — expected API behaviour, not a tool bug
+- 🔍 Visual check: text appears as a hyperlink</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Inserted "Visit example\n"; applied <code>link_url: "https://example.com"</code> to "example" (indices 94–101). <code>requests: 1</code>. Re-fetch: run split into "Visit " (<code>link_url: null</code>), "example" (<code>link_url: "https://example.com"</code>, <code>underline: true</code>), "\n" (<code>link_url: null</code>). Auto-underline is expected API behaviour.</p>
+<hr />
+<h2 id="phase-2-write_doc_content-create_doc-translator-fixes">Phase 2 — <code>write_doc_content</code> / <code>create_doc</code> translator fixes<a class="headerlink" href="#phase-2-write_doc_content-create_doc-translator-fixes" title="Permanent link">&para;</a></h2>
+<p>These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All use <code>write_doc_content</code> against the fixture doc.</p>
+<h3 id="tc-doc31-h2-maps-to-heading_2-not-heading_3-destructive">TC-DOC31: <code>&lt;h2&gt;</code> maps to HEADING_2 (not HEADING_3) ⚠️ destructive<a class="headerlink" href="#tc-doc31-h2-maps-to-heading_2-not-heading_3-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> Regression test for #41 — <code>&lt;h2&gt;</code>–<code>&lt;h6&gt;</code> previously all collapsed to HEADING_3.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;h1&gt;Level 1&lt;/h1&gt;&lt;h2&gt;Level 2&lt;/h2&gt;&lt;h3&gt;Level 3&lt;/h3&gt;&lt;h4&gt;Level 4&lt;/h4&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>get_doc_structure</code> on the doc after writing
+- First heading has <code>namedStyleType: "HEADING_1"</code>
+- Second heading has <code>namedStyleType: "HEADING_2"</code> (not HEADING_3 — the old bug)
+- Third heading has <code>namedStyleType: "HEADING_3"</code>
+- Fourth heading has <code>namedStyleType: "HEADING_4"</code></p>
+<p><strong>Cleanup:</strong> write fixture content back: <code>&lt;h1&gt;Test Document&lt;/h1&gt;&lt;p&gt;This document is used for QA testing of mcp-gee-sweet.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Item one&lt;/li&gt;&lt;li&gt;Item two&lt;/li&gt;&lt;/ul&gt;</code></p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- <code>get_doc_structure</code> confirmed: HEADING_1 "Level 1", HEADING_2 "Level 2" (not HEADING_3), HEADING_3 "Level 3", HEADING_4 "Level 4". Old bug absent.</p>
+<hr />
+<h3 id="tc-doc32-th-cells-produce-bold-runs-destructive">TC-DOC32: <code>&lt;th&gt;</code> cells produce bold runs ⚠️ destructive<a class="headerlink" href="#tc-doc32-th-cells-produce-bold-runs-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> Regression test for #65 — <code>&lt;th&gt;</code> previously ignored; cells had no bold styling.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;th&gt;Name&lt;/th&gt;&lt;th&gt;Value&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Alpha&lt;/td&gt;&lt;td&gt;1&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>get_doc_structure</code> shows the table
+- Row 0 cells (<code>Name</code>, <code>Value</code>) have runs with <code>bold: true</code>
+- Row 1 cells (<code>Alpha</code>, <code>1</code>) have runs with <code>bold: null</code> (not bolded)
+- 🔍 Visual check: header row text is bold in Google Docs</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS (partial)</strong>
+- Table created; <code>get_doc_structure</code> shows 2 rows, 2 cols with cells "Name", "Value", "Alpha", "1". <code>get_doc_structure</code> does not expose <code>runs</code> for table cells — bold verification is visual only. 🔍 Known gap: cell run formatting requires <code>effectiveFormat</code> API access (#54).</p>
+<hr />
+<h3 id="tc-doc33-inline-formatting-inside-td-cells-destructive">TC-DOC33: Inline formatting inside <code>&lt;td&gt;</code> cells ⚠️ destructive<a class="headerlink" href="#tc-doc33-inline-formatting-inside-td-cells-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> Regression test for #69 — inline formatting inside table cells was previously lost.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;bold&lt;/b&gt; plain &lt;i&gt;italic&lt;/i&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>get_doc_structure</code> shows the table cell
+- Cell text includes 'bold', 'plain', 'italic'
+- Run with 'bold' has <code>bold: true</code>
+- Run with 'italic' has <code>italic: true</code>
+- Plain text run has <code>bold: null</code> and <code>italic: null</code>
+- 🔍 Visual check: cell shows mixed formatting</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS (partial)</strong>
+- <code>get_doc_structure</code> shows 1 row, 1 col, cell text "bold plain italic" — all three segments present. Run-level bold/italic not verifiable via <code>get_doc_structure</code> (same cell-runs gap as TC-DOC32). 🔍 Visual check required for run formatting.</p>
+<hr />
+<h3 id="tc-doc34-colspan-produces-merged-cells-destructive">TC-DOC34: <code>colspan</code> produces merged cells ⚠️ destructive<a class="headerlink" href="#tc-doc34-colspan-produces-merged-cells-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> Regression test for #67 — <code>colspan</code> was previously ignored.</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td colspan=\"2\"&gt;Wide cell&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;A&lt;/td&gt;&lt;td&gt;B&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows the table has 2 rows
+- Row 0 has 1 cell (merged), row 1 has 2 cells
+- 🔍 Visual check: top row spans both columns in Google Docs</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Call succeeded. <code>get_doc_structure</code>: 2 rows, 2 cols. Cell [0,0] text "Wide cell" (merged), cell [0,1] text "" (phantom). Row 1: "A", "B". Note: <code>get_doc_structure</code> reports <code>columns: 2</code> for the table — the merge is visible via the phantom empty slot at [0,1] and the larger index span of cell [0,0].</p>
+<hr />
+<h3 id="tc-doc35-column-widths-from-html-destructive">TC-DOC35: Column widths from HTML ⚠️ destructive<a class="headerlink" href="#tc-doc35-column-widths-from-html-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> Regression test for #66 — <code>width</code> attributes on <code>&lt;col&gt;</code> were previously ignored.</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;col width=\"144\"&gt;&lt;col width=\"288\"&gt;&lt;tr&gt;&lt;td&gt;Narrow&lt;/td&gt;&lt;td&gt;Wide&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- 🔍 Visual check: first column is narrower than second column in Google Docs
+- 🔍 Note: <code>get_doc_structure</code> does not expose column width properties; visual verification is the only check available without <code>effectiveFormat</code> API access (#54)</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- Call succeeded with no API error. Column width is visual-only per the test note.</p>
+<hr />
+<h3 id="tc-doc36-rowspan-produces-vertically-merged-cells-destructive">TC-DOC36: <code>rowspan</code> produces vertically merged cells ⚠️ destructive<a class="headerlink" href="#tc-doc36-rowspan-produces-vertically-merged-cells-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> First live verification of issue #91 — rowspan support in the HTML→AST→emitter pipeline. A cell spanning two rows must produce a <code>mergeTableCells</code> request, and the phantom cell in the lower row must not be filled.</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td rowspan=\"2\"&gt;Tall&lt;/td&gt;&lt;td&gt;R0C1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;R1C1&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows the table has 2 rows and 2 columns
+- Row 0 has 2 physical cells; row 1 has 2 physical cells (Google Docs keeps the phantom cell as a physical slot post-merge)
+- Cell [0,0] text = 'Tall'; cell [0,1] text = 'R0C1'; cell [1,1] text = 'R1C1'
+- Cell [1,0] is the phantom slot — it must be empty (not filled with 'Tall' or any content)
+- 🔍 Visual check: first column shows 'Tall' spanning both rows in Google Docs</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- 2 rows, 2 cols. Cell [0,0] "Tall" ✅, [0,1] "R0C1" ✅, [1,0] "" (phantom, empty) ✅, [1,1] "R1C1" ✅.</p>
+<hr />
+<h3 id="tc-doc37-combined-rowspan-and-colspan-in-the-same-table-destructive">TC-DOC37: Combined <code>rowspan</code> and <code>colspan</code> in the same table ⚠️ destructive<a class="headerlink" href="#tc-doc37-combined-rowspan-and-colspan-in-the-same-table-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> verify that a single cell carrying both <code>rowspan</code> and <code>colspan</code> emits exactly one <code>mergeTableCells</code> request with both dimensions, and that physical column tracking stays correct for subsequent cells in the same row.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td rowspan=\"2\" colspan=\"2\"&gt;Big&lt;/td&gt;&lt;td&gt;R0C2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;R1C2&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows 2 rows, 3 columns
+- Cell [0,0] text = 'Big'; cell [0,2] text = 'R0C2'; cell [1,2] text = 'R1C2'
+- Cells at [0,1], [1,0], [1,1] are phantom slots — must all be empty
+- 🔍 Visual check: top-left 2×2 block shows 'Big' spanning both rows and columns</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- 2 rows, 3 cols. [0,0] "Big" ✅, [0,1] "" ✅, [0,2] "R0C2" ✅, [1,0] "" ✅, [1,1] "" ✅, [1,2] "R1C2" ✅. All phantom slots empty.</p>
+<hr />
+<h3 id="tc-doc38-rowspan-with-header-row-phantom-not-filled-real-cells-in-correct-columns-destructive">TC-DOC38: <code>rowspan</code> with header row — phantom not filled, real cells in correct columns ⚠️ destructive<a class="headerlink" href="#tc-doc38-rowspan-with-header-row-phantom-not-filled-real-cells-in-correct-columns-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> edge-case verification that when a rowspan pushes subsequent real cells to higher logical columns, the physical-to-AST index mapping resolves correctly and no cell gets the wrong content.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;th&gt;Name&lt;/th&gt;&lt;th&gt;Type&lt;/th&gt;&lt;th&gt;Notes&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td rowspan=\"2\"&gt;Alpha&lt;/td&gt;&lt;td&gt;A&lt;/td&gt;&lt;td&gt;first&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;B&lt;/td&gt;&lt;td&gt;second&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Row 0: header cells 'Name', 'Type', 'Notes' — all bold
+- Row 1: 'Alpha' in col 0 (rowspan=2), 'A' in col 1, 'first' in col 2
+- Row 2: col 0 is phantom (empty, not filled with any content), 'B' in col 1, 'second' in col 2
+- 🔍 Visual check: 'Alpha' spans rows 1 and 2 in Google Docs; row 2 col 1 shows 'B' (not shifted left)</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong>
+- 3 rows, 3 cols. Row 0: "Name"/"Type"/"Notes" (bold visual only). Row 1: [1,0] "Alpha", [1,1] "A", [1,2] "first" ✅. Row 2: [2,0] "" (phantom) ✅, [2,1] "B" (not shifted left) ✅, [2,2] "second" ✅. Physical-to-AST column mapping correct.</p>
+<hr />
+<h2 id="markdown-support-create_doc-write_doc_content-create_doc_from_file">Markdown support — <code>create_doc</code> / <code>write_doc_content</code> / <code>create_doc_from_file</code><a class="headerlink" href="#markdown-support-create_doc-write_doc_content-create_doc_from_file" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc39-markdown-headings-via-write_doc_content-destructive">TC-DOC39: Markdown headings via <code>write_doc_content</code> ⚠️ destructive<a class="headerlink" href="#tc-doc39-markdown-headings-via-write_doc_content-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> Verify that <code>content_format='markdown'</code> routes through the AST pipeline and produces correct heading styles.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this markdown to doc {DOC_ID} using content_format='markdown': <code># Heading 1\n## Heading 2\n### Heading 3\n</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>get_doc_structure</code> after writing
+- First heading has <code>namedStyleType: "HEADING_1"</code>
+- Second heading has <code>namedStyleType: "HEADING_2"</code>
+- Third heading has <code>namedStyleType: "HEADING_3"</code></p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅ PASS</strong>
+- <code>get_doc_structure</code> confirmed HEADING_1, HEADING_2, HEADING_3 in order.</p>
+<hr />
+<h3 id="tc-doc40-markdown-bold-and-italic-via-write_doc_content-destructive">TC-DOC40: Markdown bold and italic via <code>write_doc_content</code> ⚠️ destructive<a class="headerlink" href="#tc-doc40-markdown-bold-and-italic-via-write_doc_content-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this markdown to doc {DOC_ID} using content_format='markdown': <code>**bold** and *italic* text</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>get_doc_structure</code> shows a run with <code>bold: true</code> for 'bold'
+- A run with <code>italic: true</code> for 'italic'
+- 🔍 Visual check: bold and italic render correctly in Google Docs</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅ PASS</strong>
+- Run <code>"bold"</code> had <code>bold: true</code>; run <code>"italic"</code> had <code>italic: true</code>.</p>
+<hr />
+<h3 id="tc-doc41-markdown-task-list-destructive">TC-DOC41: Markdown task list ⚠️ destructive<a class="headerlink" href="#tc-doc41-markdown-task-list-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this markdown to doc {DOC_ID} using content_format='markdown': <code>- [x] Done item\n- [ ] Pending item\n- Plain item\n</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Doc contains <code>☑ Done item</code> and <code>☐ Pending item</code> as bullet items
+- Plain item has no checkbox glyph
+- 🔍 Visual check: checkboxes appear in the doc</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅ PASS</strong>
+- <code>☑ Done item</code>, <code>☐ Pending item</code>, <code>Plain item</code> (no glyph) confirmed via <code>get_doc_structure</code>.
+- 🔍 Note: Google Docs applies <code>bold: true</code> to all bullet list runs via list style — expected API behaviour, not a bug.</p>
+<hr />
+<h3 id="tc-doc42-markdown-fenced-code-block-destructive">TC-DOC42: Markdown fenced code block ⚠️ destructive<a class="headerlink" href="#tc-doc42-markdown-fenced-code-block-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Write this markdown to doc {DOC_ID} using content_format='markdown' with a fenced Python code block containing <code>def hello(): return 'world'</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Doc contains the code text with monospace font (Courier New)
+- 🔍 Visual check: code block appears in monospace font in Google Docs</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅ PASS</strong>
+- Two paragraphs: <code>def hello():</code> and <code>return 'world'</code> confirmed via <code>get_doc_structure</code>.
+- <code>weightedFontFamily: Courier New</code> is emitted by the unit-tested emitter; <code>get_doc_structure</code> does not expose <code>font_family</code> (known gap — no <code>effectiveFormat</code> API access).</p>
+<p><strong>Result (2026-07-04) — related bug found, not a failure of this TC's own checks</strong> Writing a fenced code block as the doc's last content left an explicit <code>font_size</code>/<code>font_family</code> override on the document's trailing paragraph mark, which <code>write_doc_content</code>'s clear+reinsert couldn't remove (the Docs API won't let <code>deleteContentRange</code> touch the final paragraph mark) — a <em>subsequent</em> <code>write_doc_content</code> call with plain content would inherit that contamination. Filed as <a href="https://github.com/khuisman/mcp-gee-sweet/issues/255">#255</a>. Fixed in <a href="https://github.com/khuisman/mcp-gee-sweet/pull/258">#258</a>, then corrected in <a href="https://github.com/khuisman/mcp-gee-sweet/pull/259">#259</a> after live re-testing showed #258's single-batchUpdate version was unreliable. <strong>Re-verified live (2026-07-05)</strong> after both merged: wrote a fenced code block, then overwrote with plain content — new content came back with <code>textStyle: {}</code>, no contamination, across repeated rounds.</p>
+<hr />
+<h3 id="tc-doc43-markdown-table-via-write_doc_content-destructive">TC-DOC43: Markdown table via <code>write_doc_content</code> ⚠️ destructive<a class="headerlink" href="#tc-doc43-markdown-table-via-write_doc_content-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this markdown to doc {DOC_ID} using content_format='markdown': a pipe table with columns Name and Value, rows Alpha/1 and Beta/2"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>get_doc_structure</code> shows a table with 3 rows (header + 2 data rows) and 2 columns
+- Cell text matches: 'Name', 'Value', 'Alpha', '1', 'Beta', '2'</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅ PASS</strong>
+- Table: 3 rows, 2 columns. Cells: Name/Value, Alpha/1, Beta/2 — all correct.</p>
+<hr />
+<h3 id="tc-doc44-create_doc_from_file-with-a-local-md-file-requires-oauth-destructive">TC-DOC44: <code>create_doc_from_file</code> with a local .md file ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc44-create_doc_from_file-with-a-local-md-file-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-d195-create-doc.md</code> from the repo</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d195-create-doc.md"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>docId</code> and <code>web_link</code> returned with no <code>error</code>
+- <code>get_doc_structure</code> shows HEADING_1 "QA Test Document", paragraphs with bold/italic runs, bullet items with <code>☑</code> and <code>☐</code> glyphs, and a table (Col A/Col B, one/two)
+- 🔍 Visual check in Google Docs: heading, bold/italic text, task checkboxes, and table all render correctly</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-06-19) ✅ PASS</strong>
+- <code>docId</code> and <code>web_link</code> returned. <code>get_doc_structure</code> confirmed: HEADING_1 "QA Test Document", bold/italic runs, <code>☑ Task complete</code>, <code>☐ Task pending</code>, <code>Plain item</code>, table (Col A/Col B, one/two).</p>
+<hr />
+<h3 id="tc-doc45-create_doc_from_file-with-a-local-html-file-requires-oauth-destructive">TC-DOC45: <code>create_doc_from_file</code> with a local .html file ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc45-create_doc_from_file-with-a-local-html-file-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-d196-create-doc.html</code> from the repo</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d196-create-doc.html"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>docId</code> and <code>web_link</code> returned with no <code>error</code>
+- <code>get_doc_structure</code> shows HEADING_2 "From HTML file" and paragraph "Content paragraph."</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-06-19) ✅ PASS</strong>
+- <code>docId</code> and <code>web_link</code> returned. <code>get_doc_structure</code> confirmed HEADING_2 "From HTML file" and paragraph "Content paragraph."</p>
+<hr />
+<h3 id="tc-doc46-create_doc_from_file-file-not-found">TC-DOC46: <code>create_doc_from_file</code> file not found<a class="headerlink" href="#tc-doc46-create_doc_from_file-file-not-found" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file ~/does-not-exist.md"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "File not found: ..."}</code> — no exception raised</p>
+<p><strong>Result (2026-06-19) ✅ PASS</strong>
+- Returned <code>{"error": "File not found: /tmp/nonexistent-file.md"}</code> — no exception.</p>
+<hr />
+<h3 id="tc-doc47-write_doc_content-inline-code-monospace-destructive">TC-DOC47: <code>write_doc_content</code> inline code monospace ⚠️ destructive<a class="headerlink" href="#tc-doc47-write_doc_content-inline-code-monospace-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Write this markdown to doc {DOC_ID} using content_format='markdown': <code>Use the \</code>print()` function`"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 🔍 Visual check: <code>print()</code> appears in monospace (Courier New) inside the paragraph</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅ PASS</strong>
+- Paragraph text <code>Call my_function() with param=True to enable it.</code> confirmed; code spans at correct positions.
+- <code>weightedFontFamily: Courier New</code> confirmed via unit tests; not exposed by <code>get_doc_structure</code> (known gap).</p>
+<p><strong>Result (2026-07-04)</strong> Two findings during the v0.8.1 live pass, neither a failure of this TC's own checks:
+1. The prescribed SVG image URI in TC-DOC57/58 is unrelated to this TC but was hit in the same session — see those TCs, now fixed to use a PNG.
+2. This TC's own content (an inline code span) was one of the reproductions of the trailing-paragraph-mark contamination bug — see TC-DOC42's 2026-07-04 result for the full account, filed as <a href="https://github.com/khuisman/mcp-gee-sweet/issues/255">#255</a>, fixed in <a href="https://github.com/khuisman/mcp-gee-sweet/pull/258">#258</a>/<a href="https://github.com/khuisman/mcp-gee-sweet/pull/259">#259</a> and re-verified live post-merge. Separately, a possible over-broad Courier New application (whole line vs. just the code span) was observed visually but not conclusively confirmed, since <code>get_doc_structure</code> doesn't expose <code>font_family</code> per run — no ticket filed yet, flagged as a follow-up if that gap is ever closed.</p>
+<hr />
+<h3 id="tc-doc78-data-styletitle-produces-title-named-style-destructive">TC-DOC78: <code>data-style="title"</code> produces TITLE named style ⚠️ destructive<a class="headerlink" href="#tc-doc78-data-styletitle-produces-title-named-style-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> verify that <code>&lt;p data-style="title"&gt;</code> is parsed as a <code>NamedBlock(TITLE)</code> and the emitter applies <code>updateParagraphStyle</code> with <code>namedStyleType: TITLE</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;p data-style=\"title\"&gt;My Document Title&lt;/p&gt;&lt;p&gt;Body paragraph.&lt;/p&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows the first paragraph with <code>namedStyleType: "TITLE"</code> and text "My Document Title"
+- Second paragraph has <code>namedStyleType: "NORMAL_TEXT"</code> and text "Body paragraph."
+- 🔍 Visual check: "My Document Title" appears in the TITLE named style (large, prominent) in Google Docs</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅ PASS</strong>
+- First paragraph <code>namedStyleType: "TITLE"</code>, text "My Document Title" confirmed via <code>get_doc_structure</code>.
+- Second paragraph <code>namedStyleType: "NORMAL_TEXT"</code>, text "Body paragraph." confirmed.</p>
+<hr />
+<h3 id="tc-doc79-data-stylesubtitle-produces-subtitle-named-style-destructive">TC-DOC79: <code>data-style="subtitle"</code> produces SUBTITLE named style ⚠️ destructive<a class="headerlink" href="#tc-doc79-data-stylesubtitle-produces-subtitle-named-style-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> verify SUBTITLE works the same way as TITLE.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;p data-style=\"title\"&gt;Title&lt;/p&gt;&lt;p data-style=\"subtitle\"&gt;Subtitle text here&lt;/p&gt;&lt;p&gt;Body.&lt;/p&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- First paragraph: <code>namedStyleType: "TITLE"</code>, text "Title"
+- Second paragraph: <code>namedStyleType: "SUBTITLE"</code>, text "Subtitle text here"
+- Third paragraph: <code>namedStyleType: "NORMAL_TEXT"</code>, text "Body."</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅ PASS</strong>
+- All three paragraphs confirmed: <code>TITLE</code> / <code>SUBTITLE</code> / <code>NORMAL_TEXT</code> with correct text values.</p>
+<hr />
+<h2 id="nested-table-support-write_doc_content">Nested table support — <code>write_doc_content</code><a class="headerlink" href="#nested-table-support-write_doc_content" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc48-simple-nested-table-destructive">TC-DOC48: Simple nested table ⚠️ destructive<a class="headerlink" href="#tc-doc48-simple-nested-table-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Inner&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows the outer table (1 row × 1 col)
+- The outer cell contains a nested table element with cell text "Inner"
+- 🔍 Visual check: nested table visible inside the outer table cell in Google Docs</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅</strong> <code>write_doc_content</code> succeeded. <code>get_doc_structure</code> shows outer table: 1 row × 1 col, cell [0,0] startIndex=4 endIndex=17 text="" (empty text run confirms cell holds nested table, not text). Cell span (13 indices) is consistent with a 1×1 nested table containing "Inner". Note: <code>get_doc_structure</code> reports top-level body elements only; nested table cell content is not exposed by this tool.</p>
+<hr />
+<h3 id="tc-doc49-nested-table-alongside-regular-cells-destructive">TC-DOC49: Nested table alongside regular cells ⚠️ destructive<a class="headerlink" href="#tc-doc49-nested-table-alongside-regular-cells-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;Label&lt;/td&gt;&lt;td&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Val A&lt;/td&gt;&lt;td&gt;Val B&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Outer table has 1 row, 2 columns
+- Cell [0,0] text = "Label"
+- Cell [0,1] contains a nested table with 1 row × 2 cols, cells "Val A" and "Val B"
+- 🔍 Visual check: label in col 0, small inner table in col 1</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅</strong> <code>write_doc_content</code> succeeded. <code>get_doc_structure</code> shows outer table: 1 row × 2 cols. Cell [0,0] text="Label" ✅. Cell [0,1] text="" with span 11–31 (20 indices, consistent with 1×2 nested table holding "Val A" and "Val B") ✅.</p>
+<hr />
+<h3 id="tc-doc50-nested-table-with-multiple-rows-and-columns-destructive">TC-DOC50: Nested table with multiple rows and columns ⚠️ destructive<a class="headerlink" href="#tc-doc50-nested-table-with-multiple-rows-and-columns-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;R0C0&lt;/td&gt;&lt;td&gt;R0C1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;R1C0&lt;/td&gt;&lt;td&gt;R1C1&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Outer table: 1 row, 1 col
+- Nested table: 2 rows × 2 cols
+- All four nested cells filled correctly: R0C0, R0C1, R1C0, R1C1
+- 🔍 Visual check: 2×2 grid inside the outer cell</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-19) ✅</strong> <code>write_doc_content</code> succeeded. <code>get_doc_structure</code> shows outer table: 1 row × 1 col, cell [0,0] text="" with span 4–35 (31 indices, consistent with a 2×2 nested table containing four 4-char cell values plus table overhead) ✅.</p>
+<hr />
+<h3 id="tc-doc51-nested-tables-not-supported-in-markdown-documented-limitation">TC-DOC51: Nested tables not supported in markdown (documented limitation)<a class="headerlink" href="#tc-doc51-nested-tables-not-supported-in-markdown-documented-limitation" title="Permanent link">&para;</a></h3>
+<p><strong>Note:</strong> The markdown pipeline does not produce nested tables — the <code>markdown</code> library does not support table-in-table syntax. Users who need nested tables must supply raw HTML via <code>content_format='html'</code>. No test to run; this entry documents the known limitation.</p>
+<hr />
+<h3 id="tc-doc52-get_doc_theme-scans-body-paragraph-styles">TC-DOC52: <code>get_doc_theme</code> scans body paragraph styles<a class="headerlink" href="#tc-doc52-get_doc_theme-scans-body-paragraph-styles" title="Permanent link">&para;</a></h3>
+<p><strong>Note:</strong> <code>get_doc_theme</code> reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call <code>get_doc_theme</code> on doc {DOC_ID} and show me the result."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- No <code>error</code> key in result
+- For a doc with explicit paragraph styles: returns a dict with at least one named style type key; each entry has at least one of font_family, font_size, bold, italic, color, line_spacing, space_above, space_below
+- For a doc with purely inherited styles: result is an empty dict <code>{}</code> (expected, not an error)</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong> Called on a test doc created with <code>create_doc</code> (markdown content — inherited styles): returned <code>{}</code>. Called on the same doc after <code>apply_theme overwrite=True</code> (Georgia HEADING_1, Roboto NORMAL_TEXT): returned <code>{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}</code>. <code>font_size</code> and <code>bold</code> are not returned because the Docs API normalises explicit overrides that match the named style default back to inherited. No error key in either case.</p>
+<hr />
+<h3 id="tc-doc53-apply_theme-updates-named-style-definitions-destructive">TC-DOC53: <code>apply_theme</code> updates named style definitions ⚠️ destructive<a class="headerlink" href="#tc-doc53-apply_theme-updates-named-style-definitions-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Note:</strong> Default mode (<code>overwrite=False</code>) emits <code>updateNamedStyle</code> requests — one per named style key — updating the document's style defaults. Existing paragraphs with explicit overrides are unaffected. No doc fetch is needed. Use <code>overwrite=True</code> to also apply directly to all existing paragraphs.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Apply theme <code>{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}</code> to doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Result contains <code>docId</code> and <code>requests &gt; 0</code>
+- No <code>error</code> key
+- <code>requests</code> equals the number of named style keys in the theme (one <code>updateNamedStyle</code> per key)</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong> Called with HEADING_1 + HEADING_2 + NORMAL_TEXT → <code>{"docId": "...", "requests": 3}</code>. Each emitted one <code>updateNamedStyle</code> request with snake_case field mask (<code>named_style_type,text_style.weighted_font_family,text_style.font_size</code>). No error. Live API accepted all three requests.</p>
+<hr />
+<h3 id="tc-doc54-apply_theme-with-overwritetrue-also-patches-existing-paragraphs-destructive">TC-DOC54: <code>apply_theme</code> with <code>overwrite=True</code> also patches existing paragraphs ⚠️ destructive<a class="headerlink" href="#tc-doc54-apply_theme-with-overwritetrue-also-patches-existing-paragraphs-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Write <code>&lt;h1&gt;Heading One&lt;/h1&gt;&lt;p&gt;Normal body text.&lt;/p&gt;</code> to doc {DOC_ID}, then apply theme <code>{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}</code> with overwrite=True"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Result contains <code>docId</code> and <code>requests &gt; 0</code>
+- <code>requests</code> &gt; number of named style keys (named style updates + per-paragraph updates)
+- No <code>error</code> key
+- 🔍 Visual check: HEADING_1 paragraph visually in Georgia 22pt, body in Verdana 11pt</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong> Called with HEADING_1 + NORMAL_TEXT on a doc with HEADING_1, HEADING_2 (×2), HEADING_3, NORMAL_TEXT (×4) paragraphs → <code>{"docId": "...", "requests": 7}</code> (2 <code>updateNamedStyle</code> + 5 <code>updateTextStyle</code> for matching paragraphs). No error.</p>
+<hr />
+<h3 id="tc-doc55-apply_theme-with-table-styling-destructive">TC-DOC55: <code>apply_theme</code> with table styling ⚠️ destructive<a class="headerlink" href="#tc-doc55-apply_theme-with-table-styling-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prerequisite:</strong> doc must contain at least one table (write one with <code>write_doc_content</code> first if needed)</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Apply this theme to doc {DOC_ID}: <code>{"table": {"border_color": {"red": 0, "green": 0, "blue": 0}, "border_width": 0.5, "border_dash_style": "SOLID", "cell_padding": 3.6, "header_background": {"red": 0.953, "green": 0.953, "blue": 0.953}}}</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Result contains <code>docId</code> and <code>requests &gt; 0</code>
+- 🔍 Visual check: table cells have thin black border, 3.6pt padding, first row has light grey background</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong> Wrote 2-row table, applied table theme → <code>requests: 2</code> (one updateTableCellStyle per row; row 0 got header_background + padding + borders, row 1 got padding + borders). No error. Fixture restored.</p>
+<hr />
+<h3 id="tc-doc56-get_doc_theme-apply_theme-round-trip-on-an-ai-generated-doc-destructive">TC-DOC56: <code>get_doc_theme</code> → <code>apply_theme</code> round-trip on an AI-generated doc ⚠️ destructive<a class="headerlink" href="#tc-doc56-get_doc_theme-apply_theme-round-trip-on-an-ai-generated-doc-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Note:</strong> Round-trip only produces meaningful output on docs where styles are explicit (AI-generated). For standard inherited-style docs, <code>get_doc_theme</code> returns <code>{}</code> and <code>apply_theme</code> with an empty theme returns an error.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write styled content to doc {DOC_ID} with explicit font overrides, then read the theme with <code>get_doc_theme</code>, then apply it back with <code>apply_theme overwrite=True</code>. Show me both results."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>get_doc_theme</code> returns a non-empty dict (at least one named style key with at least one field)
+- <code>apply_theme</code> returns <code>requests &gt; 0</code>
+- No <code>error</code> in either result</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong> After <code>apply_theme overwrite=True</code> (Georgia HEADING_1, Roboto NORMAL_TEXT) on the test doc, <code>get_doc_theme</code> returned <code>{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}</code>. Applying that theme back → <code>requests: 2</code> (one <code>updateNamedStyle</code> per key). No error. (font_size/bold not in round-trip because API normalises them to inherited when they match the named style default.)</p>
+<hr />
+<h2 id="insert_inline_image-145"><code>insert_inline_image</code> (#145)<a class="headerlink" href="#insert_inline_image-145" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc57-insert-an-image-by-public-uri-destructive">TC-DOC57: Insert an image by public URI ⚠️ destructive<a class="headerlink" href="#tc-doc57-insert-an-image-by-public-uri-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> fetch structure; note the <code>endIndex</code> of a paragraph to insert after</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png' at index {N} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Response contains <code>docId</code> and <code>index: N</code>
+- 🔍 Visual check in Google Docs: image appears in the document at the insertion point</p>
+<p><strong>Cleanup:</strong> delete the inserted image range (use <code>delete_doc_range</code> on the image's index span, visible in <code>get_doc_structure</code> as an element)</p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Inserted Google branding PNG at paragraph boundary. Response: <code>{docId, index}</code>. Image visible in doc. Occupies one index slot as an inline element in <code>get_doc_structure</code>.</p>
+<hr />
+<h3 id="tc-doc58-insert-an-image-with-explicit-size-destructive">TC-DOC58: Insert an image with explicit size ⚠️ destructive<a class="headerlink" href="#tc-doc58-insert-an-image-with-explicit-size-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> same as TC-DOC57</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png' at index {N} in doc {DOC_ID} with width 100 and height 50"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- 🔍 Visual check: image is smaller than default size</p>
+<p><strong>Cleanup:</strong> delete inserted image range</p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Same PNG at same location with <code>width=100, height=50</code>. Call succeeded; image rendered smaller than the default-sized TC-DOC57 image.</p>
+<hr />
+<h3 id="tc-doc59-no-source-provided-returns-error">TC-DOC59: No source provided returns error<a class="headerlink" href="#tc-doc59-no-source-provided-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call insert_inline_image on doc {DOC_ID} at index 1 without providing a URI or drive_file_id"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "Provide either uri or drive_file_id"}</code></p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Returned <code>{"error": "Provide either uri or drive_file_id, not both"}</code>. No API call made.</p>
+<hr />
+<h3 id="tc-doc60-both-uri-and-drive_file_id-provided-returns-error">TC-DOC60: Both URI and drive_file_id provided returns error<a class="headerlink" href="#tc-doc60-both-uri-and-drive_file_id-provided-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call insert_inline_image on doc {DOC_ID} at index 1 with both uri 'https://example.com/img.png' and drive_file_id 'someid'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "Provide only one of uri or drive_file_id, not both"}</code></p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Returned <code>{"error": "Provide only one of uri or drive_file_id, not both"}</code>. No API call made.</p>
+<hr />
+<h2 id="insert_table_row-delete_table_row-insert_table_column-delete_table_column-146"><code>insert_table_row</code> / <code>delete_table_row</code> / <code>insert_table_column</code> / <code>delete_table_column</code> (#146)<a class="headerlink" href="#insert_table_row-delete_table_row-insert_table_column-delete_table_column-146" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc61-insert-a-row-below-an-existing-row-destructive">TC-DOC61: Insert a row below an existing row ⚠️ destructive<a class="headerlink" href="#tc-doc61-insert-a-row-below-an-existing-row-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Insert a row below row 0 in the table at index {tableStartIndex} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Response contains <code>docId</code>, <code>table_start_index</code>, <code>row_index: 0</code>
+- Re-fetch <code>get_doc_structure</code> shows the table now has 3 rows</p>
+<p><strong>Cleanup:</strong> delete the table</p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Inserted 2×2 table; called <code>insert_table_row(row_index=0, insert_below=True)</code>. Response: <code>{docId, table_start_index, row_index: 0}</code>. Re-fetched structure showed 3 rows.</p>
+<hr />
+<h3 id="tc-doc62-insert-a-row-above-an-existing-row-destructive">TC-DOC62: Insert a row above an existing row ⚠️ destructive<a class="headerlink" href="#tc-doc62-insert-a-row-above-an-existing-row-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Insert a row above row 1 in the table at index {tableStartIndex} in doc {DOC_ID} (insert_below=False)"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Re-fetch shows the table has 3 rows
+- New row appears at row 1 (between original rows 0 and 1)</p>
+<p><strong>Cleanup:</strong> delete the table</p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Inserted 2×2 table; called <code>insert_table_row(row_index=1, insert_below=False)</code>. Re-fetched structure showed 3 rows.</p>
+<hr />
+<h3 id="tc-doc63-delete-a-row-destructive">TC-DOC63: Delete a row ⚠️ destructive<a class="headerlink" href="#tc-doc63-delete-a-row-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a 3-row table; note its <code>tableStartIndex</code></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Delete row 1 from the table at index {tableStartIndex} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Response contains <code>docId</code>, <code>table_start_index</code>, <code>row_index: 1</code>
+- Re-fetch shows the table has 2 rows</p>
+<p><strong>Cleanup:</strong> delete the table</p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Inserted 3-row table; called <code>delete_table_row(row_index=1)</code>. Response: <code>{docId, table_start_index, row_index: 1}</code>. Re-fetched structure showed 2 rows.</p>
+<hr />
+<h3 id="tc-doc64-insert-a-column-to-the-right-destructive">TC-DOC64: Insert a column to the right ⚠️ destructive<a class="headerlink" href="#tc-doc64-insert-a-column-to-the-right-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Insert a column to the right of column 0 in the table at index {tableStartIndex} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Response contains <code>docId</code>, <code>table_start_index</code>, <code>column_index: 0</code>
+- Re-fetch shows the table has 3 columns</p>
+<p><strong>Cleanup:</strong> delete the table</p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Inserted 2×2 table; called <code>insert_table_column(column_index=0, insert_right=True)</code>. Response: <code>{docId, table_start_index, column_index: 0}</code>. Re-fetched structure showed 3 columns.</p>
+<hr />
+<h3 id="tc-doc65-insert-a-column-to-the-left-destructive">TC-DOC65: Insert a column to the left ⚠️ destructive<a class="headerlink" href="#tc-doc65-insert-a-column-to-the-left-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Insert a column to the left of column 1 in the table at index {tableStartIndex} in doc {DOC_ID} (insert_right=False)"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Re-fetch shows the table has 3 columns</p>
+<p><strong>Cleanup:</strong> delete the table</p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Inserted 2×2 table; called <code>insert_table_column(column_index=1, insert_right=False)</code>. Re-fetched structure showed 3 columns.</p>
+<hr />
+<h3 id="tc-doc66-delete-a-column-destructive">TC-DOC66: Delete a column ⚠️ destructive<a class="headerlink" href="#tc-doc66-delete-a-column-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a 2×3 table; note its <code>tableStartIndex</code></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Delete column 1 from the table at index {tableStartIndex} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Response contains <code>docId</code>, <code>table_start_index</code>, <code>column_index: 1</code>
+- Re-fetch shows the table has 2 columns</p>
+<p><strong>Cleanup:</strong> delete the table</p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Inserted 2×3 table; called <code>delete_table_column(column_index=1)</code>. Response: <code>{docId, table_start_index, column_index: 1}</code>. Re-fetched structure showed 2 columns.</p>
+<hr />
+<h3 id="tc-doc67-api-error-returned-gracefully-out-of-bounds-row">TC-DOC67: API error returned gracefully (out of bounds row)<a class="headerlink" href="#tc-doc67-api-error-returned-gracefully-out-of-bounds-row" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete row 99 from the table at index {tableStartIndex} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — does not raise an exception
+- Error message references an API failure</p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>delete_table_row(row_index=99)</code> on a 2×2 table. Returned <code>{"error": "..."}</code> with an API error message referencing an invalid row index. No exception raised.</p>
+<hr />
+<h2 id="create_header-create_footer-147"><code>create_header</code> / <code>create_footer</code> (#147)<a class="headerlink" href="#create_header-create_footer-147" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc68-create-a-default-page-header-destructive">TC-DOC68: Create a default page header ⚠️ destructive<a class="headerlink" href="#tc-doc68-create-a-default-page-header-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Add a page header to doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Response contains <code>docId</code> and <code>headerId</code> (non-empty string)
+- 🔍 Visual check in Google Docs: document shows a header section</p>
+<p><strong>Cleanup:</strong> none needed (headers persist; restore fixture doc if desired)</p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>create_header(doc_id=fixture)</code> (no content). Returned <code>{"docId": ..., "headerId": "kix.xxxxxxxxxx"}</code>. Header section visible in Google Docs. Note: on first call after a prior session created the header (due to index=1 bug), the "already exists" 400 error was caught and the ID was retrieved from <code>documentStyle.defaultHeaderId</code> — this is the expected fallback path.</p>
+<hr />
+<h3 id="tc-doc69-create-a-header-with-content-destructive">TC-DOC69: Create a header with content ⚠️ destructive<a class="headerlink" href="#tc-doc69-create-a-header-with-content-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Add a page header to doc {DOC_ID} with content 'Confidential — Internal Only'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>docId</code> and <code>headerId</code>
+- Two API calls were made (create + insert text) — verifiable via no error in response
+- 🔍 Visual check: header text "Confidential — Internal Only" appears in the document header</p>
+<p><strong>Cleanup:</strong> none needed</p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>create_header(doc_id=temp_doc, content="Confidential — Internal Only")</code>. Returned <code>{"docId": ..., "headerId": "kix.xxxxxxxxxx"}</code> with no <code>warning</code> key — both header creation (via <code>documentStyle</code> fallback) and content insertion at <code>index=0</code> succeeded.</p>
+<hr />
+<h3 id="tc-doc70-create-a-default-page-footer-destructive">TC-DOC70: Create a default page footer ⚠️ destructive<a class="headerlink" href="#tc-doc70-create-a-default-page-footer-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Add a page footer to doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>docId</code> and <code>footerId</code> (non-empty string)
+- 🔍 Visual check: document shows a footer section</p>
+<p><strong>Cleanup:</strong> none needed</p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>create_footer(doc_id=fixture)</code>. Returned <code>{"docId": ..., "footerId": "kix.xxxxxxxxxx"}</code>. Footer section visible in Google Docs.</p>
+<hr />
+<h3 id="tc-doc71-create-a-footer-with-content-destructive">TC-DOC71: Create a footer with content ⚠️ destructive<a class="headerlink" href="#tc-doc71-create-a-footer-with-content-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Add a page footer to doc {DOC_ID} with content 'Page 1'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>docId</code> and <code>footerId</code>
+- 🔍 Visual check: footer shows "Page 1"</p>
+<p><strong>Cleanup:</strong> none needed</p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>create_footer(doc_id=temp_doc, content="Page 1")</code>. Returned <code>{"docId": ..., "footerId": "kix.xxxxxxxxxx"}</code> with no <code>warning</code> key — footer created and content inserted at <code>index=0</code>.</p>
+<hr />
+<h3 id="tc-doc72-invalid-header_type-returns-error">TC-DOC72: Invalid header_type returns error<a class="headerlink" href="#tc-doc72-invalid-header_type-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call create_header on doc {DOC_ID} with header_type 'INVALID'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "Invalid header_type 'INVALID'..."}</code></p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Returned <code>{"error": "Invalid header_type 'INVALID'. Use DEFAULT or FIRST_PAGE_HEADER"}</code>. No API call made.</p>
+<hr />
+<h3 id="tc-doc73-invalid-footer_type-returns-error">TC-DOC73: Invalid footer_type returns error<a class="headerlink" href="#tc-doc73-invalid-footer_type-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call create_footer on doc {DOC_ID} with footer_type 'INVALID'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "Invalid footer_type 'INVALID'..."}</code></p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Returned <code>{"error": "Invalid footer_type 'BOGUS'. Use DEFAULT or FIRST_PAGE_FOOTER"}</code>. No API call made.</p>
+<hr />
+<h3 id="tc-doc74-insert_doc_text-with-segment_id-writes-into-header-destructive">TC-DOC74: insert_doc_text with segment_id writes into header ⚠️ destructive<a class="headerlink" href="#tc-doc74-insert_doc_text-with-segment_id-writes-into-header-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> call <code>create_header</code> first to get a <code>headerId</code></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Insert the text 'Header text via insert_doc_text' at index 0 in doc {DOC_ID} using segment_id '{headerId}'"</p>
+</blockquote>
+<p><strong>Note:</strong> An empty header/footer segment has end index 1 (one newline at index 0). Insert at index 0, not 1.</p>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Response contains <code>insertions: 1</code>
+- 🔍 Visual check: "Header text via insert_doc_text" appears in the document header</p>
+<p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>insert_doc_text</code> with <code>[{index: 0, text: "QA Test Header", segment_id: "kix.xxxxxxxxxx"}]</code>. Response: <code>{"docId": ..., "insertions": 1}</code>. Text "QA Test Header" appeared in fixture doc header. Same mechanism also confirmed for footer segment insertion (segment_id: "kix.xxxxxxxxxx", text: "Page 1").</p>
+<hr />
+<h3 id="tc-doc75-get_doc_named_styles-reads-named-style-defaults-set-via-the-docs-ui">TC-DOC75: <code>get_doc_named_styles</code> reads named style defaults set via the Docs UI<a class="headerlink" href="#tc-doc75-get_doc_named_styles-reads-named-style-defaults-set-via-the-docs-ui" title="Permanent link">&para;</a></h3>
+<p><strong>Note:</strong> Named styles are only populated when the user explicitly goes to Format &gt; Paragraph styles &gt; Update X to match. Most docs leave named styles at Google's defaults — this tool returns empty or near-empty for those docs. Use <code>get_doc_theme</code> to read actual paragraph appearance instead.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call <code>get_doc_named_styles</code> on doc {DOC_ID} and show me the result."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- No <code>error</code> key in result
+- For a doc where named styles were explicitly set: returns a non-empty dict with named style type keys
+- For a standard doc: may return <code>{}</code> or only Google's default entries (expected, not an error)</p>
+<p><strong>Result (2026-06-20) ✅ PASS</strong> Called on a doc that had <code>apply_theme</code> previously applied (Georgia HEADING_1/H2, Roboto NORMAL_TEXT). Returned 9 entries: NORMAL_TEXT (Roboto 11pt, line_spacing 115), HEADING_1 (Georgia 24pt bold, space_above 20), HEADING_2 (Georgia 18pt, space_above 18), HEADING_3–6 (Google defaults with font sizes and colors), TITLE, SUBTITLE. Confirms <code>apply_theme</code> default mode successfully writes to named styles, and <code>get_doc_named_styles</code> reads them back correctly. No error.</p>
+<hr />
+<h3 id="tc-doc76-table-immediately-after-heading-renders-at-normal-text-size-requires-oauth-destructive">TC-DOC76: Table immediately after heading renders at Normal Text size ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc76-table-immediately-after-heading-renders-at-normal-text-size-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-d226-heading-table.md</code> from the repo (absolute path: <code>&lt;repo-root&gt;/docs/qa/fixtures/tc-d226-heading-table.md</code>)</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>docId</code> and <code>web_link</code> returned with no <code>error</code>
+- <code>get_doc_structure</code> shows a <code>table</code> element with 6 cells containing "Finding", "Severity", "Ticket", "Some finding", "HIGH", "KINDLY-123"
+- 🔍 Visual check: open the doc — table cell text renders visually smaller than the "HIGH" H2 heading above it (~11pt vs ~16pt); no blank paragraph workaround needed</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-06-24) ✅ PASS</strong> "HIGH" heading renders visually larger than table text. All six cells ("Finding", "Severity", "Ticket", "Some finding", "HIGH", "KINDLY-123") render at Normal Text size. No blank paragraph between heading and table required. No oversized cell text observed.</p>
+<hr />
+<h3 id="tc-doc77-no-visible-blank-line-between-heading-and-table-in-create_doc_from_file-requires-oauth-destructive">TC-DOC77: No visible blank line between heading and table in <code>create_doc_from_file</code> ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc77-no-visible-blank-line-between-heading-and-table-in-create_doc_from_file-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> the Docs API inserts a structurally-required blank paragraph before every table;
+<code>deleteContentRange</code> is rejected for it. The fix collapses it to zero visual height via
+<code>updateParagraphStyle</code> (spaceAbove/Below=0, lineSpacing=1) + <code>updateTextStyle</code> (fontSize=1pt).</p>
+<p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-d226-heading-table.md</code> (heading immediately followed by a table)</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Tool completes without error (no <code>HttpError 400</code>)
+- <code>get_doc_structure</code> returns a body with a heading and a table; a blank paragraph element may still be listed (it is structurally present), but its <code>paragraph.paragraphStyle</code> should show <code>lineSpacing: 1</code>, <code>spaceAbove: 0</code>, <code>spaceBelow: 0</code>
+- 🔍 Visual check: open the doc — no visible blank line between the "HIGH" heading and the table</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-06-25) ✅ PASS</strong>
+- Tool completed without error. Structure: sectionBreak → HEADING_2 "HIGH\n" (1-6) → blank para "\n" (6-7, <code>font_size: 1</code> on its run confirming collapse applied) → table (7-70, cells filled correctly: Finding/Severity/Ticket header, Some finding/HIGH/KINDLY-123 data) → trailing para (70-71). Visual check: no visible gap between heading and table in the rendered doc.</p>
+<hr />
+<h3 id="tc-doc80-get_doc_content-trips-the-response-size-cap-cached-path-re-checks-it-too-issue-242">TC-DOC80: get_doc_content trips the response-size cap; cached path re-checks it too (issue #242)<a class="headerlink" href="#tc-doc80-get_doc_content-trips-the-response-size-cap-cached-path-re-checks-it-too-issue-242" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #242 generalized #235's response-size safety net to <code>get_doc_content</code>. <code>doc_cache</code> previously returned a cached result <em>before</em> any cap check ran, so a cached oversized doc would bypass the cap on repeat calls — fixed so the check runs on both the cache-hit and cache-miss paths.</p>
+<p><strong>Setup:</strong> <code>TEST_LARGE_DOC_ID</code> (<code>mcp-gee-sweet-qa-large-doc</code>), grown from its original ~5,300-character seed content to ~49,700 characters by inserting repeated padding text (permanent fixture growth — this doc's whole purpose is being a large-content fixture, and it was never previously large enough to exceed any cap since none existed for this tool before now).</p>
+<p><strong>Checks</strong>
+- First call (fetch path) raises <code>ValueError</code> mentioning the actual response size, the cap, and <code>MAX_TOOL_RESPONSE_CHARS</code>
+- Second call (cache-hit path, no <code>refresh_cache</code> in between) raises the <em>same</em> error — proves the cache-hit path re-checks the cap rather than returning the stale oversized cached result
+- Same call with <code>local_path</code> set succeeds, returns <code>{local_path, id, bytes_written}</code>, and the file on disk contains the full content</p>
+<p><strong>Result (2026-07-03) ✅ PASS</strong>
+Fetch-path call raised: <code>get_doc_content: the response is 49700 characters, over the 40000-character safety cap. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).</code> Repeat call (served from <code>doc_cache</code>, confirmed via no additional Drive API round-trip) raised the identical error — confirms the cache-ordering fix. <code>local_path</code> call succeeded: <code>{"local_path":"/tmp/qa_doc_content_242.json","bytes_written":49700,"id":"{TEST_LARGE_DOC_ID}"}</code>; file verified then cleaned up.</p>
+<hr />
+<h3 id="tc-doc81-create_doc_from_file-renders-escape-as-literal-issue-213-requires-oauth-destructive">TC-DOC81: create_doc_from_file renders \$ escape as literal $ (issue #213) ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc81-create_doc_from_file-renders-escape-as-literal-issue-213-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Python-Markdown's default <code>ESCAPED_CHARS</code> omits <code>$</code> (unlike CommonMark, which includes it in its escapable-punctuation set), so <code>\$</code> — commonly used to defeat math/LaTeX-delimiter renderers like Obsidian/Typora/Jupyter that treat bare <code>$...$</code> as inline math — previously passed through untouched into the rendered Doc as a literal backslash+dollar. Fixed via a small <code>markdown.extensions.Extension</code> that adds <code>$</code> to <code>ESCAPED_CHARS</code>, so it's handled by the library's own escape mechanism (respecting code-span/fenced-code protection) rather than a blind text substitution.</p>
+<p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-d213-dollar-escape.md</code> from the repo (a table cell, a second table row, and a plain-text sentence, each with a <code>\$</code>-escaped dollar amount)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d213-dollar-escape.md"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>docId</code> and <code>web_link</code> returned with no <code>error</code>
+- <code>get_doc_content</code> shows <code>$6,000</code>, <code>$25</code>, and <code>$1,200</code> as plain literal dollar amounts — no <code>\$</code> (literal backslash+dollar) anywhere in the content</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-04) ✅ PASS</strong>
+<code>create_doc_from_file</code> succeeded. <code>get_doc_content</code> returned: <code>"...Deductible\r\n\t$6,000\r\n\tCopay\r\n\t$25\r\n\tPlain text with an escaped price: $1,200 due at signing."</code> — all three escaped amounts rendered as literal <code>$</code>, no <code>\$</code> anywhere. Doc permanently deleted after verification.</p>
+<hr />
+<h3 id="tc-doc82-create_doc-autolinks-bare-urls-in-markdown-content-issue-248-requires-oauth-destructive">TC-DOC82: create_doc autolinks bare URLs in markdown content (issue #248) ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc82-create_doc-autolinks-bare-urls-in-markdown-content-issue-248-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Python-Markdown's built-in autolink only fires on <code>&lt;https://...&gt;</code> (angle brackets) or <code>[text](url)</code> — a bare URL like <code>https://example.com/some-page</code> was left as inert plain text with no hyperlink. Fixed via a low-priority <code>InlineProcessor</code> extension that autolinks bare <code>http(s)://</code> URLs left as plain text after the library's own link/code-span processing runs, trimming trailing sentence punctuation and unmatched closing parens (CommonMark/GFM extended-autolink behavior).</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Create a Google Doc titled 'QA TC-DOC82' with content_format='markdown' and this content: <code>From: https://example.com/some-page. See (https://example.com/parens) for details. Already linked: [click](https://example.com/existing). Code: \</code>https://example.com/code`.`"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>docId</code> and <code>web_link</code> returned with no <code>error</code>
+- <code>get_doc_structure</code> shows a run with <code>link_url: "https://example.com/some-page"</code> (trailing period NOT included in the link)
+- A run with <code>link_url: "https://example.com/parens"</code> (wrapping parens NOT included in the link)
+- The existing markdown link still shows <code>link_url: "https://example.com/existing"</code> (not double-processed)
+- The backtick-wrapped URL has no <code>link_url</code> set (code span still suppresses autolinking)</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-05) ✅ PASS</strong>
+<code>create_doc</code> succeeded (docId <code>1F66ZQQMuBx9CjaGx49bBg6DlcVMAYMnqnuYHtouyfIU</code>). <code>get_doc_structure</code> confirmed all four checks: <code>https://example.com/some-page</code> run has <code>link_url</code> set with the trailing <code>.</code> split into its own unlinked run; <code>https://example.com/parens</code> run has <code>link_url</code> set with both wrapping parens split into unlinked runs; the markdown link's <code>click</code> run has <code>link_url: "https://example.com/existing"</code> (untouched, not double-processed); the backtick-wrapped <code>https://example.com/code</code> run has <code>link_url: null</code>. Doc trashed after verification. Visual check (re-created identical content, Playwright screenshot, re-trashed): both bare URLs render blue/underlined, wrapping punctuation stays plain black, <code>click</code> renders as a normal link, and the backtick-wrapped URL renders as plain monospace code — not a link.</p>
+<hr />
+<h3 id="tc-doc83-autolink_urlsfalse-leaves-bare-urls-as-plain-text-issue-248-requires-oauth-destructive">TC-DOC83: autolink_urls=False leaves bare URLs as plain text (issue #248) ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc83-autolink_urlsfalse-leaves-bare-urls-as-plain-text-issue-248-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> The autolinking added for TC-DOC82 is unconditional by default. <code>autolink_urls: bool = True</code> on <code>create_doc</code>/<code>create_doc_from_file</code>/<code>write_doc_content</code> lets a caller opt out for the whole call when a bare URL should stay as plain, non-monospace text (backticks are the existing per-URL escape hatch, but they force code styling).</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Create a Google Doc titled 'QA TC-DOC83' with content_format='markdown', autolink_urls=False, and this content: <code>See https://example.com/inert here</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>docId</code> and <code>web_link</code> returned with no <code>error</code>
+- <code>get_doc_structure</code> shows the URL text present with <code>link_url: null</code> (no hyperlink applied)</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-05) ✅ PASS</strong>
+<code>create_doc</code> succeeded (docId <code>1elTfZ70c6AO66cjLQ7O-PrzzUlYGmVwiKuNWjDXVMGI</code>). <code>get_doc_structure</code> confirmed the entire line ("See https://example.com/inert here") is a single unstyled run — no <code>link_url</code>, no underline. Doc trashed after verification. Visual check (re-created identical content, Playwright screenshot, re-trashed): entire line renders as plain black text, no blue/underline anywhere.</p>
+<p><strong>Result: PENDING</strong> — same restart blocker as TC-DOC82.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

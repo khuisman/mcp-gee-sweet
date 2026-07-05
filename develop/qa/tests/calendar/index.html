@@ -1,0 +1,2851 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/qa/tests/calendar/">
+      
+      
+        <link rel="prev" href="../../fixtures.template/">
+      
+      
+        <link rel="next" href="../docs/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Calendar - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#calendar-tools-qa-test-cases" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Calendar
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../qa-checklist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Checklist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6_6" id="__nav_6_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#list_calendars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_calendars
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_calendars">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal01-returns-subscribed-calendars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL01: Returns subscribed calendars
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal02-primary-flag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL02: primary flag
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal03-cache-hit-on-second-call" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL03: Cache hit on second call
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal04-empty-subscription-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL04: Empty subscription list
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get_calendar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_calendar
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="get_calendar">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal05-valid-calendar-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL05: Valid calendar ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal06-calendar_idprimary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL06: calendar_id='primary'
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal07-cache-hit-on-second-call" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL07: Cache hit on second call
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal08-non-existent-calendar-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL08: Non-existent calendar ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create_calendar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_calendar
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="create_calendar">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal44-create-a-secondary-calendar-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL44: Create a secondary calendar ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal45-create-with-only-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL45: Create with only summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#update_calendar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        update_calendar
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="update_calendar">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal46-rename-and-change-timezone-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL46: Rename and change timezone ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal47-change-color-only-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL47: Change color only ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal48-no-fields-provided" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL48: No fields provided
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal49-non-existent-calendar-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL49: Non-existent calendar ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#delete_calendar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        delete_calendar
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="delete_calendar">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal50-delete-a-calendar-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL50: Delete a calendar ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal51-delete-the-minimal-test-calendar-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL51: Delete the minimal test calendar ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal52-non-existent-calendar-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL52: Non-existent calendar ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#list_events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_events
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_events">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal09-no-time-filters-upcoming-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL09: No time filters — upcoming events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal10-time_min-time_max-window" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL10: time_min + time_max window
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal11-query-string-search" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL11: query string search
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal12-all-day-event-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL12: All-day event format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal13-timed-event-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL13: Timed event format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal14-max_results-clamped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL14: max_results clamped
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal15-non-existent-calendar-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL15: Non-existent calendar ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get_event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_event
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="get_event">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal16-valid-event-full-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL16: Valid event — full details
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal17-attendees-populated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL17: Attendees populated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal18-recurring-event-instance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL18: Recurring event instance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal19-non-existent-event-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL19: Non-existent event ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create_event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_event
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="create_event">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal20-timed-event-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL20: Timed event ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal21-all-day-event-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL21: All-day event ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal22-with-description-location-and-attendees-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL22: With description, location, and attendees ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal23-invalid-calendar-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL23: Invalid calendar ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#update_event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        update_event
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="update_event">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal24-update-summary-only-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL24: Update summary only ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal25-update-start-and-end-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL25: Update start and end ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal26-update-description-and-location-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL26: Update description and location ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal27-non-existent-event-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL27: Non-existent event ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#delete_event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        delete_event
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="delete_event">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal28-delete-an-existing-event-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL28: Delete an existing event ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal29-non-existent-event-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL29: Non-existent event ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#find_free_slots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        find_free_slots
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="find_free_slots">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal30-single-calendar-no-events-in-window" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL30: Single calendar — no events in window
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal31-single-calendar-events-in-window" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL31: Single calendar — events in window
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal32-multiple-calendar-ids" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL32: Multiple calendar IDs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal33-invalid-calendar-id-in-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL33: Invalid calendar ID in list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal34-free_slots-covers-full-window-when-no-busy-times" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL34: free_slots covers full window when no busy times
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal35-contiguous-busy-periods-merged-in-free_slots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL35: Contiguous busy periods merged in free_slots
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create_event-recurrence-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_event — recurrence support
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="create_event — recurrence support">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal36-create-a-weekly-recurring-event-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL36: Create a weekly recurring event ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal37-create-a-daily-recurring-event-with-count-limit-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL37: Create a daily recurring event with COUNT limit ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal38-recurrence-absent-when-not-provided" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL38: Recurrence absent when not provided
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#list_events-expand_recurring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_events — expand_recurring
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_events — expand_recurring">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal39-expand_recurringfalse-returns-master-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL39: expand_recurring=False returns master events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal40-expand_recurringtrue-default-expands-instances" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL40: expand_recurring=True (default) expands instances
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#update_event-recurrence-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        update_event — recurrence support
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="update_event — recurrence support">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal41-update-rrule-on-a-master-event-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL41: Update RRULE on a master event ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal42-remove-recurrence-by-passing-an-empty-list-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL42: Remove recurrence by passing an empty list ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal43-update-a-single-instance-without-affecting-the-series-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL43: Update a single instance without affecting the series ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../drive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="calendar-tools-qa-test-cases">Calendar Tools — QA Test Cases<a class="headerlink" href="#calendar-tools-qa-test-cases" title="Permanent link">&para;</a></h1>
+<p>Source: <code>src/mcp_gee_sweet/tools/calendar.py</code></p>
+<p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute your <code>{CALENDAR_ID}</code> (a subscribed calendar the service account has access to) and <code>{EVENT_ID}</code> (a pre-existing event in that calendar) from <code>fixtures.local.md</code>.</p>
+<blockquote>
+<p><strong>Service account note:</strong> the service account must have been added to each calendar via <code>calendarList().insert()</code> before it can read or write events. <code>list_calendars</code> only returns calendars the service account has explicitly subscribed to — it will not see calendars shared with the owning user's personal account. See <code>docs/project_calendar_setup.md</code> in memory.</p>
+</blockquote>
+<hr />
+<h2 id="list_calendars"><code>list_calendars</code><a class="headerlink" href="#list_calendars" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal01-returns-subscribed-calendars">TC-CAL01: Returns subscribed calendars<a class="headerlink" href="#tc-cal01-returns-subscribed-calendars" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List all calendars I have access to"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns at least one calendar
+- Each item has <code>id</code>, <code>summary</code>, <code>time_zone</code>, <code>access_role</code>, <code>primary</code>
+- The service account's own calendar (or the primary shared calendar) is present</p>
+<hr />
+<h3 id="tc-cal02-primary-flag">TC-CAL02: primary flag<a class="headerlink" href="#tc-cal02-primary-flag" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List calendars and tell me which one is marked as primary"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Exactly one calendar has <code>primary: true</code>
+- All others have <code>primary: false</code>
+- 🔍 <strong>Service account note:</strong> service accounts may have no primary calendar — <code>primary</code> may be <code>false</code> on all entries; note what is observed</p>
+<hr />
+<h3 id="tc-cal03-cache-hit-on-second-call">TC-CAL03: Cache hit on second call<a class="headerlink" href="#tc-cal03-cache-hit-on-second-call" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong> (run twice)</p>
+<blockquote>
+<p>"List my calendars again"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Second call returns same results
+- Logs show <code>Calendar list cache hit</code></p>
+<hr />
+<h3 id="tc-cal04-empty-subscription-list">TC-CAL04: Empty subscription list<a class="headerlink" href="#tc-cal04-empty-subscription-list" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> a service account with no calendar subscriptions</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List all calendars"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>[]</code> — not an error
+- 🔍 <strong>Hard to test without a fresh service account</strong> — note if observed</p>
+<hr />
+<h2 id="get_calendar"><code>get_calendar</code><a class="headerlink" href="#get_calendar" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal05-valid-calendar-id">TC-CAL05: Valid calendar ID<a class="headerlink" href="#tc-cal05-valid-calendar-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get the details for calendar {CALENDAR_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>id</code>, <code>summary</code>, <code>description</code>, <code>time_zone</code>, <code>access_role</code>, <code>primary</code>
+- <code>time_zone</code> is a valid IANA name (e.g. <code>America/Los_Angeles</code>)
+- No <code>error</code> field</p>
+<hr />
+<h3 id="tc-cal06-calendar_idprimary">TC-CAL06: calendar_id='primary'<a class="headerlink" href="#tc-cal06-calendar_idprimary" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get the calendar details for 'primary'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns calendar metadata for the service account's primary calendar
+- 🔍 <strong>Service account note:</strong> service accounts may not have a primary calendar — if so, expect <code>{"error": ...}</code>; note the actual response</p>
+<hr />
+<h3 id="tc-cal07-cache-hit-on-second-call">TC-CAL07: Cache hit on second call<a class="headerlink" href="#tc-cal07-cache-hit-on-second-call" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong> (run twice)</p>
+<blockquote>
+<p>"Get calendar {CALENDAR_ID} again"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Second call returns same result
+- Logs show <code>Calendar cache hit: {CALENDAR_ID}</code></p>
+<hr />
+<h3 id="tc-cal08-non-existent-calendar-id">TC-CAL08: Non-existent calendar ID<a class="headerlink" href="#tc-cal08-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get the calendar with ID 'totally-invalid-cal-id@example.com'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception
+- Error message is from the Calendar API</p>
+<hr />
+<h2 id="create_calendar"><code>create_calendar</code><a class="headerlink" href="#create_calendar" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal44-create-a-secondary-calendar-destructive">TC-CAL44: Create a secondary calendar ⚠️ destructive<a class="headerlink" href="#tc-cal44-create-a-secondary-calendar-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a new calendar called 'mcp-gee-sweet-qa-lifecycle-test' with description 'QA scratch calendar' and timezone 'America/Los_Angeles'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>id</code>, <code>summary</code>, <code>description</code>, <code>time_zone</code>
+- <code>summary</code> is <code>mcp-gee-sweet-qa-lifecycle-test</code>
+- <code>time_zone</code> is <code>America/Los_Angeles</code>
+- The new calendar appears in a follow-up <code>list_calendars</code> call (cache invalidated)</p>
+<p><strong>Result (2026-07-05) ✅</strong> — Created via OAuth; response had <code>summary</code>, <code>description</code>, and <code>time_zone: "America/Los_Angeles"</code> exactly as requested. Confirmed present in a follow-up <code>list_calendars</code> call.</p>
+<hr />
+<h3 id="tc-cal45-create-with-only-summary">TC-CAL45: Create with only summary<a class="headerlink" href="#tc-cal45-create-with-only-summary" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a new calendar called 'mcp-gee-sweet-qa-minimal'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Succeeds with only <code>summary</code> provided
+- <code>description</code> is <code>null</code>/absent
+- <code>time_zone</code> reflects the account default</p>
+<p><strong>Result (2026-07-05) ✅</strong> — Created with only <code>summary</code> provided. <code>description: null</code>. <code>time_zone: "UTC"</code> (account default rather than the creator's local timezone — noted for documentation purposes). Confirmed present in a follow-up <code>list_calendars</code> call.</p>
+<hr />
+<h2 id="update_calendar"><code>update_calendar</code><a class="headerlink" href="#update_calendar" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal46-rename-and-change-timezone-destructive">TC-CAL46: Rename and change timezone ⚠️ destructive<a class="headerlink" href="#tc-cal46-rename-and-change-timezone-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the calendar created in TC-CAL44</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Update calendar 'mcp-gee-sweet-qa-lifecycle-test' — rename it to 'mcp-gee-sweet-qa-renamed' and set its timezone to 'America/New_York'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>summary</code> is <code>mcp-gee-sweet-qa-renamed</code>
+- <code>time_zone</code> is <code>America/New_York</code>
+- <code>description</code> unchanged from TC-CAL44
+- <code>get_calendar</code> on the same ID reflects the new values</p>
+<p><strong>Result (2026-07-05) ✅</strong> — Patched with <code>summary: "mcp-gee-sweet-qa-renamed"</code> and <code>timezone: "America/New_York"</code>. Response reflected both changes; <code>description</code> unchanged from TC-CAL44 (<code>"QA scratch calendar"</code>).</p>
+<hr />
+<h3 id="tc-cal47-change-color-only-destructive">TC-CAL47: Change color only ⚠️ destructive<a class="headerlink" href="#tc-cal47-change-color-only-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the calendar from TC-CAL44/46</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Change the color of calendar 'mcp-gee-sweet-qa-renamed' to color ID '5'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>color_id</code> in the response is <code>5</code>
+- <code>summary</code>/<code>description</code>/<code>time_zone</code> unchanged (verify with <code>get_calendar</code>)
+- Confirms the color patch goes through <code>calendarList().patch()</code>, not <code>calendars().patch()</code></p>
+<p><strong>Result (2026-07-05) ✅</strong> — Patched <code>color_id="5"</code> only (no summary/description/timezone). Response had <code>color_id: "5"</code> with <code>summary</code>, <code>description</code>, <code>time_zone</code> all unchanged from TC-CAL46 — confirms the tool fell back to <code>calendars().get()</code> for the base fields and routed color through <code>calendarList().patch()</code>.</p>
+<hr />
+<h3 id="tc-cal48-no-fields-provided">TC-CAL48: No fields provided<a class="headerlink" href="#tc-cal48-no-fields-provided" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Update calendar {CALENDAR_ID} with no changes — just fetch its current state through update_calendar"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns current calendar metadata unchanged
+- <code>color_id</code> is <code>null</code> (no color patch attempted)
+- No API error</p>
+<p><strong>Result (2026-07-05) ✅</strong> — Called with <code>calendar_id="primary"</code> and no other fields. Returned the account's real primary calendar summary/timezone unchanged, <code>color_id: null</code>. Confirms the no-op path uses <code>calendars().get()</code> without issuing any patch.</p>
+<hr />
+<h3 id="tc-cal49-non-existent-calendar-id">TC-CAL49: Non-existent calendar ID<a class="headerlink" href="#tc-cal49-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Update calendar 'totally-invalid-cal-id@example.com' — rename it to 'Nope'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception</p>
+<p><strong>Result (2026-07-05) ✅</strong> — Returned <code>{"error": "&lt;HttpError 404 ... 'reason': 'notFound' ...&gt;"}</code>. No exception raised.</p>
+<hr />
+<h2 id="delete_calendar"><code>delete_calendar</code><a class="headerlink" href="#delete_calendar" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal50-delete-a-calendar-destructive">TC-CAL50: Delete a calendar ⚠️ destructive<a class="headerlink" href="#tc-cal50-delete-a-calendar-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the calendar created in TC-CAL44 (after TC-CAL46/47 updates)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete the calendar 'mcp-gee-sweet-qa-renamed'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"calendar_id": "...", "action": "deleted"}</code>
+- Calendar no longer appears in a follow-up <code>list_calendars</code> call
+- <code>get_calendar</code> on the deleted ID returns an error</p>
+<p><strong>Result (2026-07-05) ✅</strong> — Returned <code>{"calendar_id": "...", "action": "deleted"}</code>. Confirmed absent from a follow-up <code>list_calendars</code> call. <code>get_calendar</code> on the deleted ID returned a 404 <code>notFound</code> error.</p>
+<hr />
+<h3 id="tc-cal51-delete-the-minimal-test-calendar-destructive">TC-CAL51: Delete the minimal test calendar ⚠️ destructive<a class="headerlink" href="#tc-cal51-delete-the-minimal-test-calendar-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the calendar created in TC-CAL45</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete the calendar 'mcp-gee-sweet-qa-minimal'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"calendar_id": "...", "action": "deleted"}</code>
+- Cleans up the fixture so it doesn't linger in the account's calendar list</p>
+<p><strong>Result (2026-07-05) ✅</strong> — Returned <code>{"calendar_id": "...", "action": "deleted"}</code>. Confirmed removed from the account's <code>list_calendars</code> output alongside TC-CAL50's cleanup.</p>
+<hr />
+<h3 id="tc-cal52-non-existent-calendar-id">TC-CAL52: Non-existent calendar ID<a class="headerlink" href="#tc-cal52-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete the calendar 'totally-invalid-cal-id@example.com'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception
+- No side effects</p>
+<p><strong>Result (2026-07-05) ✅</strong> — Returned <code>{"error": "&lt;HttpError 404 ... 'reason': 'notFound' ...&gt;"}</code>. No side effects.</p>
+<hr />
+<h2 id="list_events"><code>list_events</code><a class="headerlink" href="#list_events" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal09-no-time-filters-upcoming-events">TC-CAL09: No time filters — upcoming events<a class="headerlink" href="#tc-cal09-no-time-filters-upcoming-events" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List events in calendar {CALENDAR_ID} with no time filter"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns events ordered by start time
+- Events are from now onward (no past events)
+- Each event has <code>id</code>, <code>summary</code>, <code>start</code>, <code>end</code>, <code>status</code></p>
+<hr />
+<h3 id="tc-cal10-time_min-time_max-window">TC-CAL10: time_min + time_max window<a class="headerlink" href="#tc-cal10-time_min-time_max-window" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List events in {CALENDAR_ID} between 2026-06-01T00:00:00Z and 2026-06-30T23:59:59Z"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- All returned events fall within the specified window
+- Events outside the window are absent
+- Empty list returned if no events exist in that window — not an error</p>
+<hr />
+<h3 id="tc-cal11-query-string-search">TC-CAL11: query string search<a class="headerlink" href="#tc-cal11-query-string-search" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List events in {CALENDAR_ID} matching the search term 'dinner'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns only events whose summary, description, or location contains 'dinner'
+- Non-matching events excluded
+- Empty list if nothing matches — not an error</p>
+<hr />
+<h3 id="tc-cal12-all-day-event-format">TC-CAL12: All-day event format<a class="headerlink" href="#tc-cal12-all-day-event-format" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> a calendar containing at least one all-day event</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List events in {CALENDAR_ID} and show me any all-day events"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- All-day event <code>start</code> and <code>end</code> are date strings (<code>YYYY-MM-DD</code>), not datetime strings
+- No <code>T</code> or timezone offset in the date values</p>
+<hr />
+<h3 id="tc-cal13-timed-event-format">TC-CAL13: Timed event format<a class="headerlink" href="#tc-cal13-timed-event-format" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List events in {CALENDAR_ID} and show me a timed event's start and end"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Timed event <code>start</code> and <code>end</code> are RFC 3339 datetime strings (contain <code>T</code>)
+- Timezone offset or <code>Z</code> is present</p>
+<hr />
+<h3 id="tc-cal14-max_results-clamped">TC-CAL14: max_results clamped<a class="headerlink" href="#tc-cal14-max_results-clamped" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List events in {CALENDAR_ID} with max_results=0" then "List events with max_results=3000"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>max_results=0</code> → clamped to 1; at most 1 event returned
+- <code>max_results=3000</code> → clamped to 2500; no more than 2500 events returned</p>
+<hr />
+<h3 id="tc-cal15-non-existent-calendar-id">TC-CAL15: Non-existent calendar ID<a class="headerlink" href="#tc-cal15-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List events in calendar 'invalid-cal-id@example.com'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>[{"error": "..."}]</code> — not a top-level exception
+- Error message is from the Calendar API</p>
+<hr />
+<h2 id="get_event"><code>get_event</code><a class="headerlink" href="#get_event" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal16-valid-event-full-details">TC-CAL16: Valid event — full details<a class="headerlink" href="#tc-cal16-valid-event-full-details" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get the details of event {EVENT_ID} from calendar {CALENDAR_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>id</code>, <code>summary</code>, <code>start</code>, <code>end</code>, <code>location</code>, <code>description</code>, <code>organizer</code>, <code>attendees</code>, <code>recurrence</code>, <code>html_link</code>, <code>status</code>, <code>created</code>, <code>updated</code>
+- <code>html_link</code> opens the event in Google Calendar UI
+- <code>organizer</code> is an email address string</p>
+<hr />
+<h3 id="tc-cal17-attendees-populated">TC-CAL17: Attendees populated<a class="headerlink" href="#tc-cal17-attendees-populated" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> an event with at least one attendee</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get event {EVENT_ID} and list the attendees"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>attendees</code> is a non-empty list
+- Each attendee has <code>email</code> and <code>response</code> (e.g. <code>accepted</code>, <code>needsAction</code>)</p>
+<hr />
+<h3 id="tc-cal18-recurring-event-instance">TC-CAL18: Recurring event instance<a class="headerlink" href="#tc-cal18-recurring-event-instance" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> a recurring event in the calendar</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get a recurring event instance from {CALENDAR_ID} and check its recurrence field"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>recurrence</code> is a non-null list (e.g. <code>["RRULE:FREQ=WEEKLY;..."]</code>)
+- Single (non-recurring) events have <code>recurrence: null</code></p>
+<hr />
+<h3 id="tc-cal19-non-existent-event-id">TC-CAL19: Non-existent event ID<a class="headerlink" href="#tc-cal19-non-existent-event-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get event 'invalidEventId999xyz' from calendar {CALENDAR_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception
+- Error message references the bad event ID</p>
+<hr />
+<h2 id="create_event"><code>create_event</code><a class="headerlink" href="#create_event" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal20-timed-event-destructive">TC-CAL20: Timed event ⚠️ destructive<a class="headerlink" href="#tc-cal20-timed-event-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Create an event called 'QA-Timed-Test' in {CALENDAR_ID} on 2026-07-01 from 10:00am to 11:00am Pacific time"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Event created successfully
+- <code>start</code> and <code>end</code> are RFC 3339 datetime strings with timezone offset
+- <code>html_link</code> is present and opens the event in Google Calendar
+- <code>status</code> is <code>confirmed</code>
+- <code>calendar_cache.mark_dirty</code> called — next <code>list_events</code> re-fetches</p>
+<hr />
+<h3 id="tc-cal21-all-day-event-destructive">TC-CAL21: All-day event ⚠️ destructive<a class="headerlink" href="#tc-cal21-all-day-event-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Create an all-day event called 'QA-AllDay-Test' in {CALENDAR_ID} on 2026-07-02"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>start</code> and <code>end</code> in response are date strings (<code>2026-07-02</code>, <code>2026-07-03</code>)
+- No <code>T</code> in the date values — confirms <code>date</code> field used, not <code>dateTime</code>
+- Event appears in <code>list_events</code> for that day</p>
+<hr />
+<h3 id="tc-cal22-with-description-location-and-attendees-destructive">TC-CAL22: With description, location, and attendees ⚠️ destructive<a class="headerlink" href="#tc-cal22-with-description-location-and-attendees-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Create an event called 'QA-Full-Test' in {CALENDAR_ID} for 2026-07-03 2pm-3pm PT with description 'QA test event', location 'Conference Room A', and attendee test@example.com"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- All three optional fields present on the created event (verify with <code>get_event</code>)
+- <code>attendees</code> contains <code>test@example.com</code>
+- <code>location</code> is <code>Conference Room A</code>
+- <code>description</code> is <code>QA test event</code></p>
+<hr />
+<h3 id="tc-cal23-invalid-calendar-id">TC-CAL23: Invalid calendar ID<a class="headerlink" href="#tc-cal23-invalid-calendar-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create an event called 'QA-BadCal' in calendar 'invalid-cal@example.com' for tomorrow"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception
+- No event created</p>
+<hr />
+<h2 id="update_event"><code>update_event</code><a class="headerlink" href="#update_event" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal24-update-summary-only-destructive">TC-CAL24: Update summary only ⚠️ destructive<a class="headerlink" href="#tc-cal24-update-summary-only-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Update the event created in TC-CAL20 — change the title to 'QA-Timed-Updated'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>summary</code> in response is <code>QA-Timed-Updated</code>
+- <code>start</code>, <code>end</code>, <code>location</code>, <code>description</code> unchanged (verify with <code>get_event</code>)
+- <code>calendar_cache.mark_dirty</code> called</p>
+<hr />
+<h3 id="tc-cal25-update-start-and-end-destructive">TC-CAL25: Update start and end ⚠️ destructive<a class="headerlink" href="#tc-cal25-update-start-and-end-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Update the event from TC-CAL20 — move it to 2026-07-01 from 2pm to 3pm PT"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>start</code> and <code>end</code> reflect the new times
+- <code>summary</code> and other fields unchanged</p>
+<hr />
+<h3 id="tc-cal26-update-description-and-location-destructive">TC-CAL26: Update description and location ⚠️ destructive<a class="headerlink" href="#tc-cal26-update-description-and-location-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Update the event from TC-CAL22 — change the description to 'Updated desc' and location to 'Room B'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>description</code> is <code>Updated desc</code>
+- <code>location</code> is <code>Room B</code>
+- Other fields (<code>summary</code>, <code>attendees</code>) unchanged</p>
+<hr />
+<h3 id="tc-cal27-non-existent-event-id">TC-CAL27: Non-existent event ID<a class="headerlink" href="#tc-cal27-non-existent-event-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Update event 'invalidEventId999xyz' in {CALENDAR_ID} — change the summary to 'Test'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception</p>
+<hr />
+<h2 id="delete_event"><code>delete_event</code><a class="headerlink" href="#delete_event" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal28-delete-an-existing-event-destructive">TC-CAL28: Delete an existing event ⚠️ destructive<a class="headerlink" href="#tc-cal28-delete-an-existing-event-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Delete the event created in TC-CAL21 from {CALENDAR_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"calendar_id": "...", "event_id": "...", "action": "deleted"}</code>
+- Event no longer appears in <code>list_events</code> for that date
+- <code>calendar_cache.mark_dirty</code> called</p>
+<hr />
+<h3 id="tc-cal29-non-existent-event-id">TC-CAL29: Non-existent event ID<a class="headerlink" href="#tc-cal29-non-existent-event-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete event 'invalidEventId999xyz' from {CALENDAR_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception
+- No side effects</p>
+<hr />
+<h2 id="find_free_slots"><code>find_free_slots</code><a class="headerlink" href="#find_free_slots" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal30-single-calendar-no-events-in-window">TC-CAL30: Single calendar — no events in window<a class="headerlink" href="#tc-cal30-single-calendar-no-events-in-window" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Find free slots for calendar {CALENDAR_ID} between 2026-07-04T00:00:00Z and 2026-07-04T23:59:59Z" <em>(use a date with no events)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>busy[{CALENDAR_ID}]</code> is an empty list
+- <code>free_slots</code> covers the entire window as one slot: <code>[{start: time_min, end: time_max}]</code></p>
+<hr />
+<h3 id="tc-cal31-single-calendar-events-in-window">TC-CAL31: Single calendar — events in window<a class="headerlink" href="#tc-cal31-single-calendar-events-in-window" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Find free slots for {CALENDAR_ID} on 2026-07-01 from 9am to 5pm PT" <em>(ensure TC-CAL20/25 events exist in this window)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>busy[{CALENDAR_ID}]</code> contains the event's <code>start</code> and <code>end</code> times
+- <code>free_slots</code> shows the gaps before, between, and after busy periods
+- <code>free_slots</code> start/end values are RFC 3339 strings</p>
+<hr />
+<h3 id="tc-cal32-multiple-calendar-ids">TC-CAL32: Multiple calendar IDs<a class="headerlink" href="#tc-cal32-multiple-calendar-ids" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> two calendars the service account has access to</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Find free slots across {CALENDAR_ID} and {CALENDAR_ID_2} for 2026-07-01 9am–5pm PT"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>busy</code> has a key for each calendar ID
+- <code>free_slots</code> reflects the union of all busy times — a slot is free only when all calendars are free
+- No error if one calendar has no events (that calendar's busy list is just empty)</p>
+<hr />
+<h3 id="tc-cal33-invalid-calendar-id-in-list">TC-CAL33: Invalid calendar ID in list<a class="headerlink" href="#tc-cal33-invalid-calendar-id-in-list" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Find free slots for calendars [{CALENDAR_ID}, 'invalid-cal@example.com'] for the next hour"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>busy["invalid-cal@example.com"]</code> contains an <code>error</code> entry (Calendar API errors-per-calendar)
+- <code>busy[{CALENDAR_ID}]</code> is still populated correctly
+- Top-level response is not an error — partial results returned</p>
+<hr />
+<h3 id="tc-cal34-free_slots-covers-full-window-when-no-busy-times">TC-CAL34: free_slots covers full window when no busy times<a class="headerlink" href="#tc-cal34-free_slots-covers-full-window-when-no-busy-times" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Find free slots for {CALENDAR_ID} between 2026-07-10T00:00:00Z and 2026-07-10T01:00:00Z" <em>(no events in this window)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>free_slots</code> is exactly <code>[{"start": "2026-07-10T00:00:00Z", "end": "2026-07-10T01:00:00Z"}]</code>
+- Confirms the complement logic handles the empty-busy case</p>
+<hr />
+<h3 id="tc-cal35-contiguous-busy-periods-merged-in-free_slots">TC-CAL35: Contiguous busy periods merged in free_slots<a class="headerlink" href="#tc-cal35-contiguous-busy-periods-merged-in-free_slots" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> two back-to-back events with no gap (or overlapping events)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Find free slots for {CALENDAR_ID} over a period with two adjacent events"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The two busy periods are merged in the free slot calculation
+- <code>free_slots</code> does not include a zero-length or negative-length gap between them
+- Confirms the interval merge logic in <code>find_free_slots</code></p>
+<hr />
+<h2 id="create_event-recurrence-support"><code>create_event</code> — recurrence support<a class="headerlink" href="#create_event-recurrence-support" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal36-create-a-weekly-recurring-event-destructive">TC-CAL36: Create a weekly recurring event ⚠️ destructive<a class="headerlink" href="#tc-cal36-create-a-weekly-recurring-event-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Create a recurring event called 'QA-Weekly-Standup' in {CALENDAR_ID} every Monday from 9am to 9:30am Pacific time, starting 2026-07-07"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Event created successfully
+- Response includes <code>recurrence</code> field containing an RRULE string with <code>FREQ=WEEKLY</code> and <code>BYDAY=MO</code>
+- <code>html_link</code> is present
+- Verify with <code>get_event</code> that the master event's <code>recurrence</code> field is non-null
+- Follow-up: <code>list_events(expand_recurring=True)</code> shows multiple Monday instances</p>
+<p><strong>Result (2026-06-24) ✅</strong> — Event created with <code>id: 3n4mjvi13au7fg1ce0np9ca73k</code>, <code>recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO"]</code>, <code>status: confirmed</code>, <code>html_link</code> present. Confirmed master ID has no date suffix.</p>
+<hr />
+<h3 id="tc-cal37-create-a-daily-recurring-event-with-count-limit-destructive">TC-CAL37: Create a daily recurring event with COUNT limit ⚠️ destructive<a class="headerlink" href="#tc-cal37-create-a-daily-recurring-event-with-count-limit-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Create a recurring event called 'QA-Daily-5x' in {CALENDAR_ID} every day at 8am Pacific for exactly 5 occurrences, starting 2026-07-14"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response <code>recurrence</code> contains <code>RRULE:FREQ=DAILY;COUNT=5</code>
+- <code>list_events</code> with <code>expand_recurring=True</code> and appropriate time window returns exactly 5 instances
+- No events appear after the 5th occurrence</p>
+<p><strong>Result (2026-06-24) ✅</strong> — Created with <code>recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]</code>. <code>list_events(expand_recurring=True)</code> for Jul 14–19 returned exactly 5 instances (Jul 14–18). No Jul 19+ instances returned. Each instance had <code>recurrence: null</code>.</p>
+<hr />
+<h3 id="tc-cal38-recurrence-absent-when-not-provided">TC-CAL38: Recurrence absent when not provided<a class="headerlink" href="#tc-cal38-recurrence-absent-when-not-provided" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Create a one-time event called 'QA-OneOff' in {CALENDAR_ID} on 2026-07-21 from 2pm to 3pm PT"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response <code>recurrence</code> is <code>null</code> (not set)
+- <code>list_events(expand_recurring=False)</code> does not include this event as a recurring series
+- Confirms non-recurring events are unaffected</p>
+<p><strong>Result (2026-06-24) ✅</strong> — Created with <code>recurrence: null</code>. Appears in <code>list_events(expand_recurring=False)</code> with <code>recurrence: null</code> — confirms one-off events are unaffected by recurrence logic.</p>
+<hr />
+<h2 id="list_events-expand_recurring"><code>list_events</code> — expand_recurring<a class="headerlink" href="#list_events-expand_recurring" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal39-expand_recurringfalse-returns-master-events">TC-CAL39: expand_recurring=False returns master events<a class="headerlink" href="#tc-cal39-expand_recurringfalse-returns-master-events" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the recurring event created in TC-CAL36</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"List events in {CALENDAR_ID} with expand_recurring=False and no time filter"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains the master recurring event (not individual instances)
+- Each recurring event has a <code>recurrence</code> field with RRULE strings
+- The master event <code>id</code> does not contain an underscore + date suffix (instance IDs do)
+- Non-recurring events also appear (one entry each)</p>
+<p><strong>Result (2026-06-24) ✅</strong> — <code>list_events(expand_recurring=False, query="QA-")</code> returned 3 items: QA-Weekly-Standup (recurrence: WEEKLY/MO), QA-Daily-5x (recurrence: DAILY/COUNT=5), QA-OneOff (recurrence: null). All master IDs had no date suffix. Confirms <code>singleEvents=False</code> path works correctly.</p>
+<hr />
+<h3 id="tc-cal40-expand_recurringtrue-default-expands-instances">TC-CAL40: expand_recurring=True (default) expands instances<a class="headerlink" href="#tc-cal40-expand_recurringtrue-default-expands-instances" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the recurring event created in TC-CAL36</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"List events in {CALENDAR_ID} between 2026-07-07T00:00:00Z and 2026-07-28T23:59:59Z"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains individual Monday instances (e.g. 4 Mondays in a 4-week window)
+- Each instance <code>id</code> contains the base event ID plus a date suffix
+- <code>recurrence</code> field is <code>null</code> on individual instances (it lives on the master)</p>
+<p><strong>Result (2026-06-24) ✅</strong> — Returned 4 instances (Jul 7, 13, 20, 27). Each ID had the <code>_YYYYMMDDTHHMMSSZ</code> suffix. <code>recurrence: null</code> on all instances. Note: Jul 7 is the original start date (Tuesday); the API kept it as the first instance and subsequent occurrences fell on Mondays per BYDAY=MO.</p>
+<hr />
+<h2 id="update_event-recurrence-support"><code>update_event</code> — recurrence support<a class="headerlink" href="#update_event-recurrence-support" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal41-update-rrule-on-a-master-event-destructive">TC-CAL41: Update RRULE on a master event ⚠️ destructive<a class="headerlink" href="#tc-cal41-update-rrule-on-a-master-event-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the weekly recurring event from TC-CAL36; retrieve its master event ID via <code>list_events(expand_recurring=False)</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Update the recurring event 'QA-Weekly-Standup' in {CALENDAR_ID} — change it from weekly to every 2 weeks"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response <code>recurrence</code> reflects the new RRULE (e.g. <code>RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO</code>)
+- <code>list_events(expand_recurring=True)</code> for a 4-week window now returns 2 instances (not 4)
+- Other fields (<code>summary</code>, <code>start</code>, <code>end</code>) are unchanged</p>
+<p><strong>Result (2026-06-24) ✅</strong> — Patched master with <code>recurrence: ["RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO"]</code>. Response echoed the new RRULE. <code>list_events(expand_recurring=True)</code> for Jul 7–28 returned 2 instances (Jul 7 and Jul 20) vs 4 previously. <code>summary</code> and <code>start</code>/<code>end</code> unchanged.</p>
+<hr />
+<h3 id="tc-cal42-remove-recurrence-by-passing-an-empty-list-destructive">TC-CAL42: Remove recurrence by passing an empty list ⚠️ destructive<a class="headerlink" href="#tc-cal42-remove-recurrence-by-passing-an-empty-list-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the weekly recurring event from TC-CAL36 (master event ID)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Update the master 'QA-Weekly-Standup' event in {CALENDAR_ID} and remove its recurrence to make it a one-off event — pass an empty recurrence list"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response <code>recurrence</code> is <code>null</code> or absent
+- Event no longer appears as a series in <code>list_events(expand_recurring=False)</code>
+- Only a single instance exists at the original start date</p>
+<p><strong>Result (2026-06-24) ✅</strong> — Patched master with <code>recurrence: []</code>. Response returned <code>recurrence: null</code>. <code>list_events(expand_recurring=False)</code> showed QA-Weekly-Standup with <code>recurrence: null</code> — one entry, no series. Only the Jul 7 occurrence remains.</p>
+<hr />
+<h3 id="tc-cal43-update-a-single-instance-without-affecting-the-series-destructive">TC-CAL43: Update a single instance without affecting the series ⚠️ destructive<a class="headerlink" href="#tc-cal43-update-a-single-instance-without-affecting-the-series-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the recurring event from TC-CAL37; get an instance event ID (contains date suffix) via <code>list_events(expand_recurring=True)</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Update just the first occurrence of 'QA-Daily-5x' in {CALENDAR_ID} — rename it 'QA-Daily-5x (Modified)' using its instance event ID"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- That one instance has <code>summary: 'QA-Daily-5x (Modified)'</code>
+- Other instances still have <code>summary: 'QA-Daily-5x'</code> (unchanged)
+- The master event <code>summary</code> is unchanged (verify with <code>get_event</code> on the master ID)
+- Confirms instance-level patching creates an exception override, not a series update</p>
+<p><strong>Result (2026-06-24) ✅</strong> — Patched instance <code>9lrphvbvegq03163gjh7fu35qo_20260714T150000Z</code> with <code>summary: 'QA-Daily-5x (Modified)'</code>. Jul 15–18 instances still returned <code>summary: 'QA-Daily-5x'</code>. <code>get_event</code> on master <code>9lrphvbvegq03163gjh7fu35qo</code> returned <code>summary: 'QA-Daily-5x'</code> and <code>recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]</code> unchanged. Instance-level exception confirmed.</p>
+<hr />
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

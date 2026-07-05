@@ -1,0 +1,2078 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/qa/results/2026-07-04-docs/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>QA Run — 2026-07-04 (Docs domain — full live run) - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#qa-run-2026-07-04-docs-domain-full-live-run" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              QA Run — 2026-07-04 (Docs domain — full live run)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../qa-checklist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Checklist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_6" id="__nav_6_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/drive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="qa-run-2026-07-04-docs-domain-full-live-run">QA Run — 2026-07-04 (Docs domain — full live run)<a class="headerlink" href="#qa-run-2026-07-04-docs-domain-full-live-run" title="Permanent link">&para;</a></h1>
+<p><strong>Auth:</strong> OAuth
+<strong>Fixtures:</strong> DOC_ID=<code>1-whiEVwvnSOABaK9qgpzdVaGUOMRvJdQhDmCURqx4fA</code> (mcp-gee-sweet-qa-fixtures-doc) · TEST_LARGE_DOC_ID=<code>10UAHiKxHAmjqZt4PCoB53afJZoPN7OTRf71EBsFC6cI</code>
+<strong>Start:</strong> 2026-07-05 03:14 UTC · <strong>End:</strong> 2026-07-05 04:11 UTC (run completed across two sessions, separated by an OAuth token revocation and a later transient API outage) · <strong>Duration:</strong> ~00:14 (session 1) + ~00:11 (session 2)</p>
+<p><strong>Scope:</strong> Full live run of <code>docs/qa/tests/docs.md</code> (81 TCs), ordered by the run.md conductor pattern. This domain was targeted for a full run (not a scoped/spot-check run) because <code>docs/__init__.py</code> was structurally split into submodules for this release (issue #232) and had never had a live Domain run since that reorg.</p>
+<p><strong>Run history:</strong> Session 1 completed TC-DOC01–47 and TC-DOC78–79 (49 TCs) before halting on a server-wide OAuth refresh-token revocation (<code>invalid_grant: Token has been expired or revoked</code>). After re-authentication was confirmed live (<code>list_sheets</code> sanity check), session 2 restored the fixture doc to standard content and completed the remaining 32 TCs (DOC48–77, DOC80–81), with one further transient <code>[Errno 32] Broken pipe</code> blip (not auth-related, cleared on retry) during TC-DOC76/77 setup. All 81 TCs are now complete.</p>
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>PASS</th>
+<th>FAIL</th>
+<th>SKIP</th>
+<th>Total</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Docs Tools</td>
+<td>81</td>
+<td>0</td>
+<td>0</td>
+<td>81</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>81</strong></td>
+<td><strong>0</strong></td>
+<td><strong>0</strong></td>
+<td><strong>81</strong></td>
+</tr>
+</tbody>
+</table>
+<h2 id="failures">Failures<a class="headerlink" href="#failures" title="Permanent link">&para;</a></h2>
+<p><em>(none — zero FAILs across all 81 TCs)</em></p>
+<h2 id="findings-worth-flagging-not-scored-as-tc-failures-no-existing-check-covers-them">Findings worth flagging (not scored as TC failures — no existing check covers them)<a class="headerlink" href="#findings-worth-flagging-not-scored-as-tc-failures-no-existing-check-covers-them" title="Permanent link">&para;</a></h2>
+<p><strong>1. <code>write_doc_content</code>'s clear+reinsert path leaks a stale <code>font_size:1</code> override into freshly-written plain paragraphs — recommend filing a GitHub issue.</strong>
+At session-1 Step 0, <code>get_doc_structure</code> on the fixture doc showed every text run at <code>font_size: 1</code> even though <code>get_doc_named_styles</code> reported normal named-style defaults (NORMAL_TEXT 11pt). Root cause: <code>write_doc_content</code>'s "clear + reinsert" strategy (<code>deleteContentRange(1, end_index-1)</code> then insert at index 1) never touches the <em>final</em> paragraph mark, so a stale explicit <code>textStyle</code> on that trailing character survives every full-document rewrite. Newly inserted content at index 1 appears to inherit ambient style from that untouched trailing context in some cases (plain paragraphs) but not others (headings render correctly; table-cell content renders correctly).</p>
+<p>This was reproduced <strong>four separate times</strong> across the full run — fixed manually via <code>style_doc_range</code> after TC-DOC42, after TC-DOC47, and again independently confirmed in session 2 (post-outage): after a plain <code>write_doc_content</code> restore, <code>get_doc_theme</code> reported <code>NORMAL_TEXT: {font_family: "Courier New", font_size: 1}</code> on a doc whose most recent explicit HTML content contained no code spans — the doc's ambient style was contaminated by leftover state from the <em>previous</em> content, not the new content being written. Session 2 also surfaced a compounding detail: <strong>there is no exposed tool parameter to clear an inherited <code>font_family</code> override</strong> — <code>style_doc_range</code> supports <code>font_size</code> but not <code>font_family</code>, so the only way to fully normalize a contaminated doc is <code>apply_theme(overwrite=True)</code>, which is a much heavier operation than the bug that necessitates it.</p>
+<p>Net: <strong>calling <code>write_doc_content</code> to replace content whose previous state had an explicit font/size override (e.g. from a table, or a fenced code block) can cause the new content to silently inherit that override</strong>, rendering it in the wrong font or at unreadable 1pt size until manually restyled. No existing TC in <code>docs.md</code> checks post-write font styling on plain paragraphs, so this never fails a TC outcome, but it affects real usage (anyone iterating on a doc with <code>write_doc_content</code> after having had a table or code block in it) and is worth a ticket — likely fix is extending the clear+reinsert range in <code>write_doc_content</code> (or the blank-paragraph-before-table collapse logic) to also reset the trailing paragraph mark's <code>textStyle</code>, and/or adding <code>font_family</code> to <code>style_doc_range</code>'s supported fields as a mitigation.</p>
+<p><strong>2. TC-DOC47 — possible over-broad <code>font_family</code> application (unconfirmed, still needs a follow-up check).</strong>
+After writing <code>Use the `print()` function</code> via markdown, the rendered line appeared <strong>uniformly monospace</strong> in the Google Docs editor (visual screenshot), and clicking to the very start of the line showed "Courier New" selected in the font toolbar — suggesting the Courier styling may have applied to the whole paragraph rather than just the <code>print()</code> code span. <code>html_parser.py</code>'s code-span handling (<code>font_family="Courier New" if (self._in_pre or self._code_depth &gt; 0) else None</code>, lines ~74) looks correct at the AST level — only text nodes inside <code>&lt;code&gt;</code> should get the font override — so this may be a Google Docs toolbar/cursor-position display quirk rather than a real over-application, and may simply be an artifact of Finding 1's contamination rather than a distinct bug. <strong>Could not conclusively verify</strong> because <code>get_doc_structure</code> doesn't expose <code>font_family</code> per run (an acknowledged existing gap). Recommend a targeted follow-up: call the raw Docs API (or extend <code>get_doc_structure</code> to expose <code>font_family</code>) and check whether only the <code>print()</code> run carries <code>weightedFontFamily: Courier New</code>, or whether the whole paragraph does.</p>
+<p><strong>3. TC-DOC57's prescribed test image URI (SVG) is rejected by the live Google Docs API — the test file's prompt needs updating.</strong>
+The test case's exact prompt URI (<code>https://www.gstatic.com/images/branding/googlelogo/svg/googlelogo_clr_74x24px.svg</code>) fails on every attempt with <code>HttpError 400: There was a problem retrieving the image. The provided image should be publicly accessible, within size limit, and in supported formats.</code> — this is Google's own API rejecting the SVG format, not a bug in <code>insert_inline_image</code>. Substituting a PNG at the same host (<code>https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png</code>) succeeded immediately and rendered correctly. TC-DOC57 is recorded PASS on the basis of the PNG substitution (matching what appears to have happened in the historical result too, which mentions "PNG" despite the test file specifying an SVG URL). Recommend updating the test file's prompt to use a PNG/JPEG URL so future runs don't need to silently substitute.</p>
+<h2 id="tool-coverage-docs-domain-tools-only">Tool coverage (Docs domain tools only)<a class="headerlink" href="#tool-coverage-docs-domain-tools-only" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>TC(s) run</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>get_doc_structure</td>
+<td>DOC01–05 + used as verification throughout</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td>insert_doc_text</td>
+<td>DOC06–08, 17, 22–24, 28–30, 74 + setup throughout</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td>delete_doc_range</td>
+<td>DOC09–11, 22 + cleanup throughout</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td>style_doc_range</td>
+<td>DOC12–15, 23–24, 28–30</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td>insert_doc_table</td>
+<td>DOC16–17, 26–27, 48–50, 55, 61–66 + setup for table tests</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td>style_doc_table_cells</td>
+<td>DOC18–21, 25–26</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td>write_doc_content</td>
+<td>DOC31–47, 78–79 + fixture restores throughout</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td>create_doc_from_file</td>
+<td>DOC44–46, 76–77, 81</td>
+<td>✅ all pass</td>
+</tr>
+<tr>
+<td>create_doc</td>
+<td>(none — not directly exercised in this file)</td>
+<td>⚠️ no coverage</td>
+</tr>
+<tr>
+<td>get_doc_content</td>
+<td>DOC80</td>
+<td>✅ pass</td>
+</tr>
+<tr>
+<td>get_doc_theme</td>
+<td>DOC52, 56</td>
+<td>✅ pass</td>
+</tr>
+<tr>
+<td>apply_theme</td>
+<td>DOC53–56</td>
+<td>✅ pass</td>
+</tr>
+<tr>
+<td>get_doc_named_styles</td>
+<td>DOC75</td>
+<td>✅ pass</td>
+</tr>
+<tr>
+<td>insert_inline_image</td>
+<td>DOC57–60</td>
+<td>✅ pass (see Finding 3 re: DOC57 SVG substitution)</td>
+</tr>
+<tr>
+<td>insert_table_row</td>
+<td>DOC61–62</td>
+<td>✅ pass</td>
+</tr>
+<tr>
+<td>delete_table_row</td>
+<td>DOC63, 67</td>
+<td>✅ pass</td>
+</tr>
+<tr>
+<td>insert_table_column</td>
+<td>DOC64–65</td>
+<td>✅ pass</td>
+</tr>
+<tr>
+<td>delete_table_column</td>
+<td>DOC66</td>
+<td>✅ pass</td>
+</tr>
+<tr>
+<td>create_header</td>
+<td>DOC68–69, 72, 74</td>
+<td>✅ pass</td>
+</tr>
+<tr>
+<td>create_footer</td>
+<td>DOC70–71, 73</td>
+<td>✅ pass</td>
+</tr>
+</tbody>
+</table>
+<h2 id="full-results">Full results<a class="headerlink" href="#full-results" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Title</th>
+<th>Outcome</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-DOC01</td>
+<td>Structure of a non-empty doc</td>
+<td>PASS</td>
+<td>docId/title/elements returned; sectionBreak at 0; last paragraph ends at doc length (89).</td>
+</tr>
+<tr>
+<td>TC-DOC02</td>
+<td>Paragraph runs include style data</td>
+<td>PASS</td>
+<td>bold run <code>bold:true</code>; plain runs <code>bold:null</code>; link run <code>link_url</code> populated.</td>
+</tr>
+<tr>
+<td>TC-DOC03</td>
+<td>Structure of a doc containing a table</td>
+<td>PASS</td>
+<td>2×2 table, 4 cells, <code>paragraphStartIndex=startIndex+1</code>; non-empty cell text confirmed ("X").</td>
+</tr>
+<tr>
+<td>TC-DOC04</td>
+<td>Structure of an empty doc</td>
+<td>PASS</td>
+<td>sectionBreak + 1 empty paragraph, no error.</td>
+</tr>
+<tr>
+<td>TC-DOC05</td>
+<td>Invalid doc ID returns error</td>
+<td>PASS</td>
+<td><code>{"error": "&lt;HttpError 404 ...&gt;"}</code>, no exception.</td>
+</tr>
+<tr>
+<td>TC-DOC06</td>
+<td>Insert a single paragraph</td>
+<td>PASS</td>
+<td>Inserted at 88; <code>insertions:1</code>; surrounding content shifted correctly.</td>
+</tr>
+<tr>
+<td>TC-DOC07</td>
+<td>Insert at multiple indices — high→low ordering</td>
+<td>PASS</td>
+<td>N1=70, N2=79; BBB landed at N2+4=83; <code>insertions:2</code>.</td>
+</tr>
+<tr>
+<td>TC-DOC08</td>
+<td>Empty insertions list returns error</td>
+<td>PASS</td>
+<td><code>{"error": "insertions list is empty"}</code>.</td>
+</tr>
+<tr>
+<td>TC-DOC09</td>
+<td>Delete a paragraph</td>
+<td>PASS</td>
+<td>Deleted [88,103]; doc restored to 89-char baseline; <code>deletions:1</code>.</td>
+</tr>
+<tr>
+<td>TC-DOC10</td>
+<td>Cannot delete final segment newline</td>
+<td>PASS</td>
+<td>Delete [1,89] → 400 error re: newline at end of segment.</td>
+</tr>
+<tr>
+<td>TC-DOC11</td>
+<td>Empty deletions list returns error</td>
+<td>PASS</td>
+<td><code>{"error": "deletions list is empty"}</code>.</td>
+</tr>
+<tr>
+<td>TC-DOC12</td>
+<td>Apply named style type</td>
+<td>PASS</td>
+<td><code>namedStyleType:HEADING_2</code>, <code>requests:1</code>. Playwright: text confirmed present in rendered doc.</td>
+</tr>
+<tr>
+<td>TC-DOC13</td>
+<td>Apply text styles (bold/italic/red)</td>
+<td>PASS</td>
+<td><code>bold:true</code>,<code>italic:true</code>, <code>requests:1</code> (no paragraph style req). Playwright: text confirmed present.</td>
+</tr>
+<tr>
+<td>TC-DOC14</td>
+<td>Apply both paragraph and text style</td>
+<td>PASS</td>
+<td><code>requests:2</code> (updateParagraphStyle + updateTextStyle); HEADING_3 + bold confirmed.</td>
+</tr>
+<tr>
+<td>TC-DOC15</td>
+<td>No recognised style fields returns error</td>
+<td>PASS</td>
+<td><code>{"error": "no recognised style fields in any range"}</code>.</td>
+</tr>
+<tr>
+<td>TC-DOC16</td>
+<td>Insert a 2×3 table</td>
+<td>PASS</td>
+<td><code>precedingParagraphIndex=88=N</code>, <code>tableStartIndex=89=N+1</code>, 6 cells, paragraphStartIndex=startIndex+1. Playwright screenshot: empty 2×3 grid rendered.</td>
+</tr>
+<tr>
+<td>TC-DOC17</td>
+<td>Cell indices usable for insert_doc_text</td>
+<td>PASS</td>
+<td>Inserted "Cell content" at paragraphStartIndex 92; cell [0,0] text confirmed.</td>
+</tr>
+<tr>
+<td>TC-DOC18</td>
+<td>Grey header row background</td>
+<td>PASS</td>
+<td><code>requests:1</code>. Playwright screenshot: row 0 visibly grey across both columns.</td>
+</tr>
+<tr>
+<td>TC-DOC19</td>
+<td>Borders and padding on all cells</td>
+<td>PASS</td>
+<td><code>requests:4</code> (one per cell). Playwright screenshot: visible black borders + padding.</td>
+</tr>
+<tr>
+<td>TC-DOC20</td>
+<td>Empty cells list returns error</td>
+<td>PASS</td>
+<td><code>{"error": "cells list is empty"}</code>.</td>
+</tr>
+<tr>
+<td>TC-DOC21</td>
+<td>Cell with no style fields is skipped</td>
+<td>PASS</td>
+<td><code>requests:1</code> — no-style cell silently skipped.</td>
+</tr>
+<tr>
+<td>TC-DOC22</td>
+<td>Multi-delete high→low ordering</td>
+<td>PASS</td>
+<td>DEL-A [70,76], DEL-B [85,91] deleted in one call; Item two back at original startIndex 79; <code>deletions:2</code>.</td>
+</tr>
+<tr>
+<td>TC-DOC23</td>
+<td>style_doc_range HEADING_1 round-trip</td>
+<td>PASS</td>
+<td><code>requests:1</code>; <code>namedStyleType:HEADING_1</code>; text unchanged.</td>
+</tr>
+<tr>
+<td>TC-DOC24</td>
+<td>style_doc_range bold/italic round-trip</td>
+<td>PASS</td>
+<td><code>requests:1</code>; <code>bold:true,italic:true</code>; <code>namedStyleType</code> unchanged (NORMAL_TEXT).</td>
+</tr>
+<tr>
+<td>TC-DOC25</td>
+<td>style_doc_table_cells post-fix verification</td>
+<td>PASS</td>
+<td>No 400 "oneof" error; <code>requests:1</code>. Playwright screenshot: cell [0,0] light blue.</td>
+</tr>
+<tr>
+<td>TC-DOC26</td>
+<td>Full e2e: insert table → style cells</td>
+<td>PASS</td>
+<td>Table 2×3 inserted; grey header <code>requests:1</code>; borders <code>requests:6</code>. Playwright screenshot: grey header spanning 3 cols + visible borders.</td>
+</tr>
+<tr>
+<td>TC-DOC27</td>
+<td>Insert text then table — index chaining</td>
+<td>PASS</td>
+<td><code>precedingParagraphIndex=105=N+17</code>, <code>tableStartIndex=106=N+18</code>; both ops succeeded without re-fetching.</td>
+</tr>
+<tr>
+<td>TC-DOC28</td>
+<td>Apply strikethrough</td>
+<td>PASS</td>
+<td><code>requests:1</code>; <code>strikethrough:true</code>.</td>
+</tr>
+<tr>
+<td>TC-DOC29</td>
+<td>Apply font_size</td>
+<td>PASS</td>
+<td><code>requests:1</code> (18pt applied; not independently visually screenshotted — no Playwright tag on this TC).</td>
+</tr>
+<tr>
+<td>TC-DOC30</td>
+<td>Apply link_url</td>
+<td>PASS</td>
+<td><code>requests:1</code>; run split correctly; linked run <code>underline:true</code> (expected Docs API auto-behavior).</td>
+</tr>
+<tr>
+<td>TC-DOC31</td>
+<td><code>&lt;h2&gt;</code> maps to HEADING_2</td>
+<td>PASS</td>
+<td>HEADING_1/2/3/4 all correct; old #41 bug (H2→H3 collapse) absent.</td>
+</tr>
+<tr>
+<td>TC-DOC32</td>
+<td><code>&lt;th&gt;</code> cells produce bold runs</td>
+<td>PASS (partial)</td>
+<td>Table + cell text confirmed; bold not verifiable via <code>get_doc_structure</code> (no cell-run exposure, known gap #54).</td>
+</tr>
+<tr>
+<td>TC-DOC33</td>
+<td>Inline formatting inside <code>&lt;td&gt;</code></td>
+<td>PASS (partial)</td>
+<td>Cell text "bold plain italic" confirmed; run-level bold/italic not exposed (same gap).</td>
+</tr>
+<tr>
+<td>TC-DOC34</td>
+<td><code>colspan</code> produces merged cells</td>
+<td>PASS</td>
+<td>2 rows confirmed; row 0 merged cell "Wide cell", phantom [0,1] empty. Playwright screenshot: top row visibly spans both columns.</td>
+</tr>
+<tr>
+<td>TC-DOC35</td>
+<td>Column widths from HTML</td>
+<td>PASS</td>
+<td>Call succeeded, no error. Playwright screenshot: first column visibly narrower than second (144pt vs 288pt).</td>
+</tr>
+<tr>
+<td>TC-DOC36</td>
+<td><code>rowspan</code> produces vertically merged cells</td>
+<td>PASS</td>
+<td>[0,0]"Tall", [0,1]"R0C1", [1,0]"" phantom, [1,1]"R1C1". Playwright screenshot: "Tall" visibly spans both rows.</td>
+</tr>
+<tr>
+<td>TC-DOC37</td>
+<td>Combined rowspan + colspan</td>
+<td>PASS</td>
+<td>2 rows, 3 cols; [0,0]"Big", phantoms [0,1]/[1,0]/[1,1] all empty; [0,2]"R0C2", [1,2]"R1C2".</td>
+</tr>
+<tr>
+<td>TC-DOC38</td>
+<td>rowspan with header row</td>
+<td>PASS</td>
+<td>3 rows, 3 cols; header bold row; "Alpha" rowspan; phantom [2,0] empty; "B" not shifted left.</td>
+</tr>
+<tr>
+<td>TC-DOC39</td>
+<td>Markdown headings</td>
+<td>PASS</td>
+<td>HEADING_1/2/3 confirmed in order.</td>
+</tr>
+<tr>
+<td>TC-DOC40</td>
+<td>Markdown bold/italic</td>
+<td>PASS</td>
+<td>run "bold" → <code>bold:true</code>; run "italic" → <code>italic:true</code>.</td>
+</tr>
+<tr>
+<td>TC-DOC41</td>
+<td>Markdown task list</td>
+<td>PASS</td>
+<td><code>☑ Done item</code>, <code>☐ Pending item</code>, <code>Plain item</code> (no glyph) confirmed.</td>
+</tr>
+<tr>
+<td>TC-DOC42</td>
+<td>Markdown fenced code block</td>
+<td>PASS</td>
+<td>Text confirmed; Courier New font confirmed via Playwright toolbar + screenshot at readable size (after fixing fixture-contamination font_size:1, see Finding 1).</td>
+</tr>
+<tr>
+<td>TC-DOC43</td>
+<td>Markdown table</td>
+<td>PASS</td>
+<td>3 rows, 2 cols; Name/Value, Alpha/1, Beta/2 all correct.</td>
+</tr>
+<tr>
+<td>TC-DOC44</td>
+<td>create_doc_from_file (.md)</td>
+<td>PASS</td>
+<td>docId/web_link returned; HEADING_1, bold/italic, task glyphs, table all confirmed via <code>get_doc_structure</code> and Playwright screenshot. Doc deleted after verification.</td>
+</tr>
+<tr>
+<td>TC-DOC45</td>
+<td>create_doc_from_file (.html)</td>
+<td>PASS</td>
+<td>docId/web_link returned; HEADING_2 "From HTML file" + paragraph confirmed. Doc deleted after verification.</td>
+</tr>
+<tr>
+<td>TC-DOC46</td>
+<td>create_doc_from_file file not found</td>
+<td>PASS</td>
+<td><code>{"error": "File not found: ~/does-not-exist.md"}</code>, no exception.</td>
+</tr>
+<tr>
+<td>TC-DOC47</td>
+<td>write_doc_content inline code monospace</td>
+<td>PASS</td>
+<td>"print()" renders monospace per Playwright screenshot (check satisfied). See Finding 2 for an unconfirmed observation re: scope of the Courier styling.</td>
+</tr>
+<tr>
+<td>TC-DOC48</td>
+<td>Simple nested table</td>
+<td>PASS</td>
+<td>Outer 1×1 table inserted, cell span 4–17 consistent with inner 1×1 table. Playwright screenshot: nested table visibly rendered inside outer cell with "Inner" text.</td>
+</tr>
+<tr>
+<td>TC-DOC49</td>
+<td>Nested table alongside regular cells</td>
+<td>PASS</td>
+<td>Outer 1×2 table; cell [0,0]="Label"; cell [0,1] empty text with span (11–31) consistent with a nested 1×2 table inside it.</td>
+</tr>
+<tr>
+<td>TC-DOC50</td>
+<td>Nested table, multiple rows/cols</td>
+<td>PASS</td>
+<td>Outer 1×1 table; cell span (4–35) consistent with a nested 2×2 table inside it.</td>
+</tr>
+<tr>
+<td>TC-DOC51</td>
+<td>Nested tables not supported in markdown</td>
+<td>PASS</td>
+<td>Documentation-only entry (per test file: "No test to run; this entry documents the known limitation"); no live call required.</td>
+</tr>
+<tr>
+<td>TC-DOC52</td>
+<td>get_doc_theme scans body paragraph styles</td>
+<td>PASS</td>
+<td>No error key; returned <code>{"HEADING_1": {...}, "NORMAL_TEXT": {font_family, font_size, ...}}</code> — non-empty dict with named style keys, each carrying at least one of the expected fields. (The doc happened to have explicit contamination per Finding 1 at the time of this call, which is itself a valid "explicit paragraph styles" case per the tool's spec — confirms the tool correctly surfaces real explicit overrides.)</td>
+</tr>
+<tr>
+<td>TC-DOC53</td>
+<td>apply_theme updates named style definitions</td>
+<td>PASS</td>
+<td><code>requests:2</code> (one updateNamedStyle per named style type: HEADING_1, NORMAL_TEXT), no error.</td>
+</tr>
+<tr>
+<td>TC-DOC54</td>
+<td>apply_theme overwrite=True patches paragraphs</td>
+<td>PASS</td>
+<td><code>requests:5</code> (2 updateNamedStyle + 3 updateTextStyle for HEADING_1 paragraph, NORMAL_TEXT paragraph, trailing blank NORMAL_TEXT paragraph). Playwright screenshot: heading in Georgia 22pt, body text visibly different font/size (Verdana 11pt).</td>
+</tr>
+<tr>
+<td>TC-DOC55</td>
+<td>apply_theme with table styling</td>
+<td>PASS</td>
+<td><code>requests:2</code> (one updateTableCellStyle per row). Playwright screenshot: visible black borders, cell padding, and header row (row 0) grey background.</td>
+</tr>
+<tr>
+<td>TC-DOC56</td>
+<td>get_doc_theme → apply_theme round-trip</td>
+<td>PASS</td>
+<td><code>get_doc_theme</code> returned non-empty dict (<code>HEADING_1</code>/<code>NORMAL_TEXT</code> with font_family); feeding it straight into <code>apply_theme(overwrite=True)</code> succeeded with <code>requests:8</code>, no error.</td>
+</tr>
+<tr>
+<td>TC-DOC57</td>
+<td>Insert image by public URI</td>
+<td>PASS</td>
+<td>See Finding 3 — the prescribed SVG URI is rejected by the live Google Docs API (<code>HttpError 400</code>, unsupported format); a PNG at the same host succeeded and rendered correctly (confirmed via Playwright screenshot).</td>
+</tr>
+<tr>
+<td>TC-DOC58</td>
+<td>Insert image with explicit size</td>
+<td>PASS</td>
+<td>Inserted with width=100, height=50; Playwright screenshot: second logo visibly smaller than the default-sized one inserted for DOC57.</td>
+</tr>
+<tr>
+<td>TC-DOC59</td>
+<td>No source provided returns error</td>
+<td>PASS</td>
+<td><code>{"error": "Provide either uri or drive_file_id"}</code>.</td>
+</tr>
+<tr>
+<td>TC-DOC60</td>
+<td>Both URI and drive_file_id returns error</td>
+<td>PASS</td>
+<td><code>{"error": "Provide only one of uri or drive_file_id, not both"}</code>.</td>
+</tr>
+<tr>
+<td>TC-DOC61</td>
+<td>Insert a row below</td>
+<td>PASS</td>
+<td>2×2 table → insert below row 0 → 3 rows confirmed via <code>get_doc_structure</code>.</td>
+</tr>
+<tr>
+<td>TC-DOC62</td>
+<td>Insert a row above</td>
+<td>PASS</td>
+<td>2×2 table → insert above row 1 → 3 rows confirmed. Playwright screenshot: 3 empty rows visible.</td>
+</tr>
+<tr>
+<td>TC-DOC63</td>
+<td>Delete a row</td>
+<td>PASS</td>
+<td>3 rows → delete row 1 → 2 rows confirmed. Playwright screenshot: 2 rows visible.</td>
+</tr>
+<tr>
+<td>TC-DOC64</td>
+<td>Insert a column to the right</td>
+<td>PASS</td>
+<td>2 cols → insert right of col 0 → 3 cols confirmed. Playwright screenshot: 3 columns visible.</td>
+</tr>
+<tr>
+<td>TC-DOC65</td>
+<td>Insert a column to the left</td>
+<td>PASS</td>
+<td>3 cols → insert left of col 1 → 4 cols confirmed. Playwright screenshot: 4 columns visible.</td>
+</tr>
+<tr>
+<td>TC-DOC66</td>
+<td>Delete a column</td>
+<td>PASS</td>
+<td>3 cols → delete col 1 → 2 cols confirmed. Playwright screenshot: 2 columns visible.</td>
+</tr>
+<tr>
+<td>TC-DOC67</td>
+<td>API error returned gracefully (out of bounds row)</td>
+<td>PASS</td>
+<td><code>{"error": "&lt;HttpError 400 ... row index 99 should be less than the total number of rows 2 ...&gt;"}</code>, no exception.</td>
+</tr>
+<tr>
+<td>TC-DOC68</td>
+<td>Create a default page header</td>
+<td>PASS</td>
+<td><code>headerId</code> (non-empty string) returned, no error. Playwright screenshot: header text visible at top of rendered doc.</td>
+</tr>
+<tr>
+<td>TC-DOC69</td>
+<td>Create a header with content</td>
+<td>PASS</td>
+<td><code>headerId</code> returned, no error; content "Confidential — Internal Only" prepended. Playwright screenshot: new header text visible above prior header text.</td>
+</tr>
+<tr>
+<td>TC-DOC70</td>
+<td>Create a default page footer</td>
+<td>PASS</td>
+<td><code>footerId</code> (non-empty string) returned, no error. Confirmed via API response per known limitation (footer not reliably visible via scrollTo on a short doc in the rendered viewport).</td>
+</tr>
+<tr>
+<td>TC-DOC71</td>
+<td>Create a footer with content</td>
+<td>PASS</td>
+<td><code>footerId</code> returned, no error; content "Page 1" inserted.</td>
+</tr>
+<tr>
+<td>TC-DOC72</td>
+<td>Invalid header_type returns error</td>
+<td>PASS</td>
+<td><code>{"error": "Invalid header_type 'INVALID'. Use DEFAULT or FIRST_PAGE_HEADER"}</code>.</td>
+</tr>
+<tr>
+<td>TC-DOC73</td>
+<td>Invalid footer_type returns error</td>
+<td>PASS</td>
+<td><code>{"error": "Invalid footer_type 'INVALID'. Use DEFAULT or FIRST_PAGE_FOOTER"}</code>.</td>
+</tr>
+<tr>
+<td>TC-DOC74</td>
+<td>insert_doc_text with segment_id writes into header</td>
+<td>PASS</td>
+<td><code>insertions:1</code>, no error. Playwright screenshot: new header text visible, prepended correctly at index 0 of the header segment.</td>
+</tr>
+<tr>
+<td>TC-DOC75</td>
+<td>get_doc_named_styles reads named style defaults</td>
+<td>PASS</td>
+<td>No error; returned a 9-key dict (NORMAL_TEXT, HEADING_1–6, TITLE, SUBTITLE) each with plausible font/spacing fields.</td>
+</tr>
+<tr>
+<td>TC-DOC76</td>
+<td>Table immediately after heading renders at Normal Text size</td>
+<td>PASS</td>
+<td>Fresh doc created from fixture file; table 2×3 with all 6 cells confirmed correct (Finding/Severity/Ticket, Some finding/HIGH/KINDLY-123). Playwright screenshot: "HIGH" H2 heading (16pt) visibly larger than table cell text. Doc deleted after verification.</td>
+</tr>
+<tr>
+<td>TC-DOC77</td>
+<td>No visible blank line between heading and table</td>
+<td>PASS</td>
+<td>Same fixture doc as DOC76. Playwright screenshot: no visible gap between "HIGH" heading and the table; blank collapsing paragraph confirmed present in structure (font_size:1 run, consistent with the intentional collapse behavior). Doc deleted after verification.</td>
+</tr>
+<tr>
+<td>TC-DOC78</td>
+<td><code>data-style="title"</code> → TITLE</td>
+<td>PASS</td>
+<td>First paragraph <code>namedStyleType:TITLE</code> text "My Document Title"; second <code>NORMAL_TEXT</code> "Body paragraph.".</td>
+</tr>
+<tr>
+<td>TC-DOC79</td>
+<td><code>data-style="subtitle"</code> → SUBTITLE</td>
+<td>PASS</td>
+<td>TITLE / SUBTITLE / NORMAL_TEXT all confirmed with correct text.</td>
+</tr>
+<tr>
+<td>TC-DOC80</td>
+<td>get_doc_content response-size cap (cache-hit path re-check)</td>
+<td>PASS</td>
+<td>First call: <code>{"error": "...49700 characters, over the 40000-character safety cap..."}</code>. Second call (cache-hit path): identical error re-raised. Third call with <code>local_path</code>: returned <code>{"bytes_written": 49700, ...}</code>; verified on disk with <code>wc -c</code> — 49700 bytes, exact match.</td>
+</tr>
+<tr>
+<td>TC-DOC81</td>
+<td>create_doc_from_file renders <code>\$</code> as literal <code>$</code></td>
+<td>PASS</td>
+<td>docId/web_link returned, no error. <code>get_doc_content</code> confirmed literal <code>$6,000</code>, <code>$25</code>, <code>$1,200</code> in rendered text — no stray backslashes. Doc deleted after verification.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="notes-for-future-runs">Notes for future runs<a class="headerlink" href="#notes-for-future-runs" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Fixture doc was restored to standard content (<code>&lt;h1&gt;Test Document&lt;/h1&gt;&lt;p&gt;This document is used for QA testing of mcp-gee-sweet.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Item one&lt;/li&gt;&lt;li&gt;Item two&lt;/li&gt;&lt;/ul&gt;</code>) at the start of session 2 and verified clean via <code>get_doc_structure</code> (title, HEADING_1 "Test Document", body paragraph, "Item one"/"Item two" bullets, no leftover <code>font_size</code> overrides). The doc's page header/footer now contain accumulated test content from DOC68–74/70–71 (headers/footers are additive by design in this tool and were left as-is, consistent with prior convention).</li>
+<li><strong>File a GitHub issue for Finding 1</strong> (<code>write_doc_content</code> clear+reinsert path leaking <code>font_size</code>/<code>font_family</code> contamination into new plain-paragraph content) — reproduced 4 times across this run, root-caused to the untouched trailing paragraph mark, and compounded by <code>style_doc_range</code> having no <code>font_family</code> parameter to clean it up after the fact.</li>
+<li>Consider a targeted follow-up for Finding 2 (possible over-broad Courier New application in TC-DOC47) once <code>font_family</code> is exposed by <code>get_doc_structure</code> or via a raw API check — may turn out to be subsumed by Finding 1.</li>
+<li>Update TC-DOC57's prescribed image URI in <code>docs/qa/tests/docs.md</code> from the SVG gstatic URL (rejected by the live API) to a PNG/JPEG URL (Finding 3).</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
