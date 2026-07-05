@@ -1413,7 +1413,8 @@ Fetch-path call raised: `get_doc_content: the response is 49700 characters, over
 
 **Cleanup:** delete the created doc
 
-**Result: PENDING** — blocked on a Claude Code restart to reconnect to the SSE server running this code (server hot-reloads the file; the client session does not reconnect automatically). Run this test after restart, before merging.
+**Result (2026-07-05) ✅ PASS**
+`create_doc` succeeded (docId `1F66ZQQMuBx9CjaGx49bBg6DlcVMAYMnqnuYHtouyfIU`). `get_doc_structure` confirmed all four checks: `https://example.com/some-page` run has `link_url` set with the trailing `.` split into its own unlinked run; `https://example.com/parens` run has `link_url` set with both wrapping parens split into unlinked runs; the markdown link's `click` run has `link_url: "https://example.com/existing"` (untouched, not double-processed); the backtick-wrapped `https://example.com/code` run has `link_url: null`. Doc trashed after verification.
 
 ---
 
@@ -1429,5 +1430,8 @@ Fetch-path call raised: `get_doc_content: the response is 49700 characters, over
 - `get_doc_structure` shows the URL text present with `link_url: null` (no hyperlink applied)
 
 **Cleanup:** delete the created doc
+
+**Result (2026-07-05) ✅ PASS**
+`create_doc` succeeded (docId `1elTfZ70c6AO66cjLQ7O-PrzzUlYGmVwiKuNWjDXVMGI`). `get_doc_structure` confirmed the entire line ("See https://example.com/inert here") is a single unstyled run — no `link_url`, no underline. Doc trashed after verification.
 
 **Result: PENDING** — same restart blocker as TC-DOC82.
