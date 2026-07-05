@@ -218,6 +218,8 @@ SUBSETS = [
             "create_calendar",
             "update_calendar",
             "delete_calendar",
+            "add_calendar_to_list",
+            "remove_calendar_from_list",
             "list_events",
             "get_event",
             "create_event",

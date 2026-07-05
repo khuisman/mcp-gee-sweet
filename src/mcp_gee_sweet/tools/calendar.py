@@ -207,6 +207,77 @@ def register(tool):
         logger.debug("Deleted calendar %s", calendar_id)
         return {"calendar_id": calendar_id, "action": "deleted"}
 
+    @tool(annotations=ToolAnnotations(title="Add Calendar To List", destructiveHint=True))
+    def add_calendar_to_list(
+        calendar_id: str,
+        color_id: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Subscribe the authenticated user (or service account) to a calendar,
+        adding it to their calendar list so it appears in list_calendars.
+
+        This does not create or share a calendar — it only adds an existing,
+        already-accessible calendar to your own list. For service accounts,
+        this is the required step before a calendar shared with the service
+        account's email will show up in list_calendars.
+
+        Args:
+            calendar_id: The calendar ID to subscribe to (e.g. the owner's email
+                         for a personal calendar, or a `...@group.calendar.google.com` ID).
+            color_id: Optional color ID from the palette returned by the Calendar
+                      API's colors().get() endpoint (predefined IDs, typically '1'-'24').
+
+        Returns:
+            The new calendar list entry: id, summary, time_zone, access_role,
+            primary, color_id.
+        """
+        lc = ctx.request_context.lifespan_context
+
+        body: dict[str, Any] = {"id": calendar_id}
+        if color_id is not None:
+            body["colorId"] = color_id
+
+        try:
+            c = lc.calendar_service.calendarList().insert(body=body).execute()
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.calendar_cache.mark_dirty(c["id"])
+        logger.debug("Added calendar %s to calendar list", c["id"])
+        return {
+            "id": c["id"],
+            "summary": c.get("summary", ""),
+            "time_zone": c.get("timeZone"),
+            "access_role": c.get("accessRole"),
+            "primary": c.get("primary", False),
+            "color_id": c.get("colorId"),
+        }
+
+    @tool(annotations=ToolAnnotations(title="Remove Calendar From List", destructiveHint=True))
+    def remove_calendar_from_list(calendar_id: str, ctx: Context = None) -> dict[str, Any]:
+        """
+        Unsubscribe from a calendar, removing it from the authenticated user's
+        calendar list. The calendar itself is not deleted and is unaffected for
+        any other user it's shared with — use delete_calendar to permanently
+        delete a calendar you own.
+
+        Args:
+            calendar_id: The calendar ID to remove from the list.
+
+        Returns:
+            Confirmation with calendar_id and action 'removed_from_list'.
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            lc.calendar_service.calendarList().delete(calendarId=calendar_id).execute()
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.calendar_cache.mark_dirty(calendar_id)
+        logger.debug("Removed calendar %s from calendar list", calendar_id)
+        return {"calendar_id": calendar_id, "action": "removed_from_list"}
+
     @tool(annotations=ToolAnnotations(title="List Events", readOnlyHint=True))
     def list_events(
         calendar_id: str,

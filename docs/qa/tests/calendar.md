@@ -243,6 +243,87 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 ---
 
+## `add_calendar_to_list`
+
+### TC-CAL53: Subscribe to an existing calendar ⚠️ destructive
+
+**Setup:** a calendar you have access to but haven't subscribed to (e.g. one shared with you, or one created and then removed from your list in TC-CAL55)
+
+**Prompt**
+> "Subscribe me to calendar {CALENDAR_ID_UNSUBSCRIBED}"
+
+**Checks**
+- Returns `id`, `summary`, `time_zone`, `access_role`, `primary`, `color_id`
+- Calendar now appears in a follow-up `list_calendars` call (cache invalidated)
+- Calendar itself is unaffected — its `summary`/`description` are unchanged (verify with `get_calendar`)
+
+---
+
+### TC-CAL54: Subscribe with a color ⚠️ destructive
+
+**Setup:** another calendar not yet in your list
+
+**Prompt**
+> "Subscribe me to calendar {CALENDAR_ID_UNSUBSCRIBED_2} with color ID '7'"
+
+**Checks**
+- `color_id` in the response is `7`
+- Calendar appears in `list_calendars`
+
+---
+
+### TC-CAL55: Non-existent calendar ID
+
+**Prompt**
+> "Subscribe me to calendar 'totally-invalid-cal-id@example.com'"
+
+**Checks**
+- Returns `{"error": "..."}` — not a top-level exception
+- No entry added to the calendar list
+
+---
+
+## `remove_calendar_from_list`
+
+### TC-CAL56: Unsubscribe from a calendar ⚠️ destructive
+
+**Setup:** use the calendar subscribed to in TC-CAL53
+
+**Prompt**
+> "Remove calendar {CALENDAR_ID_UNSUBSCRIBED} from my calendar list"
+
+**Checks**
+- Returns `{"calendar_id": "...", "action": "removed_from_list"}`
+- Calendar no longer appears in a follow-up `list_calendars` call
+- The calendar itself still exists and is unaffected for other users it's shared with (verify with `get_calendar` using a different principal, or note that the calendar resource itself is untouched — only the subscription is removed)
+
+---
+
+### TC-CAL57: Unsubscribing does not delete the calendar ⚠️ destructive
+
+**Setup:** use the calendar subscribed to in TC-CAL54
+
+**Prompt**
+> "Remove calendar {CALENDAR_ID_UNSUBSCRIBED_2} from my calendar list, then check whether it still exists"
+
+**Checks**
+- `remove_calendar_from_list` succeeds
+- The calendar is absent from `list_calendars` afterward
+- Confirms `remove_calendar_from_list` is distinct from `delete_calendar` — no permanent deletion occurs
+
+---
+
+### TC-CAL58: Non-existent calendar ID
+
+**Prompt**
+> "Remove calendar 'totally-invalid-cal-id@example.com' from my calendar list"
+
+**Checks**
+- Returns `{"error": "..."}` — not a top-level exception
+- No side effects
+
+---
+
 ## `list_events`
 
 ### TC-CAL09: No time filters — upcoming events

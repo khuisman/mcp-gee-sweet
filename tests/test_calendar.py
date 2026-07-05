@@ -259,6 +259,106 @@ class TestDeleteCalendar:
         cache.mark_dirty.assert_not_called()
 
 
+class TestAddCalendarToList:
+    """add_calendar_to_list subscribes via calendarList().insert() and invalidates the cache."""
+
+    def test_builds_body_from_calendar_id_and_maps_response(self):
+        """calendar_id goes in body['id']; response is field-mapped including color_id."""
+        cal_svc = MagicMock()
+        cal_svc.calendarList.return_value.insert.return_value.execute.return_value = {
+            "id": "shared-cal@example.com",
+            "summary": "Shared Calendar",
+            "timeZone": "America/Los_Angeles",
+            "accessRole": "reader",
+            "primary": False,
+            "colorId": "5",
+        }
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = _cal_tools["add_calendar_to_list"](
+            calendar_id="shared-cal@example.com", color_id="5", ctx=ctx
+        )
+
+        body = cal_svc.calendarList.return_value.insert.call_args.kwargs["body"]
+        assert body == {"id": "shared-cal@example.com", "colorId": "5"}
+        assert result["id"] == "shared-cal@example.com"
+        assert result["access_role"] == "reader"
+        assert result["color_id"] == "5"
+
+    def test_omits_color_id_from_body_when_not_provided(self):
+        """When color_id is omitted, the insert body must only have 'id'."""
+        cal_svc = MagicMock()
+        cal_svc.calendarList.return_value.insert.return_value.execute.return_value = {
+            "id": "shared-cal@example.com",
+            "summary": "Shared Calendar",
+        }
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        _cal_tools["add_calendar_to_list"](calendar_id="shared-cal@example.com", ctx=ctx)
+
+        body = cal_svc.calendarList.return_value.insert.call_args.kwargs["body"]
+        assert body == {"id": "shared-cal@example.com"}
+
+    def test_marks_cache_dirty_with_calendar_id(self):
+        """calendar_cache.mark_dirty must be called with the subscribed calendar's id."""
+        cal_svc = MagicMock()
+        cal_svc.calendarList.return_value.insert.return_value.execute.return_value = {
+            "id": "shared-cal@example.com",
+            "summary": "Shared Calendar",
+        }
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        _cal_tools["add_calendar_to_list"](calendar_id="shared-cal@example.com", ctx=ctx)
+
+        cache.mark_dirty.assert_called_once_with("shared-cal@example.com")
+
+    def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
+        """When calendarList().insert() raises, result must be {"error": ...} and cache stays clean."""
+        cal_svc = MagicMock()
+        cal_svc.calendarList.return_value.insert.return_value.execute.side_effect = Exception(
+            "notFound"
+        )
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = _cal_tools["add_calendar_to_list"](calendar_id="bad-cal@example.com", ctx=ctx)
+
+        assert "error" in result
+        cache.mark_dirty.assert_not_called()
+
+
+class TestRemoveCalendarFromList:
+    """remove_calendar_from_list returns a structured confirmation and invalidates the cache."""
+
+    def test_success_returns_confirmation_dict_and_marks_cache_dirty(self):
+        """Result must be {calendar_id, action='removed_from_list'} and cache is dirtied."""
+        cal_svc = MagicMock()
+        cal_svc.calendarList.return_value.delete.return_value.execute.return_value = None
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = _cal_tools["remove_calendar_from_list"](calendar_id="cal-1", ctx=ctx)
+
+        assert result == {"calendar_id": "cal-1", "action": "removed_from_list"}
+        cache.mark_dirty.assert_called_once_with("cal-1")
+
+    def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
+        """If delete raises, result has 'error' key and the cache must not be dirtied."""
+        cal_svc = MagicMock()
+        cal_svc.calendarList.return_value.delete.return_value.execute.side_effect = Exception(
+            "Not Found"
+        )
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = _cal_tools["remove_calendar_from_list"](calendar_id="cal-missing", ctx=ctx)
+
+        assert "error" in result
+        cache.mark_dirty.assert_not_called()
+
+
 class TestCreateEvent:
     """create_event detects all-day events, passes attendees, and invalidates the cache."""
 
