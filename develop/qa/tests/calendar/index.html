@@ -1410,6 +1410,117 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#add_calendar_to_list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_calendar_to_list
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="add_calendar_to_list">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal53-subscribe-to-an-existing-calendar-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL53: Subscribe to an existing calendar ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal54-subscribe-with-a-color-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL54: Subscribe with a color ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal55-non-existent-calendar-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL55: Non-existent calendar ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remove_calendar_from_list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        remove_calendar_from_list
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="remove_calendar_from_list">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal56-unsubscribe-from-a-calendar-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL56: Unsubscribe from a calendar ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal57-unsubscribing-does-not-delete-the-calendar-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL57: Unsubscribing does not delete the calendar ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal58-non-existent-calendar-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL58: Non-existent calendar ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal59-cannot-unsubscribe-from-a-calendar-you-own" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL59: Cannot unsubscribe from a calendar you own
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#list_events" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2403,6 +2514,86 @@
 - Returns <code>{"error": "..."}</code> — not a top-level exception
 - No side effects</p>
 <p><strong>Result (2026-07-05) ✅</strong> — Returned <code>{"error": "&lt;HttpError 404 ... 'reason': 'notFound' ...&gt;"}</code>. No side effects.</p>
+<hr />
+<h2 id="add_calendar_to_list"><code>add_calendar_to_list</code><a class="headerlink" href="#add_calendar_to_list" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Note on test targets:</strong> subscribing/unsubscribing only makes sense for a calendar you don't own — Google's API rejects unsubscribing from a calendar you're the owner of (see TC-CAL59). Public holiday calendars (e.g. <code>en.japanese#holiday@group.v.calendar.google.com</code>, <code>en.canadian#holiday@group.v.calendar.google.com</code>) are convenient, safe, reversible targets: not owned by any test account, freely subscribable, and already used elsewhere in this account for <code>en.usa#holiday@group.v.calendar.google.com</code>.</p>
+</blockquote>
+<h3 id="tc-cal53-subscribe-to-an-existing-calendar-destructive">TC-CAL53: Subscribe to an existing calendar ⚠️ destructive<a class="headerlink" href="#tc-cal53-subscribe-to-an-existing-calendar-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> a public calendar not currently in your list, e.g. <code>en.japanese#holiday@group.v.calendar.google.com</code> (Holidays in Japan)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Subscribe me to calendar 'en.japanese#holiday@group.v.calendar.google.com'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>id</code>, <code>summary</code>, <code>time_zone</code>, <code>access_role</code>, <code>primary</code>, <code>color_id</code>
+- Calendar now appears in a follow-up <code>list_calendars</code> call (cache invalidated)</p>
+<p><strong>Result (2026-07-05) ✅</strong> — Response had <code>summary: "Holidays in Japan"</code>, <code>access_role: "reader"</code>, <code>color_id: "8"</code> (Google's default color for this public calendar). Confirmed present in a follow-up <code>list_calendars</code> call.</p>
+<hr />
+<h3 id="tc-cal54-subscribe-with-a-color-destructive">TC-CAL54: Subscribe with a color ⚠️ destructive<a class="headerlink" href="#tc-cal54-subscribe-with-a-color-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> another public calendar not yet in your list, e.g. <code>en.canadian#holiday@group.v.calendar.google.com</code> (Holidays in Canada)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Subscribe me to calendar 'en.canadian#holiday@group.v.calendar.google.com' with color ID '7'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>color_id</code> in the response is <code>7</code>
+- Calendar appears in <code>list_calendars</code></p>
+<p><strong>Result (2026-07-05) ✅</strong> — Response had <code>color_id: "7"</code> and <code>summary: "Holidays in Canada"</code>. Confirmed present in <code>list_calendars</code>.</p>
+<hr />
+<h3 id="tc-cal55-non-existent-calendar-id">TC-CAL55: Non-existent calendar ID<a class="headerlink" href="#tc-cal55-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Subscribe me to calendar 'totally-invalid-cal-id@example.com'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception
+- No entry added to the calendar list</p>
+<p><strong>Result (2026-07-05) ✅</strong> — Returned <code>{"error": "&lt;HttpError 404 ... 'reason': 'notFound' ...&gt;"}</code>.</p>
+<hr />
+<h2 id="remove_calendar_from_list"><code>remove_calendar_from_list</code><a class="headerlink" href="#remove_calendar_from_list" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal56-unsubscribe-from-a-calendar-destructive">TC-CAL56: Unsubscribe from a calendar ⚠️ destructive<a class="headerlink" href="#tc-cal56-unsubscribe-from-a-calendar-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the calendar subscribed to in TC-CAL53</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Remove calendar 'en.japanese#holiday@group.v.calendar.google.com' from my calendar list"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"calendar_id": "...", "action": "removed_from_list"}</code>
+- Calendar no longer appears in a follow-up <code>list_calendars</code> call</p>
+<p><strong>Result (2026-07-05) ✅</strong> — Returned <code>{"calendar_id": "en.japanese#holiday@group.v.calendar.google.com", "action": "removed_from_list"}</code>. Confirmed absent from a follow-up <code>list_calendars</code> call (the still-subscribed "Holidays in Canada" from TC-CAL54 remained, confirming only the targeted subscription was removed).</p>
+<hr />
+<h3 id="tc-cal57-unsubscribing-does-not-delete-the-calendar-destructive">TC-CAL57: Unsubscribing does not delete the calendar ⚠️ destructive<a class="headerlink" href="#tc-cal57-unsubscribing-does-not-delete-the-calendar-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> the calendar removed from the list in TC-CAL56</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Subscribe me again to calendar 'en.japanese#holiday@group.v.calendar.google.com'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>add_calendar_to_list</code> succeeds and returns the same <code>summary</code> as TC-CAL53
+- Confirms <code>remove_calendar_from_list</code> only removed the subscription — the underlying calendar was never affected and is still fully subscribable</p>
+<p><strong>Result (2026-07-05) ✅</strong> — Re-subscribed successfully; response had the identical <code>summary: "Holidays in Japan"</code> as TC-CAL53. Confirms <code>remove_calendar_from_list</code> does not touch the calendar resource itself.</p>
+<hr />
+<h3 id="tc-cal58-non-existent-calendar-id">TC-CAL58: Non-existent calendar ID<a class="headerlink" href="#tc-cal58-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Remove calendar 'totally-invalid-cal-id@example.com' from my calendar list"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception
+- No side effects</p>
+<p><strong>Result (2026-07-05) ✅</strong> — Returned <code>{"error": "&lt;HttpError 404 ... 'reason': 'notFound' ...&gt;"}</code>.</p>
+<hr />
+<h3 id="tc-cal59-cannot-unsubscribe-from-a-calendar-you-own">TC-CAL59: Cannot unsubscribe from a calendar you own<a class="headerlink" href="#tc-cal59-cannot-unsubscribe-from-a-calendar-you-own" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> a calendar owned by the authenticated user (e.g. a fresh calendar from <code>create_calendar</code>)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Remove calendar {OWNED_CALENDAR_ID} from my calendar list"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception
+- The error message is actionable and names <code>delete_calendar</code> as the correct tool — <code>remove_calendar_from_list</code> detects the <code>cannotUnsubscribeFromOwnedCalendar</code> reason specifically and substitutes a friendly message instead of passing through the raw <code>HttpError</code> repr</p>
+<p><strong>Result (2026-07-05) ✅</strong> — First pass (before the friendly-message special-case was added) returned the raw passthrough: <code>{"error": "&lt;HttpError 403 ... 'reason': 'cannotUnsubscribeFromOwnedCalendar', 'message': 'The data owner of a calendar cannot remove such a calendar from their calendar list.' ...&gt;"}</code>. After adding the special-case (reviewer feedback on #269), re-ran against a freshly created owned calendar and got <code>{"error": "Google does not allow removing a calendar you own from your own calendar list (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to permanently delete it."}</code> — confirms the friendlier message is live and correctly names the fix.</p>
 <hr />
 <h2 id="list_events"><code>list_events</code><a class="headerlink" href="#list_events" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal09-no-time-filters-upcoming-events">TC-CAL09: No time filters — upcoming events<a class="headerlink" href="#tc-cal09-no-time-filters-upcoming-events" title="Permanent link">&para;</a></h3>
