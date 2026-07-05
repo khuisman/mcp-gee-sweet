@@ -243,6 +243,113 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 ---
 
+## `add_calendar_to_list`
+
+> **Note on test targets:** subscribing/unsubscribing only makes sense for a calendar you don't own — Google's API rejects unsubscribing from a calendar you're the owner of (see TC-CAL59). Public holiday calendars (e.g. `en.japanese#holiday@group.v.calendar.google.com`, `en.canadian#holiday@group.v.calendar.google.com`) are convenient, safe, reversible targets: not owned by any test account, freely subscribable, and already used elsewhere in this account for `en.usa#holiday@group.v.calendar.google.com`.
+
+### TC-CAL53: Subscribe to an existing calendar ⚠️ destructive
+
+**Setup:** a public calendar not currently in your list, e.g. `en.japanese#holiday@group.v.calendar.google.com` (Holidays in Japan)
+
+**Prompt**
+> "Subscribe me to calendar 'en.japanese#holiday@group.v.calendar.google.com'"
+
+**Checks**
+- Returns `id`, `summary`, `time_zone`, `access_role`, `primary`, `color_id`
+- Calendar now appears in a follow-up `list_calendars` call (cache invalidated)
+
+**Result (2026-07-05) ✅** — Response had `summary: "Holidays in Japan"`, `access_role: "reader"`, `color_id: "8"` (Google's default color for this public calendar). Confirmed present in a follow-up `list_calendars` call.
+
+---
+
+### TC-CAL54: Subscribe with a color ⚠️ destructive
+
+**Setup:** another public calendar not yet in your list, e.g. `en.canadian#holiday@group.v.calendar.google.com` (Holidays in Canada)
+
+**Prompt**
+> "Subscribe me to calendar 'en.canadian#holiday@group.v.calendar.google.com' with color ID '7'"
+
+**Checks**
+- `color_id` in the response is `7`
+- Calendar appears in `list_calendars`
+
+**Result (2026-07-05) ✅** — Response had `color_id: "7"` and `summary: "Holidays in Canada"`. Confirmed present in `list_calendars`.
+
+---
+
+### TC-CAL55: Non-existent calendar ID
+
+**Prompt**
+> "Subscribe me to calendar 'totally-invalid-cal-id@example.com'"
+
+**Checks**
+- Returns `{"error": "..."}` — not a top-level exception
+- No entry added to the calendar list
+
+**Result (2026-07-05) ✅** — Returned `{"error": "<HttpError 404 ... 'reason': 'notFound' ...>"}`.
+
+---
+
+## `remove_calendar_from_list`
+
+### TC-CAL56: Unsubscribe from a calendar ⚠️ destructive
+
+**Setup:** use the calendar subscribed to in TC-CAL53
+
+**Prompt**
+> "Remove calendar 'en.japanese#holiday@group.v.calendar.google.com' from my calendar list"
+
+**Checks**
+- Returns `{"calendar_id": "...", "action": "removed_from_list"}`
+- Calendar no longer appears in a follow-up `list_calendars` call
+
+**Result (2026-07-05) ✅** — Returned `{"calendar_id": "en.japanese#holiday@group.v.calendar.google.com", "action": "removed_from_list"}`. Confirmed absent from a follow-up `list_calendars` call (the still-subscribed "Holidays in Canada" from TC-CAL54 remained, confirming only the targeted subscription was removed).
+
+---
+
+### TC-CAL57: Unsubscribing does not delete the calendar ⚠️ destructive
+
+**Setup:** the calendar removed from the list in TC-CAL56
+
+**Prompt**
+> "Subscribe me again to calendar 'en.japanese#holiday@group.v.calendar.google.com'"
+
+**Checks**
+- `add_calendar_to_list` succeeds and returns the same `summary` as TC-CAL53
+- Confirms `remove_calendar_from_list` only removed the subscription — the underlying calendar was never affected and is still fully subscribable
+
+**Result (2026-07-05) ✅** — Re-subscribed successfully; response had the identical `summary: "Holidays in Japan"` as TC-CAL53. Confirms `remove_calendar_from_list` does not touch the calendar resource itself.
+
+---
+
+### TC-CAL58: Non-existent calendar ID
+
+**Prompt**
+> "Remove calendar 'totally-invalid-cal-id@example.com' from my calendar list"
+
+**Checks**
+- Returns `{"error": "..."}` — not a top-level exception
+- No side effects
+
+**Result (2026-07-05) ✅** — Returned `{"error": "<HttpError 404 ... 'reason': 'notFound' ...>"}`.
+
+---
+
+### TC-CAL59: Cannot unsubscribe from a calendar you own
+
+**Setup:** a calendar owned by the authenticated user (e.g. a fresh calendar from `create_calendar`)
+
+**Prompt**
+> "Remove calendar {OWNED_CALENDAR_ID} from my calendar list"
+
+**Checks**
+- Returns `{"error": "..."}` — not a top-level exception
+- The error message is actionable and names `delete_calendar` as the correct tool — `remove_calendar_from_list` detects the `cannotUnsubscribeFromOwnedCalendar` reason specifically and substitutes a friendly message instead of passing through the raw `HttpError` repr
+
+**Result (2026-07-05) ✅** — First pass (before the friendly-message special-case was added) returned the raw passthrough: `{"error": "<HttpError 403 ... 'reason': 'cannotUnsubscribeFromOwnedCalendar', 'message': 'The data owner of a calendar cannot remove such a calendar from their calendar list.' ...>"}`. After adding the special-case (reviewer feedback on #269), re-ran against a freshly created owned calendar and got `{"error": "Google does not allow removing a calendar you own from your own calendar list (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to permanently delete it."}` — confirms the friendlier message is live and correctly names the fix.
+
+---
+
 ## `list_events`
 
 ### TC-CAL09: No time filters — upcoming events
