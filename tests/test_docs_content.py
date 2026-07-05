@@ -356,6 +356,15 @@ class TestMdToHtml:
         html = _md_to_html("Multi https://a.example.com and https://b.example.com here")
         assert html.count("<a ") == 2
 
+    def test_autolink_urls_false_leaves_bare_url_as_text(self):
+        html = _md_to_html("See https://example.com here", autolink_urls=False)
+        assert "<a " not in html
+        assert "https://example.com" in html
+
+    def test_autolink_urls_false_does_not_affect_markdown_links(self):
+        html = _md_to_html("[click](https://example.com)", autolink_urls=False)
+        assert 'href="https://example.com"' in html
+
 
 class TestToDocRequestsMarkdown:
     def test_h1_in_markdown_produces_heading_1(self):
@@ -406,6 +415,17 @@ class TestToDocRequestsMarkdown:
             link_reqs[0]["updateTextStyle"]["textStyle"]["link"]["url"]
             == "https://example.com/some-page"
         )
+
+    def test_markdown_bare_url_autolink_urls_false_emits_no_link_text_style(self):
+        requests, _ = _to_doc_requests(
+            "From: https://example.com/some-page", "markdown", autolink_urls=False
+        )
+        link_reqs = [
+            r
+            for r in requests
+            if "updateTextStyle" in r and "link" in r["updateTextStyle"]["textStyle"]
+        ]
+        assert link_reqs == []
 
     def test_markdown_bold_emits_text_style(self):
         requests, _ = _to_doc_requests("**bold**\n", "markdown")
