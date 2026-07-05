@@ -377,12 +377,19 @@ def register(tool):
             clear_requests.append(
                 {"deleteContentRange": {"range": {"startIndex": 1, "endIndex": end_index - 1}}}
             )
+            # Sent as its own batchUpdate, not combined with the insert below: live testing
+            # showed the Docs API resolves a same-batch insertText's inherited formatting
+            # from a pre-batch snapshot, so contamination survived even after the clear
+            # request above ran earlier in that same batch. A separate call forces the
+            # insert to see the already-cleared document state.
+            docs_service.documents().batchUpdate(
+                documentId=doc_id, body={"requests": clear_requests}
+            ).execute()
 
         content_requests, tables = _to_doc_requests(content, content_format, start_index=1)
-        all_requests = clear_requests + content_requests
-        if all_requests:
+        if content_requests:
             docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": all_requests}
+                documentId=doc_id, body={"requests": content_requests}
             ).execute()
         fill_tables(docs_service, doc_id, tables)
 

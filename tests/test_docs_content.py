@@ -688,7 +688,15 @@ class TestGetDocContent:
 class TestWriteDocContent:
     """Bug (#255): clear+reinsert left a stale textStyle override on the document's
     trailing paragraph mark (which the Docs API won't let deleteContentRange remove),
-    letting it leak into newly-inserted content on the next write_doc_content call."""
+    letting it leak into newly-inserted content on the next write_doc_content call.
+
+    The clear (updateTextStyle + deleteContentRange) and the new content's insertText
+    must be sent as two SEPARATE batchUpdate calls, not combined into one: live testing
+    against the real Docs API showed a same-batch insertText resolves its inherited
+    formatting from a pre-batch snapshot, so contamination survived even after the
+    clear request ran earlier in that same batch. See content.py's write_doc_content
+    for the full account.
+    """
 
     def _make_services(self, end_index=50):
         drive_svc = MagicMock()
@@ -708,38 +716,47 @@ class TestWriteDocContent:
             doc_cache=MagicMock(),
         )
 
-    def _batchupdate_requests(self, docs_svc):
-        return docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]["requests"]
+    def _batchupdate_calls(self, docs_svc):
+        return [
+            c.kwargs["body"]["requests"]
+            for c in docs_svc.documents.return_value.batchUpdate.call_args_list
+        ]
 
-    def test_clears_trailing_mark_style_before_deleting(self):
+    def test_clears_trailing_mark_style_before_deleting_in_its_own_batch(self):
         drive_svc, docs_svc = self._make_services(end_index=50)
         ctx = self._ctx(drive_svc, docs_svc)
         _docs_tools["write_doc_content"](doc_id="doc1", content="<p>New content</p>", ctx=ctx)
-        requests = self._batchupdate_requests(docs_svc)
+        calls = self._batchupdate_calls(docs_svc)
 
-        clear_style_idx = next(
-            i
-            for i, r in enumerate(requests)
-            if "updateTextStyle" in r and r["updateTextStyle"]["fields"] == "*"
-        )
-        delete_idx = next(i for i, r in enumerate(requests) if "deleteContentRange" in r)
-
-        clear_style = requests[clear_style_idx]["updateTextStyle"]
+        # First batchUpdate call: clear + delete, nothing else.
+        clear_requests = calls[0]
+        assert len(clear_requests) == 2
+        clear_style = clear_requests[0]["updateTextStyle"]
         assert clear_style["range"] == {"startIndex": 49, "endIndex": 50}
         assert clear_style["textStyle"] == {}
-        # Must run before deleteContentRange, while the original indices are still valid.
-        assert clear_style_idx < delete_idx
-        assert requests[delete_idx]["deleteContentRange"]["range"] == {
+        assert clear_style["fields"] == "*"
+        assert clear_requests[1]["deleteContentRange"]["range"] == {
             "startIndex": 1,
             "endIndex": 49,
         }
+
+        # Second batchUpdate call: the new content, sent separately.
+        content_requests = calls[1]
+        assert not any(
+            "updateTextStyle" in r and r["updateTextStyle"].get("fields") == "*"
+            for r in content_requests
+        )
+        assert not any("deleteContentRange" in r for r in content_requests)
+        assert any("insertText" in r for r in content_requests)
 
     def test_empty_doc_skips_clear_requests(self):
         drive_svc, docs_svc = self._make_services(end_index=2)
         ctx = self._ctx(drive_svc, docs_svc)
         _docs_tools["write_doc_content"](doc_id="doc1", content="<p>New content</p>", ctx=ctx)
-        requests = self._batchupdate_requests(docs_svc)
+        calls = self._batchupdate_calls(docs_svc)
+        # Only one batchUpdate call (the content) — no separate clear/delete call.
+        assert len(calls) == 1
         assert not any(
-            "updateTextStyle" in r and r["updateTextStyle"]["fields"] == "*" for r in requests
+            "updateTextStyle" in r and r["updateTextStyle"].get("fields") == "*" for r in calls[0]
         )
-        assert not any("deleteContentRange" in r for r in requests)
+        assert not any("deleteContentRange" in r for r in calls[0])
