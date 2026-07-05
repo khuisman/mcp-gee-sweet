@@ -1388,17 +1388,20 @@ use <code>write_doc_content</code> or <code>update_cells</code> to populate it. 
 Related: project memory <code>service_account_limit</code>.</p>
 <hr />
 <h2 id="calendar">Calendar<a class="headerlink" href="#calendar" title="Permanent link">&para;</a></h2>
-<h3 id="list_all_events-asynchttplib2-thread-safety-blocker"><code>list_all_events</code> — async/httplib2 thread-safety blocker<a class="headerlink" href="#list_all_events-asynchttplib2-thread-safety-blocker" title="Permanent link">&para;</a></h3>
-<p><strong>What:</strong> <code>list_all_events</code> (fetching events across multiple calendars concurrently) is blocked
-on a thread-safety issue: the Google API Python client uses <code>httplib2</code> internally, and <code>httplib2</code>
-connections are not safe to share across threads.</p>
-<p><strong>Why:</strong> The implementation uses <code>ThreadPoolExecutor</code> to fan out calendar queries in parallel.
-Each thread needs its own HTTP connection, but reconstructing a full authorized service per
-thread via <code>build_from_document</code> + <code>google_auth_httplib2.AuthorizedHttp</code> adds significant
-overhead and complexity (Frankenstein code) rather than working cleanly through the SDK.</p>
-<p><strong>Workaround:</strong> Use <code>list_events</code> per calendar individually. The <code>list_all_events</code> tool exists
-but may have reliability issues under concurrent load until #183 (async/httplib2 strategy) is
-resolved. Related: #194, #183.</p>
+<h3 id="list_all_events-not-yet-built-blocked-on-an-asynchttplib2-thread-safety-issue"><code>list_all_events</code> — not yet built, blocked on an async/httplib2 thread-safety issue<a class="headerlink" href="#list_all_events-not-yet-built-blocked-on-an-asynchttplib2-thread-safety-issue" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> <code>list_all_events</code> (fetching events across multiple calendars concurrently) is planned
+(<a href="https://github.com/khuisman/mcp-gee-sweet/issues/194">#194</a>, still open) but not yet
+implemented — it does not exist as a tool today. The blocker is a thread-safety issue: the
+Google API Python client uses <code>httplib2</code> internally, and <code>httplib2</code> connections are not safe to
+share across threads.</p>
+<p><strong>Why:</strong> The planned implementation would use <code>ThreadPoolExecutor</code> to fan out calendar queries
+in parallel. Each thread needs its own HTTP connection, but reconstructing a full authorized
+service per thread via <code>build_from_document</code> + <code>google_auth_httplib2.AuthorizedHttp</code> adds
+significant overhead and complexity (Frankenstein code) rather than working cleanly through the
+SDK — this is why it's blocked on
+<a href="https://github.com/khuisman/mcp-gee-sweet/issues/183">#183</a> (async tool execution strategy)
+rather than built ad hoc.</p>
+<p><strong>Workaround:</strong> Use <code>list_events</code> per calendar individually in the meantime.</p>
 
 
 

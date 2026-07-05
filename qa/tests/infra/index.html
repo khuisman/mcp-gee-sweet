@@ -1340,6 +1340,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#tool-argument-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool argument validation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tool argument validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-i21-unrecognized-tool-kwargs-raise-a-validation-error-instead-of-being-silently-dropped-issue-239" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I21: Unrecognized tool kwargs raise a validation error instead of being silently dropped (issue #239)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#auth-fallback-chain" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1762,6 +1790,18 @@
 <td>TC-I16–I20 (logging)</td>
 <td>✅ Already live-tested and passed — see Result entries below</td>
 </tr>
+<tr>
+<td>DB recovery (issue #212)</td>
+<td>Unit-tested in <code>tests/test_cache.py</code> <code>TestOpenFallback</code> — read-only file, read-only dir, and <code>:memory:</code> fallback all covered</td>
+</tr>
+<tr>
+<td>Tool doc generation (issue #94)</td>
+<td><code>scripts/gen_tool_docs.py</code> is a build-time/pre-commit script, not an MCP tool — no live prompt applies. Unit-tested in <code>tests/test_gen_tool_docs.py</code>: every registered tool is covered by a section and has a docstring, subset validation catches unknown tool names, and <code>main()</code> is idempotent on a second run</td>
+</tr>
+<tr>
+<td>TC-I21 (strict tool arg validation, issue #239)</td>
+<td>✅ Unit-tested in <code>tests/test_server.py::TestToolStrictArgs</code> (dummy tool + real <code>list_sheets</code>) and live-tested — see Result entry below</td>
+</tr>
 </tbody>
 </table>
 <hr />
@@ -1848,6 +1888,19 @@ Same as TC-I05 or TC-I06 (only 2 tools enabled).</p>
 <p><strong>Checks</strong>
 - MCP client returns "tool not found" for <code>add_chart</code>
 - Server does not crash — just a missing tool, not an error</p>
+<hr />
+<h2 id="tool-argument-validation">Tool argument validation<a class="headerlink" href="#tool-argument-validation" title="Permanent link">&para;</a></h2>
+<h3 id="tc-i21-unrecognized-tool-kwargs-raise-a-validation-error-instead-of-being-silently-dropped-issue-239">TC-I21: Unrecognized tool kwargs raise a validation error instead of being silently dropped (issue #239)<a class="headerlink" href="#tc-i21-unrecognized-tool-kwargs-raise-a-validation-error-instead-of-being-silently-dropped-issue-239" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> FastMCP's auto-generated per-tool pydantic arg model defaults to <code>extra="ignore"</code> (pydantic's own default) — a typo'd or unknown kwarg previously fell through silently instead of erroring. Fixed centrally in the <code>tool()</code> decorator (<code>server.py</code>'s <code>_enforce_strict_tool_args</code>), which flips every registered tool's arg model to <code>extra="forbid"</code> via private FastMCP <code>ToolManager</code>/<code>FuncMetadata</code> internals (no public hook exists in <code>mcp</code> 1.27.1–1.28.1, the project's full allowed range) — applies to all ~84 tools uniformly since they all register through the same decorator. Unit-tested in <code>tests/test_server.py::TestToolStrictArgs</code> (both a throwaway dummy tool and a real production tool, <code>list_sheets</code>).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Call <code>list_sheets</code> with <code>spreadsheet_id={SPREADSHEET_ID}</code> plus an extra unrecognized kwarg, e.g. <code>bogus_kwarg="test"</code>.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call raises a validation error naming the unrecognized field and <code>extra_forbidden</code>, rather than silently succeeding
+- A normal call with only valid args still succeeds (no false positives from the fix)</p>
+<p><strong>Result (2026-07-04) ✅ PASS</strong>
+<code>list_sheets(spreadsheet_id={SPREADSHEET_ID}, bogus_kwarg="test")</code> raised: <code>1 validation error for list_sheetsArguments\nbogus_kwarg\n  Extra inputs are not permitted [type=extra_forbidden, input_value='test', input_type=str]</code>. Follow-up call with only <code>spreadsheet_id</code> succeeded normally, returning the sheet list — confirms the fix doesn't affect legitimate calls.</p>
 <hr />
 <h2 id="auth-fallback-chain">Auth fallback chain<a class="headerlink" href="#auth-fallback-chain" title="Permanent link">&para;</a></h2>
 <h3 id="tc-i08-credentials_config-base64-service-account">TC-I08: CREDENTIALS_CONFIG (base64 service account)<a class="headerlink" href="#tc-i08-credentials_config-base64-service-account" title="Permanent link">&para;</a></h3>

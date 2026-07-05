@@ -2256,7 +2256,8 @@
 <hr />
 <h2 id="create_event"><code>create_event</code><a class="headerlink" href="#create_event" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal20-timed-event-destructive">TC-CAL20: Timed event ⚠️ destructive<a class="headerlink" href="#tc-cal20-timed-event-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Create an event called 'QA-Timed-Test' in {CALENDAR_ID} on 2026-07-01 from 10:00am to 11:00am Pacific time"</p>
 </blockquote>
@@ -2268,7 +2269,8 @@
 - <code>calendar_cache.mark_dirty</code> called — next <code>list_events</code> re-fetches</p>
 <hr />
 <h3 id="tc-cal21-all-day-event-destructive">TC-CAL21: All-day event ⚠️ destructive<a class="headerlink" href="#tc-cal21-all-day-event-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Create an all-day event called 'QA-AllDay-Test' in {CALENDAR_ID} on 2026-07-02"</p>
 </blockquote>
@@ -2278,7 +2280,8 @@
 - Event appears in <code>list_events</code> for that day</p>
 <hr />
 <h3 id="tc-cal22-with-description-location-and-attendees-destructive">TC-CAL22: With description, location, and attendees ⚠️ destructive<a class="headerlink" href="#tc-cal22-with-description-location-and-attendees-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Create an event called 'QA-Full-Test' in {CALENDAR_ID} for 2026-07-03 2pm-3pm PT with description 'QA test event', location 'Conference Room A', and attendee test@example.com"</p>
 </blockquote>
@@ -2299,7 +2302,8 @@
 <hr />
 <h2 id="update_event"><code>update_event</code><a class="headerlink" href="#update_event" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal24-update-summary-only-destructive">TC-CAL24: Update summary only ⚠️ destructive<a class="headerlink" href="#tc-cal24-update-summary-only-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Update the event created in TC-CAL20 — change the title to 'QA-Timed-Updated'"</p>
 </blockquote>
@@ -2309,7 +2313,8 @@
 - <code>calendar_cache.mark_dirty</code> called</p>
 <hr />
 <h3 id="tc-cal25-update-start-and-end-destructive">TC-CAL25: Update start and end ⚠️ destructive<a class="headerlink" href="#tc-cal25-update-start-and-end-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Update the event from TC-CAL20 — move it to 2026-07-01 from 2pm to 3pm PT"</p>
 </blockquote>
@@ -2318,7 +2323,8 @@
 - <code>summary</code> and other fields unchanged</p>
 <hr />
 <h3 id="tc-cal26-update-description-and-location-destructive">TC-CAL26: Update description and location ⚠️ destructive<a class="headerlink" href="#tc-cal26-update-description-and-location-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Update the event from TC-CAL22 — change the description to 'Updated desc' and location to 'Room B'"</p>
 </blockquote>
@@ -2337,7 +2343,8 @@
 <hr />
 <h2 id="delete_event"><code>delete_event</code><a class="headerlink" href="#delete_event" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal28-delete-an-existing-event-destructive">TC-CAL28: Delete an existing event ⚠️ destructive<a class="headerlink" href="#tc-cal28-delete-an-existing-event-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Delete the event created in TC-CAL21 from {CALENDAR_ID}"</p>
 </blockquote>
@@ -2418,7 +2425,8 @@
 <hr />
 <h2 id="create_event-recurrence-support"><code>create_event</code> — recurrence support<a class="headerlink" href="#create_event-recurrence-support" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal36-create-a-weekly-recurring-event-destructive">TC-CAL36: Create a weekly recurring event ⚠️ destructive<a class="headerlink" href="#tc-cal36-create-a-weekly-recurring-event-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Create a recurring event called 'QA-Weekly-Standup' in {CALENDAR_ID} every Monday from 9am to 9:30am Pacific time, starting 2026-07-07"</p>
 </blockquote>
@@ -2431,7 +2439,8 @@
 <p><strong>Result (2026-06-24) ✅</strong> — Event created with <code>id: 3n4mjvi13au7fg1ce0np9ca73k</code>, <code>recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO"]</code>, <code>status: confirmed</code>, <code>html_link</code> present. Confirmed master ID has no date suffix.</p>
 <hr />
 <h3 id="tc-cal37-create-a-daily-recurring-event-with-count-limit-destructive">TC-CAL37: Create a daily recurring event with COUNT limit ⚠️ destructive<a class="headerlink" href="#tc-cal37-create-a-daily-recurring-event-with-count-limit-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Create a recurring event called 'QA-Daily-5x' in {CALENDAR_ID} every day at 8am Pacific for exactly 5 occurrences, starting 2026-07-14"</p>
 </blockquote>
@@ -2442,7 +2451,8 @@
 <p><strong>Result (2026-06-24) ✅</strong> — Created with <code>recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]</code>. <code>list_events(expand_recurring=True)</code> for Jul 14–19 returned exactly 5 instances (Jul 14–18). No Jul 19+ instances returned. Each instance had <code>recurrence: null</code>.</p>
 <hr />
 <h3 id="tc-cal38-recurrence-absent-when-not-provided">TC-CAL38: Recurrence absent when not provided<a class="headerlink" href="#tc-cal38-recurrence-absent-when-not-provided" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Create a one-time event called 'QA-OneOff' in {CALENDAR_ID} on 2026-07-21 from 2pm to 3pm PT"</p>
 </blockquote>
@@ -2455,7 +2465,8 @@
 <h2 id="list_events-expand_recurring"><code>list_events</code> — expand_recurring<a class="headerlink" href="#list_events-expand_recurring" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal39-expand_recurringfalse-returns-master-events">TC-CAL39: expand_recurring=False returns master events<a class="headerlink" href="#tc-cal39-expand_recurringfalse-returns-master-events" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> use the recurring event created in TC-CAL36</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"List events in {CALENDAR_ID} with expand_recurring=False and no time filter"</p>
 </blockquote>
@@ -2468,7 +2479,8 @@
 <hr />
 <h3 id="tc-cal40-expand_recurringtrue-default-expands-instances">TC-CAL40: expand_recurring=True (default) expands instances<a class="headerlink" href="#tc-cal40-expand_recurringtrue-default-expands-instances" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> use the recurring event created in TC-CAL36</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"List events in {CALENDAR_ID} between 2026-07-07T00:00:00Z and 2026-07-28T23:59:59Z"</p>
 </blockquote>

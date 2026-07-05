@@ -3605,6 +3605,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-d167-export_file-trips-the-response-size-cap-on-base64-inflated-content-issue-242" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D167: export_file trips the response-size cap on base64-inflated content (issue #242)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d168-list_file_activity-response-size-cap-code-path-only-no-dedicated-live-fixture-issue-242" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D168: list_file_activity response-size cap — code path only, no dedicated live fixture (issue #242)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5097,10 +5119,13 @@
 - Drive API error propagates — not a silent success or server crash</p>
 <hr />
 <h2 id="share_file"><code>share_file</code><a class="headerlink" href="#share_file" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>⚠️ <strong>Fixture requirement:</strong> TC-D132, TC-D137, TC-D139 require <code>TEST_PERMISSION_EMAIL</code> in <code>.env</code> to be a <strong>real Google account</strong> you control (e.g. a secondary Gmail). <code>example.com</code> addresses are not valid Google accounts and Drive will reject sharing with them. TC-D135 (domain share) requires a Google Workspace domain — <code>example.com</code> will also fail; use your actual GWS domain or skip and note as environmental.</p>
+</blockquote>
 <h3 id="tc-d132-share-with-typeuser-as-reader">TC-D132: Share with type=user as reader<a class="headerlink" href="#tc-d132-share-with-typeuser-as-reader" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
 <blockquote>
-<p>"Share {SPREADSHEET_ID} with test-recipient@example.com as a reader using share_file"</p>
+<p>"Share {SPREADSHEET_ID} with {TEST_PERMISSION_EMAIL} as a reader using share_file"</p>
 </blockquote>
 <p><strong>Checks</strong>
 - Response <code>successes</code> contains the entry with <code>type: 'user'</code>, <code>role: 'reader'</code>, and a <code>permissionId</code>
@@ -5127,12 +5152,15 @@
 - <code>successes</code> is empty</p>
 <hr />
 <h3 id="tc-d135-share-with-typedomain">TC-D135: Share with type=domain<a class="headerlink" href="#tc-d135-share-with-typedomain" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p>⚠️ <strong>Environmental:</strong> <code>example.com</code> is not a Google Workspace domain; Drive will reject this with a domain validation error. Replace with your actual GWS domain if available, or SKIP and record as environmental.</p>
+</blockquote>
 <p><strong>Prompt</strong></p>
 <blockquote>
-<p>"Share {SPREADSHEET_ID} with everyone at example.com as a reader using share_file with type='domain'"</p>
+<p>"Share {SPREADSHEET_ID} with everyone at {GWS_DOMAIN} as a reader using share_file with type='domain'"</p>
 </blockquote>
 <p><strong>Checks</strong>
-- Response <code>successes</code> contains an entry with <code>type: 'domain'</code> and <code>domain: 'example.com'</code>
+- Response <code>successes</code> contains an entry with <code>type: 'domain'</code> and <code>domain: '{GWS_DOMAIN}'</code>
 - Follow-up <code>list_permissions</code> shows the domain permission entry</p>
 <hr />
 <h3 id="tc-d136-share-with-typeanyone-public-link">TC-D136: Share with type=anyone (public link)<a class="headerlink" href="#tc-d136-share-with-typeanyone-public-link" title="Permanent link">&para;</a></h3>
@@ -5148,7 +5176,7 @@
 <h3 id="tc-d137-share-a-folder">TC-D137: Share a folder<a class="headerlink" href="#tc-d137-share-a-folder" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
 <blockquote>
-<p>"Share folder {FOLDER_ID} with test-recipient@example.com as a writer using share_file"</p>
+<p>"Share folder {FOLDER_ID} with {TEST_PERMISSION_EMAIL} as a writer using share_file"</p>
 </blockquote>
 <p><strong>Checks</strong>
 - Share succeeds; <code>successes</code> contains the entry
@@ -5167,12 +5195,15 @@
 <h3 id="tc-d139-send_notificationfalse-for-user-share">TC-D139: send_notification=False for user share<a class="headerlink" href="#tc-d139-send_notificationfalse-for-user-share" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
 <blockquote>
-<p>"Share {SPREADSHEET_ID} with test-recipient@example.com as reader using share_file, but don't send a notification email"</p>
+<p>"Share {SPREADSHEET_ID} with {TEST_PERMISSION_EMAIL} as reader using share_file, but don't send a notification email"</p>
 </blockquote>
 <p><strong>Checks</strong>
 - Share succeeds; <code>successes</code> populated
-- No notification email sent (use an email address you control to verify)
+- No notification email sent — verify by checking the inbox of <code>TEST_PERMISSION_EMAIL</code>
 - <code>send_notification=False</code> confirmed — <code>sendNotificationEmail=False</code> passed to the API</p>
+<blockquote>
+<p>⚠️ <strong>Note:</strong> Drive requires <code>sendNotificationEmail=True</code> when sharing with non-Google Workspace accounts. If <code>TEST_PERMISSION_EMAIL</code> is a personal Gmail, this test may fail with a Drive API restriction — record as environmental, not a tool bug.</p>
+</blockquote>
 <hr />
 <h2 id="write_doc_content-table-support-issue-62"><code>write_doc_content</code> — table support (issue #62)<a class="headerlink" href="#write_doc_content-table-support-issue-62" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d140-simple-22-table-created-from-html">TC-D140: Simple 2×2 table created from HTML<a class="headerlink" href="#tc-d140-simple-22-table-created-from-html" title="Permanent link">&para;</a></h3>
@@ -5262,13 +5293,20 @@
 <hr />
 <h2 id="export_revision"><code>export_revision</code><a class="headerlink" href="#export_revision" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d148-export-a-revision-and-read-a-cell-range">TC-D148: Export a revision and read a cell range<a class="headerlink" href="#tc-d148-export-a-revision-and-read-a-cell-range" title="Permanent link">&para;</a></h3>
-<p><strong>Setup:</strong> Make a known edit to {SPREADSHEET_ID} (e.g. write "BEFORE" to A1), then make another edit ("AFTER" to A1). List revisions and identify the revision ID from before the second edit.</p>
+<p><strong>Setup:</strong>
+1. Write "QA-BEFORE" to Sales!A1 using <code>update_cells</code>
+2. Wait at least 30 seconds (Drive may coalesce rapid writes into a single revision)
+3. Write "QA-AFTER" to Sales!A1
+4. Call <code>list_revisions</code> on {SPREADSHEET_ID} and identify the revision from between the two writes</p>
+<blockquote>
+<p>⚠️ <strong>Known limitation:</strong> Drive's revision API coalesces writes that occur within a short window into a single revision. If only one revision appears, both writes landed in it — SKIP and record as environmental. The 30-second pause reduces but does not eliminate this risk.</p>
+</blockquote>
 <p><strong>Prompt</strong></p>
 <blockquote>
 <p>"Export revision {REVISION_ID} of {SPREADSHEET_ID} and show me the value in range A1"</p>
 </blockquote>
 <p><strong>Checks</strong>
-- Returns <code>values</code> with "BEFORE" in A1
+- Returns <code>values</code> with "QA-BEFORE" in A1
 - <code>sheet</code> matches the first sheet name
 - <code>modifiedTime</code> matches the revision timestamp from <code>list_revisions</code></p>
 <hr />
@@ -5442,6 +5480,21 @@
 <p><strong>Checks (unit test)</strong>
 - When the Drive Activity API returns an HTTP 403 or 404, the tool returns <code>{"error": "..."}</code> rather than raising an exception</p>
 <p><strong>Result (2026-06-24) ✅</strong> Unit test <code>test_http_error_returns_error_dict</code> confirms HTTP errors are caught and returned as <code>{"error": str(e)}</code>.</p>
+<hr />
+<h3 id="tc-d167-export_file-trips-the-response-size-cap-on-base64-inflated-content-issue-242">TC-D167: export_file trips the response-size cap on base64-inflated content (issue #242)<a class="headerlink" href="#tc-d167-export_file-trips-the-response-size-cap-on-base64-inflated-content-issue-242" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #242 generalized #235's response-size safety net to <code>export_file</code>. Unlike the other capped tools, <code>export_file</code> has no <code>local_path</code> param — its base64 output written to a JSON file would be a worse artifact than <code>download_file</code> (pre-existing tool) already produces, so the error points there instead.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export {SPREADSHEET_ID} as xlsx"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call raises <code>ValueError</code> mentioning the actual response size, the 40,000-character cap, base64's ~33% inflation, and <code>download_file</code> as the recommended alternative — must NOT mention <code>local_path</code> (this tool doesn't have that param)</p>
+<p><strong>Result (2026-07-03) ✅ PASS</strong>
+Exporting even the small QA fixture spreadsheet as <code>xlsx</code> immediately exceeded the cap: <code>export_file: the response is 54280 characters, over the 40000-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead, or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).</code> Confirms <code>export_file</code>'s cap trips far more readily than the other capped tools given base64 inflation — <code>download_file</code> is the practical default for anything but tiny files.</p>
+<hr />
+<h3 id="tc-d168-list_file_activity-response-size-cap-code-path-only-no-dedicated-live-fixture-issue-242">TC-D168: list_file_activity response-size cap — code path only, no dedicated live fixture (issue #242)<a class="headerlink" href="#tc-d168-list_file_activity-response-size-cap-code-path-only-no-dedicated-live-fixture-issue-242" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>list_file_activity</code> is already Drive-API-paginated (<code>page_size</code> clamped 1–100) and low per-item size — the only realistic exposure is a single activity's <code>actors</code> list ballooning on a file with many collaborators. Per the #242 decision doc, this tool intentionally did NOT get a dedicated live-fixture verification (reproducing hundreds of real Drive Activity events isn't cheaply reproducible) — the cap was added for defense-in-depth only, verified by unit tests (<code>tests/drive/test_activity.py::TestListFileActivity::test_oversized_result_raises</code>, <code>test_error_points_to_page_size_not_local_path</code>).</p>
+<p><strong>Result (2026-07-03) ✅ N/A (by design)</strong> — sanity-checked live that the tool still functions normally post-change (<code>list_file_activity(file_id={SPREADSHEET_ID}, page_size=5)</code> returned a normal activity list, no regression). Cap-triggering behavior covered by unit tests only, not live-verified — documented scoping decision, not an oversight.</p>
 
 
 

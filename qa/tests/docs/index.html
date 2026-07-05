@@ -2263,6 +2263,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-doc80-get_doc_content-trips-the-response-size-cap-cached-path-re-checks-it-too-issue-242" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC80: get_doc_content trips the response-size cap; cached path re-checks it too (issue #242)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc81-create_doc_from_file-renders-escape-as-literal-issue-213-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC81: create_doc_from_file renders \$ escape as literal $ (issue #213) ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2657,7 +2679,8 @@
 <h2 id="style_doc_range"><code>style_doc_range</code><a class="headerlink" href="#style_doc_range" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc12-apply-named-style-type-destructive">TC-DOC12: Apply named style type ⚠️ destructive<a class="headerlink" href="#tc-doc12-apply-named-style-type-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a normal paragraph; note its index range</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Style the range from index {start} to {end} in doc {DOC_ID} as HEADING_2"</p>
 </blockquote>
@@ -2670,7 +2693,8 @@
 <hr />
 <h3 id="tc-doc13-apply-text-styles-bold-italic-foreground-color-destructive">TC-DOC13: Apply text styles (bold, italic, foreground color) ⚠️ destructive<a class="headerlink" href="#tc-doc13-apply-text-styles-bold-italic-foreground-color-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a normal paragraph; note its index range</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Make the range from index {start} to {end} in doc {DOC_ID} bold, italic, and red (foreground_color red=1 green=0 blue=0)"</p>
 </blockquote>
@@ -2705,7 +2729,8 @@
 <h2 id="insert_doc_table"><code>insert_doc_table</code><a class="headerlink" href="#insert_doc_table" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc16-insert-a-23-table-destructive">TC-DOC16: Insert a 2×3 table ⚠️ destructive<a class="headerlink" href="#tc-doc16-insert-a-23-table-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> fetch structure; note a suitable insertion index (e.g. endIndex of a paragraph)</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Insert a 2-row, 3-column table at index {N} in doc {DOC_ID}"</p>
 </blockquote>
@@ -2735,7 +2760,8 @@
 <h2 id="style_doc_table_cells"><code>style_doc_table_cells</code><a class="headerlink" href="#style_doc_table_cells" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc18-apply-grey-header-row-background-destructive">TC-DOC18: Apply grey header row background ⚠️ destructive<a class="headerlink" href="#tc-doc18-apply-grey-header-row-background-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Style row 0 of the table at index {tableStartIndex} in doc {DOC_ID} with background_color red=0.953 green=0.953 blue=0.953, column_span 2"</p>
 </blockquote>
@@ -2748,7 +2774,8 @@
 <hr />
 <h3 id="tc-doc19-apply-borders-and-padding-destructive">TC-DOC19: Apply borders and padding ⚠️ destructive<a class="headerlink" href="#tc-doc19-apply-borders-and-padding-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Style all cells in the table at index {tableStartIndex} in doc {DOC_ID} with border_color black (0,0,0), border_width 0.5, border_dash_style SOLID, padding 3.6pt on all sides"</p>
 </blockquote>
@@ -2828,7 +2855,8 @@
 <h3 id="tc-doc25-style_doc_table_cells-post-fix-live-verification-destructive">TC-DOC25: style_doc_table_cells post-fix live verification ⚠️ destructive<a class="headerlink" href="#tc-doc25-style_doc_table_cells-post-fix-live-verification-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> <code>style_doc_table_cells</code> was fixed (removed top-level <code>tableStartLocation</code> that conflicted with the <code>tableRange</code> oneof) but the fix was <strong>never re-tested live</strong>. This is the confirmation test.</p>
 <p><strong>Setup:</strong> insert a 2×2 table; record its <code>tableStartIndex</code> from the response</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Style cell [0,0] of the table at index {tableStartIndex} in doc {DOC_ID} with background_color red=0.8 green=0.9 blue=1.0"</p>
 </blockquote>
@@ -2843,7 +2871,8 @@
 <h3 id="tc-doc26-full-end-to-end-sequence-insert-table-then-style-cells-destructive">TC-DOC26: Full end-to-end sequence — insert table then style cells ⚠️ destructive<a class="headerlink" href="#tc-doc26-full-end-to-end-sequence-insert-table-then-style-cells-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> the complete <code>insert_doc_table</code> → <code>style_doc_table_cells</code> sequence was never run end-to-end in live testing. Covers both tools and the index handoff between them.</p>
 <p><strong>Setup:</strong> fetch structure; note a suitable insertion index N</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Insert a 2×3 table at index {N} in doc {DOC_ID}, then style row 0 with grey background (red=0.85 green=0.85 blue=0.85) spanning all 3 columns, and add a solid black border (width 0.5) to every cell"</p>
 </blockquote>
@@ -2967,7 +2996,8 @@
 <hr />
 <h3 id="tc-doc34-colspan-produces-merged-cells-destructive">TC-DOC34: <code>colspan</code> produces merged cells ⚠️ destructive<a class="headerlink" href="#tc-doc34-colspan-produces-merged-cells-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> Regression test for #67 — <code>colspan</code> was previously ignored.</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td colspan=\"2\"&gt;Wide cell&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;A&lt;/td&gt;&lt;td&gt;B&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
 </blockquote>
@@ -2982,7 +3012,8 @@
 <hr />
 <h3 id="tc-doc35-column-widths-from-html-destructive">TC-DOC35: Column widths from HTML ⚠️ destructive<a class="headerlink" href="#tc-doc35-column-widths-from-html-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> Regression test for #66 — <code>width</code> attributes on <code>&lt;col&gt;</code> were previously ignored.</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;col width=\"144\"&gt;&lt;col width=\"288\"&gt;&lt;tr&gt;&lt;td&gt;Narrow&lt;/td&gt;&lt;td&gt;Wide&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
 </blockquote>
@@ -2996,7 +3027,8 @@
 <hr />
 <h3 id="tc-doc36-rowspan-produces-vertically-merged-cells-destructive">TC-DOC36: <code>rowspan</code> produces vertically merged cells ⚠️ destructive<a class="headerlink" href="#tc-doc36-rowspan-produces-vertically-merged-cells-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> First live verification of issue #91 — rowspan support in the HTML→AST→emitter pipeline. A cell spanning two rows must produce a <code>mergeTableCells</code> request, and the phantom cell in the lower row must not be filled.</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td rowspan=\"2\"&gt;Tall&lt;/td&gt;&lt;td&gt;R0C1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;R1C1&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
 </blockquote>
@@ -3087,7 +3119,8 @@
 - 🔍 Note: Google Docs applies <code>bold: true</code> to all bullet list runs via list style — expected API behaviour, not a bug.</p>
 <hr />
 <h3 id="tc-doc42-markdown-fenced-code-block-destructive">TC-DOC42: Markdown fenced code block ⚠️ destructive<a class="headerlink" href="#tc-doc42-markdown-fenced-code-block-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Write this markdown to doc {DOC_ID} using content_format='markdown' with a fenced Python code block containing <code>def hello(): return 'world'</code>"</p>
 </blockquote>
@@ -3098,6 +3131,7 @@
 <p><strong>Result (2026-06-19) ✅ PASS</strong>
 - Two paragraphs: <code>def hello():</code> and <code>return 'world'</code> confirmed via <code>get_doc_structure</code>.
 - <code>weightedFontFamily: Courier New</code> is emitted by the unit-tested emitter; <code>get_doc_structure</code> does not expose <code>font_family</code> (known gap — no <code>effectiveFormat</code> API access).</p>
+<p><strong>Result (2026-07-04) — related bug found, not a failure of this TC's own checks</strong> Writing a fenced code block as the doc's last content left an explicit <code>font_size</code>/<code>font_family</code> override on the document's trailing paragraph mark, which <code>write_doc_content</code>'s clear+reinsert couldn't remove (the Docs API won't let <code>deleteContentRange</code> touch the final paragraph mark) — a <em>subsequent</em> <code>write_doc_content</code> call with plain content would inherit that contamination. Filed as <a href="https://github.com/khuisman/mcp-gee-sweet/issues/255">#255</a>. Fixed in <a href="https://github.com/khuisman/mcp-gee-sweet/pull/258">#258</a>, then corrected in <a href="https://github.com/khuisman/mcp-gee-sweet/pull/259">#259</a> after live re-testing showed #258's single-batchUpdate version was unreliable. <strong>Re-verified live (2026-07-05)</strong> after both merged: wrote a fenced code block, then overwrote with plain content — new content came back with <code>textStyle: {}</code>, no contamination, across repeated rounds.</p>
 <hr />
 <h3 id="tc-doc43-markdown-table-via-write_doc_content-destructive">TC-DOC43: Markdown table via <code>write_doc_content</code> ⚠️ destructive<a class="headerlink" href="#tc-doc43-markdown-table-via-write_doc_content-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3149,7 +3183,8 @@
 - Returned <code>{"error": "File not found: /tmp/nonexistent-file.md"}</code> — no exception.</p>
 <hr />
 <h3 id="tc-doc47-write_doc_content-inline-code-monospace-destructive">TC-DOC47: <code>write_doc_content</code> inline code monospace ⚠️ destructive<a class="headerlink" href="#tc-doc47-write_doc_content-inline-code-monospace-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Write this markdown to doc {DOC_ID} using content_format='markdown': <code>Use the \</code>print()` function`"</p>
 </blockquote>
@@ -3159,6 +3194,9 @@
 <p><strong>Result (2026-06-19) ✅ PASS</strong>
 - Paragraph text <code>Call my_function() with param=True to enable it.</code> confirmed; code spans at correct positions.
 - <code>weightedFontFamily: Courier New</code> confirmed via unit tests; not exposed by <code>get_doc_structure</code> (known gap).</p>
+<p><strong>Result (2026-07-04)</strong> Two findings during the v0.8.1 live pass, neither a failure of this TC's own checks:
+1. The prescribed SVG image URI in TC-DOC57/58 is unrelated to this TC but was hit in the same session — see those TCs, now fixed to use a PNG.
+2. This TC's own content (an inline code span) was one of the reproductions of the trailing-paragraph-mark contamination bug — see TC-DOC42's 2026-07-04 result for the full account, filed as <a href="https://github.com/khuisman/mcp-gee-sweet/issues/255">#255</a>, fixed in <a href="https://github.com/khuisman/mcp-gee-sweet/pull/258">#258</a>/<a href="https://github.com/khuisman/mcp-gee-sweet/pull/259">#259</a> and re-verified live post-merge. Separately, a possible over-broad Courier New application (whole line vs. just the code span) was observed visually but not conclusively confirmed, since <code>get_doc_structure</code> doesn't expose <code>font_family</code> per run — no ticket filed yet, flagged as a follow-up if that gap is ever closed.</p>
 <hr />
 <h3 id="tc-doc78-data-styletitle-produces-title-named-style-destructive">TC-DOC78: <code>data-style="title"</code> produces TITLE named style ⚠️ destructive<a class="headerlink" href="#tc-doc78-data-styletitle-produces-title-named-style-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> verify that <code>&lt;p data-style="title"&gt;</code> is parsed as a <code>NamedBlock(TITLE)</code> and the emitter applies <code>updateParagraphStyle</code> with <code>namedStyleType: TITLE</code>.</p>
@@ -3193,7 +3231,8 @@
 <hr />
 <h2 id="nested-table-support-write_doc_content">Nested table support — <code>write_doc_content</code><a class="headerlink" href="#nested-table-support-write_doc_content" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc48-simple-nested-table-destructive">TC-DOC48: Simple nested table ⚠️ destructive<a class="headerlink" href="#tc-doc48-simple-nested-table-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Inner&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
 </blockquote>
@@ -3259,7 +3298,8 @@
 <p><strong>Result (2026-06-20) ✅ PASS</strong> Called with HEADING_1 + HEADING_2 + NORMAL_TEXT → <code>{"docId": "...", "requests": 3}</code>. Each emitted one <code>updateNamedStyle</code> request with snake_case field mask (<code>named_style_type,text_style.weighted_font_family,text_style.font_size</code>). No error. Live API accepted all three requests.</p>
 <hr />
 <h3 id="tc-doc54-apply_theme-with-overwritetrue-also-patches-existing-paragraphs-destructive">TC-DOC54: <code>apply_theme</code> with <code>overwrite=True</code> also patches existing paragraphs ⚠️ destructive<a class="headerlink" href="#tc-doc54-apply_theme-with-overwritetrue-also-patches-existing-paragraphs-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Write <code>&lt;h1&gt;Heading One&lt;/h1&gt;&lt;p&gt;Normal body text.&lt;/p&gt;</code> to doc {DOC_ID}, then apply theme <code>{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}</code> with overwrite=True"</p>
 </blockquote>
@@ -3273,7 +3313,8 @@
 <hr />
 <h3 id="tc-doc55-apply_theme-with-table-styling-destructive">TC-DOC55: <code>apply_theme</code> with table styling ⚠️ destructive<a class="headerlink" href="#tc-doc55-apply_theme-with-table-styling-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prerequisite:</strong> doc must contain at least one table (write one with <code>write_doc_content</code> first if needed)</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Apply this theme to doc {DOC_ID}: <code>{"table": {"border_color": {"red": 0, "green": 0, "blue": 0}, "border_width": 0.5, "border_dash_style": "SOLID", "cell_padding": 3.6, "header_background": {"red": 0.953, "green": 0.953, "blue": 0.953}}}</code>"</p>
 </blockquote>
@@ -3298,9 +3339,10 @@
 <h2 id="insert_inline_image-145"><code>insert_inline_image</code> (#145)<a class="headerlink" href="#insert_inline_image-145" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc57-insert-an-image-by-public-uri-destructive">TC-DOC57: Insert an image by public URI ⚠️ destructive<a class="headerlink" href="#tc-doc57-insert-an-image-by-public-uri-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> fetch structure; note the <code>endIndex</code> of a paragraph to insert after</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
-<p>"Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/svg/googlelogo_clr_74x24px.svg' at index {N} in doc {DOC_ID}"</p>
+<p>"Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png' at index {N} in doc {DOC_ID}"</p>
 </blockquote>
 <p><strong>Checks</strong>
 - Call succeeds with no API error
@@ -3311,9 +3353,10 @@
 <hr />
 <h3 id="tc-doc58-insert-an-image-with-explicit-size-destructive">TC-DOC58: Insert an image with explicit size ⚠️ destructive<a class="headerlink" href="#tc-doc58-insert-an-image-with-explicit-size-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> same as TC-DOC57</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
-<p>"Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/svg/googlelogo_clr_74x24px.svg' at index {N} in doc {DOC_ID} with width 100 and height 50"</p>
+<p>"Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png' at index {N} in doc {DOC_ID} with width 100 and height 50"</p>
 </blockquote>
 <p><strong>Checks</strong>
 - Call succeeds with no API error
@@ -3355,7 +3398,8 @@
 <hr />
 <h3 id="tc-doc62-insert-a-row-above-an-existing-row-destructive">TC-DOC62: Insert a row above an existing row ⚠️ destructive<a class="headerlink" href="#tc-doc62-insert-a-row-above-an-existing-row-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Insert a row above row 1 in the table at index {tableStartIndex} in doc {DOC_ID} (insert_below=False)"</p>
 </blockquote>
@@ -3368,7 +3412,8 @@
 <hr />
 <h3 id="tc-doc63-delete-a-row-destructive">TC-DOC63: Delete a row ⚠️ destructive<a class="headerlink" href="#tc-doc63-delete-a-row-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 3-row table; note its <code>tableStartIndex</code></p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Delete row 1 from the table at index {tableStartIndex} in doc {DOC_ID}"</p>
 </blockquote>
@@ -3381,7 +3426,8 @@
 <hr />
 <h3 id="tc-doc64-insert-a-column-to-the-right-destructive">TC-DOC64: Insert a column to the right ⚠️ destructive<a class="headerlink" href="#tc-doc64-insert-a-column-to-the-right-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Insert a column to the right of column 0 in the table at index {tableStartIndex} in doc {DOC_ID}"</p>
 </blockquote>
@@ -3394,7 +3440,8 @@
 <hr />
 <h3 id="tc-doc65-insert-a-column-to-the-left-destructive">TC-DOC65: Insert a column to the left ⚠️ destructive<a class="headerlink" href="#tc-doc65-insert-a-column-to-the-left-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Insert a column to the left of column 1 in the table at index {tableStartIndex} in doc {DOC_ID} (insert_right=False)"</p>
 </blockquote>
@@ -3406,7 +3453,8 @@
 <hr />
 <h3 id="tc-doc66-delete-a-column-destructive">TC-DOC66: Delete a column ⚠️ destructive<a class="headerlink" href="#tc-doc66-delete-a-column-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×3 table; note its <code>tableStartIndex</code></p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Delete column 1 from the table at index {tableStartIndex} in doc {DOC_ID}"</p>
 </blockquote>
@@ -3430,7 +3478,8 @@
 <hr />
 <h2 id="create_header-create_footer-147"><code>create_header</code> / <code>create_footer</code> (#147)<a class="headerlink" href="#create_header-create_footer-147" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc68-create-a-default-page-header-destructive">TC-DOC68: Create a default page header ⚠️ destructive<a class="headerlink" href="#tc-doc68-create-a-default-page-header-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Add a page header to doc {DOC_ID}"</p>
 </blockquote>
@@ -3442,7 +3491,8 @@
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>create_header(doc_id=fixture)</code> (no content). Returned <code>{"docId": ..., "headerId": "kix.xxxxxxxxxx"}</code>. Header section visible in Google Docs. Note: on first call after a prior session created the header (due to index=1 bug), the "already exists" 400 error was caught and the ID was retrieved from <code>documentStyle.defaultHeaderId</code> — this is the expected fallback path.</p>
 <hr />
 <h3 id="tc-doc69-create-a-header-with-content-destructive">TC-DOC69: Create a header with content ⚠️ destructive<a class="headerlink" href="#tc-doc69-create-a-header-with-content-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Add a page header to doc {DOC_ID} with content 'Confidential — Internal Only'"</p>
 </blockquote>
@@ -3454,7 +3504,8 @@
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>create_header(doc_id=temp_doc, content="Confidential — Internal Only")</code>. Returned <code>{"docId": ..., "headerId": "kix.xxxxxxxxxx"}</code> with no <code>warning</code> key — both header creation (via <code>documentStyle</code> fallback) and content insertion at <code>index=0</code> succeeded.</p>
 <hr />
 <h3 id="tc-doc70-create-a-default-page-footer-destructive">TC-DOC70: Create a default page footer ⚠️ destructive<a class="headerlink" href="#tc-doc70-create-a-default-page-footer-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Add a page footer to doc {DOC_ID}"</p>
 </blockquote>
@@ -3465,7 +3516,8 @@
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>create_footer(doc_id=fixture)</code>. Returned <code>{"docId": ..., "footerId": "kix.xxxxxxxxxx"}</code>. Footer section visible in Google Docs.</p>
 <hr />
 <h3 id="tc-doc71-create-a-footer-with-content-destructive">TC-DOC71: Create a footer with content ⚠️ destructive<a class="headerlink" href="#tc-doc71-create-a-footer-with-content-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Add a page footer to doc {DOC_ID} with content 'Page 1'"</p>
 </blockquote>
@@ -3495,7 +3547,8 @@
 <hr />
 <h3 id="tc-doc74-insert_doc_text-with-segment_id-writes-into-header-destructive">TC-DOC74: insert_doc_text with segment_id writes into header ⚠️ destructive<a class="headerlink" href="#tc-doc74-insert_doc_text-with-segment_id-writes-into-header-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> call <code>create_header</code> first to get a <code>headerId</code></p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Insert the text 'Header text via insert_doc_text' at index 0 in doc {DOC_ID} using segment_id '{headerId}'"</p>
 </blockquote>
@@ -3520,7 +3573,8 @@
 <hr />
 <h3 id="tc-doc76-table-immediately-after-heading-renders-at-normal-text-size-requires-oauth-destructive">TC-DOC76: Table immediately after heading renders at Normal Text size ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc76-table-immediately-after-heading-renders-at-normal-text-size-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-d226-heading-table.md</code> from the repo (absolute path: <code>&lt;repo-root&gt;/docs/qa/fixtures/tc-d226-heading-table.md</code>)</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."</p>
 </blockquote>
@@ -3536,7 +3590,8 @@
 <code>deleteContentRange</code> is rejected for it. The fix collapses it to zero visual height via
 <code>updateParagraphStyle</code> (spaceAbove/Below=0, lineSpacing=1) + <code>updateTextStyle</code> (fontSize=1pt).</p>
 <p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-d226-heading-table.md</code> (heading immediately followed by a table)</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."</p>
 </blockquote>
@@ -3547,6 +3602,30 @@
 <p><strong>Cleanup:</strong> delete the created doc</p>
 <p><strong>Result (2026-06-25) ✅ PASS</strong>
 - Tool completed without error. Structure: sectionBreak → HEADING_2 "HIGH\n" (1-6) → blank para "\n" (6-7, <code>font_size: 1</code> on its run confirming collapse applied) → table (7-70, cells filled correctly: Finding/Severity/Ticket header, Some finding/HIGH/KINDLY-123 data) → trailing para (70-71). Visual check: no visible gap between heading and table in the rendered doc.</p>
+<hr />
+<h3 id="tc-doc80-get_doc_content-trips-the-response-size-cap-cached-path-re-checks-it-too-issue-242">TC-DOC80: get_doc_content trips the response-size cap; cached path re-checks it too (issue #242)<a class="headerlink" href="#tc-doc80-get_doc_content-trips-the-response-size-cap-cached-path-re-checks-it-too-issue-242" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #242 generalized #235's response-size safety net to <code>get_doc_content</code>. <code>doc_cache</code> previously returned a cached result <em>before</em> any cap check ran, so a cached oversized doc would bypass the cap on repeat calls — fixed so the check runs on both the cache-hit and cache-miss paths.</p>
+<p><strong>Setup:</strong> <code>TEST_LARGE_DOC_ID</code> (<code>mcp-gee-sweet-qa-large-doc</code>), grown from its original ~5,300-character seed content to ~49,700 characters by inserting repeated padding text (permanent fixture growth — this doc's whole purpose is being a large-content fixture, and it was never previously large enough to exceed any cap since none existed for this tool before now).</p>
+<p><strong>Checks</strong>
+- First call (fetch path) raises <code>ValueError</code> mentioning the actual response size, the cap, and <code>MAX_TOOL_RESPONSE_CHARS</code>
+- Second call (cache-hit path, no <code>refresh_cache</code> in between) raises the <em>same</em> error — proves the cache-hit path re-checks the cap rather than returning the stale oversized cached result
+- Same call with <code>local_path</code> set succeeds, returns <code>{local_path, id, bytes_written}</code>, and the file on disk contains the full content</p>
+<p><strong>Result (2026-07-03) ✅ PASS</strong>
+Fetch-path call raised: <code>get_doc_content: the response is 49700 characters, over the 40000-character safety cap. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).</code> Repeat call (served from <code>doc_cache</code>, confirmed via no additional Drive API round-trip) raised the identical error — confirms the cache-ordering fix. <code>local_path</code> call succeeded: <code>{"local_path":"/tmp/qa_doc_content_242.json","bytes_written":49700,"id":"{TEST_LARGE_DOC_ID}"}</code>; file verified then cleaned up.</p>
+<hr />
+<h3 id="tc-doc81-create_doc_from_file-renders-escape-as-literal-issue-213-requires-oauth-destructive">TC-DOC81: create_doc_from_file renders \$ escape as literal $ (issue #213) ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc81-create_doc_from_file-renders-escape-as-literal-issue-213-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Python-Markdown's default <code>ESCAPED_CHARS</code> omits <code>$</code> (unlike CommonMark, which includes it in its escapable-punctuation set), so <code>\$</code> — commonly used to defeat math/LaTeX-delimiter renderers like Obsidian/Typora/Jupyter that treat bare <code>$...$</code> as inline math — previously passed through untouched into the rendered Doc as a literal backslash+dollar. Fixed via a small <code>markdown.extensions.Extension</code> that adds <code>$</code> to <code>ESCAPED_CHARS</code>, so it's handled by the library's own escape mechanism (respecting code-span/fenced-code protection) rather than a blind text substitution.</p>
+<p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-d213-dollar-escape.md</code> from the repo (a table cell, a second table row, and a plain-text sentence, each with a <code>\$</code>-escaped dollar amount)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d213-dollar-escape.md"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>docId</code> and <code>web_link</code> returned with no <code>error</code>
+- <code>get_doc_content</code> shows <code>$6,000</code>, <code>$25</code>, and <code>$1,200</code> as plain literal dollar amounts — no <code>\$</code> (literal backslash+dollar) anywhere in the content</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-04) ✅ PASS</strong>
+<code>create_doc_from_file</code> succeeded. <code>get_doc_content</code> returned: <code>"...Deductible\r\n\t$6,000\r\n\tCopay\r\n\t$25\r\n\tPlain text with an escaped price: $1,200 due at signing."</code> — all three escaped amounts rendered as literal <code>$</code>, no <code>\$</code> anywhere. Doc permanently deleted after verification.</p>
 
 
 

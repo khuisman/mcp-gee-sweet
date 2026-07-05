@@ -2473,7 +2473,8 @@
 <hr />
 <h2 id="format_cells"><code>format_cells</code><a class="headerlink" href="#format_cells" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s33-apply-bold-and-background-color-to-a-range-destructive">TC-S33: Apply bold and background color to a range ⚠️ destructive<a class="headerlink" href="#tc-s33-apply-bold-and-background-color-to-a-range-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Make cells A1:D1 on the Sales sheet bold with a light blue background"</p>
 </blockquote>
@@ -2485,7 +2486,8 @@
 <p><strong>Result (2026-06-21) ✅</strong> A1:D1 on Sales formatted bold with light blue background. <code>replies: [{}]</code> — no error.</p>
 <hr />
 <h3 id="tc-s34-apply-number-format-to-a-column-destructive">TC-S34: Apply number format to a column ⚠️ destructive<a class="headerlink" href="#tc-s34-apply-number-format-to-a-column-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Format column B (B2:B100) on Sales as currency with 2 decimal places"</p>
 </blockquote>
@@ -2496,7 +2498,8 @@
 <p><strong>Result (2026-06-21) ✅</strong> B2:B6 on Sales formatted NUMBER with pattern <code>#,##0.00</code>. <code>replies: [{}]</code> — no error.</p>
 <hr />
 <h3 id="tc-s35-set-horizontal-alignment-destructive">TC-S35: Set horizontal alignment ⚠️ destructive<a class="headerlink" href="#tc-s35-set-horizontal-alignment-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Center-align cells A1:F1 on the Sales sheet"</p>
 </blockquote>
@@ -2518,7 +2521,8 @@
 <hr />
 <h2 id="merge_cells-unmerge_cells"><code>merge_cells</code> / <code>unmerge_cells</code><a class="headerlink" href="#merge_cells-unmerge_cells" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s38-merge-a-header-row-range-destructive">TC-S38: Merge a header row range ⚠️ destructive<a class="headerlink" href="#tc-s38-merge-a-header-row-range-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Merge cells A1:D1 on the Sales sheet to make a single header cell"</p>
 </blockquote>
@@ -2529,7 +2533,8 @@
 <p><strong>Result (2026-06-21) ✅</strong> E1:G2 on Empty merged with MERGE_ALL. <code>replies: [{}]</code> — no error.</p>
 <hr />
 <h3 id="tc-s39-merge-rows-independently-destructive">TC-S39: Merge rows independently ⚠️ destructive<a class="headerlink" href="#tc-s39-merge-rows-independently-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Merge each row independently in A1:C3 on Sales (merge_type=MERGE_ROWS)"</p>
 </blockquote>
@@ -2538,7 +2543,8 @@
 <p><strong>Result (2026-06-21) ✅</strong> H1:J3 on Empty merged with MERGE_ROWS. <code>replies: [{}]</code> — no error.</p>
 <hr />
 <h3 id="tc-s40-unmerge-a-previously-merged-range-destructive">TC-S40: Unmerge a previously merged range ⚠️ destructive<a class="headerlink" href="#tc-s40-unmerge-a-previously-merged-range-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Unmerge cells A1:D1 on the Sales sheet"</p>
 </blockquote>
@@ -2554,7 +2560,8 @@
 <hr />
 <h2 id="freeze"><code>freeze</code><a class="headerlink" href="#freeze" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s42-freeze-the-header-row-destructive">TC-S42: Freeze the header row ⚠️ destructive<a class="headerlink" href="#tc-s42-freeze-the-header-row-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Freeze the first row on the Sales sheet"</p>
 </blockquote>
@@ -2565,7 +2572,8 @@
 <p><strong>Result (2026-06-21) ✅</strong> Row 1 frozen on Sales. <code>replies: [{}]</code> — no error.</p>
 <hr />
 <h3 id="tc-s43-freeze-first-row-and-first-column-destructive">TC-S43: Freeze first row and first column ⚠️ destructive<a class="headerlink" href="#tc-s43-freeze-first-row-and-first-column-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Freeze the first row and first column on Sales"</p>
 </blockquote>
@@ -2589,7 +2597,8 @@
 <hr />
 <h2 id="sort_range"><code>sort_range</code><a class="headerlink" href="#sort_range" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s46-sort-a-data-range-ascending-by-first-column-destructive">TC-S46: Sort a data range ascending by first column ⚠️ destructive<a class="headerlink" href="#tc-s46-sort-a-data-range-ascending-by-first-column-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Sort the range A2:D50 on Sales by the first column ascending"</p>
 </blockquote>
@@ -2599,7 +2608,8 @@
 <p><strong>Result (2026-06-21) ✅</strong> A2:D5 on Sales sorted by Product ascending (Donut, Gadget, Gizmo, Widget). <code>replies: [{}]</code> — no error.</p>
 <hr />
 <h3 id="tc-s47-sort-descending-by-a-non-first-column-destructive">TC-S47: Sort descending by a non-first column ⚠️ destructive<a class="headerlink" href="#tc-s47-sort-descending-by-a-non-first-column-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Sort A2:D50 on Sales by column C (index 2) descending"</p>
 </blockquote>
@@ -2608,7 +2618,8 @@
 <p><strong>Result (2026-06-21) ✅</strong> A2:D5 sorted by Q2 descending (Gizmo 310, Widget 120, Gadget 180... descending). <code>replies: [{}]</code> — no error.</p>
 <hr />
 <h3 id="tc-s48-multi-column-sort-destructive">TC-S48: Multi-column sort ⚠️ destructive<a class="headerlink" href="#tc-s48-multi-column-sort-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Sort A2:D50 on Sales: primary key column A ascending, secondary key column C descending"</p>
 </blockquote>
