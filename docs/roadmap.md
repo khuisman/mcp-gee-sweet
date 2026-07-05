@@ -35,7 +35,7 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 | [**v0.7.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.7) | ✅ First stable PyPI release — 63 tools across Sheets, Drive, Docs, Calendar | Published 2026-06-21 |
 | [**v0.8.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8) | ✅ Tier 1 complete — all "frequently needed" items across all domains (84 tools) | Published 2026-06-29 |
 | [**v0.8.1**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8.1) | Defect & documentation cleanup — no new tools, ships the QA/refactor work already on `develop` plus fixes for #235, #242, #213, #239, #236 | Stabilizes before Tier 2 feature work begins |
-| [**v0.9.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9) | Tier 2 complete — power-user and structured-work layer, features only (~20 tools) | Covers most real workflows |
+| [**v0.9.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9) | Tier 2 complete — power-user and structured-work layer (~20 tools), plus defects that surfaced after v0.8.1 shipped ([#248](https://github.com/khuisman/mcp-gee-sweet/issues/248)) | Covers most real workflows |
 | [**v1.0.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0) | API stability declaration — Tier 3 items that make the cut + any breaking cleanups from v0.8–0.9 | Backwards-compatibility commitment |
 | [**v1.1.0+**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22v1.1%2B%22) | Future domains — Tasks, Gmail (separate minor releases, each needs a new API client) | Expanded scope |
 
@@ -92,7 +92,10 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [x] Rewrite `CONTRIBUTING.md` — fix broken links to removed README anchors, fix stale "Available Tool Names" and `bug`-label references, add better local-dev setup examples including observability (`DEBUG_LEVEL`/`LOG_FILE`/`ACCESS_LOG_FILE`) ([#95](https://github.com/khuisman/mcp-gee-sweet/issues/95))
 - [ ] Define and document community PR expectations — template, testing bar for non-tool PRs, scope/size convention, CLA/DCO/code-of-conduct decision, review turnaround ([#237](https://github.com/khuisman/mcp-gee-sweet/issues/237))
 
-### Tier 2 — Useful for structured work, features only _(target: [v0.9.0](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9))_
+### Tier 2 — Useful for structured work, plus defects surfaced since v0.8.1 _(target: [v0.9.0](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9))_
+
+**Defects** _(found after v0.8.1 shipped; too late for that release, don't warrant a standalone patch)_
+- [ ] Bare URLs in markdown content aren't autolinked — Python-Markdown's built-in autolink only fires on `<https://...>` or `[text](url)`, not a bare URL ([#248](https://github.com/khuisman/mcp-gee-sweet/issues/248))
 
 **Sheets**
 - [ ] `update_borders` — border style, width, color on a range ([#122](https://github.com/khuisman/mcp-gee-sweet/issues/122)) _(freema/mcp-gsheets)_
@@ -130,6 +133,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 
 **Infrastructure**
 - [ ] Cache reliability & configurability — runtime-configurable TTL, smarter invalidation for shared files ([#99](https://github.com/khuisman/mcp-gee-sweet/issues/99)); harden concurrent-session access — fail-open on cache read/write errors, `busy_timeout` ([#234](https://github.com/khuisman/mcp-gee-sweet/issues/234))
+- [ ] Async tool execution — `asyncio.gather()` for parallel Google API calls; establishes the project's parallel-call pattern, which [#194](https://github.com/khuisman/mcp-gee-sweet/issues/194) should reuse rather than introducing its own `ThreadPoolExecutor` ([#183](https://github.com/khuisman/mcp-gee-sweet/issues/183))
 
 ### Tier 3 — Advanced / occasionally needed _(target: [v1.0.0](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0))_
 
@@ -183,7 +187,7 @@ Design questions raised during Phase 1 QA that need a deliberate product/API dec
 - [ ] `search_spreadsheets` empty query — return all or require non-empty input ([#39](https://github.com/khuisman/mcp-gee-sweet/issues/39))
 - [ ] `get_file_metadata` size field for Workspace files — normalize or document ([#40](https://github.com/khuisman/mcp-gee-sweet/issues/40))
 - [ ] `rows_to_fetch=0` — clamp to 1 or return all rows ([#78](https://github.com/khuisman/mcp-gee-sweet/issues/78))
-- [ ] `list_all_events` — how to handle per-calendar failures when querying in parallel (partial results vs fail-fast) ([#194](https://github.com/khuisman/mcp-gee-sweet/issues/194))
+- [ ] `list_all_events` — how to handle per-calendar failures when querying in parallel (partial results vs fail-fast); also blocked on [#183](https://github.com/khuisman/mcp-gee-sweet/issues/183) landing first so it reuses that pattern instead of its own `ThreadPoolExecutor` ([#194](https://github.com/khuisman/mcp-gee-sweet/issues/194))
 
 ---
 
@@ -230,7 +234,7 @@ The test expected the API to silently truncate a 2D array that's wider than the 
 - [x] Google Docs tools (all 13) — `docs.md`
 - [x] Calendar tools — `calendar.md`
 - [x] Infrastructure — `infra.md`
-- [ ] QA gaps targeted for v0.9 — second Drive folder fixture ([#44](https://github.com/khuisman/mcp-gee-sweet/issues/44)), shared drive coverage ([#48](https://github.com/khuisman/mcp-gee-sweet/issues/48)), domain/public sharing coverage ([#49](https://github.com/khuisman/mcp-gee-sweet/issues/49)), local-filesystem coverage ([#50](https://github.com/khuisman/mcp-gee-sweet/issues/50)), environment-constraint coverage ([#53](https://github.com/khuisman/mcp-gee-sweet/issues/53)), image fixtures for `insert_inline_image` ([#224](https://github.com/khuisman/mcp-gee-sweet/issues/224)), dedicated QA Google account ([#225](https://github.com/khuisman/mcp-gee-sweet/issues/225)), OAuth all-scopes token for faster setup ([#226](https://github.com/khuisman/mcp-gee-sweet/issues/226)), disposition of v0.8.0 SKIP entries ([#227](https://github.com/khuisman/mcp-gee-sweet/issues/227))
+- [ ] QA gaps targeted for v0.9 — disposition of v0.8.0 SKIP entries, do first since it triages the rest ([#227](https://github.com/khuisman/mcp-gee-sweet/issues/227)); dedicated screenshots folder ([#231](https://github.com/khuisman/mcp-gee-sweet/issues/231)); split `drive.md`/`docs.md` test files by submodule ([#233](https://github.com/khuisman/mcp-gee-sweet/issues/233)); OAuth all-scopes token for faster setup ([#226](https://github.com/khuisman/mcp-gee-sweet/issues/226)); dedicated QA Google account ([#225](https://github.com/khuisman/mcp-gee-sweet/issues/225)) paired with the actual pollution root-cause fixes — dedicated QA calendar, `folder_id` on every fixture, teardown ([#249](https://github.com/khuisman/mcp-gee-sweet/issues/249)); second Drive folder fixture ([#44](https://github.com/khuisman/mcp-gee-sweet/issues/44)); shared drive coverage ([#48](https://github.com/khuisman/mcp-gee-sweet/issues/48)); domain/public sharing coverage ([#49](https://github.com/khuisman/mcp-gee-sweet/issues/49)); local-filesystem coverage ([#50](https://github.com/khuisman/mcp-gee-sweet/issues/50)); environment-constraint coverage, overlaps #48/#49 ([#53](https://github.com/khuisman/mcp-gee-sweet/issues/53)); image fixtures for `insert_inline_image` ([#224](https://github.com/khuisman/mcp-gee-sweet/issues/224))
 - See [GitHub Issues (label: qa)](https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Aqa) for open QA gaps and fixture issues
 
 ---
