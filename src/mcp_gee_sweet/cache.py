@@ -186,7 +186,7 @@ class SheetDataCache:
         logger.debug("Sheet data cache hit: %s/%s", spreadsheet_id, sheet_id)
         return {
             "headers": data["headers"],
-            "first_rows": data["first_rows"][: rows_to_fetch - 1],
+            "first_rows": data["first_rows"][: max(1, rows_to_fetch) - 1],
         }
 
     def store(
