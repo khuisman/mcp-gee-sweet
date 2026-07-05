@@ -121,6 +121,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [ ] Rowspan emitter — AST `Cell.rowspan` field exists but emitter does not yet merge rows ([#195](https://github.com/khuisman/mcp-gee-sweet/issues/195))
 - [ ] Warn/error on mixed text + nested table in same cell ([#108](https://github.com/khuisman/mcp-gee-sweet/issues/108))
 - [ ] colspan/rowspan inside nested tables ([#109](https://github.com/khuisman/mcp-gee-sweet/issues/109))
+- [ ] `find_in_doc` — search doc text and return match locations, parallel to `find_in_spreadsheet`; removes the manual index math currently needed to retrofit links (or any style) onto text already in a doc, raised while fixing #248 ([#262](https://github.com/khuisman/mcp-gee-sweet/issues/262))
 
 **Drive**
 - [ ] `restore_file` / `empty_trash` — undelete or permanently purge trashed files ([#138](https://github.com/khuisman/mcp-gee-sweet/issues/138))
@@ -134,6 +135,9 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 **Infrastructure**
 - [ ] Cache reliability & configurability — runtime-configurable TTL, smarter invalidation for shared files ([#99](https://github.com/khuisman/mcp-gee-sweet/issues/99)); harden concurrent-session access — fail-open on cache read/write errors, `busy_timeout` ([#234](https://github.com/khuisman/mcp-gee-sweet/issues/234))
 - [ ] Async tool execution — `asyncio.gather()` for parallel Google API calls; establishes the project's parallel-call pattern, which [#194](https://github.com/khuisman/mcp-gee-sweet/issues/194) should reuse rather than introducing its own `ThreadPoolExecutor` ([#183](https://github.com/khuisman/mcp-gee-sweet/issues/183))
+
+**Documentation**
+- [ ] Rewrite positioning/differentiation in README and `docs/index.md` — official Google MCP servers are now in developer preview, which undercuts the current "no official alternative exists" framing; lead with concrete differentiators (tool breadth, stability/QA gate, design philosophy) instead, checked against what the official servers actually cover ([#263](https://github.com/khuisman/mcp-gee-sweet/issues/263))
 
 ### Tier 3 — Advanced / occasionally needed _(target: [v1.0.0](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0))_
 
