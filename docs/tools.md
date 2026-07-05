@@ -110,10 +110,10 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 
 | Tool | Description | Key parameters |
 |---|---|---|
-| `create_doc` | Create a new Google Doc, optionally with initial content. | `title`, `content?`, `folder_id?`, `content_format?` |
-| `create_doc_from_file` | Create a Google Doc from a local .md or .html file. | `local_path`, `title?`, `folder_id?` |
+| `create_doc` | Create a new Google Doc, optionally with initial content. | `title`, `content?`, `folder_id?`, `content_format?`, `autolink_urls?` |
+| `create_doc_from_file` | Create a Google Doc from a local .md or .html file. | `local_path`, `title?`, `folder_id?`, `autolink_urls?` |
 | `get_doc_content` | Get the plain text content of a Google Doc. | `file_id`, `local_path?` |
-| `write_doc_content` | Replace the full content of an existing Google Doc. | `doc_id`, `content`, `content_format?` |
+| `write_doc_content` | Replace the full content of an existing Google Doc. | `doc_id`, `content`, `content_format?`, `autolink_urls?` |
 | `get_doc_structure` | Return the full structural map of a Google Doc body with element indices. | `doc_id` |
 | `insert_doc_text` | Insert text at one or more positions in a Google Doc. | `doc_id`, `insertions` |
 | `delete_doc_range` | Delete one or more content ranges from a Google Doc. | `doc_id`, `deletions` |

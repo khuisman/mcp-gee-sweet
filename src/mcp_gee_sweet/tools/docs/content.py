@@ -1,5 +1,6 @@
 import html as html_module
 import logging
+import xml.etree.ElementTree as etree
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -7,6 +8,7 @@ from typing import Any
 import markdown as _md
 from googleapiclient.errors import HttpError
 from markdown.extensions import Extension
+from markdown.inlinepatterns import InlineProcessor
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
@@ -61,23 +63,74 @@ class _DollarEscapeExtension(Extension):
             md.ESCAPED_CHARS.append("$")
 
 
-def _md_to_html(md_text: str) -> str:
-    """Convert Markdown to HTML using the Python markdown library (tables, fenced_code, sane_lists extensions)."""
-    return _md.markdown(
-        md_text, extensions=["tables", "fenced_code", "sane_lists", _DollarEscapeExtension()]
-    )
+_BARE_URL_PATTERN = r'(https?://[^\s<>"]+)'
+_BARE_URL_TRAILING_PUNCT = ".,;:!?"
+
+
+class _BareUrlInlineProcessor(InlineProcessor):
+    """Autolink a bare http(s) URL left as plain text.
+
+    Registered at low priority so it only sees text that survived
+    Python-Markdown's built-in link/autolink/code-span processing untouched —
+    an already-linked or code-spanned URL is never re-matched here."""
+
+    def handleMatch(self, m, data):
+        url = m.group(1)
+        # Trim trailing sentence punctuation and an unmatched closing paren, matching
+        # CommonMark/GFM extended autolink behavior — "see https://x.com." shouldn't
+        # swallow the period, and "(https://x.com)" shouldn't swallow the paren.
+        while url:
+            if url[-1] in _BARE_URL_TRAILING_PUNCT:
+                url = url[:-1]
+            elif url[-1] == ")" and url.count("(") < url.count(")"):
+                url = url[:-1]
+            else:
+                break
+        el = etree.Element("a")
+        el.set("href", url)
+        el.text = url
+        return el, m.start(1), m.start(1) + len(url)
+
+
+class _BareUrlAutolinkExtension(Extension):
+    """Autolink bare http(s):// URLs, matching CommonMark/GFM extended autolinks.
+    Python-Markdown's core autolink only fires on <https://...> or [text](url)
+    (issue #248) — a bare URL in prose is otherwise left as inert text."""
+
+    def extendMarkdown(self, md):
+        md.inlinePatterns.register(
+            _BareUrlInlineProcessor(_BARE_URL_PATTERN, md), "bare_url_autolink", 3
+        )
+
+
+def _md_to_html(md_text: str, autolink_urls: bool = True) -> str:
+    """Convert Markdown to HTML using the Python markdown library (tables, fenced_code,
+    sane_lists extensions, plus bare-URL autolinking and the \\$ escape fix).
+
+    autolink_urls=False skips the bare-URL extension for callers who want a URL to
+    render as plain text — e.g. a placeholder or example. Per-URL suppression (rather
+    than disabling it for the whole call) is available by wrapping just that URL in
+    backticks, which already protects it as an inline code span."""
+    extensions = ["tables", "fenced_code", "sane_lists", _DollarEscapeExtension()]
+    if autolink_urls:
+        extensions.append(_BareUrlAutolinkExtension())
+    return _md.markdown(md_text, extensions=extensions)
 
 
 def _to_doc_requests(
-    content: str, content_format: str = "html", start_index: int = 1
+    content: str,
+    content_format: str = "html",
+    start_index: int = 1,
+    autolink_urls: bool = True,
 ) -> tuple[list[dict], list[Table]]:
     """Convert HTML or Markdown to Docs API batchUpdate requests via the AST pipeline.
 
     Returns (requests, tables) where tables is a list of Table AST nodes. Table cells
     are NOT filled here — call fill_tables() after executing the returned requests.
+    autolink_urls only affects content_format="markdown" — see _md_to_html.
     """
     if content_format == "markdown":
-        content = _md_to_html(content)
+        content = _md_to_html(content, autolink_urls=autolink_urls)
     nodes = html_to_ast(content)
     return ast_to_requests(nodes, start_index)
 
@@ -95,6 +148,7 @@ def register(tool):
         content: str | None = None,
         folder_id: str | None = None,
         content_format: str = "html",
+        autolink_urls: bool = True,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -111,6 +165,10 @@ def register(tool):
             folder_id: Optional Google Drive folder ID where the document should be created.
                       If not provided, creates in the root of My Drive.
             content_format: 'html' (default) or 'markdown'
+            autolink_urls: When content_format='markdown', whether a bare http(s) URL (not
+                already wrapped in a Markdown link or angle brackets) becomes a real
+                hyperlink (default True). Set False to leave bare URLs as plain text; to
+                suppress just one URL instead of the whole call, wrap it in backticks.
 
         Returns:
             Information about the newly created document including its ID and web link
@@ -158,7 +216,9 @@ def register(tool):
         )
 
         if content:
-            content_requests, tables = _to_doc_requests(content, content_format, start_index=1)
+            content_requests, tables = _to_doc_requests(
+                content, content_format, start_index=1, autolink_urls=autolink_urls
+            )
             if content_requests:
                 docs_service.documents().batchUpdate(
                     documentId=doc_id, body={"requests": content_requests}
@@ -180,6 +240,7 @@ def register(tool):
         local_path: str,
         title: str | None = None,
         folder_id: str | None = None,
+        autolink_urls: bool = True,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -193,6 +254,10 @@ def register(tool):
             local_path: Absolute or relative path to the local file.
             title: Document title. Defaults to the filename stem.
             folder_id: Optional Google Drive folder ID. Defaults to server default folder.
+            autolink_urls: For .md files, whether a bare http(s) URL becomes a real
+                hyperlink (default True). Set False to leave bare URLs as plain text;
+                to suppress just one URL, wrap it in backticks instead. No effect on
+                .html files.
 
         Returns:
             Information about the newly created document including its ID and web link.
@@ -248,7 +313,9 @@ def register(tool):
         logger.debug("Doc created from file %s with ID: %s", local_path, doc_id)
 
         if content:
-            content_requests, tables = _to_doc_requests(content, content_format, start_index=1)
+            content_requests, tables = _to_doc_requests(
+                content, content_format, start_index=1, autolink_urls=autolink_urls
+            )
             if content_requests:
                 docs_service.documents().batchUpdate(
                     documentId=doc_id, body={"requests": content_requests}
@@ -330,6 +397,7 @@ def register(tool):
         doc_id: str,
         content: str,
         content_format: str = "html",
+        autolink_urls: bool = True,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -345,6 +413,9 @@ def register(tool):
             doc_id: The Google Doc file ID.
             content: Content to write into the document body.
             content_format: 'html' (default) or 'markdown'
+            autolink_urls: When content_format='markdown', whether a bare http(s) URL
+                becomes a real hyperlink (default True). Set False to leave bare URLs as
+                plain text; to suppress just one URL, wrap it in backticks instead.
 
         Returns:
             Confirmation with the document ID and web link.
@@ -386,7 +457,9 @@ def register(tool):
                 documentId=doc_id, body={"requests": clear_requests}
             ).execute()
 
-        content_requests, tables = _to_doc_requests(content, content_format, start_index=1)
+        content_requests, tables = _to_doc_requests(
+            content, content_format, start_index=1, autolink_urls=autolink_urls
+        )
         if content_requests:
             docs_service.documents().batchUpdate(
                 documentId=doc_id, body={"requests": content_requests}
