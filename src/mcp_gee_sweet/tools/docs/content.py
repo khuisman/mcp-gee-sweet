@@ -359,6 +359,21 @@ def register(tool):
 
         clear_requests = []
         if end_index > 2:
+            # The document's final paragraph mark can't be deleted by the Docs API (only
+            # everything before it), so an explicit textStyle override left there by prior
+            # content — e.g. the font_size:1 collapse applied to a blank paragraph before a
+            # table, see _build_blank_para_before_table_collapses in emitter.py — would
+            # otherwise survive this "clear" and can leak into newly-inserted content below.
+            # Reset it before deleting, while its original index range is still valid.
+            clear_requests.append(
+                {
+                    "updateTextStyle": {
+                        "range": {"startIndex": end_index - 1, "endIndex": end_index},
+                        "textStyle": {},
+                        "fields": "*",
+                    }
+                }
+            )
             clear_requests.append(
                 {"deleteContentRange": {"range": {"startIndex": 1, "endIndex": end_index - 1}}}
             )

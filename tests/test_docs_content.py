@@ -683,3 +683,63 @@ class TestGetDocContent:
         assert result["id"] == "doc1"
         written = json.loads(dest.read_text())
         assert written["content"] == "x" * 1000
+
+
+class TestWriteDocContent:
+    """Bug (#255): clear+reinsert left a stale textStyle override on the document's
+    trailing paragraph mark (which the Docs API won't let deleteContentRange remove),
+    letting it leak into newly-inserted content on the next write_doc_content call."""
+
+    def _make_services(self, end_index=50):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "webViewLink": "https://example.com"
+        }
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "body": {"content": [{"endIndex": end_index}]}
+        }
+        return drive_svc, docs_svc
+
+    def _ctx(self, drive_svc, docs_svc):
+        return _make_ctx(
+            drive_service=drive_svc,
+            docs_service=docs_svc,
+            doc_cache=MagicMock(),
+        )
+
+    def _batchupdate_requests(self, docs_svc):
+        return docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]["requests"]
+
+    def test_clears_trailing_mark_style_before_deleting(self):
+        drive_svc, docs_svc = self._make_services(end_index=50)
+        ctx = self._ctx(drive_svc, docs_svc)
+        _docs_tools["write_doc_content"](doc_id="doc1", content="<p>New content</p>", ctx=ctx)
+        requests = self._batchupdate_requests(docs_svc)
+
+        clear_style_idx = next(
+            i
+            for i, r in enumerate(requests)
+            if "updateTextStyle" in r and r["updateTextStyle"]["fields"] == "*"
+        )
+        delete_idx = next(i for i, r in enumerate(requests) if "deleteContentRange" in r)
+
+        clear_style = requests[clear_style_idx]["updateTextStyle"]
+        assert clear_style["range"] == {"startIndex": 49, "endIndex": 50}
+        assert clear_style["textStyle"] == {}
+        # Must run before deleteContentRange, while the original indices are still valid.
+        assert clear_style_idx < delete_idx
+        assert requests[delete_idx]["deleteContentRange"]["range"] == {
+            "startIndex": 1,
+            "endIndex": 49,
+        }
+
+    def test_empty_doc_skips_clear_requests(self):
+        drive_svc, docs_svc = self._make_services(end_index=2)
+        ctx = self._ctx(drive_svc, docs_svc)
+        _docs_tools["write_doc_content"](doc_id="doc1", content="<p>New content</p>", ctx=ctx)
+        requests = self._batchupdate_requests(docs_svc)
+        assert not any(
+            "updateTextStyle" in r and r["updateTextStyle"]["fields"] == "*" for r in requests
+        )
+        assert not any("deleteContentRange" in r for r in requests)
