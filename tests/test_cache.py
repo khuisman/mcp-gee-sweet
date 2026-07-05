@@ -99,6 +99,14 @@ class TestSheetDataCache:
         self.cache.store("sid", 0, headers=["A"], first_rows=[["x"] * 9], rows_to_fetch=10)
         assert self.cache.get("sid", 0, 5) is not None
 
+    def test_rows_to_fetch_zero_clamps_on_warm_cache(self):
+        # issue #254: rows_to_fetch=0 must return no rows on a warm cache too,
+        # matching the max(1, rows_to_fetch) clamp the cold-cache fetch path applies.
+        self.cache.store("sid", 0, headers=["A"], first_rows=[["x"], ["y"], ["z"]], rows_to_fetch=5)
+        result = self.cache.get("sid", 0, 0)
+        assert result is not None
+        assert result["first_rows"] == []
+
     def test_dirty_flag_causes_miss(self):
         self.cache.store("sid", 0, headers=["A"], first_rows=[], rows_to_fetch=1)
         self.cache.mark_dirty("sid", sheet_id=0)
