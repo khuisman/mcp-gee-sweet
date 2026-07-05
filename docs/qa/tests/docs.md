@@ -758,6 +758,8 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - Two paragraphs: `def hello():` and `    return 'world'` confirmed via `get_doc_structure`.
 - `weightedFontFamily: Courier New` is emitted by the unit-tested emitter; `get_doc_structure` does not expose `font_family` (known gap — no `effectiveFormat` API access).
 
+**Result (2026-07-04) — related bug found, not a failure of this TC's own checks** Writing a fenced code block as the doc's last content left an explicit `font_size`/`font_family` override on the document's trailing paragraph mark, which `write_doc_content`'s clear+reinsert couldn't remove (the Docs API won't let `deleteContentRange` touch the final paragraph mark) — a *subsequent* `write_doc_content` call with plain content would inherit that contamination. Filed as [#255](https://github.com/khuisman/mcp-gee-sweet/issues/255). Fixed in [#258](https://github.com/khuisman/mcp-gee-sweet/pull/258), then corrected in [#259](https://github.com/khuisman/mcp-gee-sweet/pull/259) after live re-testing showed #258's single-batchUpdate version was unreliable. **Re-verified live (2026-07-05)** after both merged: wrote a fenced code block, then overwrote with plain content — new content came back with `textStyle: {}`, no contamination, across repeated rounds.
+
 ---
 
 ### TC-DOC43: Markdown table via `write_doc_content` ⚠️ destructive
@@ -835,6 +837,10 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Result (2026-06-19) ✅ PASS**
 - Paragraph text `Call my_function() with param=True to enable it.` confirmed; code spans at correct positions.
 - `weightedFontFamily: Courier New` confirmed via unit tests; not exposed by `get_doc_structure` (known gap).
+
+**Result (2026-07-04)** Two findings during the v0.8.1 live pass, neither a failure of this TC's own checks:
+1. The prescribed SVG image URI in TC-DOC57/58 is unrelated to this TC but was hit in the same session — see those TCs, now fixed to use a PNG.
+2. This TC's own content (an inline code span) was one of the reproductions of the trailing-paragraph-mark contamination bug — see TC-DOC42's 2026-07-04 result for the full account, filed as [#255](https://github.com/khuisman/mcp-gee-sweet/issues/255), fixed in [#258](https://github.com/khuisman/mcp-gee-sweet/pull/258)/[#259](https://github.com/khuisman/mcp-gee-sweet/pull/259) and re-verified live post-merge. Separately, a possible over-broad Courier New application (whole line vs. just the code span) was observed visually but not conclusively confirmed, since `get_doc_structure` doesn't expose `font_family` per run — no ticket filed yet, flagged as a follow-up if that gap is ever closed.
 
 ---
 
