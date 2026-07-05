@@ -105,6 +105,144 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 ---
 
+## `create_calendar`
+
+### TC-CAL44: Create a secondary calendar ⚠️ destructive
+
+**Prompt**
+> "Create a new calendar called 'mcp-gee-sweet-qa-lifecycle-test' with description 'QA scratch calendar' and timezone 'America/Los_Angeles'"
+
+**Checks**
+- Returns `id`, `summary`, `description`, `time_zone`
+- `summary` is `mcp-gee-sweet-qa-lifecycle-test`
+- `time_zone` is `America/Los_Angeles`
+- The new calendar appears in a follow-up `list_calendars` call (cache invalidated)
+
+**Result (2026-07-05) ✅** — Created via OAuth; response had `summary`, `description`, and `time_zone: "America/Los_Angeles"` exactly as requested. Confirmed present in a follow-up `list_calendars` call.
+
+---
+
+### TC-CAL45: Create with only summary
+
+**Prompt**
+> "Create a new calendar called 'mcp-gee-sweet-qa-minimal'"
+
+**Checks**
+- Succeeds with only `summary` provided
+- `description` is `null`/absent
+- `time_zone` reflects the account default
+
+**Result (2026-07-05) ✅** — Created with only `summary` provided. `description: null`. `time_zone: "UTC"` (account default rather than the creator's local timezone — noted for documentation purposes). Confirmed present in a follow-up `list_calendars` call.
+
+---
+
+## `update_calendar`
+
+### TC-CAL46: Rename and change timezone ⚠️ destructive
+
+**Setup:** use the calendar created in TC-CAL44
+
+**Prompt**
+> "Update calendar 'mcp-gee-sweet-qa-lifecycle-test' — rename it to 'mcp-gee-sweet-qa-renamed' and set its timezone to 'America/New_York'"
+
+**Checks**
+- `summary` is `mcp-gee-sweet-qa-renamed`
+- `time_zone` is `America/New_York`
+- `description` unchanged from TC-CAL44
+- `get_calendar` on the same ID reflects the new values
+
+**Result (2026-07-05) ✅** — Patched with `summary: "mcp-gee-sweet-qa-renamed"` and `timezone: "America/New_York"`. Response reflected both changes; `description` unchanged from TC-CAL44 (`"QA scratch calendar"`).
+
+---
+
+### TC-CAL47: Change color only ⚠️ destructive
+
+**Setup:** use the calendar from TC-CAL44/46
+
+**Prompt**
+> "Change the color of calendar 'mcp-gee-sweet-qa-renamed' to color ID '5'"
+
+**Checks**
+- `color_id` in the response is `5`
+- `summary`/`description`/`time_zone` unchanged (verify with `get_calendar`)
+- Confirms the color patch goes through `calendarList().patch()`, not `calendars().patch()`
+
+**Result (2026-07-05) ✅** — Patched `color_id="5"` only (no summary/description/timezone). Response had `color_id: "5"` with `summary`, `description`, `time_zone` all unchanged from TC-CAL46 — confirms the tool fell back to `calendars().get()` for the base fields and routed color through `calendarList().patch()`.
+
+---
+
+### TC-CAL48: No fields provided
+
+**Prompt**
+> "Update calendar {CALENDAR_ID} with no changes — just fetch its current state through update_calendar"
+
+**Checks**
+- Returns current calendar metadata unchanged
+- `color_id` is `null` (no color patch attempted)
+- No API error
+
+**Result (2026-07-05) ✅** — Called with `calendar_id="primary"` and no other fields. Returned the account's real primary calendar summary/timezone unchanged, `color_id: null`. Confirms the no-op path uses `calendars().get()` without issuing any patch.
+
+---
+
+### TC-CAL49: Non-existent calendar ID
+
+**Prompt**
+> "Update calendar 'totally-invalid-cal-id@example.com' — rename it to 'Nope'"
+
+**Checks**
+- Returns `{"error": "..."}` — not a top-level exception
+
+**Result (2026-07-05) ✅** — Returned `{"error": "<HttpError 404 ... 'reason': 'notFound' ...>"}`. No exception raised.
+
+---
+
+## `delete_calendar`
+
+### TC-CAL50: Delete a calendar ⚠️ destructive
+
+**Setup:** use the calendar created in TC-CAL44 (after TC-CAL46/47 updates)
+
+**Prompt**
+> "Delete the calendar 'mcp-gee-sweet-qa-renamed'"
+
+**Checks**
+- Returns `{"calendar_id": "...", "action": "deleted"}`
+- Calendar no longer appears in a follow-up `list_calendars` call
+- `get_calendar` on the deleted ID returns an error
+
+**Result (2026-07-05) ✅** — Returned `{"calendar_id": "...", "action": "deleted"}`. Confirmed absent from a follow-up `list_calendars` call. `get_calendar` on the deleted ID returned a 404 `notFound` error.
+
+---
+
+### TC-CAL51: Delete the minimal test calendar ⚠️ destructive
+
+**Setup:** use the calendar created in TC-CAL45
+
+**Prompt**
+> "Delete the calendar 'mcp-gee-sweet-qa-minimal'"
+
+**Checks**
+- Returns `{"calendar_id": "...", "action": "deleted"}`
+- Cleans up the fixture so it doesn't linger in the account's calendar list
+
+**Result (2026-07-05) ✅** — Returned `{"calendar_id": "...", "action": "deleted"}`. Confirmed removed from the account's `list_calendars` output alongside TC-CAL50's cleanup.
+
+---
+
+### TC-CAL52: Non-existent calendar ID
+
+**Prompt**
+> "Delete the calendar 'totally-invalid-cal-id@example.com'"
+
+**Checks**
+- Returns `{"error": "..."}` — not a top-level exception
+- No side effects
+
+**Result (2026-07-05) ✅** — Returned `{"error": "<HttpError 404 ... 'reason': 'notFound' ...>"}`. No side effects.
+
+---
+
 ## `list_events`
 
 ### TC-CAL09: No time filters — upcoming events
