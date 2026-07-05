@@ -29,9 +29,9 @@ Two ways to supply configuration — pick whichever fits how you're running the 
   ```bash
   cp src/mcp_gee_sweet/.env.template src/mcp_gee_sweet/.env
   ```
-- **Your MCP client's config directly** — if you're pointing your client at `uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet` (the README's stdio quick-start), you can set env vars in the client's `env` block instead, the same way the [MCP client config](https://khuisman.github.io/mcp-gee-sweet/client-setup/) examples do. Many contributors find this a better day-to-day experience than maintaining a separate `.env` file — client config takes precedence over `.env` either way.
+- **Your MCP client's config directly** — if you're pointing your client at `uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet` (the README's stdio quick-start), you can set env vars in the client's `env` block instead, the same way the [MCP client config](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/) examples do. Many contributors find this a better day-to-day experience than maintaining a separate `.env` file — client config takes precedence over `.env` either way.
 
-At minimum you need one auth method and a Drive folder. Full details on all four methods (including GCP setup steps) are in [Authentication](https://khuisman.github.io/mcp-gee-sweet/auth/); the full environment variable reference is in [Configuration](https://khuisman.github.io/mcp-gee-sweet/configuration/).
+At minimum you need one auth method and a Drive folder. Full details on all four methods (including GCP setup steps) are in [Authentication](https://khuisman.github.io/mcp-gee-sweet/latest/auth/); the full environment variable reference is in [Configuration](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/).
 
 #### Choosing an auth method
 
@@ -65,7 +65,7 @@ The assistant will:
 - Populate them with known fixture data
 - Write `TEST_*` IDs to your `.env`
 
-**If you are using service account auth:** the folder and both files must be shared with the service account email. Find it at `service_account.json` → `client_email`. The service account cannot access files in personal Drive unless explicitly shared — see [Authentication](https://khuisman.github.io/mcp-gee-sweet/auth/) for the sharing steps.
+**If you are using service account auth:** the folder and both files must be shared with the service account email. Find it at `service_account.json` → `client_email`. The service account cannot access files in personal Drive unless explicitly shared — see [Authentication](https://khuisman.github.io/mcp-gee-sweet/latest/auth/) for the sharing steps.
 
 ### 4. Enable observability
 
@@ -87,7 +87,7 @@ Every tool call emits one line to the access log:
 - `make logs` — tail Docker container logs directly (SSE; `DEBUG_LEVEL=DEBUG` is already the Docker Compose default, no `.env` change needed)
 - `make access-logs` — tail `ACCESS_LOG_FILE` only, if set
 
-Full details on log levels and file routing: [Configuration → Logging](https://khuisman.github.io/mcp-gee-sweet/configuration/).
+Full details on log levels and file routing: [Configuration → Logging](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/).
 
 ### 5. Run the server
 
@@ -143,7 +143,7 @@ Every new tool must have at least:
 - The tool included in the `docs/qa-checklist.md` attestation
 - The tool's happy-path TC added to the smoke suite in `docs/qa/runs/README.md`
 
-See [Design Principles](https://khuisman.github.io/mcp-gee-sweet/design/) for the tool inclusion criteria and composite tool rules.
+See [Design Principles](https://khuisman.github.io/mcp-gee-sweet/latest/design/) for the tool inclusion criteria and composite tool rules.
 
 ---
 

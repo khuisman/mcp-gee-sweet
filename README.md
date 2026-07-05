@@ -61,7 +61,7 @@ The server tries auth methods in a waterfall by default, OAuth first — it auth
 export CREDENTIALS_PATH="/path/to/credentials.json"
 ```
 
-Service accounts (recommended for headless server deployments — see Option B above), base64 credential injection, and Application Default Credentials are also supported. See [Authentication](https://khuisman.github.io/mcp-gee-sweet/auth/) for all options.
+Service accounts (recommended for headless server deployments — see Option B above), base64 credential injection, and Application Default Credentials are also supported. See [Authentication](https://khuisman.github.io/mcp-gee-sweet/latest/auth/) for all options.
 
 ---
 
@@ -94,18 +94,18 @@ Service accounts (recommended for headless server deployments — see Option B a
 }
 ```
 
-See [Client Setup](https://khuisman.github.io/mcp-gee-sweet/client-setup/) for more options including tool filtering.
+See [Client Setup](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/) for more options including tool filtering.
 
 ---
 
 ## Docs
 
-- [Tools](https://khuisman.github.io/mcp-gee-sweet/tools/) — full tool reference (84 tools)
-- [Authentication](https://khuisman.github.io/mcp-gee-sweet/auth/) — all four auth methods
-- [Configuration](https://khuisman.github.io/mcp-gee-sweet/configuration/) — env vars, caching, tool filtering
-- [Client Setup](https://khuisman.github.io/mcp-gee-sweet/client-setup/) — MCP client config examples
-- [Design Principles](https://khuisman.github.io/mcp-gee-sweet/design/) — tool inclusion policy, composite tool decisions
-- [Roadmap](https://khuisman.github.io/mcp-gee-sweet/roadmap/) — planned features and known gaps
+- [Tools](https://khuisman.github.io/mcp-gee-sweet/latest/tools/) — full tool reference (84 tools)
+- [Authentication](https://khuisman.github.io/mcp-gee-sweet/latest/auth/) — all four auth methods
+- [Configuration](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/) — env vars, caching, tool filtering
+- [Client Setup](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/) — MCP client config examples
+- [Design Principles](https://khuisman.github.io/mcp-gee-sweet/latest/design/) — tool inclusion policy, composite tool decisions
+- [Roadmap](https://khuisman.github.io/mcp-gee-sweet/latest/roadmap/) — planned features and known gaps
 
 ---
 
