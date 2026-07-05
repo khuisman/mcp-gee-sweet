@@ -358,8 +358,7 @@ class TestMdToHtml:
 
     def test_autolink_urls_false_leaves_bare_url_as_text(self):
         html = _md_to_html("See https://example.com here", autolink_urls=False)
-        assert "<a " not in html
-        assert "https://example.com" in html
+        assert html == "<p>See https://example.com here</p>"
 
     def test_autolink_urls_false_does_not_affect_markdown_links(self):
         html = _md_to_html("[click](https://example.com)", autolink_urls=False)
