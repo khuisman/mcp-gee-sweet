@@ -183,8 +183,8 @@ Set `MAX_TOOL_RESPONSE_CHARS=200000` in server config and restart the server (e.
 > "Get formulas from the Notes & Misc sheet of {SPREADSHEET_ID}"
 
 **Checks**
-- B2 returns `=TODAY()` (formula string)
-- B1 ("Note") returns literal string
+- A2 returns `=TODAY()` (formula string) — Notes & Misc is laid out Date (col A) / Note (col B)
+- B2 ("Setup complete") returns a literal string, not a formula
 - No cell returns a computed value where a formula exists
 
 ---
@@ -292,6 +292,8 @@ Set `MAX_TOOL_RESPONSE_CHARS=200000` in server config and restart the server (e.
 - Server clamps to 1 (`max(1, 0)`)
 - Behaves identically to TC-R18
 - 🔍 **Product decision:** should 0 return only headers, or is clamping to 1 the right behavior?
+
+**Result (2026-07-04) ❌ FAIL, then fixed** On a cold cache, correctly clamped (`data.py:304`'s `max(1, rows_to_fetch)`). On a warm cache, `cache.py:189`'s truncation slice (`first_rows[:rows_to_fetch - 1]`) lacked the same clamp — `rows_to_fetch=0` became `[:-1]` and returned 3 rows instead of an empty list, disagreeing with the cold-cache result for the same input. Filed as [#254](https://github.com/khuisman/mcp-gee-sweet/issues/254), fixed in [#257](https://github.com/khuisman/mcp-gee-sweet/pull/257) (applies the same clamp on the cache-hit path). **Re-verified live (2026-07-05)** after merge: warmed the cache with `rows_to_fetch=5`, then called `rows_to_fetch=0` — `first_rows: []` for Sales, matching cold-cache behavior.
 
 ---
 
