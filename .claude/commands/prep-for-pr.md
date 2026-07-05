@@ -18,6 +18,11 @@ Review the current branch against this checklist and report the status of each i
   - Tag IS NOT present when: the tool is auth-agnostic and only the test fixture happens to live in personal Drive (`write_doc_content`, `get_doc_structure`, `insert_doc_text`, `delete_doc_range`, `style_doc_range`, `style_doc_table_cells`, etc.)
   - Tag IS NOT present on error-path tests that return before making any API call
 
+- [ ] **`**Playwright: required**` accuracy** — scan all new and modified test cases (see `docs/qa/run.md` for the tag's runtime behavior):
+  - Tag IS present when: the check verifies a mutation with a visual signature the API-level response can't fully confirm (formatting, hyperlinks, images, charts, layout)
+  - Tag IS NOT present when: the test is read-only, an error path, or a count/pagination check with no visual component
+  - Note: this tier definition is a working rule, not yet formalized in `docs/qa/run.md` — see the open TODO in `docs/qa/retro-v0.8.0.md`. Flag inconsistency rather than silently picking a side.
+
 ## 3. Safety
 
 - [ ] **No resource IDs committed** — no Google Drive/Docs/Sheets/Calendar IDs appear in committed files. IDs belong in `.env` or `fixtures.local.md` (both gitignored).
