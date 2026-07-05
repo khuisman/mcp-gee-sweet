@@ -33,6 +33,10 @@ markdown_extensions:
       anchor_linenums: true
   - pymdownx.superfences
 
+extra:
+  version:
+    provider: mike
+
 nav:
   - Home: index.md
   - Reference:

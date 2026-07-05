@@ -2,10 +2,10 @@ name: Docs
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "develop"]
 
 permissions:
-  contents: write  # needed for gh-deploy to push to gh-pages branch
+  contents: write  # needed for mike to push to gh-pages branch
 
 jobs:
   deploy:
@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0  # full history for git-revision-date plugins if added later
+          fetch-depth: 0  # full history so mike can see existing gh-pages versions
 
       - name: Install uv
         uses: astral-sh/setup-uv@v8.2.0
@@ -26,5 +26,20 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --all-extras --dev --python 3.12
 
-      - name: Deploy docs
-        run: uv run mkdocs gh-deploy --force
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch existing gh-pages
+        run: git fetch origin gh-pages --depth=1 || true
+
+      - name: Deploy docs (main -> latest)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          uv run mike deploy --push --update-aliases main latest
+          uv run mike set-default --push latest
+
+      - name: Deploy docs (develop)
+        if: github.ref == 'refs/heads/develop'
+        run: uv run mike deploy --push develop
