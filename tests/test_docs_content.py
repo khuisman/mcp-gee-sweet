@@ -320,6 +320,42 @@ class TestMdToHtml:
         html = _md_to_html(r"Use `\$VAR` in shell")
         assert r"\$VAR" in html
 
+    def test_bare_url_autolinked(self):
+        # Python-Markdown's core autolink only fires on <https://...> or [text](url),
+        # leaving a bare URL as inert text (issue #248).
+        html = _md_to_html("From: https://example.com/some-page")
+        assert '<a href="https://example.com/some-page">https://example.com/some-page</a>' in html
+
+    def test_bare_url_trailing_period_not_swallowed(self):
+        html = _md_to_html("Visit https://example.com/page. Thanks.")
+        assert '<a href="https://example.com/page">https://example.com/page</a>. Thanks.' in html
+
+    def test_bare_url_wrapping_parens_not_swallowed(self):
+        html = _md_to_html("See (https://example.com/page) for details")
+        assert '(<a href="https://example.com/page">https://example.com/page</a>)' in html
+
+    def test_bare_url_with_internal_paren_preserved(self):
+        html = _md_to_html("See https://example.com/wiki/Foo_(bar) here")
+        assert 'href="https://example.com/wiki/Foo_(bar)"' in html
+
+    def test_bare_url_inside_markdown_link_not_double_linked(self):
+        html = _md_to_html("[click](https://example.com)")
+        assert html.count("<a ") == 1
+
+    def test_bare_url_inside_inline_code_untouched(self):
+        html = _md_to_html("In code: `https://example.com`")
+        assert "<code>https://example.com</code>" in html
+        assert "<a " not in html
+
+    def test_bare_url_inside_fenced_code_untouched(self):
+        md = "```\nhttps://example.com\n```\n"
+        html = _md_to_html(md)
+        assert "<a " not in html
+
+    def test_multiple_bare_urls_each_linked(self):
+        html = _md_to_html("Multi https://a.example.com and https://b.example.com here")
+        assert html.count("<a ") == 2
+
 
 class TestToDocRequestsMarkdown:
     def test_h1_in_markdown_produces_heading_1(self):
@@ -354,6 +390,22 @@ class TestToDocRequestsMarkdown:
         requests, _ = _to_doc_requests("1. first\n", "markdown")
         bullet_reqs = [r for r in requests if "createParagraphBullets" in r]
         assert any("NUMBERED" in r["createParagraphBullets"]["bulletPreset"] for r in bullet_reqs)
+
+    def test_markdown_bare_url_emits_link_text_style(self):
+        # End-to-end for issue #248: a bare URL in markdown must produce a real
+        # updateTextStyle/link request targeting the URL's own range, not just
+        # render as a plain <a> tag in the intermediate HTML.
+        requests, _ = _to_doc_requests("From: https://example.com/some-page", "markdown")
+        link_reqs = [
+            r
+            for r in requests
+            if "updateTextStyle" in r and "link" in r["updateTextStyle"]["textStyle"]
+        ]
+        assert len(link_reqs) == 1
+        assert (
+            link_reqs[0]["updateTextStyle"]["textStyle"]["link"]["url"]
+            == "https://example.com/some-page"
+        )
 
     def test_markdown_bold_emits_text_style(self):
         requests, _ = _to_doc_requests("**bold**\n", "markdown")

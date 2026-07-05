@@ -1,5 +1,6 @@
 import html as html_module
 import logging
+import xml.etree.ElementTree as etree
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -7,6 +8,7 @@ from typing import Any
 import markdown as _md
 from googleapiclient.errors import HttpError
 from markdown.extensions import Extension
+from markdown.inlinepatterns import InlineProcessor
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
@@ -61,10 +63,58 @@ class _DollarEscapeExtension(Extension):
             md.ESCAPED_CHARS.append("$")
 
 
+_BARE_URL_PATTERN = r'(https?://[^\s<>"]+)'
+_BARE_URL_TRAILING_PUNCT = ".,;:!?"
+
+
+class _BareUrlInlineProcessor(InlineProcessor):
+    """Autolink a bare http(s) URL left as plain text.
+
+    Registered at low priority so it only sees text that survived
+    Python-Markdown's built-in link/autolink/code-span processing untouched —
+    an already-linked or code-spanned URL is never re-matched here."""
+
+    def handleMatch(self, m, data):
+        url = m.group(1)
+        # Trim trailing sentence punctuation and an unmatched closing paren, matching
+        # CommonMark/GFM extended autolink behavior — "see https://x.com." shouldn't
+        # swallow the period, and "(https://x.com)" shouldn't swallow the paren.
+        while url:
+            if url[-1] in _BARE_URL_TRAILING_PUNCT:
+                url = url[:-1]
+            elif url[-1] == ")" and url.count("(") < url.count(")"):
+                url = url[:-1]
+            else:
+                break
+        el = etree.Element("a")
+        el.set("href", url)
+        el.text = url
+        return el, m.start(1), m.start(1) + len(url)
+
+
+class _BareUrlAutolinkExtension(Extension):
+    """Autolink bare http(s):// URLs, matching CommonMark/GFM extended autolinks.
+    Python-Markdown's core autolink only fires on <https://...> or [text](url)
+    (issue #248) — a bare URL in prose is otherwise left as inert text."""
+
+    def extendMarkdown(self, md):
+        md.inlinePatterns.register(
+            _BareUrlInlineProcessor(_BARE_URL_PATTERN, md), "bare_url_autolink", 3
+        )
+
+
 def _md_to_html(md_text: str) -> str:
-    """Convert Markdown to HTML using the Python markdown library (tables, fenced_code, sane_lists extensions)."""
+    """Convert Markdown to HTML using the Python markdown library (tables, fenced_code,
+    sane_lists extensions, plus bare-URL autolinking and the \\$ escape fix)."""
     return _md.markdown(
-        md_text, extensions=["tables", "fenced_code", "sane_lists", _DollarEscapeExtension()]
+        md_text,
+        extensions=[
+            "tables",
+            "fenced_code",
+            "sane_lists",
+            _DollarEscapeExtension(),
+            _BareUrlAutolinkExtension(),
+        ],
     )
 
 
