@@ -5,7 +5,7 @@
 ![GitHub License](https://img.shields.io/github/license/khuisman/mcp-gee-sweet)
 </div>
 
-An MCP server that gives AI clients reliable, direct access to Google Workspace — Sheets, Drive, Docs, and Calendar. 75 tools across four domains. Forked from [xing5/mcp-google-sheets](https://github.com/xing5/mcp-google-sheets) and expanded substantially.
+An MCP server that gives AI clients reliable, direct access to Google Workspace — Sheets, Drive, Docs, and Calendar. 84 tools across four domains.
 
 **Install (stable):**
 ```bash
@@ -55,14 +55,13 @@ Point your MCP client at `http://localhost:47000/sse`.
 
 ## Configuration
 
-Set credentials via environment variable before starting the server. The recommended method for servers is a service account:
+The server tries auth methods in a waterfall by default, OAuth first — it authenticates as you and has full personal Drive access, which is what local/dev use (Option A above) needs. For OAuth, download an OAuth Client ID JSON from GCP Console and point the server at it:
 
 ```bash
-export SERVICE_ACCOUNT_PATH="/path/to/service_account.json"
-export DRIVE_FOLDER_ID="your_drive_folder_id"
+export CREDENTIALS_PATH="/path/to/credentials.json"
 ```
 
-The server also supports OAuth, base64 credential injection, and Application Default Credentials. See [Authentication](https://khuisman.github.io/mcp-gee-sweet/auth/) for all options.
+Service accounts (recommended for headless server deployments — see Option B above), base64 credential injection, and Application Default Credentials are also supported. See [Authentication](https://khuisman.github.io/mcp-gee-sweet/auth/) for all options.
 
 ---
 
@@ -76,8 +75,7 @@ The server also supports OAuth, base64 credential injection, and Application Def
       "command": "uv",
       "args": ["run", "--directory", "/path/to/mcp-gee-sweet", "mcp-gee-sweet"],
       "env": {
-        "SERVICE_ACCOUNT_PATH": "/path/to/service_account.json",
-        "DRIVE_FOLDER_ID": "your_drive_folder_id"
+        "CREDENTIALS_PATH": "/path/to/credentials.json"
       }
     }
   }
@@ -102,7 +100,7 @@ See [Client Setup](https://khuisman.github.io/mcp-gee-sweet/client-setup/) for m
 
 ## Docs
 
-- [Tools](https://khuisman.github.io/mcp-gee-sweet/tools/) — full tool reference (60 tools)
+- [Tools](https://khuisman.github.io/mcp-gee-sweet/tools/) — full tool reference (84 tools)
 - [Authentication](https://khuisman.github.io/mcp-gee-sweet/auth/) — all four auth methods
 - [Configuration](https://khuisman.github.io/mcp-gee-sweet/configuration/) — env vars, caching, tool filtering
 - [Client Setup](https://khuisman.github.io/mcp-gee-sweet/client-setup/) — MCP client config examples

@@ -1,7 +1,11 @@
 """Tests for tools/sheets/data.py."""
 
+import json
 from unittest.mock import MagicMock
 
+import pytest
+
+from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.sheets import data as sheets_data_module
 
 
@@ -28,6 +32,188 @@ def _make_ctx(**services):
 
 _data_tool, _data_tools = _make_tool_registry()
 sheets_data_module.register(_data_tool)
+
+
+class TestGetSheetData:
+    """include_grid_data=True without a range auto-detects the used range instead of
+    fetching formatting for the sheet's full padded grid (issue #235)."""
+
+    def _service(self, values=None, grid_result=None):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.values.return_value.get.return_value.execute.return_value = {
+            "values": values or []
+        }
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = grid_result or {}
+        return mock
+
+    def test_include_grid_data_without_range_auto_detects_used_range(self):
+        svc = self._service(values=[["a", "b", "c"], ["1", "2", "3"]])
+        ctx = _make_ctx(sheets_service=svc)
+        _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1", sheet="Sheet1", include_grid_data=True, ctx=ctx
+        )
+        probe_kwargs = svc.spreadsheets.return_value.values.return_value.get.call_args.kwargs
+        assert probe_kwargs["range"] == "Sheet1"
+        grid_kwargs = svc.spreadsheets.return_value.get.call_args.kwargs
+        assert grid_kwargs["ranges"] == ["Sheet1!A1:C2"]
+        assert grid_kwargs["includeGridData"] is True
+
+    def test_ragged_rows_use_max_column_count(self):
+        svc = self._service(values=[["a"], ["1", "2", "3"]])
+        ctx = _make_ctx(sheets_service=svc)
+        _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1", sheet="Sheet1", include_grid_data=True, ctx=ctx
+        )
+        grid_kwargs = svc.spreadsheets.return_value.get.call_args.kwargs
+        assert grid_kwargs["ranges"] == ["Sheet1!A1:C2"]
+
+    def test_empty_sheet_falls_back_to_a1(self):
+        svc = self._service(values=[])
+        ctx = _make_ctx(sheets_service=svc)
+        _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1", sheet="Sheet1", include_grid_data=True, ctx=ctx
+        )
+        grid_kwargs = svc.spreadsheets.return_value.get.call_args.kwargs
+        assert grid_kwargs["ranges"] == ["Sheet1!A1"]
+
+    def test_oversized_grid_result_raises_after_fetch(self):
+        # Cell count doesn't predict size (issue #235) — a live test found a 26,000-cell
+        # blank range costs almost nothing, while a 1,300-cell formatted one hit ~984K
+        # chars. So the check has to run on the real serialized result, which means the
+        # fetch itself already happened by the time we raise.
+        big_grid_result = {"filler": "x" * 300_000}
+        svc = self._service(grid_result=big_grid_result)
+        ctx = _make_ctx(sheets_service=svc)
+        with pytest.raises(ValueError, match="safety cap"):
+            _data_tools["get_sheet_data"](
+                spreadsheet_id="ss1",
+                sheet="Sheet1",
+                range="A1:C10",
+                include_grid_data=True,
+                ctx=ctx,
+            )
+        svc.spreadsheets.return_value.get.assert_called_once()
+
+    def test_small_grid_result_under_cap_succeeds(self):
+        grid_result = {"sheets": [{"data": [{"rowData": []}]}]}
+        svc = self._service(grid_result=grid_result)
+        ctx = _make_ctx(sheets_service=svc)
+        result = _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:C10",
+            include_grid_data=True,
+            ctx=ctx,
+        )
+        assert result == grid_result
+
+    def test_cap_is_configurable(self, monkeypatch):
+        # A result that fits under the default cap should be rejected once the cap is
+        # lowered below its size — the config knob has to actually change the behavior.
+        grid_result = {"filler": "x" * 1000}
+        svc = self._service(grid_result=grid_result)
+        ctx = _make_ctx(sheets_service=svc)
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 500)
+        with pytest.raises(ValueError, match="safety cap"):
+            _data_tools["get_sheet_data"](
+                spreadsheet_id="ss1",
+                sheet="Sheet1",
+                range="A1:C10",
+                include_grid_data=True,
+                ctx=ctx,
+            )
+
+    def test_explicit_range_skips_auto_detection(self):
+        grid_result = {"sheets": [{"data": [{"rowData": []}]}]}
+        svc = self._service(grid_result=grid_result)
+        ctx = _make_ctx(sheets_service=svc)
+        result = _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:C10",
+            include_grid_data=True,
+            ctx=ctx,
+        )
+        svc.spreadsheets.return_value.values.return_value.get.assert_not_called()
+        grid_kwargs = svc.spreadsheets.return_value.get.call_args.kwargs
+        assert grid_kwargs["ranges"] == ["Sheet1!A1:C10"]
+        assert grid_kwargs["includeGridData"] is True
+        assert result == grid_result
+
+    def test_local_path_bypasses_cap_and_writes_grid_result(self, tmp_path):
+        # Actually over the size cap — local_path should bypass the check entirely,
+        # not just happen to be under it.
+        grid_result = {"filler": "x" * 300_000}
+        svc = self._service(grid_result=grid_result)
+        ctx = _make_ctx(sheets_service=svc)
+        dest = tmp_path / "out.json"
+        result = _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:C10",
+            include_grid_data=True,
+            local_path=str(dest),
+            ctx=ctx,
+        )
+        assert result["local_path"] == str(dest)
+        assert result["bytes_written"] == dest.stat().st_size
+        assert json.loads(dest.read_text()) == grid_result
+
+    def test_local_path_as_directory_synthesizes_filename(self, tmp_path):
+        svc = self._service(grid_result={"ok": True})
+        ctx = _make_ctx(sheets_service=svc)
+        result = _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:B2",
+            include_grid_data=True,
+            local_path=str(tmp_path),
+            ctx=ctx,
+        )
+        dest = tmp_path / "Sheet1_data.json"
+        assert result["local_path"] == str(dest)
+        assert json.loads(dest.read_text()) == {"ok": True}
+
+    def test_local_path_creates_missing_parent_dirs(self, tmp_path):
+        svc = self._service(grid_result={"ok": True})
+        ctx = _make_ctx(sheets_service=svc)
+        dest = tmp_path / "nested" / "sub" / "out.json"
+        result = _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:B2",
+            include_grid_data=True,
+            local_path=str(dest),
+            ctx=ctx,
+        )
+        assert result["local_path"] == str(dest)
+        assert dest.exists()
+
+    def test_local_path_without_grid_data_writes_values_result(self, tmp_path):
+        svc = self._service(values=[["a", "b"]])
+        ctx = _make_ctx(sheets_service=svc)
+        dest = tmp_path / "values.json"
+        result = _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1", sheet="Sheet1", local_path=str(dest), ctx=ctx
+        )
+        assert result["local_path"] == str(dest)
+        written = json.loads(dest.read_text())
+        assert written["valueRanges"][0]["values"] == [["a", "b"]]
+
+    def test_without_grid_data_and_without_range_uses_sheet_name_only(self):
+        svc = self._service(values=[["a"]])
+        ctx = _make_ctx(sheets_service=svc)
+        result = _data_tools["get_sheet_data"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        call_kwargs = svc.spreadsheets.return_value.values.return_value.get.call_args.kwargs
+        assert call_kwargs["range"] == "Sheet1"
+        assert result["valueRanges"][0]["values"] == [["a"]]
+
+    def test_without_grid_data_range_is_optional_and_scoped_when_given(self):
+        svc = self._service(values=[["a", "b"]])
+        ctx = _make_ctx(sheets_service=svc)
+        _data_tools["get_sheet_data"](spreadsheet_id="ss1", sheet="Sheet1", range="A1:B1", ctx=ctx)
+        call_kwargs = svc.spreadsheets.return_value.values.return_value.get.call_args.kwargs
+        assert call_kwargs["range"] == "Sheet1!A1:B1"
 
 
 class TestGetMultipleSheetData:
@@ -98,6 +284,82 @@ class TestGetMultipleSheetData:
         ctx = self._ctx([])
         result = _data_tools["get_multiple_sheet_data"](queries=[], ctx=ctx)
         assert result == []
+
+    def test_oversized_result_raises(self, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        ctx = self._ctx([["x" * 1000]])
+        with pytest.raises(ValueError, match="safety cap"):
+            _data_tools["get_multiple_sheet_data"](
+                queries=[{"spreadsheet_id": "abc", "sheet": "Sheet1"}], ctx=ctx
+            )
+
+    def test_local_path_bypasses_cap_and_writes_results(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        ctx = self._ctx([["x" * 1000]])
+        dest = tmp_path / "out.json"
+        result = _data_tools["get_multiple_sheet_data"](
+            queries=[{"spreadsheet_id": "abc", "sheet": "Sheet1"}],
+            local_path=str(dest),
+            ctx=ctx,
+        )
+        assert result["local_path"] == str(dest)
+        assert result["query_count"] == 1
+        written = json.loads(dest.read_text())
+        assert written[0]["data"] == [["x" * 1000]]
+
+
+class TestFindInSpreadsheet:
+    def _service(self, sheet_titles, values):
+        svc = MagicMock()
+        svc.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [
+                {"properties": {"title": t, "sheetId": i}} for i, t in enumerate(sheet_titles)
+            ]
+        }
+        svc.spreadsheets.return_value.values.return_value.get.return_value.execute.return_value = {
+            "values": values
+        }
+        return svc
+
+    def _ctx(self, sheet_titles, values):
+        return _make_ctx(
+            sheets_service=self._service(sheet_titles, values),
+            cache=MagicMock(
+                get_sheets=MagicMock(return_value=None), get_title=MagicMock(return_value=None)
+            ),
+        )
+
+    def test_finds_matching_cell(self):
+        ctx = self._ctx(["Sheet1"], [["foo", "bar"], ["baz", "foobar"]])
+        result = _data_tools["find_in_spreadsheet"](spreadsheet_id="ss1", query="foo", ctx=ctx)
+        assert {r["cell"] for r in result} == {"A1", "B2"}
+
+    def test_max_results_caps_match_count_not_size(self):
+        # max_results bounds how many matches are returned, not how large each matched
+        # value is — a handful of huge matching cells can still blow the size cap.
+        ctx = self._ctx(["Sheet1"], [["foo" + "x" * 1000]])
+        result = _data_tools["find_in_spreadsheet"](
+            spreadsheet_id="ss1", query="foo", max_results=1, ctx=ctx
+        )
+        assert len(result) == 1
+
+    def test_oversized_result_raises(self, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        ctx = self._ctx(["Sheet1"], [["foo" + "x" * 1000]])
+        with pytest.raises(ValueError, match="safety cap"):
+            _data_tools["find_in_spreadsheet"](spreadsheet_id="ss1", query="foo", ctx=ctx)
+
+    def test_local_path_bypasses_cap_and_writes_results(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        ctx = self._ctx(["Sheet1"], [["foo" + "x" * 1000]])
+        dest = tmp_path / "out.json"
+        result = _data_tools["find_in_spreadsheet"](
+            spreadsheet_id="ss1", query="foo", local_path=str(dest), ctx=ctx
+        )
+        assert result["local_path"] == str(dest)
+        assert result["match_count"] == 1
+        written = json.loads(dest.read_text())
+        assert len(written) == 1
 
 
 class TestBatchUpdate:

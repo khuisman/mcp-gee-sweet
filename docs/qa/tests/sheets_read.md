@@ -34,14 +34,78 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-R03: Grid data with formatting
+### TC-R03: Grid data with an explicit range
 
 **Prompt**
-> "Get the Sales sheet from {SPREADSHEET_ID} with full grid data including formatting"
+> "Get A1:D6 from the Sales sheet of {SPREADSHEET_ID} with full grid data including formatting"
 
 **Checks**
 - Response includes `rowData` field
 - `include_grid_data=True` was passed to the API (visible in raw response structure)
+- Call includes `range="A1:D6"` — no auto-detection probe request happens when a range is given
+
+---
+
+### TC-R03b: Grid data without a range auto-detects the used range (issue #235)
+
+**Setup**
+Call `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", include_grid_data=True)` — no `range` argument. The Sales sheet has 6 rows x 4 columns of actual content but Sheets' default padded grid is 1000x26.
+
+**Checks**
+- No error — the call succeeds
+- Server makes a values-only probe request first, then a grid-data request scoped to `A1:D6` — not the full padded grid
+- Response includes `rowData` only for the 6x4 used range, not ~26,000 padded cells
+- No "Connection closed" / oversized-response symptom (the original failure mode)
+
+**Result (2026-07-02) ✅ PASS**
+Called live against the actual Sales fixture (`gridProperties: rowCount=3016, columnCount=33`). Response's `rowData` covered exactly the 6x4 used range (header row + Widget/Gadget/Donut/Gizmo + Totals row, matching TC-R01's known fixture content) — confirmed scoped down from the sheet's real 3016x33 padding, not just the smaller 1000x26 default. No error, no truncation.
+
+---
+
+### TC-R03c: Densely formatted range over the safety cap raises a clear error (issue #235)
+
+**Setup**
+Apply formatting across a range with `format_cells(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:Z200", bold=True, background_color={"red": 0.9, "green": 0.95, "blue": 1}, number_format_type="NUMBER")`, then call `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:Z200", include_grid_data=True)`.
+
+Note: cell *count* alone doesn't predict this — a live test found a 26,000-cell blank range costs almost nothing (Sheets omits `rowData` for untouched cells), while densely-formatted ranges cost ~700-780 bytes/cell. The cap check runs on the actual serialized response, after the fetch, not an estimate from range size. A live binary search against Claude Code's default MCP client found the real failure point around 48,000-51,000 characters — consistent with Claude Code's documented 25,000-token default per-tool-response cap (`MAX_MCP_OUTPUT_TOKENS`) at ~2 chars/token for this kind of repeated-key JSON. The server-side default (`MAX_TOOL_RESPONSE_CHARS=40000`, named `MAX_GRID_DATA_RESPONSE_CHARS` at the time this test was first run — renamed and generalized to 5 more tools by issue #242) sits below that with margin.
+
+**Checks**
+- The Sheets API fetch itself succeeds (it's fast either way) — the error comes from the size check on the result, not a failed API call
+- Error message states the actual response size in characters, the cap, and mentions narrowing the range, `local_path`, or `MAX_TOOL_RESPONSE_CHARS` as options
+- Clean up: remove the formatting from A1:Z200 afterward so it doesn't affect other test cases
+
+**Result (2026-07-02) ✅ PASS**
+Tested against a scratch sheet (temp tab, deleted after) rather than formatting the shared Sales fixture directly, to avoid leaving unwanted formatting on it — same effective setup (`format_cells(range="A1:Z1000", bold=True, background_color=..., number_format_type="NUMBER")`, then `get_sheet_data(range="A1:Z200", include_grid_data=True)`). Raised:
+`get_sheet_data(include_grid_data=True): the response is 4325100 characters, over the 40000-character safety cap. ... Narrow the range; pass local_path to write the result to disk instead of returning it inline (bypasses this cap); or set MAX_GRID_DATA_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).`
+Exact size (4,325,100 chars) confirms the fetch completed before the check ran, as designed.
+
+---
+
+### TC-R03d: Grid data with local_path writes to disk instead of returning inline (issue #235)
+
+**Setup**
+Same formatted range as TC-R03c, but call `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:Z200", include_grid_data=True, local_path="/tmp/qa_grid_data.json")`.
+
+**Checks**
+- Call succeeds (no cap error) despite the response exceeding the cap
+- Response is a small dict — `local_path`, `spreadsheet_id`, `sheet`, `range`, `bytes_written` — not the grid data itself
+- `/tmp/qa_grid_data.json` exists and contains the full grid-data JSON (`rowData` present, formatting visible)
+
+**Result (2026-07-02) ✅ PASS**
+Same scratch-sheet setup as TC-R03c. Call returned `{"local_path": "/tmp/qa_grid_data_235.json", "spreadsheet_id": "...", "sheet": "SizeTest235d", "range": "SizeTest235d!A1:Z200", "bytes_written": 4325100}` — no error despite exceeding the cap. Verified on disk: file exists, `wc -c` matches `bytes_written` exactly (4,325,100), and contains real `rowData` with formatting. Scratch sheet and temp file both cleaned up afterward.
+
+---
+
+### TC-R03e: MAX_TOOL_RESPONSE_CHARS raises the cap (issue #235)
+
+**Setup**
+Set `MAX_TOOL_RESPONSE_CHARS=200000` in server config and restart the server (e.g. to match a `MAX_MCP_OUTPUT_TOKENS` raised in your MCP client config). Repeat the same call as TC-R03c: a formatted range whose response is over the *default* 40,000-character cap but under 200,000.
+
+**Checks**
+- Call now succeeds instead of raising — confirms the cap is actually read from the env var, not hardcoded
+- Restore `MAX_TOOL_RESPONSE_CHARS` (unset it) after this test
+
+**Result:** ⏳ Pending — not yet live-tested. Unlike TC-R03b-d, this requires a server restart with a changed env var (not just an MCP reconnect), which wasn't done this pass. Covered by unit tests (`test_cap_is_configurable` in `tests/sheets/test_data.py`, `test_env_var_sets_cap_at_import_time` in `tests/test_response_limits.py`) in the meantime. Var renamed from `MAX_GRID_DATA_RESPONSE_CHARS` by issue #242 (generalized to 5 more tools).
 
 ---
 
@@ -119,8 +183,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 > "Get formulas from the Notes & Misc sheet of {SPREADSHEET_ID}"
 
 **Checks**
-- B2 returns `=TODAY()` (formula string)
-- B1 ("Note") returns literal string
+- A2 returns `=TODAY()` (formula string) — Notes & Misc is laid out Date (col A) / Note (col B)
+- B2 ("Setup complete") returns a literal string, not a formula
 - No cell returns a computed value where a formula exists
 
 ---
@@ -228,6 +292,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Server clamps to 1 (`max(1, 0)`)
 - Behaves identically to TC-R18
 - 🔍 **Product decision:** should 0 return only headers, or is clamping to 1 the right behavior?
+
+**Result (2026-07-04) ❌ FAIL, then fixed** On a cold cache, correctly clamped (`data.py:304`'s `max(1, rows_to_fetch)`). On a warm cache, `cache.py:189`'s truncation slice (`first_rows[:rows_to_fetch - 1]`) lacked the same clamp — `rows_to_fetch=0` became `[:-1]` and returned 3 rows instead of an empty list, disagreeing with the cold-cache result for the same input. Filed as [#254](https://github.com/khuisman/mcp-gee-sweet/issues/254), fixed in [#257](https://github.com/khuisman/mcp-gee-sweet/pull/257) (applies the same clamp on the cache-hit path). **Re-verified live (2026-07-05)** after merge: warmed the cache with `rows_to_fetch=5`, then called `rows_to_fetch=0` — `first_rows: []` for Sales, matching cold-cache behavior.
 
 ---
 
@@ -427,3 +493,38 @@ Clear `userEnteredFormat` from B2.
 
 **Result (2026-06-20) ✅ PASS**
 - `effectiveFormat.numberFormat = {type:"CURRENCY", pattern:"$#,##0.00"}`, `formattedValue = "$100.00"`, `effectiveValue.numberValue = 100`
+
+---
+
+### TC-R34: get_multiple_sheet_data — many small queries trips the response-size cap (issue #242)
+
+**Background:** #242 generalized #235's response-size safety net beyond `get_sheet_data`. For `get_multiple_sheet_data`, the unbounded axis is query *count*, not just per-query range size — many small results can add up.
+
+**Setup**
+No fixture setup needed — repeat the same tiny query (`{spreadsheet_id: {SPREADSHEET_ID}, sheet: "Sales"}`, a 6x4 range) 200 times in one `queries` list.
+
+**Checks**
+- Call raises `ValueError` mentioning the actual response size, the 40,000-character cap, and `MAX_TOOL_RESPONSE_CHARS`
+- Same call with only 2 queries + `local_path` set succeeds, returns `{local_path, query_count, bytes_written}`, and the file on disk contains the full per-query results
+
+**Result (2026-07-03) ✅ PASS**
+200 queries against the small `Sales` range (6 rows x 4 cols) raised: `get_multiple_sheet_data: the response is 150106 characters, over the 40000-character safety cap. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` `local_path` with 2 queries succeeded, returned `{"local_path":"/tmp/qa_multiple_sheet_data_242.json","bytes_written":2048,"query_count":2}`; file verified on disk then cleaned up.
+
+---
+
+### TC-R35: find_in_spreadsheet — max_results bounds count, not size (issue #242)
+
+**Background:** `max_results` (default 50) caps how many matches are returned, not how large each matched cell value is. A handful of large matching cells can exceed the response-size cap even with few matches.
+
+**Setup**
+Write 10 cells (`Empty!A1:A10`) each containing a ~4,785-character string with a shared marker substring (e.g. repeated "PADTEST marker text..." sentence), then search for the marker.
+
+**Checks**
+- Call raises `ValueError` mentioning the actual response size and the cap, even though match count (10) is well under `max_results` (50)
+- Same call with `local_path` set succeeds, returns `{local_path, spreadsheet_id, query, match_count, bytes_written}`, and the file on disk contains all matches
+
+**Teardown**
+`clear_values` on the `Empty` sheet to remove the test data.
+
+**Result (2026-07-03) ✅ PASS**
+10 matches (42,491 chars total) raised: `find_in_spreadsheet: the response is 42491 characters, over the 40000-character safety cap. ...` despite being far under the `max_results=50` default — confirming match-count capping alone doesn't bound response size. `local_path` call succeeded: `{"local_path":"/tmp/qa_find_in_spreadsheet_242.json","bytes_written":42491,"spreadsheet_id":"...","query":"PADTEST","match_count":10}`; file verified then cleaned up. Test data cleared from the `Empty` sheet afterward.

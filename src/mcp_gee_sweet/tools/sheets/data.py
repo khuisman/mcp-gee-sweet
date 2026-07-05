@@ -5,9 +5,22 @@ from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
 from ...cache import SheetInfo, fetch_sheets
+from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .helpers import _column_index_to_letter, _quote_sheet_name
 
 logger = logging.getLogger(__name__)
+
+# Cell count turned out not to predict response size at all: a live test found a
+# 26,000-cell *blank* range (a fresh sheet's default 1000x26 padding) returns almost
+# nothing — Sheets omits rowData entirely for cells with no explicit formatting. A
+# range with real formatting applied (bold, background, number format) costs roughly
+# 700-780 bytes/cell instead, consistent with issue #235's own numbers (150 cells ->
+# ~107KB, ~713 bytes/cell). Explicit per-cell CellFormat data is what's expensive, not
+# the range's raw dimensions, and we can't know how formatted a range is without
+# fetching it — so this checks the *actual* serialized response after the fetch, not
+# an estimate beforehand. See docs/decisions/decision-grid-data-size-cap.md and
+# docs/decisions/decision-response-size-cap-generalization.md for the full live-tested
+# numbers behind the shared MAX_TOOL_RESPONSE_CHARS cap (response_limits.py).
 
 
 def register(tool):
@@ -17,6 +30,7 @@ def register(tool):
         sheet: str,
         range: str | None = None,
         include_grid_data: bool = False,
+        local_path: str | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -26,17 +40,54 @@ def register(tool):
             spreadsheet_id: The ID of the spreadsheet (found in the URL)
             sheet: The name of the sheet
             range: Optional cell range in A1 notation (e.g., 'A1:C10'). If not provided, gets all data.
+                With include_grid_data=True and no range, the used range is auto-detected (see below)
+                rather than fetching the sheet's full padded grid.
             include_grid_data: If True, includes cell formatting and other metadata in the response.
                 Note: Setting this to True will significantly increase the response size and token usage
-                when parsing the response, as it includes detailed cell formatting information.
+                when parsing the response, as it includes detailed cell formatting information —
+                densely formatted cells serialize to hundreds of bytes each.
+                If range is omitted, the actual used range is auto-detected first (one extra lightweight
+                values-only request) and formatting is fetched only for that — sheets default to a padded
+                1000x26 grid regardless of actual content, and fetching per-cell formatting for the full
+                padded grid instead of just your data can produce a response large enough to break the
+                client connection.
                 Default is False (returns values only, more efficient).
+                Raises ValueError if the actual response size exceeds a safety cap
+                (default 40,000 characters, set MAX_TOOL_RESPONSE_CHARS to change it —
+                e.g. to match a raised MAX_MCP_OUTPUT_TOKENS in your MCP client) and
+                local_path is not set — narrow the range, retry, or pass local_path to
+                bypass the cap entirely.
+            local_path: Optional local filesystem path (file or directory) to write the result
+                to instead of returning it inline. Bypasses the include_grid_data response-size cap.
+                Same caveat as download_file/download_folder: this path is resolved on the
+                *server's* filesystem, not the caller's — over SSE that's only useful if the
+                path is on a volume the caller can also reach; for stdio it's the same machine.
 
         Returns:
-            Grid data structure with either full metadata or just values from Google Sheets API, depending on include_grid_data parameter
+            Grid data structure with either full metadata or just values from Google Sheets API,
+            depending on include_grid_data parameter. If local_path is set, returns
+            {local_path, spreadsheet_id, sheet, range, bytes_written} instead.
         """
         sheets_service = ctx.request_context.lifespan_context.sheets_service
 
         quoted = _quote_sheet_name(sheet)
+
+        if include_grid_data and not range:
+            # Auto-detect the used range so we don't fetch formatting for the sheet's full
+            # padded grid (often 1000x26 by default, regardless of actual content) — issue #235.
+            values_result = (
+                sheets_service.spreadsheets()
+                .values()
+                .get(spreadsheetId=spreadsheet_id, range=quoted)
+                .execute()
+            )
+            values = values_result.get("values", [])
+            if values:
+                last_col_index = max(len(row) for row in values) - 1
+                range = f"A1:{_column_index_to_letter(max(last_col_index, 0))}{len(values)}"
+            else:
+                range = "A1"
+
         full_range = f"{quoted}!{range}" if range else quoted
 
         if include_grid_data:
@@ -45,6 +96,17 @@ def register(tool):
                 .get(spreadsheetId=spreadsheet_id, ranges=[full_range], includeGridData=True)
                 .execute()
             )
+            # Cell count doesn't predict response size — a blank padded range costs almost
+            # nothing, a densely formatted one can blow past a client's size limit even at a
+            # modest cell count (issue #235). Check the real serialized size, not an estimate.
+            if not local_path:
+                enforce_response_size_cap(
+                    result,
+                    tool_name="get_sheet_data(include_grid_data=True)",
+                    hint="Densely formatted cells serialize to ~700+ bytes each, so even a "
+                    "modest range can produce a response large enough to break the client "
+                    "connection. Narrow the range, or ",
+                )
         else:
             values_result = (
                 sheets_service.spreadsheets()
@@ -56,6 +118,18 @@ def register(tool):
                 "spreadsheetId": spreadsheet_id,
                 "valueRanges": [{"range": full_range, "values": values_result.get("values", [])}],
             }
+
+        if local_path:
+            return write_capped_result_to_disk(
+                result,
+                local_path,
+                default_filename=f"{sheet}_data.json",
+                manifest_extra={
+                    "spreadsheet_id": spreadsheet_id,
+                    "sheet": sheet,
+                    "range": full_range,
+                },
+            )
 
         return result
 
@@ -90,8 +164,8 @@ def register(tool):
 
     @tool(annotations=ToolAnnotations(title="Get Multiple Sheet Data", readOnlyHint=True))
     def get_multiple_sheet_data(
-        queries: list[dict[str, str]], ctx: Context = None
-    ) -> list[dict[str, Any]]:
+        queries: list[dict[str, str]], local_path: str | None = None, ctx: Context = None
+    ) -> list[dict[str, Any]] | dict[str, Any]:
         """
         Get data from multiple specific ranges in Google Spreadsheets.
 
@@ -101,10 +175,18 @@ def register(tool):
                      'range' is optional; omitting it returns the entire sheet.
                      Example: [{'spreadsheet_id': 'abc', 'sheet': 'Sheet1', 'range': 'A1:B5'},
                                {'spreadsheet_id': 'xyz', 'sheet': 'Data'}]
+            local_path: Optional local filesystem path (file or directory) to write the
+                result to instead of returning it inline. Bypasses the response-size cap.
+                Same caveat as download_file/download_folder: this path is resolved on the
+                *server's* filesystem, not the caller's.
 
         Returns:
             A list of dictionaries, each containing the original query parameters
-            and the fetched 'data' or an 'error'.
+            and the fetched 'data' or an 'error'. Raises ValueError if the response
+            exceeds a safety cap (default 40,000 characters, set MAX_TOOL_RESPONSE_CHARS
+            to change it) and local_path is not set — split into fewer queries per call,
+            or pass local_path. If local_path is set, returns
+            {local_path, query_count, bytes_written} instead.
         """
         sheets_service = ctx.request_context.lifespan_context.sheets_service
         results = []
@@ -131,6 +213,15 @@ def register(tool):
             except Exception as e:
                 results.append({**query, "error": str(e)})
 
+        if local_path:
+            return write_capped_result_to_disk(
+                results,
+                local_path,
+                default_filename="multiple_sheet_data.json",
+                manifest_extra={"query_count": len(queries)},
+            )
+
+        enforce_response_size_cap(results, tool_name="get_multiple_sheet_data")
         return results
 
     @tool(annotations=ToolAnnotations(title="Get Multiple Spreadsheet Summary", readOnlyHint=True))
@@ -249,8 +340,9 @@ def register(tool):
         sheet: str | None = None,
         case_sensitive: bool = False,
         max_results: int = 50,
+        local_path: str | None = None,
         ctx: Context = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[dict[str, Any]] | dict[str, Any]:
         """
         Find cells containing a specific value in a Google Spreadsheet.
 
@@ -260,9 +352,19 @@ def register(tool):
             sheet: Optional sheet name to search in. If not provided, searches all sheets.
             case_sensitive: Whether the search should be case-sensitive (default False)
             max_results: Maximum number of results to return (default 50)
+            local_path: Optional local filesystem path (file or directory) to write the
+                result to instead of returning it inline. Bypasses the response-size cap.
+                Same caveat as download_file/download_folder: this path is resolved on the
+                *server's* filesystem, not the caller's.
 
         Returns:
-            List of found cells with their location (sheet, cell in A1 notation) and value
+            List of found cells with their location (sheet, cell in A1 notation) and value.
+            max_results bounds match count, not response size — matched cell values can
+            still be large. Raises ValueError if the response exceeds a safety cap
+            (default 40,000 characters, set MAX_TOOL_RESPONSE_CHARS to change it) and
+            local_path is not set — lower max_results, or pass local_path. If local_path
+            is set, returns {local_path, spreadsheet_id, query, match_count, bytes_written}
+            instead.
         """
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
@@ -273,42 +375,55 @@ def register(tool):
             sheets_to_search = [s.title for s in all_sheets if sheet is None or s.title == sheet]
 
             if not sheets_to_search:
-                return [{"error": f"Sheet '{sheet}' not found"}]
+                results = [{"error": f"Sheet '{sheet}' not found"}]
+            else:
+                search_query = query if case_sensitive else query.lower()
 
-            search_query = query if case_sensitive else query.lower()
-
-            for sheet_name in sheets_to_search:
-                if len(results) >= max_results:
-                    break
-
-                response = (
-                    sheets_service.spreadsheets()
-                    .values()
-                    .get(spreadsheetId=spreadsheet_id, range=_quote_sheet_name(sheet_name))
-                    .execute()
-                )
-
-                for row_idx, row in enumerate(response.get("values", [])):
+                for sheet_name in sheets_to_search:
                     if len(results) >= max_results:
                         break
-                    for col_idx, cell_value in enumerate(row):
+
+                    response = (
+                        sheets_service.spreadsheets()
+                        .values()
+                        .get(spreadsheetId=spreadsheet_id, range=_quote_sheet_name(sheet_name))
+                        .execute()
+                    )
+
+                    for row_idx, row in enumerate(response.get("values", [])):
                         if len(results) >= max_results:
                             break
-                        cell_str = str(cell_value)
-                        compare_value = cell_str if case_sensitive else cell_str.lower()
-                        if search_query in compare_value:
-                            results.append(
-                                {
-                                    "sheet": sheet_name,
-                                    "cell": f"{_column_index_to_letter(col_idx)}{row_idx + 1}",
-                                    "value": cell_value,
-                                }
-                            )
-
-            return results
+                        for col_idx, cell_value in enumerate(row):
+                            if len(results) >= max_results:
+                                break
+                            cell_str = str(cell_value)
+                            compare_value = cell_str if case_sensitive else cell_str.lower()
+                            if search_query in compare_value:
+                                results.append(
+                                    {
+                                        "sheet": sheet_name,
+                                        "cell": f"{_column_index_to_letter(col_idx)}{row_idx + 1}",
+                                        "value": cell_value,
+                                    }
+                                )
 
         except Exception as e:
-            return [{"error": f"Search failed: {e!s}"}]
+            results = [{"error": f"Search failed: {e!s}"}]
+
+        if local_path:
+            return write_capped_result_to_disk(
+                results,
+                local_path,
+                default_filename="find_in_spreadsheet_results.json",
+                manifest_extra={
+                    "spreadsheet_id": spreadsheet_id,
+                    "query": query,
+                    "match_count": len(results),
+                },
+            )
+
+        enforce_response_size_cap(results, tool_name="find_in_spreadsheet")
+        return results
 
     @tool(annotations=ToolAnnotations(title="Clear Values", destructiveHint=True))
     def clear_values(

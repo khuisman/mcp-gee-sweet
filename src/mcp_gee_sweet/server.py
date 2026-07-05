@@ -124,15 +124,36 @@ def _timed(func):
     return wrapper
 
 
+def _enforce_strict_tool_args(tool_name: str) -> None:
+    """Reject unrecognized kwargs instead of silently ignoring them (issue #239).
+
+    FastMCP's auto-generated per-tool pydantic arg model defaults to extra="ignore"
+    (pydantic's own default) — neither func_metadata() nor Tool.from_function expose
+    a public way to opt into extra="forbid". Verified absent in mcp 1.27.1 through
+    1.28.1 (this project's full allowed range, mcp>=1.27.0,<2.0.0). This reaches into
+    private ToolManager/FuncMetadata internals to flip it after registration.
+    model_rebuild(force=True) is REQUIRED: pydantic v2 bakes `extra` behavior into a
+    compiled core schema at class-creation time, so mutating model_config alone is
+    silently a no-op without it. If a future mcp upgrade has moved these internals,
+    tests/test_server.py::TestToolStrictArgs will fail loudly in CI.
+    """
+    registered = mcp._tool_manager.get_tool(tool_name)
+    arg_model = registered.fn_metadata.arg_model
+    arg_model.model_config["extra"] = "forbid"
+    arg_model.model_rebuild(force=True)
+
+
 def tool(annotations: ToolAnnotations | None = None):
     def decorator(func):
         tool_name = func.__name__
         if ENABLED_TOOLS is None or tool_name in ENABLED_TOOLS:
             timed = _timed(func)
             if annotations:
-                return mcp.tool(annotations=annotations)(timed)
+                mcp.tool(annotations=annotations)(timed)
             else:
-                return mcp.tool()(timed)
+                mcp.tool()(timed)
+            _enforce_strict_tool_args(tool_name)
+            return timed
         return func
 
     return decorator

@@ -189,6 +189,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Setup:** insert a normal paragraph; note its index range
 
 **Prompt**
+**Playwright: required**
 > "Style the range from index {start} to {end} in doc {DOC_ID} as HEADING_2"
 
 **Checks**
@@ -206,6 +207,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Setup:** insert a normal paragraph; note its index range
 
 **Prompt**
+**Playwright: required**
 > "Make the range from index {start} to {end} in doc {DOC_ID} bold, italic, and red (foreground_color red=1 green=0 blue=0)"
 
 **Checks**
@@ -250,6 +252,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Setup:** fetch structure; note a suitable insertion index (e.g. endIndex of a paragraph)
 
 **Prompt**
+**Playwright: required**
 > "Insert a 2-row, 3-column table at index {N} in doc {DOC_ID}"
 
 **Checks**
@@ -289,6 +292,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
+**Playwright: required**
 > "Style row 0 of the table at index {tableStartIndex} in doc {DOC_ID} with background_color red=0.953 green=0.953 blue=0.953, column_span 2"
 
 **Checks**
@@ -306,6 +310,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
+**Playwright: required**
 > "Style all cells in the table at index {tableStartIndex} in doc {DOC_ID} with border_color black (0,0,0), border_width 0.5, border_dash_style SOLID, padding 3.6pt on all sides"
 
 **Checks**
@@ -409,6 +414,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Setup:** insert a 2×2 table; record its `tableStartIndex` from the response
 
 **Prompt**
+**Playwright: required**
 > "Style cell [0,0] of the table at index {tableStartIndex} in doc {DOC_ID} with background_color red=0.8 green=0.9 blue=1.0"
 
 **Checks**
@@ -429,6 +435,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Setup:** fetch structure; note a suitable insertion index N
 
 **Prompt**
+**Playwright: required**
 > "Insert a 2×3 table at index {N} in doc {DOC_ID}, then style row 0 with grey background (red=0.85 green=0.85 blue=0.85) spanning all 3 columns, and add a solid black border (width 0.5) to every cell"
 
 **Checks**
@@ -585,6 +592,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Purpose:** Regression test for #67 — `colspan` was previously ignored.
 
 **Prompt**
+**Playwright: required**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><td colspan=\"2\">Wide cell</td></tr><tr><td>A</td><td>B</td></tr></table>`"
 
 **Checks**
@@ -604,6 +612,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Purpose:** Regression test for #66 — `width` attributes on `<col>` were previously ignored.
 
 **Prompt**
+**Playwright: required**
 > "Write this HTML to doc {DOC_ID}: `<table><col width=\"144\"><col width=\"288\"><tr><td>Narrow</td><td>Wide</td></tr></table>`"
 
 **Checks**
@@ -622,6 +631,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Purpose:** First live verification of issue #91 — rowspan support in the HTML→AST→emitter pipeline. A cell spanning two rows must produce a `mergeTableCells` request, and the phantom cell in the lower row must not be filled.
 
 **Prompt**
+**Playwright: required**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><td rowspan=\"2\">Tall</td><td>R0C1</td></tr><tr><td>R1C1</td></tr></table>`"
 
 **Checks**
@@ -735,6 +745,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC42: Markdown fenced code block ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Write this markdown to doc {DOC_ID} using content_format='markdown' with a fenced Python code block containing `def hello(): return 'world'`"
 
 **Checks**
@@ -746,6 +757,8 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Result (2026-06-19) ✅ PASS**
 - Two paragraphs: `def hello():` and `    return 'world'` confirmed via `get_doc_structure`.
 - `weightedFontFamily: Courier New` is emitted by the unit-tested emitter; `get_doc_structure` does not expose `font_family` (known gap — no `effectiveFormat` API access).
+
+**Result (2026-07-04) — related bug found, not a failure of this TC's own checks** Writing a fenced code block as the doc's last content left an explicit `font_size`/`font_family` override on the document's trailing paragraph mark, which `write_doc_content`'s clear+reinsert couldn't remove (the Docs API won't let `deleteContentRange` touch the final paragraph mark) — a *subsequent* `write_doc_content` call with plain content would inherit that contamination. Filed as [#255](https://github.com/khuisman/mcp-gee-sweet/issues/255). Fixed in [#258](https://github.com/khuisman/mcp-gee-sweet/pull/258), then corrected in [#259](https://github.com/khuisman/mcp-gee-sweet/pull/259) after live re-testing showed #258's single-batchUpdate version was unreliable. **Re-verified live (2026-07-05)** after both merged: wrote a fenced code block, then overwrote with plain content — new content came back with `textStyle: {}`, no contamination, across repeated rounds.
 
 ---
 
@@ -813,6 +826,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC47: `write_doc_content` inline code monospace ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Write this markdown to doc {DOC_ID} using content_format='markdown': `Use the \`print()\` function`"
 
 **Checks**
@@ -823,6 +837,10 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Result (2026-06-19) ✅ PASS**
 - Paragraph text `Call my_function() with param=True to enable it.` confirmed; code spans at correct positions.
 - `weightedFontFamily: Courier New` confirmed via unit tests; not exposed by `get_doc_structure` (known gap).
+
+**Result (2026-07-04)** Two findings during the v0.8.1 live pass, neither a failure of this TC's own checks:
+1. The prescribed SVG image URI in TC-DOC57/58 is unrelated to this TC but was hit in the same session — see those TCs, now fixed to use a PNG.
+2. This TC's own content (an inline code span) was one of the reproductions of the trailing-paragraph-mark contamination bug — see TC-DOC42's 2026-07-04 result for the full account, filed as [#255](https://github.com/khuisman/mcp-gee-sweet/issues/255), fixed in [#258](https://github.com/khuisman/mcp-gee-sweet/pull/258)/[#259](https://github.com/khuisman/mcp-gee-sweet/pull/259) and re-verified live post-merge. Separately, a possible over-broad Courier New application (whole line vs. just the code span) was observed visually but not conclusively confirmed, since `get_doc_structure` doesn't expose `font_family` per run — no ticket filed yet, flagged as a follow-up if that gap is ever closed.
 
 ---
 
@@ -869,6 +887,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC48: Simple nested table ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><td><table><tr><td>Inner</td></tr></table></td></tr></table>`"
 
 **Checks**
@@ -952,6 +971,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC54: `apply_theme` with `overwrite=True` also patches existing paragraphs ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Write `<h1>Heading One</h1><p>Normal body text.</p>` to doc {DOC_ID}, then apply theme `{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}` with overwrite=True"
 
 **Checks**
@@ -970,6 +990,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Prerequisite:** doc must contain at least one table (write one with `write_doc_content` first if needed)
 
 **Prompt**
+**Playwright: required**
 > "Apply this theme to doc {DOC_ID}: `{"table": {"border_color": {"red": 0, "green": 0, "blue": 0}, "border_width": 0.5, "border_dash_style": "SOLID", "cell_padding": 3.6, "header_background": {"red": 0.953, "green": 0.953, "blue": 0.953}}}`"
 
 **Checks**
@@ -1003,7 +1024,8 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** fetch structure; note the `endIndex` of a paragraph to insert after
 
 **Prompt**
-> "Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/svg/googlelogo_clr_74x24px.svg' at index {N} in doc {DOC_ID}"
+**Playwright: required**
+> "Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png' at index {N} in doc {DOC_ID}"
 
 **Checks**
 - Call succeeds with no API error
@@ -1020,7 +1042,8 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** same as TC-DOC57
 
 **Prompt**
-> "Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/svg/googlelogo_clr_74x24px.svg' at index {N} in doc {DOC_ID} with width 100 and height 50"
+**Playwright: required**
+> "Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png' at index {N} in doc {DOC_ID} with width 100 and height 50"
 
 **Checks**
 - Call succeeds with no API error
@@ -1077,6 +1100,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
+**Playwright: required**
 > "Insert a row above row 1 in the table at index {tableStartIndex} in doc {DOC_ID} (insert_below=False)"
 
 **Checks**
@@ -1094,6 +1118,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** insert a 3-row table; note its `tableStartIndex`
 
 **Prompt**
+**Playwright: required**
 > "Delete row 1 from the table at index {tableStartIndex} in doc {DOC_ID}"
 
 **Checks**
@@ -1111,6 +1136,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
+**Playwright: required**
 > "Insert a column to the right of column 0 in the table at index {tableStartIndex} in doc {DOC_ID}"
 
 **Checks**
@@ -1128,6 +1154,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
+**Playwright: required**
 > "Insert a column to the left of column 1 in the table at index {tableStartIndex} in doc {DOC_ID} (insert_right=False)"
 
 **Checks**
@@ -1144,6 +1171,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** insert a 2×3 table; note its `tableStartIndex`
 
 **Prompt**
+**Playwright: required**
 > "Delete column 1 from the table at index {tableStartIndex} in doc {DOC_ID}"
 
 **Checks**
@@ -1175,6 +1203,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC68: Create a default page header ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Add a page header to doc {DOC_ID}"
 
 **Checks**
@@ -1190,6 +1219,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC69: Create a header with content ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Add a page header to doc {DOC_ID} with content 'Confidential — Internal Only'"
 
 **Checks**
@@ -1205,6 +1235,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC70: Create a default page footer ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Add a page footer to doc {DOC_ID}"
 
 **Checks**
@@ -1219,6 +1250,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC71: Create a footer with content ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Add a page footer to doc {DOC_ID} with content 'Page 1'"
 
 **Checks**
@@ -1257,6 +1289,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** call `create_header` first to get a `headerId`
 
 **Prompt**
+**Playwright: required**
 > "Insert the text 'Header text via insert_doc_text' at index 0 in doc {DOC_ID} using segment_id '{headerId}'"
 
 **Note:** An empty header/footer segment has end index 1 (one newline at index 0). Insert at index 0, not 1.
@@ -1290,6 +1323,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** use `docs/qa/fixtures/tc-d226-heading-table.md` from the repo (absolute path: `<repo-root>/docs/qa/fixtures/tc-d226-heading-table.md`)
 
 **Prompt**
+**Playwright: required**
 > "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."
 
 **Checks**
@@ -1312,6 +1346,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** use `docs/qa/fixtures/tc-d226-heading-table.md` (heading immediately followed by a table)
 
 **Prompt**
+**Playwright: required**
 > "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."
 
 **Checks**
@@ -1323,3 +1358,39 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Result (2026-06-25) ✅ PASS**
 - Tool completed without error. Structure: sectionBreak → HEADING_2 "HIGH\n" (1-6) → blank para "\n" (6-7, `font_size: 1` on its run confirming collapse applied) → table (7-70, cells filled correctly: Finding/Severity/Ticket header, Some finding/HIGH/KINDLY-123 data) → trailing para (70-71). Visual check: no visible gap between heading and table in the rendered doc.
+
+---
+
+### TC-DOC80: get_doc_content trips the response-size cap; cached path re-checks it too (issue #242)
+
+**Background:** #242 generalized #235's response-size safety net to `get_doc_content`. `doc_cache` previously returned a cached result *before* any cap check ran, so a cached oversized doc would bypass the cap on repeat calls — fixed so the check runs on both the cache-hit and cache-miss paths.
+
+**Setup:** `TEST_LARGE_DOC_ID` (`mcp-gee-sweet-qa-large-doc`), grown from its original ~5,300-character seed content to ~49,700 characters by inserting repeated padding text (permanent fixture growth — this doc's whole purpose is being a large-content fixture, and it was never previously large enough to exceed any cap since none existed for this tool before now).
+
+**Checks**
+- First call (fetch path) raises `ValueError` mentioning the actual response size, the cap, and `MAX_TOOL_RESPONSE_CHARS`
+- Second call (cache-hit path, no `refresh_cache` in between) raises the *same* error — proves the cache-hit path re-checks the cap rather than returning the stale oversized cached result
+- Same call with `local_path` set succeeds, returns `{local_path, id, bytes_written}`, and the file on disk contains the full content
+
+**Result (2026-07-03) ✅ PASS**
+Fetch-path call raised: `get_doc_content: the response is 49700 characters, over the 40000-character safety cap. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` Repeat call (served from `doc_cache`, confirmed via no additional Drive API round-trip) raised the identical error — confirms the cache-ordering fix. `local_path` call succeeded: `{"local_path":"/tmp/qa_doc_content_242.json","bytes_written":49700,"id":"{TEST_LARGE_DOC_ID}"}`; file verified then cleaned up.
+
+---
+
+### TC-DOC81: create_doc_from_file renders \$ escape as literal $ (issue #213) ⚠️ requires-oauth ⚠️ destructive
+
+**Background:** Python-Markdown's default `ESCAPED_CHARS` omits `$` (unlike CommonMark, which includes it in its escapable-punctuation set), so `\$` — commonly used to defeat math/LaTeX-delimiter renderers like Obsidian/Typora/Jupyter that treat bare `$...$` as inline math — previously passed through untouched into the rendered Doc as a literal backslash+dollar. Fixed via a small `markdown.extensions.Extension` that adds `$` to `ESCAPED_CHARS`, so it's handled by the library's own escape mechanism (respecting code-span/fenced-code protection) rather than a blind text substitution.
+
+**Setup:** use `docs/qa/fixtures/tc-d213-dollar-escape.md` from the repo (a table cell, a second table row, and a plain-text sentence, each with a `\$`-escaped dollar amount)
+
+**Prompt**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d213-dollar-escape.md"
+
+**Checks**
+- `docId` and `web_link` returned with no `error`
+- `get_doc_content` shows `$6,000`, `$25`, and `$1,200` as plain literal dollar amounts — no `\$` (literal backslash+dollar) anywhere in the content
+
+**Cleanup:** delete the created doc
+
+**Result (2026-07-04) ✅ PASS**
+`create_doc_from_file` succeeded. `get_doc_content` returned: `"...Deductible\r\n\t$6,000\r\n\tCopay\r\n\t$25\r\n\tPlain text with an escaped price: $1,200 due at signing."` — all three escaped amounts rendered as literal `$`, no `\$` anywhere. Doc permanently deleted after verification.

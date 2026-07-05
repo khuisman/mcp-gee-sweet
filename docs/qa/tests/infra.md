@@ -18,6 +18,9 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I13, I14 (transport) | Manual / live QA only — verify once per environment setup |
 | TC-I15 (hot reload) | Manual / live QA only — known uvicorn + SSE limitation, observe and note |
 | TC-I16–I20 (logging) | ✅ Already live-tested and passed — see Result entries below |
+| DB recovery (issue #212) | Unit-tested in `tests/test_cache.py` `TestOpenFallback` — read-only file, read-only dir, and `:memory:` fallback all covered |
+| Tool doc generation (issue #94) | `scripts/gen_tool_docs.py` is a build-time/pre-commit script, not an MCP tool — no live prompt applies. Unit-tested in `tests/test_gen_tool_docs.py`: every registered tool is covered by a section and has a docstring, subset validation catches unknown tool names, and `main()` is idempotent on a second run |
+| TC-I21 (strict tool arg validation, issue #239) | ✅ Unit-tested in `tests/test_server.py::TestToolStrictArgs` (dummy tool + real `list_sheets`) and live-tested — see Result entry below |
 
 ---
 
@@ -125,6 +128,24 @@ Same as TC-I05 or TC-I06 (only 2 tools enabled).
 **Checks**
 - MCP client returns "tool not found" for `add_chart`
 - Server does not crash — just a missing tool, not an error
+
+---
+
+## Tool argument validation
+
+### TC-I21: Unrecognized tool kwargs raise a validation error instead of being silently dropped (issue #239)
+
+**Background:** FastMCP's auto-generated per-tool pydantic arg model defaults to `extra="ignore"` (pydantic's own default) — a typo'd or unknown kwarg previously fell through silently instead of erroring. Fixed centrally in the `tool()` decorator (`server.py`'s `_enforce_strict_tool_args`), which flips every registered tool's arg model to `extra="forbid"` via private FastMCP `ToolManager`/`FuncMetadata` internals (no public hook exists in `mcp` 1.27.1–1.28.1, the project's full allowed range) — applies to all ~84 tools uniformly since they all register through the same decorator. Unit-tested in `tests/test_server.py::TestToolStrictArgs` (both a throwaway dummy tool and a real production tool, `list_sheets`).
+
+**Prompt**
+> Call `list_sheets` with `spreadsheet_id={SPREADSHEET_ID}` plus an extra unrecognized kwarg, e.g. `bogus_kwarg="test"`.
+
+**Checks**
+- Call raises a validation error naming the unrecognized field and `extra_forbidden`, rather than silently succeeding
+- A normal call with only valid args still succeeds (no false positives from the fix)
+
+**Result (2026-07-04) ✅ PASS**
+`list_sheets(spreadsheet_id={SPREADSHEET_ID}, bogus_kwarg="test")` raised: `1 validation error for list_sheetsArguments\nbogus_kwarg\n  Extra inputs are not permitted [type=extra_forbidden, input_value='test', input_type=str]`. Follow-up call with only `spreadsheet_id` succeeded normally, returning the sheet list — confirms the fix doesn't affect legitimate calls.
 
 ---
 

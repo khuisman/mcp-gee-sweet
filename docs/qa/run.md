@@ -7,6 +7,7 @@ This file contains the conductor prompt. Paste it into a Claude session that has
 1. mcp-gee-sweet server running and connected to this Claude session
 2. `docs/qa/.env` exists and is filled in (see `setup.md` if not)
 3. For calendar tests: the calendar in `.env` is accessible to the authenticated account
+4. **If using Playwright for visual verification:** Playwright MCP connected and a valid `token.json` present (see `docs/qa/playwright_oauth.md`)
 
 ## How to start
 
@@ -18,20 +19,57 @@ To resume an interrupted run: paste the prompt and add "Resume from `docs/qa/res
 
 ---
 
+## Playwright verification
+
+Playwright is optional at the run level. Whether a test requires visual verification is a **per-test-case decision**, marked in the test file itself with `**Playwright: required**`. The conductor follows those tags — it does not decide at runtime which tests get visual verification.
+
+### How it works (authoring reference)
+
+When a test case is tagged `**Playwright: required**`, after the tool call the conductor:
+
+- **Sheets** — navigates to `https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit` and snapshots the affected cells
+- **Docs** — navigates to `https://docs.google.com/document/d/{DOC_ID}/edit` and snapshots the affected section
+- **Drive** — navigates to `https://drive.google.com/drive/folders/{FOLDER_ID}` (or the file's `web_link`) and confirms the change
+- **Calendar** — navigates to `https://calendar.google.com` and confirms the event appears or is gone
+
+### Known limitations
+
+- **Footer / header content** — Google Docs renders headers and footers outside the main document canvas. For short documents `window.scrollTo` does not bring the footer into the viewport. When a test involves `create_footer` or `create_header`, use the API response as confirmation; a Playwright snapshot of the body is still useful but will not show the footer content.
+- **Permission changes** — sharing confirmations are not visible in the Drive UI without navigating to the file's "Share" dialog. Use `list_permissions` API response as the confirmation source for share tests.
+
+### Coordinating Playwright across parallel shards
+
+A single Playwright MCP instance is one browser tab. If a QA run is split across multiple agents (e.g. one per domain), any two shards that both hit `**Playwright: required**` cases at the same time will fight over that tab — one shard's navigation clobbers the snapshot the other was about to take. Spinning up a second authenticated Playwright instance to get true parallelism is possible but costly: the browser profile needs its own logged-in Google session (see `playwright_oauth.md`), so a second instance means cloning that profile rather than just adding a server entry.
+
+Cheaper fix: a filesystem mutex around Playwright usage, since only one shard needs the tab at a time and each hold is brief (one navigate + snapshot, not the whole run).
+
+- **Lock path:** `/tmp/mcp-gee-sweet-playwright.lock` (a directory, not a file — `mkdir` is atomic on POSIX, so no separate locking library is needed).
+- **Acquire:** before a Playwright tool call, attempt `mkdir /tmp/mcp-gee-sweet-playwright.lock`. Success means the lock is held — proceed. Failure (already exists) means another shard holds it — back off (a few seconds) and retry.
+- **Release:** immediately after the snapshot for that one test case, `rmdir /tmp/mcp-gee-sweet-playwright.lock`. Don't hold the lock across an entire test file — only around the actual Playwright step.
+- **Stale-lock recovery:** if the lock directory's mtime is older than ~120s, treat it as abandoned (the shard that created it likely crashed or was killed) — remove it and re-acquire rather than waiting forever.
+- **When it's not needed:** a single-shard full run (no parallel agents) never contends with itself — skip the lock entirely in that case.
+
+Give each parallel shard's conductor prompt this protocol explicitly (path, acquire/release commands, backoff, staleness threshold) rather than assuming priority ordering or hoping timing works out.
+
+---
+
 ## Conductor prompt
 
 ```
 You are the QA conductor for mcp-gee-sweet. Your job is to execute the full test suite against the live MCP server, record outcomes, and save a results report.
 
+You have the mcp-gee-sweet MCP connected. Before starting, check whether Playwright MCP is also connected. If it is not, tell me: "Playwright MCP is not connected — tests marked **Playwright: required** will run without visual verification. Confirm to proceed, or connect Playwright first and restart." Wait for my confirmation before continuing.
+
 ## Step 0 — Fixture setup
 
-Before running any tests, verify fixture state:
+Before running any tests:
 
-1. Read `.env` from the repo root. If the file does not exist or the TEST_* keys are missing, stop and say: ".env not found or TEST_* keys missing — follow docs/qa/setup.md to create your fixtures first."
-2. Extract TEST_SPREADSHEET_ID, TEST_DOC_ID, TEST_FOLDER_ID, TEST_CALENDAR_ID, TEST_EVENT_ID, TEST_LARGE_DOC_ID, TEST_PERMISSION_EMAIL.
-3. Verify the fixture spreadsheet with get_sheet_data: confirm sheet tabs Sales, Empty, Notes & Misc exist and Sales data has 6 rows (header + Widget/Gadget/Donut/Gizmo/Totals), columns A–D. If data is missing or in wrong order, use update_cells to restore known seed state (see docs/qa/setup.md §Known fixture state).
-4. Verify the fixture doc with get_doc_structure: confirm title "mcp-gee-sweet-qa-fixtures-doc" and body contains heading "Test Document", a paragraph, and a bullet list (Item one / Item two). If content is wrong, use write_doc_content to restore it.
-5. Tell me the fixture IDs and whether the fixture state looks correct, then wait for me to confirm before proceeding.
+1. Record the start time (current timestamp).
+2. Read `.env` from the repo root. If the file does not exist or the TEST_* keys are missing, stop and say: ".env not found or TEST_* keys missing — follow docs/qa/setup.md to create your fixtures first."
+3. Extract TEST_SPREADSHEET_ID, TEST_DOC_ID, TEST_FOLDER_ID, TEST_CALENDAR_ID, TEST_EVENT_ID, TEST_LARGE_DOC_ID, TEST_PERMISSION_EMAIL.
+4. Verify the fixture spreadsheet with get_sheet_data: confirm sheet tabs Sales, Empty, Notes & Misc exist and Sales data has 6 rows (header + Widget/Gadget/Donut/Gizmo/Totals), columns A–D. If data is missing or in wrong order, use update_cells to restore known seed state (see docs/qa/setup.md §Known fixture state).
+5. Verify the fixture doc with get_doc_structure: confirm title "mcp-gee-sweet-qa-fixtures-doc" and body contains heading "Test Document", a paragraph, and a bullet list (Item one / Item two). If content is wrong, use write_doc_content to restore it.
+6. Tell me the fixture IDs, start time, and whether the fixture state looks correct, then wait for me to confirm before proceeding.
 
 ## Step 1 — Run tests
 
@@ -50,8 +88,9 @@ For each test case:
 1. Announce the TC number and title.
 2. Substitute fixture IDs into the prompt (replace {SPREADSHEET_ID}, {DOC_ID}, etc. with the values from `.env`).
 3. Execute the prompt using the mcp-gee-sweet tools available in this session.
-4. Evaluate each item in the **Checks** list against the actual result.
-5. Record one of:
+4. If the test case is marked **Playwright: required** and Playwright MCP is connected: navigate to the affected resource and take a snapshot before recording the outcome.
+5. Evaluate each item in the **Checks** list against the actual result.
+6. Record one of:
    - **PASS** — every check met
    - **FAIL** — one or more checks failed; note exactly what was wrong
    - **SKIP** — with reason (e.g. "requires server restart", "skipped by user", "prerequisite TC failed")
@@ -67,13 +106,14 @@ If I say "pause" or "stop" at any point, save immediately to `docs/qa/results/<Y
 
 ## Step 3 — Final report
 
-After all test files are complete, write the final report to `docs/qa/results/<YYYY-MM-DD>.md` using this format:
+After all test files are complete, record the end time and write the final report to `docs/qa/results/<YYYY-MM-DD>.md` using this format:
 
 ---
 # QA Run — <YYYY-MM-DD>
 
 **Auth:** OAuth  
-**Fixtures:** SPREADSHEET_ID=`<id>` · DOC_ID=`<id>` · FOLDER_ID=`<id>`
+**Fixtures:** SPREADSHEET_ID=`<id>` · DOC_ID=`<id>` · FOLDER_ID=`<id>`  
+**Start:** <timestamp> · **End:** <timestamp> · **Duration:** <HH:MM>
 
 ## Summary
 
@@ -95,6 +135,7 @@ For each FAIL, one entry:
 **TC-XXX — <title>**
 Expected: <what the check said>
 Observed: <what actually happened>
+Playwright: <what the browser showed, if applicable>
 
 *(none)* if all tests passed.
 

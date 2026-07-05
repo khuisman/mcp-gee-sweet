@@ -36,7 +36,7 @@ docker run --rm -p 8000:8000 \
 
 ## Reference
 
-- [Tools](tools.md) — all 60 tools, grouped by domain
+- [Tools](tools.md) — all 84 tools, grouped by domain
 - [Authentication](auth.md) — four auth methods and when to use each
 - [Configuration](configuration.md) — env vars, tool filtering, caching
 - [Client Setup](client-setup.md) — Claude Desktop and Claude Code config examples
