@@ -1019,7 +1019,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Prompt**
 **Playwright: required**
-> "Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/svg/googlelogo_clr_74x24px.svg' at index {N} in doc {DOC_ID}"
+> "Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png' at index {N} in doc {DOC_ID}"
 
 **Checks**
 - Call succeeds with no API error
@@ -1037,7 +1037,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Prompt**
 **Playwright: required**
-> "Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/svg/googlelogo_clr_74x24px.svg' at index {N} in doc {DOC_ID} with width 100 and height 50"
+> "Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png' at index {N} in doc {DOC_ID} with width 100 and height 50"
 
 **Checks**
 - Call succeeds with no API error

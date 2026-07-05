@@ -37,6 +37,20 @@ When a test case is tagged `**Playwright: required**`, after the tool call the c
 - **Footer / header content** — Google Docs renders headers and footers outside the main document canvas. For short documents `window.scrollTo` does not bring the footer into the viewport. When a test involves `create_footer` or `create_header`, use the API response as confirmation; a Playwright snapshot of the body is still useful but will not show the footer content.
 - **Permission changes** — sharing confirmations are not visible in the Drive UI without navigating to the file's "Share" dialog. Use `list_permissions` API response as the confirmation source for share tests.
 
+### Coordinating Playwright across parallel shards
+
+A single Playwright MCP instance is one browser tab. If a QA run is split across multiple agents (e.g. one per domain), any two shards that both hit `**Playwright: required**` cases at the same time will fight over that tab — one shard's navigation clobbers the snapshot the other was about to take. Spinning up a second authenticated Playwright instance to get true parallelism is possible but costly: the browser profile needs its own logged-in Google session (see `playwright_oauth.md`), so a second instance means cloning that profile rather than just adding a server entry.
+
+Cheaper fix: a filesystem mutex around Playwright usage, since only one shard needs the tab at a time and each hold is brief (one navigate + snapshot, not the whole run).
+
+- **Lock path:** `/tmp/mcp-gee-sweet-playwright.lock` (a directory, not a file — `mkdir` is atomic on POSIX, so no separate locking library is needed).
+- **Acquire:** before a Playwright tool call, attempt `mkdir /tmp/mcp-gee-sweet-playwright.lock`. Success means the lock is held — proceed. Failure (already exists) means another shard holds it — back off (a few seconds) and retry.
+- **Release:** immediately after the snapshot for that one test case, `rmdir /tmp/mcp-gee-sweet-playwright.lock`. Don't hold the lock across an entire test file — only around the actual Playwright step.
+- **Stale-lock recovery:** if the lock directory's mtime is older than ~120s, treat it as abandoned (the shard that created it likely crashed or was killed) — remove it and re-acquire rather than waiting forever.
+- **When it's not needed:** a single-shard full run (no parallel agents) never contends with itself — skip the lock entirely in that case.
+
+Give each parallel shard's conductor prompt this protocol explicitly (path, acquire/release commands, backoff, staleness threshold) rather than assuming priority ordering or hoping timing works out.
+
 ---
 
 ## Conductor prompt

@@ -183,8 +183,8 @@ Set `MAX_TOOL_RESPONSE_CHARS=200000` in server config and restart the server (e.
 > "Get formulas from the Notes & Misc sheet of {SPREADSHEET_ID}"
 
 **Checks**
-- B2 returns `=TODAY()` (formula string)
-- B1 ("Note") returns literal string
+- A2 returns `=TODAY()` (formula string) — Notes & Misc is laid out Date (col A) / Note (col B)
+- B2 ("Setup complete") returns a literal string, not a formula
 - No cell returns a computed value where a formula exists
 
 ---
