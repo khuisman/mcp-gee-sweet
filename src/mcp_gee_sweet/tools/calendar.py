@@ -73,6 +73,140 @@ def register(tool):
         cache.store(calendar_id, result)
         return result
 
+    @tool(annotations=ToolAnnotations(title="Create Calendar", destructiveHint=True))
+    def create_calendar(
+        summary: str,
+        description: str | None = None,
+        timezone: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Create a new secondary calendar owned by the authenticated user.
+
+        Args:
+            summary: Calendar title.
+            description: Optional calendar description.
+            timezone: IANA timezone name (e.g. 'America/Los_Angeles'). Defaults to
+                      the account's timezone if omitted.
+
+        Returns:
+            Created calendar: id, summary, description, time_zone.
+        """
+        lc = ctx.request_context.lifespan_context
+
+        body: dict[str, Any] = {"summary": summary}
+        if description:
+            body["description"] = description
+        if timezone:
+            body["timeZone"] = timezone
+
+        try:
+            c = lc.calendar_service.calendars().insert(body=body).execute()
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.calendar_cache.mark_dirty(c["id"])
+        logger.debug("Created calendar %s", c["id"])
+        return {
+            "id": c["id"],
+            "summary": c.get("summary", ""),
+            "description": c.get("description"),
+            "time_zone": c.get("timeZone"),
+        }
+
+    @tool(annotations=ToolAnnotations(title="Update Calendar", destructiveHint=True))
+    def update_calendar(
+        calendar_id: str,
+        summary: str | None = None,
+        description: str | None = None,
+        timezone: str | None = None,
+        color_id: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Update fields on an existing calendar using patch semantics. Only the
+        fields you provide are changed; omitted fields are left as-is.
+
+        Note: color_id is set via the authenticated user's calendar list entry
+        (calendarList().patch()), not the calendar resource itself — it is a
+        per-user setting, not a property of the calendar shared with others.
+
+        Args:
+            calendar_id: The calendar ID, or 'primary'.
+            summary: New calendar title.
+            description: New calendar description.
+            timezone: New IANA timezone name (e.g. 'America/Los_Angeles').
+            color_id: New color ID from the palette returned by the Calendar API's
+                      colors().get() endpoint (predefined IDs, typically '1'-'24').
+
+        Returns:
+            Updated calendar: id, summary, description, time_zone, color_id.
+        """
+        lc = ctx.request_context.lifespan_context
+
+        patch: dict[str, Any] = {}
+        if summary is not None:
+            patch["summary"] = summary
+        if description is not None:
+            patch["description"] = description
+        if timezone is not None:
+            patch["timeZone"] = timezone
+
+        try:
+            if patch:
+                c = (
+                    lc.calendar_service.calendars()
+                    .patch(calendarId=calendar_id, body=patch)
+                    .execute()
+                )
+            else:
+                c = lc.calendar_service.calendars().get(calendarId=calendar_id).execute()
+
+            result_color_id = None
+            if color_id is not None:
+                list_entry = (
+                    lc.calendar_service.calendarList()
+                    .patch(calendarId=calendar_id, body={"colorId": color_id})
+                    .execute()
+                )
+                result_color_id = list_entry.get("colorId")
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.calendar_cache.mark_dirty(calendar_id)
+        logger.debug("Updated calendar %s", calendar_id)
+        return {
+            "id": c.get("id", calendar_id),
+            "summary": c.get("summary", ""),
+            "description": c.get("description"),
+            "time_zone": c.get("timeZone"),
+            "color_id": result_color_id,
+        }
+
+    @tool(annotations=ToolAnnotations(title="Delete Calendar", destructiveHint=True))
+    def delete_calendar(calendar_id: str, ctx: Context = None) -> dict[str, Any]:
+        """
+        Permanently delete a calendar. For calendars you own, this deletes the
+        calendar entirely for all users it is shared with — use with caution.
+        To only stop seeing a calendar in your own list, use
+        remove_calendar_from_list instead.
+
+        Args:
+            calendar_id: The calendar ID to delete.
+
+        Returns:
+            Confirmation with calendar_id and action 'deleted'.
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            lc.calendar_service.calendars().delete(calendarId=calendar_id).execute()
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.calendar_cache.mark_dirty(calendar_id)
+        logger.debug("Deleted calendar %s", calendar_id)
+        return {"calendar_id": calendar_id, "action": "deleted"}
+
     @tool(annotations=ToolAnnotations(title="List Events", readOnlyHint=True))
     def list_events(
         calendar_id: str,

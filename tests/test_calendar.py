@@ -73,6 +73,192 @@ class TestListCalendars:
         cache.store_list.assert_called_once_with(result)
 
 
+class TestCreateCalendar:
+    """create_calendar inserts a new secondary calendar and invalidates the list cache."""
+
+    def test_builds_body_from_provided_fields_and_maps_response(self):
+        """summary/description/timezone go in the insert body; response is field-mapped."""
+        cal_svc = MagicMock()
+        cal_svc.calendars.return_value.insert.return_value.execute.return_value = {
+            "id": "new-cal-1",
+            "summary": "Team Events",
+            "description": "Shared team calendar",
+            "timeZone": "America/Los_Angeles",
+        }
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = _cal_tools["create_calendar"](
+            summary="Team Events",
+            description="Shared team calendar",
+            timezone="America/Los_Angeles",
+            ctx=ctx,
+        )
+
+        body = cal_svc.calendars.return_value.insert.call_args.kwargs["body"]
+        assert body == {
+            "summary": "Team Events",
+            "description": "Shared team calendar",
+            "timeZone": "America/Los_Angeles",
+        }
+        assert result["id"] == "new-cal-1"
+        assert result["time_zone"] == "America/Los_Angeles"
+
+    def test_omits_optional_fields_from_body_when_not_provided(self):
+        """When description/timezone are omitted, the insert body must only have summary."""
+        cal_svc = MagicMock()
+        cal_svc.calendars.return_value.insert.return_value.execute.return_value = {
+            "id": "new-cal-2",
+            "summary": "Minimal",
+        }
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        _cal_tools["create_calendar"](summary="Minimal", ctx=ctx)
+
+        body = cal_svc.calendars.return_value.insert.call_args.kwargs["body"]
+        assert body == {"summary": "Minimal"}
+
+    def test_marks_cache_dirty_with_new_calendar_id(self):
+        """calendar_cache.mark_dirty must be called with the newly created calendar's id."""
+        cal_svc = MagicMock()
+        cal_svc.calendars.return_value.insert.return_value.execute.return_value = {
+            "id": "new-cal-3",
+            "summary": "Test",
+        }
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        _cal_tools["create_calendar"](summary="Test", ctx=ctx)
+
+        cache.mark_dirty.assert_called_once_with("new-cal-3")
+
+    def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
+        """When calendars().insert() raises, result must be {"error": ...} and cache stays clean."""
+        cal_svc = MagicMock()
+        cal_svc.calendars.return_value.insert.return_value.execute.side_effect = Exception(
+            "quotaExceeded"
+        )
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = _cal_tools["create_calendar"](summary="Test", ctx=ctx)
+
+        assert "error" in result
+        cache.mark_dirty.assert_not_called()
+
+
+class TestUpdateCalendar:
+    """update_calendar uses patch semantics for core fields and calendarList for color."""
+
+    def test_only_summary_in_body_when_only_summary_provided(self):
+        """If only summary is given, the patch body must not include description or timeZone."""
+        cal_svc = MagicMock()
+        cal_svc.calendars.return_value.patch.return_value.execute.return_value = {
+            "id": "cal-1",
+            "summary": "Renamed",
+        }
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        _cal_tools["update_calendar"](calendar_id="cal-1", summary="Renamed", ctx=ctx)
+
+        body = cal_svc.calendars.return_value.patch.call_args.kwargs["body"]
+        assert body == {"summary": "Renamed"}
+
+    def test_color_id_patches_calendar_list_not_calendars_resource(self):
+        """color_id must go through calendarList().patch(), not calendars().patch()."""
+        cal_svc = MagicMock()
+        cal_svc.calendars.return_value.get.return_value.execute.return_value = {
+            "id": "cal-1",
+            "summary": "Existing",
+        }
+        cal_svc.calendarList.return_value.patch.return_value.execute.return_value = {"colorId": "5"}
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        result = _cal_tools["update_calendar"](calendar_id="cal-1", color_id="5", ctx=ctx)
+
+        cal_svc.calendars.return_value.patch.assert_not_called()
+        cal_svc.calendarList.return_value.patch.assert_called_once_with(
+            calendarId="cal-1", body={"colorId": "5"}
+        )
+        assert result["color_id"] == "5"
+
+    def test_no_fields_provided_falls_back_to_get_without_patching(self):
+        """With no fields set, the tool must fetch via calendars().get(), not patch()."""
+        cal_svc = MagicMock()
+        cal_svc.calendars.return_value.get.return_value.execute.return_value = {
+            "id": "cal-1",
+            "summary": "Unchanged",
+        }
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=MagicMock())
+
+        result = _cal_tools["update_calendar"](calendar_id="cal-1", ctx=ctx)
+
+        cal_svc.calendars.return_value.patch.assert_not_called()
+        cal_svc.calendars.return_value.get.assert_called_once_with(calendarId="cal-1")
+        assert result["summary"] == "Unchanged"
+        assert result["color_id"] is None
+
+    def test_marks_cache_dirty_with_correct_calendar_id(self):
+        """After a successful update, calendar_cache.mark_dirty is called with the calendar_id."""
+        cal_svc = MagicMock()
+        cal_svc.calendars.return_value.patch.return_value.execute.return_value = {
+            "id": "cal-2",
+            "summary": "Renamed",
+        }
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        _cal_tools["update_calendar"](calendar_id="cal-2", summary="Renamed", ctx=ctx)
+
+        cache.mark_dirty.assert_called_once_with("cal-2")
+
+    def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
+        """When calendars().patch() raises, result must be {"error": ...} and cache stays clean."""
+        cal_svc = MagicMock()
+        cal_svc.calendars.return_value.patch.return_value.execute.side_effect = Exception(
+            "notFound"
+        )
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = _cal_tools["update_calendar"](
+            calendar_id="cal-missing", summary="Renamed", ctx=ctx
+        )
+
+        assert "error" in result
+        cache.mark_dirty.assert_not_called()
+
+
+class TestDeleteCalendar:
+    """delete_calendar returns a structured confirmation and invalidates the cache."""
+
+    def test_success_returns_confirmation_dict_and_marks_cache_dirty(self):
+        """Result must be {calendar_id, action='deleted'} and cache is dirtied."""
+        cal_svc = MagicMock()
+        cal_svc.calendars.return_value.delete.return_value.execute.return_value = None
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = _cal_tools["delete_calendar"](calendar_id="cal-1", ctx=ctx)
+
+        assert result == {"calendar_id": "cal-1", "action": "deleted"}
+        cache.mark_dirty.assert_called_once_with("cal-1")
+
+    def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
+        """If delete raises, result has 'error' key and the cache must not be dirtied."""
+        cal_svc = MagicMock()
+        cal_svc.calendars.return_value.delete.return_value.execute.side_effect = Exception(
+            "Not Found"
+        )
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = _cal_tools["delete_calendar"](calendar_id="cal-missing", ctx=ctx)
+
+        assert "error" in result
+        cache.mark_dirty.assert_not_called()
+
+
 class TestCreateEvent:
     """create_event detects all-day events, passes attendees, and invalidates the cache."""
 
