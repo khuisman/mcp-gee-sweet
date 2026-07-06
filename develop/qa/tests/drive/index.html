@@ -3636,6 +3636,100 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#import_csv_to_sheet-issue-187" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        import_csv_to_sheet (issue #187)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="import_csv_to_sheet (issue #187)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-d169-basic-import-creates-a-populated-spreadsheet-requires-oauth-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D169: Basic import creates a populated spreadsheet ⚠️ requires-oauth ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d170-custom-sheet_name-renames-the-default-sheet-requires-oauth-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D170: Custom sheet_name renames the default sheet ⚠️ requires-oauth ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d171-grid-auto-expands-beyond-the-default-1000-row-limit-requires-oauth-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D171: Grid auto-expands beyond the default 1000-row limit ⚠️ requires-oauth ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d172-ragged-rows-padded-to-a-common-width-requires-oauth-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D172: Ragged rows padded to a common width ⚠️ requires-oauth ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d173-non-existent-local-path-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D173: Non-existent local path (unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d174-non-csv-extension-rejected-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D174: Non-.csv extension rejected (unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d175-service-account-drive-limitation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D175: Service account Drive limitation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5499,6 +5593,69 @@ Exporting even the small QA fixture spreadsheet as <code>xlsx</code> immediately
 <h3 id="tc-d168-list_file_activity-response-size-cap-code-path-only-no-dedicated-live-fixture-issue-242">TC-D168: list_file_activity response-size cap — code path only, no dedicated live fixture (issue #242)<a class="headerlink" href="#tc-d168-list_file_activity-response-size-cap-code-path-only-no-dedicated-live-fixture-issue-242" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>list_file_activity</code> is already Drive-API-paginated (<code>page_size</code> clamped 1–100) and low per-item size — the only realistic exposure is a single activity's <code>actors</code> list ballooning on a file with many collaborators. Per the #242 decision doc, this tool intentionally did NOT get a dedicated live-fixture verification (reproducing hundreds of real Drive Activity events isn't cheaply reproducible) — the cap was added for defense-in-depth only, verified by unit tests (<code>tests/drive/test_activity.py::TestListFileActivity::test_oversized_result_raises</code>, <code>test_error_points_to_page_size_not_local_path</code>).</p>
 <p><strong>Result (2026-07-03) ✅ N/A (by design)</strong> — sanity-checked live that the tool still functions normally post-change (<code>list_file_activity(file_id={SPREADSHEET_ID}, page_size=5)</code> returned a normal activity list, no regression). Cap-triggering behavior covered by unit tests only, not live-verified — documented scoping decision, not an oversight.</p>
+<hr />
+<h2 id="import_csv_to_sheet-issue-187"><code>import_csv_to_sheet</code> (issue #187)<a class="headerlink" href="#import_csv_to_sheet-issue-187" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d169-basic-import-creates-a-populated-spreadsheet-requires-oauth-local-filesystem">TC-D169: Basic import creates a populated spreadsheet ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-d169-basic-import-creates-a-populated-spreadsheet-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Import the CSV at <code>/tmp/qa-import.csv</code> into a new spreadsheet called 'QA-CSV-Import' in {FOLDER_ID}" <em>(create <code>/tmp/qa-import.csv</code> first with a header row and 3-4 data rows, e.g. <code>name,age\nAlice,30\nBob,25</code>)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response includes <code>spreadsheetId</code>, <code>title</code> exactly 'QA-CSV-Import', <code>web_link</code>, and <code>rows_written</code> matching the CSV's row count (including header)
+- <code>get_sheet_data</code> on the new spreadsheet's default sheet returns the same rows, in order
+- <code>drive_folder_cache.mark_dirty</code> fired — <code>list_files</code> on {FOLDER_ID} shows the new spreadsheet without a manual refresh</p>
+<p><strong>Result (2026-07-05) ✅ PASS</strong> Created spreadsheet with <code>rows_written: 4</code>, exact title, and a <code>web_link</code>. <code>get_sheet_data</code> returned <code>[["name","age"],["Alice","30"],["Bob","25"],["Carol","42"]]</code> — matches the source CSV exactly. <code>list_files</code> on <code>{FOLDER_ID}</code> showed the new spreadsheet immediately, confirming the folder cache invalidation.</p>
+<hr />
+<h3 id="tc-d170-custom-sheet_name-renames-the-default-sheet-requires-oauth-local-filesystem">TC-D170: Custom sheet_name renames the default sheet ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-d170-custom-sheet_name-renames-the-default-sheet-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Import <code>/tmp/qa-import.csv</code> into a new spreadsheet called 'QA-CSV-SheetName', writing to a sheet named 'Imported Data'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_sheets</code> on the new spreadsheet shows exactly one sheet, named 'Imported Data' (not the default 'Sheet1')
+- Data is present on that sheet via <code>get_sheet_data</code></p>
+<p><strong>Result (2026-07-05) ✅ PASS</strong> <code>list_sheets</code> returned exactly <code>["Imported Data"]</code> — the default 'Sheet1' was renamed, not left as a second sheet. <code>get_sheet_data(sheet="Imported Data")</code> returned all 4 rows intact.</p>
+<hr />
+<h3 id="tc-d171-grid-auto-expands-beyond-the-default-1000-row-limit-requires-oauth-local-filesystem">TC-D171: Grid auto-expands beyond the default 1000-row limit ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-d171-grid-auto-expands-beyond-the-default-1000-row-limit-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Import <code>/tmp/qa-import-large.csv</code> into a new spreadsheet called 'QA-CSV-Large'" <em>(generate a CSV with 1500+ rows first, e.g. a header plus 1500 numbered rows)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds without a grid-limit error (the documented pre-fix failure mode from the issue)
+- <code>rows_written</code> matches the CSV's row count
+- <code>get_sheet_data</code> confirms the last row of data is present and readable (not silently truncated at row 1000)</p>
+<p><strong>Result (2026-07-05) ✅ PASS</strong> Imported a 1501-row CSV (header + 1500 numbered rows) with no grid-limit error — <code>rows_written: 1501</code>. Fetched <code>A999:B1501</code> and confirmed rows 998–1500 are all present and correctly ordered, including the final row <code>["1500","row-1500"]</code> — no truncation at the default 1000-row boundary.</p>
+<hr />
+<h3 id="tc-d172-ragged-rows-padded-to-a-common-width-requires-oauth-local-filesystem">TC-D172: Ragged rows padded to a common width ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-d172-ragged-rows-padded-to-a-common-width-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Import <code>/tmp/qa-import-ragged.csv</code> into a new spreadsheet called 'QA-CSV-Ragged'" <em>(create a CSV where some rows have fewer columns than others, e.g. <code>a,b,c\n1,2\n</code>)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- No dropped or misaligned rows in <code>get_sheet_data</code> — short rows are padded with empty cells rather than shifted
+- <code>rows_written</code> counts every row, including the short one</p>
+<p><strong>Result (2026-07-05) ✅ PASS</strong> CSV <code>a,b,c / 1,2 / 4,5,6</code> (middle row missing column <code>c</code>) imported with <code>rows_written: 3</code>. <code>get_sheet_data</code> returned <code>[["a","b","c"],["1","2"],["4","5","6"]]</code> — the short row landed under columns a/b with no shift, and the third row wasn't dropped. (Sheets' values.get omits the trailing empty string we pad with, which is expected — the important signal is correct alignment, not a literal empty-string round-trip.)</p>
+<hr />
+<h3 id="tc-d173-non-existent-local-path-unit-test">TC-D173: Non-existent local path (unit test)<a class="headerlink" href="#tc-d173-non-existent-local-path-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Missing <code>local_path</code> returns <code>{"error": "..."}</code> mentioning the path — no Drive API call made</p>
+<p><strong>Result:</strong> ✅ Unit test <code>test_file_not_found_returns_error</code> confirms this — no live Drive call needed since the function returns before touching <code>ctx</code>.</p>
+<hr />
+<h3 id="tc-d174-non-csv-extension-rejected-unit-test">TC-D174: Non-.csv extension rejected (unit test)<a class="headerlink" href="#tc-d174-non-csv-extension-rejected-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- A <code>.txt</code> (or other non-.csv) file returns <code>{"error": "..."}</code> mentioning <code>.csv</code>, without calling the Drive API</p>
+<p><strong>Result:</strong> ✅ Unit test <code>test_unsupported_extension_returns_error</code> confirms this.</p>
+<hr />
+<h3 id="tc-d175-service-account-drive-limitation">TC-D175: Service account Drive limitation<a class="headerlink" href="#tc-d175-service-account-drive-limitation" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Import <code>/tmp/qa-import.csv</code> into a new spreadsheet called 'QA-CSV-SA-Limit' — I want to verify whether the service account can create in personal Drive"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 🔍 <strong>Known limitation:</strong> same as <code>create_spreadsheet</code> (TC-D04) — service account cannot create in personal Drive, only shared folders it has access to
+- Unit-level equivalent already covered: <code>test_storage_quota_error_returns_helpful_message</code></p>
+<p><strong>Result (2026-07-05) ✅ PASS</strong> Against the service-account server (<code>mcp-gee-sweet-sa</code>), the call returned <code>{"error": "Service accounts cannot create or copy files in personal Drive (no storage quota). Use OAuth or ADC auth for full Drive write access, or use a Shared Drive destination. Check server://auth-status for your current auth method and affected tools."}</code> — the same <code>_SA_QUOTA_ERROR</code> message <code>create_spreadsheet</code> returns, confirming the shared error path works for this tool too.</p>
 
 
 
