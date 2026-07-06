@@ -97,7 +97,13 @@ SECTIONS = [
         "Spreadsheets (Drive-level)",
         lambda f: (
             f.__module__ == "mcp_gee_sweet.tools.drive.files"
-            and f.__name__ in {"create_spreadsheet", "list_spreadsheets", "search_spreadsheets"}
+            and f.__name__
+            in {
+                "create_spreadsheet",
+                "list_spreadsheets",
+                "search_spreadsheets",
+                "import_csv_to_sheet",
+            }
         ),
         "`create_spreadsheet` cannot create files in a personal Drive when using "
         "service account auth — use OAuth or a Shared Drive.",
@@ -106,7 +112,13 @@ SECTIONS = [
         "Drive — files",
         lambda f: (
             f.__module__ == "mcp_gee_sweet.tools.drive.files"
-            and f.__name__ not in {"create_spreadsheet", "list_spreadsheets", "search_spreadsheets"}
+            and f.__name__
+            not in {
+                "create_spreadsheet",
+                "list_spreadsheets",
+                "search_spreadsheets",
+                "import_csv_to_sheet",
+            }
         ),
         None,
     ),
@@ -194,6 +206,7 @@ SUBSETS = [
             "rename_sheet",
             "add_rows",
             "add_columns",
+            "import_csv_to_sheet",
         ],
     ),
     (

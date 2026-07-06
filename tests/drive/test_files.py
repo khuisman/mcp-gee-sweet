@@ -344,3 +344,227 @@ class TestGetStorageQuota:
         fields_arg = svc.about.return_value.get.call_args.kwargs["fields"]
         assert "storageQuota" in fields_arg
         assert "user" in fields_arg
+
+
+class TestImportCsvToSheet:
+    """import_csv_to_sheet: create a spreadsheet from a local CSV file."""
+
+    def _drive_service(self):
+        mock = MagicMock()
+        mock.files.return_value.create.return_value.execute.return_value = {
+            "id": "sheet123",
+            "name": "Imported",
+            "parents": ["folder1"],
+            "webViewLink": "https://docs.google.com/spreadsheets/d/sheet123",
+        }
+        return mock
+
+    def _sheets_service(self, sheet_title="Sheet1", row_count=1000, column_count=26):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [
+                {
+                    "properties": {
+                        "sheetId": 0,
+                        "title": sheet_title,
+                        "gridProperties": {
+                            "rowCount": row_count,
+                            "columnCount": column_count,
+                        },
+                    }
+                }
+            ]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        mock.spreadsheets.return_value.values.return_value.update.return_value.execute.return_value = {}
+        return mock
+
+    def _write_csv(self, tmp_path, rows, name="data.csv"):
+        path = tmp_path / name
+        path.write_text("\n".join(",".join(row) for row in rows) + "\n", encoding="utf-8")
+        return path
+
+    def test_file_not_found_returns_error(self):
+        ctx = _make_ctx()
+        result = _drive_tools["import_csv_to_sheet"](
+            local_path="/no/such/file.csv", title="X", ctx=ctx
+        )
+        assert "error" in result
+        assert "not found" in result["error"].lower()
+
+    def test_unsupported_extension_returns_error(self, tmp_path):
+        path = tmp_path / "data.txt"
+        path.write_text("a,b\n1,2\n", encoding="utf-8")
+        ctx = _make_ctx()
+        result = _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert "error" in result
+        assert ".csv" in result["error"]
+
+    def test_empty_csv_returns_error(self, tmp_path):
+        path = tmp_path / "empty.csv"
+        path.write_text("", encoding="utf-8")
+        ctx = _make_ctx()
+        result = _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert "error" in result
+        assert "empty" in result["error"].lower()
+
+    def test_creates_spreadsheet_and_writes_rows(self, tmp_path):
+        path = self._write_csv(tmp_path, [["name", "age"], ["Alice", "30"], ["Bob", "25"]])
+        drive_svc = self._drive_service()
+        sheets_svc = self._sheets_service()
+        folder_cache = MagicMock()
+        sheet_data_cache = MagicMock()
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            sheets_service=sheets_svc,
+            drive_folder_cache=folder_cache,
+            sheet_data_cache=sheet_data_cache,
+            folder_id=None,
+        )
+        result = _drive_tools["import_csv_to_sheet"](
+            local_path=str(path), title="Imported", folder_id="folder1", ctx=ctx
+        )
+
+        assert result["spreadsheetId"] == "sheet123"
+        assert result["title"] == "Imported"
+        assert result["web_link"] == "https://docs.google.com/spreadsheets/d/sheet123"
+        assert result["rows_written"] == 3
+
+        update_call = sheets_svc.spreadsheets.return_value.values.return_value.update
+        assert update_call.call_count == 1
+        kwargs = update_call.call_args.kwargs
+        assert kwargs["spreadsheetId"] == "sheet123"
+        assert kwargs["range"] == "Sheet1!A1"
+        assert kwargs["valueInputOption"] == "USER_ENTERED"
+        assert kwargs["body"]["values"] == [
+            ["name", "age"],
+            ["Alice", "30"],
+            ["Bob", "25"],
+        ]
+        folder_cache.mark_dirty.assert_called_once_with("folder1")
+        sheet_data_cache.mark_dirty.assert_called_once_with("sheet123")
+        # No resize/rename needed — default title matches, data fits default grid.
+        sheets_svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
+    def test_pads_ragged_rows_to_common_width(self, tmp_path):
+        path = tmp_path / "ragged.csv"
+        path.write_text("a,b,c\n1,2\n", encoding="utf-8")
+        drive_svc = self._drive_service()
+        sheets_svc = self._sheets_service()
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            folder_id=None,
+        )
+        _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        kwargs = sheets_svc.spreadsheets.return_value.values.return_value.update.call_args.kwargs
+        assert kwargs["body"]["values"] == [["a", "b", "c"], ["1", "2", ""]]
+
+    def test_renames_default_sheet_when_sheet_name_differs(self, tmp_path):
+        path = self._write_csv(tmp_path, [["a"], ["1"]])
+        drive_svc = self._drive_service()
+        sheets_svc = self._sheets_service(sheet_title="Sheet1")
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            cache=MagicMock(),
+            folder_id=None,
+        )
+        _drive_tools["import_csv_to_sheet"](
+            local_path=str(path), title="X", sheet_name="Imported Data", ctx=ctx
+        )
+        requests = sheets_svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"][
+            "requests"
+        ]
+        assert requests[0]["updateSheetProperties"]["properties"]["title"] == "Imported Data"
+        assert requests[0]["updateSheetProperties"]["properties"]["sheetId"] == 0
+        assert requests[0]["updateSheetProperties"]["fields"] == "title"
+        update_range = (
+            sheets_svc.spreadsheets.return_value.values.return_value.update.call_args.kwargs[
+                "range"
+            ]
+        )
+        assert update_range == "'Imported Data'!A1"
+
+    def test_resizes_grid_when_data_exceeds_default(self, tmp_path):
+        path = self._write_csv(tmp_path, [["a"], ["1"], ["2"], ["3"]])
+        drive_svc = self._drive_service()
+        # Force a resize by mocking a grid smaller than our 4-row CSV.
+        sheets_svc = self._sheets_service(row_count=1, column_count=1)
+        cache = MagicMock()
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            cache=cache,
+            folder_id=None,
+        )
+        _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        requests = sheets_svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"][
+            "requests"
+        ]
+        resize_req = next(
+            r for r in requests if "gridProperties" in r["updateSheetProperties"]["properties"]
+        )
+        grid = resize_req["updateSheetProperties"]["properties"]["gridProperties"]
+        assert grid["rowCount"] == 4
+        assert grid["columnCount"] == 1
+        cache.mark_dirty.assert_called_once_with("sheet123")
+
+    def test_no_resize_when_data_fits_default_grid(self, tmp_path):
+        path = self._write_csv(tmp_path, [["a", "b"], ["1", "2"]])
+        drive_svc = self._drive_service()
+        sheets_svc = self._sheets_service(row_count=1000, column_count=26)
+        cache = MagicMock()
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            cache=cache,
+            folder_id=None,
+        )
+        _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        sheets_svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+        cache.mark_dirty.assert_not_called()
+
+    def test_chunks_large_row_counts(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 2)
+        rows = [["a"]] + [[str(i)] for i in range(5)]
+        path = self._write_csv(tmp_path, rows)
+        drive_svc = self._drive_service()
+        sheets_svc = self._sheets_service()
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            folder_id=None,
+        )
+        result = _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert result["rows_written"] == 6
+        update_call = sheets_svc.spreadsheets.return_value.values.return_value.update
+        assert update_call.call_count == 3
+        ranges = [c.kwargs["range"] for c in update_call.call_args_list]
+        assert ranges == ["Sheet1!A1", "Sheet1!A3", "Sheet1!A5"]
+
+    def test_storage_quota_error_returns_helpful_message(self, tmp_path):
+        path = self._write_csv(tmp_path, [["a"], ["1"]])
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.side_effect = _quota_http_error()
+        ctx = _make_ctx(drive_service=drive_svc, sheets_service=MagicMock(), folder_id=None)
+        result = _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert result["error"] == drive_files_module._SA_QUOTA_ERROR
+
+    def test_other_403_error_reraises(self, tmp_path):
+        path = self._write_csv(tmp_path, [["a"], ["1"]])
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.side_effect = _other_403_error()
+        ctx = _make_ctx(drive_service=drive_svc, sheets_service=MagicMock(), folder_id=None)
+        with pytest.raises(HttpError):
+            _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)

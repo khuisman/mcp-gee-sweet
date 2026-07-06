@@ -1,14 +1,19 @@
+import csv
 import logging
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 from googleapiclient.errors import HttpError
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+from ..sheets.helpers import _quote_sheet_name
 from . import _SA_QUOTA_ERROR
 
 logger = logging.getLogger(__name__)
+
+_CSV_IMPORT_CHUNK_ROWS = 5000
 
 
 def register(tool):
@@ -69,6 +74,155 @@ def register(tool):
             "spreadsheetId": spreadsheet_id,
             "title": spreadsheet.get("name", title),
             "folder": parents[0] if parents else "root",
+        }
+
+    @tool(annotations=ToolAnnotations(title="Import CSV to Sheet", destructiveHint=True))
+    def import_csv_to_sheet(
+        local_path: str,
+        title: str,
+        folder_id: str | None = None,
+        sheet_name: str = "Sheet1",
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Create a new Google Spreadsheet populated from a local CSV file.
+
+        Reads the CSV, creates the spreadsheet, expands the sheet's grid to fit
+        the data (avoiding the default 1000-row/26-column limit), and writes
+        every row in one or more batched value updates.
+
+        Args:
+            local_path: Absolute path to the local .csv file.
+            title: Title for the new spreadsheet.
+            folder_id: Optional Google Drive folder ID where the spreadsheet should
+                      be created. If not provided, uses the configured default
+                      folder or creates in root.
+            sheet_name: Name of the sheet the data is written to (default "Sheet1").
+
+        Returns:
+            spreadsheetId, title, web_link, and rows_written.
+
+        Note:
+            Requires OAuth or ADC auth. Service accounts cannot create files in personal
+            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            Check server://auth-status for your current auth method.
+        """
+        path = Path(local_path)
+        if not path.exists():
+            return {"error": f"File not found: {local_path}"}
+        if path.suffix.lower() != ".csv":
+            return {"error": f"Unsupported file extension '{path.suffix}'. Use .csv"}
+
+        with path.open(newline="", encoding="utf-8") as f:
+            rows = list(csv.reader(f))
+
+        if not rows:
+            return {"error": f"CSV file is empty: {local_path}"}
+
+        width = max(len(row) for row in rows)
+        rows = [row + [""] * (width - len(row)) for row in rows]
+
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+        sheets_service = lc.sheets_service
+        target_folder_id = folder_id or lc.folder_id
+
+        file_body = {"name": title, "mimeType": "application/vnd.google-apps.spreadsheet"}
+        if target_folder_id:
+            file_body["parents"] = [target_folder_id]
+
+        try:
+            spreadsheet = (
+                drive_service.files()
+                .create(
+                    supportsAllDrives=True,
+                    body=file_body,
+                    fields="id, name, parents, webViewLink",
+                )
+                .execute()
+            )
+        except HttpError as e:
+            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+                return {"error": _SA_QUOTA_ERROR}
+            raise
+
+        spreadsheet_id = spreadsheet.get("id")
+        target_folder_id = target_folder_id or (spreadsheet.get("parents", [None])[0])
+
+        default_sheet = (
+            sheets_service.spreadsheets()
+            .get(
+                spreadsheetId=spreadsheet_id,
+                fields="sheets(properties(sheetId,title,gridProperties))",
+            )
+            .execute()
+            .get("sheets", [{}])[0]
+        )
+        default_props = default_sheet.get("properties", {})
+        sheet_id = default_props.get("sheetId", 0)
+        default_title = default_props.get("title")
+        grid = default_props.get("gridProperties", {})
+
+        requests: list[dict[str, Any]] = []
+        if default_title != sheet_name:
+            requests.append(
+                {
+                    "updateSheetProperties": {
+                        "properties": {"sheetId": sheet_id, "title": sheet_name},
+                        "fields": "title",
+                    }
+                }
+            )
+        needed_rows, needed_cols = len(rows), width
+        if needed_rows > grid.get("rowCount", 1000) or needed_cols > grid.get("columnCount", 26):
+            requests.append(
+                {
+                    "updateSheetProperties": {
+                        "properties": {
+                            "sheetId": sheet_id,
+                            "gridProperties": {
+                                "rowCount": max(needed_rows, grid.get("rowCount", 1000)),
+                                "columnCount": max(needed_cols, grid.get("columnCount", 26)),
+                            },
+                        },
+                        "fields": "gridProperties.rowCount,gridProperties.columnCount",
+                    }
+                }
+            )
+
+        if requests:
+            sheets_service.spreadsheets().batchUpdate(
+                spreadsheetId=spreadsheet_id, body={"requests": requests}
+            ).execute()
+            lc.cache.mark_dirty(spreadsheet_id)
+
+        quoted_sheet = _quote_sheet_name(sheet_name)
+        for start in range(0, len(rows), _CSV_IMPORT_CHUNK_ROWS):
+            chunk = rows[start : start + _CSV_IMPORT_CHUNK_ROWS]
+            sheets_service.spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=f"{quoted_sheet}!A{start + 1}",
+                valueInputOption="USER_ENTERED",
+                body={"values": chunk},
+            ).execute()
+
+        if target_folder_id:
+            lc.drive_folder_cache.mark_dirty(target_folder_id)
+        lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+
+        logger.debug(
+            "Imported CSV %s into spreadsheet %s (%d rows, %d cols)",
+            local_path,
+            spreadsheet_id,
+            len(rows),
+            width,
+        )
+
+        return {
+            "spreadsheetId": spreadsheet_id,
+            "title": spreadsheet.get("name", title),
+            "web_link": spreadsheet.get("webViewLink"),
+            "rows_written": len(rows),
         }
 
     @tool(annotations=ToolAnnotations(title="List Spreadsheets", readOnlyHint=True))

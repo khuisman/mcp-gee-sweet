@@ -2015,3 +2015,86 @@ Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded t
 **Background:** `list_file_activity` is already Drive-API-paginated (`page_size` clamped 1–100) and low per-item size — the only realistic exposure is a single activity's `actors` list ballooning on a file with many collaborators. Per the #242 decision doc, this tool intentionally did NOT get a dedicated live-fixture verification (reproducing hundreds of real Drive Activity events isn't cheaply reproducible) — the cap was added for defense-in-depth only, verified by unit tests (`tests/drive/test_activity.py::TestListFileActivity::test_oversized_result_raises`, `test_error_points_to_page_size_not_local_path`).
 
 **Result (2026-07-03) ✅ N/A (by design)** — sanity-checked live that the tool still functions normally post-change (`list_file_activity(file_id={SPREADSHEET_ID}, page_size=5)` returned a normal activity list, no regression). Cap-triggering behavior covered by unit tests only, not live-verified — documented scoping decision, not an oversight.
+
+---
+
+## `import_csv_to_sheet` (issue #187)
+
+### TC-D169: Basic import creates a populated spreadsheet ⚠️ requires-oauth ⚠️ local-filesystem
+**Prompt**
+> "Import the CSV at `/tmp/qa-import.csv` into a new spreadsheet called 'QA-CSV-Import' in {FOLDER_ID}" *(create `/tmp/qa-import.csv` first with a header row and 3-4 data rows, e.g. `name,age\nAlice,30\nBob,25`)*
+
+**Checks**
+- Response includes `spreadsheetId`, `title` exactly 'QA-CSV-Import', `web_link`, and `rows_written` matching the CSV's row count (including header)
+- `get_sheet_data` on the new spreadsheet's default sheet returns the same rows, in order
+- `drive_folder_cache.mark_dirty` fired — `list_files` on {FOLDER_ID} shows the new spreadsheet without a manual refresh
+
+**Result (2026-07-05) ✅ PASS** Created spreadsheet with `rows_written: 4`, exact title, and a `web_link`. `get_sheet_data` returned `[["name","age"],["Alice","30"],["Bob","25"],["Carol","42"]]` — matches the source CSV exactly. `list_files` on `{FOLDER_ID}` showed the new spreadsheet immediately, confirming the folder cache invalidation.
+
+---
+
+### TC-D170: Custom sheet_name renames the default sheet ⚠️ requires-oauth ⚠️ local-filesystem
+**Prompt**
+> "Import `/tmp/qa-import.csv` into a new spreadsheet called 'QA-CSV-SheetName', writing to a sheet named 'Imported Data'"
+
+**Checks**
+- `list_sheets` on the new spreadsheet shows exactly one sheet, named 'Imported Data' (not the default 'Sheet1')
+- Data is present on that sheet via `get_sheet_data`
+
+**Result (2026-07-05) ✅ PASS** `list_sheets` returned exactly `["Imported Data"]` — the default 'Sheet1' was renamed, not left as a second sheet. `get_sheet_data(sheet="Imported Data")` returned all 4 rows intact.
+
+---
+
+### TC-D171: Grid auto-expands beyond the default 1000-row limit ⚠️ requires-oauth ⚠️ local-filesystem
+**Prompt**
+> "Import `/tmp/qa-import-large.csv` into a new spreadsheet called 'QA-CSV-Large'" *(generate a CSV with 1500+ rows first, e.g. a header plus 1500 numbered rows)*
+
+**Checks**
+- Call succeeds without a grid-limit error (the documented pre-fix failure mode from the issue)
+- `rows_written` matches the CSV's row count
+- `get_sheet_data` confirms the last row of data is present and readable (not silently truncated at row 1000)
+
+**Result (2026-07-05) ✅ PASS** Imported a 1501-row CSV (header + 1500 numbered rows) with no grid-limit error — `rows_written: 1501`. Fetched `A999:B1501` and confirmed rows 998–1500 are all present and correctly ordered, including the final row `["1500","row-1500"]` — no truncation at the default 1000-row boundary.
+
+---
+
+### TC-D172: Ragged rows padded to a common width ⚠️ requires-oauth ⚠️ local-filesystem
+**Prompt**
+> "Import `/tmp/qa-import-ragged.csv` into a new spreadsheet called 'QA-CSV-Ragged'" *(create a CSV where some rows have fewer columns than others, e.g. `a,b,c\n1,2\n`)*
+
+**Checks**
+- No dropped or misaligned rows in `get_sheet_data` — short rows are padded with empty cells rather than shifted
+- `rows_written` counts every row, including the short one
+
+**Result (2026-07-05) ✅ PASS** CSV `a,b,c / 1,2 / 4,5,6` (middle row missing column `c`) imported with `rows_written: 3`. `get_sheet_data` returned `[["a","b","c"],["1","2"],["4","5","6"]]` — the short row landed under columns a/b with no shift, and the third row wasn't dropped. (Sheets' values.get omits the trailing empty string we pad with, which is expected — the important signal is correct alignment, not a literal empty-string round-trip.)
+
+---
+
+### TC-D173: Non-existent local path (unit test)
+
+**Checks (unit test)**
+- Missing `local_path` returns `{"error": "..."}` mentioning the path — no Drive API call made
+
+**Result:** ✅ Unit test `test_file_not_found_returns_error` confirms this — no live Drive call needed since the function returns before touching `ctx`.
+
+---
+
+### TC-D174: Non-.csv extension rejected (unit test)
+
+**Checks (unit test)**
+- A `.txt` (or other non-.csv) file returns `{"error": "..."}` mentioning `.csv`, without calling the Drive API
+
+**Result:** ✅ Unit test `test_unsupported_extension_returns_error` confirms this.
+
+---
+
+### TC-D175: Service account Drive limitation
+
+**Prompt**
+> "Import `/tmp/qa-import.csv` into a new spreadsheet called 'QA-CSV-SA-Limit' — I want to verify whether the service account can create in personal Drive"
+
+**Checks**
+- 🔍 **Known limitation:** same as `create_spreadsheet` (TC-D04) — service account cannot create in personal Drive, only shared folders it has access to
+- Unit-level equivalent already covered: `test_storage_quota_error_returns_helpful_message`
+
+**Result (2026-07-05) ✅ PASS** Against the service-account server (`mcp-gee-sweet-sa`), the call returned `{"error": "Service accounts cannot create or copy files in personal Drive (no storage quota). Use OAuth or ADC auth for full Drive write access, or use a Shared Drive destination. Check server://auth-status for your current auth method and affected tools."}` — the same `_SA_QUOTA_ERROR` message `create_spreadsheet` returns, confirming the shared error path works for this tool too.

@@ -34,7 +34,7 @@ Logic is split across `src/mcp_gee_sweet/`: `server.py` (MCP setup, tool decorat
 - `tools/sheets/data.py` — read/write cell data (`get_sheet_data`, `get_sheet_formulas`, `get_multiple_*`, `find_in_spreadsheet`, `clear_values`, `update_cells`, `batch_update_cells`, `batch_update`)
 - `tools/sheets/structure.py` — sheet structure (`list_sheets`, `copy_sheet`, `rename_sheet`, `create_sheet`, `delete_sheet`, `add_rows`, `add_columns`, `delete_rows`, `delete_columns`, `format_cells`, `merge_cells`, `unmerge_cells`, `freeze`, `sort_range`, `add_chart`)
 - `tools/sheets/helpers.py` — A1 notation helpers (`_parse_a1_notation`, `_column_index_to_letter`, etc.)
-- `tools/drive/files.py` — file/folder operations (`create_spreadsheet`, `list_spreadsheets`, `list_files`, `search_files`, `create_folder`, `copy_file`, `move_file`, `rename_file`, `delete_file`, `list_shared_with_me`, `list_recent_files`, `get_storage_quota`, etc.)
+- `tools/drive/files.py` — file/folder operations (`create_spreadsheet`, `import_csv_to_sheet`, `list_spreadsheets`, `list_files`, `search_files`, `create_folder`, `copy_file`, `move_file`, `rename_file`, `delete_file`, `list_shared_with_me`, `list_recent_files`, `get_storage_quota`, etc.)
 - `tools/drive/sharing.py` — permissions (`share_spreadsheet`, `share_file`, `list_permissions`, `update_permission`, `remove_permission`)
 - `tools/drive/transfer.py` — upload/download/sync/export/revisions
 - `tools/drive/activity.py` — `list_file_activity` (Drive Activity API v2; requires `drive.activity.readonly` scope)
