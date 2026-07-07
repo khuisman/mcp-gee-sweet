@@ -266,13 +266,13 @@ New tests to add:
 | Column widths | Yes | #66 |
 | Colspan | Yes | #67 partial |
 | Rowspan | Yes | `Cell.rowspan` in AST; #91 added `mergeTableCells` in emitter |
-| Nested tables | Yes | `Cell.nested_table: Table \| None`; #92 added stages 3+5 in `fill_tables` |
+| Nested tables | Yes | `Cell.nested_table: Table \| None`; #92 added stages 3+5 in `fill_tables`. Superseded 2026-07-06 by `Cell.children: list[Run \| Table]` — see "Nested Table Rewrite" below |
 | Phase 3 styling fields (colors, fonts) | No | In AST as `None`; emitter ignores them |
 | `<ol>` ordered bullets | Yes | `BulletItem.ordered` → different bullet preset |
 
 ---
 
-## Nested Table Design (#92)
+## Nested Table Design (#92, superseded 2026-07-06 by #108/#275 — see below)
 
 **Date:** 2026-06-19
 
@@ -294,9 +294,47 @@ A `<table>` inside a `<td>` is now supported (one level of nesting).
 
 **Phase 5 — fill nested cells**: after outer cell text is filled (phase 4), indices shift. A second re-fetch is performed, then `_collect_nested_table_pairs(doc_tables, ast_tables)` traverses cell content to find the nested `table` element and pairs it with the AST `Table`. `_build_fill_requests` reuses the same logic as outer cells.
 
-### Known limitations (first pass)
+### Known limitations (first pass, now historical — see rewrite below)
 
-- One level of nesting only (table-in-table-in-table not supported)
-- Cells with `nested_table` should not also contain text runs (runs are dropped silently)
-- No `colspan`/`rowspan` inside nested tables
-- No `col_widths` on nested tables
+- Cells with `nested_table` should not also contain text runs (runs are dropped silently) — **fixed and superseded**, see below
+- One level of nesting only (table-in-table-in-table not supported) — **fixed and superseded**, see below
+- No `colspan`/`rowspan` inside nested tables — still true
+- No `col_widths` on nested tables — still true
+
+---
+
+## Nested Table Rewrite: `Cell.children` + recursive fill (#108, #275)
+
+**Date:** 2026-07-06
+
+The single-`nested_table`-field design above had two real defects, both found while investigating #108:
+
+1. Text sharing a cell with a nested table was silently corrupted. Root cause was in the parser, not the emitter: `_AstParser._run_buf`/`_pending_runs` are shared, unscoped state across nesting levels — opening a nested `<table>` never flushed them, so text typed before the nested table bled into the *nested* table's own first cell instead of staying with the outer cell.
+2. Even once the parser stopped corrupting it, the single `Cell.runs` field had nowhere to put "text after the table" separately from "text before the table" — `fill_tables` always inserted a cell's text at its first paragraph, i.e. always immediately *before* any nested table, regardless of where the text actually appeared in the source HTML. Filed as follow-up #275 rather than silently expanding #108's scope; then, per explicit direction, fixed in the same pass ("do the fuller version").
+
+### Schema change (`ast.py`)
+
+`Cell.runs: list[Run]` + `Cell.nested_table: Table | None` → **`Cell.children: list[Run | Table]`** — one ordered list holding exactly what appeared in the source, in order. This is the `Union[Run, Table]` design #92 originally proposed and explicitly didn't ship; the simpler two-field version turned out to be insufficient once #275 surfaced.
+
+### Parser changes (`html_parser.py`)
+
+`_TableBuilder` replaces `_current_nested_table`/`_pending_leading_runs` with a single `_current_children: list[Run | Table]`, plus `append_runs()`/`append_nested_table()` methods that append to it in call order. `_AstParser.handle_starttag`'s `table` branch flushes pending runs onto the *outer* builder via `append_runs()` before pushing a new builder for the nested table (fixing defect 1 above); `handle_endtag`'s `table` branch calls `append_nested_table()` on the parent builder instead of setting a single field. `end_cell` builds `Cell(children=self._current_children + runs, ...)`. This works at arbitrary depth and for arbitrarily many nested tables per cell — no explicit depth/count limit needed.
+
+### Emitter changes (`emitter.py`)
+
+Cells with no `Table` in `children` are still filled in one bulk batch by `_build_fill_requests` (unchanged, fast path — most cells). Cells with at least one `Table` child go through a new recursive, round-based algorithm:
+
+- **`_fill_children_recursive(docs_service, doc_id, resolve, ast_tables)`** — `resolve(live_doc) -> doc_table dicts` positionally matching `ast_tables`. Tracks a per-cell cursor into `children`. Each round: for every still-pending cell, emit **one** contiguous segment — either a run of text (`insertText` + styles) or one nested table's shell (`insertTable`) — at that cell's next open position, sorted high→low within the round (same pattern as the old phase-3/5 code), then re-fetch before the next round.
+  - **`_cell_para_start_for_cursor`**: a cell's `content` alternates paragraph/table/paragraph/table/...; the Nth paragraph (0-indexed) is the one after the Nth already-inserted table, where N = count of `Table` children before `cursor`.
+  - **`_text_offset_since_last_table`**: a table's insertion point is its paragraph's `startIndex` *plus* this — the length of any text already inserted into that same paragraph earlier in this round-chain (the paragraph's own `startIndex` doesn't change when text is inserted into it, but the table must land after that text, not at the start).
+  - When a table shell is inserted, **`_fill_table_fully`** is called for it: re-fetches, bulk-fills its own plain cells via `_build_fill_requests`, then recurses via `_fill_children_recursive` for any of *its* cells that themselves contain a further nested table. This is what makes nesting depth unbounded — a nested table is filled exactly the same way a top-level one is.
+  - After recursing into any nested tables inserted in a round (which run their own `batchUpdate`s and shift subsequent document indices), the outer loop re-fetches again before its own next round — recursion's mutations must be visible before the outer cell's next segment (e.g. trailing text) is positioned.
+- `_ast_cell_to_doc_cell` / `_find_nth_table_in_cell` locate a specific physical doc cell / the Nth nested-table content element inside a cell, reusing the existing `_physical_to_ast_indices`/`_build_phantom_set` colspan/rowspan-aware mapping.
+
+`_build_nested_table_inserts` and `_collect_nested_table_pairs` (the old phase-3/5 helpers) are removed — fully superseded by the recursive algorithm.
+
+### Result
+
+- Text before, between, and after any number of nested tables in one cell renders in true source order, at any nesting depth.
+- The "one level of nesting only" and "no colspan/rowspan/col_widths inside nested tables" limitations from the original #92 design are otherwise unchanged — this rewrite only touches content ordering, not those structural features.
+- Tested with `tests/test_docs_tables.py`'s `TestFillNestedCellContent`, which drives the real algorithm against a small in-memory Docs-API simulator (`FakeDoc`/`Para`/`TableNode` in that file) that actually applies `insertText`/`insertTable` mutations and re-derives indices — chosen over hand-computed index fixtures because this much re-fetch/recursion logic is easy to get subtly wrong in a way a fixture can't catch (and did, twice, during development).

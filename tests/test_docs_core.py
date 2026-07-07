@@ -32,7 +32,7 @@ from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 
 
 def _cell(text: str, colspan: int = 1, rowspan: int = 1) -> Cell:
-    return Cell(runs=[Run(text)], colspan=colspan, rowspan=rowspan)
+    return Cell(children=[Run(text)], colspan=colspan, rowspan=rowspan)
 
 
 def _row(*cells: Cell) -> Row:
@@ -163,10 +163,10 @@ class TestHtmlToDocRequests:
         assert len(tables) == 1
         # tables are now Table AST nodes
         assert len(tables[0].rows) == 2
-        assert tables[0].rows[0].cells[0].runs[0].text == "A"
-        assert tables[0].rows[0].cells[1].runs[0].text == "B"
-        assert tables[0].rows[1].cells[0].runs[0].text == "1"
-        assert tables[0].rows[1].cells[1].runs[0].text == "2"
+        assert tables[0].rows[0].cells[0].children[0].text == "A"
+        assert tables[0].rows[0].cells[1].children[0].text == "B"
+        assert tables[0].rows[1].cells[0].children[0].text == "1"
+        assert tables[0].rows[1].cells[1].children[0].text == "2"
 
     def test_table_interleaved_with_text(self):
         html = "<h2>Before</h2><table><tr><td>X</td></tr></table><h2>After</h2>"
@@ -212,8 +212,8 @@ class TestHtmlToDocRequests:
         insert_tables = [r for r in requests if "insertTable" in r]
         assert len(insert_tables) == 2
         assert len(tables) == 2
-        assert tables[0].rows[0].cells[0].runs[0].text == "T1"
-        assert tables[1].rows[0].cells[0].runs[0].text == "T2"
+        assert tables[0].rows[0].cells[0].children[0].text == "T1"
+        assert tables[1].rows[0].cells[0].children[0].text == "T2"
         # Both tables share the same insert position (no text between them).
         # Reverse-order insertion means T1 ends up at a lower index than T2 in the doc,
         # so T1's position must be <= T2's position in the request list (last request = T1).
@@ -274,25 +274,25 @@ class TestHtmlToAst:
         assert isinstance(table, Table)
         cell = table.rows[0].cells[0]
         assert cell.is_header is True
-        assert cell.runs[0].bold is True
+        assert cell.children[0].bold is True
 
     def test_td_cell_text(self):
         nodes = html_to_ast("<table><tr><td>Data</td></tr></table>")
         table = nodes[0]
         cell = table.rows[0].cells[0]
         assert cell.is_header is False
-        assert cell.runs[0].text == "Data"
+        assert cell.children[0].text == "Data"
 
     def test_inline_bold_in_td(self):
         nodes = html_to_ast("<table><tr><td><b>bold cell</b></td></tr></table>")
         cell = nodes[0].rows[0].cells[0]
-        assert cell.runs[0].bold is True
-        assert cell.runs[0].text == "bold cell"
+        assert cell.children[0].bold is True
+        assert cell.children[0].text == "bold cell"
 
     def test_inline_link_in_td(self):
         nodes = html_to_ast('<table><tr><td><a href="https://x.com">link</a></td></tr></table>')
         cell = nodes[0].rows[0].cells[0]
-        link_run = next(r for r in cell.runs if r.link_url)
+        link_run = next(r for r in cell.children if r.link_url)
         assert link_run.link_url == "https://x.com"
 
     def test_colspan_on_td(self):
@@ -593,6 +593,17 @@ class TestRowspanFill:
         insert_indices = [r["insertText"]["location"]["index"] for r in reqs if "insertText" in r]
         assert insert_indices == sorted(insert_indices, reverse=True)
 
+    def test_cell_with_nested_table_skipped_here(self):
+        # Cells containing a nested table are handled by _fill_nested_cell_content
+        # instead (see tests/test_docs_tables.py) — _build_fill_requests must skip
+        # them entirely rather than filling only the leading text and ignoring
+        # the table, which would silently drop content again.
+        inner = _table(_row(_cell("inner")))
+        ast_t = Table(rows=[Row(cells=[Cell(children=[Run("Some label "), inner])])])
+        doc_t = {"tableRows": [self._doc_row(10)]}
+        reqs = _build_fill_requests([doc_t], [ast_t])
+        assert reqs == []
+
 
 class TestFillRequestsFontSizeClear:
     """Table cell text must not inherit font size from a preceding heading (issue #189)."""
@@ -641,7 +652,7 @@ class TestFillRequestsFontSizeClear:
     def test_explicit_run_font_size_applied_after_clear(self):
         # If a run has an explicit font_size, it must appear AFTER the clear request.
         sized_run = Run("Big", font_size=18.0)
-        cell = Cell(runs=[sized_run])
+        cell = Cell(children=[sized_run])
         ast_t = _table(_row(cell))
         doc_t = {"tableRows": [self._doc_row(10)]}
         reqs = _build_fill_requests([doc_t], [ast_t])

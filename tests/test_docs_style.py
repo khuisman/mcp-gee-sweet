@@ -49,7 +49,7 @@ def _make_ctx(**services):
 
 
 def _cell(text: str, colspan: int = 1, rowspan: int = 1) -> Cell:
-    return Cell(runs=[Run(text)], colspan=colspan, rowspan=rowspan)
+    return Cell(children=[Run(text)], colspan=colspan, rowspan=rowspan)
 
 
 def _row(*cells: Cell) -> Row:
@@ -199,7 +199,7 @@ class TestBuildCellStyleRequests:
 
     def test_background_color_emitted(self):
         color = RGBColor(red=0.9, green=0.9, blue=0.9)
-        ast_table = Table(rows=[Row(cells=[Cell(runs=[], background_color=color), _cell("b")])])
+        ast_table = Table(rows=[Row(cells=[Cell(children=[], background_color=color), _cell("b")])])
         doc_table = self._doc_table()
         reqs = _build_cell_style_requests([doc_table], [ast_table])
         assert len(reqs) == 1
@@ -217,7 +217,7 @@ class TestBuildCellStyleRequests:
                 Row(
                     cells=[
                         Cell(
-                            runs=[],
+                            children=[],
                             padding_top=3.6,
                             padding_right=3.6,
                             padding_bottom=3.6,
@@ -241,7 +241,10 @@ class TestBuildCellStyleRequests:
                 Row(
                     cells=[
                         Cell(
-                            runs=[], border_color=color, border_width=0.5, border_dash_style="SOLID"
+                            children=[],
+                            border_color=color,
+                            border_width=0.5,
+                            border_dash_style="SOLID",
                         ),
                     ]
                 )
