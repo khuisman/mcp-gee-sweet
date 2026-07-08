@@ -1931,6 +1931,61 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#tc-doc84-text-sharing-a-cell-with-a-nested-table-is-no-longer-dropped-issue-108-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC84: Text sharing a cell with a nested table is no longer dropped (issue #108) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc85-text-after-a-nested-table-in-the-same-cell-correctly-positioned-issue-275-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC85: Text after a nested table in the same cell, correctly positioned (issue #275) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc86-text-before-and-after-one-nested-table-both-correctly-positioned-issue-275-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC86: Text before AND after one nested table, both correctly positioned (issue #275) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc87-multiple-nested-tables-in-one-cell-with-text-between-them-issue-275-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC87: Multiple nested tables in one cell with text between them (issue #275) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc88-colspan0-clamps-to-1-instead-of-producing-a-degenerate-zero-column-cell" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC88: colspan="0" clamps to 1 instead of producing a degenerate zero-column cell
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tc-doc52-get_doc_theme-scans-body-paragraph-styles" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3298,6 +3353,70 @@
 <hr />
 <h3 id="tc-doc51-nested-tables-not-supported-in-markdown-documented-limitation">TC-DOC51: Nested tables not supported in markdown (documented limitation)<a class="headerlink" href="#tc-doc51-nested-tables-not-supported-in-markdown-documented-limitation" title="Permanent link">&para;</a></h3>
 <p><strong>Note:</strong> The markdown pipeline does not produce nested tables — the <code>markdown</code> library does not support table-in-table syntax. Users who need nested tables must supply raw HTML via <code>content_format='html'</code>. No test to run; this entry documents the known limitation.</p>
+<hr />
+<h3 id="tc-doc84-text-sharing-a-cell-with-a-nested-table-is-no-longer-dropped-issue-108-destructive">TC-DOC84: Text sharing a cell with a nested table is no longer dropped (issue #108) ⚠️ destructive<a class="headerlink" href="#tc-doc84-text-sharing-a-cell-with-a-nested-table-is-no-longer-dropped-issue-108-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;Some label &lt;table&gt;&lt;tr&gt;&lt;td&gt;Inner&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows the outer table (1 row × 1 col) with a non-empty text run in cell [0,0] (previously this cell's text was silently dropped — bled into the nested table's own cell instead)
+- 🔍 Visual check: "Some label" appears above/before the nested table inside the outer cell, and the nested table's own cell reads "Inner" (not "Some label Inner" merged together)</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-06) ✅ PASS</strong> <code>get_doc_structure</code> shows outer cell [0,0] <code>text: "Some label"</code> (previously empty per TC-DOC48's bug pattern). Playwright screenshot confirms "Some label" renders above the nested table, whose own cell reads exactly "Inner" — no merging.</p>
+<hr />
+<h3 id="tc-doc85-text-after-a-nested-table-in-the-same-cell-correctly-positioned-issue-275-destructive">TC-DOC85: Text after a nested table in the same cell, correctly positioned (issue #275) ⚠️ destructive<a class="headerlink" href="#tc-doc85-text-after-a-nested-table-in-the-same-cell-correctly-positioned-issue-275-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Inner&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;After&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows the outer cell's text as "After" — content intact, not merged with "Inner"
+- 🔍 Visual check: "After" renders <em>below</em> the nested table, not above it</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-07) ✅ PASS</strong> <code>get_doc_structure</code> cell [0,0] <code>text: "After"</code>. Playwright confirms "After" renders below the nested table ("Inner"). Note: an earlier pass of this test case (2026-07-06) incorrectly expected "After" to render <em>above</em> the table — that was the pre-#275-fix limitation (a cell's text always rendered as one block before any nested table, regardless of source order). #275 fixed the emitter to place text on the correct side of each nested table; this test case's expectation and prompt were updated to match.</p>
+<hr />
+<h3 id="tc-doc86-text-before-and-after-one-nested-table-both-correctly-positioned-issue-275-destructive">TC-DOC86: Text before AND after one nested table, both correctly positioned (issue #275) ⚠️ destructive<a class="headerlink" href="#tc-doc86-text-before-and-after-one-nested-table-both-correctly-positioned-issue-275-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;Before &lt;table&gt;&lt;tr&gt;&lt;td&gt;Inner&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt; After&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows outer cell [0,0] text as <code>"Before \n After"</code> (the <code>\n</code> confirms two distinct paragraphs — before and after the table — not one merged block)
+- 🔍 Visual check: "Before" above the nested table, "Inner" inside it, "After" below it</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-07) ✅ PASS</strong> <code>get_doc_structure</code> shows <code>text: "Before \n After"</code>. Playwright screenshot confirms all three pieces render in the correct order and position.</p>
+<hr />
+<h3 id="tc-doc87-multiple-nested-tables-in-one-cell-with-text-between-them-issue-275-destructive">TC-DOC87: Multiple nested tables in one cell with text between them (issue #275) ⚠️ destructive<a class="headerlink" href="#tc-doc87-multiple-nested-tables-in-one-cell-with-text-between-them-issue-275-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;A&lt;table&gt;&lt;tr&gt;&lt;td&gt;1&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;B&lt;table&gt;&lt;tr&gt;&lt;td&gt;2&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;C&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows outer cell [0,0] text as <code>"A\nB\nC"</code> (three separate paragraphs — one per text segment between/around the two nested tables)
+- 🔍 Visual check: A, then a table containing "1", then B, then a second table containing "2", then C — all in that order</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-07) ✅ PASS</strong> <code>get_doc_structure</code> shows <code>text: "A\nB\nC"</code>. Playwright screenshot confirms both nested tables render in the correct positions with "1" and "2" filled in, and A/B/C text correctly interleaved — a capability that didn't exist before #275 (previously only one nested table per cell was supported at all).</p>
+<hr />
+<h3 id="tc-doc88-colspan0-clamps-to-1-instead-of-producing-a-degenerate-zero-column-cell">TC-DOC88: <code>colspan="0"</code> clamps to 1 instead of producing a degenerate zero-column cell<a class="headerlink" href="#tc-doc88-colspan0-clamps-to-1-instead-of-producing-a-degenerate-zero-column-cell" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Found via code review of PR #276 — <code>int(attr_dict.get("colspan") or 1)</code> only covers a <em>missing</em> colspan attribute; an explicit <code>colspan="0"</code> is a non-empty (truthy) string, so it survives the <code>or</code> and parses to the literal integer <code>0</code>. A cell that spans zero columns breaks downstream <code>num_cols</code> calculations used by the nested-table fill algorithm. Fixed by clamping colspan/rowspan to a minimum of 1 in <code>html_parser.py</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td colspan="0"&gt;Wide&lt;/td&gt;&lt;td&gt;Next&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows the table with <code>columns: 2</code> (not 1 or a broken/merged layout) — cell [0,0] text "Wide", cell [0,1] text "Next"</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-07) ✅ PASS</strong> <code>get_doc_structure</code> shows <code>columns: 2</code>, cell [0,0] <code>text: "Wide"</code>, cell [0,1] <code>text: "Next"</code> — <code>colspan="0"</code> clamped to 1 and rendered as two normal side-by-side cells.</p>
 <hr />
 <h3 id="tc-doc52-get_doc_theme-scans-body-paragraph-styles">TC-DOC52: <code>get_doc_theme</code> scans body paragraph styles<a class="headerlink" href="#tc-doc52-get_doc_theme-scans-body-paragraph-styles" title="Permanent link">&para;</a></h3>
 <p><strong>Note:</strong> <code>get_doc_theme</code> reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.</p>

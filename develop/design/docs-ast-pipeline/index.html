@@ -789,15 +789,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#nested-table-design-92" class="md-nav__link">
+  <a href="#nested-table-design-92-superseded-2026-07-06-by-108275-see-below" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Nested Table Design (#92)
+        Nested Table Design (#92, superseded 2026-07-06 by #108/#275 — see below)
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Nested Table Design (#92)">
+    <nav class="md-nav" aria-label="Nested Table Design (#92, superseded 2026-07-06 by #108/#275 — see below)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -823,10 +823,71 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#known-limitations-first-pass" class="md-nav__link">
+  <a href="#known-limitations-first-pass-now-historical-see-rewrite-below" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Known limitations (first pass)
+        Known limitations (first pass, now historical — see rewrite below)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nested-table-rewrite-cellchildren-recursive-fill-108-275" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nested Table Rewrite: Cell.children + recursive fill (#108, #275)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Nested Table Rewrite: Cell.children + recursive fill (#108, #275)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#schema-change-astpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema change (ast.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parser-changes-html_parserpy_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parser changes (html_parser.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#emitter-changes-emitterpy_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Emitter changes (emitter.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Result
       
     </span>
   </a>
@@ -1958,7 +2019,7 @@ Test file imports <code>from mcp_gee_sweet.tools.docs import _html_to_doc_reques
 <tr>
 <td>Nested tables</td>
 <td>Yes</td>
-<td><code>Cell.nested_table: Table \| None</code>; #92 added stages 3+5 in <code>fill_tables</code></td>
+<td><code>Cell.nested_table: Table \| None</code>; #92 added stages 3+5 in <code>fill_tables</code>. Superseded 2026-07-06 by <code>Cell.children: list[Run \| Table]</code> — see "Nested Table Rewrite" below</td>
 </tr>
 <tr>
 <td>Phase 3 styling fields (colors, fonts)</td>
@@ -1973,7 +2034,7 @@ Test file imports <code>from mcp_gee_sweet.tools.docs import _html_to_doc_reques
 </tbody>
 </table>
 <hr />
-<h2 id="nested-table-design-92">Nested Table Design (#92)<a class="headerlink" href="#nested-table-design-92" title="Permanent link">&para;</a></h2>
+<h2 id="nested-table-design-92-superseded-2026-07-06-by-108275-see-below">Nested Table Design (#92, superseded 2026-07-06 by #108/#275 — see below)<a class="headerlink" href="#nested-table-design-92-superseded-2026-07-06-by-108275-see-below" title="Permanent link">&para;</a></h2>
 <p><strong>Date:</strong> 2026-06-19</p>
 <p>A <code>&lt;table&gt;</code> inside a <code>&lt;td&gt;</code> is now supported (one level of nesting).</p>
 <h3 id="parser-changes-html_parserpy">Parser changes (<code>html_parser.py</code>)<a class="headerlink" href="#parser-changes-html_parserpy" title="Permanent link">&para;</a></h3>
@@ -1985,12 +2046,41 @@ Test file imports <code>from mcp_gee_sweet.tools.docs import _html_to_doc_reques
 <p><code>fill_tables</code> gained two new phases:</p>
 <p><strong>Phase 3 — insert nested table shells</strong>: <code>_build_nested_table_inserts(doc_tables, ast_tables)</code> iterates outer cells that have <code>nested_table</code> set and emits <code>insertTable</code> requests at each cell's <code>paragraphStartIndex</code>. Requests are sorted HIGH→LOW so earlier insertions don't shift later indices. Re-fetches live doc after.</p>
 <p><strong>Phase 5 — fill nested cells</strong>: after outer cell text is filled (phase 4), indices shift. A second re-fetch is performed, then <code>_collect_nested_table_pairs(doc_tables, ast_tables)</code> traverses cell content to find the nested <code>table</code> element and pairs it with the AST <code>Table</code>. <code>_build_fill_requests</code> reuses the same logic as outer cells.</p>
-<h3 id="known-limitations-first-pass">Known limitations (first pass)<a class="headerlink" href="#known-limitations-first-pass" title="Permanent link">&para;</a></h3>
+<h3 id="known-limitations-first-pass-now-historical-see-rewrite-below">Known limitations (first pass, now historical — see rewrite below)<a class="headerlink" href="#known-limitations-first-pass-now-historical-see-rewrite-below" title="Permanent link">&para;</a></h3>
 <ul>
-<li>One level of nesting only (table-in-table-in-table not supported)</li>
-<li>Cells with <code>nested_table</code> should not also contain text runs (runs are dropped silently)</li>
-<li>No <code>colspan</code>/<code>rowspan</code> inside nested tables</li>
-<li>No <code>col_widths</code> on nested tables</li>
+<li>Cells with <code>nested_table</code> should not also contain text runs (runs are dropped silently) — <strong>fixed and superseded</strong>, see below</li>
+<li>One level of nesting only (table-in-table-in-table not supported) — <strong>fixed and superseded</strong>, see below</li>
+<li>No <code>colspan</code>/<code>rowspan</code> inside nested tables — still true</li>
+<li>No <code>col_widths</code> on nested tables — still true</li>
+</ul>
+<hr />
+<h2 id="nested-table-rewrite-cellchildren-recursive-fill-108-275">Nested Table Rewrite: <code>Cell.children</code> + recursive fill (#108, #275)<a class="headerlink" href="#nested-table-rewrite-cellchildren-recursive-fill-108-275" title="Permanent link">&para;</a></h2>
+<p><strong>Date:</strong> 2026-07-06</p>
+<p>The single-<code>nested_table</code>-field design above had two real defects, both found while investigating #108:</p>
+<ol>
+<li>Text sharing a cell with a nested table was silently corrupted. Root cause was in the parser, not the emitter: <code>_AstParser._run_buf</code>/<code>_pending_runs</code> are shared, unscoped state across nesting levels — opening a nested <code>&lt;table&gt;</code> never flushed them, so text typed before the nested table bled into the <em>nested</em> table's own first cell instead of staying with the outer cell.</li>
+<li>Even once the parser stopped corrupting it, the single <code>Cell.runs</code> field had nowhere to put "text after the table" separately from "text before the table" — <code>fill_tables</code> always inserted a cell's text at its first paragraph, i.e. always immediately <em>before</em> any nested table, regardless of where the text actually appeared in the source HTML. Filed as follow-up #275 rather than silently expanding #108's scope; then, per explicit direction, fixed in the same pass ("do the fuller version").</li>
+</ol>
+<h3 id="schema-change-astpy">Schema change (<code>ast.py</code>)<a class="headerlink" href="#schema-change-astpy" title="Permanent link">&para;</a></h3>
+<p><code>Cell.runs: list[Run]</code> + <code>Cell.nested_table: Table | None</code> → <strong><code>Cell.children: list[Run | Table]</code></strong> — one ordered list holding exactly what appeared in the source, in order. This is the <code>Union[Run, Table]</code> design #92 originally proposed and explicitly didn't ship; the simpler two-field version turned out to be insufficient once #275 surfaced.</p>
+<h3 id="parser-changes-html_parserpy_1">Parser changes (<code>html_parser.py</code>)<a class="headerlink" href="#parser-changes-html_parserpy_1" title="Permanent link">&para;</a></h3>
+<p><code>_TableBuilder</code> replaces <code>_current_nested_table</code>/<code>_pending_leading_runs</code> with a single <code>_current_children: list[Run | Table]</code>, plus <code>append_runs()</code>/<code>append_nested_table()</code> methods that append to it in call order. <code>_AstParser.handle_starttag</code>'s <code>table</code> branch flushes pending runs onto the <em>outer</em> builder via <code>append_runs()</code> before pushing a new builder for the nested table (fixing defect 1 above); <code>handle_endtag</code>'s <code>table</code> branch calls <code>append_nested_table()</code> on the parent builder instead of setting a single field. <code>end_cell</code> builds <code>Cell(children=self._current_children + runs, ...)</code>. This works at arbitrary depth and for arbitrarily many nested tables per cell — no explicit depth/count limit needed.</p>
+<h3 id="emitter-changes-emitterpy_1">Emitter changes (<code>emitter.py</code>)<a class="headerlink" href="#emitter-changes-emitterpy_1" title="Permanent link">&para;</a></h3>
+<p>Cells with no <code>Table</code> in <code>children</code> are still filled in one bulk batch by <code>_build_fill_requests</code> (unchanged, fast path — most cells). Cells with at least one <code>Table</code> child go through a new recursive, round-based algorithm:</p>
+<ul>
+<li><strong><code>_fill_children_recursive(docs_service, doc_id, resolve, ast_tables)</code></strong> — <code>resolve(live_doc) -&gt; doc_table dicts</code> positionally matching <code>ast_tables</code>. Tracks a per-cell cursor into <code>children</code>. Each round: for every still-pending cell, emit <strong>one</strong> contiguous segment — either a run of text (<code>insertText</code> + styles) or one nested table's shell (<code>insertTable</code>) — at that cell's next open position, sorted high→low within the round (same pattern as the old phase-3/5 code), then re-fetch before the next round.</li>
+<li><strong><code>_cell_para_start_for_cursor</code></strong>: a cell's <code>content</code> alternates paragraph/table/paragraph/table/...; the Nth paragraph (0-indexed) is the one after the Nth already-inserted table, where N = count of <code>Table</code> children before <code>cursor</code>.</li>
+<li><strong><code>_text_offset_since_last_table</code></strong>: a table's insertion point is its paragraph's <code>startIndex</code> <em>plus</em> this — the length of any text already inserted into that same paragraph earlier in this round-chain (the paragraph's own <code>startIndex</code> doesn't change when text is inserted into it, but the table must land after that text, not at the start).</li>
+<li>When a table shell is inserted, <strong><code>_fill_table_fully</code></strong> is called for it: re-fetches, bulk-fills its own plain cells via <code>_build_fill_requests</code>, then recurses via <code>_fill_children_recursive</code> for any of <em>its</em> cells that themselves contain a further nested table. This is what makes nesting depth unbounded — a nested table is filled exactly the same way a top-level one is.</li>
+<li>After recursing into any nested tables inserted in a round (which run their own <code>batchUpdate</code>s and shift subsequent document indices), the outer loop re-fetches again before its own next round — recursion's mutations must be visible before the outer cell's next segment (e.g. trailing text) is positioned.</li>
+<li><code>_ast_cell_to_doc_cell</code> / <code>_find_nth_table_in_cell</code> locate a specific physical doc cell / the Nth nested-table content element inside a cell, reusing the existing <code>_physical_to_ast_indices</code>/<code>_build_phantom_set</code> colspan/rowspan-aware mapping.</li>
+</ul>
+<p><code>_build_nested_table_inserts</code> and <code>_collect_nested_table_pairs</code> (the old phase-3/5 helpers) are removed — fully superseded by the recursive algorithm.</p>
+<h3 id="result">Result<a class="headerlink" href="#result" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Text before, between, and after any number of nested tables in one cell renders in true source order, at any nesting depth.</li>
+<li>The "one level of nesting only" and "no colspan/rowspan/col_widths inside nested tables" limitations from the original #92 design are otherwise unchanged — this rewrite only touches content ordering, not those structural features.</li>
+<li>Tested with <code>tests/test_docs_tables.py</code>'s <code>TestFillNestedCellContent</code>, which drives the real algorithm against a small in-memory Docs-API simulator (<code>FakeDoc</code>/<code>Para</code>/<code>TableNode</code> in that file) that actually applies <code>insertText</code>/<code>insertTable</code> mutations and re-derives indices — chosen over hand-computed index fixtures because this much re-fetch/recursion logic is easy to get subtly wrong in a way a fixture can't catch (and did, twice, during development).</li>
 </ul>
 
 
