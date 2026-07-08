@@ -28,6 +28,14 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
 
     for node in nodes:
         if isinstance(node, Table):
+            num_rows = len(node.rows)
+            num_cols = max((sum(c.colspan for c in row.cells) for row in node.rows), default=0)
+            if num_rows == 0 or num_cols == 0:
+                # No insertTable request is emitted below for a degenerate table, so it must
+                # not be added to `tables` either — fill_tables() zips this list positionally
+                # against the tables actually present in the live doc, and a table with no
+                # insertTable request never shows up there.
+                continue
             tables.append(node)
             table_positions.append(start_index + len(full_text))
         else:
@@ -105,16 +113,15 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
         table = tables[i]
         num_rows = len(table.rows)
         num_cols = max((sum(c.colspan for c in row.cells) for row in table.rows), default=0)
-        if num_rows > 0 and num_cols > 0:
-            requests.append(
-                {
-                    "insertTable": {
-                        "rows": num_rows,
-                        "columns": num_cols,
-                        "location": {"index": table_positions[i]},
-                    }
+        requests.append(
+            {
+                "insertTable": {
+                    "rows": num_rows,
+                    "columns": num_cols,
+                    "location": {"index": table_positions[i]},
                 }
-            )
+            }
+        )
 
     return requests, tables
 

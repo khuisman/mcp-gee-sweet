@@ -12,10 +12,12 @@ from mcp_gee_sweet.tools.docs.ast import (
 from mcp_gee_sweet.tools.docs.content import _html_to_doc_requests
 from mcp_gee_sweet.tools.docs.emitter import (
     _ast_cell_to_doc_cell,
+    _build_fill_requests,
     _cell_para_start_for_cursor,
     _fill_nested_cell_content,
     _find_nth_table_in_cell,
     _text_offset_since_last_table,
+    ast_to_requests,
 )
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 
@@ -719,3 +721,41 @@ class TestFillNestedCellContent:
         degenerate = Table(rows=[Row(cells=[])])
         doc = self._run(Cell(children=[degenerate, Run("After")]))
         assert doc.describe_cell(0, 0, 0) == ["Para:After"]
+
+
+# ---------------------------------------------------------------------------
+# #277 — a skipped degenerate table must not desync doc_tables/ast_tables
+# ---------------------------------------------------------------------------
+
+
+class TestSkippedTableDoesNotDesyncTablePairing:
+    def test_empty_row_table_excluded_from_ast_to_requests_tables(self):
+        # A top-level <table><tr></tr></table> has a row but zero cells, so num_cols == 0
+        # and no insertTable request is emitted for it. It must not appear in the returned
+        # `tables` list either, or the table after it desyncs from doc_tables in fill_tables().
+        empty_table = _table(_row())
+        normal_table = _table(_row(_cell("hello")))
+        requests, tables = ast_to_requests([empty_table, normal_table])
+
+        table_inserts = [r for r in requests if "insertTable" in r]
+        assert len(table_inserts) == 1
+        assert tables == [normal_table]
+
+    def test_fill_requests_land_on_correct_table_after_a_skip(self):
+        # Simulates fill_tables(): doc_tables comes from the live doc, which only ever
+        # contains tables that actually got an insertTable request — i.e. never the
+        # skipped empty-row table. ast_tables must be the same (already-filtered) list
+        # returned by ast_to_requests, so the zip() stays 1:1.
+        empty_table = _table(_row())
+        normal_table = _table(_row(_cell("hello")))
+        _, tables = ast_to_requests([empty_table, normal_table])
+
+        doc_table = {
+            "tableRows": [{"tableCells": [{"startIndex": 9, "content": [{"startIndex": 10}]}]}]
+        }
+        fill_requests = _build_fill_requests([doc_table], tables)
+
+        insert_texts = [r["insertText"] for r in fill_requests if "insertText" in r]
+        assert len(insert_texts) == 1
+        assert insert_texts[0]["text"] == "hello"
+        assert insert_texts[0]["location"]["index"] == 10
