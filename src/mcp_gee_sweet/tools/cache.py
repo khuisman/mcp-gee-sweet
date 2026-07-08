@@ -5,6 +5,36 @@ from mcp.types import ToolAnnotations
 
 
 def register(tool):
+    @tool(annotations=ToolAnnotations(title="Set Cache TTL"))
+    def set_cache_ttl(ttl_seconds: int, ctx: Context = None) -> dict[str, Any]:
+        """
+        Change the cache time-to-live at runtime, without restarting the server.
+
+        Args:
+            ttl_seconds: New TTL in seconds, applied to all five cache namespaces
+                (sheet structure, sheet data, Drive folders, docs, calendars).
+                Must be >= 0; 0 effectively disables TTL-based caching (every
+                entry is immediately eligible for expiry).
+
+        Returns:
+            Confirmation with the new TTL. Applies only to this running process —
+            set CACHE_TTL in the environment/.env for the startup default.
+        """
+        if ttl_seconds < 0:
+            raise ValueError("ttl_seconds must be >= 0")
+
+        lc = ctx.request_context.lifespan_context
+        for cache in (
+            lc.cache,
+            lc.sheet_data_cache,
+            lc.drive_folder_cache,
+            lc.doc_cache,
+            lc.calendar_cache,
+        ):
+            cache.set_ttl(ttl_seconds)
+
+        return {"ttl_seconds": ttl_seconds}
+
     @tool(annotations=ToolAnnotations(title="Refresh Cache", readOnlyHint=True))
     def refresh_cache(
         spreadsheet_id: str | None = None,

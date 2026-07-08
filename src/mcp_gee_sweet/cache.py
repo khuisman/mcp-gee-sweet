@@ -10,6 +10,17 @@ logger = logging.getLogger(__name__)
 
 CACHE_DB_PATH = os.environ.get("CACHE_DB_PATH", "/tmp/mcp_gee_sweet.db")
 CACHE_TTL = int(os.environ.get("CACHE_TTL", "1800"))  # 30 minutes
+# When enabled, a cache hit for sheet structure/data or doc content is validated
+# against the source file's Drive modifiedTime before being served, so edits from
+# other users/tabs are picked up without waiting out the TTL. Costs one extra
+# Drive API call per cache lookup — disable if that overhead outweighs the benefit.
+CACHE_VALIDATE_MODIFIED_TIME = os.environ.get(
+    "CACHE_VALIDATE_MODIFIED_TIME", "true"
+).lower() not in (
+    "false",
+    "0",
+    "no",
+)
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS cache (
@@ -90,6 +101,27 @@ def _safe_write(conn: sqlite3.Connection, sql: str, params: tuple) -> None:
         logger.warning("Cache write failed (%s), continuing without caching", exc)
 
 
+def get_modified_time(drive_service: Any, file_id: str) -> str | None:
+    """Fetch a Drive file's modifiedTime, or None if unavailable/on any failure.
+
+    Used to validate a cache hit against the live source before serving it —
+    a lightweight `fields=modifiedTime`-only call, distinct from the full
+    metadata fetch a cache miss triggers.
+    """
+    if drive_service is None:
+        return None
+    try:
+        meta = (
+            drive_service.files()
+            .get(fileId=file_id, fields="modifiedTime", supportsAllDrives=True)
+            .execute()
+        )
+        return meta.get("modifiedTime")
+    except Exception as e:
+        logger.debug("Could not fetch modifiedTime for %s: %s", file_id, e)
+        return None
+
+
 @dataclass
 class SheetInfo:
     title: str
@@ -104,7 +136,9 @@ class SheetStructureCache:
         self._conn = _open(db_path)
         logger.debug("Sheet structure cache opened: %s", db_path)
 
-    def _get_valid(self, spreadsheet_id: str) -> sqlite3.Row | None:
+    def _get_valid(
+        self, spreadsheet_id: str, current_modified_time: str | None = None
+    ) -> sqlite3.Row | None:
         row = _safe_fetchone(
             self._conn,
             "SELECT value, fetched_at, dirty FROM cache WHERE namespace=? AND key=?",
@@ -112,6 +146,16 @@ class SheetStructureCache:
         )
         if row is None or row["dirty"]:
             return None
+        if current_modified_time is not None:
+            cached_mtime = json.loads(row["value"]).get("modified_time")
+            if cached_mtime is not None and cached_mtime != current_modified_time:
+                logger.debug("Source modified since cache for %s, marking dirty", spreadsheet_id)
+                _safe_write(
+                    self._conn,
+                    "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?",
+                    (self._NS, spreadsheet_id),
+                )
+                return None
         if time.time() - row["fetched_at"] > self._ttl:
             logger.debug("Cache TTL expired for %s, marking dirty", spreadsheet_id)
             _safe_write(
@@ -122,24 +166,36 @@ class SheetStructureCache:
             return None
         return row
 
-    def get_sheets(self, spreadsheet_id: str) -> list[SheetInfo] | None:
-        """Returns cached sheet list, or None on cache miss/dirty/expired."""
-        row = self._get_valid(spreadsheet_id)
+    def get_sheets(
+        self, spreadsheet_id: str, current_modified_time: str | None = None
+    ) -> list[SheetInfo] | None:
+        """Returns cached sheet list, or None on cache miss/dirty/expired/stale-vs-source."""
+        row = self._get_valid(spreadsheet_id, current_modified_time)
         if row is None:
             return None
         return [SheetInfo(**s) for s in json.loads(row["value"])["sheets"]]
 
-    def get_title(self, spreadsheet_id: str) -> str | None:
-        """Returns cached spreadsheet title, or None on cache miss/dirty/expired."""
-        row = self._get_valid(spreadsheet_id)
+    def get_title(
+        self, spreadsheet_id: str, current_modified_time: str | None = None
+    ) -> str | None:
+        """Returns cached spreadsheet title, or None on cache miss/dirty/expired/stale-vs-source."""
+        row = self._get_valid(spreadsheet_id, current_modified_time)
         if row is None:
             return None
         return json.loads(row["value"]).get("title")
 
-    def store(self, spreadsheet_id: str, sheets: list[SheetInfo], title: str | None = None):
+    def store(
+        self,
+        spreadsheet_id: str,
+        sheets: list[SheetInfo],
+        title: str | None = None,
+        modified_time: str | None = None,
+    ):
         value: dict = {"sheets": [{"title": s.title, "sheet_id": s.sheet_id} for s in sheets]}
         if title is not None:
             value["title"] = title
+        if modified_time is not None:
+            value["modified_time"] = modified_time
         _safe_write(
             self._conn,
             "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty)"
@@ -147,6 +203,9 @@ class SheetStructureCache:
             (self._NS, spreadsheet_id, json.dumps(value), time.time()),
         )
         logger.debug("Cached %d sheets for %s", len(sheets), spreadsheet_id)
+
+    def set_ttl(self, ttl: int) -> None:
+        self._ttl = ttl
 
     def mark_dirty(self, spreadsheet_id: str):
         _safe_write(
@@ -189,7 +248,11 @@ class SheetDataCache:
         return f"{spreadsheet_id}:{sheet_id}"
 
     def _get_valid(
-        self, spreadsheet_id: str, sheet_id: int, rows_to_fetch: int
+        self,
+        spreadsheet_id: str,
+        sheet_id: int,
+        rows_to_fetch: int,
+        current_modified_time: str | None = None,
     ) -> sqlite3.Row | None:
         key = self._key(spreadsheet_id, sheet_id)
         row = _safe_fetchone(
@@ -199,6 +262,16 @@ class SheetDataCache:
         )
         if row is None or row["dirty"]:
             return None
+        if current_modified_time is not None:
+            cached_mtime = json.loads(row["value"]).get("modified_time")
+            if cached_mtime is not None and cached_mtime != current_modified_time:
+                logger.debug("Source modified since cache for %s, marking dirty", key)
+                _safe_write(
+                    self._conn,
+                    "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?",
+                    (self._NS, key),
+                )
+                return None
         if time.time() - row["fetched_at"] > self._ttl:
             _safe_write(
                 self._conn, "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?", (self._NS, key)
@@ -208,9 +281,15 @@ class SheetDataCache:
             return None
         return row
 
-    def get(self, spreadsheet_id: str, sheet_id: int, rows_to_fetch: int) -> dict | None:
-        """Returns cached {headers, first_rows}, or None on miss/dirty/expired/insufficient rows."""
-        row = self._get_valid(spreadsheet_id, sheet_id, rows_to_fetch)
+    def get(
+        self,
+        spreadsheet_id: str,
+        sheet_id: int,
+        rows_to_fetch: int,
+        current_modified_time: str | None = None,
+    ) -> dict | None:
+        """Returns cached {headers, first_rows}, or None on miss/dirty/expired/insufficient rows/stale-vs-source."""
+        row = self._get_valid(spreadsheet_id, sheet_id, rows_to_fetch, current_modified_time)
         if row is None:
             return None
         data = json.loads(row["value"])
@@ -227,8 +306,11 @@ class SheetDataCache:
         headers: list,
         first_rows: list,
         rows_to_fetch: int,
+        modified_time: str | None = None,
     ):
-        value = {"headers": headers, "first_rows": first_rows}
+        value: dict = {"headers": headers, "first_rows": first_rows}
+        if modified_time is not None:
+            value["modified_time"] = modified_time
         _safe_write(
             self._conn,
             "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty, rows_fetched)"
@@ -242,6 +324,9 @@ class SheetDataCache:
             ),
         )
         logger.debug("Cached sheet data for %s/%s", spreadsheet_id, sheet_id)
+
+    def set_ttl(self, ttl: int) -> None:
+        self._ttl = ttl
 
     def mark_dirty(self, spreadsheet_id: str, sheet_id: int | None = None):
         if sheet_id is not None:
@@ -268,7 +353,11 @@ class SheetDataCache:
 
 
 class DriveFolderCache:
-    """Caches Drive folder listings keyed by (folder_id, mime_type)."""
+    """Caches Drive folder listings keyed by (folder_id, mime_type).
+
+    No modifiedTime-based validation: a folder's own modifiedTime does not
+    change when children are added/removed, so it can't detect staleness here.
+    """
 
     _NS = "drive_folder"
 
@@ -325,6 +414,9 @@ class DriveFolderCache:
         _safe_write(self._conn, "UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
         logger.debug("Invalidated all drive folder cache entries")
 
+    def set_ttl(self, ttl: int) -> None:
+        self._ttl = ttl
+
     def close(self):
         self._conn.close()
 
@@ -339,7 +431,9 @@ class DocContentCache:
         self._conn = _open(db_path)
         logger.debug("Doc cache opened: %s", db_path)
 
-    def _get_valid(self, file_id: str) -> sqlite3.Row | None:
+    def _get_valid(
+        self, file_id: str, current_modified_time: str | None = None
+    ) -> sqlite3.Row | None:
         row = _safe_fetchone(
             self._conn,
             "SELECT value, fetched_at, dirty FROM cache WHERE namespace=? AND key=?",
@@ -347,6 +441,18 @@ class DocContentCache:
         )
         if row is None or row["dirty"]:
             return None
+        if current_modified_time is not None:
+            # get_doc_content already stores the source's modifiedTime as part of
+            # the cached doc dict — no separate column needed.
+            cached_mtime = json.loads(row["value"]).get("modified_time")
+            if cached_mtime is not None and cached_mtime != current_modified_time:
+                logger.debug("Source modified since cache for %s, marking dirty", file_id)
+                _safe_write(
+                    self._conn,
+                    "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?",
+                    (self._NS, file_id),
+                )
+                return None
         if time.time() - row["fetched_at"] > self._ttl:
             _safe_write(
                 self._conn,
@@ -356,9 +462,9 @@ class DocContentCache:
             return None
         return row
 
-    def get(self, file_id: str) -> dict | None:
-        """Returns cached doc response dict, or None on miss/dirty/expired."""
-        row = self._get_valid(file_id)
+    def get(self, file_id: str, current_modified_time: str | None = None) -> dict | None:
+        """Returns cached doc response dict, or None on miss/dirty/expired/stale-vs-source."""
+        row = self._get_valid(file_id, current_modified_time)
         if row is None:
             return None
         logger.debug("Doc cache hit: %s", file_id)
@@ -385,12 +491,19 @@ class DocContentCache:
         _safe_write(self._conn, "UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
         logger.debug("Invalidated all doc cache entries")
 
+    def set_ttl(self, ttl: int) -> None:
+        self._ttl = ttl
+
     def close(self):
         self._conn.close()
 
 
 class CalendarCache:
-    """Caches calendar list and per-calendar metadata keyed by calendar_id."""
+    """Caches calendar list and per-calendar metadata keyed by calendar_id.
+
+    No modifiedTime-based validation: calendars aren't Drive files and don't
+    expose a comparable field via the Calendar API; TTL/dirty invalidation only.
+    """
 
     _NS = "calendar"
     _LIST_KEY = "__list__"
@@ -460,15 +573,30 @@ class CalendarCache:
         _safe_write(self._conn, "UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
         logger.debug("Invalidated all calendar cache entries")
 
+    def set_ttl(self, ttl: int) -> None:
+        self._ttl = ttl
+
     def close(self):
         self._conn.close()
 
 
 def fetch_sheets(
-    sheets_service: Any, spreadsheet_id: str, cache: SheetStructureCache
+    sheets_service: Any,
+    spreadsheet_id: str,
+    cache: SheetStructureCache,
+    drive_service: Any = None,
 ) -> list[SheetInfo]:
-    """Fetch sheet list with caching. Falls back to stale cache if API call fails."""
-    cached = cache.get_sheets(spreadsheet_id)
+    """Fetch sheet list with caching. Falls back to stale cache if API call fails.
+
+    If drive_service is given and CACHE_VALIDATE_MODIFIED_TIME is enabled, a
+    cache hit is validated against the spreadsheet's live Drive modifiedTime
+    first — an edit from another session invalidates the cache immediately
+    instead of waiting out the TTL.
+    """
+    current_mtime = (
+        get_modified_time(drive_service, spreadsheet_id) if CACHE_VALIDATE_MODIFIED_TIME else None
+    )
+    cached = cache.get_sheets(spreadsheet_id, current_modified_time=current_mtime)
     if cached is not None:
         logger.debug("Cache hit: %d sheets for %s", len(cached), spreadsheet_id)
         return cached
@@ -487,7 +615,7 @@ def fetch_sheets(
             for s in spreadsheet.get("sheets", [])
         ]
         title = spreadsheet.get("properties", {}).get("title")
-        cache.store(spreadsheet_id, sheets, title=title)
+        cache.store(spreadsheet_id, sheets, title=title, modified_time=current_mtime)
         return sheets
     except Exception as e:
         # Fall back to stale cache rather than hard-failing

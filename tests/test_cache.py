@@ -3,6 +3,7 @@ import sqlite3
 import time
 
 from mcp_gee_sweet.cache import (
+    CalendarCache,
     DocContentCache,
     DriveFolderCache,
     SheetDataCache,
@@ -11,6 +12,8 @@ from mcp_gee_sweet.cache import (
     _open,
     _safe_fetchone,
     _safe_write,
+    fetch_sheets,
+    get_modified_time,
 )
 
 # All tests use an in-memory SQLite database.
@@ -79,6 +82,50 @@ class TestSheetStructureCache:
 
     def test_close(self):
         self.cache.close()
+
+    def test_set_ttl_shortens_window_for_existing_entry(self):
+        self.cache.store("sid", self.sheets)
+        self.cache.set_ttl(0)
+        time.sleep(0.01)
+        assert self.cache.get_sheets("sid") is None
+
+    def test_set_ttl_lengthens_window(self):
+        # ttl=0 would expire on the first lookup, but expiry is only evaluated
+        # (and the row marked dirty) inside a read — raising the TTL before any
+        # read happens keeps the entry alive.
+        cache = SheetStructureCache(db_path=DB, ttl=0)
+        cache.store("sid", self.sheets)
+        cache.set_ttl(60)
+        assert cache.get_sheets("sid") is not None
+
+    def test_modified_time_mismatch_causes_miss(self):
+        self.cache.store("sid", self.sheets, modified_time="2026-01-01T00:00:00Z")
+        result = self.cache.get_sheets("sid", current_modified_time="2026-02-01T00:00:00Z")
+        assert result is None
+
+    def test_modified_time_match_hits(self):
+        self.cache.store("sid", self.sheets, modified_time="2026-01-01T00:00:00Z")
+        result = self.cache.get_sheets("sid", current_modified_time="2026-01-01T00:00:00Z")
+        assert result is not None
+
+    def test_no_stored_modified_time_skips_check(self):
+        # Entries stored before this feature (or without a drive_service) have no
+        # modified_time recorded — comparison must not spuriously invalidate them.
+        self.cache.store("sid", self.sheets)
+        result = self.cache.get_sheets("sid", current_modified_time="2026-01-01T00:00:00Z")
+        assert result is not None
+
+    def test_modified_time_mismatch_marks_dirty(self):
+        self.cache.store("sid", self.sheets, modified_time="2026-01-01T00:00:00Z")
+        self.cache.get_sheets("sid", current_modified_time="2026-02-01T00:00:00Z")
+        # Even a plain lookup (no current_modified_time) now misses, since the
+        # stale-detection path marks the row dirty rather than just skipping it.
+        assert self.cache.get_sheets("sid") is None
+
+    def test_title_modified_time_check(self):
+        self.cache.store("sid", self.sheets, title="T1", modified_time="2026-01-01T00:00:00Z")
+        assert self.cache.get_title("sid", current_modified_time="2026-01-01T00:00:00Z") == "T1"
+        assert self.cache.get_title("sid", current_modified_time="2026-02-01T00:00:00Z") is None
 
 
 class TestSheetDataCache:
@@ -149,6 +196,26 @@ class TestSheetDataCache:
         assert self.cache.get("sid1", 0, 1) is None
         assert self.cache.get("sid2", 0, 1) is not None
 
+    def test_set_ttl_shortens_window_for_existing_entry(self):
+        self.cache.store("sid", 0, headers=["A"], first_rows=[], rows_to_fetch=1)
+        self.cache.set_ttl(0)
+        time.sleep(0.01)
+        assert self.cache.get("sid", 0, 1) is None
+
+    def test_modified_time_mismatch_causes_miss(self):
+        self.cache.store(
+            "sid", 0, headers=["A"], first_rows=[], rows_to_fetch=1, modified_time="v1"
+        )
+        assert self.cache.get("sid", 0, 1, current_modified_time="v2") is None
+
+    def test_modified_time_match_hits(self):
+        self.cache.store(
+            "sid", 0, headers=["A"], first_rows=[], rows_to_fetch=1, modified_time="v1"
+        )
+        result = self.cache.get("sid", 0, 1, current_modified_time="v1")
+        assert result is not None
+        assert result["headers"] == ["A"]
+
     def test_close(self):
         self.cache.close()
 
@@ -204,6 +271,12 @@ class TestDriveFolderCache:
         time.sleep(0.01)
         assert cache.get("folder", None) is None
 
+    def test_set_ttl_shortens_window_for_existing_entry(self):
+        self.cache.store("folder", None, self.files)
+        self.cache.set_ttl(0)
+        time.sleep(0.01)
+        assert self.cache.get("folder", None) is None
+
     def test_close(self):
         self.cache.close()
 
@@ -245,8 +318,120 @@ class TestDocContentCache:
         self.cache.store("fid", new_doc)
         assert self.cache.get("fid") == new_doc
 
+    def test_set_ttl_shortens_window_for_existing_entry(self):
+        self.cache.store("fid", self.doc)
+        self.cache.set_ttl(0)
+        time.sleep(0.01)
+        assert self.cache.get("fid") is None
+
+    def test_modified_time_mismatch_causes_miss(self):
+        # get_doc_content stores modified_time as part of the cached doc dict
+        # itself — no separate column needed.
+        doc = {"title": "My Doc", "modified_time": "v1"}
+        self.cache.store("fid", doc)
+        assert self.cache.get("fid", current_modified_time="v2") is None
+
+    def test_modified_time_match_hits(self):
+        doc = {"title": "My Doc", "modified_time": "v1"}
+        self.cache.store("fid", doc)
+        assert self.cache.get("fid", current_modified_time="v1") == doc
+
     def test_close(self):
         self.cache.close()
+
+
+class TestGetModifiedTime:
+    def test_none_drive_service_returns_none(self):
+        assert get_modified_time(None, "fid") is None
+
+    def test_returns_modified_time_on_success(self):
+        class FakeFiles:
+            def get(self, fileId, fields, supportsAllDrives):
+                class FakeRequest:
+                    def execute(self):
+                        return {"modifiedTime": "2026-01-01T00:00:00Z"}
+
+                return FakeRequest()
+
+        class FakeDriveService:
+            def files(self):
+                return FakeFiles()
+
+        assert get_modified_time(FakeDriveService(), "fid") == "2026-01-01T00:00:00Z"
+
+    def test_returns_none_on_api_error(self):
+        class FakeFiles:
+            def get(self, fileId, fields, supportsAllDrives):
+                raise Exception("API error")
+
+        class FakeDriveService:
+            def files(self):
+                return FakeFiles()
+
+        assert get_modified_time(FakeDriveService(), "fid") is None
+
+
+class TestCalendarCacheSetTtl:
+    def test_set_ttl_shortens_window_for_existing_entry(self):
+        cache = CalendarCache(db_path=DB, ttl=60)
+        cache.store_list([{"id": "cal1"}])
+        cache.set_ttl(0)
+        time.sleep(0.01)
+        assert cache.get_list() is None
+
+
+class _FakeSheetsService:
+    """Returns a spreadsheet with a single sheet named 'New', id 1."""
+
+    class _Spreadsheets:
+        class _Request:
+            def execute(self):
+                return {
+                    "properties": {"title": "New Title"},
+                    "sheets": [{"properties": {"title": "New", "sheetId": 1}}],
+                }
+
+        def get(self, spreadsheetId, fields):
+            return self._Request()
+
+    def spreadsheets(self):
+        return self._Spreadsheets()
+
+
+class _FakeDriveService:
+    """Reports modifiedTime='v2' for any file."""
+
+    class _Files:
+        class _Request:
+            def execute(self):
+                return {"modifiedTime": "v2"}
+
+        def get(self, fileId, fields, supportsAllDrives):
+            return self._Request()
+
+    def files(self):
+        return self._Files()
+
+
+class TestFetchSheetsModifiedTimeValidation:
+    def test_stale_cache_triggers_refetch_when_drive_service_given(self):
+        cache = SheetStructureCache(db_path=DB, ttl=1000)
+        cache.store("sid", [SheetInfo(title="Old", sheet_id=0)], modified_time="v1")
+
+        result = fetch_sheets(_FakeSheetsService(), "sid", cache, _FakeDriveService())
+
+        assert len(result) == 1
+        assert result[0].title == "New"
+
+    def test_fresh_cache_skipped_refetch_without_drive_service(self):
+        cache = SheetStructureCache(db_path=DB, ttl=1000)
+        cache.store("sid", [SheetInfo(title="Old", sheet_id=0)], modified_time="v1")
+
+        # No drive_service passed → no modifiedTime check → TTL-valid cache hit,
+        # even though _FakeSheetsService would return a different sheet.
+        result = fetch_sheets(_FakeSheetsService(), "sid", cache)
+
+        assert result[0].title == "Old"
 
 
 class TestSharedDb:

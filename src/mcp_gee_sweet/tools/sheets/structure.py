@@ -46,7 +46,7 @@ def register(tool):
             refresh_cache() to clear all caches.
         """
         lc = ctx.request_context.lifespan_context
-        sheets = fetch_sheets(lc.sheets_service, spreadsheet_id, lc.cache)
+        sheets = fetch_sheets(lc.sheets_service, spreadsheet_id, lc.cache, lc.drive_service)
         return [s.title for s in sheets]
 
     @tool(annotations=ToolAnnotations(title="Copy Sheet", destructiveHint=True))

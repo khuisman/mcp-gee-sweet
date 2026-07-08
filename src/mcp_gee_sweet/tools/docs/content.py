@@ -12,6 +12,7 @@ from markdown.inlinepatterns import InlineProcessor
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+from ...cache import CACHE_VALIDATE_MODIFIED_TIME, get_modified_time
 from ..drive import _SA_QUOTA_ERROR
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .ast import Table
@@ -358,7 +359,10 @@ def register(tool):
         drive_service = lc.drive_service
         doc_cache = lc.doc_cache
 
-        result = doc_cache.get(file_id)
+        current_mtime = (
+            get_modified_time(drive_service, file_id) if CACHE_VALIDATE_MODIFIED_TIME else None
+        )
+        result = doc_cache.get(file_id, current_modified_time=current_mtime)
         if result is None:
             metadata = (
                 drive_service.files()
