@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+
 from .ast import BulletItem, Cell, DocNode, Heading, NamedBlock, Paragraph, Row, Run, Table
+
+logger = logging.getLogger(__name__)
 
 
 def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[dict], list[Table]]:
@@ -301,18 +305,35 @@ def _ast_cell_to_doc_cell(doc_table: dict, ast_table: Table, r: int, ast_col: in
     return None
 
 
+def _is_insertable_table(child: Run | Table) -> bool:
+    """A Table child only actually gets an insertTable shell (and thus a
+    paragraph/table/paragraph split in the live doc) if it has at least one row
+    and one column — see the `num_rows > 0 and num_cols > 0` guard where
+    insertTable requests are built. A degenerate table (e.g. a row with no
+    cells — reachable, pre-clamp-fix, via colspan="0"/rowspan="0" HTML) must
+    NOT be counted as "already inserted" by cursor/paragraph-counting logic,
+    or every later segment in the same cell resolves to the wrong paragraph.
+    """
+    if not isinstance(child, Table):
+        return False
+    num_rows = len(child.rows)
+    num_cols = max((sum(c.colspan for c in row.cells) for row in child.rows), default=0)
+    return num_rows > 0 and num_cols > 0
+
+
 def _cell_para_start_for_cursor(doc_cell: dict, ast_cell: Cell, cursor: int) -> int | None:
     """Return the startIndex of the paragraph a cell's next unfilled segment belongs in.
 
     A cell's `content` alternates paragraph/table/paragraph/table/... — the Nth
     paragraph (0-indexed) is the one immediately after the Nth already-inserted
-    nested table, where N = how many Table children precede `cursor`. This is the
-    paragraph's own startIndex — callers inserting a Table (not text) must add
+    nested table, where N = how many *insertable* Table children precede
+    `cursor` (see _is_insertable_table). This is the paragraph's own
+    startIndex — callers inserting a Table (not text) must add
     _text_offset_since_last_table() on top, since earlier text in the same
     paragraph (inserted in a prior round) isn't reflected in the paragraph's
     unchanged startIndex.
     """
-    tables_before = sum(1 for child in ast_cell.children[:cursor] if isinstance(child, Table))
+    tables_before = sum(1 for child in ast_cell.children[:cursor] if _is_insertable_table(child))
     paragraphs = [elem for elem in doc_cell.get("content", []) if "paragraph" in elem]
     if tables_before >= len(paragraphs):
         return None
@@ -320,7 +341,9 @@ def _cell_para_start_for_cursor(doc_cell: dict, ast_cell: Cell, cursor: int) -> 
 
 
 def _text_offset_since_last_table(children: list[Run | Table], cursor: int) -> int:
-    """Sum of Run text lengths between the nearest preceding Table (exclusive) and cursor.
+    """Sum of Run text lengths between the nearest preceding *insertable* Table
+    (exclusive) and cursor — a degenerate table is transparent here since it
+    was never actually inserted (see _is_insertable_table).
 
     A Table's insertion point is its paragraph's startIndex *plus* this offset,
     since any leading text already inserted into that same paragraph (in an
@@ -330,9 +353,10 @@ def _text_offset_since_last_table(children: list[Run | Table], cursor: int) -> i
     offset = 0
     for i in range(cursor - 1, -1, -1):
         child = children[i]
-        if isinstance(child, Table):
+        if _is_insertable_table(child):
             break
-        offset += len(child.text)
+        if isinstance(child, Run):
+            offset += len(child.text)
     return offset
 
 
@@ -391,8 +415,19 @@ def _fill_nested_cell_content(docs_service, doc_id: str, tables: list[Table]) ->
     )
 
 
-def _fill_children_recursive(docs_service, doc_id: str, resolve, ast_tables: list[Table]) -> None:
-    """resolve(live_doc) -> doc_table dicts positionally matching ast_tables."""
+def _fill_children_recursive(
+    docs_service,
+    doc_id: str,
+    resolve,
+    ast_tables: list[Table],
+    _doc_tables: list[dict] | None = None,
+) -> None:
+    """resolve(live_doc) -> doc_table dicts positionally matching ast_tables.
+
+    _doc_tables: already-fetched, still-valid doc_tables to seed the first
+    round with — pass this when the caller knows nothing has changed in the
+    live doc since it last fetched, to avoid a redundant re-fetch.
+    """
     pending: dict[tuple[int, int, int], int] = {}
     for t, table in enumerate(ast_tables):
         for r, row in enumerate(table.rows):
@@ -402,8 +437,11 @@ def _fill_children_recursive(docs_service, doc_id: str, resolve, ast_tables: lis
     if not pending:
         return
 
-    live_doc = docs_service.documents().get(documentId=doc_id).execute()
-    doc_tables = resolve(live_doc)
+    if _doc_tables is not None:
+        doc_tables = _doc_tables
+    else:
+        live_doc = docs_service.documents().get(documentId=doc_id).execute()
+        doc_tables = resolve(live_doc)
 
     while pending:
         round_requests: list[tuple[int, list[dict]]] = []
@@ -433,7 +471,7 @@ def _fill_children_recursive(docs_service, doc_id: str, resolve, ast_tables: lis
                 num_cols = max(
                     (sum(cc.colspan for cc in row.cells) for row in child.rows), default=0
                 )
-                occurrence = sum(1 for ch in children[:cursor] if isinstance(ch, Table))
+                occurrence = sum(1 for ch in children[:cursor] if _is_insertable_table(ch))
                 # Any text already inserted earlier this round-chain, in the same
                 # paragraph, shifts the table's landing spot past that text.
                 table_start = para_start + _text_offset_since_last_table(children, cursor)
@@ -453,7 +491,7 @@ def _fill_children_recursive(docs_service, doc_id: str, resolve, ast_tables: lis
                         )
                     )
                     table_inserts.append((t, r, c, occurrence, child))
-                pending[(t, r, c)] = cursor + 1
+                new_cursor = cursor + 1
             else:
                 j = cursor
                 run_group: list[Run] = []
@@ -465,26 +503,27 @@ def _fill_children_recursive(docs_service, doc_id: str, resolve, ast_tables: lis
                 reqs = _run_group_fill_requests(run_group, para_start)
                 if reqs:
                     round_requests.append((para_start, reqs))
-                pending[(t, r, c)] = j
+                new_cursor = j
+
+            pending[(t, r, c)] = new_cursor
+            if new_cursor >= len(children):
+                done.append((t, r, c))
 
         for key in done:
             del pending[key]
-        # A cell whose cursor just reached the end of its children has no more
-        # work — drop it now so the post-batch re-fetch check below doesn't
-        # trigger on a cell that's actually finished.
-        for key in [
-            k
-            for k, cursor in pending.items()
-            if cursor >= len(ast_tables[k[0]].rows[k[1]].cells[k[2]].children)
-        ]:
-            del pending[key]
 
-        if not round_requests:
-            break
-
-        round_requests.sort(key=lambda x: x[0], reverse=True)
-        batch = [req for _, reqs in round_requests for req in reqs]
-        docs_service.documents().batchUpdate(documentId=doc_id, body={"requests": batch}).execute()
+        if round_requests:
+            round_requests.sort(key=lambda x: x[0], reverse=True)
+            batch = [req for _, reqs in round_requests for req in reqs]
+            docs_service.documents().batchUpdate(
+                documentId=doc_id, body={"requests": batch}
+            ).execute()
+        # No `break` here even when a round emits no requests (e.g. a degenerate
+        # zero-column table skipped by the `num_rows > 0 and num_cols > 0` guard
+        # above): cursors still advance every round for every non-done cell, so
+        # `pending` truthfulness alone correctly drives loop termination — a
+        # `break` on empty round_requests would silently abandon any cells whose
+        # only remaining work that round was such a skip.
 
         for t, r, c, occurrence, table_child in table_inserts:
             parent_resolve = resolve
@@ -516,6 +555,11 @@ def _fill_table_fully(docs_service, doc_id: str, resolve, ast_table: Table) -> N
     live_doc = docs_service.documents().get(documentId=doc_id).execute()
     doc_tables = resolve(live_doc)
     if not doc_tables or doc_tables[0] is None:
+        logger.debug(
+            "_fill_table_fully: could not locate nested table in live doc %s — "
+            "skipping fill for this table (it will render as an empty shell)",
+            doc_id,
+        )
         return
 
     fill_requests = _build_fill_requests(doc_tables, [ast_table])
@@ -523,8 +567,12 @@ def _fill_table_fully(docs_service, doc_id: str, resolve, ast_table: Table) -> N
         docs_service.documents().batchUpdate(
             documentId=doc_id, body={"requests": fill_requests}
         ).execute()
-
-    _fill_children_recursive(docs_service, doc_id, resolve, [ast_table])
+        # The bulk fill just shifted indices — the recursive call must re-fetch.
+        _fill_children_recursive(docs_service, doc_id, resolve, [ast_table])
+    else:
+        # Nothing changed since doc_tables was fetched above — reuse it instead
+        # of having the recursive call redundantly re-fetch identical data.
+        _fill_children_recursive(docs_service, doc_id, resolve, [ast_table], _doc_tables=doc_tables)
 
 
 def _build_phantom_set(ast_table: Table) -> set[tuple[int, int]]:

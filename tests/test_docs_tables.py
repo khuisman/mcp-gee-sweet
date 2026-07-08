@@ -709,3 +709,13 @@ class TestFillNestedCellContent:
         _fill_nested_cell_content(svc, "doc1", [ast_table])
         svc.documents.return_value.get.assert_not_called()
         svc.documents.return_value.batchUpdate.assert_not_called()
+
+    def test_degenerate_zero_column_table_does_not_abandon_trailing_content(self):
+        # A table with a row but no cells has num_cols == 0, so the
+        # `num_rows > 0 and num_cols > 0` guard skips its insertTable request —
+        # that round then has no requests at all. The loop must not treat an
+        # empty round as "done": trailing content after the skipped table still
+        # needs to be processed, not silently abandoned.
+        degenerate = Table(rows=[Row(cells=[])])
+        doc = self._run(Cell(children=[degenerate, Run("After")]))
+        assert doc.describe_cell(0, 0, 0) == ["Para:After"]

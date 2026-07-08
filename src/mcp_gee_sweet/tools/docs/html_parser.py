@@ -112,8 +112,12 @@ class _AstParser(HTMLParser):
                 tb.start_row()
                 return
             if tag in ("td", "th"):
-                colspan = int(attr_dict.get("colspan") or 1)
-                rowspan = int(attr_dict.get("rowspan") or 1)
+                # `or 1` only covers a missing attribute — an explicit colspan="0"/
+                # rowspan="0" is falsy-looking HTML but a truthy non-empty string,
+                # so it survives the `or` and must be clamped separately. A cell
+                # can't span zero columns/rows.
+                colspan = max(1, int(attr_dict.get("colspan") or 1))
+                rowspan = max(1, int(attr_dict.get("rowspan") or 1))
                 is_header = tag == "th"
                 width_str = attr_dict.get("width", "")
                 width_pt = _px_to_pt(width_str) if width_str else None

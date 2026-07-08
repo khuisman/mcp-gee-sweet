@@ -304,6 +304,18 @@ class TestHtmlToAst:
         nodes = html_to_ast("<table><tr><td>x</td></tr></table>")
         assert nodes[0].rows[0].cells[0].colspan == 1
 
+    def test_explicit_colspan_zero_clamped_to_1(self):
+        # colspan="0" is invalid HTML but must not survive as a literal 0 — a
+        # zero-column cell breaks downstream `num_cols` calculations. The old
+        # `int(attr_dict.get("colspan") or 1)` didn't catch this: "0" is a
+        # non-empty (truthy) string, so `or 1` never kicks in.
+        nodes = html_to_ast('<table><tr><td colspan="0">x</td></tr></table>')
+        assert nodes[0].rows[0].cells[0].colspan == 1
+
+    def test_explicit_rowspan_zero_clamped_to_1(self):
+        nodes = html_to_ast('<table><tr><td rowspan="0">x</td></tr></table>')
+        assert nodes[0].rows[0].cells[0].rowspan == 1
+
     def test_col_width_parsed_from_col_tag(self):
         # 96px → 72pt (96 * 72 / 96 = 72)
         nodes = html_to_ast('<table><col width="96"><tr><td>x</td></tr></table>')
