@@ -28,6 +28,9 @@ def _connect(path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    # Concurrent Claude sessions share this DB file by default; without a busy_timeout
+    # a write from another session hits SQLITE_BUSY immediately instead of waiting.
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.execute(_DDL)
     conn.commit()
     return conn
@@ -60,6 +63,33 @@ def _open(db_path: str) -> sqlite3.Connection:
         return _connect(":memory:")
 
 
+def _safe_fetchone(conn: sqlite3.Connection, sql: str, params: tuple) -> sqlite3.Row | None:
+    """Run a SELECT and fetchone(), treating any sqlite error as a cache miss.
+
+    Another session's crash can leave a locked/corrupted WAL behind; a cache read
+    should never take down a tool call over it (fail open, same as the API-fetch
+    fallback in fetch_sheets()).
+    """
+    try:
+        return conn.execute(sql, params).fetchone()
+    except sqlite3.Error as exc:
+        logger.warning("Cache read failed (%s), treating as cache miss", exc)
+        return None
+
+
+def _safe_write(conn: sqlite3.Connection, sql: str, params: tuple) -> None:
+    """Run a write statement + commit, swallowing sqlite errors (fail-open cache write).
+
+    A failed cache write must not fail the tool call that already succeeded against
+    the underlying Google API — it just means that result won't be cached this time.
+    """
+    try:
+        conn.execute(sql, params)
+        conn.commit()
+    except sqlite3.Error as exc:
+        logger.warning("Cache write failed (%s), continuing without caching", exc)
+
+
 @dataclass
 class SheetInfo:
     title: str
@@ -75,19 +105,20 @@ class SheetStructureCache:
         logger.debug("Sheet structure cache opened: %s", db_path)
 
     def _get_valid(self, spreadsheet_id: str) -> sqlite3.Row | None:
-        row = self._conn.execute(
+        row = _safe_fetchone(
+            self._conn,
             "SELECT value, fetched_at, dirty FROM cache WHERE namespace=? AND key=?",
             (self._NS, spreadsheet_id),
-        ).fetchone()
+        )
         if row is None or row["dirty"]:
             return None
         if time.time() - row["fetched_at"] > self._ttl:
             logger.debug("Cache TTL expired for %s, marking dirty", spreadsheet_id)
-            self._conn.execute(
+            _safe_write(
+                self._conn,
                 "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?",
                 (self._NS, spreadsheet_id),
             )
-            self._conn.commit()
             return None
         return row
 
@@ -109,33 +140,33 @@ class SheetStructureCache:
         value: dict = {"sheets": [{"title": s.title, "sheet_id": s.sheet_id} for s in sheets]}
         if title is not None:
             value["title"] = title
-        self._conn.execute(
+        _safe_write(
+            self._conn,
             "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty)"
             " VALUES (?,?,?,?,0)",
             (self._NS, spreadsheet_id, json.dumps(value), time.time()),
         )
-        self._conn.commit()
         logger.debug("Cached %d sheets for %s", len(sheets), spreadsheet_id)
 
     def mark_dirty(self, spreadsheet_id: str):
-        self._conn.execute(
+        _safe_write(
+            self._conn,
             "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?",
             (self._NS, spreadsheet_id),
         )
-        self._conn.commit()
         logger.debug("Marked cache dirty for %s", spreadsheet_id)
 
     def mark_all_dirty(self):
-        self._conn.execute("UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
-        self._conn.commit()
+        _safe_write(self._conn, "UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
         logger.debug("Invalidated all sheet structure cache entries")
 
     def get_stale_sheets(self, spreadsheet_id: str) -> list[SheetInfo] | None:
         """Returns cached sheet list regardless of dirty/TTL state; None only on complete miss."""
-        row = self._conn.execute(
+        row = _safe_fetchone(
+            self._conn,
             "SELECT value FROM cache WHERE namespace=? AND key=?",
             (self._NS, spreadsheet_id),
-        ).fetchone()
+        )
         if row is None:
             return None
         return [SheetInfo(**s) for s in json.loads(row["value"])["sheets"]]
@@ -161,17 +192,17 @@ class SheetDataCache:
         self, spreadsheet_id: str, sheet_id: int, rows_to_fetch: int
     ) -> sqlite3.Row | None:
         key = self._key(spreadsheet_id, sheet_id)
-        row = self._conn.execute(
+        row = _safe_fetchone(
+            self._conn,
             "SELECT value, fetched_at, dirty, rows_fetched FROM cache WHERE namespace=? AND key=?",
             (self._NS, key),
-        ).fetchone()
+        )
         if row is None or row["dirty"]:
             return None
         if time.time() - row["fetched_at"] > self._ttl:
-            self._conn.execute(
-                "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?", (self._NS, key)
+            _safe_write(
+                self._conn, "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?", (self._NS, key)
             )
-            self._conn.commit()
             return None
         if (row["rows_fetched"] or 0) < rows_to_fetch:
             return None
@@ -198,7 +229,8 @@ class SheetDataCache:
         rows_to_fetch: int,
     ):
         value = {"headers": headers, "first_rows": first_rows}
-        self._conn.execute(
+        _safe_write(
+            self._conn,
             "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty, rows_fetched)"
             " VALUES (?,?,?,?,0,?)",
             (
@@ -209,27 +241,26 @@ class SheetDataCache:
                 rows_to_fetch,
             ),
         )
-        self._conn.commit()
         logger.debug("Cached sheet data for %s/%s", spreadsheet_id, sheet_id)
 
     def mark_dirty(self, spreadsheet_id: str, sheet_id: int | None = None):
         if sheet_id is not None:
-            self._conn.execute(
+            _safe_write(
+                self._conn,
                 "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?",
                 (self._NS, self._key(spreadsheet_id, sheet_id)),
             )
             logger.debug("Marked sheet data dirty for %s/%s", spreadsheet_id, sheet_id)
         else:
-            self._conn.execute(
+            _safe_write(
+                self._conn,
                 "UPDATE cache SET dirty=1 WHERE namespace=? AND key LIKE ?",
                 (self._NS, f"{spreadsheet_id}:%"),
             )
             logger.debug("Marked all sheet data dirty for %s", spreadsheet_id)
-        self._conn.commit()
 
     def mark_all_dirty(self):
-        self._conn.execute("UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
-        self._conn.commit()
+        _safe_write(self._conn, "UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
         logger.debug("Invalidated all sheet data cache entries")
 
     def close(self):
@@ -251,17 +282,17 @@ class DriveFolderCache:
 
     def _get_valid(self, folder_id: str, mime_type: str | None) -> sqlite3.Row | None:
         key = self._key(folder_id, mime_type)
-        row = self._conn.execute(
+        row = _safe_fetchone(
+            self._conn,
             "SELECT value, fetched_at, dirty FROM cache WHERE namespace=? AND key=?",
             (self._NS, key),
-        ).fetchone()
+        )
         if row is None or row["dirty"]:
             return None
         if time.time() - row["fetched_at"] > self._ttl:
-            self._conn.execute(
-                "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?", (self._NS, key)
+            _safe_write(
+                self._conn, "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?", (self._NS, key)
             )
-            self._conn.commit()
             return None
         return row
 
@@ -274,25 +305,24 @@ class DriveFolderCache:
         return json.loads(row["value"])
 
     def store(self, folder_id: str, mime_type: str | None, files: list):
-        self._conn.execute(
+        _safe_write(
+            self._conn,
             "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty)"
             " VALUES (?,?,?,?,0)",
             (self._NS, self._key(folder_id, mime_type), json.dumps(files), time.time()),
         )
-        self._conn.commit()
         logger.debug("Cached %d files for folder %s (mime=%s)", len(files), folder_id, mime_type)
 
     def mark_dirty(self, folder_id: str):
-        self._conn.execute(
+        _safe_write(
+            self._conn,
             "UPDATE cache SET dirty=1 WHERE namespace=? AND key LIKE ?",
             (self._NS, f"{folder_id}:%"),
         )
-        self._conn.commit()
         logger.debug("Marked drive folder cache dirty for %s", folder_id)
 
     def mark_all_dirty(self):
-        self._conn.execute("UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
-        self._conn.commit()
+        _safe_write(self._conn, "UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
         logger.debug("Invalidated all drive folder cache entries")
 
     def close(self):
@@ -310,17 +340,19 @@ class DocContentCache:
         logger.debug("Doc cache opened: %s", db_path)
 
     def _get_valid(self, file_id: str) -> sqlite3.Row | None:
-        row = self._conn.execute(
+        row = _safe_fetchone(
+            self._conn,
             "SELECT value, fetched_at, dirty FROM cache WHERE namespace=? AND key=?",
             (self._NS, file_id),
-        ).fetchone()
+        )
         if row is None or row["dirty"]:
             return None
         if time.time() - row["fetched_at"] > self._ttl:
-            self._conn.execute(
-                "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?", (self._NS, file_id)
+            _safe_write(
+                self._conn,
+                "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?",
+                (self._NS, file_id),
             )
-            self._conn.commit()
             return None
         return row
 
@@ -333,25 +365,24 @@ class DocContentCache:
         return json.loads(row["value"])
 
     def store(self, file_id: str, doc: dict):
-        self._conn.execute(
+        _safe_write(
+            self._conn,
             "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty)"
             " VALUES (?,?,?,?,0)",
             (self._NS, file_id, json.dumps(doc), time.time()),
         )
-        self._conn.commit()
         logger.debug("Cached doc %s", file_id)
 
     def mark_dirty(self, file_id: str):
-        self._conn.execute(
+        _safe_write(
+            self._conn,
             "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?",
             (self._NS, file_id),
         )
-        self._conn.commit()
         logger.debug("Marked doc cache dirty for %s", file_id)
 
     def mark_all_dirty(self):
-        self._conn.execute("UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
-        self._conn.commit()
+        _safe_write(self._conn, "UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
         logger.debug("Invalidated all doc cache entries")
 
     def close(self):
@@ -370,17 +401,17 @@ class CalendarCache:
         logger.debug("Calendar cache opened: %s", db_path)
 
     def _get_valid(self, key: str) -> sqlite3.Row | None:
-        row = self._conn.execute(
+        row = _safe_fetchone(
+            self._conn,
             "SELECT value, fetched_at, dirty FROM cache WHERE namespace=? AND key=?",
             (self._NS, key),
-        ).fetchone()
+        )
         if row is None or row["dirty"]:
             return None
         if time.time() - row["fetched_at"] > self._ttl:
-            self._conn.execute(
-                "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?", (self._NS, key)
+            _safe_write(
+                self._conn, "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?", (self._NS, key)
             )
-            self._conn.commit()
             return None
         return row
 
@@ -393,12 +424,12 @@ class CalendarCache:
         return json.loads(row["value"])
 
     def store_list(self, calendars: list):
-        self._conn.execute(
+        _safe_write(
+            self._conn,
             "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty)"
             " VALUES (?,?,?,?,0)",
             (self._NS, self._LIST_KEY, json.dumps(calendars), time.time()),
         )
-        self._conn.commit()
         logger.debug("Cached calendar list (%d entries)", len(calendars))
 
     def get(self, calendar_id: str) -> dict | None:
@@ -410,25 +441,23 @@ class CalendarCache:
         return json.loads(row["value"])
 
     def store(self, calendar_id: str, calendar: dict):
-        self._conn.execute(
+        _safe_write(
+            self._conn,
             "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty)"
             " VALUES (?,?,?,?,0)",
             (self._NS, calendar_id, json.dumps(calendar), time.time()),
         )
-        self._conn.commit()
         logger.debug("Cached calendar %s", calendar_id)
 
     def mark_dirty(self, calendar_id: str):
         for key in (calendar_id, self._LIST_KEY):
-            self._conn.execute(
-                "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?", (self._NS, key)
+            _safe_write(
+                self._conn, "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?", (self._NS, key)
             )
-        self._conn.commit()
         logger.debug("Marked calendar cache dirty for %s", calendar_id)
 
     def mark_all_dirty(self):
-        self._conn.execute("UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
-        self._conn.commit()
+        _safe_write(self._conn, "UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
         logger.debug("Invalidated all calendar cache entries")
 
     def close(self):

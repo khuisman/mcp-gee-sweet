@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import time
 
 from mcp_gee_sweet.cache import (
@@ -8,6 +9,8 @@ from mcp_gee_sweet.cache import (
     SheetInfo,
     SheetStructureCache,
     _open,
+    _safe_fetchone,
+    _safe_write,
 )
 
 # All tests use an in-memory SQLite database.
@@ -280,6 +283,63 @@ class TestSharedDb:
         struct.mark_all_dirty()
         assert struct.get_sheets("sid") is None
         assert doc.get("fid") is not None  # different namespace, unaffected
+
+
+class TestBusyTimeout:
+    """issue #234: a busy_timeout must be set so a concurrent writer from another
+    session waits instead of raising SQLITE_BUSY immediately."""
+
+    def test_busy_timeout_is_set(self, tmp_path):
+        db = str(tmp_path / "test.db")
+        conn = _open(db)
+        try:
+            (value,) = conn.execute("PRAGMA busy_timeout").fetchone()
+            assert value == 5000
+        finally:
+            conn.close()
+
+
+class TestFailOpenOnSqliteError:
+    """issue #234: a cache read/write must never crash a tool call — any sqlite
+    error (locked/corrupted DB from another session) is treated as a cache miss
+    on reads and silently dropped on writes."""
+
+    def test_safe_fetchone_returns_none_on_error(self):
+        conn = sqlite3.connect(":memory:")
+        conn.close()  # any operation on a closed connection raises sqlite3.ProgrammingError
+        assert _safe_fetchone(conn, "SELECT 1", ()) is None
+
+    def test_safe_write_swallows_error(self):
+        conn = sqlite3.connect(":memory:")
+        conn.close()
+        _safe_write(conn, "SELECT 1", ())  # must not raise
+
+    def test_cache_get_survives_closed_connection(self):
+        cache = SheetStructureCache(db_path=":memory:", ttl=60)
+        cache.store("sid", [SheetInfo(title="S1", sheet_id=0)])
+        cache._conn.close()
+        assert cache.get_sheets("sid") is None
+
+    def test_cache_store_survives_closed_connection(self):
+        cache = SheetStructureCache(db_path=":memory:", ttl=60)
+        cache._conn.close()
+        cache.store("sid", [SheetInfo(title="S1", sheet_id=0)])  # must not raise
+
+    def test_mark_dirty_survives_closed_connection(self):
+        cache = SheetStructureCache(db_path=":memory:", ttl=60)
+        cache._conn.close()
+        cache.mark_dirty("sid")  # must not raise
+
+    def test_mark_all_dirty_survives_closed_connection(self):
+        cache = SheetStructureCache(db_path=":memory:", ttl=60)
+        cache._conn.close()
+        cache.mark_all_dirty()  # must not raise
+
+    def test_doc_cache_get_survives_closed_connection(self):
+        cache = DocContentCache(db_path=":memory:", ttl=60)
+        cache.store("fid", {"title": "Doc"})
+        cache._conn.close()
+        assert cache.get("fid") is None
 
 
 class TestOpenFallback:
