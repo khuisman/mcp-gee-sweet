@@ -8,8 +8,8 @@ Review the current branch against this checklist and report the status of each i
 - [ ] **Unit tests passing** — has `uv run python -m pytest tests/` been run and passed?
 - [ ] **Regression coverage** — were tests that touch the modified files (not just new tests) also run?
 - [ ] **QA test cases written** — are there AI-driven test cases in `docs/qa/tests/` for the new/changed tools?
-- [ ] **QA tests run** — have those test cases been executed live against the fixture doc?
-- [ ] **QA results recorded** — does each test case have a `**Result (date) ✅/❌**` entry with actual observed output?
+
+**Live QA execution is out of scope for this checklist.** If this session is a worker in a `.claude/worktrees/*` checkout, running live QA tools here would exercise the main checkout's code, not this branch's changes — the result would look real but prove nothing. Do not run live tests and do not write `**Result**` entries from a worktree. That happens in the orchestrator's `/verify-pr` pass after the PR is open, in the main checkout, where the branch's actual code is reachable by the live MCP tools. Leave the `**Result**` line off new/changed test cases entirely — don't stub it as "pending," just omit it so `/verify-pr` adds the first real one.
 
 ## 2. QA test case tags
 
