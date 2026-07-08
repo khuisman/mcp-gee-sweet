@@ -1003,6 +1003,23 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
+### TC-DOC88: `colspan="0"` clamps to 1 instead of producing a degenerate zero-column cell
+
+**Background:** Found via code review of PR #276 — `int(attr_dict.get("colspan") or 1)` only covers a *missing* colspan attribute; an explicit `colspan="0"` is a non-empty (truthy) string, so it survives the `or` and parses to the literal integer `0`. A cell that spans zero columns breaks downstream `num_cols` calculations used by the nested-table fill algorithm. Fixed by clamping colspan/rowspan to a minimum of 1 in `html_parser.py`.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><td colspan="0">Wide</td><td>Next</td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows the table with `columns: 2` (not 1 or a broken/merged layout) — cell [0,0] text "Wide", cell [0,1] text "Next"
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-07) ✅ PASS** `get_doc_structure` shows `columns: 2`, cell [0,0] `text: "Wide"`, cell [0,1] `text: "Next"` — `colspan="0"` clamped to 1 and rendered as two normal side-by-side cells.
+
+---
+
 ### TC-DOC52: `get_doc_theme` scans body paragraph styles
 **Note:** `get_doc_theme` reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.
 
