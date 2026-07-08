@@ -14,7 +14,7 @@ Why this role split exists: any locally-configured MCP server that runs this pro
    - Ticket triage and labeling (`ready-for-development`, version labels)
    - Roadmap grooming (`docs/roadmap.md` + whichever roadmap-planning memory is currently active — check the memory index rather than assuming a specific version-numbered file)
    - Live/manual tool testing — only possible here
-   - Reviewing worker PRs: checkout the branch in the main checkout to live-test before merging
+   - Reviewing worker PRs: `verify-pr` (code review + scoped live QA against real Google APIs) before `merge-pr`
    - Worktree cleanup after merge (`cleanup-worktrees`)
 
    Do NOT pick up ticket implementation directly in this session — hand it to a worker session via `start-worktree` (or `next-issue`, which does this automatically).
