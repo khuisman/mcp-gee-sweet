@@ -43,8 +43,7 @@ class Run:
 
 @dataclass
 class Cell:
-    runs: list[Run]
-    nested_table: Table | None = None  # one nested table rendered inside this cell
+    children: list[Run | Table]  # ordered text runs and nested tables, in source order
     colspan: int = 1
     rowspan: int = 1
     is_header: bool = False

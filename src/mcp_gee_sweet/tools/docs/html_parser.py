@@ -89,6 +89,12 @@ class _AstParser(HTMLParser):
 
         # --- table structure ---
         if tag == "table":
+            if self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell:
+                # A nested table is opening inside an already-open cell. The run
+                # buffer is shared across nesting levels, so any text typed before
+                # this point must be flushed now and attached to the outer cell —
+                # otherwise it bleeds into the nested table's own first cell (#108).
+                self._table_stack[-1].append_runs(self._flush_pending_runs())
             self._table_depth += 1
             self._table_stack.append(_TableBuilder())
             return
@@ -106,8 +112,12 @@ class _AstParser(HTMLParser):
                 tb.start_row()
                 return
             if tag in ("td", "th"):
-                colspan = int(attr_dict.get("colspan") or 1)
-                rowspan = int(attr_dict.get("rowspan") or 1)
+                # `or 1` only covers a missing attribute — an explicit colspan="0"/
+                # rowspan="0" is falsy-looking HTML but a truthy non-empty string,
+                # so it survives the `or` and must be clamped separately. A cell
+                # can't span zero columns/rows.
+                colspan = max(1, int(attr_dict.get("colspan") or 1))
+                rowspan = max(1, int(attr_dict.get("rowspan") or 1))
                 is_header = tag == "th"
                 width_str = attr_dict.get("width", "")
                 width_pt = _px_to_pt(width_str) if width_str else None
@@ -179,7 +189,7 @@ class _AstParser(HTMLParser):
                     if self._table_depth == 1:
                         self._nodes.append(node)
                     elif self._table_stack:
-                        self._table_stack[-1]._current_nested_table = node
+                        self._table_stack[-1].append_nested_table(node)
             self._table_depth -= 1
             return
 
@@ -299,7 +309,7 @@ class _TableBuilder:
         self._current_cell: dict | None = None  # metadata for current open cell
         self._cell_col_widths: list[float | None] = []  # widths from <td width>
         self.in_cell = False
-        self._current_nested_table: Table | None = None
+        self._current_children: list[Run | Table] = []  # ordered content of the open cell
 
     def start_row(self):
         self._current_row_cells = []
@@ -317,6 +327,15 @@ class _TableBuilder:
             "width_pt": width_pt,
         }
         self.in_cell = True
+        self._current_children = []
+
+    def append_runs(self, runs: list[Run]):
+        """Add flushed text runs to this still-open cell's ordered content."""
+        self._current_children.extend(runs)
+
+    def append_nested_table(self, table: Table):
+        """Add a completed nested <table> to this still-open cell's ordered content."""
+        self._current_children.append(table)
 
     def end_cell(self, runs: list[Run]):
         if self._current_cell is None:
@@ -326,8 +345,7 @@ class _TableBuilder:
         if meta["width_pt"] is not None and len(self.rows) == 0:
             self._cell_col_widths.append(meta["width_pt"])
         cell = Cell(
-            runs=runs,
-            nested_table=self._current_nested_table,
+            children=self._current_children + runs,
             colspan=meta["colspan"],
             rowspan=meta["rowspan"],
             is_header=meta["is_header"],
@@ -335,7 +353,7 @@ class _TableBuilder:
         self._current_row_cells.append(cell)
         self._current_cell = None
         self.in_cell = False
-        self._current_nested_table = None
+        self._current_children = []
 
     def build(self) -> Table | None:
         if not self.rows:

@@ -939,6 +939,87 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
+### TC-DOC84: Text sharing a cell with a nested table is no longer dropped (issue #108) ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><td>Some label <table><tr><td>Inner</td></tr></table></td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows the outer table (1 row × 1 col) with a non-empty text run in cell [0,0] (previously this cell's text was silently dropped — bled into the nested table's own cell instead)
+- 🔍 Visual check: "Some label" appears above/before the nested table inside the outer cell, and the nested table's own cell reads "Inner" (not "Some label Inner" merged together)
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-06) ✅ PASS** `get_doc_structure` shows outer cell [0,0] `text: "Some label"` (previously empty per TC-DOC48's bug pattern). Playwright screenshot confirms "Some label" renders above the nested table, whose own cell reads exactly "Inner" — no merging.
+
+---
+
+### TC-DOC85: Text after a nested table in the same cell, correctly positioned (issue #275) ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><td><table><tr><td>Inner</td></tr></table>After</td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows the outer cell's text as "After" — content intact, not merged with "Inner"
+- 🔍 Visual check: "After" renders *below* the nested table, not above it
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-07) ✅ PASS** `get_doc_structure` cell [0,0] `text: "After"`. Playwright confirms "After" renders below the nested table ("Inner"). Note: an earlier pass of this test case (2026-07-06) incorrectly expected "After" to render *above* the table — that was the pre-#275-fix limitation (a cell's text always rendered as one block before any nested table, regardless of source order). #275 fixed the emitter to place text on the correct side of each nested table; this test case's expectation and prompt were updated to match.
+
+---
+
+### TC-DOC86: Text before AND after one nested table, both correctly positioned (issue #275) ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><td>Before <table><tr><td>Inner</td></tr></table> After</td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows outer cell [0,0] text as `"Before \n After"` (the `\n` confirms two distinct paragraphs — before and after the table — not one merged block)
+- 🔍 Visual check: "Before" above the nested table, "Inner" inside it, "After" below it
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-07) ✅ PASS** `get_doc_structure` shows `text: "Before \n After"`. Playwright screenshot confirms all three pieces render in the correct order and position.
+
+---
+
+### TC-DOC87: Multiple nested tables in one cell with text between them (issue #275) ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><td>A<table><tr><td>1</td></tr></table>B<table><tr><td>2</td></tr></table>C</td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows outer cell [0,0] text as `"A\nB\nC"` (three separate paragraphs — one per text segment between/around the two nested tables)
+- 🔍 Visual check: A, then a table containing "1", then B, then a second table containing "2", then C — all in that order
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-07) ✅ PASS** `get_doc_structure` shows `text: "A\nB\nC"`. Playwright screenshot confirms both nested tables render in the correct positions with "1" and "2" filled in, and A/B/C text correctly interleaved — a capability that didn't exist before #275 (previously only one nested table per cell was supported at all).
+
+---
+
+### TC-DOC88: `colspan="0"` clamps to 1 instead of producing a degenerate zero-column cell
+
+**Background:** Found via code review of PR #276 — `int(attr_dict.get("colspan") or 1)` only covers a *missing* colspan attribute; an explicit `colspan="0"` is a non-empty (truthy) string, so it survives the `or` and parses to the literal integer `0`. A cell that spans zero columns breaks downstream `num_cols` calculations used by the nested-table fill algorithm. Fixed by clamping colspan/rowspan to a minimum of 1 in `html_parser.py`.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><td colspan="0">Wide</td><td>Next</td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows the table with `columns: 2` (not 1 or a broken/merged layout) — cell [0,0] text "Wide", cell [0,1] text "Next"
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-07) ✅ PASS** `get_doc_structure` shows `columns: 2`, cell [0,0] `text: "Wide"`, cell [0,1] `text: "Next"` — `colspan="0"` clamped to 1 and rendered as two normal side-by-side cells.
+
+---
+
 ### TC-DOC52: `get_doc_theme` scans body paragraph styles
 **Note:** `get_doc_theme` reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.
 

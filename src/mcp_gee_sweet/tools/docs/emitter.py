@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from .ast import BulletItem, DocNode, Heading, NamedBlock, Paragraph, Row, Run, Table
+import logging
+
+from .ast import BulletItem, Cell, DocNode, Heading, NamedBlock, Paragraph, Row, Run, Table
+
+logger = logging.getLogger(__name__)
 
 
 def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[dict], list[Table]]:
@@ -185,15 +189,17 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
     Phases:
       1. Re-fetch → get cell positions
       2. If any colspan/rowspan > 1: emit mergeTableCells, re-fetch
-      3. If any cell has a nested_table: insert nested table shells, re-fetch
-      4. Emit insertText + updateTextStyle for outer cells (high→low)
-      5. If nested tables: re-fetch, fill nested cells (high→low)
-      6. Emit updateTableColumnProperties for tables with col_widths
-      7. If any cell has Phase 3 style fields: emit updateTableCellStyle
+      3. Fill plain cells (no nested table) — insertText + updateTextStyle, high→low
+      4. Fill cells with a nested table, segment by segment (see
+         _fill_nested_cell_content) — text and tables in true source order,
+         recursing into any depth of further nesting
+      5. Emit updateTableColumnProperties for tables with col_widths
+      6. If any cell has Phase 3 style fields: emit updateTableCellStyle
 
-    Nested table limitations (first pass): one level of nesting only; cells
-    containing a nested_table should not also contain text runs (runs are
-    dropped); no colspan/rowspan or col_widths inside nested tables.
+    Nested table limitations: no colspan/rowspan or col_widths inside nested
+    tables. Text sharing a cell with one or more nested tables (#108, #275) is
+    fully supported — each run of text and each nested table renders in the
+    same order it appeared in the source, at any nesting depth.
     """
     if not tables:
         return
@@ -205,7 +211,7 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
         for cell in row.cells
     )
     has_nested = any(
-        cell.nested_table is not None
+        any(isinstance(child, Table) for child in cell.children)
         for table in tables
         for row in table.rows
         for cell in row.cells
@@ -234,35 +240,19 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
             live_doc = docs_service.documents().get(documentId=doc_id).execute()
             doc_tables = _top_level_tables(live_doc)
 
-    # Step 3: insert nested table shells into cells
-    if has_nested:
-        nested_inserts = _build_nested_table_inserts(doc_tables, tables)
-        if nested_inserts:
-            docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": nested_inserts}
-            ).execute()
-            live_doc = docs_service.documents().get(documentId=doc_id).execute()
-            doc_tables = _top_level_tables(live_doc)
-
-    # Step 4: fill outer cell text
+    # Step 3: fill plain cells (no nested table) in one bulk batch
     fill_requests = _build_fill_requests(doc_tables, tables)
     if fill_requests:
         docs_service.documents().batchUpdate(
             documentId=doc_id, body={"requests": fill_requests}
         ).execute()
 
-    # Step 5: fill nested table cells
+    # Step 4: fill cells that contain a nested table, preserving true content order
+    # at any nesting depth
     if has_nested:
-        live_doc = docs_service.documents().get(documentId=doc_id).execute()
-        doc_tables = _top_level_tables(live_doc)
-        n_doc, n_ast = _collect_nested_table_pairs(doc_tables, tables)
-        nested_fill = _build_fill_requests(n_doc, n_ast)
-        if nested_fill:
-            docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": nested_fill}
-            ).execute()
+        _fill_nested_cell_content(docs_service, doc_id, tables)
 
-    # Step 6: column widths — requires table startIndex from live doc
+    # Step 5: column widths — requires table startIndex from live doc
     width_requests = _build_width_requests(live_doc, tables)
     if width_requests:
         docs_service.documents().batchUpdate(
@@ -299,83 +289,290 @@ def _top_level_tables(live_doc: dict) -> list[dict]:
     ]
 
 
-def _build_nested_table_inserts(doc_tables: list[dict], ast_tables: list[Table]) -> list[dict]:
-    """Emit insertTable requests (HIGH→LOW) for nested tables that live inside outer cells."""
-    inserts: list[tuple[int, dict]] = []
-    for doc_table, ast_table in zip(doc_tables, ast_tables):
-        doc_rows = doc_table.get("tableRows", [])
-        phantom = _build_phantom_set(ast_table)
-        total_cols = max((sum(c.colspan for c in row.cells) for row in ast_table.rows), default=0)
-        if total_cols == 0:
-            continue
-        for r, (doc_row_entry, ast_row) in enumerate(zip(doc_rows, ast_table.rows)):
-            doc_cells = sorted(
-                doc_row_entry.get("tableCells", []), key=lambda c: c.get("startIndex", 0)
+def _ast_cell_to_doc_cell(doc_table: dict, ast_table: Table, r: int, ast_col: int) -> dict | None:
+    """Return the physical doc cell for logical (row=r, ast column=ast_col)."""
+    doc_rows = doc_table.get("tableRows", [])
+    if r >= len(doc_rows):
+        return None
+    phantom = _build_phantom_set(ast_table)
+    ast_row = ast_table.rows[r]
+    total_cols = max((sum(c.colspan for c in row.cells) for row in ast_table.rows), default=0)
+    doc_cells = sorted(doc_rows[r].get("tableCells", []), key=lambda c: c.get("startIndex", 0))
+    mapping = _physical_to_ast_indices(r, ast_row, phantom, total_cols)
+    for doc_cell, ast_cell_idx in zip(doc_cells, mapping):
+        if ast_cell_idx == ast_col:
+            return doc_cell
+    return None
+
+
+def _is_insertable_table(child: Run | Table) -> bool:
+    """A Table child only actually gets an insertTable shell (and thus a
+    paragraph/table/paragraph split in the live doc) if it has at least one row
+    and one column — see the `num_rows > 0 and num_cols > 0` guard where
+    insertTable requests are built. A degenerate table (e.g. a row with no
+    cells — reachable, pre-clamp-fix, via colspan="0"/rowspan="0" HTML) must
+    NOT be counted as "already inserted" by cursor/paragraph-counting logic,
+    or every later segment in the same cell resolves to the wrong paragraph.
+    """
+    if not isinstance(child, Table):
+        return False
+    num_rows = len(child.rows)
+    num_cols = max((sum(c.colspan for c in row.cells) for row in child.rows), default=0)
+    return num_rows > 0 and num_cols > 0
+
+
+def _cell_para_start_for_cursor(doc_cell: dict, ast_cell: Cell, cursor: int) -> int | None:
+    """Return the startIndex of the paragraph a cell's next unfilled segment belongs in.
+
+    A cell's `content` alternates paragraph/table/paragraph/table/... — the Nth
+    paragraph (0-indexed) is the one immediately after the Nth already-inserted
+    nested table, where N = how many *insertable* Table children precede
+    `cursor` (see _is_insertable_table). This is the paragraph's own
+    startIndex — callers inserting a Table (not text) must add
+    _text_offset_since_last_table() on top, since earlier text in the same
+    paragraph (inserted in a prior round) isn't reflected in the paragraph's
+    unchanged startIndex.
+    """
+    tables_before = sum(1 for child in ast_cell.children[:cursor] if _is_insertable_table(child))
+    paragraphs = [elem for elem in doc_cell.get("content", []) if "paragraph" in elem]
+    if tables_before >= len(paragraphs):
+        return None
+    return paragraphs[tables_before].get("startIndex")
+
+
+def _text_offset_since_last_table(children: list[Run | Table], cursor: int) -> int:
+    """Sum of Run text lengths between the nearest preceding *insertable* Table
+    (exclusive) and cursor — a degenerate table is transparent here since it
+    was never actually inserted (see _is_insertable_table).
+
+    A Table's insertion point is its paragraph's startIndex *plus* this offset,
+    since any leading text already inserted into that same paragraph (in an
+    earlier round) shifts where the table must land but doesn't change the
+    paragraph's own startIndex.
+    """
+    offset = 0
+    for i in range(cursor - 1, -1, -1):
+        child = children[i]
+        if _is_insertable_table(child):
+            break
+        if isinstance(child, Run):
+            offset += len(child.text)
+    return offset
+
+
+def _find_nth_table_in_cell(
+    doc_table: dict, ast_table: Table, r: int, c: int, occurrence: int
+) -> dict | None:
+    """Return the `occurrence`-th (0-indexed) nested table element inside cell (r, c)."""
+    doc_cell = _ast_cell_to_doc_cell(doc_table, ast_table, r, c)
+    if doc_cell is None:
+        return None
+    nested_tables = [elem["table"] for elem in doc_cell.get("content", []) if "table" in elem]
+    if occurrence >= len(nested_tables):
+        return None
+    return nested_tables[occurrence]
+
+
+def _run_group_fill_requests(runs: list[Run], para_start: int) -> list[dict]:
+    """Build insertText + updateTextStyle requests for a contiguous run of text."""
+    text = "".join(run.text for run in runs)
+    if not text:
+        return []
+    requests: list[dict] = [
+        {"insertText": {"location": {"index": para_start}, "text": text}},
+        # Clear any fontSize inherited from a preceding heading — see _build_fill_requests.
+        {
+            "updateTextStyle": {
+                "range": {"startIndex": para_start, "endIndex": para_start + len(text)},
+                "textStyle": {},
+                "fields": "fontSize",
+            }
+        },
+    ]
+    offset = 0
+    for run in runs:
+        run_len = len(run.text)
+        if run_len > 0:
+            requests.extend(
+                _run_style_requests(run, para_start + offset, para_start + offset + run_len)
             )
-            mapping = _physical_to_ast_indices(r, ast_row, phantom, total_cols)
-            for doc_cell, ast_cell_idx in zip(doc_cells, mapping):
-                if ast_cell_idx is None:
-                    continue
-                nested = ast_row.cells[ast_cell_idx].nested_table
-                if nested is None:
-                    continue
-                num_rows = len(nested.rows)
+        offset += run_len
+    return requests
+
+
+def _fill_nested_cell_content(docs_service, doc_id: str, tables: list[Table]) -> None:
+    """Fill every cell that contains a nested table, preserving true content order.
+
+    Cells with no nested table are handled in bulk by _build_fill_requests instead
+    (faster, one batch for the whole document). This function only processes cells
+    whose `children` include at least one Table, recursing into any depth of
+    further nesting (#108, #275): each round emits one contiguous segment — a
+    run of text or one nested table's shell — per still-pending cell, sorted
+    high→low within the round, then re-fetches before the next round.
+    """
+    _fill_children_recursive(
+        docs_service, doc_id, lambda live_doc: _top_level_tables(live_doc), tables
+    )
+
+
+def _fill_children_recursive(
+    docs_service,
+    doc_id: str,
+    resolve,
+    ast_tables: list[Table],
+    _doc_tables: list[dict] | None = None,
+) -> None:
+    """resolve(live_doc) -> doc_table dicts positionally matching ast_tables.
+
+    _doc_tables: already-fetched, still-valid doc_tables to seed the first
+    round with — pass this when the caller knows nothing has changed in the
+    live doc since it last fetched, to avoid a redundant re-fetch.
+    """
+    pending: dict[tuple[int, int, int], int] = {}
+    for t, table in enumerate(ast_tables):
+        for r, row in enumerate(table.rows):
+            for c, cell in enumerate(row.cells):
+                if any(isinstance(child, Table) for child in cell.children):
+                    pending[(t, r, c)] = 0
+    if not pending:
+        return
+
+    if _doc_tables is not None:
+        doc_tables = _doc_tables
+    else:
+        live_doc = docs_service.documents().get(documentId=doc_id).execute()
+        doc_tables = resolve(live_doc)
+
+    while pending:
+        round_requests: list[tuple[int, list[dict]]] = []
+        table_inserts: list[tuple[int, int, int, int, Table]] = []  # (t, r, c, occurrence, table)
+        done = []
+
+        for (t, r, c), cursor in pending.items():
+            doc_table = doc_tables[t] if t < len(doc_tables) else None
+            ast_table = ast_tables[t]
+            ast_cell = ast_table.rows[r].cells[c]
+            children = ast_cell.children
+            if doc_table is None or cursor >= len(children):
+                done.append((t, r, c))
+                continue
+            doc_cell = _ast_cell_to_doc_cell(doc_table, ast_table, r, c)
+            if doc_cell is None:
+                done.append((t, r, c))
+                continue
+            para_start = _cell_para_start_for_cursor(doc_cell, ast_cell, cursor)
+            if para_start is None:
+                done.append((t, r, c))
+                continue
+
+            child = children[cursor]
+            if isinstance(child, Table):
+                num_rows = len(child.rows)
                 num_cols = max(
-                    (sum(c.colspan for c in row.cells) for row in nested.rows), default=0
+                    (sum(cc.colspan for cc in row.cells) for row in child.rows), default=0
                 )
-                if num_rows == 0 or num_cols == 0:
-                    continue
-                cell_content = doc_cell.get("content", [])
-                if not cell_content:
-                    continue
-                para_start = cell_content[0].get("startIndex")
-                if para_start is None:
-                    continue
-                inserts.append(
-                    (
-                        para_start,
-                        {
-                            "insertTable": {
-                                "rows": num_rows,
-                                "columns": num_cols,
-                                "location": {"index": para_start},
-                            }
-                        },
+                occurrence = sum(1 for ch in children[:cursor] if _is_insertable_table(ch))
+                # Any text already inserted earlier this round-chain, in the same
+                # paragraph, shifts the table's landing spot past that text.
+                table_start = para_start + _text_offset_since_last_table(children, cursor)
+                if num_rows > 0 and num_cols > 0:
+                    round_requests.append(
+                        (
+                            table_start,
+                            [
+                                {
+                                    "insertTable": {
+                                        "rows": num_rows,
+                                        "columns": num_cols,
+                                        "location": {"index": table_start},
+                                    }
+                                }
+                            ],
+                        )
                     )
-                )
-    inserts.sort(key=lambda x: x[0], reverse=True)
-    return [req for _, req in inserts]
+                    table_inserts.append((t, r, c, occurrence, child))
+                new_cursor = cursor + 1
+            else:
+                j = cursor
+                run_group: list[Run] = []
+                while j < len(children) and isinstance(children[j], Run):
+                    next_run = children[j]
+                    assert isinstance(next_run, Run)
+                    run_group.append(next_run)
+                    j += 1
+                reqs = _run_group_fill_requests(run_group, para_start)
+                if reqs:
+                    round_requests.append((para_start, reqs))
+                new_cursor = j
+
+            pending[(t, r, c)] = new_cursor
+            if new_cursor >= len(children):
+                done.append((t, r, c))
+
+        for key in done:
+            del pending[key]
+
+        if round_requests:
+            round_requests.sort(key=lambda x: x[0], reverse=True)
+            batch = [req for _, reqs in round_requests for req in reqs]
+            docs_service.documents().batchUpdate(
+                documentId=doc_id, body={"requests": batch}
+            ).execute()
+        # No `break` here even when a round emits no requests (e.g. a degenerate
+        # zero-column table skipped by the `num_rows > 0 and num_cols > 0` guard
+        # above): cursors still advance every round for every non-done cell, so
+        # `pending` truthfulness alone correctly drives loop termination — a
+        # `break` on empty round_requests would silently abandon any cells whose
+        # only remaining work that round was such a skip.
+
+        for t, r, c, occurrence, table_child in table_inserts:
+            parent_resolve = resolve
+
+            def child_resolve(live_doc, _resolve=parent_resolve, _t=t, _r=r, _c=c, _occ=occurrence):
+                parent_tables = _resolve(live_doc)
+                if _t >= len(parent_tables) or parent_tables[_t] is None:
+                    return [None]
+                return [_find_nth_table_in_cell(parent_tables[_t], ast_tables[_t], _r, _c, _occ)]
+
+            # This performs its own batchUpdate(s), which shift indices for any
+            # outer-cell content that comes after this nested table — the outer
+            # loop's own doc_tables (re-fetched below) must reflect that.
+            _fill_table_fully(docs_service, doc_id, child_resolve, table_child)
+
+        if pending:
+            live_doc = docs_service.documents().get(documentId=doc_id).execute()
+            doc_tables = resolve(live_doc)
 
 
-def _collect_nested_table_pairs(
-    doc_tables: list[dict], ast_tables: list[Table]
-) -> tuple[list[dict], list[Table]]:
-    """Return (doc_table_list, ast_table_list) for nested tables found inside outer cells."""
-    nested_doc: list[dict] = []
-    nested_ast: list[Table] = []
-    for doc_table, ast_table in zip(doc_tables, ast_tables):
-        doc_rows = doc_table.get("tableRows", [])
-        phantom = _build_phantom_set(ast_table)
-        total_cols = max((sum(c.colspan for c in row.cells) for row in ast_table.rows), default=0)
-        if total_cols == 0:
-            continue
-        for r, (doc_row_entry, ast_row) in enumerate(zip(doc_rows, ast_table.rows)):
-            doc_cells = sorted(
-                doc_row_entry.get("tableCells", []), key=lambda c: c.get("startIndex", 0)
-            )
-            mapping = _physical_to_ast_indices(r, ast_row, phantom, total_cols)
-            for doc_cell, ast_cell_idx in zip(doc_cells, mapping):
-                if ast_cell_idx is None:
-                    continue
-                ast_cell = ast_row.cells[ast_cell_idx]
-                if ast_cell.nested_table is None:
-                    continue
-                for elem in doc_cell.get("content", []):
-                    if "table" in elem:
-                        nested_doc.append(elem["table"])
-                        nested_ast.append(ast_cell.nested_table)
-                        break
-    return nested_doc, nested_ast
+def _fill_table_fully(docs_service, doc_id: str, resolve, ast_table: Table) -> None:
+    """Fill one (typically just-inserted) table's cells: plain cells in bulk,
+    cells with a further nested table via the recursive round algorithm.
+
+    Every nested table needs this — not just ones with further nesting — since
+    a nested table's own plain-text cells are never touched by the top-level
+    _build_fill_requests bulk pass (that only sees the outer tables list).
+    """
+    live_doc = docs_service.documents().get(documentId=doc_id).execute()
+    doc_tables = resolve(live_doc)
+    if not doc_tables or doc_tables[0] is None:
+        logger.debug(
+            "_fill_table_fully: could not locate nested table in live doc %s — "
+            "skipping fill for this table (it will render as an empty shell)",
+            doc_id,
+        )
+        return
+
+    fill_requests = _build_fill_requests(doc_tables, [ast_table])
+    if fill_requests:
+        docs_service.documents().batchUpdate(
+            documentId=doc_id, body={"requests": fill_requests}
+        ).execute()
+        # The bulk fill just shifted indices — the recursive call must re-fetch.
+        _fill_children_recursive(docs_service, doc_id, resolve, [ast_table])
+    else:
+        # Nothing changed since doc_tables was fetched above — reuse it instead
+        # of having the recursive call redundantly re-fetch identical data.
+        _fill_children_recursive(docs_service, doc_id, resolve, [ast_table], _doc_tables=doc_tables)
 
 
 def _build_phantom_set(ast_table: Table) -> set[tuple[int, int]]:
@@ -469,7 +666,11 @@ def _build_merge_requests(doc_tables: list[dict], ast_tables: list[Table]) -> li
 
 
 def _build_fill_requests(doc_tables: list[dict], ast_tables: list[Table]) -> list[dict]:
-    """Build insertText + updateTextStyle requests for all table cells, sorted high→low."""
+    """Build insertText + updateTextStyle requests for cells with no nested table,
+    sorted high→low, so they can all be emitted in one batch. Cells that contain a
+    nested table are skipped here — _fill_nested_cell_content handles those instead,
+    since a nested table needs its own live-index re-fetch cycle.
+    """
     all_requests: list[tuple[int, list[dict]]] = []
 
     for doc_table, ast_table in zip(doc_tables, ast_tables):
@@ -491,7 +692,9 @@ def _build_fill_requests(doc_tables: list[dict], ast_tables: list[Table]) -> lis
                 if ast_cell_idx is None:
                     continue  # rowspan phantom — skip
                 ast_cell = ast_row.cells[ast_cell_idx]
-                cell_runs = ast_cell.runs
+                if any(isinstance(child, Table) for child in ast_cell.children):
+                    continue  # handled by _fill_nested_cell_content instead
+                cell_runs = [child for child in ast_cell.children if isinstance(child, Run)]
                 cell_text = "".join(run.text for run in cell_runs)
                 if not cell_text:
                     continue
@@ -502,37 +705,7 @@ def _build_fill_requests(doc_tables: list[dict], ast_tables: list[Table]) -> lis
                 if para_start is None:
                     continue
 
-                cell_requests: list[dict] = []
-                cell_requests.append(
-                    {"insertText": {"location": {"index": para_start}, "text": cell_text}}
-                )
-                # Clear any fontSize inherited from a preceding heading. The cell paragraph
-                # namedStyleType is already NORMAL_TEXT, but when a table is inserted right
-                # after a heading the empty cell paragraphs absorb the heading's character
-                # style. Explicitly clearing fontSize here ensures cells render at Normal Text
-                # size; per-run font_size values are re-applied by the loop below.
-                cell_requests.append(
-                    {
-                        "updateTextStyle": {
-                            "range": {
-                                "startIndex": para_start,
-                                "endIndex": para_start + len(cell_text),
-                            },
-                            "textStyle": {},
-                            "fields": "fontSize",
-                        }
-                    }
-                )
-                offset = 0
-                for run in cell_runs:
-                    run_len = len(run.text)
-                    if run_len > 0:
-                        style_reqs = _run_style_requests(
-                            run, para_start + offset, para_start + offset + run_len
-                        )
-                        cell_requests.extend(style_reqs)
-                    offset += run_len
-
+                cell_requests = _run_group_fill_requests(cell_runs, para_start)
                 all_requests.append((para_start, cell_requests))
 
     all_requests.sort(key=lambda x: x[0], reverse=True)
