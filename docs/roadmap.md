@@ -96,6 +96,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 
 **Defects** _(found after v0.8.1 shipped; too late for that release, don't warrant a standalone patch)_
 - [ ] Bare URLs in markdown content aren't autolinked — Python-Markdown's built-in autolink only fires on `<https://...>` or `[text](url)`, not a bare URL ([#248](https://github.com/khuisman/mcp-gee-sweet/issues/248))
+- [ ] `zip(doc_tables, ast_tables)` in `emitter.py` silently cross-pairs tables when one is skipped (zero-row/zero-col table), misapplying fill/merge/style requests to the wrong table — surfaced during #276's review ([#277](https://github.com/khuisman/mcp-gee-sweet/issues/277))
 
 **Sheets**
 - [ ] `update_borders` — border style, width, color on a range ([#122](https://github.com/khuisman/mcp-gee-sweet/issues/122)) _(freema/mcp-gsheets)_
@@ -130,6 +131,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [ ] `create_shortcut` — create a Drive shortcut to a file ([#141](https://github.com/khuisman/mcp-gee-sweet/issues/141))
 - [ ] `sync_folder` — option to convert markdown files to Google Docs on upload ([#211](https://github.com/khuisman/mcp-gee-sweet/issues/211))
 - [ ] `upload_local_file` with Drive format conversion (CSV→Sheets, MD→Docs) ([#188](https://github.com/khuisman/mcp-gee-sweet/issues/188))
+- [ ] Expose `md5Checksum` in `list_files`/`get_file_metadata` for real content-diffing, and let `sync_folder` diff by checksum instead of/in addition to `modifiedTime` — mtime is unreliable across in-place overwrites, `upload_local_file`'s "now" stamp, and content-preserving regenerations; related to #239 ([#274](https://github.com/khuisman/mcp-gee-sweet/issues/274))
 - [x] Drive Activity API — file change history ([#72](https://github.com/khuisman/mcp-gee-sweet/issues/72))
 
 **Infrastructure**
