@@ -21,6 +21,8 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | DB recovery (issue #212) | Unit-tested in `tests/test_cache.py` `TestOpenFallback` — read-only file, read-only dir, and `:memory:` fallback all covered |
 | Tool doc generation (issue #94) | `scripts/gen_tool_docs.py` is a build-time/pre-commit script, not an MCP tool — no live prompt applies. Unit-tested in `tests/test_gen_tool_docs.py`: every registered tool is covered by a section and has a docstring, subset validation catches unknown tool names, and `main()` is idempotent on a second run |
 | TC-I21 (strict tool arg validation, issue #239) | ✅ Unit-tested in `tests/test_server.py::TestToolStrictArgs` (dummy tool + real `list_sheets`) and live-tested — see Result entry below |
+| TC-I22 (`set_cache_ttl`, issue #99) | Unit-tested in `tests/test_cache.py` (`set_ttl` on all 5 cache classes) — TTL change takes effect on the next lookup without a restart |
+| TC-I23 (`CACHE_VALIDATE_MODIFIED_TIME`, issue #99) | Unit-tested in `tests/test_cache.py` (modified-time comparison in `_get_valid`, `get_modified_time` helper, `fetch_sheets` wiring). Live verification needs an edit path outside the MCP tools' own `mark_dirty` calls (which already invalidate immediately) — see TC-I23 below for the Playwright-based approach |
 
 ---
 
@@ -84,6 +86,46 @@ Restart the MCP server (`docker compose restart mcp-gee-sweet` or stop/start `uv
 - After restart, second call shows `cache hit` in logs (SQLite file survived restart)
 - Data returned matches what was cached before restart
 - 🔍 **Product decision:** stale cache after restart is a known trade-off; note whether this is acceptable for the use case
+
+---
+
+### TC-I22: `set_cache_ttl` — runtime TTL change takes effect without restart (issue #99)
+
+**Prompt** (step 1 — warm the cache, default TTL)
+> "List the sheets in {SPREADSHEET_ID}"
+
+**Prompt** (step 2 — lower the TTL at runtime)
+> "Set the cache TTL to 3 seconds"
+
+**Prompt** (step 3 — confirm the new TTL is honored)
+> "Wait 5 seconds, then list the sheets in {SPREADSHEET_ID} again"
+
+**Checks**
+- Step 2 returns `{"ttl_seconds": 3}`
+- Step 1's call is a cache miss (cold or expired from a prior test) — API fetch, result cached
+- Step 3's call is a cache miss too, despite no server restart between steps — confirms the lowered TTL applied to the already-cached entry once evaluated, not just newly stored ones
+- Restore the TTL after this test: `"Set the cache TTL to 1800"`
+
+---
+
+### TC-I23: `CACHE_VALIDATE_MODIFIED_TIME` — external edit invalidates cache before TTL expires (issue #99)
+
+**Background:** by default, a sheet-structure/data or doc-content cache hit is checked against the source file's live Drive `modifiedTime` before being served. This matters specifically for edits that don't go through this MCP session's own write tools (which already call `mark_dirty` immediately) — e.g. another Claude session, or a person editing the file directly in the Sheets/Docs UI.
+
+**Setup**
+1. Warm the cache: "List the sheets in {SPREADSHEET_ID}"
+2. Using the browser (Playwright), open {SPREADSHEET_ID} in the Sheets UI and rename one sheet tab directly (not through any MCP tool) — this changes Drive's `modifiedTime` without calling `mark_dirty`.
+
+**Prompt**
+> "List the sheets in {SPREADSHEET_ID}"
+
+**Checks**
+- The renamed sheet's new title is reflected in the result, even though `CACHE_TTL` has not elapsed since step 1 — the `modifiedTime` mismatch invalidated the cache entry immediately
+- Logs show a lightweight `files.get` call (`fields=modifiedTime`) preceding the decision, distinct from the fuller `spreadsheets.get` fetch that follows on the resulting miss
+
+Note: Playwright is used here only as the mechanism to make an edit outside the MCP tool surface (step 2 of Setup) — the actual pass/fail check is a plain API-response comparison, not a visual confirmation. Doesn't fit the existing `Playwright: required` tag definition (visual mutation the API can't confirm), so left untagged; flagging in case this is a second, distinct case the tag convention should eventually cover.
+
+**Cleanup:** rename the sheet back to its original name.
 
 ---
 
