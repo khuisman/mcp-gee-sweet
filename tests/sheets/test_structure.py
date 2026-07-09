@@ -237,6 +237,84 @@ class TestCopySheet:
         assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
 
 
+class TestDuplicateSheet:
+    def _sheets_service(self, sheet_id=0, reply_props=None):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": [
+                {
+                    "duplicateSheet": {
+                        "properties": reply_props
+                        or {"sheetId": 99, "title": "Copy of Sheet1", "index": 1}
+                    }
+                }
+            ]
+        }
+        return mock
+
+    def _cache_with_sheet(self, title="Sheet1", sheet_id=0):
+        cache = MagicMock()
+        cache.get_sheets.return_value = [SheetInfo(title=title, sheet_id=sheet_id)]
+        return cache
+
+    def _request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["duplicateSheet"]
+
+    def test_sends_duplicate_sheet_request_with_source_id(self):
+        svc = self._sheets_service(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        assert self._request(svc) == {"sourceSheetId": 7}
+
+    def test_new_name_included_when_given(self):
+        svc = self._sheets_service(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["duplicate_sheet"](
+            spreadsheet_id="ss1", sheet="Sheet1", new_name="My Copy", ctx=ctx
+        )
+        assert self._request(svc)["newSheetName"] == "My Copy"
+
+    def test_insert_index_included_when_given(self):
+        svc = self._sheets_service(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["duplicate_sheet"](
+            spreadsheet_id="ss1", sheet="Sheet1", insert_index=3, ctx=ctx
+        )
+        assert self._request(svc)["insertSheetIndex"] == 3
+
+    def test_omits_optional_fields_when_not_given(self):
+        svc = self._sheets_service(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        request = self._request(svc)
+        assert "newSheetName" not in request
+        assert "insertSheetIndex" not in request
+
+    def test_returns_new_sheet_info(self):
+        svc = self._sheets_service(
+            sheet_id=7, reply_props={"sheetId": 99, "title": "Copy of Sheet1", "index": 2}
+        )
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        result = _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        assert result == {
+            "sheetId": 99,
+            "title": "Copy of Sheet1",
+            "index": 2,
+            "spreadsheetId": "ss1",
+        }
+
+    def test_returns_error_when_source_sheet_not_found(self):
+        svc = self._sheets_service(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(title="Other", sheet_id=7))
+        result = _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Missing", ctx=ctx)
+        assert result == {"error": "Sheet 'Missing' not found"}
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+
 class TestDeleteSheet:
     def _sheets_service(self, sheet_id=7):
         mock = MagicMock()

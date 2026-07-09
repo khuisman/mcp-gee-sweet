@@ -124,6 +124,62 @@ def register(tool):
         lc.cache.mark_dirty(dst_spreadsheet)
         return result
 
+    @tool(annotations=ToolAnnotations(title="Duplicate Sheet", destructiveHint=True))
+    def duplicate_sheet(
+        spreadsheet_id: str,
+        sheet: str,
+        new_name: str | None = None,
+        insert_index: int | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Duplicate a sheet tab within the same spreadsheet.
+
+        Distinct from copy_sheet, which copies a sheet across spreadsheets.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet
+            sheet: The name of the sheet to duplicate
+            new_name: Optional title for the new sheet. Defaults to Google's
+                auto-generated name (e.g. "Copy of Sheet1") if omitted.
+            insert_index: Optional 0-based tab position for the new sheet.
+                Defaults to immediately after the source sheet if omitted.
+
+        Returns:
+            Information about the newly created sheet
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        duplicate_request: dict[str, Any] = {"sourceSheetId": sheet_id}
+        if insert_index is not None:
+            duplicate_request["insertSheetIndex"] = insert_index
+        if new_name is not None:
+            duplicate_request["newSheetName"] = new_name
+
+        result = (
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": [{"duplicateSheet": duplicate_request}]},
+            )
+            .execute()
+        )
+
+        lc.cache.mark_dirty(spreadsheet_id)
+
+        new_sheet_props = result["replies"][0]["duplicateSheet"]["properties"]
+        return {
+            "sheetId": new_sheet_props["sheetId"],
+            "title": new_sheet_props["title"],
+            "index": new_sheet_props.get("index"),
+            "spreadsheetId": spreadsheet_id,
+        }
+
     @tool(annotations=ToolAnnotations(title="Rename Sheet", destructiveHint=True))
     def rename_sheet(
         spreadsheet: str, sheet: str, new_name: str, ctx: Context = None
