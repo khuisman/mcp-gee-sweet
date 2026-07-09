@@ -114,6 +114,9 @@ Restart the MCP server (`docker compose restart mcp-gee-sweet` or stop/start `uv
 - Step 4's call is a cache miss too, despite no server restart between steps — confirms the lowered TTL applied to the already-cached entry once evaluated, not just newly stored ones
 - Restore the TTL after this test: `"Set the cache TTL to 1800"`
 
+**Result (2026-07-08) ✅ PASS**
+Ran all 5 steps live against `TEST_SPREADSHEET_ID`. Step 0: `get_cache_ttl` → `{"ttl_seconds": 1800}`. Step 1: `list_sheets` cache miss, warmed. Step 2: `set_cache_ttl(3)` → `{"ttl_seconds": 3}`; log emitted `WARNING mcp_gee_sweet.tools.cache Cache TTL changed process-wide 1800s -> 3s (affects all concurrent sessions)`. Step 3: `get_cache_ttl` → `{"ttl_seconds": 3}`, immediate readback confirmed. Step 4: after a 5s wait, `list_sheets` again — log showed `Cache TTL expired for <id>, marking dirty` followed by a fresh `Cached 4 sheets`, confirming the lowered TTL applied retroactively to the already-cached entry. Restored TTL to 1800 (`get_cache_ttl` confirmed).
+
 ---
 
 ### TC-I23: `CACHE_VALIDATE_MODIFIED_TIME` — external edit invalidates cache before TTL expires (issue #99)
@@ -134,6 +137,13 @@ Restart the MCP server (`docker compose restart mcp-gee-sweet` or stop/start `uv
 Note: Playwright is used here only as the mechanism to make an edit outside the MCP tool surface (step 2 of Setup) — the actual pass/fail check is a plain API-response comparison, not a visual confirmation. Doesn't fit the existing `Playwright: required` tag definition (visual mutation the API can't confirm), so left untagged; flagging in case this is a second, distinct case the tag convention should eventually cover.
 
 **Cleanup:** rename the sheet back to its original name.
+
+**Result (2026-07-08) ✅ PASS**
+Warmed the structure cache via `list_sheets("BrandNew"...)`, then used Playwright to rename the "BrandNew" tab to "BrandNewRenamedQA" directly in the Sheets UI. Immediate `list_sheets` call (no wait, `CACHE_TTL` at default 1800s) returned the new name. Log showed `DEBUG mcp_gee_sweet.cache Source modified since cache for <id>, marking dirty` — the modifiedTime-mismatch path, distinct from the `Cache TTL expired` path — immediately followed by a fresh `Cached 4 sheets`. Renamed back via Playwright; confirmed reverted.
+
+**Supplementary live check (2026-07-08) — cache-poisoning regression from code review, not a scripted TC:** the code review on this PR's first pass (before the `6d4a59b` fix) found that `_get_sheet_id` (backing ~11 write-path tools: `add_rows`, `rename_sheet`, `format_cells`, etc.) called `fetch_sheets()` without `drive_service`, storing the shared structure-cache row with `modified_time=None` — silently disabling staleness detection for *all* subsequent readers of that spreadsheet, including `list_sheets`. Verified the fix closes this end-to-end: `refresh_cache` (cold) → `freeze(sheet="EmptyRenamedQA")` (write-path call, cache MISS/STORE) → renamed "EmptyRenamedQA" back to "Empty" via Playwright → `list_sheets` (read-path, no explicit refresh) immediately returned `"Empty"`, with the log showing `Source modified since cache... marking dirty` right after the write-path's own store. Confirms the write-path cache entry now carries a valid `modified_time`, so it no longer poisons reads by other tools.
+
+TC-I22/TC-I23 (issue #99) are the only mandatory live QA cases for this PR (see `git diff origin/develop...HEAD -- docs/qa/tests/`). No existing test case directly exercises the `_get_sheet_id`/write-path fix or `get_multiple_spreadsheet_summary`'s per-sheet `modified_time` fix — the supplementary check above covers the more severe of the two live; the `get_multiple_spreadsheet_summary` gap is lower-risk (confirmed correct by code trace + unit tests, not independently live-verified here).
 
 ---
 
