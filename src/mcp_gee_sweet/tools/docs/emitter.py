@@ -199,14 +199,16 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
       3. Fill plain cells (no nested table) — insertText + updateTextStyle, high→low
       4. Fill cells with a nested table, segment by segment (see
          _fill_nested_cell_content) — text and tables in true source order,
-         recursing into any depth of further nesting
+         recursing into any depth of further nesting. Each nested table's own
+         merges are handled by _fill_table_fully, mirroring phase 2 above (#109).
       5. Emit updateTableColumnProperties for tables with col_widths
       6. If any cell has Phase 3 style fields: emit updateTableCellStyle
 
-    Nested table limitations: no colspan/rowspan or col_widths inside nested
-    tables. Text sharing a cell with one or more nested tables (#108, #275) is
-    fully supported — each run of text and each nested table renders in the
-    same order it appeared in the source, at any nesting depth.
+    Nested table limitations: no col_widths inside nested tables. colspan/
+    rowspan (#109) and text sharing a cell with one or more nested tables
+    (#108, #275) are both fully supported, at any nesting depth — each run of
+    text, merge, and nested table renders in the same order and shape it had
+    in the source.
     """
     if not tables:
         return
@@ -552,12 +554,13 @@ def _fill_children_recursive(
 
 
 def _fill_table_fully(docs_service, doc_id: str, resolve, ast_table: Table) -> None:
-    """Fill one (typically just-inserted) table's cells: plain cells in bulk,
-    cells with a further nested table via the recursive round algorithm.
+    """Fill one (typically just-inserted) table's cells: merges first, then
+    plain cells in bulk, then cells with a further nested table via the
+    recursive round algorithm.
 
     Every nested table needs this — not just ones with further nesting — since
-    a nested table's own plain-text cells are never touched by the top-level
-    _build_fill_requests bulk pass (that only sees the outer tables list).
+    a nested table's own plain-text cells (and merges) are never touched by the
+    top-level fill_tables passes (those only see the outer tables list).
     """
     live_doc = docs_service.documents().get(documentId=doc_id).execute()
     doc_tables = resolve(live_doc)
@@ -568,6 +571,25 @@ def _fill_table_fully(docs_service, doc_id: str, resolve, ast_table: Table) -> N
             doc_id,
         )
         return
+
+    has_merges = any(
+        cell.colspan > 1 or cell.rowspan > 1 for row in ast_table.rows for cell in row.cells
+    )
+    if has_merges:
+        merge_requests = _build_merge_requests(doc_tables, [ast_table])
+        if merge_requests:
+            docs_service.documents().batchUpdate(
+                documentId=doc_id, body={"requests": merge_requests}
+            ).execute()
+            live_doc = docs_service.documents().get(documentId=doc_id).execute()
+            doc_tables = resolve(live_doc)
+            if not doc_tables or doc_tables[0] is None:
+                logger.debug(
+                    "_fill_table_fully: nested table vanished after merge in live doc %s — "
+                    "skipping fill for this table (it will render as an empty shell)",
+                    doc_id,
+                )
+                return
 
     fill_requests = _build_fill_requests(doc_tables, [ast_table])
     if fill_requests:
