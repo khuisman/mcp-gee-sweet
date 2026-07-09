@@ -1020,6 +1020,24 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
+### TC-DOC89: Degenerate table (row with no cells) followed by a real table doesn't desync content (issue #277)
+
+**Background:** `ast_to_requests` skips emitting an `insertTable` request for a table with zero rows or zero columns (e.g. a `<tr>` with no `<td>`s), but was still counting that table in the list it hands to `fill_tables()`. Since `fill_tables()` pairs AST tables against live-doc tables positionally, a skipped table shifted every later table's fill/merge/style requests onto the wrong doc table — silently, with no error. Fixed by excluding degenerate tables from that list at the source.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<table><tr></tr></table><table><tr><td>A</td><td>B</td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows exactly **one** table in the doc (the empty-row table produces no table element at all)
+- That table is `columns: 2` with cell [0,0] text "A" and cell [0,1] text "B" — not empty, not misapplied, not offset onto the wrong table
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-09) ✅ PASS**
+
+---
+
 ### TC-DOC52: `get_doc_theme` scans body paragraph styles
 **Note:** `get_doc_theme` reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.
 
