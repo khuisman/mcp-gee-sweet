@@ -7,7 +7,7 @@ Review the current branch against this checklist and report the status of each i
 - [ ] **Unit tests written** — are there new tests in `tests/` covering the changed code?
 - [ ] **Unit tests passing** — has `uv run python -m pytest tests/` been run and passed?
 - [ ] **Regression coverage** — were tests that touch the modified files (not just new tests) also run?
-- [ ] **QA test cases written** — are there AI-driven test cases in `docs/qa/tests/` for the new/changed tools?
+- [ ] **QA test cases written** — are there AI-driven test cases in `docs/qa/tests/` covering the changed behavior? This applies beyond new tools: a change to shared internal code under `src/mcp_gee_sweet/tools/` (e.g. `docs/emitter.py`, `sheets/helpers.py`) that alters what a live tool call produces needs a test case too — a unit test alone confirms the function's internal contract, not the real API output. If this is a bug fix, the test case should reproduce the regression scenario itself, not just spot-check the tool's happy path.
 
 **Live QA execution is out of scope for this checklist.** If this session is a worker in a `.claude/worktrees/*` checkout, running live QA tools here would exercise the main checkout's code, not this branch's changes — the result would look real but prove nothing. Do not run live tests and do not write `**Result**` entries from a worktree. That happens in the orchestrator's `/verify-pr` pass after the PR is open, in the main checkout, where the branch's actual code is reachable by the live MCP tools. Leave the `**Result**` line off new/changed test cases entirely — don't stub it as "pending," just omit it so `/verify-pr` adds the first real one.
 

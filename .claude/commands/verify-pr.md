@@ -4,7 +4,7 @@ CI (the "Lint and test" check `/merge-pr` already gates on) covers unit tests. I
 
 1. **Preconditions.** Confirm this session is in the main checkout, not a worktree (same check as `/orchestrator` step 1). If the main checkout has uncommitted changes, stop and ask the user how to proceed — don't stash or discard anything.
 
-2. **Identify the PR.** Take a PR number as an argument if given, otherwise use `gh pr list --state open` and ask the user which one if there's more than one. Get its details: `gh pr view <number> --json number,title,url,headRefName,baseRefName,statusCheckRollup`.
+2. **Identify the PR.** Take a PR number as an argument if given, otherwise use `gh pr list --state open` and ask the user which one if there's more than one. Get its details: `gh pr view <number> --json number,title,url,headRefName,baseRefName,statusCheckRollup,mergeable,mergeStateStatus`. If `mergeable` is `CONFLICTING`, stop here — report it and say the branch needs a rebase onto `<baseRefName>` before verification is worth doing. Don't spend code-review or live-QA effort on a branch that can't merge as-is; that cost is only worth paying once it's rebased.
 
 3. **Check out the branch.** `gh pr checkout <number>`. This fetches and switches the main checkout to the PR's branch directly (no worktree needed — the orchestrator owns the main checkout).
 
