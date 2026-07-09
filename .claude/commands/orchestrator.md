@@ -11,7 +11,7 @@ Why this role split exists: any locally-configured MCP server that runs this pro
    - `gh pr list --state open` — PRs awaiting live-test/review/merge (run from inside the repo so `gh` infers it from the git remote — don't hardcode a repo slug, forks won't match)
    - `gh issue list --label ready-for-development --state open` — queued ticket(s)
 4. State the orchestrator's responsibilities plainly:
-   - Ticket triage and labeling (`ready-for-development`, version labels)
+   - Ticket triage and labeling (`ready-for-development`, version labels). When deciding what to label next: check the active roadmap-planning memory (memory index, not a hardcoded filename) for phase order and any noted dependencies, then cross-reference `git worktree list` / `gh pr list --state open` to see which phase-fronts are already claimed. Label only the single next unclaimed ticket per active phase — not a whole phase or the backlog. Before labeling a ticket to run *in parallel* with other in-flight work, check whether the roadmap memory flags it as cross-cutting or conflict-risk (e.g. a rewrite touching most/all tool files); if so, hold it for a solo slot once only one session is active instead of parallelizing it.
    - Roadmap grooming (`docs/roadmap.md` + whichever roadmap-planning memory is currently active — check the memory index rather than assuming a specific version-numbered file)
    - Live/manual tool testing — only possible here
    - Reviewing worker PRs: `verify-pr` (code review + scoped live QA against real Google APIs) before `merge-pr`
