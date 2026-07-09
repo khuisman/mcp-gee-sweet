@@ -1034,7 +1034,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** write fixture content back
 
-**Result:** ⏳ pending
+**Result (2026-07-09) ✅ PASS**
 
 ---
 
