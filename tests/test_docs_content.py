@@ -8,6 +8,7 @@ from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools import response_limits
+from mcp_gee_sweet.tools.docs import content as content_module
 from mcp_gee_sweet.tools.docs.ast import (
     BulletItem,
     Paragraph,
@@ -754,6 +755,56 @@ class TestGetDocContent:
         assert result["id"] == "doc1"
         written = json.loads(dest.read_text())
         assert written["content"] == "x" * 1000
+
+
+class TestGetDocContentModifiedTimeValidation:
+    """Regression test (issue #99 review): get_doc_content used to make two
+    separate Drive files().get() calls on every cache miss when
+    CACHE_VALIDATE_MODIFIED_TIME was enabled — one lightweight modifiedTime-only
+    call to check for a cache hit, then a second, redundant full-metadata call
+    that already includes modifiedTime. Fixed to reuse the first call's result.
+    """
+
+    def _drive_svc(self, content=b"hello world"):
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = {
+            "id": "doc1",
+            "name": "Test Doc",
+            "modifiedTime": "2026-01-01T00:00:00Z",
+            "webViewLink": "https://example.com/doc1",
+        }
+        svc.files.return_value.export.return_value.execute.return_value = content
+        return svc
+
+    def test_cache_miss_makes_a_single_metadata_call(self, monkeypatch):
+        monkeypatch.setattr(content_module, "CACHE_VALIDATE_MODIFIED_TIME", True)
+        drive_svc = self._drive_svc()
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            doc_cache=MagicMock(get=MagicMock(return_value=None)),
+        )
+
+        result = _docs_tools["get_doc_content"](file_id="doc1", ctx=ctx)
+
+        assert result["content"] == "hello world"
+        assert drive_svc.files.return_value.get.call_count == 1
+
+    def test_cache_hit_makes_a_single_metadata_call_and_no_export(self, monkeypatch):
+        monkeypatch.setattr(content_module, "CACHE_VALIDATE_MODIFIED_TIME", True)
+        drive_svc = self._drive_svc()
+        cached_result = {
+            "id": "doc1",
+            "content": "cached",
+            "modified_time": "2026-01-01T00:00:00Z",
+        }
+        doc_cache = MagicMock(get=MagicMock(return_value=cached_result))
+        ctx = _make_ctx(drive_service=drive_svc, doc_cache=doc_cache)
+
+        result = _docs_tools["get_doc_content"](file_id="doc1", ctx=ctx)
+
+        assert result["content"] == "cached"
+        assert drive_svc.files.return_value.get.call_count == 1
+        drive_svc.files.return_value.export.assert_not_called()
 
 
 class TestWriteDocContent:

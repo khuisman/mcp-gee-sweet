@@ -21,7 +21,7 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | DB recovery (issue #212) | Unit-tested in `tests/test_cache.py` `TestOpenFallback` — read-only file, read-only dir, and `:memory:` fallback all covered |
 | Tool doc generation (issue #94) | `scripts/gen_tool_docs.py` is a build-time/pre-commit script, not an MCP tool — no live prompt applies. Unit-tested in `tests/test_gen_tool_docs.py`: every registered tool is covered by a section and has a docstring, subset validation catches unknown tool names, and `main()` is idempotent on a second run |
 | TC-I21 (strict tool arg validation, issue #239) | ✅ Unit-tested in `tests/test_server.py::TestToolStrictArgs` (dummy tool + real `list_sheets`) and live-tested — see Result entry below |
-| TC-I22 (`set_cache_ttl`, issue #99) | Unit-tested in `tests/test_cache.py` (`set_ttl` on all 5 cache classes) — TTL change takes effect on the next lookup without a restart |
+| TC-I22 (`set_cache_ttl`/`get_cache_ttl`, issue #99) | Unit-tested in `tests/test_cache.py` (`set_ttl`/`get_ttl` on all 5 cache classes) — TTL change takes effect on the next lookup without a restart, and is readable back |
 | TC-I23 (`CACHE_VALIDATE_MODIFIED_TIME`, issue #99) | Unit-tested in `tests/test_cache.py` (modified-time comparison in `_get_valid`, `get_modified_time` helper, `fetch_sheets` wiring). Live verification needs an edit path outside the MCP tools' own `mark_dirty` calls (which already invalidate immediately) — see TC-I23 below for the Playwright-based approach |
 
 ---
@@ -89,7 +89,10 @@ Restart the MCP server (`docker compose restart mcp-gee-sweet` or stop/start `uv
 
 ---
 
-### TC-I22: `set_cache_ttl` — runtime TTL change takes effect without restart (issue #99)
+### TC-I22: `set_cache_ttl`/`get_cache_ttl` — runtime TTL change takes effect without restart (issue #99)
+
+**Prompt** (step 0 — record the starting TTL, to restore later)
+> "What's the current cache TTL?"
 
 **Prompt** (step 1 — warm the cache, default TTL)
 > "List the sheets in {SPREADSHEET_ID}"
@@ -97,13 +100,18 @@ Restart the MCP server (`docker compose restart mcp-gee-sweet` or stop/start `uv
 **Prompt** (step 2 — lower the TTL at runtime)
 > "Set the cache TTL to 3 seconds"
 
-**Prompt** (step 3 — confirm the new TTL is honored)
+**Prompt** (step 3 — confirm the new TTL is readable back)
+> "What's the current cache TTL now?"
+
+**Prompt** (step 4 — confirm the new TTL is honored)
 > "Wait 5 seconds, then list the sheets in {SPREADSHEET_ID} again"
 
 **Checks**
+- Step 0 returns `{"ttl_seconds": 1800}` (the default, assuming no prior test left it changed)
 - Step 2 returns `{"ttl_seconds": 3}`
+- Step 3 returns `{"ttl_seconds": 3}` — `get_cache_ttl` reflects the change immediately
 - Step 1's call is a cache miss (cold or expired from a prior test) — API fetch, result cached
-- Step 3's call is a cache miss too, despite no server restart between steps — confirms the lowered TTL applied to the already-cached entry once evaluated, not just newly stored ones
+- Step 4's call is a cache miss too, despite no server restart between steps — confirms the lowered TTL applied to the already-cached entry once evaluated, not just newly stored ones
 - Restore the TTL after this test: `"Set the cache TTL to 1800"`
 
 ---

@@ -9,12 +9,14 @@ from mcp_gee_sweet.cache import (
     SheetDataCache,
     SheetInfo,
     SheetStructureCache,
+    _env_flag,
     _open,
     _safe_fetchone,
     _safe_write,
     fetch_sheets,
     get_modified_time,
 )
+from mcp_gee_sweet.tools.sheets.helpers import _get_sheet_id
 
 # All tests use an in-memory SQLite database.
 DB = ":memory:"
@@ -371,6 +373,27 @@ class TestGetModifiedTime:
         assert get_modified_time(FakeDriveService(), "fid") is None
 
 
+class TestEnvFlag:
+    """CACHE_VALIDATE_MODIFIED_TIME uses an allowlist of truthy values, not a
+    denylist of falsy ones — an unrecognized/misspelled value like "off" or
+    "disabled" must fall back to disabled, not silently stay enabled."""
+
+    def test_recognized_truthy_values(self, monkeypatch):
+        for value in ("true", "TRUE", "1", "yes", "y", "on", " True "):
+            monkeypatch.setenv("TEST_FLAG", value)
+            assert _env_flag("TEST_FLAG", "false") is True, value
+
+    def test_recognized_falsy_and_unrecognized_values(self, monkeypatch):
+        for value in ("false", "0", "no", "off", "disabled", "banana"):
+            monkeypatch.setenv("TEST_FLAG", value)
+            assert _env_flag("TEST_FLAG", "true") is False, value
+
+    def test_uses_default_when_unset(self, monkeypatch):
+        monkeypatch.delenv("TEST_FLAG", raising=False)
+        assert _env_flag("TEST_FLAG", "true") is True
+        assert _env_flag("TEST_FLAG", "false") is False
+
+
 class TestCalendarCacheSetTtl:
     def test_set_ttl_shortens_window_for_existing_entry(self):
         cache = CalendarCache(db_path=DB, ttl=60)
@@ -378,6 +401,12 @@ class TestCalendarCacheSetTtl:
         cache.set_ttl(0)
         time.sleep(0.01)
         assert cache.get_list() is None
+
+    def test_get_ttl_returns_current_value(self):
+        cache = CalendarCache(db_path=DB, ttl=60)
+        assert cache.get_ttl() == 60
+        cache.set_ttl(5)
+        assert cache.get_ttl() == 5
 
 
 class _FakeSheetsService:
@@ -432,6 +461,33 @@ class TestFetchSheetsModifiedTimeValidation:
         result = fetch_sheets(_FakeSheetsService(), "sid", cache)
 
         assert result[0].title == "Old"
+
+
+class TestGetSheetIdModifiedTimePropagation:
+    """Regression test (issue #99 review): _get_sheet_id is the sheet-name-to-ID
+    resolver used by ~11 write-path tools (add_rows, format_cells, rename_sheet,
+    etc.), all sharing the same SheetStructureCache row per spreadsheet_id as the
+    read-path tools (list_sheets, find_in_spreadsheet). It originally called
+    fetch_sheets() without drive_service, so any write-path lookup that missed
+    the cache re-stored the row with modified_time absent from the JSON value —
+    silently disabling staleness detection for every subsequent reader of that
+    spreadsheet, since a None-vs-anything comparison always skips the check.
+    """
+
+    def test_write_path_lookup_refreshes_modified_time_tag_on_miss(self):
+        cache = SheetStructureCache(db_path=DB, ttl=1000)
+        cache.store("sid", [SheetInfo(title="Old", sheet_id=0)], modified_time="v1")
+        cache.mark_dirty("sid")  # force the next lookup to be a genuine miss
+
+        sheet_id = _get_sheet_id(_FakeSheetsService(), "sid", "New", cache, _FakeDriveService())
+
+        assert sheet_id == 1
+        # The row was re-stored with a real modified_time ("v2", from
+        # _FakeDriveService) rather than silently omitting the key.
+        assert cache.get_sheets("sid", current_modified_time="v2") is not None
+        # A later genuine edit (v3) is still detected — the exact capability this
+        # bug defeated when drive_service wasn't threaded through.
+        assert cache.get_sheets("sid", current_modified_time="v3") is None
 
 
 class TestSharedDb:

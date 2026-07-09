@@ -305,11 +305,20 @@ def register(tool):
                         "error": None,
                     }
 
+                    # Fetched per sheet, not reused from the structure-check above:
+                    # each sheet's data is fetched via its own later API call in this
+                    # loop, so tagging it with the mtime captured before the loop
+                    # started could under-represent how fresh it actually is.
+                    sheet_mtime = (
+                        get_modified_time(drive_service, spreadsheet_id)
+                        if CACHE_VALIDATE_MODIFIED_TIME
+                        else None
+                    )
                     cached = data_cache.get(
                         spreadsheet_id,
                         sheet_info.sheet_id,
                         rows_to_fetch,
-                        current_modified_time=current_mtime,
+                        current_modified_time=sheet_mtime,
                     )
                     if cached is not None:
                         sheet_summary["headers"] = cached["headers"]
@@ -337,7 +346,7 @@ def register(tool):
                             headers,
                             first_rows,
                             rows_to_fetch,
-                            modified_time=current_mtime,
+                            modified_time=sheet_mtime,
                         )
                     except Exception as sheet_e:
                         sheet_summary["error"] = (

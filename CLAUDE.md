@@ -46,7 +46,7 @@ Logic is split across `src/mcp_gee_sweet/`: `server.py` (MCP setup, tool decorat
   - `docs/ast.py` — dataclass schema
   - `docs/html_parser.py` — HTML→AST
   - `docs/emitter.py` — AST→Docs API requests + multi-phase table fill including nested table and cell styling support
-- `tools/cache.py` — `refresh_cache`, `set_cache_ttl` (runtime TTL change, no restart needed)
+- `tools/cache.py` — `refresh_cache`, `set_cache_ttl`/`get_cache_ttl` (runtime TTL change, no restart needed)
 - `tools/calendar.py` — Calendar API tools
 - `tools/response_limits.py` — shared response-size safety net (`enforce_response_size_cap`, `write_capped_result_to_disk`); imported cross-package the same way `tools/drive/__init__.py`'s `_SA_QUOTA_ERROR` is. Cap configured via `MAX_TOOL_RESPONSE_CHARS` (default 40000); see `docs/decisions/decision-response-size-cap-generalization.md`
 
