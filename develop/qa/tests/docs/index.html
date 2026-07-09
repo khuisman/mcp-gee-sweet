@@ -1986,6 +1986,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#tc-doc89-degenerate-table-row-with-no-cells-followed-by-a-real-table-doesnt-desync-content-issue-277" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC89: Degenerate table (row with no cells) followed by a real table doesn't desync content (issue #277)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tc-doc52-get_doc_theme-scans-body-paragraph-styles" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3417,6 +3428,19 @@
 - <code>get_doc_structure</code> shows the table with <code>columns: 2</code> (not 1 or a broken/merged layout) — cell [0,0] text "Wide", cell [0,1] text "Next"</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
 <p><strong>Result (2026-07-07) ✅ PASS</strong> <code>get_doc_structure</code> shows <code>columns: 2</code>, cell [0,0] <code>text: "Wide"</code>, cell [0,1] <code>text: "Next"</code> — <code>colspan="0"</code> clamped to 1 and rendered as two normal side-by-side cells.</p>
+<hr />
+<h3 id="tc-doc89-degenerate-table-row-with-no-cells-followed-by-a-real-table-doesnt-desync-content-issue-277">TC-DOC89: Degenerate table (row with no cells) followed by a real table doesn't desync content (issue #277)<a class="headerlink" href="#tc-doc89-degenerate-table-row-with-no-cells-followed-by-a-real-table-doesnt-desync-content-issue-277" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>ast_to_requests</code> skips emitting an <code>insertTable</code> request for a table with zero rows or zero columns (e.g. a <code>&lt;tr&gt;</code> with no <code>&lt;td&gt;</code>s), but was still counting that table in the list it hands to <code>fill_tables()</code>. Since <code>fill_tables()</code> pairs AST tables against live-doc tables positionally, a skipped table shifted every later table's fill/merge/style requests onto the wrong doc table — silently, with no error. Fixed by excluding degenerate tables from that list at the source.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;/tr&gt;&lt;/table&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;A&lt;/td&gt;&lt;td&gt;B&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows exactly <strong>one</strong> table in the doc (the empty-row table produces no table element at all)
+- That table is <code>columns: 2</code> with cell [0,0] text "A" and cell [0,1] text "B" — not empty, not misapplied, not offset onto the wrong table</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-09) ✅ PASS</strong></p>
 <hr />
 <h3 id="tc-doc52-get_doc_theme-scans-body-paragraph-styles">TC-DOC52: <code>get_doc_theme</code> scans body paragraph styles<a class="headerlink" href="#tc-doc52-get_doc_theme-scans-body-paragraph-styles" title="Permanent link">&para;</a></h3>
 <p><strong>Note:</strong> <code>get_doc_theme</code> reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.</p>
