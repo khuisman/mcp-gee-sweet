@@ -95,8 +95,8 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 ### Tier 2 — Useful for structured work, plus defects surfaced since v0.8.1 _(target: [v0.9.0](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9))_
 
 **Defects** _(found after v0.8.1 shipped; too late for that release, don't warrant a standalone patch)_
-- [ ] Bare URLs in markdown content aren't autolinked — Python-Markdown's built-in autolink only fires on `<https://...>` or `[text](url)`, not a bare URL ([#248](https://github.com/khuisman/mcp-gee-sweet/issues/248))
-- [ ] `zip(doc_tables, ast_tables)` in `emitter.py` silently cross-pairs tables when one is skipped (zero-row/zero-col table), misapplying fill/merge/style requests to the wrong table — surfaced during #276's review ([#277](https://github.com/khuisman/mcp-gee-sweet/issues/277))
+- [x] Bare URLs in markdown content aren't autolinked — Python-Markdown's built-in autolink only fires on `<https://...>` or `[text](url)`, not a bare URL (PR #265) ([#248](https://github.com/khuisman/mcp-gee-sweet/issues/248))
+- [x] `zip(doc_tables, ast_tables)` in `emitter.py` silently cross-pairs tables when one is skipped (zero-row/zero-col table), misapplying fill/merge/style requests to the wrong table — surfaced during #276's review (PR #282) ([#277](https://github.com/khuisman/mcp-gee-sweet/issues/277))
 
 **Sheets**
 - [ ] `update_borders` — border style, width, color on a range ([#122](https://github.com/khuisman/mcp-gee-sweet/issues/122)) _(freema/mcp-gsheets)_
@@ -106,11 +106,11 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [ ] `update_sheet_properties` — tab color, hide/show gridlines ([#126](https://github.com/khuisman/mcp-gee-sweet/issues/126)) _(freema/mcp-gsheets)_
 - [ ] `duplicate_sheet` — copy a sheet within the same spreadsheet ([#127](https://github.com/khuisman/mcp-gee-sweet/issues/127))
 - [ ] Partial (rich-text) hyperlinks in `update_cells` ([#89](https://github.com/khuisman/mcp-gee-sweet/issues/89))
-- [ ] `import_csv_to_sheet` — populate a spreadsheet from a local CSV file ([#187](https://github.com/khuisman/mcp-gee-sweet/issues/187))
+- [x] `import_csv_to_sheet` — populate a spreadsheet from a local CSV file (PR #272) ([#187](https://github.com/khuisman/mcp-gee-sweet/issues/187))
 
 **Calendar**
-- [ ] `create_calendar` / `update_calendar` / `delete_calendar` — calendar lifecycle ([#156](https://github.com/khuisman/mcp-gee-sweet/issues/156))
-- [ ] `add_calendar_to_list` / `remove_calendar_from_list` — subscribe/unsubscribe ([#157](https://github.com/khuisman/mcp-gee-sweet/issues/157))
+- [x] `create_calendar` / `update_calendar` / `delete_calendar` — calendar lifecycle (PR #266) ([#156](https://github.com/khuisman/mcp-gee-sweet/issues/156))
+- [x] `add_calendar_to_list` / `remove_calendar_from_list` — subscribe/unsubscribe (PR #269) ([#157](https://github.com/khuisman/mcp-gee-sweet/issues/157))
 - [ ] Calendar ACL — share a calendar with users or groups ([#158](https://github.com/khuisman/mcp-gee-sweet/issues/158))
 - [ ] `list_all_events` — query all subscribed calendars in parallel _(decision needed — also tracked in Decisions Needed)_ ([#194](https://github.com/khuisman/mcp-gee-sweet/issues/194))
 
@@ -120,7 +120,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [ ] Comments API — list, add, resolve doc comments ([#151](https://github.com/khuisman/mcp-gee-sweet/issues/151))
 - [ ] `create_named_range` / `create_bookmark` — anchor points for internal links ([#152](https://github.com/khuisman/mcp-gee-sweet/issues/152))
 - [ ] Rowspan emitter — AST `Cell.rowspan` field exists but emitter does not yet merge rows ([#195](https://github.com/khuisman/mcp-gee-sweet/issues/195))
-- [ ] Warn/error on mixed text + nested table in same cell ([#108](https://github.com/khuisman/mcp-gee-sweet/issues/108))
+- [x] Warn/error on mixed text + nested table in same cell — shipped as the fuller `Cell.children: list[Run | Table]` ordered model, also fixing trailing-text-after-nested-table ordering ([#275](https://github.com/khuisman/mcp-gee-sweet/issues/275)) in the same PR (PR #276) ([#108](https://github.com/khuisman/mcp-gee-sweet/issues/108))
 - [ ] colspan/rowspan inside nested tables ([#109](https://github.com/khuisman/mcp-gee-sweet/issues/109))
 - [ ] `find_in_doc` — search doc text and return match locations, parallel to `find_in_spreadsheet`; removes the manual index math currently needed to retrofit links (or any style) onto text already in a doc, raised while fixing #248 ([#262](https://github.com/khuisman/mcp-gee-sweet/issues/262))
 
@@ -135,7 +135,8 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [x] Drive Activity API — file change history ([#72](https://github.com/khuisman/mcp-gee-sweet/issues/72))
 
 **Infrastructure**
-- [ ] Cache reliability & configurability — runtime-configurable TTL, smarter invalidation for shared files ([#99](https://github.com/khuisman/mcp-gee-sweet/issues/99)); harden concurrent-session access — fail-open on cache read/write errors, `busy_timeout` ([#234](https://github.com/khuisman/mcp-gee-sweet/issues/234))
+- [x] Harden concurrent-session access — fail-open on cache read/write errors, `busy_timeout` (PR #280) ([#234](https://github.com/khuisman/mcp-gee-sweet/issues/234))
+- [ ] Cache reliability & configurability — runtime-configurable TTL, smarter invalidation for shared files ([#99](https://github.com/khuisman/mcp-gee-sweet/issues/99))
 - [ ] Async tool execution — `asyncio.gather()` for parallel Google API calls; establishes the project's parallel-call pattern, which [#194](https://github.com/khuisman/mcp-gee-sweet/issues/194) should reuse rather than introducing its own `ThreadPoolExecutor` ([#183](https://github.com/khuisman/mcp-gee-sweet/issues/183))
 
 **Documentation**
