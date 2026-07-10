@@ -1478,6 +1478,89 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#duplicate_sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        duplicate_sheet
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="duplicate_sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s51-duplicate-within-the-same-spreadsheet-default-name-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S51: Duplicate within the same spreadsheet, default name ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s52-duplicate-with-a-custom-name-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S52: Duplicate with a custom name ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s53-default-position-lands-immediately-after-the-source-tab-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S53: Default position lands immediately after the source tab ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s54-explicit-insert_index-is-honored-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S54: Explicit insert_index is honored ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s55-source-sheet-not-found" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S55: Source sheet not found
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s56-cache-invalidated-after-duplicate-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S56: Cache invalidated after duplicate ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#rename_sheet" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2258,6 +2341,75 @@
 <p><strong>Checks</strong>
 - <code>list_sheets</code> includes 'PostCopyCache'
 - Confirms <code>cache.mark_dirty(dst_spreadsheet)</code> fires after copy</p>
+<hr />
+<h2 id="duplicate_sheet"><code>duplicate_sheet</code><a class="headerlink" href="#duplicate_sheet" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s51-duplicate-within-the-same-spreadsheet-default-name-destructive">TC-S51: Duplicate within the same spreadsheet, default name ⚠️ destructive<a class="headerlink" href="#tc-s51-duplicate-within-the-same-spreadsheet-default-name-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Duplicate the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New tab appears, named by Google's default (e.g. "Copy of Sales")
+- Data in the new tab matches Sales (6 rows, 4 columns)
+- Original Sales sheet unchanged
+- Response includes <code>sheetId</code>, <code>title</code>, <code>index</code>, <code>spreadsheetId</code></p>
+<p><strong>Result (2026-07-10) ✅ PASS</strong>
+<code>duplicate_sheet(spreadsheet_id, sheet="Sales")</code> → <code>{"sheetId":1766233601,"title":"Copy of Sales","index":1,...}</code>. <code>get_sheet_data</code> on "Copy of Sales" returned matching headers/rows. Deleted after verification.</p>
+<hr />
+<h3 id="tc-s52-duplicate-with-a-custom-name-destructive">TC-S52: Duplicate with a custom name ⚠️ destructive<a class="headerlink" href="#tc-s52-duplicate-with-a-custom-name-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Duplicate the Sales sheet in {SPREADSHEET_ID} and name the copy 'Sales Duplicate'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New tab is named 'Sales Duplicate', not Google's default
+- <code>newSheetName</code> was passed on the same <code>duplicateSheet</code> request (single API call, no follow-up rename)</p>
+<p><strong>Result (2026-07-10) ✅ PASS</strong>
+<code>duplicate_sheet(spreadsheet_id, sheet="Sales", new_name="Sales Duplicate")</code> → title <code>"Sales Duplicate"</code>, confirmed via code that <code>newSheetName</code> is set on the same request body as <code>sourceSheetId</code>. Deleted after verification.</p>
+<hr />
+<h3 id="tc-s53-default-position-lands-immediately-after-the-source-tab-destructive">TC-S53: Default position lands immediately after the source tab ⚠️ destructive<a class="headerlink" href="#tc-s53-default-position-lands-immediately-after-the-source-tab-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Duplicate the Sales sheet in {SPREADSHEET_ID} without specifying a position, then list all sheets"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The new tab appears immediately after 'Sales' in the <code>list_sheets</code> response order
+- 🔍 <strong>Regression:</strong> the Sheets API's own default for <code>duplicateSheet</code> places the copy at tab position 0 regardless of source position (confirmed via live QA on this tool) — the tool must compute and pass <code>insertSheetIndex</code> explicitly to land the copy after the source, matching Sheets UI's native "Duplicate" behavior</p>
+<p><strong>Result (2026-07-10) ✅ PASS</strong>
+<code>duplicate_sheet(spreadsheet_id, sheet="Sales")</code> → index 1. <code>list_sheets</code> → <code>["Sales","Copy of Sales","Empty","Notes &amp; Misc","BrandNew"]</code> — lands immediately after Sales, confirming the regression fix (<code>_get_sheet_index</code> + explicit <code>insertSheetIndex</code>). Deleted after verification.</p>
+<hr />
+<h3 id="tc-s54-explicit-insert_index-is-honored-destructive">TC-S54: Explicit insert_index is honored ⚠️ destructive<a class="headerlink" href="#tc-s54-explicit-insert_index-is-honored-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Duplicate the Sales sheet in {SPREADSHEET_ID}, placing the copy at tab position 0"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The new tab is the first tab in the <code>list_sheets</code> response order
+- Confirms an explicit <code>insert_index</code> overrides the "after source" default</p>
+<p><strong>Result (2026-07-10) ✅ PASS</strong>
+<code>duplicate_sheet(spreadsheet_id, sheet="Sales", insert_index=0)</code> → index 0. <code>list_sheets</code> → <code>["Copy of Sales","Sales",...]</code> — explicit index correctly overrides the default. Deleted after verification.</p>
+<hr />
+<h3 id="tc-s55-source-sheet-not-found">TC-S55: Source sheet not found<a class="headerlink" href="#tc-s55-source-sheet-not-found" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Duplicate a sheet called 'DoesNotExist' in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": ...}</code> before calling the duplicate API
+- Error references the missing sheet name</p>
+<p><strong>Result (2026-07-10) ✅ PASS</strong>
+<code>duplicate_sheet(spreadsheet_id, sheet="DoesNotExist")</code> → <code>{"error": "Sheet 'DoesNotExist' not found"}</code>. No mutation, non-destructive.</p>
+<hr />
+<h3 id="tc-s56-cache-invalidated-after-duplicate-destructive">TC-S56: Cache invalidated after duplicate ⚠️ destructive<a class="headerlink" href="#tc-s56-cache-invalidated-after-duplicate-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Duplicate the Sales sheet in {SPREADSHEET_ID} as 'PostDuplicateCache', then immediately list all sheets"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_sheets</code> includes 'PostDuplicateCache'
+- Confirms <code>cache.mark_dirty(spreadsheet_id)</code> fires after duplicate</p>
+<p><strong>Result (2026-07-10) ✅ PASS</strong>
+<code>duplicate_sheet(spreadsheet_id, sheet="Sales", new_name="PostDuplicateCache")</code> succeeded; immediate <code>list_sheets</code> (no explicit <code>refresh_cache</code>) included <code>"PostDuplicateCache"</code>, confirming <code>mark_dirty</code> fired. Deleted after verification; fixture restored to <code>["Sales","Empty","Notes &amp; Misc","BrandNew"]</code>.</p>
 <hr />
 <h2 id="rename_sheet"><code>rename_sheet</code><a class="headerlink" href="#rename_sheet" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s11-rename-to-a-new-name-destructive">TC-S11: Rename to a new name ⚠️ destructive<a class="headerlink" href="#tc-s11-rename-to-a-new-name-destructive" title="Permanent link">&para;</a></h3>
