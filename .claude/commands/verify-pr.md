@@ -6,7 +6,13 @@ CI (the "Lint and test" check `/merge-pr` already gates on) covers unit tests. I
 
 2. **Identify the PR.** Take a PR number as an argument if given, otherwise use `gh pr list --state open` and ask the user which one if there's more than one. Get its details: `gh pr view <number> --json number,title,url,headRefName,baseRefName,statusCheckRollup,mergeable,mergeStateStatus`. If `mergeable` is `CONFLICTING`, stop here — report it and say the branch needs a rebase onto `<baseRefName>` before verification is worth doing. Don't spend code-review or live-QA effort on a branch that can't merge as-is; that cost is only worth paying once it's rebased.
 
-3. **Check out the branch.** `gh pr checkout <number>`. This fetches and switches the main checkout to the PR's branch directly (no worktree needed — the orchestrator owns the main checkout).
+3. **Check out the branch.** Don't use `gh pr checkout <number>` directly — if the worker's own worktree still has `<headRefName>` checked out (the normal case while that worker session is active), it fails with "already checked out," and the only recovery `gh` offers is unlocking/removing that worktree, which disrupts the worker for no reason. Git only blocks two worktrees from sharing the same branch *name*, not the same commit — so fetch the PR's branch into a locally-named review branch instead:
+   ```
+   git fetch origin <headRefName>:review/<headRefName> --force
+   git checkout review/<headRefName>
+   git branch --set-upstream-to=origin/<headRefName> review/<headRefName>
+   ```
+   This points the main checkout at the exact same commit without touching the worker's worktree at all. The `--set-upstream-to` matters: without it, `gh pr view`/`gh pr merge` with no PR number can't map the local `review/<headRefName>` branch back to the PR later (their current-branch auto-detection relies on tracked-branch info, not name matching) — `/merge-pr` should also be run with the PR number as an explicit argument here rather than relying on that auto-detection. When pushing QA-result commits later (step 9), push to the PR's real branch name via a refspec: `git push origin review/<headRefName>:<headRefName>`. Delete the local `review/<headRefName>` branch once you're done with this PR (switch away first, then `git branch -D review/<headRefName>`) so it doesn't accumulate across sessions.
 
 4. **Reconnect the MCP server.** The server hot-reloads on file change, but this Claude session's MCP connection stays on the old process. Tell the user to run:
    ```
