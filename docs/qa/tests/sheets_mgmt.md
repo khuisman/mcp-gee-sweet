@@ -138,6 +138,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Original Sales sheet unchanged
 - Response includes `sheetId`, `title`, `index`, `spreadsheetId`
 
+**Result (2026-07-10) ✅ PASS**
+`duplicate_sheet(spreadsheet_id, sheet="Sales")` → `{"sheetId":1766233601,"title":"Copy of Sales","index":1,...}`. `get_sheet_data` on "Copy of Sales" returned matching headers/rows. Deleted after verification.
+
 ---
 
 ### TC-S52: Duplicate with a custom name ⚠️ destructive
@@ -148,6 +151,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - New tab is named 'Sales Duplicate', not Google's default
 - `newSheetName` was passed on the same `duplicateSheet` request (single API call, no follow-up rename)
+
+**Result (2026-07-10) ✅ PASS**
+`duplicate_sheet(spreadsheet_id, sheet="Sales", new_name="Sales Duplicate")` → title `"Sales Duplicate"`, confirmed via code that `newSheetName` is set on the same request body as `sourceSheetId`. Deleted after verification.
 
 ---
 
@@ -160,6 +166,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - The new tab appears immediately after 'Sales' in the `list_sheets` response order
 - 🔍 **Regression:** the Sheets API's own default for `duplicateSheet` places the copy at tab position 0 regardless of source position (confirmed via live QA on this tool) — the tool must compute and pass `insertSheetIndex` explicitly to land the copy after the source, matching Sheets UI's native "Duplicate" behavior
 
+**Result (2026-07-10) ✅ PASS**
+`duplicate_sheet(spreadsheet_id, sheet="Sales")` → index 1. `list_sheets` → `["Sales","Copy of Sales","Empty","Notes & Misc","BrandNew"]` — lands immediately after Sales, confirming the regression fix (`_get_sheet_index` + explicit `insertSheetIndex`). Deleted after verification.
+
 ---
 
 ### TC-S54: Explicit insert_index is honored ⚠️ destructive
@@ -170,6 +179,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - The new tab is the first tab in the `list_sheets` response order
 - Confirms an explicit `insert_index` overrides the "after source" default
+
+**Result (2026-07-10) ✅ PASS**
+`duplicate_sheet(spreadsheet_id, sheet="Sales", insert_index=0)` → index 0. `list_sheets` → `["Copy of Sales","Sales",...]` — explicit index correctly overrides the default. Deleted after verification.
 
 ---
 
@@ -182,6 +194,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Returns `{"error": ...}` before calling the duplicate API
 - Error references the missing sheet name
 
+**Result (2026-07-10) ✅ PASS**
+`duplicate_sheet(spreadsheet_id, sheet="DoesNotExist")` → `{"error": "Sheet 'DoesNotExist' not found"}`. No mutation, non-destructive.
+
 ---
 
 ### TC-S56: Cache invalidated after duplicate ⚠️ destructive
@@ -192,6 +207,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - `list_sheets` includes 'PostDuplicateCache'
 - Confirms `cache.mark_dirty(spreadsheet_id)` fires after duplicate
+
+**Result (2026-07-10) ✅ PASS**
+`duplicate_sheet(spreadsheet_id, sheet="Sales", new_name="PostDuplicateCache")` succeeded; immediate `list_sheets` (no explicit `refresh_cache`) included `"PostDuplicateCache"`, confirming `mark_dirty` fired. Deleted after verification; fixture restored to `["Sales","Empty","Notes & Misc","BrandNew"]`.
 
 ---
 
