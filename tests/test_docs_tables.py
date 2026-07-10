@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs.ast import (
     Cell,
@@ -11,6 +13,7 @@ from mcp_gee_sweet.tools.docs.ast import (
 )
 from mcp_gee_sweet.tools.docs.content import _html_to_doc_requests
 from mcp_gee_sweet.tools.docs.emitter import (
+    _apply_merges,
     _ast_cell_to_doc_cell,
     _build_fill_requests,
     _cell_para_start_for_cursor,
@@ -814,6 +817,30 @@ class TestNestedTableMerges:
             i for i, batch in enumerate(batches) if any("insertText" in r for r in batch)
         )
         assert merge_idx < fill_idx
+
+    def test_raises_when_table_vanishes_from_resolve_after_merge(self):
+        # mergeTableCells doesn't shift indices or delete content, so a resolve
+        # failure right after one is an anomaly, not a normal "not there yet"
+        # case — it must surface loudly rather than silently drop the fill and
+        # leave the just-merged table empty with no operator-visible signal.
+        ast_table = _table(_row(_cell("Header", colspan=2)))
+        doc_table = {
+            "tableRows": [
+                {
+                    "tableCells": [
+                        {"startIndex": 3, "content": [{"startIndex": 4}]},
+                        {"startIndex": 6, "content": [{"startIndex": 7}]},
+                    ]
+                }
+            ]
+        }
+
+        svc = MagicMock()
+        svc.documents.return_value.batchUpdate.return_value.execute.return_value = {}
+        svc.documents.return_value.get.return_value.execute.return_value = {"body": {"content": []}}
+
+        with pytest.raises(RuntimeError, match="vanished"):
+            _apply_merges(svc, "doc1", [doc_table], [ast_table], lambda _live_doc: [])
 
 
 # ---------------------------------------------------------------------------

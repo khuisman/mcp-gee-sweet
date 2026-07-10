@@ -213,12 +213,6 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
     if not tables:
         return
 
-    has_merges = any(
-        cell.colspan > 1 or cell.rowspan > 1
-        for table in tables
-        for row in table.rows
-        for cell in row.cells
-    )
     has_nested = any(
         any(isinstance(child, Table) for child in cell.children)
         for table in tables
@@ -240,14 +234,7 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
     doc_tables = _top_level_tables(live_doc)
 
     # Step 2: outer merges
-    if has_merges:
-        merge_requests = _build_merge_requests(doc_tables, tables)
-        if merge_requests:
-            docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": merge_requests}
-            ).execute()
-            live_doc = docs_service.documents().get(documentId=doc_id).execute()
-            doc_tables = _top_level_tables(live_doc)
+    doc_tables = _apply_merges(docs_service, doc_id, doc_tables, tables, _top_level_tables)
 
     # Step 3: fill plain cells (no nested table) in one bulk batch
     fill_requests = _build_fill_requests(doc_tables, tables)
@@ -572,24 +559,7 @@ def _fill_table_fully(docs_service, doc_id: str, resolve, ast_table: Table) -> N
         )
         return
 
-    has_merges = any(
-        cell.colspan > 1 or cell.rowspan > 1 for row in ast_table.rows for cell in row.cells
-    )
-    if has_merges:
-        merge_requests = _build_merge_requests(doc_tables, [ast_table])
-        if merge_requests:
-            docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": merge_requests}
-            ).execute()
-            live_doc = docs_service.documents().get(documentId=doc_id).execute()
-            doc_tables = resolve(live_doc)
-            if not doc_tables or doc_tables[0] is None:
-                logger.debug(
-                    "_fill_table_fully: nested table vanished after merge in live doc %s — "
-                    "skipping fill for this table (it will render as an empty shell)",
-                    doc_id,
-                )
-                return
+    doc_tables = _apply_merges(docs_service, doc_id, doc_tables, [ast_table], resolve)
 
     fill_requests = _build_fill_requests(doc_tables, [ast_table])
     if fill_requests:
@@ -602,6 +572,48 @@ def _fill_table_fully(docs_service, doc_id: str, resolve, ast_table: Table) -> N
         # Nothing changed since doc_tables was fetched above — reuse it instead
         # of having the recursive call redundantly re-fetch identical data.
         _fill_children_recursive(docs_service, doc_id, resolve, [ast_table], _doc_tables=doc_tables)
+
+
+def _apply_merges(
+    docs_service, doc_id: str, doc_tables: list[dict], ast_tables: list[Table], resolve
+) -> list[dict]:
+    """Emit mergeTableCells for any ast_tables cell with colspan/rowspan > 1,
+    re-fetch, and return the updated doc_tables — or doc_tables unchanged if
+    nothing needed merging.
+
+    mergeTableCells doesn't shift character indices or delete content (covered
+    cells remain physical entries in the doc tree), so doc_tables — already
+    successfully resolved by the caller — is expected to resolve again right
+    after. If it doesn't, the live doc no longer matches the model used to
+    build the merge requests just executed; silently returning here would mean
+    every already-merged table renders with zero content and no operator-
+    visible signal, so raise instead of skipping the fill.
+    """
+    has_merges = any(
+        cell.colspan > 1 or cell.rowspan > 1
+        for table in ast_tables
+        for row in table.rows
+        for cell in row.cells
+    )
+    if not has_merges:
+        return doc_tables
+
+    merge_requests = _build_merge_requests(doc_tables, ast_tables)
+    if not merge_requests:
+        return doc_tables
+
+    docs_service.documents().batchUpdate(
+        documentId=doc_id, body={"requests": merge_requests}
+    ).execute()
+    live_doc = docs_service.documents().get(documentId=doc_id).execute()
+    updated = resolve(live_doc)
+    if len(updated) < len(ast_tables) or any(t is None for t in updated):
+        raise RuntimeError(
+            f"_apply_merges: table(s) vanished from doc {doc_id} immediately after "
+            "mergeTableCells, which does not itself shift indices or delete content — "
+            "refusing to silently skip the fill and leave the merged table empty."
+        )
+    return updated
 
 
 def _build_phantom_set(ast_table: Table) -> set[tuple[int, int]]:
