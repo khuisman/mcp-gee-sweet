@@ -314,6 +314,52 @@ class TestDuplicateSheet:
         assert result == {"error": "Sheet 'Missing' not found"}
         assert not svc.spreadsheets.return_value.batchUpdate.called
 
+    def test_marks_cache_dirty_on_success(self):
+        svc = self._sheets_service(sheet_id=7)
+        cache = self._cache_with_sheet(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=cache)
+        _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        cache.mark_dirty.assert_called_with("ss1")
+
+    def test_forwards_drive_service_to_get_sheet_id(self, monkeypatch):
+        """Regression: this call site omitted drive_service, reintroducing the
+        cache-poisoning bug fixed in #284 (modified_time silently disabled for
+        all subsequent readers of the spreadsheet)."""
+        svc = self._sheets_service(sheet_id=7)
+        cache = self._cache_with_sheet(sheet_id=7)
+        drive_svc = MagicMock()
+        ctx = _make_ctx(sheets_service=svc, cache=cache, drive_service=drive_svc)
+        mock_get_sheet_id = MagicMock(return_value=7)
+        monkeypatch.setattr(sheets_structure_module, "_get_sheet_id", mock_get_sheet_id)
+        _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        mock_get_sheet_id.assert_called_once_with(svc, "ss1", "Sheet1", cache, drive_svc)
+
+
+class TestGetSheetIdCallSitesForwardDriveService:
+    """Static regression guard: every _get_sheet_id() call in structure.py must
+    forward drive_service as its 5th argument.
+
+    PR #284 fixed cache poisoning caused by a missing drive_service (it silently
+    disables modifiedTime staleness checks for all readers of that spreadsheet).
+    duplicate_sheet reintroduced the bug by omitting the argument (caught in
+    review of PR #286) — this scans all call sites so a future tool can't drop
+    it again without a test failing.
+    """
+
+    def test_all_call_sites_pass_drive_service(self):
+        import inspect
+        import re
+
+        source = inspect.getsource(sheets_structure_module)
+        calls = re.findall(r"_get_sheet_id\(([^)]*)\)", source)
+        assert len(calls) >= 12, (
+            f"expected at least 12 _get_sheet_id call sites, found {len(calls)}"
+        )
+        for call_args in calls:
+            assert "drive_service" in call_args, (
+                f"_get_sheet_id call missing drive_service: {call_args}"
+            )
+
 
 class TestDeleteSheet:
     def _sheets_service(self, sheet_id=7):

@@ -151,7 +151,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
