@@ -1052,7 +1052,8 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** write fixture content back
 
-**Result:** pending — not yet run live (fix implemented and unit-tested in `tests/test_docs_tables.py::TestNestedTableMerges`; needs a live QA pass against the deployed server to confirm the real Docs API renders the merge as expected)
+**Result (2026-07-09) ✅ PASS**
+`write_doc_content` succeeded. `get_doc_structure` showed the outer table (1 row × 1 col) with cell [0,0] text empty. Playwright screenshot confirmed the nested table rendered with "Header" spanning both columns of the top row and "A"/"B" as two separate cells below — the merge applied correctly. (Unrelated observation: the fixture doc had leftover header/footer text visible in the render and in `get_doc_content`'s plain-text export but not in `get_doc_structure` — headers/footers aren't part of the body map that tool returns; pre-existing fixture-doc state from an earlier header/footer test, untouched by `write_doc_content`, not a regression from this PR.) Fixture content restored per cleanup step.
 
 ---
 
