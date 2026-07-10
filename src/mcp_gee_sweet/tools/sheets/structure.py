@@ -4,7 +4,7 @@ from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
 from ...cache import fetch_sheets
-from .helpers import _get_sheet_id, _parse_a1_notation
+from .helpers import _get_sheet_id, _get_sheet_index, _parse_a1_notation
 
 _VALID_CHART_TYPES = ["COLUMN", "BAR", "LINE", "AREA", "PIE", "SCATTER", "COMBO", "HISTOGRAM"]
 
@@ -158,6 +158,10 @@ def register(tool):
         duplicate_request: dict[str, Any] = {"sourceSheetId": sheet_id}
         if insert_index is not None:
             duplicate_request["insertSheetIndex"] = insert_index
+        else:
+            source_index = _get_sheet_index(sheets_service, spreadsheet_id, sheet_id)
+            if source_index is not None:
+                duplicate_request["insertSheetIndex"] = source_index + 1
         if new_name is not None:
             duplicate_request["newSheetName"] = new_name
 

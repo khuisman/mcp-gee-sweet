@@ -125,6 +125,76 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 ---
 
+## `duplicate_sheet`
+
+### TC-S51: Duplicate within the same spreadsheet, default name ⚠️ destructive
+
+**Prompt**
+> "Duplicate the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- New tab appears, named by Google's default (e.g. "Copy of Sales")
+- Data in the new tab matches Sales (6 rows, 4 columns)
+- Original Sales sheet unchanged
+- Response includes `sheetId`, `title`, `index`, `spreadsheetId`
+
+---
+
+### TC-S52: Duplicate with a custom name ⚠️ destructive
+
+**Prompt**
+> "Duplicate the Sales sheet in {SPREADSHEET_ID} and name the copy 'Sales Duplicate'"
+
+**Checks**
+- New tab is named 'Sales Duplicate', not Google's default
+- `newSheetName` was passed on the same `duplicateSheet` request (single API call, no follow-up rename)
+
+---
+
+### TC-S53: Default position lands immediately after the source tab ⚠️ destructive
+
+**Prompt**
+> "Duplicate the Sales sheet in {SPREADSHEET_ID} without specifying a position, then list all sheets"
+
+**Checks**
+- The new tab appears immediately after 'Sales' in the `list_sheets` response order
+- 🔍 **Regression:** the Sheets API's own default for `duplicateSheet` places the copy at tab position 0 regardless of source position (confirmed via live QA on this tool) — the tool must compute and pass `insertSheetIndex` explicitly to land the copy after the source, matching Sheets UI's native "Duplicate" behavior
+
+---
+
+### TC-S54: Explicit insert_index is honored ⚠️ destructive
+
+**Prompt**
+> "Duplicate the Sales sheet in {SPREADSHEET_ID}, placing the copy at tab position 0"
+
+**Checks**
+- The new tab is the first tab in the `list_sheets` response order
+- Confirms an explicit `insert_index` overrides the "after source" default
+
+---
+
+### TC-S55: Source sheet not found
+
+**Prompt**
+> "Duplicate a sheet called 'DoesNotExist' in {SPREADSHEET_ID}"
+
+**Checks**
+- Returns `{"error": ...}` before calling the duplicate API
+- Error references the missing sheet name
+
+---
+
+### TC-S56: Cache invalidated after duplicate ⚠️ destructive
+
+**Prompt**
+> "Duplicate the Sales sheet in {SPREADSHEET_ID} as 'PostDuplicateCache', then immediately list all sheets"
+
+**Checks**
+- `list_sheets` includes 'PostDuplicateCache'
+- Confirms `cache.mark_dirty(spreadsheet_id)` fires after duplicate
+
+---
+
 ## `rename_sheet`
 
 ### TC-S11: Rename to a new name ⚠️ destructive

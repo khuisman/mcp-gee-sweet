@@ -238,10 +238,12 @@ class TestCopySheet:
 
 
 class TestDuplicateSheet:
-    def _sheets_service(self, sheet_id=0, reply_props=None):
+    def _sheets_service(self, sheet_id=0, source_index=0, reply_props=None):
         mock = MagicMock()
         mock.spreadsheets.return_value.get.return_value.execute.return_value = {
-            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+            "sheets": [
+                {"properties": {"title": "Sheet1", "sheetId": sheet_id, "index": source_index}}
+            ]
         }
         mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {
             "replies": [
@@ -265,10 +267,10 @@ class TestDuplicateSheet:
         return body["requests"][0]["duplicateSheet"]
 
     def test_sends_duplicate_sheet_request_with_source_id(self):
-        svc = self._sheets_service(sheet_id=7)
+        svc = self._sheets_service(sheet_id=7, source_index=0)
         ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
         _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
-        assert self._request(svc) == {"sourceSheetId": 7}
+        assert self._request(svc)["sourceSheetId"] == 7
 
     def test_new_name_included_when_given(self):
         svc = self._sheets_service(sheet_id=7)
@@ -286,13 +288,39 @@ class TestDuplicateSheet:
         )
         assert self._request(svc)["insertSheetIndex"] == 3
 
-    def test_omits_optional_fields_when_not_given(self):
+    def test_explicit_insert_index_skips_source_index_lookup(self):
+        """When the caller supplies insert_index, no extra API call is needed to
+        compute a default — the direct spreadsheets().get() (used only for that
+        lookup) must not be invoked."""
+        svc = self._sheets_service(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["duplicate_sheet"](
+            spreadsheet_id="ss1", sheet="Sheet1", insert_index=3, ctx=ctx
+        )
+        assert not svc.spreadsheets.return_value.get.called
+
+    def test_new_name_omitted_when_not_given(self):
         svc = self._sheets_service(sheet_id=7)
         ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
         _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
-        request = self._request(svc)
-        assert "newSheetName" not in request
-        assert "insertSheetIndex" not in request
+        assert "newSheetName" not in self._request(svc)
+
+    def test_insert_index_defaults_to_immediately_after_source(self):
+        """Matches Sheets' native UI 'Duplicate' behavior: the copy lands right
+        after the source tab. The Sheets API's own default (observed via live
+        QA) is index 0 regardless of source position, so this must be computed
+        and passed explicitly rather than relying on the API's default."""
+        svc = self._sheets_service(sheet_id=7, source_index=2)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        assert self._request(svc)["insertSheetIndex"] == 3
+
+    def test_insert_index_omitted_when_source_index_lookup_fails(self):
+        svc = self._sheets_service(sheet_id=7)
+        svc.spreadsheets.return_value.get.return_value.execute.return_value = {"sheets": []}
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        assert "insertSheetIndex" not in self._request(svc)
 
     def test_returns_new_sheet_info(self):
         svc = self._sheets_service(
