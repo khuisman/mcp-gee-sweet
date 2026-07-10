@@ -1997,6 +1997,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#tc-doc90-colspanrowspan-inside-a-nested-table-now-merges-correctly-issue-109-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC90: colspan/rowspan inside a nested table now merges correctly (issue #109) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tc-doc52-get_doc_theme-scans-body-paragraph-styles" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3441,6 +3452,20 @@
 - That table is <code>columns: 2</code> with cell [0,0] text "A" and cell [0,1] text "B" — not empty, not misapplied, not offset onto the wrong table</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
 <p><strong>Result (2026-07-09) ✅ PASS</strong></p>
+<hr />
+<h3 id="tc-doc90-colspanrowspan-inside-a-nested-table-now-merges-correctly-issue-109-destructive">TC-DOC90: <code>colspan</code>/<code>rowspan</code> inside a nested table now merges correctly (issue #109) ⚠️ destructive<a class="headerlink" href="#tc-doc90-colspanrowspan-inside-a-nested-table-now-merges-correctly-issue-109-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Nested tables produced a correctly-sized shell but silently ignored <code>colspan</code>/<code>rowspan</code> on their own cells — no <code>mergeTableCells</code> request was ever emitted for them, unlike outer-table cells (TC-DOC34/36/37). Fixed by having <code>_fill_table_fully</code> run the same merge phase for a nested table's own cells that <code>fill_tables</code> already runs for the outer table.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;table&gt;&lt;tr&gt;&lt;td colspan=\"2\"&gt;Header&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;A&lt;/td&gt;&lt;td&gt;B&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows the outer table (1 row × 1 col) with cell [0,0] text empty (holds the nested table, not text)
+- 🔍 Visual check: nested table renders with "Header" spanning both columns of the top row, and "A"/"B" as two separate cells in the second row — not four ungrouped cells</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-09) ✅ PASS</strong>
+<code>write_doc_content</code> succeeded. <code>get_doc_structure</code> showed the outer table (1 row × 1 col) with cell [0,0] text empty. Playwright screenshot confirmed the nested table rendered with "Header" spanning both columns of the top row and "A"/"B" as two separate cells below — the merge applied correctly. (Unrelated observation: the fixture doc had leftover header/footer text visible in the render and in <code>get_doc_content</code>'s plain-text export but not in <code>get_doc_structure</code> — headers/footers aren't part of the body map that tool returns; pre-existing fixture-doc state from an earlier header/footer test, untouched by <code>write_doc_content</code>, not a regression from this PR.) Fixture content restored per cleanup step.</p>
 <hr />
 <h3 id="tc-doc52-get_doc_theme-scans-body-paragraph-styles">TC-DOC52: <code>get_doc_theme</code> scans body paragraph styles<a class="headerlink" href="#tc-doc52-get_doc_theme-scans-body-paragraph-styles" title="Permanent link">&para;</a></h3>
 <p><strong>Note:</strong> <code>get_doc_theme</code> reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.</p>

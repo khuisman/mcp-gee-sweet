@@ -899,6 +899,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#nested-table-colspanrowspan-109" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nested table colspan/rowspan (#109)
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2082,6 +2093,13 @@ Test file imports <code>from mcp_gee_sweet.tools.docs import _html_to_doc_reques
 <li>The "one level of nesting only" and "no colspan/rowspan/col_widths inside nested tables" limitations from the original #92 design are otherwise unchanged — this rewrite only touches content ordering, not those structural features.</li>
 <li>Tested with <code>tests/test_docs_tables.py</code>'s <code>TestFillNestedCellContent</code>, which drives the real algorithm against a small in-memory Docs-API simulator (<code>FakeDoc</code>/<code>Para</code>/<code>TableNode</code> in that file) that actually applies <code>insertText</code>/<code>insertTable</code> mutations and re-derives indices — chosen over hand-computed index fixtures because this much re-fetch/recursion logic is easy to get subtly wrong in a way a fixture can't catch (and did, twice, during development).</li>
 </ul>
+<hr />
+<h2 id="nested-table-colspanrowspan-109">Nested table colspan/rowspan (#109)<a class="headerlink" href="#nested-table-colspanrowspan-109" title="Permanent link">&para;</a></h2>
+<p><strong>Date:</strong> 2026-07-08</p>
+<p>Nested tables produced a correctly-sized shell but never merged cells with <code>colspan</code>/<code>rowspan</code> &gt; 1 — <code>_fill_table_fully</code> (the per-nested-table fill helper introduced in the rewrite above) only ran the plain-cell bulk fill, with no equivalent of the outer-table merge phase (<code>fill_tables</code> phase 2).</p>
+<p>Fix: <code>_fill_table_fully</code> now checks the nested <code>ast_table</code> for any cell with <code>colspan &gt; 1 or rowspan &gt; 1</code> and, if found, builds and executes <code>mergeTableCells</code> requests via the existing <code>_build_merge_requests</code> (unchanged — it already operated generically on any <code>doc_table</code>/<code>ast_table</code> pair, nested or not) before re-fetching and running the bulk fill. This exactly mirrors <code>fill_tables</code>'s own phase 1→2→3 order, just scoped to one nested table.</p>
+<p><code>col_widths</code> on nested tables remains unsupported — out of scope for #109, not addressed here.</p>
+<p>Tested in <code>tests/test_docs_tables.py</code>'s <code>TestNestedTableMerges</code>, extending the same <code>FakeDoc</code> simulator with a no-op <code>mergeTableCells</code> handler (the real Docs API doesn't shift indices or delete content on merge — covered cells stay physical, just skipped by the existing phantom-cell mapping — so the simulator has nothing to mutate; the tests instead assert the merge request's shape and its position in batch order relative to the fill).</p>
 
 
 
