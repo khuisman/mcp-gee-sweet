@@ -1288,6 +1288,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-i22-set_cache_ttlget_cache_ttl-runtime-ttl-change-takes-effect-without-restart-issue-99" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I22: set_cache_ttl/get_cache_ttl — runtime TTL change takes effect without restart (issue #99)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i23-cache_validate_modified_time-external-edit-invalidates-cache-before-ttl-expires-issue-99" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I23: CACHE_VALIDATE_MODIFIED_TIME — external edit invalidates cache before TTL expires (issue #99)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1806,6 +1828,14 @@
 <td>TC-I21 (strict tool arg validation, issue #239)</td>
 <td>✅ Unit-tested in <code>tests/test_server.py::TestToolStrictArgs</code> (dummy tool + real <code>list_sheets</code>) and live-tested — see Result entry below</td>
 </tr>
+<tr>
+<td>TC-I22 (<code>set_cache_ttl</code>/<code>get_cache_ttl</code>, issue #99)</td>
+<td>Unit-tested in <code>tests/test_cache.py</code> (<code>set_ttl</code>/<code>get_ttl</code> on all 5 cache classes) — TTL change takes effect on the next lookup without a restart, and is readable back</td>
+</tr>
+<tr>
+<td>TC-I23 (<code>CACHE_VALIDATE_MODIFIED_TIME</code>, issue #99)</td>
+<td>Unit-tested in <code>tests/test_cache.py</code> (modified-time comparison in <code>_get_valid</code>, <code>get_modified_time</code> helper, <code>fetch_sheets</code> wiring). Live verification needs an edit path outside the MCP tools' own <code>mark_dirty</code> calls (which already invalidate immediately) — see TC-I23 below for the Playwright-based approach</td>
+</tr>
 </tbody>
 </table>
 <hr />
@@ -1858,6 +1888,56 @@ Restart the MCP server (<code>docker compose restart mcp-gee-sweet</code> or sto
 - After restart, second call shows <code>cache hit</code> in logs (SQLite file survived restart)
 - Data returned matches what was cached before restart
 - 🔍 <strong>Product decision:</strong> stale cache after restart is a known trade-off; note whether this is acceptable for the use case</p>
+<hr />
+<h3 id="tc-i22-set_cache_ttlget_cache_ttl-runtime-ttl-change-takes-effect-without-restart-issue-99">TC-I22: <code>set_cache_ttl</code>/<code>get_cache_ttl</code> — runtime TTL change takes effect without restart (issue #99)<a class="headerlink" href="#tc-i22-set_cache_ttlget_cache_ttl-runtime-ttl-change-takes-effect-without-restart-issue-99" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong> (step 0 — record the starting TTL, to restore later)</p>
+<blockquote>
+<p>"What's the current cache TTL?"</p>
+</blockquote>
+<p><strong>Prompt</strong> (step 1 — warm the cache, default TTL)</p>
+<blockquote>
+<p>"List the sheets in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Prompt</strong> (step 2 — lower the TTL at runtime)</p>
+<blockquote>
+<p>"Set the cache TTL to 3 seconds"</p>
+</blockquote>
+<p><strong>Prompt</strong> (step 3 — confirm the new TTL is readable back)</p>
+<blockquote>
+<p>"What's the current cache TTL now?"</p>
+</blockquote>
+<p><strong>Prompt</strong> (step 4 — confirm the new TTL is honored)</p>
+<blockquote>
+<p>"Wait 5 seconds, then list the sheets in {SPREADSHEET_ID} again"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Step 0 returns <code>{"ttl_seconds": 1800}</code> (the default, assuming no prior test left it changed)
+- Step 2 returns <code>{"ttl_seconds": 3}</code>
+- Step 3 returns <code>{"ttl_seconds": 3}</code> — <code>get_cache_ttl</code> reflects the change immediately
+- Step 1's call is a cache miss (cold or expired from a prior test) — API fetch, result cached
+- Step 4's call is a cache miss too, despite no server restart between steps — confirms the lowered TTL applied to the already-cached entry once evaluated, not just newly stored ones
+- Restore the TTL after this test: <code>"Set the cache TTL to 1800"</code></p>
+<p><strong>Result (2026-07-08) ✅ PASS</strong>
+Ran all 5 steps live against <code>TEST_SPREADSHEET_ID</code>. Step 0: <code>get_cache_ttl</code> → <code>{"ttl_seconds": 1800}</code>. Step 1: <code>list_sheets</code> cache miss, warmed. Step 2: <code>set_cache_ttl(3)</code> → <code>{"ttl_seconds": 3}</code>; log emitted <code>WARNING mcp_gee_sweet.tools.cache Cache TTL changed process-wide 1800s -&gt; 3s (affects all concurrent sessions)</code>. Step 3: <code>get_cache_ttl</code> → <code>{"ttl_seconds": 3}</code>, immediate readback confirmed. Step 4: after a 5s wait, <code>list_sheets</code> again — log showed <code>Cache TTL expired for &lt;id&gt;, marking dirty</code> followed by a fresh <code>Cached 4 sheets</code>, confirming the lowered TTL applied retroactively to the already-cached entry. Restored TTL to 1800 (<code>get_cache_ttl</code> confirmed).</p>
+<hr />
+<h3 id="tc-i23-cache_validate_modified_time-external-edit-invalidates-cache-before-ttl-expires-issue-99">TC-I23: <code>CACHE_VALIDATE_MODIFIED_TIME</code> — external edit invalidates cache before TTL expires (issue #99)<a class="headerlink" href="#tc-i23-cache_validate_modified_time-external-edit-invalidates-cache-before-ttl-expires-issue-99" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> by default, a sheet-structure/data or doc-content cache hit is checked against the source file's live Drive <code>modifiedTime</code> before being served. This matters specifically for edits that don't go through this MCP session's own write tools (which already call <code>mark_dirty</code> immediately) — e.g. another Claude session, or a person editing the file directly in the Sheets/Docs UI.</p>
+<p><strong>Setup</strong>
+1. Warm the cache: "List the sheets in {SPREADSHEET_ID}"
+2. Using the browser (Playwright), open {SPREADSHEET_ID} in the Sheets UI and rename one sheet tab directly (not through any MCP tool) — this changes Drive's <code>modifiedTime</code> without calling <code>mark_dirty</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List the sheets in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The renamed sheet's new title is reflected in the result, even though <code>CACHE_TTL</code> has not elapsed since step 1 — the <code>modifiedTime</code> mismatch invalidated the cache entry immediately
+- Logs show a lightweight <code>files.get</code> call (<code>fields=modifiedTime</code>) preceding the decision, distinct from the fuller <code>spreadsheets.get</code> fetch that follows on the resulting miss</p>
+<p>Note: Playwright is used here only as the mechanism to make an edit outside the MCP tool surface (step 2 of Setup) — the actual pass/fail check is a plain API-response comparison, not a visual confirmation. Doesn't fit the existing <code>Playwright: required</code> tag definition (visual mutation the API can't confirm), so left untagged; flagging in case this is a second, distinct case the tag convention should eventually cover.</p>
+<p><strong>Cleanup:</strong> rename the sheet back to its original name.</p>
+<p><strong>Result (2026-07-08) ✅ PASS</strong>
+Warmed the structure cache via <code>list_sheets("BrandNew"...)</code>, then used Playwright to rename the "BrandNew" tab to "BrandNewRenamedQA" directly in the Sheets UI. Immediate <code>list_sheets</code> call (no wait, <code>CACHE_TTL</code> at default 1800s) returned the new name. Log showed <code>DEBUG mcp_gee_sweet.cache Source modified since cache for &lt;id&gt;, marking dirty</code> — the modifiedTime-mismatch path, distinct from the <code>Cache TTL expired</code> path — immediately followed by a fresh <code>Cached 4 sheets</code>. Renamed back via Playwright; confirmed reverted.</p>
+<p><strong>Supplementary live check (2026-07-08) — cache-poisoning regression from code review, not a scripted TC:</strong> the code review on this PR's first pass (before the <code>6d4a59b</code> fix) found that <code>_get_sheet_id</code> (backing ~11 write-path tools: <code>add_rows</code>, <code>rename_sheet</code>, <code>format_cells</code>, etc.) called <code>fetch_sheets()</code> without <code>drive_service</code>, storing the shared structure-cache row with <code>modified_time=None</code> — silently disabling staleness detection for <em>all</em> subsequent readers of that spreadsheet, including <code>list_sheets</code>. Verified the fix closes this end-to-end: <code>refresh_cache</code> (cold) → <code>freeze(sheet="EmptyRenamedQA")</code> (write-path call, cache MISS/STORE) → renamed "EmptyRenamedQA" back to "Empty" via Playwright → <code>list_sheets</code> (read-path, no explicit refresh) immediately returned <code>"Empty"</code>, with the log showing <code>Source modified since cache... marking dirty</code> right after the write-path's own store. Confirms the write-path cache entry now carries a valid <code>modified_time</code>, so it no longer poisons reads by other tools.</p>
+<p>TC-I22/TC-I23 (issue #99) are the only mandatory live QA cases for this PR (see <code>git diff origin/develop...HEAD -- docs/qa/tests/</code>). No existing test case directly exercises the <code>_get_sheet_id</code>/write-path fix or <code>get_multiple_spreadsheet_summary</code>'s per-sheet <code>modified_time</code> fix — the supplementary check above covers the more severe of the two live; the <code>get_multiple_spreadsheet_summary</code> gap is lower-risk (confirmed correct by code trace + unit tests, not independently live-verified here).</p>
 <hr />
 <h2 id="tool-filtering-enabled_tools">Tool filtering (<code>ENABLED_TOOLS</code>)<a class="headerlink" href="#tool-filtering-enabled_tools" title="Permanent link">&para;</a></h2>
 <h3 id="tc-i05-cli-flag-only-specified-tools-registered">TC-I05: CLI flag — only specified tools registered<a class="headerlink" href="#tc-i05-cli-flag-only-specified-tools-registered" title="Permanent link">&para;</a></h3>

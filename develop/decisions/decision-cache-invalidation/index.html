@@ -10,31 +10,27 @@
       
       
       
-        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/decisions/">
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/decisions/decision-cache-invalidation/">
       
       
-        <link rel="prev" href="../design/docs-ast-pipeline/">
-      
-      
-        <link rel="next" href="decision-fork/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Index - mcp-gee-sweet</title>
+        <title>Decision: Runtime Cache TTL and modifiedTime-Based Invalidation (issue #99) - mcp-gee-sweet</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,7 +49,7 @@
       
     
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -78,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#decision-log" class="md-skip">
+        <a href="#decision-runtime-cache-ttl-and-modifiedtime-based-invalidation-issue-99" class="md-skip">
           Skip to content
         </a>
       
@@ -98,7 +94,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -118,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Index
+              Decision: Runtime Cache TTL and modifiedTime-Based Invalidation (issue #99)
             
           </span>
         </div>
@@ -236,7 +232,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -266,7 +262,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -345,7 +341,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tools/" class="md-nav__link">
+      <a href="../../tools/" class="md-nav__link">
         
   
   
@@ -373,7 +369,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../auth/" class="md-nav__link">
+      <a href="../../auth/" class="md-nav__link">
         
   
   
@@ -401,7 +397,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/" class="md-nav__link">
+      <a href="../../configuration/" class="md-nav__link">
         
   
   
@@ -429,7 +425,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../client-setup/" class="md-nav__link">
+      <a href="../../client-setup/" class="md-nav__link">
         
   
   
@@ -516,7 +512,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../design/" class="md-nav__link">
+      <a href="../../design/" class="md-nav__link">
         
   
   
@@ -544,7 +540,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../design/" class="md-nav__link">
+      <a href="../../design/" class="md-nav__link">
         
   
   
@@ -572,7 +568,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../design/docs-ast-pipeline/" class="md-nav__link">
+      <a href="../../design/docs-ast-pipeline/" class="md-nav__link">
         
   
   
@@ -604,8 +600,6 @@
       
   
   
-    
-  
   
   
     
@@ -618,11 +612,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
           <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
@@ -643,7 +637,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -658,19 +652,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -686,7 +671,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -699,7 +683,7 @@
   
   
     <li class="md-nav__item">
-      <a href="decision-fork/" class="md-nav__link">
+      <a href="../decision-fork/" class="md-nav__link">
         
   
   
@@ -727,7 +711,7 @@
   
   
     <li class="md-nav__item">
-      <a href="decision-composite-tools/" class="md-nav__link">
+      <a href="../decision-composite-tools/" class="md-nav__link">
         
   
   
@@ -755,7 +739,7 @@
   
   
     <li class="md-nav__item">
-      <a href="decision-testing/" class="md-nav__link">
+      <a href="../decision-testing/" class="md-nav__link">
         
   
   
@@ -783,7 +767,7 @@
   
   
     <li class="md-nav__item">
-      <a href="decision-publishing/" class="md-nav__link">
+      <a href="../decision-publishing/" class="md-nav__link">
         
   
   
@@ -818,7 +802,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../roadmap/" class="md-nav__link">
+      <a href="../../roadmap/" class="md-nav__link">
         
   
   
@@ -897,7 +881,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/" class="md-nav__link">
+      <a href="../../qa/" class="md-nav__link">
         
   
   
@@ -925,7 +909,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa-checklist/" class="md-nav__link">
+      <a href="../../qa-checklist/" class="md-nav__link">
         
   
   
@@ -953,7 +937,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/setup/" class="md-nav__link">
+      <a href="../../qa/setup/" class="md-nav__link">
         
   
   
@@ -981,7 +965,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/run/" class="md-nav__link">
+      <a href="../../qa/run/" class="md-nav__link">
         
   
   
@@ -1009,7 +993,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/fixtures.template/" class="md-nav__link">
+      <a href="../../qa/fixtures.template/" class="md-nav__link">
         
   
   
@@ -1086,7 +1070,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/calendar/" class="md-nav__link">
+      <a href="../../qa/tests/calendar/" class="md-nav__link">
         
   
   
@@ -1114,7 +1098,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/docs/" class="md-nav__link">
+      <a href="../../qa/tests/docs/" class="md-nav__link">
         
   
   
@@ -1142,7 +1126,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/drive/" class="md-nav__link">
+      <a href="../../qa/tests/drive/" class="md-nav__link">
         
   
   
@@ -1170,7 +1154,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/infra/" class="md-nav__link">
+      <a href="../../qa/tests/infra/" class="md-nav__link">
         
   
   
@@ -1198,7 +1182,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_read/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_read/" class="md-nav__link">
         
   
   
@@ -1226,7 +1210,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_write/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_write/" class="md-nav__link">
         
   
   
@@ -1254,7 +1238,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_charts/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_charts/" class="md-nav__link">
         
   
   
@@ -1282,7 +1266,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_mgmt/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_mgmt/" class="md-nav__link">
         
   
   
@@ -1318,7 +1302,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../notes-read/" class="md-nav__link">
+      <a href="../../notes-read/" class="md-nav__link">
         
   
   
@@ -1366,68 +1350,38 @@
   
 
 
-<h1 id="decision-log">Decision Log<a class="headerlink" href="#decision-log" title="Permanent link">&para;</a></h1>
-<p>Point-in-time records of specific decisions — context, alternatives, and reasoning as they stood when each call was made. For current policy and principles, see <a href="../design/">Design Principles</a>.</p>
-<table>
-<thead>
-<tr>
-<th>Doc</th>
-<th>Date</th>
-<th>Status</th>
-<th>Summary</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="decision-fork/">Project Fork</a></td>
-<td>2026-05-09</td>
-<td>decided</td>
-<td>Fork from xing5/mcp-google-sheets; alternatives evaluated</td>
-</tr>
-<tr>
-<td><a href="decision-composite-tools/">Composite Tools</a></td>
-<td>2026-05-22</td>
-<td>decided</td>
-<td>Case analysis of specific composite tools approved or ruled out</td>
-</tr>
-<tr>
-<td><a href="decision-testing/">Testing Approach</a></td>
-<td>2026-05-13</td>
-<td>decided</td>
-<td>Why AI-directed manual verification over automated integration tests</td>
-</tr>
-<tr>
-<td><a href="decision-publishing/">Publishing Strategy</a></td>
-<td>2026-05-23</td>
-<td>draft</td>
-<td>Two-track PyPI release (stable + edge); version injection open</td>
-</tr>
-<tr>
-<td><a href="decision-docs-formatting/">Docs Formatting Architecture</a></td>
-<td>2026-06-17</td>
-<td>decided</td>
-<td>Two-layer approach (direct API tools + HTML abstraction via AST); phase plan for #41, #65–#70, #79–#82</td>
-</tr>
-<tr>
-<td><a href="decision-chart-theming/">Chart Theming and Phase 3 Integration</a></td>
-<td>2026-06-17</td>
-<td>decided</td>
-<td>No parsing layer for charts; no Vega-Lite adoption; unified brand config (docs + charts sections) for Phase 3 theme system</td>
-</tr>
-<tr>
-<td><a href="decision-grid-data-size-cap/">Grid Data Size Cap</a></td>
-<td>2026-07-03</td>
-<td>decided</td>
-<td>Post-fetch response-size check (not pre-fetch cell-count estimate) for <code>get_sheet_data(include_grid_data=True)</code>; configurable cap + <code>local_path</code> bypass; empirically falsified two earlier approaches</td>
-</tr>
-<tr>
-<td><a href="decision-cache-invalidation/">Cache Invalidation</a></td>
-<td>2026-07-07</td>
-<td>decided</td>
-<td><code>set_cache_ttl</code> tool for runtime TTL; <code>modifiedTime</code>-based validation for sheet/doc caches only (not folders/calendar); opt-out via <code>CACHE_VALIDATE_MODIFIED_TIME</code></td>
-</tr>
-</tbody>
-</table>
+<h1 id="decision-runtime-cache-ttl-and-modifiedtime-based-invalidation-issue-99">Decision: Runtime Cache TTL and modifiedTime-Based Invalidation (issue #99)<a class="headerlink" href="#decision-runtime-cache-ttl-and-modifiedtime-based-invalidation-issue-99" title="Permanent link">&para;</a></h1>
+<p><strong>Date:</strong> 2026-07-07
+<strong>Snapshot commit:</strong> branch <code>feat/issue-99</code> — see <code>src/mcp_gee_sweet/cache.py</code></p>
+<h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
+<p>The cache's only staleness defenses were a fixed <code>CACHE_TTL</code> (set at process start, unchangeable without a restart) and <code>mark_dirty</code> calls from this server's own write tools. Neither catches an edit that happens outside this MCP session — another Claude session, or a person editing the spreadsheet/doc directly — until the TTL window closes. Issue #99 asked for two independent improvements: a way to change the TTL without restarting, and a way to detect out-of-band edits sooner.</p>
+<h2 id="decisions">Decisions<a class="headerlink" href="#decisions" title="Permanent link">&para;</a></h2>
+<h3 id="1-set_cache_ttl-tool-not-a-per-call-ttl-parameter">1. <code>set_cache_ttl</code> tool, not a per-call TTL parameter<a class="headerlink" href="#1-set_cache_ttl-tool-not-a-per-call-ttl-parameter" title="Permanent link">&para;</a></h3>
+<p>The issue suggested either a <code>set_cache_ttl</code> tool or a per-resource TTL parameter added to every read tool. Chose the tool: it's one new surface instead of a parameter threaded through a dozen existing signatures, and TTL is a deployment-wide tuning knob in practice (this codebase already treats <code>CACHE_TTL</code> as global, not per-call). The tool updates <code>_ttl</code> on all five in-memory cache instances immediately; it doesn't touch the <code>CACHE_TTL</code> env var, so it only affects the running process, not the startup default.</p>
+<h3 id="2-modified_time-stored-inside-the-cached-json-value-not-a-new-db-column">2. <code>modified_time</code> stored inside the cached JSON value, not a new DB column<a class="headerlink" href="#2-modified_time-stored-inside-the-cached-json-value-not-a-new-db-column" title="Permanent link">&para;</a></h3>
+<p>Considered adding a <code>source_modified_time</code> column to the <code>cache</code> table. Rejected — it would need a migration path for every already-deployed SQLite file (<code>ALTER TABLE ... ADD COLUMN</code> guarded against pre-existing installs), for a value that's only ever read back by the same process that wrote it. Storing <code>modified_time</code> as a key inside the existing JSON <code>value</code> blob avoids the migration entirely and, for <code>DocContentCache</code>, turned out to already be present — <code>get_doc_content</code> was already fetching and storing <code>modifiedTime</code> as part of the cached doc dict, so that cache needed no <code>store()</code> signature change at all, only a comparison added to <code>_get_valid</code>.</p>
+<h3 id="3-applied-to-sheet-structuredata-and-doc-content-only-not-drive-folder-listings-or-calendar-metadata">3. Applied to sheet structure/data and doc content only — not Drive folder listings or calendar metadata<a class="headerlink" href="#3-applied-to-sheet-structuredata-and-doc-content-only-not-drive-folder-listings-or-calendar-metadata" title="Permanent link">&para;</a></h3>
+<p>The issue's own framing ("a spreadsheet or doc is being edited by others") pointed at file-keyed caches. Checked whether the other two namespaces could reuse the same mechanism and concluded no for structural reasons, not just scope-trimming:</p>
+<ul>
+<li><strong><code>DriveFolderCache</code></strong>: a folder's own <code>modifiedTime</code> does not change when a child file is added, removed, or renamed — Drive doesn't propagate child mutations to the parent's metadata. The signal this feature depends on doesn't exist for folder listings.</li>
+<li><strong><code>CalendarCache</code></strong>: calendars aren't Drive files and the Calendar API doesn't expose a directly comparable field via the endpoints already in use (<code>calendarList().list()</code> / <code>calendars().get()</code>). Out of scope without a separate investigation into what Calendar API field, if any, would serve the same purpose.</li>
+</ul>
+<p>Both classes still got <code>set_ttl</code> (decision 1 applies uniformly); only the modifiedTime check is scoped down.</p>
+<h3 id="4-validation-is-opt-out-cache_validate_modified_time-default-true-not-opt-in">4. Validation is opt-out (<code>CACHE_VALIDATE_MODIFIED_TIME</code>, default <code>true</code>), not opt-in<a class="headerlink" href="#4-validation-is-opt-out-cache_validate_modified_time-default-true-not-opt-in" title="Permanent link">&para;</a></h3>
+<p>The issue's own "Notes" section flagged the cost explicitly: one extra Drive <code>files.get(fields=modifiedTime)</code> call per cache lookup, and asked whether that overhead is worth it relative to the cost of a stale read. Without a production benchmark available, defaulted to correctness (matching the problem the issue opened with — staleness that fails silently) and exposed the env var as the escape hatch for deployments where the extra round-trip matters more than immediate freshness.</p>
+<h3 id="5-drive_service-threaded-through-every-fetch_sheets-call-site-including-_get_sheet_id">5. <code>drive_service</code> threaded through every <code>fetch_sheets()</code> call site, including <code>_get_sheet_id</code><a class="headerlink" href="#5-drive_service-threaded-through-every-fetch_sheets-call-site-including-_get_sheet_id" title="Permanent link">&para;</a></h3>
+<p><strong>Reversed from the original PR.</strong> The first version deliberately left <code>_get_sheet_id()</code> (<code>tools/sheets/helpers.py</code>) — the internal sheet-name→ID resolver used by ~11 write-path tools in <code>structure.py</code> (<code>add_rows</code>, <code>format_cells</code>, etc.) — calling <code>fetch_sheets()</code> without <code>drive_service</code>, reasoning that write-path correctness was a separate concern from read-path freshness (decision 3's cost/scope framing).</p>
+<p>Code review caught that this was a correctness bug, not a scoping choice: <code>SheetStructureCache</code> rows are keyed only by <code>spreadsheet_id</code> and shared across every call path. <code>_get_sheet_id</code>'s 3-arg <code>fetch_sheets()</code> call computed <code>current_mtime=None</code> (no <code>drive_service</code>), and on a cache miss <code>store()</code> only writes the <code>modified_time</code> key when it's not <code>None</code> — so the row got re-stored <em>without</em> a <code>modified_time</code> key at all. The next reader's <code>_check_modified_time</code> sees <code>cached_mtime is None</code> and skips the comparison entirely (there's nothing to compare against), silently disabling staleness detection for that spreadsheet for every subsequent caller — including the correctly-updated <code>list_sheets</code>/<code>find_in_spreadsheet</code>/<code>get_multiple_spreadsheet_summary</code> paths. Since almost every mutating sheet tool routes through <code>_get_sheet_id</code>, this defeated a large fraction of the feature in practice. Fixed by threading <code>drive_service</code> through <code>_get_sheet_id</code> and all 11 call sites; regression-tested in <code>tests/test_cache.py::TestGetSheetIdModifiedTimePropagation</code>.</p>
+<h3 id="6-get_cache_ttl-tool-added-alongside-set_cache_ttl">6. <code>get_cache_ttl</code> tool added alongside <code>set_cache_ttl</code><a class="headerlink" href="#6-get_cache_ttl-tool-added-alongside-set_cache_ttl" title="Permanent link">&para;</a></h3>
+<p><code>set_cache_ttl</code> mutates 5 process-wide singleton cache instances shared by every concurrent SSE client session, with no prior way to inspect the current value before overwriting it — one session calling <code>set_cache_ttl(0)</code> silently changed behavior for everyone else with no way to know what to restore. Added a read-only <code>get_cache_ttl</code> tool (backed by a new <code>_BaseCache.get_ttl()</code>) and a docstring/log line on <code>set_cache_ttl</code> making the process-wide, multi-session blast radius explicit. The underlying single-process-wide-cache design itself is unchanged (decision 1 still applies) — this only closes the "can't see or restore the previous value" gap.</p>
+<h3 id="7-shared-_basecache-for-the-ttlmodifiedtime-check-plumbing">7. Shared <code>_BaseCache</code> for the TTL/modifiedTime-check plumbing<a class="headerlink" href="#7-shared-_basecache-for-the-ttlmodifiedtime-check-plumbing" title="Permanent link">&para;</a></h3>
+<p>The modifiedTime-comparison-and-mark-dirty block was duplicated near-verbatim across three cache classes, and <code>set_ttl</code>/<code>close</code>/<code>mark_all_dirty</code> were duplicated across all five, with no single source of truth — exactly the shape of bug that produced decision 5's regression (one call site missed a signature update, and nothing forced the other four to be checked). Extracted a <code>_BaseCache</code> with <code>_check_modified_time</code>/<code>_check_ttl</code> helpers and the shared connection/TTL/dirty-marking methods; each cache class now only owns its own key shape and payload shape. <code>_get_valid</code> methods also now parse the cached JSON value once and return it directly instead of returning the raw <code>sqlite3.Row</code> for callers to re-parse.</p>
+<h2 id="when-to-re-evaluate">When to Re-evaluate<a class="headerlink" href="#when-to-re-evaluate" title="Permanent link">&para;</a></h2>
+<ul>
+<li>If Calendar API staleness turns out to matter in practice, investigate what field (if any) the Calendar API exposes that's comparable to Drive's <code>modifiedTime</code> before assuming this pattern extends there directly.</li>
+<li>No live benchmark of the extra <code>files.get</code> call's latency impact has been run (decision 4) — if <code>CACHE_VALIDATE_MODIFIED_TIME</code> overhead is reported as a real problem, that's the first thing to measure. <code>get_multiple_spreadsheet_summary</code> now makes one such call per sheet (not per spreadsheet) to keep each sheet's cached <code>modified_time</code> tag accurate against its own, separately-timed fetch — if that tool's Drive-call volume becomes a problem for spreadsheets with many sheets, this is the place to revisit first.</li>
+<li><code>get_cache_ttl</code>/<code>set_cache_ttl</code> still have no per-session scoping (decision 6) — if that becomes a real operational problem in multi-session SSE deployments, the fix is per-session cache instances, not another env var.</li>
+</ul>
 
 
 
@@ -1483,10 +1437,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>
