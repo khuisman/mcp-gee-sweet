@@ -121,7 +121,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [ ] `create_named_range` / `create_bookmark` — anchor points for internal links ([#152](https://github.com/khuisman/mcp-gee-sweet/issues/152))
 - [ ] Rowspan emitter — AST `Cell.rowspan` field exists but emitter does not yet merge rows ([#195](https://github.com/khuisman/mcp-gee-sweet/issues/195))
 - [x] Warn/error on mixed text + nested table in same cell — shipped as the fuller `Cell.children: list[Run | Table]` ordered model, also fixing trailing-text-after-nested-table ordering ([#275](https://github.com/khuisman/mcp-gee-sweet/issues/275)) in the same PR (PR #276) ([#108](https://github.com/khuisman/mcp-gee-sweet/issues/108))
-- [ ] colspan/rowspan inside nested tables ([#109](https://github.com/khuisman/mcp-gee-sweet/issues/109))
+- [x] colspan/rowspan inside nested tables (PR #287) ([#109](https://github.com/khuisman/mcp-gee-sweet/issues/109))
 - [ ] `find_in_doc` — search doc text and return match locations, parallel to `find_in_spreadsheet`; removes the manual index math currently needed to retrofit links (or any style) onto text already in a doc, raised while fixing #248 ([#262](https://github.com/khuisman/mcp-gee-sweet/issues/262))
 
 **Drive**
