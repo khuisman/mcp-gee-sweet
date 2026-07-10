@@ -106,3 +106,19 @@ def _get_sheet_id(
         return None
     except Exception:
         return None
+
+
+def _get_sheet_index(sheets_service: Any, spreadsheet_id: str, sheet_id: int) -> int | None:
+    """Return the current 0-based tab position of sheet_id, or None if not found."""
+    try:
+        spreadsheet = (
+            sheets_service.spreadsheets()
+            .get(spreadsheetId=spreadsheet_id, fields="sheets.properties(sheetId,index)")
+            .execute()
+        )
+        for sheet in spreadsheet.get("sheets", []):
+            if sheet["properties"]["sheetId"] == sheet_id:
+                return sheet["properties"]["index"]
+        return None
+    except Exception:
+        return None

@@ -237,6 +237,158 @@ class TestCopySheet:
         assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
 
 
+class TestDuplicateSheet:
+    def _sheets_service(self, sheet_id=0, source_index=0, reply_props=None):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [
+                {"properties": {"title": "Sheet1", "sheetId": sheet_id, "index": source_index}}
+            ]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": [
+                {
+                    "duplicateSheet": {
+                        "properties": reply_props
+                        or {"sheetId": 99, "title": "Copy of Sheet1", "index": 1}
+                    }
+                }
+            ]
+        }
+        return mock
+
+    def _cache_with_sheet(self, title="Sheet1", sheet_id=0):
+        cache = MagicMock()
+        cache.get_sheets.return_value = [SheetInfo(title=title, sheet_id=sheet_id)]
+        return cache
+
+    def _request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["duplicateSheet"]
+
+    def test_sends_duplicate_sheet_request_with_source_id(self):
+        svc = self._sheets_service(sheet_id=7, source_index=0)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        assert self._request(svc)["sourceSheetId"] == 7
+
+    def test_new_name_included_when_given(self):
+        svc = self._sheets_service(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["duplicate_sheet"](
+            spreadsheet_id="ss1", sheet="Sheet1", new_name="My Copy", ctx=ctx
+        )
+        assert self._request(svc)["newSheetName"] == "My Copy"
+
+    def test_insert_index_included_when_given(self):
+        svc = self._sheets_service(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["duplicate_sheet"](
+            spreadsheet_id="ss1", sheet="Sheet1", insert_index=3, ctx=ctx
+        )
+        assert self._request(svc)["insertSheetIndex"] == 3
+
+    def test_explicit_insert_index_skips_source_index_lookup(self):
+        """When the caller supplies insert_index, no extra API call is needed to
+        compute a default — the direct spreadsheets().get() (used only for that
+        lookup) must not be invoked."""
+        svc = self._sheets_service(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["duplicate_sheet"](
+            spreadsheet_id="ss1", sheet="Sheet1", insert_index=3, ctx=ctx
+        )
+        assert not svc.spreadsheets.return_value.get.called
+
+    def test_new_name_omitted_when_not_given(self):
+        svc = self._sheets_service(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        assert "newSheetName" not in self._request(svc)
+
+    def test_insert_index_defaults_to_immediately_after_source(self):
+        """Matches Sheets' native UI 'Duplicate' behavior: the copy lands right
+        after the source tab. The Sheets API's own default (observed via live
+        QA) is index 0 regardless of source position, so this must be computed
+        and passed explicitly rather than relying on the API's default."""
+        svc = self._sheets_service(sheet_id=7, source_index=2)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        assert self._request(svc)["insertSheetIndex"] == 3
+
+    def test_insert_index_omitted_when_source_index_lookup_fails(self):
+        svc = self._sheets_service(sheet_id=7)
+        svc.spreadsheets.return_value.get.return_value.execute.return_value = {"sheets": []}
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        assert "insertSheetIndex" not in self._request(svc)
+
+    def test_returns_new_sheet_info(self):
+        svc = self._sheets_service(
+            sheet_id=7, reply_props={"sheetId": 99, "title": "Copy of Sheet1", "index": 2}
+        )
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
+        result = _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        assert result == {
+            "sheetId": 99,
+            "title": "Copy of Sheet1",
+            "index": 2,
+            "spreadsheetId": "ss1",
+        }
+
+    def test_returns_error_when_source_sheet_not_found(self):
+        svc = self._sheets_service(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(title="Other", sheet_id=7))
+        result = _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Missing", ctx=ctx)
+        assert result == {"error": "Sheet 'Missing' not found"}
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    def test_marks_cache_dirty_on_success(self):
+        svc = self._sheets_service(sheet_id=7)
+        cache = self._cache_with_sheet(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=cache)
+        _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        cache.mark_dirty.assert_called_with("ss1")
+
+    def test_forwards_drive_service_to_get_sheet_id(self, monkeypatch):
+        """Regression: this call site omitted drive_service, reintroducing the
+        cache-poisoning bug fixed in #284 (modified_time silently disabled for
+        all subsequent readers of the spreadsheet)."""
+        svc = self._sheets_service(sheet_id=7)
+        cache = self._cache_with_sheet(sheet_id=7)
+        drive_svc = MagicMock()
+        ctx = _make_ctx(sheets_service=svc, cache=cache, drive_service=drive_svc)
+        mock_get_sheet_id = MagicMock(return_value=7)
+        monkeypatch.setattr(sheets_structure_module, "_get_sheet_id", mock_get_sheet_id)
+        _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        mock_get_sheet_id.assert_called_once_with(svc, "ss1", "Sheet1", cache, drive_svc)
+
+
+class TestGetSheetIdCallSitesForwardDriveService:
+    """Static regression guard: every _get_sheet_id() call in structure.py must
+    forward drive_service as its 5th argument.
+
+    PR #284 fixed cache poisoning caused by a missing drive_service (it silently
+    disables modifiedTime staleness checks for all readers of that spreadsheet).
+    duplicate_sheet reintroduced the bug by omitting the argument (caught in
+    review of PR #286) — this scans all call sites so a future tool can't drop
+    it again without a test failing.
+    """
+
+    def test_all_call_sites_pass_drive_service(self):
+        import inspect
+        import re
+
+        source = inspect.getsource(sheets_structure_module)
+        calls = re.findall(r"_get_sheet_id\(([^)]*)\)", source)
+        assert len(calls) >= 12, (
+            f"expected at least 12 _get_sheet_id call sites, found {len(calls)}"
+        )
+        for call_args in calls:
+            assert "drive_service" in call_args, (
+                f"_get_sheet_id call missing drive_service: {call_args}"
+            )
+
+
 class TestDeleteSheet:
     def _sheets_service(self, sheet_id=7):
         mock = MagicMock()
