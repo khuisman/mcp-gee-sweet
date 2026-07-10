@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs.ast import (
     Cell,
@@ -11,6 +13,7 @@ from mcp_gee_sweet.tools.docs.ast import (
 )
 from mcp_gee_sweet.tools.docs.content import _html_to_doc_requests
 from mcp_gee_sweet.tools.docs.emitter import (
+    _apply_merges,
     _ast_cell_to_doc_cell,
     _build_fill_requests,
     _cell_para_start_for_cursor,
@@ -590,6 +593,12 @@ class FakeDoc:
             elif "insertTable" in req:
                 it = req["insertTable"]
                 self.insert_table(it["location"]["index"], it["rows"], it["columns"])
+            elif "mergeTableCells" in req:
+                # Real mergeTableCells doesn't delete content or shift indices —
+                # covered cells remain physical entries (see _physical_to_ast_indices) —
+                # so this simulator has nothing to mutate; the fill step already knows
+                # to skip covered cells based on the AST's own colspan/rowspan.
+                pass
 
     def get(self) -> dict:
         idx = 0
@@ -721,6 +730,117 @@ class TestFillNestedCellContent:
         degenerate = Table(rows=[Row(cells=[])])
         doc = self._run(Cell(children=[degenerate, Run("After")]))
         assert doc.describe_cell(0, 0, 0) == ["Para:After"]
+
+
+# ---------------------------------------------------------------------------
+# #109 — colspan/rowspan on cells inside a nested table
+# ---------------------------------------------------------------------------
+
+
+class TestNestedTableMerges:
+    """A nested table's own cells may have colspan/rowspan > 1 — _fill_table_fully
+    must emit mergeTableCells for them, mirroring the outer-table merge phase in
+    fill_tables(), instead of silently leaving an unmerged shell (#109)."""
+
+    def _run(self, outer_cell: Cell) -> tuple[FakeDoc, list[list[dict]]]:
+        doc = FakeDoc()
+        doc.content = [TableNode(1, 1)]
+        ast_table = Table(rows=[Row(cells=[outer_cell])])
+
+        svc = MagicMock()
+        svc.documents.return_value.get.return_value.execute.side_effect = lambda: doc.get()
+
+        batches: list[list[dict]] = []
+
+        def do_batch(documentId, body):
+            batches.append(body["requests"])
+            doc.batch_update(body["requests"])
+            m = MagicMock()
+            m.execute.return_value = {}
+            return m
+
+        svc.documents.return_value.batchUpdate.side_effect = do_batch
+        _fill_nested_cell_content(svc, "doc1", [ast_table])
+        return doc, batches
+
+    def test_colspan_merge_emitted_and_only_anchor_cell_filled(self):
+        inner = _table(_row(_cell("Header", colspan=2)))
+        doc, batches = self._run(Cell(children=[inner]))
+
+        merge_reqs = [r for batch in batches for r in batch if "mergeTableCells" in r]
+        assert len(merge_reqs) == 1
+        tr = merge_reqs[0]["mergeTableCells"]["tableRange"]
+        assert tr["rowSpan"] == 1
+        assert tr["columnSpan"] == 2
+
+        nested_table = next(
+            c for c in doc.content[0].rows[0][0].content if isinstance(c, TableNode)
+        )
+        assert nested_table.rows[0][0].content[0].text == "Header"
+        assert nested_table.rows[0][1].content[0].text == ""  # colspan phantom — untouched
+
+    def test_rowspan_merge_emitted_and_only_anchor_cell_filled(self):
+        inner = _table(_row(_cell("A", rowspan=2), _cell("B")), _row(_cell("C")))
+        doc, batches = self._run(Cell(children=[inner]))
+
+        merge_reqs = [r for batch in batches for r in batch if "mergeTableCells" in r]
+        assert len(merge_reqs) == 1
+        tr = merge_reqs[0]["mergeTableCells"]["tableRange"]
+        assert tr["rowSpan"] == 2
+        assert tr["columnSpan"] == 1
+
+        nested_table = next(
+            c for c in doc.content[0].rows[0][0].content if isinstance(c, TableNode)
+        )
+        assert nested_table.rows[0][0].content[0].text == "A"
+        assert nested_table.rows[0][1].content[0].text == "B"
+        assert nested_table.rows[1][0].content[0].text == ""  # rowspan phantom — untouched
+        assert nested_table.rows[1][1].content[0].text == "C"
+
+    def test_no_merge_call_when_nested_table_has_no_spans(self):
+        inner = _table(_row(_cell("A"), _cell("B")))
+        _doc, batches = self._run(Cell(children=[inner]))
+        assert not any("mergeTableCells" in r for batch in batches for r in batch)
+
+    def test_merge_precedes_fill_in_batch_order(self):
+        # Pin the documented phase order in _fill_table_fully — merge runs (and
+        # is re-fetched) before the bulk text fill, mirroring fill_tables()'s own
+        # outer-table phase order. (The batch preceding both is the round
+        # algorithm's own insertTable for the nested table's shell.)
+        inner = _table(_row(_cell("Header", colspan=2)))
+        _doc, batches = self._run(Cell(children=[inner]))
+
+        merge_idx = next(
+            i for i, batch in enumerate(batches) if any("mergeTableCells" in r for r in batch)
+        )
+        fill_idx = next(
+            i for i, batch in enumerate(batches) if any("insertText" in r for r in batch)
+        )
+        assert merge_idx < fill_idx
+
+    def test_raises_when_table_vanishes_from_resolve_after_merge(self):
+        # mergeTableCells doesn't shift indices or delete content, so a resolve
+        # failure right after one is an anomaly, not a normal "not there yet"
+        # case — it must surface loudly rather than silently drop the fill and
+        # leave the just-merged table empty with no operator-visible signal.
+        ast_table = _table(_row(_cell("Header", colspan=2)))
+        doc_table = {
+            "tableRows": [
+                {
+                    "tableCells": [
+                        {"startIndex": 3, "content": [{"startIndex": 4}]},
+                        {"startIndex": 6, "content": [{"startIndex": 7}]},
+                    ]
+                }
+            ]
+        }
+
+        svc = MagicMock()
+        svc.documents.return_value.batchUpdate.return_value.execute.return_value = {}
+        svc.documents.return_value.get.return_value.execute.return_value = {"body": {"content": []}}
+
+        with pytest.raises(RuntimeError, match="vanished"):
+            _apply_merges(svc, "doc1", [doc_table], [ast_table], lambda _live_doc: [])
 
 
 # ---------------------------------------------------------------------------

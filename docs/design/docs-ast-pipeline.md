@@ -338,3 +338,17 @@ Cells with no `Table` in `children` are still filled in one bulk batch by `_buil
 - Text before, between, and after any number of nested tables in one cell renders in true source order, at any nesting depth.
 - The "one level of nesting only" and "no colspan/rowspan/col_widths inside nested tables" limitations from the original #92 design are otherwise unchanged — this rewrite only touches content ordering, not those structural features.
 - Tested with `tests/test_docs_tables.py`'s `TestFillNestedCellContent`, which drives the real algorithm against a small in-memory Docs-API simulator (`FakeDoc`/`Para`/`TableNode` in that file) that actually applies `insertText`/`insertTable` mutations and re-derives indices — chosen over hand-computed index fixtures because this much re-fetch/recursion logic is easy to get subtly wrong in a way a fixture can't catch (and did, twice, during development).
+
+---
+
+## Nested table colspan/rowspan (#109)
+
+**Date:** 2026-07-08
+
+Nested tables produced a correctly-sized shell but never merged cells with `colspan`/`rowspan` > 1 — `_fill_table_fully` (the per-nested-table fill helper introduced in the rewrite above) only ran the plain-cell bulk fill, with no equivalent of the outer-table merge phase (`fill_tables` phase 2).
+
+Fix: `_fill_table_fully` now checks the nested `ast_table` for any cell with `colspan > 1 or rowspan > 1` and, if found, builds and executes `mergeTableCells` requests via the existing `_build_merge_requests` (unchanged — it already operated generically on any `doc_table`/`ast_table` pair, nested or not) before re-fetching and running the bulk fill. This exactly mirrors `fill_tables`'s own phase 1→2→3 order, just scoped to one nested table.
+
+`col_widths` on nested tables remains unsupported — out of scope for #109, not addressed here.
+
+Tested in `tests/test_docs_tables.py`'s `TestNestedTableMerges`, extending the same `FakeDoc` simulator with a no-op `mergeTableCells` handler (the real Docs API doesn't shift indices or delete content on merge — covered cells stay physical, just skipped by the existing phantom-cell mapping — so the simulator has nothing to mutate; the tests instead assert the merge request's shape and its position in batch order relative to the fill).

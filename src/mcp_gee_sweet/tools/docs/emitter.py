@@ -199,24 +199,20 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
       3. Fill plain cells (no nested table) — insertText + updateTextStyle, high→low
       4. Fill cells with a nested table, segment by segment (see
          _fill_nested_cell_content) — text and tables in true source order,
-         recursing into any depth of further nesting
+         recursing into any depth of further nesting. Each nested table's own
+         merges are handled by _fill_table_fully, mirroring phase 2 above (#109).
       5. Emit updateTableColumnProperties for tables with col_widths
       6. If any cell has Phase 3 style fields: emit updateTableCellStyle
 
-    Nested table limitations: no colspan/rowspan or col_widths inside nested
-    tables. Text sharing a cell with one or more nested tables (#108, #275) is
-    fully supported — each run of text and each nested table renders in the
-    same order it appeared in the source, at any nesting depth.
+    Nested table limitations: no col_widths inside nested tables. colspan/
+    rowspan (#109) and text sharing a cell with one or more nested tables
+    (#108, #275) are both fully supported, at any nesting depth — each run of
+    text, merge, and nested table renders in the same order and shape it had
+    in the source.
     """
     if not tables:
         return
 
-    has_merges = any(
-        cell.colspan > 1 or cell.rowspan > 1
-        for table in tables
-        for row in table.rows
-        for cell in row.cells
-    )
     has_nested = any(
         any(isinstance(child, Table) for child in cell.children)
         for table in tables
@@ -238,14 +234,7 @@ def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
     doc_tables = _top_level_tables(live_doc)
 
     # Step 2: outer merges
-    if has_merges:
-        merge_requests = _build_merge_requests(doc_tables, tables)
-        if merge_requests:
-            docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": merge_requests}
-            ).execute()
-            live_doc = docs_service.documents().get(documentId=doc_id).execute()
-            doc_tables = _top_level_tables(live_doc)
+    doc_tables = _apply_merges(docs_service, doc_id, doc_tables, tables, _top_level_tables)
 
     # Step 3: fill plain cells (no nested table) in one bulk batch
     fill_requests = _build_fill_requests(doc_tables, tables)
@@ -552,12 +541,13 @@ def _fill_children_recursive(
 
 
 def _fill_table_fully(docs_service, doc_id: str, resolve, ast_table: Table) -> None:
-    """Fill one (typically just-inserted) table's cells: plain cells in bulk,
-    cells with a further nested table via the recursive round algorithm.
+    """Fill one (typically just-inserted) table's cells: merges first, then
+    plain cells in bulk, then cells with a further nested table via the
+    recursive round algorithm.
 
     Every nested table needs this — not just ones with further nesting — since
-    a nested table's own plain-text cells are never touched by the top-level
-    _build_fill_requests bulk pass (that only sees the outer tables list).
+    a nested table's own plain-text cells (and merges) are never touched by the
+    top-level fill_tables passes (those only see the outer tables list).
     """
     live_doc = docs_service.documents().get(documentId=doc_id).execute()
     doc_tables = resolve(live_doc)
@@ -568,6 +558,8 @@ def _fill_table_fully(docs_service, doc_id: str, resolve, ast_table: Table) -> N
             doc_id,
         )
         return
+
+    doc_tables = _apply_merges(docs_service, doc_id, doc_tables, [ast_table], resolve)
 
     fill_requests = _build_fill_requests(doc_tables, [ast_table])
     if fill_requests:
@@ -580,6 +572,48 @@ def _fill_table_fully(docs_service, doc_id: str, resolve, ast_table: Table) -> N
         # Nothing changed since doc_tables was fetched above — reuse it instead
         # of having the recursive call redundantly re-fetch identical data.
         _fill_children_recursive(docs_service, doc_id, resolve, [ast_table], _doc_tables=doc_tables)
+
+
+def _apply_merges(
+    docs_service, doc_id: str, doc_tables: list[dict], ast_tables: list[Table], resolve
+) -> list[dict]:
+    """Emit mergeTableCells for any ast_tables cell with colspan/rowspan > 1,
+    re-fetch, and return the updated doc_tables — or doc_tables unchanged if
+    nothing needed merging.
+
+    mergeTableCells doesn't shift character indices or delete content (covered
+    cells remain physical entries in the doc tree), so doc_tables — already
+    successfully resolved by the caller — is expected to resolve again right
+    after. If it doesn't, the live doc no longer matches the model used to
+    build the merge requests just executed; silently returning here would mean
+    every already-merged table renders with zero content and no operator-
+    visible signal, so raise instead of skipping the fill.
+    """
+    has_merges = any(
+        cell.colspan > 1 or cell.rowspan > 1
+        for table in ast_tables
+        for row in table.rows
+        for cell in row.cells
+    )
+    if not has_merges:
+        return doc_tables
+
+    merge_requests = _build_merge_requests(doc_tables, ast_tables)
+    if not merge_requests:
+        return doc_tables
+
+    docs_service.documents().batchUpdate(
+        documentId=doc_id, body={"requests": merge_requests}
+    ).execute()
+    live_doc = docs_service.documents().get(documentId=doc_id).execute()
+    updated = resolve(live_doc)
+    if len(updated) < len(ast_tables) or any(t is None for t in updated):
+        raise RuntimeError(
+            f"_apply_merges: table(s) vanished from doc {doc_id} immediately after "
+            "mergeTableCells, which does not itself shift indices or delete content — "
+            "refusing to silently skip the fill and leave the merged table empty."
+        )
+    return updated
 
 
 def _build_phantom_set(ast_table: Table) -> set[tuple[int, int]]:

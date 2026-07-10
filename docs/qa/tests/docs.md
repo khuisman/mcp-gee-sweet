@@ -1038,6 +1038,25 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
+### TC-DOC90: `colspan`/`rowspan` inside a nested table now merges correctly (issue #109) ⚠️ destructive
+
+**Background:** Nested tables produced a correctly-sized shell but silently ignored `colspan`/`rowspan` on their own cells — no `mergeTableCells` request was ever emitted for them, unlike outer-table cells (TC-DOC34/36/37). Fixed by having `_fill_table_fully` run the same merge phase for a nested table's own cells that `fill_tables` already runs for the outer table.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<table><tr><td><table><tr><td colspan=\"2\">Header</td></tr><tr><td>A</td><td>B</td></tr></table></td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows the outer table (1 row × 1 col) with cell [0,0] text empty (holds the nested table, not text)
+- 🔍 Visual check: nested table renders with "Header" spanning both columns of the top row, and "A"/"B" as two separate cells in the second row — not four ungrouped cells
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-09) ✅ PASS**
+`write_doc_content` succeeded. `get_doc_structure` showed the outer table (1 row × 1 col) with cell [0,0] text empty. Playwright screenshot confirmed the nested table rendered with "Header" spanning both columns of the top row and "A"/"B" as two separate cells below — the merge applied correctly. (Unrelated observation: the fixture doc had leftover header/footer text visible in the render and in `get_doc_content`'s plain-text export but not in `get_doc_structure` — headers/footers aren't part of the body map that tool returns; pre-existing fixture-doc state from an earlier header/footer test, untouched by `write_doc_content`, not a regression from this PR.) Fixture content restored per cleanup step.
+
+---
+
 ### TC-DOC52: `get_doc_theme` scans body paragraph styles
 **Note:** `get_doc_theme` reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.
 
