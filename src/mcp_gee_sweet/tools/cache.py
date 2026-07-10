@@ -1,10 +1,65 @@
+import logging
 from typing import Any
 
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+logger = logging.getLogger(__name__)
+
 
 def register(tool):
+    @tool(annotations=ToolAnnotations(title="Get Cache TTL", readOnlyHint=True))
+    def get_cache_ttl(ctx: Context = None) -> dict[str, Any]:
+        """
+        Read the cache TTL currently in effect for this running process.
+
+        Returns:
+            {"ttl_seconds": <int>}. All five cache namespaces are always kept in
+            sync by set_cache_ttl, so a single value represents all of them.
+        """
+        lc = ctx.request_context.lifespan_context
+        return {"ttl_seconds": lc.cache.get_ttl()}
+
+    @tool(annotations=ToolAnnotations(title="Set Cache TTL"))
+    def set_cache_ttl(ttl_seconds: int, ctx: Context = None) -> dict[str, Any]:
+        """
+        Change the cache time-to-live at runtime, without restarting the server.
+
+        This server runs in SSE mode with one shared cache per process — changing
+        the TTL here affects every concurrent client session, not just the caller.
+        Use get_cache_ttl first if you need to restore the previous value afterward.
+
+        Args:
+            ttl_seconds: New TTL in seconds, applied to all five cache namespaces
+                (sheet structure, sheet data, Drive folders, docs, calendars).
+                Must be >= 0; 0 effectively disables TTL-based caching (every
+                entry is immediately eligible for expiry).
+
+        Returns:
+            Confirmation with the new TTL. Applies only to this running process —
+            set CACHE_TTL in the environment/.env for the startup default.
+        """
+        if ttl_seconds < 0:
+            raise ValueError("ttl_seconds must be >= 0")
+
+        lc = ctx.request_context.lifespan_context
+        previous = lc.cache.get_ttl()
+        for cache in (
+            lc.cache,
+            lc.sheet_data_cache,
+            lc.drive_folder_cache,
+            lc.doc_cache,
+            lc.calendar_cache,
+        ):
+            cache.set_ttl(ttl_seconds)
+
+        logger.warning(
+            "Cache TTL changed process-wide %ds -> %ds (affects all concurrent sessions)",
+            previous,
+            ttl_seconds,
+        )
+        return {"ttl_seconds": ttl_seconds}
+
     @tool(annotations=ToolAnnotations(title="Refresh Cache", readOnlyHint=True))
     def refresh_cache(
         spreadsheet_id: str | None = None,

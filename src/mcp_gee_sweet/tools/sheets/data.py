@@ -4,7 +4,7 @@ from typing import Any
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
-from ...cache import SheetInfo, fetch_sheets
+from ...cache import CACHE_VALIDATE_MODIFIED_TIME, SheetInfo, fetch_sheets, get_modified_time
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .helpers import _column_index_to_letter, _quote_sheet_name
 
@@ -244,6 +244,7 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
+        drive_service = lc.drive_service
         data_cache = lc.sheet_data_cache
         structure_cache = lc.cache
         summaries = []
@@ -256,8 +257,17 @@ def register(tool):
                 "error": None,
             }
             try:
-                cached_sheets = structure_cache.get_sheets(spreadsheet_id)
-                cached_title = structure_cache.get_title(spreadsheet_id)
+                current_mtime = (
+                    get_modified_time(drive_service, spreadsheet_id)
+                    if CACHE_VALIDATE_MODIFIED_TIME
+                    else None
+                )
+                cached_sheets = structure_cache.get_sheets(
+                    spreadsheet_id, current_modified_time=current_mtime
+                )
+                cached_title = structure_cache.get_title(
+                    spreadsheet_id, current_modified_time=current_mtime
+                )
 
                 if cached_sheets is not None and cached_title is not None:
                     sheet_infos = cached_sheets
@@ -281,7 +291,9 @@ def register(tool):
                         for s in spreadsheet.get("sheets", [])
                         if s.get("properties", {}).get("title")
                     ]
-                    structure_cache.store(spreadsheet_id, sheet_infos, title=title)
+                    structure_cache.store(
+                        spreadsheet_id, sheet_infos, title=title, modified_time=current_mtime
+                    )
 
                 sheet_summaries = []
                 for sheet_info in sheet_infos:
@@ -293,7 +305,21 @@ def register(tool):
                         "error": None,
                     }
 
-                    cached = data_cache.get(spreadsheet_id, sheet_info.sheet_id, rows_to_fetch)
+                    # Fetched per sheet, not reused from the structure-check above:
+                    # each sheet's data is fetched via its own later API call in this
+                    # loop, so tagging it with the mtime captured before the loop
+                    # started could under-represent how fresh it actually is.
+                    sheet_mtime = (
+                        get_modified_time(drive_service, spreadsheet_id)
+                        if CACHE_VALIDATE_MODIFIED_TIME
+                        else None
+                    )
+                    cached = data_cache.get(
+                        spreadsheet_id,
+                        sheet_info.sheet_id,
+                        rows_to_fetch,
+                        current_modified_time=sheet_mtime,
+                    )
                     if cached is not None:
                         sheet_summary["headers"] = cached["headers"]
                         sheet_summary["first_rows"] = cached["first_rows"]
@@ -315,7 +341,12 @@ def register(tool):
                         sheet_summary["headers"] = headers
                         sheet_summary["first_rows"] = first_rows
                         data_cache.store(
-                            spreadsheet_id, sheet_info.sheet_id, headers, first_rows, rows_to_fetch
+                            spreadsheet_id,
+                            sheet_info.sheet_id,
+                            headers,
+                            first_rows,
+                            rows_to_fetch,
+                            modified_time=sheet_mtime,
                         )
                     except Exception as sheet_e:
                         sheet_summary["error"] = (
@@ -371,7 +402,7 @@ def register(tool):
         results = []
 
         try:
-            all_sheets = fetch_sheets(sheets_service, spreadsheet_id, lc.cache)
+            all_sheets = fetch_sheets(sheets_service, spreadsheet_id, lc.cache, lc.drive_service)
             sheets_to_search = [s.title for s in all_sheets if sheet is None or s.title == sheet]
 
             if not sheets_to_search:

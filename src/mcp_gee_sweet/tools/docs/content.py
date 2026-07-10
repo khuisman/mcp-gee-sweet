@@ -12,6 +12,7 @@ from markdown.inlinepatterns import InlineProcessor
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+from ...cache import CACHE_VALIDATE_MODIFIED_TIME
 from ..drive import _SA_QUOTA_ERROR
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .ast import Table
@@ -358,8 +359,13 @@ def register(tool):
         drive_service = lc.drive_service
         doc_cache = lc.doc_cache
 
-        result = doc_cache.get(file_id)
-        if result is None:
+        # When validation is on, fetch full metadata (not just modifiedTime) up
+        # front: it's the same call cost as the lightweight helper, and reusing it
+        # on a cache miss avoids a second, redundant files().get() for the same
+        # fields.
+        metadata = None
+        current_mtime = None
+        if CACHE_VALIDATE_MODIFIED_TIME:
             metadata = (
                 drive_service.files()
                 .get(
@@ -369,6 +375,20 @@ def register(tool):
                 )
                 .execute()
             )
+            current_mtime = metadata.get("modifiedTime")
+
+        result = doc_cache.get(file_id, current_modified_time=current_mtime)
+        if result is None:
+            if metadata is None:
+                metadata = (
+                    drive_service.files()
+                    .get(
+                        fileId=file_id,
+                        fields="id, name, modifiedTime, webViewLink",
+                        supportsAllDrives=True,
+                    )
+                    .execute()
+                )
 
             content = drive_service.files().export(fileId=file_id, mimeType="text/plain").execute()
 

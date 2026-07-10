@@ -77,13 +77,14 @@ def _get_sheet_id(
     spreadsheet_id: str,
     sheet_name: str,
     cache: "SheetStructureCache | None" = None,
+    drive_service: Any = None,
 ) -> int | None:
     """Return the numeric sheet ID for sheet_name, or None if not found."""
     if cache is not None:
         from ...cache import fetch_sheets
 
         try:
-            sheets = fetch_sheets(sheets_service, spreadsheet_id, cache)
+            sheets = fetch_sheets(sheets_service, spreadsheet_id, cache, drive_service)
             for s in sheets:
                 if s.title == sheet_name:
                     return s.sheet_id
