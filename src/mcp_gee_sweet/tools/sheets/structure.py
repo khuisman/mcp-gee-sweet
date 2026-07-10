@@ -46,7 +46,7 @@ def register(tool):
             refresh_cache() to clear all caches.
         """
         lc = ctx.request_context.lifespan_context
-        sheets = fetch_sheets(lc.sheets_service, spreadsheet_id, lc.cache)
+        sheets = fetch_sheets(lc.sheets_service, spreadsheet_id, lc.cache, lc.drive_service)
         return [s.title for s in sheets]
 
     @tool(annotations=ToolAnnotations(title="Copy Sheet", destructiveHint=True))
@@ -233,7 +233,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
@@ -286,7 +286,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
@@ -331,7 +331,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
@@ -371,7 +371,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
@@ -423,7 +423,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
@@ -493,7 +493,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
@@ -594,7 +594,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
@@ -648,7 +648,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
@@ -695,7 +695,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
@@ -749,7 +749,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
@@ -871,7 +871,7 @@ def register(tool):
                 "error": f"Invalid chart type '{chart_type}'. Must be one of: {', '.join(_VALID_CHART_TYPES)}"
             }
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache)
+        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found in spreadsheet"}
 
