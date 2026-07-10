@@ -32,7 +32,15 @@ CI (the "Lint and test" check `/merge-pr` already gates on) covers unit tests. I
 
 8. **Record results honestly.** For each test case actually executed, add `**Result (<date>) ✅ PASS**` or `**Result (<date>) ❌ FAIL — <what happened>**` directly below its `Checks` block. Never write a Result for a case you didn't actually invoke — if something blocks a case (fixture missing, tool errors before completing), write `**Result (<date>)** pending — <reason>` and say so plainly rather than guessing the outcome.
 
-9. **Commit and push the results.** If any Result entries were added, commit just those QA doc changes onto the PR branch (`qa: record live verification for PR #<number>`) and push, so the evidence lands in history before merge. Ask before pushing, per this repo's normal commit/push confirmation rule.
+9. **Commit and push the results.** If any Result entries were added, they need to land in a real file edit. If this session runs under an isolation policy that blocks edits outside `.claude/worktrees/*` (background jobs do — regardless of which branch is checked out in the main checkout), don't spin up a fresh throwaway worktree per PR (churn — create, edit, commit, push, remove, repeat). Instead keep **one persistent scratch worktree** for the whole orchestrator session, e.g. `.claude/worktrees/qa-scratch`, and reuse it every time this step comes up:
+   ```
+   git worktree add .claude/worktrees/qa-scratch -b orchestrator-qa-scratch develop   # first time only
+   ```
+   Its own branch name (`orchestrator-qa-scratch`) is arbitrary and never touches any PR branch, so it can never conflict with a worker's worktree. Each time this step comes up: enter it (`EnterWorktree` with `path`), `git fetch origin <headRefName> && git reset --hard origin/<headRefName>` to line it up with the PR's latest commit, make the edits, commit (`qa: record live verification for PR #<number>`), then push straight to the PR's real branch via refspec — same trick as step 3:
+   ```
+   git push origin HEAD:<headRefName>
+   ```
+   Ask before pushing, per this repo's normal commit/push confirmation rule. Leave the scratch worktree in place afterward (`ExitWorktree` with `action: "keep"`) for next time — don't remove it between PRs, only if the user asks for a cleanup pass.
 
 10. **Report.** Summarize: code review findings (if any), which test cases passed/failed/pending, any coverage gaps found in step 6, and whether the branch looks ready to merge. If everything passed, say the next step is `/merge-pr`. If something failed, say the PR needs to go back to its worker session — don't attempt the fix yourself here; this session's job is verification, not implementation.
 
