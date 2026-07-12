@@ -247,6 +247,23 @@ Set `MAX_TOOL_RESPONSE_CHARS=200000` in server config and restart the server (e.
 
 ---
 
+### TC-R36: 5 concurrent queries — each result attributed to the correct query (issue #183)
+
+**Background:** #183 made `get_multiple_sheet_data` fetch all queries concurrently via `asyncio.gather()` instead of one at a time. `gather()` is documented to preserve result order regardless of completion order, but this can only be verified against the real API, not mocks. Uses 5 distinct, easily-confused ranges from the same sheet so a mixed-up result is obvious.
+
+**Setup**
+No fixture setup needed — query 5 different single-cell ranges from the `Sales` sheet in one call (e.g. `A1`, `B1`, `C1`, `A2`, `B2` — cells with known, distinct values from the existing fixture).
+
+**Prompt**
+> "In one call, get these 5 ranges from the Sales sheet in {SPREADSHEET_ID}: A1, B1, C1, A2, B2"
+
+**Checks**
+- Returns 5 results in the same order as the 5 queries were given
+- Each result's `data` matches the actual cell content at *that* range, not another range's content
+- No `error` field on any result
+
+---
+
 ## `get_multiple_spreadsheet_summary`
 
 ### TC-R16: Happy path — multiple spreadsheet IDs
@@ -258,6 +275,26 @@ Set `MAX_TOOL_RESPONSE_CHARS=200000` in server config and restart the server (e.
 - Returns entries for all 3 sheets: Sales, Empty, Notes & Misc
 - Sales entry includes headers (Product, Q1, Q2, Q3) and first data rows
 - Empty sheet entry has empty headers and empty first_rows
+
+---
+
+### TC-R37: Concurrent summary across multiple distinct spreadsheets — no cross-attribution ⚠️ requires-oauth (issue #183)
+
+**Background:** TC-R16 exercises the *inner* per-sheet loop within one spreadsheet, which stayed sequential in #183 — it does not exercise the *outer* per-spreadsheet loop, which is the part that actually became concurrent via `asyncio.gather()`. This test specifically targets that outer loop with multiple distinct spreadsheet IDs.
+
+**Setup**
+Create 2 additional throwaway spreadsheets (`QA-Summary-183-B`, `QA-Summary-183-C`), each with a distinct, identifiable title and a `Sheet1` containing distinct header text (e.g. `"marker-B"` / `"marker-C"` in cell A1).
+
+**Prompt**
+> "Give me summaries of these 3 spreadsheets in one call: {SPREADSHEET_ID}, {the QA-Summary-183-B id}, {the QA-Summary-183-C id}"
+
+**Checks**
+- Returns 3 entries, one per spreadsheet, in the same order as requested
+- Each entry's `title` and sheet contents match *that* spreadsheet — not another one's (would indicate cross-attribution under concurrency)
+- No `error` field on any entry
+
+**Teardown**
+Delete the 2 throwaway spreadsheets.
 
 ---
 

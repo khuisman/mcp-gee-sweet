@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -5,6 +6,8 @@ from typing import Any
 from googleapiclient.errors import HttpError
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
+
+from ..auth import thread_http
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +20,7 @@ _CANNOT_UNSUBSCRIBE_OWNED_ERROR = (
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="List Calendars", readOnlyHint=True))
-    def list_calendars(ctx: Context = None) -> list[dict[str, Any]]:
+    async def list_calendars(ctx: Context = None) -> list[dict[str, Any]]:
         """
         List all calendars accessible to the authenticated user.
 
@@ -32,7 +35,10 @@ def register(tool):
         if cached is not None:
             return cached
 
-        result = lc.calendar_service.calendarList().list().execute()
+        result = await asyncio.to_thread(
+            lc.calendar_service.calendarList().list().execute,
+            http=thread_http(lc.calendar_service),
+        )
         calendars = [
             {
                 "id": c["id"],
@@ -47,7 +53,7 @@ def register(tool):
         return calendars
 
     @tool(annotations=ToolAnnotations(title="Get Calendar", readOnlyHint=True))
-    def get_calendar(calendar_id: str, ctx: Context = None) -> dict[str, Any]:
+    async def get_calendar(calendar_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Fetch metadata for a single calendar.
 
@@ -65,7 +71,10 @@ def register(tool):
             return cached
 
         try:
-            c = lc.calendar_service.calendarList().get(calendarId=calendar_id).execute()
+            c = await asyncio.to_thread(
+                lc.calendar_service.calendarList().get(calendarId=calendar_id).execute,
+                http=thread_http(lc.calendar_service),
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -81,7 +90,7 @@ def register(tool):
         return result
 
     @tool(annotations=ToolAnnotations(title="Create Calendar", destructiveHint=True))
-    def create_calendar(
+    async def create_calendar(
         summary: str,
         description: str | None = None,
         timezone: str | None = None,
@@ -108,7 +117,10 @@ def register(tool):
             body["timeZone"] = timezone
 
         try:
-            c = lc.calendar_service.calendars().insert(body=body).execute()
+            c = await asyncio.to_thread(
+                lc.calendar_service.calendars().insert(body=body).execute,
+                http=thread_http(lc.calendar_service),
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -122,7 +134,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Update Calendar", destructiveHint=True))
-    def update_calendar(
+    async def update_calendar(
         calendar_id: str,
         summary: str | None = None,
         description: str | None = None,
@@ -161,20 +173,25 @@ def register(tool):
 
         try:
             if patch:
-                c = (
+                c = await asyncio.to_thread(
                     lc.calendar_service.calendars()
                     .patch(calendarId=calendar_id, body=patch)
-                    .execute()
+                    .execute,
+                    http=thread_http(lc.calendar_service),
                 )
             else:
-                c = lc.calendar_service.calendars().get(calendarId=calendar_id).execute()
+                c = await asyncio.to_thread(
+                    lc.calendar_service.calendars().get(calendarId=calendar_id).execute,
+                    http=thread_http(lc.calendar_service),
+                )
 
             result_color_id = None
             if color_id is not None:
-                list_entry = (
+                list_entry = await asyncio.to_thread(
                     lc.calendar_service.calendarList()
                     .patch(calendarId=calendar_id, body={"colorId": color_id})
-                    .execute()
+                    .execute,
+                    http=thread_http(lc.calendar_service),
                 )
                 result_color_id = list_entry.get("colorId")
         except Exception as e:
@@ -191,7 +208,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Delete Calendar", destructiveHint=True))
-    def delete_calendar(calendar_id: str, ctx: Context = None) -> dict[str, Any]:
+    async def delete_calendar(calendar_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Permanently delete a calendar. For calendars you own, this deletes the
         calendar entirely for all users it is shared with — use with caution.
@@ -206,7 +223,10 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            lc.calendar_service.calendars().delete(calendarId=calendar_id).execute()
+            await asyncio.to_thread(
+                lc.calendar_service.calendars().delete(calendarId=calendar_id).execute,
+                http=thread_http(lc.calendar_service),
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -215,7 +235,7 @@ def register(tool):
         return {"calendar_id": calendar_id, "action": "deleted"}
 
     @tool(annotations=ToolAnnotations(title="Add Calendar To List", destructiveHint=True))
-    def add_calendar_to_list(
+    async def add_calendar_to_list(
         calendar_id: str,
         color_id: str | None = None,
         ctx: Context = None,
@@ -246,7 +266,10 @@ def register(tool):
             body["colorId"] = color_id
 
         try:
-            c = lc.calendar_service.calendarList().insert(body=body).execute()
+            c = await asyncio.to_thread(
+                lc.calendar_service.calendarList().insert(body=body).execute,
+                http=thread_http(lc.calendar_service),
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -262,7 +285,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Remove Calendar From List", destructiveHint=True))
-    def remove_calendar_from_list(calendar_id: str, ctx: Context = None) -> dict[str, Any]:
+    async def remove_calendar_from_list(calendar_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Unsubscribe from a calendar, removing it from the authenticated user's
         calendar list. The calendar itself is not deleted and is unaffected for
@@ -277,7 +300,10 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            lc.calendar_service.calendarList().delete(calendarId=calendar_id).execute()
+            await asyncio.to_thread(
+                lc.calendar_service.calendarList().delete(calendarId=calendar_id).execute,
+                http=thread_http(lc.calendar_service),
+            )
         except HttpError as e:
             if e.resp.status == 403 and b"cannotUnsubscribeFromOwnedCalendar" in (e.content or b""):
                 return {"error": _CANNOT_UNSUBSCRIBE_OWNED_ERROR}
@@ -290,7 +316,7 @@ def register(tool):
         return {"calendar_id": calendar_id, "action": "removed_from_list"}
 
     @tool(annotations=ToolAnnotations(title="List Events", readOnlyHint=True))
-    def list_events(
+    async def list_events(
         calendar_id: str,
         time_min: str | None = None,
         time_max: str | None = None,
@@ -336,7 +362,10 @@ def register(tool):
             kwargs["q"] = query
 
         try:
-            result = lc.calendar_service.events().list(**kwargs).execute()
+            result = await asyncio.to_thread(
+                lc.calendar_service.events().list(**kwargs).execute,
+                http=thread_http(lc.calendar_service),
+            )
         except Exception as e:
             return [{"error": str(e)}]
 
@@ -365,7 +394,7 @@ def register(tool):
         return events
 
     @tool(annotations=ToolAnnotations(title="Get Event", readOnlyHint=True))
-    def get_event(calendar_id: str, event_id: str, ctx: Context = None) -> dict[str, Any]:
+    async def get_event(calendar_id: str, event_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Fetch a single event by calendar ID and event ID.
 
@@ -379,7 +408,10 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            e = lc.calendar_service.events().get(calendarId=calendar_id, eventId=event_id).execute()
+            e = await asyncio.to_thread(
+                lc.calendar_service.events().get(calendarId=calendar_id, eventId=event_id).execute,
+                http=thread_http(lc.calendar_service),
+            )
         except Exception as ex:
             return {"error": str(ex)}
 
@@ -405,7 +437,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Create Event", destructiveHint=True))
-    def create_event(
+    async def create_event(
         calendar_id: str,
         summary: str,
         start: str,
@@ -468,7 +500,10 @@ def register(tool):
             body["recurrence"] = recurrence
 
         try:
-            e = lc.calendar_service.events().insert(calendarId=calendar_id, body=body).execute()
+            e = await asyncio.to_thread(
+                lc.calendar_service.events().insert(calendarId=calendar_id, body=body).execute,
+                http=thread_http(lc.calendar_service),
+            )
         except Exception as ex:
             return {"error": str(ex)}
 
@@ -487,7 +522,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Update Event", destructiveHint=True))
-    def update_event(
+    async def update_event(
         calendar_id: str,
         event_id: str,
         summary: str | None = None,
@@ -561,10 +596,11 @@ def register(tool):
             patch["end"] = end_obj
 
         try:
-            e = (
+            e = await asyncio.to_thread(
                 lc.calendar_service.events()
                 .patch(calendarId=calendar_id, eventId=event_id, body=patch)
-                .execute()
+                .execute,
+                http=thread_http(lc.calendar_service),
             )
         except Exception as ex:
             return {"error": str(ex)}
@@ -584,7 +620,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Delete Event", destructiveHint=True))
-    def delete_event(calendar_id: str, event_id: str, ctx: Context = None) -> dict[str, Any]:
+    async def delete_event(calendar_id: str, event_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Delete or cancel an event.
 
@@ -597,7 +633,12 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            lc.calendar_service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+            await asyncio.to_thread(
+                lc.calendar_service.events()
+                .delete(calendarId=calendar_id, eventId=event_id)
+                .execute,
+                http=thread_http(lc.calendar_service),
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -606,7 +647,7 @@ def register(tool):
         return {"calendar_id": calendar_id, "event_id": event_id, "action": "deleted"}
 
     @tool(annotations=ToolAnnotations(title="Find Free Slots", readOnlyHint=True))
-    def find_free_slots(
+    async def find_free_slots(
         calendar_ids: list[str],
         time_min: str,
         time_max: str,
@@ -640,7 +681,10 @@ def register(tool):
         }
 
         try:
-            result = lc.calendar_service.freebusy().query(body=body).execute()
+            result = await asyncio.to_thread(
+                lc.calendar_service.freebusy().query(body=body).execute,
+                http=thread_http(lc.calendar_service),
+            )
         except Exception as e:
             return {"error": str(e)}
 

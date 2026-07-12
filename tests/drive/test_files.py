@@ -44,27 +44,27 @@ class TestSearchSpreadsheets:
     def _captured_q(self, drive_svc):
         return drive_svc.files.return_value.list.call_args.kwargs["q"]
 
-    def test_single_quote_is_escaped(self):
+    async def test_single_quote_is_escaped(self):
         drive_svc = self._drive_service()
         ctx = _make_ctx(drive_service=drive_svc)
-        _drive_tools["search_spreadsheets"](query="it's a test", ctx=ctx)
+        await _drive_tools["search_spreadsheets"](query="it's a test", ctx=ctx)
         q = self._captured_q(drive_svc)
         assert "\\'" in q  # literal backslash-apostrophe present in query string
 
-    def test_escaped_form_used_not_raw(self):
+    async def test_escaped_form_used_not_raw(self):
         drive_svc = self._drive_service()
         ctx = _make_ctx(drive_service=drive_svc)
-        _drive_tools["search_spreadsheets"](query="O'Brien", ctx=ctx)
+        await _drive_tools["search_spreadsheets"](query="O'Brien", ctx=ctx)
         q = self._captured_q(drive_svc)
         assert "O\\'Brien" in q
         # The apostrophe in 'O'Brien' must be preceded by a backslash
         idx = q.index("'Brien")
         assert q[idx - 1] == "\\"
 
-    def test_query_without_quotes_passes_through(self):
+    async def test_query_without_quotes_passes_through(self):
         drive_svc = self._drive_service()
         ctx = _make_ctx(drive_service=drive_svc)
-        _drive_tools["search_spreadsheets"](query="budget 2024", ctx=ctx)
+        await _drive_tools["search_spreadsheets"](query="budget 2024", ctx=ctx)
         q = self._captured_q(drive_svc)
         assert "budget 2024" in q
 
@@ -82,7 +82,7 @@ class TestFileMutations:
         }
         return {**defaults, **kwargs}
 
-    def test_create_folder_with_parent_marks_dirty(self):
+    async def test_create_folder_with_parent_marks_dirty(self):
         mock = MagicMock()
         mock.files.return_value.create.return_value.execute.return_value = {
             "id": "new_folder",
@@ -91,10 +91,10 @@ class TestFileMutations:
         }
         folder_cache = MagicMock()
         ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache, folder_id=None)
-        _drive_tools["create_folder"](name="MyFolder", parent_folder_id="par1", ctx=ctx)
+        await _drive_tools["create_folder"](name="MyFolder", parent_folder_id="par1", ctx=ctx)
         folder_cache.mark_dirty.assert_called_once_with("par1")
 
-    def test_create_folder_without_parent_no_dirty_call(self):
+    async def test_create_folder_without_parent_no_dirty_call(self):
         mock = MagicMock()
         mock.files.return_value.create.return_value.execute.return_value = {
             "id": "new_folder",
@@ -103,10 +103,10 @@ class TestFileMutations:
         }
         folder_cache = MagicMock()
         ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache, folder_id=None)
-        _drive_tools["create_folder"](name="MyFolder", ctx=ctx)
+        await _drive_tools["create_folder"](name="MyFolder", ctx=ctx)
         folder_cache.mark_dirty.assert_not_called()
 
-    def test_move_file_marks_old_and_new_parent_dirty(self):
+    async def test_move_file_marks_old_and_new_parent_dirty(self):
         mock = MagicMock()
         mock.files.return_value.get.return_value.execute.return_value = {"parents": ["old_par"]}
         mock.files.return_value.update.return_value.execute.return_value = (
@@ -114,27 +114,27 @@ class TestFileMutations:
         )
         folder_cache = MagicMock()
         ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
-        _drive_tools["move_file"](file_id="fid1", destination_folder_id="dest_par", ctx=ctx)
+        await _drive_tools["move_file"](file_id="fid1", destination_folder_id="dest_par", ctx=ctx)
         calls = [c.args[0] for c in folder_cache.mark_dirty.call_args_list]
         assert "old_par" in calls
         assert "dest_par" in calls
 
-    def test_delete_file_trash_marks_parent_dirty_before_trash(self):
+    async def test_delete_file_trash_marks_parent_dirty_before_trash(self):
         mock = MagicMock()
         mock.files.return_value.get.return_value.execute.return_value = {"parents": ["par1"]}
         mock.files.return_value.update.return_value.execute.return_value = {"id": "fid1"}
         folder_cache = MagicMock()
         ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
-        _drive_tools["delete_file"](file_id="fid1", permanent=False, ctx=ctx)
+        await _drive_tools["delete_file"](file_id="fid1", permanent=False, ctx=ctx)
         folder_cache.mark_dirty.assert_called_once_with("par1")
 
-    def test_delete_file_permanent_marks_parent_dirty_before_delete(self):
+    async def test_delete_file_permanent_marks_parent_dirty_before_delete(self):
         mock = MagicMock()
         mock.files.return_value.get.return_value.execute.return_value = {"parents": ["par1"]}
         mock.files.return_value.delete.return_value.execute.return_value = None
         folder_cache = MagicMock()
         ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
-        _drive_tools["delete_file"](file_id="fid1", permanent=True, ctx=ctx)
+        await _drive_tools["delete_file"](file_id="fid1", permanent=True, ctx=ctx)
         folder_cache.mark_dirty.assert_called_once_with("par1")
 
 
@@ -169,27 +169,27 @@ class TestQuotaErrors:
         assert "Service accounts" in result["error"]
         assert "server://auth-status" in result["error"]
 
-    def test_create_spreadsheet_quota_returns_error_dict(self):
+    async def test_create_spreadsheet_quota_returns_error_dict(self):
         mock = MagicMock()
         mock.files.return_value.create.return_value.execute.side_effect = _quota_http_error()
         ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock(), folder_id=None)
-        result = _drive_tools["create_spreadsheet"](title="Test", ctx=ctx)
+        result = await _drive_tools["create_spreadsheet"](title="Test", ctx=ctx)
         self._assert_helpful_error(result)
 
-    def test_copy_file_quota_returns_error_dict(self):
+    async def test_copy_file_quota_returns_error_dict(self):
         mock = MagicMock()
         mock.files.return_value.copy.return_value.execute.side_effect = _quota_http_error()
         ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock())
-        result = _drive_tools["copy_file"](file_id="fid", ctx=ctx)
+        result = await _drive_tools["copy_file"](file_id="fid", ctx=ctx)
         self._assert_helpful_error(result)
 
-    def test_create_spreadsheet_non_quota_403_still_raises(self):
+    async def test_create_spreadsheet_non_quota_403_still_raises(self):
         """A 403 that is not storageQuotaExceeded must propagate — not be swallowed."""
         mock = MagicMock()
         mock.files.return_value.create.return_value.execute.side_effect = _other_403_error()
         ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock(), folder_id=None)
         with pytest.raises(HttpError):
-            _drive_tools["create_spreadsheet"](title="Test", ctx=ctx)
+            await _drive_tools["create_spreadsheet"](title="Test", ctx=ctx)
 
 
 class TestListSharedWithMe:
@@ -201,30 +201,30 @@ class TestListSharedWithMe:
     def _list_call_kwargs(self, svc):
         return svc.files.return_value.list.call_args.kwargs
 
-    def test_query_includes_shared_with_me(self):
+    async def test_query_includes_shared_with_me(self):
         svc = self._drive_service()
         ctx = _make_ctx(drive_service=svc)
-        _drive_tools["list_shared_with_me"](ctx=ctx)
+        await _drive_tools["list_shared_with_me"](ctx=ctx)
         kw = self._list_call_kwargs(svc)
         assert "sharedWithMe=true" in kw["q"]
         assert "trashed=false" in kw["q"]
 
-    def test_mime_type_filter_added_to_query(self):
+    async def test_mime_type_filter_added_to_query(self):
         svc = self._drive_service()
         ctx = _make_ctx(drive_service=svc)
-        _drive_tools["list_shared_with_me"](
+        await _drive_tools["list_shared_with_me"](
             mime_type="application/vnd.google-apps.spreadsheet", ctx=ctx
         )
         kw = self._list_call_kwargs(svc)
         assert "application/vnd.google-apps.spreadsheet" in kw["q"]
 
-    def test_max_results_capped_at_200(self):
+    async def test_max_results_capped_at_200(self):
         svc = self._drive_service()
         ctx = _make_ctx(drive_service=svc)
-        _drive_tools["list_shared_with_me"](max_results=999, ctx=ctx)
+        await _drive_tools["list_shared_with_me"](max_results=999, ctx=ctx)
         assert self._list_call_kwargs(svc)["pageSize"] == 200
 
-    def test_result_shape(self):
+    async def test_result_shape(self):
         svc = self._drive_service(
             files=[
                 {
@@ -238,7 +238,7 @@ class TestListSharedWithMe:
             ]
         )
         ctx = _make_ctx(drive_service=svc)
-        result = _drive_tools["list_shared_with_me"](ctx=ctx)
+        result = await _drive_tools["list_shared_with_me"](ctx=ctx)
         assert len(result) == 1
         assert result[0]["id"] == "fid1"
         assert result[0]["owners"] == ["owner@example.com"]
@@ -253,36 +253,36 @@ class TestListRecentFiles:
     def _list_call_kwargs(self, svc):
         return svc.files.return_value.list.call_args.kwargs
 
-    def test_orders_by_modified_time_desc(self):
+    async def test_orders_by_modified_time_desc(self):
         svc = self._drive_service()
         ctx = _make_ctx(drive_service=svc)
-        _drive_tools["list_recent_files"](ctx=ctx)
+        await _drive_tools["list_recent_files"](ctx=ctx)
         assert self._list_call_kwargs(svc)["orderBy"] == "modifiedTime desc"
 
-    def test_days_filter_adds_modified_time_constraint(self):
+    async def test_days_filter_adds_modified_time_constraint(self):
         svc = self._drive_service()
         ctx = _make_ctx(drive_service=svc)
-        _drive_tools["list_recent_files"](days=7, ctx=ctx)
+        await _drive_tools["list_recent_files"](days=7, ctx=ctx)
         q = self._list_call_kwargs(svc)["q"]
         assert "modifiedTime >" in q
 
-    def test_no_days_filter_omits_time_constraint(self):
+    async def test_no_days_filter_omits_time_constraint(self):
         svc = self._drive_service()
         ctx = _make_ctx(drive_service=svc)
-        _drive_tools["list_recent_files"](ctx=ctx)
+        await _drive_tools["list_recent_files"](ctx=ctx)
         q = self._list_call_kwargs(svc)["q"]
         assert "modifiedTime >" not in q
 
-    def test_max_results_capped_at_100(self):
+    async def test_max_results_capped_at_100(self):
         svc = self._drive_service()
         ctx = _make_ctx(drive_service=svc)
-        _drive_tools["list_recent_files"](max_results=500, ctx=ctx)
+        await _drive_tools["list_recent_files"](max_results=500, ctx=ctx)
         assert self._list_call_kwargs(svc)["pageSize"] == 100
 
-    def test_mime_type_filter_applied(self):
+    async def test_mime_type_filter_applied(self):
         svc = self._drive_service()
         ctx = _make_ctx(drive_service=svc)
-        _drive_tools["list_recent_files"](mime_type="application/pdf", ctx=ctx)
+        await _drive_tools["list_recent_files"](mime_type="application/pdf", ctx=ctx)
         assert "application/pdf" in self._list_call_kwargs(svc)["q"]
 
 
@@ -305,42 +305,42 @@ class TestGetStorageQuota:
         }
         return mock
 
-    def test_returns_byte_values_as_integers(self):
+    async def test_returns_byte_values_as_integers(self):
         svc = self._drive_service()
         ctx = _make_ctx(drive_service=svc)
-        result = _drive_tools["get_storage_quota"](ctx=ctx)
+        result = await _drive_tools["get_storage_quota"](ctx=ctx)
         assert isinstance(result["limit_bytes"], int)
         assert isinstance(result["usage_bytes"], int)
         assert result["limit_bytes"] == 16106127360
 
-    def test_no_limit_key_returns_none(self):
+    async def test_no_limit_key_returns_none(self):
         svc = self._drive_service(
             quota={"usage": "0", "usageInDrive": "0", "usageInDriveTrash": "0"}
         )
         ctx = _make_ctx(drive_service=svc)
-        result = _drive_tools["get_storage_quota"](ctx=ctx)
+        result = await _drive_tools["get_storage_quota"](ctx=ctx)
         assert result["limit_bytes"] is None
 
-    def test_limit_zero_string_returns_zero(self):
+    async def test_limit_zero_string_returns_zero(self):
         # SA accounts: Drive API returns "0" (not absent), which casts to int 0
         svc = self._drive_service(
             quota={"limit": "0", "usage": "0", "usageInDrive": "0", "usageInDriveTrash": "0"}
         )
         ctx = _make_ctx(drive_service=svc)
-        result = _drive_tools["get_storage_quota"](ctx=ctx)
+        result = await _drive_tools["get_storage_quota"](ctx=ctx)
         assert result["limit_bytes"] == 0
 
-    def test_includes_user_info(self):
+    async def test_includes_user_info(self):
         svc = self._drive_service()
         ctx = _make_ctx(drive_service=svc)
-        result = _drive_tools["get_storage_quota"](ctx=ctx)
+        result = await _drive_tools["get_storage_quota"](ctx=ctx)
         assert result["email"] == "test@example.com"
         assert result["display_name"] == "Test User"
 
-    def test_requests_correct_fields(self):
+    async def test_requests_correct_fields(self):
         svc = self._drive_service()
         ctx = _make_ctx(drive_service=svc)
-        _drive_tools["get_storage_quota"](ctx=ctx)
+        await _drive_tools["get_storage_quota"](ctx=ctx)
         fields_arg = svc.about.return_value.get.call_args.kwargs["fields"]
         assert "storageQuota" in fields_arg
         assert "user" in fields_arg
@@ -384,31 +384,31 @@ class TestImportCsvToSheet:
         path.write_text("\n".join(",".join(row) for row in rows) + "\n", encoding="utf-8")
         return path
 
-    def test_file_not_found_returns_error(self):
+    async def test_file_not_found_returns_error(self):
         ctx = _make_ctx()
-        result = _drive_tools["import_csv_to_sheet"](
+        result = await _drive_tools["import_csv_to_sheet"](
             local_path="/no/such/file.csv", title="X", ctx=ctx
         )
         assert "error" in result
         assert "not found" in result["error"].lower()
 
-    def test_unsupported_extension_returns_error(self, tmp_path):
+    async def test_unsupported_extension_returns_error(self, tmp_path):
         path = tmp_path / "data.txt"
         path.write_text("a,b\n1,2\n", encoding="utf-8")
         ctx = _make_ctx()
-        result = _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
         assert "error" in result
         assert ".csv" in result["error"]
 
-    def test_empty_csv_returns_error(self, tmp_path):
+    async def test_empty_csv_returns_error(self, tmp_path):
         path = tmp_path / "empty.csv"
         path.write_text("", encoding="utf-8")
         ctx = _make_ctx()
-        result = _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
         assert "error" in result
         assert "empty" in result["error"].lower()
 
-    def test_creates_spreadsheet_and_writes_rows(self, tmp_path):
+    async def test_creates_spreadsheet_and_writes_rows(self, tmp_path):
         path = self._write_csv(tmp_path, [["name", "age"], ["Alice", "30"], ["Bob", "25"]])
         drive_svc = self._drive_service()
         sheets_svc = self._sheets_service()
@@ -421,7 +421,7 @@ class TestImportCsvToSheet:
             sheet_data_cache=sheet_data_cache,
             folder_id=None,
         )
-        result = _drive_tools["import_csv_to_sheet"](
+        result = await _drive_tools["import_csv_to_sheet"](
             local_path=str(path), title="Imported", folder_id="folder1", ctx=ctx
         )
 
@@ -446,7 +446,7 @@ class TestImportCsvToSheet:
         # No resize/rename needed — default title matches, data fits default grid.
         sheets_svc.spreadsheets.return_value.batchUpdate.assert_not_called()
 
-    def test_pads_ragged_rows_to_common_width(self, tmp_path):
+    async def test_pads_ragged_rows_to_common_width(self, tmp_path):
         path = tmp_path / "ragged.csv"
         path.write_text("a,b,c\n1,2\n", encoding="utf-8")
         drive_svc = self._drive_service()
@@ -458,11 +458,11 @@ class TestImportCsvToSheet:
             sheet_data_cache=MagicMock(),
             folder_id=None,
         )
-        _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
         kwargs = sheets_svc.spreadsheets.return_value.values.return_value.update.call_args.kwargs
         assert kwargs["body"]["values"] == [["a", "b", "c"], ["1", "2", ""]]
 
-    def test_renames_default_sheet_when_sheet_name_differs(self, tmp_path):
+    async def test_renames_default_sheet_when_sheet_name_differs(self, tmp_path):
         path = self._write_csv(tmp_path, [["a"], ["1"]])
         drive_svc = self._drive_service()
         sheets_svc = self._sheets_service(sheet_title="Sheet1")
@@ -474,7 +474,7 @@ class TestImportCsvToSheet:
             cache=MagicMock(),
             folder_id=None,
         )
-        _drive_tools["import_csv_to_sheet"](
+        await _drive_tools["import_csv_to_sheet"](
             local_path=str(path), title="X", sheet_name="Imported Data", ctx=ctx
         )
         requests = sheets_svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"][
@@ -490,7 +490,7 @@ class TestImportCsvToSheet:
         )
         assert update_range == "'Imported Data'!A1"
 
-    def test_resizes_grid_when_data_exceeds_default(self, tmp_path):
+    async def test_resizes_grid_when_data_exceeds_default(self, tmp_path):
         path = self._write_csv(tmp_path, [["a"], ["1"], ["2"], ["3"]])
         drive_svc = self._drive_service()
         # Force a resize by mocking a grid smaller than our 4-row CSV.
@@ -504,7 +504,7 @@ class TestImportCsvToSheet:
             cache=cache,
             folder_id=None,
         )
-        _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
         requests = sheets_svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"][
             "requests"
         ]
@@ -516,7 +516,7 @@ class TestImportCsvToSheet:
         assert grid["columnCount"] == 1
         cache.mark_dirty.assert_called_once_with("sheet123")
 
-    def test_no_resize_when_data_fits_default_grid(self, tmp_path):
+    async def test_no_resize_when_data_fits_default_grid(self, tmp_path):
         path = self._write_csv(tmp_path, [["a", "b"], ["1", "2"]])
         drive_svc = self._drive_service()
         sheets_svc = self._sheets_service(row_count=1000, column_count=26)
@@ -529,11 +529,11 @@ class TestImportCsvToSheet:
             cache=cache,
             folder_id=None,
         )
-        _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
         sheets_svc.spreadsheets.return_value.batchUpdate.assert_not_called()
         cache.mark_dirty.assert_not_called()
 
-    def test_chunks_large_row_counts(self, tmp_path, monkeypatch):
+    async def test_chunks_large_row_counts(self, tmp_path, monkeypatch):
         monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 2)
         rows = [["a"]] + [[str(i)] for i in range(5)]
         path = self._write_csv(tmp_path, rows)
@@ -546,25 +546,28 @@ class TestImportCsvToSheet:
             sheet_data_cache=MagicMock(),
             folder_id=None,
         )
-        result = _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
         assert result["rows_written"] == 6
         update_call = sheets_svc.spreadsheets.return_value.values.return_value.update
         assert update_call.call_count == 3
-        ranges = [c.kwargs["range"] for c in update_call.call_args_list]
-        assert ranges == ["Sheet1!A1", "Sheet1!A3", "Sheet1!A5"]
+        # Chunks now write concurrently via asyncio.gather(), so completion order
+        # (and thus call_args_list order) isn't guaranteed to match submission order —
+        # compare as a set instead of an ordered list.
+        ranges = {c.kwargs["range"] for c in update_call.call_args_list}
+        assert ranges == {"Sheet1!A1", "Sheet1!A3", "Sheet1!A5"}
 
-    def test_storage_quota_error_returns_helpful_message(self, tmp_path):
+    async def test_storage_quota_error_returns_helpful_message(self, tmp_path):
         path = self._write_csv(tmp_path, [["a"], ["1"]])
         drive_svc = MagicMock()
         drive_svc.files.return_value.create.return_value.execute.side_effect = _quota_http_error()
         ctx = _make_ctx(drive_service=drive_svc, sheets_service=MagicMock(), folder_id=None)
-        result = _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
         assert result["error"] == drive_files_module._SA_QUOTA_ERROR
 
-    def test_other_403_error_reraises(self, tmp_path):
+    async def test_other_403_error_reraises(self, tmp_path):
         path = self._write_csv(tmp_path, [["a"], ["1"]])
         drive_svc = MagicMock()
         drive_svc.files.return_value.create.return_value.execute.side_effect = _other_403_error()
         ctx = _make_ctx(drive_service=drive_svc, sheets_service=MagicMock(), folder_id=None)
         with pytest.raises(HttpError):
-            _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+            await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)

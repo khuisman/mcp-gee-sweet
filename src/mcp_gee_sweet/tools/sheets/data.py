@@ -1,9 +1,11 @@
+import asyncio
 import logging
 from typing import Any
 
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+from ...auth import thread_http
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME, SheetInfo, fetch_sheets, get_modified_time
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .helpers import _column_index_to_letter, _quote_sheet_name
@@ -25,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Get Sheet Data", readOnlyHint=True))
-    def get_sheet_data(
+    async def get_sheet_data(
         spreadsheet_id: str,
         sheet: str,
         range: str | None = None,
@@ -75,11 +77,12 @@ def register(tool):
         if include_grid_data and not range:
             # Auto-detect the used range so we don't fetch formatting for the sheet's full
             # padded grid (often 1000x26 by default, regardless of actual content) — issue #235.
-            values_result = (
+            values_result = await asyncio.to_thread(
                 sheets_service.spreadsheets()
                 .values()
                 .get(spreadsheetId=spreadsheet_id, range=quoted)
-                .execute()
+                .execute,
+                http=thread_http(sheets_service),
             )
             values = values_result.get("values", [])
             if values:
@@ -91,10 +94,11 @@ def register(tool):
         full_range = f"{quoted}!{range}" if range else quoted
 
         if include_grid_data:
-            result = (
+            result = await asyncio.to_thread(
                 sheets_service.spreadsheets()
                 .get(spreadsheetId=spreadsheet_id, ranges=[full_range], includeGridData=True)
-                .execute()
+                .execute,
+                http=thread_http(sheets_service),
             )
             # Cell count doesn't predict response size — a blank padded range costs almost
             # nothing, a densely formatted one can blow past a client's size limit even at a
@@ -108,11 +112,12 @@ def register(tool):
                     "connection. Narrow the range, or ",
                 )
         else:
-            values_result = (
+            values_result = await asyncio.to_thread(
                 sheets_service.spreadsheets()
                 .values()
                 .get(spreadsheetId=spreadsheet_id, range=full_range)
-                .execute()
+                .execute,
+                http=thread_http(sheets_service),
             )
             result = {
                 "spreadsheetId": spreadsheet_id,
@@ -134,7 +139,7 @@ def register(tool):
         return result
 
     @tool(annotations=ToolAnnotations(title="Get Sheet Formulas", readOnlyHint=True))
-    def get_sheet_formulas(
+    async def get_sheet_formulas(
         spreadsheet_id: str, sheet: str, range: str | None = None, ctx: Context = None
     ) -> list[list[Any]]:
         """
@@ -153,17 +158,18 @@ def register(tool):
         quoted = _quote_sheet_name(sheet)
         full_range = f"{quoted}!{range}" if range else quoted
 
-        result = (
+        result = await asyncio.to_thread(
             sheets_service.spreadsheets()
             .values()
             .get(spreadsheetId=spreadsheet_id, range=full_range, valueRenderOption="FORMULA")
-            .execute()
+            .execute,
+            http=thread_http(sheets_service),
         )
 
         return result.get("values", [])
 
     @tool(annotations=ToolAnnotations(title="Get Multiple Sheet Data", readOnlyHint=True))
-    def get_multiple_sheet_data(
+    async def get_multiple_sheet_data(
         queries: list[dict[str, str]], local_path: str | None = None, ctx: Context = None
     ) -> list[dict[str, Any]] | dict[str, Any]:
         """
@@ -189,29 +195,37 @@ def register(tool):
             {local_path, query_count, bytes_written} instead.
         """
         sheets_service = ctx.request_context.lifespan_context.sheets_service
-        results = []
 
-        for query in queries:
+        async def _fetch_one(query: dict[str, str]) -> dict[str, Any]:
             spreadsheet_id = query.get("spreadsheet_id")
             sheet = query.get("sheet")
             range_str = query.get("range")
 
             if not all([spreadsheet_id, sheet]):
-                results.append({**query, "error": "Missing required keys (spreadsheet_id, sheet)"})
-                continue
+                return {**query, "error": "Missing required keys (spreadsheet_id, sheet)"}
 
             try:
                 quoted = _quote_sheet_name(str(sheet))
                 full_range = f"{quoted}!{range_str}" if range_str else quoted
-                result = (
+                result = await asyncio.to_thread(
                     sheets_service.spreadsheets()
                     .values()
                     .get(spreadsheetId=spreadsheet_id, range=full_range)
-                    .execute()
+                    .execute,
+                    http=thread_http(sheets_service),
                 )
-                results.append({**query, "data": result.get("values", [])})
+                return {**query, "data": result.get("values", [])}
             except Exception as e:
-                results.append({**query, "error": str(e)})
+                return {**query, "error": str(e)}
+
+        # return_exceptions=True: each _fetch_one already catches its own errors and
+        # returns a tagged dict, but this also lets any genuinely unexpected exception
+        # finish alongside the rest of the batch instead of orphaning in-flight tasks.
+        raw = await asyncio.gather(*(_fetch_one(q) for q in queries), return_exceptions=True)
+        results = [
+            r if not isinstance(r, BaseException) else {**q, "error": str(r)}
+            for q, r in zip(queries, raw, strict=True)
+        ]
 
         if local_path:
             return write_capped_result_to_disk(
@@ -225,7 +239,7 @@ def register(tool):
         return results
 
     @tool(annotations=ToolAnnotations(title="Get Multiple Spreadsheet Summary", readOnlyHint=True))
-    def get_multiple_spreadsheet_summary(
+    async def get_multiple_spreadsheet_summary(
         spreadsheet_ids: list[str], rows_to_fetch: int = 5, ctx: Context = None
     ) -> list[dict[str, Any]]:
         """
@@ -247,9 +261,8 @@ def register(tool):
         drive_service = lc.drive_service
         data_cache = lc.sheet_data_cache
         structure_cache = lc.cache
-        summaries = []
 
-        for spreadsheet_id in spreadsheet_ids:
+        async def _summarize_one(spreadsheet_id: str) -> dict[str, Any]:
             summary_data = {
                 "spreadsheet_id": spreadsheet_id,
                 "title": None,
@@ -257,6 +270,8 @@ def register(tool):
                 "error": None,
             }
             try:
+                # get_modified_time/structure_cache/data_cache are SQLite-backed and stay
+                # synchronous, un-awaited by design — see the note at the top of cache.py.
                 current_mtime = (
                     get_modified_time(drive_service, spreadsheet_id)
                     if CACHE_VALIDATE_MODIFIED_TIME
@@ -273,13 +288,14 @@ def register(tool):
                     sheet_infos = cached_sheets
                     summary_data["title"] = cached_title
                 else:
-                    spreadsheet = (
+                    spreadsheet = await asyncio.to_thread(
                         sheets_service.spreadsheets()
                         .get(
                             spreadsheetId=spreadsheet_id,
                             fields="properties.title,sheets(properties(title,sheetId))",
                         )
-                        .execute()
+                        .execute,
+                        http=thread_http(sheets_service),
                     )
                     title = spreadsheet.get("properties", {}).get("title", "Unknown Title")
                     summary_data["title"] = title
@@ -295,6 +311,9 @@ def register(tool):
                         spreadsheet_id, sheet_infos, title=title, modified_time=current_mtime
                     )
 
+                # Kept sequential within a spreadsheet — modest sheet counts don't
+                # justify nested gather complexity, and it keeps sheet_summaries
+                # trivially ordered to match sheet_infos.
                 sheet_summaries = []
                 for sheet_info in sheet_infos:
                     sheet_summary = {
@@ -329,11 +348,12 @@ def register(tool):
                     try:
                         max_row = max(1, rows_to_fetch)
                         range_to_get = f"{_quote_sheet_name(sheet_info.title)}!A1:{max_row}"
-                        result = (
+                        result = await asyncio.to_thread(
                             sheets_service.spreadsheets()
                             .values()
                             .get(spreadsheetId=spreadsheet_id, range=range_to_get)
-                            .execute()
+                            .execute,
+                            http=thread_http(sheets_service),
                         )
                         values = result.get("values", [])
                         headers = values[0] if values else []
@@ -360,12 +380,29 @@ def register(tool):
             except Exception as e:
                 summary_data["error"] = f"Error fetching spreadsheet {spreadsheet_id}: {e}"
 
-            summaries.append(summary_data)
+            return summary_data
 
+        # return_exceptions=True: _summarize_one already catches its own errors, but this
+        # also lets any genuinely unexpected exception finish alongside the rest of the
+        # batch instead of orphaning in-flight tasks. gather() preserves input order.
+        raw = await asyncio.gather(
+            *(_summarize_one(sid) for sid in spreadsheet_ids), return_exceptions=True
+        )
+        summaries = [
+            r
+            if not isinstance(r, BaseException)
+            else {
+                "spreadsheet_id": sid,
+                "title": None,
+                "sheets": [],
+                "error": f"Error fetching spreadsheet {sid}: {r}",
+            }
+            for sid, r in zip(spreadsheet_ids, raw, strict=True)
+        ]
         return summaries
 
     @tool(annotations=ToolAnnotations(title="Find Cells", readOnlyHint=True))
-    def find_in_spreadsheet(
+    async def find_in_spreadsheet(
         spreadsheet_id: str,
         query: str,
         sheet: str | None = None,
@@ -402,6 +439,8 @@ def register(tool):
         results = []
 
         try:
+            # fetch_sheets is SQLite-backed and stays synchronous, un-awaited by design —
+            # see the note at the top of cache.py.
             all_sheets = fetch_sheets(sheets_service, spreadsheet_id, lc.cache, lc.drive_service)
             sheets_to_search = [s.title for s in all_sheets if sheet is None or s.title == sheet]
 
@@ -414,11 +453,12 @@ def register(tool):
                     if len(results) >= max_results:
                         break
 
-                    response = (
+                    response = await asyncio.to_thread(
                         sheets_service.spreadsheets()
                         .values()
                         .get(spreadsheetId=spreadsheet_id, range=_quote_sheet_name(sheet_name))
-                        .execute()
+                        .execute,
+                        http=thread_http(sheets_service),
                     )
 
                     for row_idx, row in enumerate(response.get("values", [])):
@@ -457,7 +497,7 @@ def register(tool):
         return results
 
     @tool(annotations=ToolAnnotations(title="Clear Values", destructiveHint=True))
-    def clear_values(
+    async def clear_values(
         spreadsheet_id: str,
         sheet: str,
         range: str | None = None,
@@ -479,15 +519,16 @@ def register(tool):
         quoted = _quote_sheet_name(sheet)
         full_range = f"{quoted}!{range}" if range else quoted
 
-        return (
+        return await asyncio.to_thread(
             lc.sheets_service.spreadsheets()
             .values()
             .clear(spreadsheetId=spreadsheet_id, range=full_range, body={})
-            .execute()
+            .execute,
+            http=thread_http(lc.sheets_service),
         )
 
     @tool(annotations=ToolAnnotations(title="Update Cells", destructiveHint=True))
-    def update_cells(
+    async def update_cells(
         spreadsheet_id: str, sheet: str, range: str, data: list[list[Any]], ctx: Context = None
     ) -> dict[str, Any]:
         """
@@ -505,7 +546,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        result = (
+        result = await asyncio.to_thread(
             sheets_service.spreadsheets()
             .values()
             .update(
@@ -514,14 +555,15 @@ def register(tool):
                 valueInputOption="USER_ENTERED",
                 body={"values": data},
             )
-            .execute()
+            .execute,
+            http=thread_http(sheets_service),
         )
 
         lc.sheet_data_cache.mark_dirty(spreadsheet_id)
         return result
 
     @tool(annotations=ToolAnnotations(title="Batch Update Cells", destructiveHint=True))
-    def batch_update_cells(
+    async def batch_update_cells(
         spreadsheet_id: str, sheet: str, ranges: dict[str, list[list[Any]]], ctx: Context = None
     ) -> dict[str, Any]:
         """
@@ -552,14 +594,15 @@ def register(tool):
             for range_str, values in ranges.items()
         ]
 
-        result = (
+        result = await asyncio.to_thread(
             sheets_service.spreadsheets()
             .values()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
                 body={"valueInputOption": "USER_ENTERED", "data": data},
             )
-            .execute()
+            .execute,
+            http=thread_http(sheets_service),
         )
 
         lc.sheet_data_cache.mark_dirty(spreadsheet_id)
@@ -574,7 +617,7 @@ def register(tool):
         return result
 
     @tool(annotations=ToolAnnotations(title="Batch Update", destructiveHint=True))
-    def batch_update(
+    async def batch_update(
         spreadsheet_id: str, requests: list[dict[str, Any]], ctx: Context = None
     ) -> dict[str, Any]:
         """
@@ -638,10 +681,11 @@ def register(tool):
         if not all(isinstance(req, dict) for req in requests):
             return {"error": "Each request must be a dictionary"}
 
-        result = (
+        result = await asyncio.to_thread(
             sheets_service.spreadsheets()
             .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
-            .execute()
+            .execute,
+            http=thread_http(sheets_service),
         )
 
         lc.cache.mark_dirty(spreadsheet_id)

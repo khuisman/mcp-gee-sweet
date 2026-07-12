@@ -147,6 +147,21 @@ TC-I22/TC-I23 (issue #99) are the only mandatory live QA cases for this PR (see 
 
 ---
 
+### TC-I24: Concurrent tool calls don't corrupt each other's responses (issue #183)
+
+**Background:** #183 converted the entire tool layer to `async def`, running each Google API call via `asyncio.to_thread()` so multiple calls can execute in real OS threads simultaneously — both within one gather()-restructured tool call and across two separate, simultaneous client requests. The shared `sheets_service`/`drive_service`/etc. objects built once at server startup carry a single `httplib2`-based transport that isn't safe for concurrent use by itself; the fix (`auth.thread_http()`) gives each thread its own transport, built from the shared credentials, passed via `execute(http=...)` at every call site. This is the one thing the mocked unit test suite structurally cannot verify — mocks don't exercise a real shared transport, so a regression here (e.g. someone reverts to the shared service objects' default transport "for simplicity") would pass every unit test and still corrupt live responses under load.
+
+**Prompt**
+> Issue two tool calls back-to-back with no wait between them, each targeting a distinct, identifiable spreadsheet: "Get the data from Sheet1 in {SPREADSHEET_ID}" and, immediately after (same turn or a rapid follow-up), "Get the data from Sheet1 in {a second, distinct spreadsheet ID}"
+
+**Checks**
+- Each call's response contains data from *its own* requested spreadsheet, not the other one
+- No response is empty, truncated, or contains a mix of both spreadsheets' data (any of these would indicate the two concurrent `.execute()` calls interfered with each other's shared transport)
+
+**Note:** also implicitly covered by TC-D176/TC-D177/TC-D178/TC-D179/TC-R36/TC-R37 above, each of which forces several genuinely concurrent `.execute()` calls within a single gather()-restructured tool and checks per-item attribution. This case adds the cross-request angle (two separate tool calls, not one batched call) that those don't cover.
+
+---
+
 ## Tool filtering (`ENABLED_TOOLS`)
 
 ### TC-I05: CLI flag — only specified tools registered

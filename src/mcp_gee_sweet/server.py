@@ -102,11 +102,11 @@ _tool_access_logger = logging.getLogger("mcp_gee_sweet.access")
 
 def _timed(func):
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
+    async def wrapper(*args, **kwargs):
         start = time.perf_counter()
         status = 200
         try:
-            return func(*args, **kwargs)
+            return await func(*args, **kwargs)
         except Exception:
             status = 500
             raise

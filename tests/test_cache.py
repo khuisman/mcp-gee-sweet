@@ -474,12 +474,14 @@ class TestGetSheetIdModifiedTimePropagation:
     spreadsheet, since a None-vs-anything comparison always skips the check.
     """
 
-    def test_write_path_lookup_refreshes_modified_time_tag_on_miss(self):
+    async def test_write_path_lookup_refreshes_modified_time_tag_on_miss(self):
         cache = SheetStructureCache(db_path=DB, ttl=1000)
         cache.store("sid", [SheetInfo(title="Old", sheet_id=0)], modified_time="v1")
         cache.mark_dirty("sid")  # force the next lookup to be a genuine miss
 
-        sheet_id = _get_sheet_id(_FakeSheetsService(), "sid", "New", cache, _FakeDriveService())
+        sheet_id = await _get_sheet_id(
+            _FakeSheetsService(), "sid", "New", cache, _FakeDriveService()
+        )
 
         assert sheet_id == 1
         # The row was re-stored with a real modified_time ("v2", from

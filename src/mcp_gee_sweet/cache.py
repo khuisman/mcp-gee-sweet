@@ -54,8 +54,12 @@ def _connect(path: str) -> sqlite3.Connection:
 def _open(db_path: str) -> sqlite3.Connection:
     # Each cache class holds its own connection to the same DB file. WAL mode lets
     # them read concurrently without blocking each other. All cache I/O is synchronous
-    # on the asyncio event loop — acceptable at this scale; wrap in asyncio.to_thread()
-    # if it ever shows up in profiling.
+    # on the asyncio event loop — deliberately NOT wrapped in asyncio.to_thread(), even
+    # though tool code now runs concurrent .execute() calls via asyncio.gather() (#183).
+    # A sync call here only ever runs on the single event-loop thread, interleaved
+    # between awaits, so it can never race with another coroutine's cache access —
+    # wrapping it in to_thread() would introduce real OS-thread concurrency against
+    # this connection with no lock protecting it. Leave this synchronous.
     try:
         return _connect(db_path)
     except sqlite3.OperationalError as exc:

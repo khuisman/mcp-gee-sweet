@@ -1,5 +1,8 @@
+import asyncio
 import re
 from typing import TYPE_CHECKING, Any
+
+from ...auth import thread_http
 
 if TYPE_CHECKING:
     from ...cache import SheetStructureCache
@@ -72,7 +75,7 @@ def _parse_a1_notation(range_str: str) -> dict[str, int]:
     return result
 
 
-def _get_sheet_id(
+async def _get_sheet_id(
     sheets_service: Any,
     spreadsheet_id: str,
     sheet_name: str,
@@ -84,6 +87,8 @@ def _get_sheet_id(
         from ...cache import fetch_sheets
 
         try:
+            # fetch_sheets (SQLite-backed) stays synchronous and un-awaited by design —
+            # see the note at the top of cache.py.
             sheets = fetch_sheets(sheets_service, spreadsheet_id, cache, drive_service)
             for s in sheets:
                 if s.title == sheet_name:
@@ -95,10 +100,11 @@ def _get_sheet_id(
             return None
 
     try:
-        spreadsheet = (
+        spreadsheet = await asyncio.to_thread(
             sheets_service.spreadsheets()
             .get(spreadsheetId=spreadsheet_id, fields="sheets(properties(title,sheetId))")
-            .execute()
+            .execute,
+            http=thread_http(sheets_service),
         )
         for sheet in spreadsheet.get("sheets", []):
             if sheet["properties"]["title"] == sheet_name:
@@ -108,13 +114,14 @@ def _get_sheet_id(
         return None
 
 
-def _get_sheet_index(sheets_service: Any, spreadsheet_id: str, sheet_id: int) -> int | None:
+async def _get_sheet_index(sheets_service: Any, spreadsheet_id: str, sheet_id: int) -> int | None:
     """Return the current 0-based tab position of sheet_id, or None if not found."""
     try:
-        spreadsheet = (
+        spreadsheet = await asyncio.to_thread(
             sheets_service.spreadsheets()
             .get(spreadsheetId=spreadsheet_id, fields="sheets.properties(sheetId,index)")
-            .execute()
+            .execute,
+            http=thread_http(sheets_service),
         )
         for sheet in spreadsheet.get("sheets", []):
             if sheet["properties"]["sheetId"] == sheet_id:
