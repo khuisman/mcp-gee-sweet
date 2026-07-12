@@ -93,4 +93,10 @@ $(role_server mcp-gee-sweet-kit "$REPO_ROOT/.claude/worktrees/kit"),
 }
 JSON
 
+echo "Copying .mcp.json into repo root and each worktree (Agent-view sessions don't inherit --mcp-config, only per-directory auto-discovery)"
+cp "$REPO_ROOT/.claude/mcp-configs/team.mcp.json" "$REPO_ROOT/.mcp.json"
+for name in "${ROLES[@]}"; do
+  cp "$REPO_ROOT/.claude/mcp-configs/team.mcp.json" "$REPO_ROOT/.claude/worktrees/$name/.mcp.json"
+done
+
 echo "Ready. Launch with: make claude-team"
