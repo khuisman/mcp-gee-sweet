@@ -1,6 +1,6 @@
 Remove worktrees under `.claude/worktrees/` whose branch has a merged PR, so completed tickets don't pile up as stale directories. Safe by default: never deletes anything with uncommitted or unpushed changes — those are reported, not touched.
 
-1. List current worktrees: `git worktree list --porcelain`. Skip the main checkout (the entry with no `.claude/worktrees/` path).
+1. List current worktrees: `git worktree list --porcelain`. Skip the main checkout (the entry with no `.claude/worktrees/` path). Also skip the four dev-team slot worktrees (`.claude/worktrees/ash`, `sky`, `jay`, `kit`) unconditionally — they're persistent, not one-off ticket worktrees, and are never removed by this command regardless of branch/PR state. `/merge-pr` resets them to idle (`team/<name>`) in place after each ticket merges; this command has no role there.
 2. For each remaining worktree, get its branch name and check whether it has a merged PR:
    ```
    gh pr list --repo khuisman/mcp-gee-sweet --state merged --head <branch> --json number,url,mergedAt

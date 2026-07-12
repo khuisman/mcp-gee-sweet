@@ -1,5 +1,7 @@
 Verify an open worker PR before merging: code review plus live QA testing against real Google APIs. This only works from the orchestrator session in the main checkout — see `/orchestrator` for why (live MCP tools always serve the main checkout's code, never a worktree's).
 
+**If the dev-team is active** (a PR from `feat/ash/*` or `feat/jay/*`), use `/team-member Sky` or `/team-member Kit` instead — those roles have their own dedicated worktree, so the main-checkout precondition in step 1 and the `review/<branch>` fetch trick in step 3 don't apply there; QA is steps 4 onward of this file, run directly from that worktree. This file remains the path for a plain worker PR with no dev-team lane behind it.
+
 CI (the "Lint and test" check `/merge-pr` already gates on) covers unit tests. It cannot cover code review judgment or live calls against real Google APIs, since those need credentials and fixtures CI doesn't have. That's what this skill does instead — it's the step between a worker's PR going up and `/merge-pr`.
 
 1. **Preconditions.** Confirm this session is in the main checkout, not a worktree (same check as `/orchestrator` step 1). If the main checkout has uncommitted changes, stop and ask the user how to proceed — don't stash or discard anything.
@@ -42,6 +44,6 @@ CI (the "Lint and test" check `/merge-pr` already gates on) covers unit tests. I
    ```
    Ask before pushing, per this repo's normal commit/push confirmation rule. Leave the scratch worktree in place afterward (`ExitWorktree` with `action: "keep"`) for next time — don't remove it between PRs, only if the user asks for a cleanup pass.
 
-10. **Report.** Summarize: code review findings (if any), which test cases passed/failed/pending, any coverage gaps found in step 6, and whether the branch looks ready to merge. If everything passed, say the next step is `/merge-pr`. If something failed, say the PR needs to go back to its worker session — don't attempt the fix yourself here; this session's job is verification, not implementation.
+10. **Report.** Summarize: code review findings (if any), which test cases passed/failed/pending, any coverage gaps found in step 6, and whether the branch looks ready to merge. If everything passed, apply the sign-off label (`gh pr edit <number> --add-label qa-approved`) and say the next step is `/merge-pr`. If something failed, say the PR needs to go back to its worker session — don't attempt the fix yourself here; this session's job is verification, not implementation.
 
 Leave the branch checked out either way — `/merge-pr` operates on the current branch's PR, and if it needs rework, the worker's own worktree still has the branch open there too.
