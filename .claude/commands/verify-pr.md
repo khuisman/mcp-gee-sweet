@@ -1,6 +1,6 @@
 Verify an open worker PR before merging: code review plus live QA testing against real Google APIs. This only works from the orchestrator session in the main checkout — see `/orchestrator` for why (live MCP tools always serve the main checkout's code, never a worktree's).
 
-**If the dev-team is active** (a PR from `feat/ash/*` or `feat/jay/*`), use `/team-member Sky` or `/team-member Kit` instead — those roles have their own dedicated worktree, so the main-checkout precondition in step 1 and the `review/<branch>` fetch trick in step 3 don't apply there; QA is steps 4 onward of this file, run directly from that worktree. This file remains the path for a plain worker PR with no dev-team lane behind it.
+**If the dev-team is active** (a PR whose branch has `ash` or `jay` as its second `/`-separated segment — the type prefix in front varies, don't assume `feat`), use `/team-member Sky` or `/team-member Kit` instead — those roles have their own dedicated worktree, so the main-checkout precondition in step 1 and the `review/<branch>` fetch trick in step 3 don't apply there; QA is steps 4 onward of this file, run directly from that worktree. This file remains the path for a plain worker PR with no dev-team lane behind it.
 
 CI (the "Lint and test" check `/merge-pr` already gates on) covers unit tests. It cannot cover code review judgment or live calls against real Google APIs, since those need credentials and fixtures CI doesn't have. That's what this skill does instead — it's the step between a worker's PR going up and `/merge-pr`.
 
