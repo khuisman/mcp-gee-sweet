@@ -68,6 +68,11 @@ docs: ## Serve docs locally at http://127.0.0.1:8000 (live reload).
 install-hooks: ## Install pre-commit hooks into the local git repo.
 	uv run pre-commit install
 
+.PHONY: claude-team
+claude-team: ## Launch Claude Code with all dev-team MCP servers connected (Kai/Ash/Sky/Jay/Kit) for Agent View.
+	scripts/setup_team.sh
+	claude --mcp-config .claude/mcp-configs/team.mcp.json --strict-mcp-config
+
 .PHONY: test
 test: ## Run unit tests.
 	uv run python -m pytest
