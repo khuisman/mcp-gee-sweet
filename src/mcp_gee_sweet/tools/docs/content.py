@@ -1,4 +1,3 @@
-import asyncio
 import html as html_module
 import logging
 import xml.etree.ElementTree as etree
@@ -13,7 +12,7 @@ from markdown.inlinepatterns import InlineProcessor
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import thread_http
+from ...auth import execute_in_thread
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME
 from ..drive import _SA_QUOTA_ERROR
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
@@ -196,7 +195,7 @@ def register(tool):
             file_body["parents"] = [target_folder_id]
 
         try:
-            doc = await asyncio.to_thread(
+            doc = await execute_in_thread(
                 drive_service.files()
                 .create(
                     supportsAllDrives=True,
@@ -204,7 +203,7 @@ def register(tool):
                     fields="id, name, parents, webViewLink",
                 )
                 .execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
@@ -224,11 +223,11 @@ def register(tool):
                 content, content_format, start_index=1, autolink_urls=autolink_urls
             )
             if content_requests:
-                await asyncio.to_thread(
+                await execute_in_thread(
                     docs_service.documents()
                     .batchUpdate(documentId=doc_id, body={"requests": content_requests})
                     .execute,
-                    http=thread_http(docs_service),
+                    docs_service,
                 )
             await fill_tables(docs_service, doc_id, tables)
 
@@ -301,7 +300,7 @@ def register(tool):
             file_body["parents"] = [target_folder_id]
 
         try:
-            doc = await asyncio.to_thread(
+            doc = await execute_in_thread(
                 drive_service.files()
                 .create(
                     supportsAllDrives=True,
@@ -309,7 +308,7 @@ def register(tool):
                     fields="id, name, parents, webViewLink",
                 )
                 .execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
@@ -325,11 +324,11 @@ def register(tool):
                 content, content_format, start_index=1, autolink_urls=autolink_urls
             )
             if content_requests:
-                await asyncio.to_thread(
+                await execute_in_thread(
                     docs_service.documents()
                     .batchUpdate(documentId=doc_id, body={"requests": content_requests})
                     .execute,
-                    http=thread_http(docs_service),
+                    docs_service,
                 )
             await fill_tables(docs_service, doc_id, tables)
 
@@ -376,7 +375,7 @@ def register(tool):
         metadata = None
         current_mtime = None
         if CACHE_VALIDATE_MODIFIED_TIME:
-            metadata = await asyncio.to_thread(
+            metadata = await execute_in_thread(
                 drive_service.files()
                 .get(
                     fileId=file_id,
@@ -384,14 +383,14 @@ def register(tool):
                     supportsAllDrives=True,
                 )
                 .execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
             current_mtime = metadata.get("modifiedTime")
 
         result = doc_cache.get(file_id, current_modified_time=current_mtime)
         if result is None:
             if metadata is None:
-                metadata = await asyncio.to_thread(
+                metadata = await execute_in_thread(
                     drive_service.files()
                     .get(
                         fileId=file_id,
@@ -399,12 +398,12 @@ def register(tool):
                         supportsAllDrives=True,
                     )
                     .execute,
-                    http=thread_http(drive_service),
+                    drive_service,
                 )
 
-            content = await asyncio.to_thread(
+            content = await execute_in_thread(
                 drive_service.files().export(fileId=file_id, mimeType="text/plain").execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
 
             result = {
@@ -417,7 +416,7 @@ def register(tool):
             doc_cache.store(file_id, result)
 
         if local_path:
-            return write_capped_result_to_disk(
+            return await write_capped_result_to_disk(
                 result,
                 local_path,
                 default_filename=f"{file_id}_content.json",
@@ -459,9 +458,9 @@ def register(tool):
         docs_service = lc.docs_service
         drive_service = lc.drive_service
 
-        doc = await asyncio.to_thread(
+        doc = await execute_in_thread(
             docs_service.documents().get(documentId=doc_id).execute,
-            http=thread_http(docs_service),
+            docs_service,
         )
         body_content = doc.get("body", {}).get("content", [])
         end_index = body_content[-1].get("endIndex", 2) if body_content else 2
@@ -491,30 +490,30 @@ def register(tool):
             # from a pre-batch snapshot, so contamination survived even after the clear
             # request above ran earlier in that same batch. A separate call forces the
             # insert to see the already-cleared document state.
-            await asyncio.to_thread(
+            await execute_in_thread(
                 docs_service.documents()
                 .batchUpdate(documentId=doc_id, body={"requests": clear_requests})
                 .execute,
-                http=thread_http(docs_service),
+                docs_service,
             )
 
         content_requests, tables = _to_doc_requests(
             content, content_format, start_index=1, autolink_urls=autolink_urls
         )
         if content_requests:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 docs_service.documents()
                 .batchUpdate(documentId=doc_id, body={"requests": content_requests})
                 .execute,
-                http=thread_http(docs_service),
+                docs_service,
             )
         await fill_tables(docs_service, doc_id, tables)
 
-        metadata = await asyncio.to_thread(
+        metadata = await execute_in_thread(
             drive_service.files()
             .get(fileId=doc_id, fields="webViewLink", supportsAllDrives=True)
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
 
         lc.doc_cache.mark_dirty(doc_id)
@@ -544,9 +543,9 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            doc = await asyncio.to_thread(
+            doc = await execute_in_thread(
                 lc.docs_service.documents().get(documentId=doc_id).execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -681,11 +680,11 @@ def register(tool):
                 if "segment_id" in op:
                     location["segmentId"] = op["segment_id"]
                 requests.append({"insertText": {"location": location, "text": op["text"]}})
-            await asyncio.to_thread(
+            await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(documentId=doc_id, body={"requests": requests})
                 .execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -733,11 +732,11 @@ def register(tool):
                 }
                 for op in sorted_ops
             ]
-            await asyncio.to_thread(
+            await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(documentId=doc_id, body={"requests": requests})
                 .execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -786,11 +785,11 @@ def register(tool):
 
         if drive_file_id:
             try:
-                metadata = await asyncio.to_thread(
+                metadata = await execute_in_thread(
                     lc.drive_service.files()
                     .get(fileId=drive_file_id, fields="webContentLink", supportsAllDrives=True)
                     .execute,
-                    http=thread_http(lc.drive_service),
+                    lc.drive_service,
                 )
                 uri = metadata.get("webContentLink")
                 if not uri:
@@ -813,11 +812,11 @@ def register(tool):
             image_request["insertInlineImage"]["objectSize"] = object_size
 
         try:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(documentId=doc_id, body={"requests": [image_request]})
                 .execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
         except Exception as e:
             return {"error": str(e)}

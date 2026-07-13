@@ -1,8 +1,7 @@
-import asyncio
 import re
 from typing import TYPE_CHECKING, Any
 
-from ...auth import thread_http
+from ...auth import execute_in_thread
 
 if TYPE_CHECKING:
     from ...cache import SheetStructureCache
@@ -87,9 +86,7 @@ async def _get_sheet_id(
         from ...cache import fetch_sheets
 
         try:
-            # fetch_sheets (SQLite-backed) stays synchronous and un-awaited by design —
-            # see the note at the top of cache.py.
-            sheets = fetch_sheets(sheets_service, spreadsheet_id, cache, drive_service)
+            sheets = await fetch_sheets(sheets_service, spreadsheet_id, cache, drive_service)
             for s in sheets:
                 if s.title == sheet_name:
                     return s.sheet_id
@@ -100,11 +97,11 @@ async def _get_sheet_id(
             return None
 
     try:
-        spreadsheet = await asyncio.to_thread(
+        spreadsheet = await execute_in_thread(
             sheets_service.spreadsheets()
             .get(spreadsheetId=spreadsheet_id, fields="sheets(properties(title,sheetId))")
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
         for sheet in spreadsheet.get("sheets", []):
             if sheet["properties"]["title"] == sheet_name:
@@ -117,11 +114,11 @@ async def _get_sheet_id(
 async def _get_sheet_index(sheets_service: Any, spreadsheet_id: str, sheet_id: int) -> int | None:
     """Return the current 0-based tab position of sheet_id, or None if not found."""
     try:
-        spreadsheet = await asyncio.to_thread(
+        spreadsheet = await execute_in_thread(
             sheets_service.spreadsheets()
             .get(spreadsheetId=spreadsheet_id, fields="sheets.properties(sheetId,index)")
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
         for sheet in spreadsheet.get("sheets", []):
             if sheet["properties"]["sheetId"] == sheet_id:

@@ -310,6 +310,49 @@ class TestGetMultipleSheetData:
         assert written[0]["data"] == [["x" * 1000]]
 
 
+class TestGetMultipleSpreadsheetSummary:
+    """Response-size cap and local_path parity with get_multiple_sheet_data (QA finding, #183)."""
+
+    def _ctx(self, spreadsheet_meta, values):
+        sheets_service = MagicMock()
+        sheets_service.spreadsheets.return_value.get.return_value.execute.return_value = (
+            spreadsheet_meta
+        )
+        sheets_service.spreadsheets.return_value.values.return_value.get.return_value.execute.return_value = {
+            "values": values
+        }
+        ctx = _make_ctx(sheets_service=sheets_service, drive_service=MagicMock())
+        lc = ctx.request_context.lifespan_context
+        lc.cache.get_sheets.return_value = None
+        lc.cache.get_title.return_value = None
+        lc.sheet_data_cache.get.return_value = None
+        return ctx
+
+    def _spreadsheet_meta(self, title="Big"):
+        return {
+            "properties": {"title": title},
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": 0}}],
+        }
+
+    async def test_oversized_result_raises(self, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        ctx = self._ctx(self._spreadsheet_meta(), [["x" * 1000]])
+        with pytest.raises(ValueError, match="safety cap"):
+            await _data_tools["get_multiple_spreadsheet_summary"](spreadsheet_ids=["abc"], ctx=ctx)
+
+    async def test_local_path_bypasses_cap_and_writes_results(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        ctx = self._ctx(self._spreadsheet_meta(), [["x" * 1000]])
+        dest = tmp_path / "out.json"
+        result = await _data_tools["get_multiple_spreadsheet_summary"](
+            spreadsheet_ids=["abc"], local_path=str(dest), ctx=ctx
+        )
+        assert result["local_path"] == str(dest)
+        assert result["spreadsheet_count"] == 1
+        written = json.loads(dest.read_text())
+        assert written[0]["title"] == "Big"
+
+
 class TestFindInSpreadsheet:
     def _service(self, sheet_titles, values):
         svc = MagicMock()

@@ -11,7 +11,7 @@
 | `get_sheet_data` | Get data from a specific sheet in a Google Spreadsheet. | `spreadsheet_id`, `sheet`, `range?`, `include_grid_data?`, `local_path?` |
 | `get_sheet_formulas` | Get formulas from a specific sheet in a Google Spreadsheet. | `spreadsheet_id`, `sheet`, `range?` |
 | `get_multiple_sheet_data` | Get data from multiple specific ranges in Google Spreadsheets. | `queries`, `local_path?` |
-| `get_multiple_spreadsheet_summary` | Get a summary of multiple Google Spreadsheets, including sheet names, headers, and the first few rows of data for each sheet. | `spreadsheet_ids`, `rows_to_fetch?` |
+| `get_multiple_spreadsheet_summary` | Get a summary of multiple Google Spreadsheets, including sheet names, headers, and the first few rows of data for each sheet. | `spreadsheet_ids`, `rows_to_fetch?`, `local_path?` |
 | `find_in_spreadsheet` | Find cells containing a specific value in a Google Spreadsheet. | `spreadsheet_id`, `query`, `sheet?`, `case_sensitive?`, `max_results?`, `local_path?` |
 | `clear_values` | Clear cell content in a range without touching formatting. | `spreadsheet_id`, `sheet`, `range?` |
 | `update_cells` | Update cells in a Google Spreadsheet. | `spreadsheet_id`, `sheet`, `range`, `data` |

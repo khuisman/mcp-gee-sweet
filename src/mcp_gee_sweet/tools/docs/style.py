@@ -1,11 +1,10 @@
-import asyncio
 import logging
 from typing import Any
 
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import thread_http
+from ...auth import execute_in_thread
 
 logger = logging.getLogger(__name__)
 
@@ -262,11 +261,11 @@ def register(tool):
             return {"error": "no recognised style fields in any range"}
 
         try:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(documentId=doc_id, body={"requests": requests})
                 .execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -375,11 +374,11 @@ def register(tool):
             return {"error": "no style fields found in any cell"}
 
         try:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(documentId=doc_id, body={"requests": requests})
                 .execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -422,9 +421,9 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            doc = await asyncio.to_thread(
+            doc = await execute_in_thread(
                 lc.docs_service.documents().get(documentId=doc_id).execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -462,9 +461,9 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            doc = await asyncio.to_thread(
+            doc = await execute_in_thread(
                 lc.docs_service.documents().get(documentId=doc_id).execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -534,9 +533,9 @@ def register(tool):
         doc: dict | None = None
         if overwrite or table_style:
             try:
-                doc = await asyncio.to_thread(
+                doc = await execute_in_thread(
                     lc.docs_service.documents().get(documentId=doc_id).execute,
-                    http=thread_http(lc.docs_service),
+                    lc.docs_service,
                 )
             except Exception as e:
                 return {"error": f"failed to fetch doc: {e}"}
@@ -673,11 +672,11 @@ def register(tool):
             return {"error": "no style requests could be built from the given theme"}
 
         try:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(documentId=doc_id, body={"requests": requests})
                 .execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
         except Exception as e:
             return {"error": str(e)}

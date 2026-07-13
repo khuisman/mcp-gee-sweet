@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import Any
 
@@ -6,7 +5,7 @@ from googleapiclient.errors import HttpError
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import thread_http
+from ...auth import execute_in_thread
 from ..response_limits import enforce_response_size_cap
 
 logger = logging.getLogger(__name__)
@@ -109,9 +108,9 @@ def register(tool):
             body["pageToken"] = page_token
 
         try:
-            response = await asyncio.to_thread(
+            response = await execute_in_thread(
                 activity_service.activity().query(body=body).execute,
-                http=thread_http(activity_service),
+                activity_service,
             )
         except HttpError as e:
             logger.debug("Drive Activity API error for file %s: %s", file_id, e)

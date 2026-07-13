@@ -13,7 +13,7 @@ from googleapiclient.http import MediaFileUpload, MediaInMemoryUpload, MediaIoBa
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import thread_http
+from ...auth import execute_in_thread, thread_http
 from ..response_limits import enforce_response_size_cap
 from . import _SA_QUOTA_ERROR
 
@@ -94,11 +94,11 @@ def register(tool):
 
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        metadata = await asyncio.to_thread(
+        metadata = await execute_in_thread(
             drive_service.files()
             .get(fileId=file_id, fields="id, name, mimeType", supportsAllDrives=True)
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
         file_mime = metadata.get("mimeType", "")
         is_google_workspace = file_mime.startswith("application/vnd.google-apps.")
@@ -125,9 +125,9 @@ def register(tool):
                     f"Valid options: {', '.join(_EXPORT_MIME)}, raw"
                 )
             target_mime = _EXPORT_MIME[export_format][0]
-            content_bytes = await asyncio.to_thread(
+            content_bytes = await execute_in_thread(
                 drive_service.files().export(fileId=file_id, mimeType=target_mime).execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
             if isinstance(content_bytes, str):
                 content_bytes = content_bytes.encode("utf-8")
@@ -171,14 +171,14 @@ def register(tool):
             List of revisions, each with revisionId, modifiedTime, modifiedBy, keepForever.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
-        result = await asyncio.to_thread(
+        result = await execute_in_thread(
             drive_service.revisions()
             .list(
                 fileId=file_id,
                 fields="revisions(id,modifiedTime,lastModifyingUser/displayName,keepForever)",
             )
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
         return [
             {
@@ -224,11 +224,11 @@ def register(tool):
 
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        revision = await asyncio.to_thread(
+        revision = await execute_in_thread(
             drive_service.revisions()
             .get(fileId=file_id, revisionId=revision_id, fields="exportLinks,modifiedTime")
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
 
         xlsx_url = revision.get("exportLinks", {}).get(
@@ -240,7 +240,9 @@ def register(tool):
                 "The file may not be a Google Sheets file."
             )
 
-        _, content = await asyncio.to_thread(thread_http(drive_service).request, xlsx_url)
+        # thread_http(drive_service) must be called inside the worker thread's closure, not
+        # eagerly here on the event-loop thread — see execute_in_thread's docstring in auth.py.
+        _, content = await asyncio.to_thread(lambda: thread_http(drive_service).request(xlsx_url))
         wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
 
         ws = wb[sheet] if sheet else wb.active
@@ -316,7 +318,7 @@ def register(tool):
 
         media = MediaInMemoryUpload(upload_content, mimetype=upload_mime, resumable=False)
         try:
-            result = await asyncio.to_thread(
+            result = await execute_in_thread(
                 drive_service.files()
                 .create(
                     body=file_body,
@@ -325,7 +327,7 @@ def register(tool):
                     fields="id, name, parents, webViewLink",
                 )
                 .execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
@@ -385,7 +387,7 @@ def register(tool):
 
         if skip_if_exists:
             safe_name = file_name.replace("\\", "\\\\").replace("'", "\\'")
-            existing = await asyncio.to_thread(
+            existing = await execute_in_thread(
                 drive_service.files()
                 .list(
                     q=f"name='{safe_name}' and '{parent_folder_id}' in parents and trashed=false",
@@ -396,7 +398,7 @@ def register(tool):
                     pageSize=1,
                 )
                 .execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
             hits = existing.get("files", [])
             if hits:
@@ -414,7 +416,7 @@ def register(tool):
         metadata: dict[str, Any] = {"name": file_name, "parents": [parent_folder_id]}
         media = MediaFileUpload(local_path, mimetype=mime, resumable=True)
         try:
-            result = await asyncio.to_thread(
+            result = await execute_in_thread(
                 drive_service.files()
                 .create(
                     body=metadata,
@@ -423,7 +425,7 @@ def register(tool):
                     fields="id, name, webViewLink",
                 )
                 .execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
@@ -480,7 +482,7 @@ def register(tool):
         failed: list[dict[str, str]] = []
 
         if skip_if_exists and candidates:
-            existing_resp = await asyncio.to_thread(
+            existing_resp = await execute_in_thread(
                 drive_service.files()
                 .list(
                     q=f"'{parent_folder_id}' in parents and trashed=false",
@@ -491,7 +493,7 @@ def register(tool):
                     pageSize=1000,
                 )
                 .execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
             existing_names = {f["name"] for f in existing_resp.get("files", [])}
         else:
@@ -508,7 +510,7 @@ def register(tool):
             try:
                 metadata: dict[str, Any] = {"name": p.name, "parents": [parent_folder_id]}
                 media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
-                await asyncio.to_thread(
+                await execute_in_thread(
                     drive_service.files()
                     .create(
                         body=metadata,
@@ -517,7 +519,7 @@ def register(tool):
                         fields="id",
                     )
                     .execute,
-                    http=thread_http(drive_service),
+                    drive_service,
                 )
                 uploaded.append(p.name)
                 logger.debug("Uploaded %s (%s)", p.name, mime)
@@ -560,11 +562,11 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        metadata = await asyncio.to_thread(
+        metadata = await execute_in_thread(
             drive_service.files()
             .get(fileId=file_id, fields="name, mimeType", supportsAllDrives=True)
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
         drive_name = metadata["name"]
         file_mime = metadata.get("mimeType", "")
@@ -591,13 +593,13 @@ def register(tool):
                     f"Unknown export_format '{export_format}'. Valid options: {', '.join(_EXPORT_MIME)}"
                 )
             target_mime = _EXPORT_MIME[export_format][0]
-            content = await asyncio.to_thread(
+            content = await execute_in_thread(
                 drive_service.files().export(fileId=file_id, mimeType=target_mime).execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
             if not isinstance(content, bytes):
                 content = content.encode("utf-8")
-            dest.write_bytes(content)
+            await asyncio.to_thread(dest.write_bytes, content)
         else:
 
             def _download_to_completion() -> None:
@@ -653,7 +655,7 @@ def register(tool):
             safe = mime_type_filter.replace("'", "\\'")
             query += f" and mimeType='{safe}'"
 
-        results = await asyncio.to_thread(
+        results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=query,
@@ -665,7 +667,7 @@ def register(tool):
                 orderBy="name",
             )
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
 
         downloaded: list[str] = []
@@ -701,13 +703,13 @@ def register(tool):
             try:
                 if is_workspace:
                     target_mime = _EXPORT_MIME[export_format][0]
-                    content = await asyncio.to_thread(
+                    content = await execute_in_thread(
                         drive_service.files().export(fileId=fid, mimeType=target_mime).execute,
-                        http=thread_http(drive_service),
+                        drive_service,
                     )
                     if not isinstance(content, bytes):
                         content = content.encode("utf-8")
-                    dest_file.write_bytes(content)
+                    await asyncio.to_thread(dest_file.write_bytes, content)
                 else:
 
                     def _download_to_completion(fid=fid, dest_file=dest_file) -> None:
@@ -812,7 +814,7 @@ def register(tool):
         dest_dir.mkdir(parents=True, exist_ok=True)
 
         # --- build Drive file map: local_name → {id, mimeType, drive_name, modifiedTime} ---
-        results = await asyncio.to_thread(
+        results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=f"'{folder_id}' in parents and trashed=false",
@@ -823,7 +825,7 @@ def register(tool):
                 pageSize=1000,
             )
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
         drive_map: dict[str, dict] = {}
         for f in results.get("files", []):
@@ -950,7 +952,7 @@ def register(tool):
                     media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
                     if name in drive_map:
                         fid = drive_map[name]["id"]
-                        await asyncio.to_thread(
+                        await execute_in_thread(
                             drive_service.files()
                             .update(
                                 fileId=fid,
@@ -960,11 +962,11 @@ def register(tool):
                                 fields="id",
                             )
                             .execute,
-                            http=thread_http(drive_service),
+                            drive_service,
                         )
                         logger.debug("Synced (update) %s → Drive", name)
                     else:
-                        await asyncio.to_thread(
+                        await execute_in_thread(
                             drive_service.files()
                             .create(
                                 body={
@@ -977,7 +979,7 @@ def register(tool):
                                 fields="id",
                             )
                             .execute,
-                            http=thread_http(drive_service),
+                            drive_service,
                         )
                         logger.debug("Synced (create) %s → Drive", name)
                     return {"kind": "upload_ok", "name": name}
@@ -992,13 +994,13 @@ def register(tool):
             try:
                 if is_workspace:
                     target_mime = _EXPORT_MIME[export_format][0]
-                    content = await asyncio.to_thread(
+                    content = await execute_in_thread(
                         drive_service.files().export(fileId=fid, mimeType=target_mime).execute,
-                        http=thread_http(drive_service),
+                        drive_service,
                     )
                     if not isinstance(content, bytes):
                         content = content.encode("utf-8")
-                    dest_file.write_bytes(content)
+                    await asyncio.to_thread(dest_file.write_bytes, content)
                 else:
 
                     def _download_to_completion(fid=fid, dest_file=dest_file) -> None:

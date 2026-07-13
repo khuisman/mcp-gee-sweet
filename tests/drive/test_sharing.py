@@ -121,6 +121,27 @@ class TestShareSpreadsheet:
         assert result["successes"][0]["email_address"] == "good@example.com"
         assert result["failures"][0]["email_address"] == "bad@example.com"
 
+    async def test_malformed_non_dict_entry_stays_attributable(self):
+        """A non-dict recipient raises from .get() before any validation return —
+        the failure must still echo the raw entry, not collapse to an anonymous
+        email_address=None result indistinguishable from other bad entries."""
+        drive = self._drive_svc()
+        ctx = _make_ctx(drive_service=drive)
+        result = await _sharing_tools["share_spreadsheet"](
+            spreadsheet_id="ss1",
+            recipients=[
+                {"email_address": "good@example.com", "role": "reader"},
+                "not-a-dict",
+                ["also", "not", "a", "dict"],
+            ],
+            ctx=ctx,
+        )
+        assert len(result["successes"]) == 1
+        assert len(result["failures"]) == 2
+        entries = [f["entry"] for f in result["failures"]]
+        assert "not-a-dict" in entries
+        assert ["also", "not", "a", "dict"] in entries
+
 
 class TestListPermissions:
     """list_permissions maps Drive API camelCase field names to snake_case output."""
@@ -276,3 +297,21 @@ class TestShareFile:
         )
         create_call = drive.permissions.return_value.create.call_args
         assert create_call.kwargs["body"]["domain"] == "example.com"
+
+    async def test_malformed_non_dict_entry_stays_attributable(self):
+        """A non-dict permission entry raises from .get() before any validation
+        return — the failure must still echo the raw entry, not collapse to an
+        anonymous entry=None result indistinguishable from other bad entries."""
+        drive = self._drive_svc()
+        ctx = _make_ctx(drive_service=drive)
+        result = await _sharing_tools["share_file"](
+            file_id="file-1",
+            permissions=[
+                {"type": "anyone", "role": "reader"},
+                "not-a-dict",
+            ],
+            ctx=ctx,
+        )
+        assert len(result["successes"]) == 1
+        assert len(result["failures"]) == 1
+        assert result["failures"][0]["entry"] == "not-a-dict"

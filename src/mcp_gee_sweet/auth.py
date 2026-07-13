@@ -2,18 +2,15 @@ import base64
 import json
 import logging
 import os
-import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
 import google.auth
-import httplib2
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
-from google_auth_httplib2 import AuthorizedHttp
 from google_auth_oauthlib.flow import InstalledAppFlow
 from mcp.server.fastmcp import FastMCP
 
@@ -23,6 +20,10 @@ from .cache import (
     DriveFolderCache,
     SheetDataCache,
     SheetStructureCache,
+)
+from .http_transport import (  # noqa: F401 — re-exported for tool imports
+    execute_in_thread,
+    thread_http,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,28 +59,6 @@ class SpreadsheetContext:
     drive_folder_cache: DriveFolderCache = field(default_factory=DriveFolderCache)
     doc_cache: DocContentCache = field(default_factory=DocContentCache)
     calendar_cache: CalendarCache = field(default_factory=CalendarCache)
-
-
-_thread_local = threading.local()
-
-
-def thread_http(service: Any) -> AuthorizedHttp:
-    """Per-thread HTTP transport for concurrent .execute() calls against `service`.
-
-    asyncio.to_thread() runs .execute() calls in real OS threads; the shared service
-    objects built once in spreadsheet_lifespan each carry a single httplib2 transport
-    that isn't safe for concurrent use from multiple threads. Each thread gets its own,
-    lazily built from the service's existing credentials and cached for reuse — do not
-    remove this in favor of the shared service objects' default transport.
-    """
-    cache = getattr(_thread_local, "http_by_service", None)
-    if cache is None:
-        cache = {}
-        _thread_local.http_by_service = cache
-    key = id(service)
-    if key not in cache:
-        cache[key] = AuthorizedHttp(service._http.credentials, http=httplib2.Http())
-    return cache[key]
 
 
 def _oauth_creds() -> Credentials:

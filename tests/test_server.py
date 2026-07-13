@@ -1,5 +1,6 @@
 """Tests for server.py (_parse_enabled_tools, _auth_status_json, _timed, tool strict args)."""
 
+import inspect
 import json
 import logging
 import sys
@@ -9,6 +10,26 @@ import pytest
 from pydantic import ValidationError
 
 from mcp_gee_sweet.server import _auth_status_json, _parse_enabled_tools, _timed, mcp, tool
+
+
+class TestAllToolsAreAsync:
+    """Regression test for issue #183: _timed's wrapper is unconditionally
+    `async def wrapper(...): return await func(...)`, so any tool registered as
+    a plain `def` breaks with TypeError at call time. This is invisible to the
+    rest of the test suite — every other test captures the raw inner function
+    via a fake tool registry, bypassing _timed entirely. Already hit once for
+    tools/cache.py's get_cache_ttl/set_cache_ttl/refresh_cache (zero .execute()
+    calls, so missed by the .execute()-driven async conversion sweep); this
+    guards against it recurring for any future tool with no I/O of its own.
+    """
+
+    def test_every_registered_tool_is_async(self):
+        tools = mcp._tool_manager.list_tools()
+        assert tools, "no tools registered — registration may be broken"
+        sync_tools = sorted(
+            t.name for t in tools if not inspect.iscoroutinefunction(inspect.unwrap(t.fn))
+        )
+        assert sync_tools == [], f"non-async tool(s) found: {sync_tools}"
 
 
 class TestParseEnabledTools:

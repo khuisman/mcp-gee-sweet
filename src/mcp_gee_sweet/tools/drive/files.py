@@ -9,7 +9,7 @@ from googleapiclient.errors import HttpError
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import thread_http
+from ...auth import execute_in_thread
 from ..sheets.helpers import _quote_sheet_name
 from . import _SA_QUOTA_ERROR
 
@@ -51,11 +51,11 @@ def register(tool):
             file_body["parents"] = [target_folder_id]
 
         try:
-            spreadsheet = await asyncio.to_thread(
+            spreadsheet = await execute_in_thread(
                 drive_service.files()
                 .create(supportsAllDrives=True, body=file_body, fields="id, name, parents")
                 .execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
@@ -103,7 +103,13 @@ def register(tool):
             sheet_name: Name of the sheet the data is written to (default "Sheet1").
 
         Returns:
-            spreadsheetId, title, web_link, and rows_written.
+            spreadsheetId, title, web_link, and rows_written on full success. Rows are
+            written in row-range chunks that run concurrently; if one or more chunks
+            fail, the spreadsheet (already created) may have some rows missing — not
+            necessarily a clean prefix. In that case returns an 'error' summary plus
+            spreadsheetId, title, web_link, rows_attempted, failed_ranges (start_row,
+            end_row, error per failed chunk), and written_ranges (start_row, end_row
+            per chunk that succeeded), so the missing rows can be retried precisely.
 
         Note:
             Requires OAuth or ADC auth. Service accounts cannot create files in personal
@@ -116,8 +122,11 @@ def register(tool):
         if path.suffix.lower() != ".csv":
             return {"error": f"Unsupported file extension '{path.suffix}'. Use .csv"}
 
-        with path.open(newline="", encoding="utf-8") as f:
-            rows = list(csv.reader(f))
+        def _read_csv() -> list[list[str]]:
+            with path.open(newline="", encoding="utf-8") as f:
+                return list(csv.reader(f))
+
+        rows = await asyncio.to_thread(_read_csv)
 
         if not rows:
             return {"error": f"CSV file is empty: {local_path}"}
@@ -135,7 +144,7 @@ def register(tool):
             file_body["parents"] = [target_folder_id]
 
         try:
-            spreadsheet = await asyncio.to_thread(
+            spreadsheet = await execute_in_thread(
                 drive_service.files()
                 .create(
                     supportsAllDrives=True,
@@ -143,7 +152,7 @@ def register(tool):
                     fields="id, name, parents, webViewLink",
                 )
                 .execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
@@ -153,14 +162,14 @@ def register(tool):
         spreadsheet_id = spreadsheet.get("id")
         target_folder_id = target_folder_id or (spreadsheet.get("parents", [None])[0])
 
-        spreadsheet_meta = await asyncio.to_thread(
+        spreadsheet_meta = await execute_in_thread(
             sheets_service.spreadsheets()
             .get(
                 spreadsheetId=spreadsheet_id,
                 fields="sheets(properties(sheetId,title,gridProperties))",
             )
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
         default_sheet = spreadsheet_meta.get("sheets", [{}])[0]
         default_props = default_sheet.get("properties", {})
@@ -196,49 +205,91 @@ def register(tool):
             )
 
         if requests:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 sheets_service.spreadsheets()
                 .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
                 .execute,
-                http=thread_http(sheets_service),
+                sheets_service,
             )
             lc.cache.mark_dirty(spreadsheet_id)
 
         quoted_sheet = _quote_sheet_name(sheet_name)
 
-        async def _write_chunk(start: int, chunk: list[list]) -> None:
-            await asyncio.to_thread(
-                sheets_service.spreadsheets()
-                .values()
-                .update(
-                    spreadsheetId=spreadsheet_id,
-                    range=f"{quoted_sheet}!A{start + 1}",
-                    valueInputOption="USER_ENTERED",
-                    body={"values": chunk},
+        async def _write_chunk(start: int, chunk: list[list]) -> dict[str, Any]:
+            row_range = {"start_row": start + 1, "end_row": start + len(chunk)}
+            try:
+                await execute_in_thread(
+                    sheets_service.spreadsheets()
+                    .values()
+                    .update(
+                        spreadsheetId=spreadsheet_id,
+                        range=f"{quoted_sheet}!A{start + 1}",
+                        valueInputOption="USER_ENTERED",
+                        body={"values": chunk},
+                    )
+                    .execute,
+                    sheets_service,
                 )
-                .execute,
-                http=thread_http(sheets_service),
-            )
+                return {**row_range, "ok": True}
+            except Exception as e:
+                return {**row_range, "ok": False, "error": str(e)}
 
         # Safe to parallelize: each chunk writes a disjoint row range of the same
         # sheet (A{start+1} onward, non-overlapping), so there's no read-modify-write
-        # race between chunks. return_exceptions=True lets every chunk finish before
-        # surfacing the first failure, instead of orphaning in-flight writes.
+        # race between chunks. Unlike the old sequential loop — where a failure left a
+        # clean truncated prefix — a concurrent failure can leave a hole mid-sheet (an
+        # earlier chunk can still be in flight when a later one succeeds), so failures
+        # are reported per-range rather than as a single opaque exception.
         chunks = [
             (start, rows[start : start + _CSV_IMPORT_CHUNK_ROWS])
             for start in range(0, len(rows), _CSV_IMPORT_CHUNK_ROWS)
         ]
+        chunk_results: list[dict[str, Any]] = []
         if chunks:
-            chunk_results = await asyncio.gather(
+            raw = await asyncio.gather(
                 *(_write_chunk(start, chunk) for start, chunk in chunks), return_exceptions=True
             )
-            first_error = next((r for r in chunk_results if isinstance(r, BaseException)), None)
-            if first_error is not None:
-                raise first_error
+            chunk_results = [
+                r
+                if not isinstance(r, BaseException)
+                else {
+                    "start_row": start + 1,
+                    "end_row": start + len(chunk),
+                    "ok": False,
+                    "error": str(r),
+                }
+                for (start, chunk), r in zip(chunks, raw, strict=True)
+            ]
 
         if target_folder_id:
             lc.drive_folder_cache.mark_dirty(target_folder_id)
         lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+
+        failed_ranges = [
+            {"start_row": r["start_row"], "end_row": r["end_row"], "error": r["error"]}
+            for r in chunk_results
+            if not r["ok"]
+        ]
+        if failed_ranges:
+            written_ranges = [
+                {"start_row": r["start_row"], "end_row": r["end_row"]}
+                for r in chunk_results
+                if r["ok"]
+            ]
+            return {
+                "error": (
+                    f"{len(failed_ranges)} of {len(chunk_results)} row-range write(s) failed. "
+                    "The spreadsheet was already created and some rows may be missing "
+                    "(not necessarily a clean prefix — chunks write concurrently). See "
+                    "failed_ranges for exactly which rows need to be retried."
+                ),
+                "spreadsheetId": spreadsheet_id,
+                "title": spreadsheet.get("name", title),
+                "web_link": spreadsheet.get("webViewLink"),
+                "rows_attempted": len(rows),
+                "failed_ranges": failed_ranges,
+                "written_ranges": written_ranges,
+            }
 
         logger.debug(
             "Imported CSV %s into spreadsheet %s (%d rows, %d cols)",
@@ -280,7 +331,7 @@ def register(tool):
         else:
             logger.debug("Searching for spreadsheets in 'My Drive'")
 
-        results = await asyncio.to_thread(
+        results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=query,
@@ -291,7 +342,7 @@ def register(tool):
                 orderBy="modifiedTime desc",
             )
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
 
         return [{"id": f["id"], "title": f["name"]} for f in results.get("files", [])]
@@ -321,7 +372,7 @@ def register(tool):
             query += " and 'root' in parents"
             logger.debug("Searching for folders in 'My Drive' root")
 
-        results = await asyncio.to_thread(
+        results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=query,
@@ -332,7 +383,7 @@ def register(tool):
                 orderBy="name",
             )
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
 
         return [
@@ -377,9 +428,9 @@ def register(tool):
         # response, so this isn't a gather() candidate.
         drives: list[dict[str, Any]] = []
         while len(drives) < max_results:
-            result = await asyncio.to_thread(
+            result = await execute_in_thread(
                 drive_service.drives().list(**kwargs).execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
             for d in result.get("drives", []):
                 drives.append(
@@ -434,7 +485,7 @@ def register(tool):
         if mime_type:
             query += f" and mimeType='{mime_type}'"
 
-        results = await asyncio.to_thread(
+        results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=query,
@@ -446,7 +497,7 @@ def register(tool):
                 orderBy="name",
             )
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
 
         files = [
@@ -498,7 +549,7 @@ def register(tool):
             parts.append(f"'{folder_id}' in parents")
 
         try:
-            results = await asyncio.to_thread(
+            results = await execute_in_thread(
                 drive_service.files()
                 .list(
                     q=" and ".join(parts),
@@ -510,7 +561,7 @@ def register(tool):
                     orderBy="modifiedTime desc",
                 )
                 .execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
             return [
                 {
@@ -556,7 +607,7 @@ def register(tool):
         )
 
         try:
-            results = await asyncio.to_thread(
+            results = await execute_in_thread(
                 drive_service.files()
                 .list(
                     q=search_query,
@@ -568,7 +619,7 @@ def register(tool):
                     orderBy="modifiedTime desc",
                 )
                 .execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
 
             return [
@@ -599,7 +650,7 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        f = await asyncio.to_thread(
+        f = await execute_in_thread(
             drive_service.files()
             .get(
                 fileId=file_id,
@@ -607,7 +658,7 @@ def register(tool):
                 supportsAllDrives=True,
             )
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
         mime = f["mimeType"]
         result: dict[str, Any] = {
@@ -653,11 +704,11 @@ def register(tool):
         if target_parent_id:
             file_body["parents"] = [target_parent_id]
 
-        folder = await asyncio.to_thread(
+        folder = await execute_in_thread(
             drive_service.files()
             .create(supportsAllDrives=True, body=file_body, fields="id, name, parents")
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
 
         folder_id = folder.get("id")
@@ -706,7 +757,7 @@ def register(tool):
             body["parents"] = [folder_id]
 
         try:
-            copied = await asyncio.to_thread(
+            copied = await execute_in_thread(
                 drive_service.files()
                 .copy(
                     fileId=file_id,
@@ -715,7 +766,7 @@ def register(tool):
                     fields="id, name, mimeType, parents, webViewLink",
                 )
                 .execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
@@ -751,15 +802,15 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        existing = await asyncio.to_thread(
+        existing = await execute_in_thread(
             drive_service.files()
             .get(fileId=file_id, fields="parents", supportsAllDrives=True)
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
         previous_parents = ",".join(existing.get("parents", []))
 
-        updated = await asyncio.to_thread(
+        updated = await execute_in_thread(
             drive_service.files()
             .update(
                 fileId=file_id,
@@ -769,7 +820,7 @@ def register(tool):
                 fields="id, name, parents, mimeType",
             )
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
 
         logger.debug("Moved file %s to folder %s", file_id, destination_folder_id)
@@ -801,7 +852,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        updated = await asyncio.to_thread(
+        updated = await execute_in_thread(
             drive_service.files()
             .update(
                 fileId=file_id,
@@ -810,7 +861,7 @@ def register(tool):
                 fields="id, name, parents",
             )
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
 
         parents = updated.get("parents", [])
@@ -850,7 +901,7 @@ def register(tool):
         if mime_type:
             parts.append(f"mimeType='{mime_type.replace(chr(39), chr(39) * 2)}'")
 
-        results = await asyncio.to_thread(
+        results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=" and ".join(parts),
@@ -860,7 +911,7 @@ def register(tool):
                 orderBy="modifiedTime desc",
             )
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
 
         return [
@@ -906,7 +957,7 @@ def register(tool):
         if mime_type:
             parts.append(f"mimeType='{mime_type.replace(chr(39), chr(39) * 2)}'")
 
-        results = await asyncio.to_thread(
+        results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=" and ".join(parts),
@@ -918,7 +969,7 @@ def register(tool):
                 orderBy="modifiedTime desc",
             )
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
 
         return [
@@ -946,9 +997,9 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        about = await asyncio.to_thread(
+        about = await execute_in_thread(
             drive_service.about().get(fields="storageQuota,user").execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
 
         quota = about.get("storageQuota", {})
@@ -982,24 +1033,24 @@ def register(tool):
         drive_service = lc.drive_service
 
         # Fetch parents before deletion so we can invalidate the cache
-        existing = await asyncio.to_thread(
+        existing = await execute_in_thread(
             drive_service.files()
             .get(fileId=file_id, fields="parents", supportsAllDrives=True)
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
         for parent in existing.get("parents", []):
             lc.drive_folder_cache.mark_dirty(parent)
 
         if permanent:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 drive_service.files().delete(fileId=file_id, supportsAllDrives=True).execute,
-                http=thread_http(drive_service),
+                drive_service,
             )
             logger.debug("Permanently deleted file %s", file_id)
             return {"fileId": file_id, "action": "deleted"}
 
-        await asyncio.to_thread(
+        await execute_in_thread(
             drive_service.files()
             .update(
                 fileId=file_id,
@@ -1008,7 +1059,7 @@ def register(tool):
                 fields="id",
             )
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
         logger.debug("Trashed file %s", file_id)
         return {"fileId": file_id, "action": "trashed"}

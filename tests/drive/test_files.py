@@ -556,6 +556,48 @@ class TestImportCsvToSheet:
         ranges = {c.kwargs["range"] for c in update_call.call_args_list}
         assert ranges == {"Sheet1!A1", "Sheet1!A3", "Sheet1!A5"}
 
+    async def test_partial_chunk_failure_reports_failed_and_written_ranges(
+        self, tmp_path, monkeypatch
+    ):
+        """One chunk failing among several concurrent writes must not raise a bare
+        exception — it must report exactly which row ranges failed vs. wrote
+        successfully, since a concurrent partial failure can leave a hole mid-sheet
+        rather than a clean truncated prefix (QA finding, #183)."""
+        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 2)
+        rows = [["h"]] + [[str(i)] for i in range(6)]
+        path = self._write_csv(tmp_path, rows)
+        drive_svc = self._drive_service()
+        sheets_svc = self._sheets_service()
+
+        def _make_update_mock(**update_kwargs):
+            m = MagicMock()
+            if update_kwargs.get("range") == "Sheet1!A3":
+                m.execute.side_effect = RuntimeError("simulated API failure")
+            else:
+                m.execute.return_value = {}
+            return m
+
+        sheets_svc.spreadsheets.return_value.values.return_value.update.side_effect = (
+            _make_update_mock
+        )
+
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            folder_id=None,
+        )
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+
+        assert "error" in result
+        assert result["spreadsheetId"] == "sheet123"
+        assert result["failed_ranges"] == [
+            {"start_row": 3, "end_row": 4, "error": "simulated API failure"}
+        ]
+        written_starts = {w["start_row"] for w in result["written_ranges"]}
+        assert written_starts == {1, 5, 7}
+
     async def test_storage_quota_error_returns_helpful_message(self, tmp_path):
         path = self._write_csv(tmp_path, [["a"], ["1"]])
         drive_svc = MagicMock()

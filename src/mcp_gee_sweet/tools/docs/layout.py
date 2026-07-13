@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import Any
 
@@ -6,7 +5,7 @@ from googleapiclient.errors import HttpError
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import thread_http
+from ...auth import execute_in_thread
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +44,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         header_id = None
         try:
-            response = await asyncio.to_thread(
+            response = await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(
                     documentId=doc_id,
@@ -60,7 +59,7 @@ def register(tool):
                     },
                 )
                 .execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
             replies = response.get("replies") or []
             if replies:
@@ -74,11 +73,11 @@ def register(tool):
         # Fallback: if headerId not in response (or header already existed), read from documentStyle
         if header_id is None:
             try:
-                doc = await asyncio.to_thread(
+                doc = await execute_in_thread(
                     lc.docs_service.documents()
                     .get(documentId=doc_id, fields="documentStyle")
                     .execute,
-                    http=thread_http(lc.docs_service),
+                    lc.docs_service,
                 )
                 style = doc.get("documentStyle", {})
                 header_id = (
@@ -91,7 +90,7 @@ def register(tool):
 
         if content and header_id:
             try:
-                await asyncio.to_thread(
+                await execute_in_thread(
                     lc.docs_service.documents()
                     .batchUpdate(
                         documentId=doc_id,
@@ -107,7 +106,7 @@ def register(tool):
                         },
                     )
                     .execute,
-                    http=thread_http(lc.docs_service),
+                    lc.docs_service,
                 )
             except Exception as e:
                 lc.doc_cache.mark_dirty(doc_id)
@@ -154,7 +153,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         footer_id = None
         try:
-            response = await asyncio.to_thread(
+            response = await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(
                     documentId=doc_id,
@@ -169,7 +168,7 @@ def register(tool):
                     },
                 )
                 .execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
             replies = response.get("replies") or []
             if replies:
@@ -183,11 +182,11 @@ def register(tool):
         # Fallback: if footerId not in response (or footer already existed), read from documentStyle
         if footer_id is None:
             try:
-                doc = await asyncio.to_thread(
+                doc = await execute_in_thread(
                     lc.docs_service.documents()
                     .get(documentId=doc_id, fields="documentStyle")
                     .execute,
-                    http=thread_http(lc.docs_service),
+                    lc.docs_service,
                 )
                 style = doc.get("documentStyle", {})
                 footer_id = (
@@ -200,7 +199,7 @@ def register(tool):
 
         if content and footer_id:
             try:
-                await asyncio.to_thread(
+                await execute_in_thread(
                     lc.docs_service.documents()
                     .batchUpdate(
                         documentId=doc_id,
@@ -216,7 +215,7 @@ def register(tool):
                         },
                     )
                     .execute,
-                    http=thread_http(lc.docs_service),
+                    lc.docs_service,
                 )
             except Exception as e:
                 lc.doc_cache.mark_dirty(doc_id)

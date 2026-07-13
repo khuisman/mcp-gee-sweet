@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -7,7 +6,7 @@ from googleapiclient.errors import HttpError
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
-from ..auth import thread_http
+from ..auth import execute_in_thread
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +34,9 @@ def register(tool):
         if cached is not None:
             return cached
 
-        result = await asyncio.to_thread(
+        result = await execute_in_thread(
             lc.calendar_service.calendarList().list().execute,
-            http=thread_http(lc.calendar_service),
+            lc.calendar_service,
         )
         calendars = [
             {
@@ -71,9 +70,9 @@ def register(tool):
             return cached
 
         try:
-            c = await asyncio.to_thread(
+            c = await execute_in_thread(
                 lc.calendar_service.calendarList().get(calendarId=calendar_id).execute,
-                http=thread_http(lc.calendar_service),
+                lc.calendar_service,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -117,9 +116,9 @@ def register(tool):
             body["timeZone"] = timezone
 
         try:
-            c = await asyncio.to_thread(
+            c = await execute_in_thread(
                 lc.calendar_service.calendars().insert(body=body).execute,
-                http=thread_http(lc.calendar_service),
+                lc.calendar_service,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -173,25 +172,25 @@ def register(tool):
 
         try:
             if patch:
-                c = await asyncio.to_thread(
+                c = await execute_in_thread(
                     lc.calendar_service.calendars()
                     .patch(calendarId=calendar_id, body=patch)
                     .execute,
-                    http=thread_http(lc.calendar_service),
+                    lc.calendar_service,
                 )
             else:
-                c = await asyncio.to_thread(
+                c = await execute_in_thread(
                     lc.calendar_service.calendars().get(calendarId=calendar_id).execute,
-                    http=thread_http(lc.calendar_service),
+                    lc.calendar_service,
                 )
 
             result_color_id = None
             if color_id is not None:
-                list_entry = await asyncio.to_thread(
+                list_entry = await execute_in_thread(
                     lc.calendar_service.calendarList()
                     .patch(calendarId=calendar_id, body={"colorId": color_id})
                     .execute,
-                    http=thread_http(lc.calendar_service),
+                    lc.calendar_service,
                 )
                 result_color_id = list_entry.get("colorId")
         except Exception as e:
@@ -223,9 +222,9 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 lc.calendar_service.calendars().delete(calendarId=calendar_id).execute,
-                http=thread_http(lc.calendar_service),
+                lc.calendar_service,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -266,9 +265,9 @@ def register(tool):
             body["colorId"] = color_id
 
         try:
-            c = await asyncio.to_thread(
+            c = await execute_in_thread(
                 lc.calendar_service.calendarList().insert(body=body).execute,
-                http=thread_http(lc.calendar_service),
+                lc.calendar_service,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -300,9 +299,9 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 lc.calendar_service.calendarList().delete(calendarId=calendar_id).execute,
-                http=thread_http(lc.calendar_service),
+                lc.calendar_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"cannotUnsubscribeFromOwnedCalendar" in (e.content or b""):
@@ -362,9 +361,9 @@ def register(tool):
             kwargs["q"] = query
 
         try:
-            result = await asyncio.to_thread(
+            result = await execute_in_thread(
                 lc.calendar_service.events().list(**kwargs).execute,
-                http=thread_http(lc.calendar_service),
+                lc.calendar_service,
             )
         except Exception as e:
             return [{"error": str(e)}]
@@ -408,9 +407,9 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            e = await asyncio.to_thread(
+            e = await execute_in_thread(
                 lc.calendar_service.events().get(calendarId=calendar_id, eventId=event_id).execute,
-                http=thread_http(lc.calendar_service),
+                lc.calendar_service,
             )
         except Exception as ex:
             return {"error": str(ex)}
@@ -500,9 +499,9 @@ def register(tool):
             body["recurrence"] = recurrence
 
         try:
-            e = await asyncio.to_thread(
+            e = await execute_in_thread(
                 lc.calendar_service.events().insert(calendarId=calendar_id, body=body).execute,
-                http=thread_http(lc.calendar_service),
+                lc.calendar_service,
             )
         except Exception as ex:
             return {"error": str(ex)}
@@ -596,11 +595,11 @@ def register(tool):
             patch["end"] = end_obj
 
         try:
-            e = await asyncio.to_thread(
+            e = await execute_in_thread(
                 lc.calendar_service.events()
                 .patch(calendarId=calendar_id, eventId=event_id, body=patch)
                 .execute,
-                http=thread_http(lc.calendar_service),
+                lc.calendar_service,
             )
         except Exception as ex:
             return {"error": str(ex)}
@@ -633,11 +632,11 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 lc.calendar_service.events()
                 .delete(calendarId=calendar_id, eventId=event_id)
                 .execute,
-                http=thread_http(lc.calendar_service),
+                lc.calendar_service,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -681,9 +680,9 @@ def register(tool):
         }
 
         try:
-            result = await asyncio.to_thread(
+            result = await execute_in_thread(
                 lc.calendar_service.freebusy().query(body=body).execute,
-                http=thread_http(lc.calendar_service),
+                lc.calendar_service,
             )
         except Exception as e:
             return {"error": str(e)}

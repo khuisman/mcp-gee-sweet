@@ -1,10 +1,9 @@
-import asyncio
 from typing import Any
 
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import thread_http
+from ...auth import execute_in_thread
 from ...cache import fetch_sheets
 from .helpers import _get_sheet_id, _get_sheet_index, _parse_a1_notation
 
@@ -48,7 +47,7 @@ def register(tool):
             refresh_cache() to clear all caches.
         """
         lc = ctx.request_context.lifespan_context
-        sheets = fetch_sheets(lc.sheets_service, spreadsheet_id, lc.cache, lc.drive_service)
+        sheets = await fetch_sheets(lc.sheets_service, spreadsheet_id, lc.cache, lc.drive_service)
         return [s.title for s in sheets]
 
     @tool(annotations=ToolAnnotations(title="Copy Sheet", destructiveHint=True))
@@ -74,9 +73,9 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        src = await asyncio.to_thread(
+        src = await execute_in_thread(
             sheets_service.spreadsheets().get(spreadsheetId=src_spreadsheet).execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
         src_sheet_id = next(
             (
@@ -90,7 +89,7 @@ def register(tool):
         if src_sheet_id is None:
             return {"error": f"Source sheet '{src_sheet}' not found"}
 
-        copy_result = await asyncio.to_thread(
+        copy_result = await execute_in_thread(
             sheets_service.spreadsheets()
             .sheets()
             .copyTo(
@@ -99,13 +98,13 @@ def register(tool):
                 body={"destinationSpreadsheetId": dst_spreadsheet},
             )
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
 
         result = {"copy": copy_result}
 
         if copy_result.get("title") != dst_sheet:
-            rename_result = await asyncio.to_thread(
+            rename_result = await execute_in_thread(
                 sheets_service.spreadsheets()
                 .batchUpdate(
                     spreadsheetId=dst_spreadsheet,
@@ -124,7 +123,7 @@ def register(tool):
                     },
                 )
                 .execute,
-                http=thread_http(sheets_service),
+                sheets_service,
             )
             result["rename"] = rename_result
 
@@ -174,14 +173,14 @@ def register(tool):
         if new_name is not None:
             duplicate_request["newSheetName"] = new_name
 
-        result = await asyncio.to_thread(
+        result = await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
                 body={"requests": [{"duplicateSheet": duplicate_request}]},
             )
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
 
         lc.cache.mark_dirty(spreadsheet_id)
@@ -212,9 +211,9 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        spreadsheet_data = await asyncio.to_thread(
+        spreadsheet_data = await execute_in_thread(
             sheets_service.spreadsheets().get(spreadsheetId=spreadsheet).execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
         sheet_id = next(
             (
@@ -228,7 +227,7 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        result = await asyncio.to_thread(
+        result = await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet,
@@ -244,7 +243,7 @@ def register(tool):
                 },
             )
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
 
         lc.cache.mark_dirty(spreadsheet)
@@ -265,14 +264,14 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        result = await asyncio.to_thread(
+        result = await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
                 body={"requests": [{"addSheet": {"properties": {"title": title}}}]},
             )
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
 
         lc.cache.mark_dirty(spreadsheet_id)
@@ -315,7 +314,7 @@ def register(tool):
             return {"error": f"Sheet '{sheet}' not found"}
 
         start = start_row if start_row is not None else 0
-        result = await asyncio.to_thread(
+        result = await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -336,7 +335,7 @@ def register(tool):
                 },
             )
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
 
         return result
@@ -371,7 +370,7 @@ def register(tool):
             return {"error": f"Sheet '{sheet}' not found"}
 
         start = start_column if start_column is not None else 0
-        result = await asyncio.to_thread(
+        result = await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -392,7 +391,7 @@ def register(tool):
                 },
             )
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
 
         return result
@@ -418,14 +417,14 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        result = await asyncio.to_thread(
+        result = await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
                 body={"requests": [{"deleteSheet": {"sheetId": sheet_id}}]},
             )
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
 
         lc.cache.mark_dirty(spreadsheet_id)
@@ -463,7 +462,7 @@ def register(tool):
 
         end_index = (end_row if end_row is not None else start_row) + 1  # exclusive
 
-        return await asyncio.to_thread(
+        return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -483,7 +482,7 @@ def register(tool):
                 },
             )
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
 
     @tool(annotations=ToolAnnotations(title="Delete Columns", destructiveHint=True))
@@ -518,7 +517,7 @@ def register(tool):
 
         end_index = (end_column if end_column is not None else start_column) + 1  # exclusive
 
-        return await asyncio.to_thread(
+        return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -538,7 +537,7 @@ def register(tool):
                 },
             )
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
 
     @tool(annotations=ToolAnnotations(title="Format Cells", destructiveHint=True))
@@ -643,7 +642,7 @@ def register(tool):
         if "endColumnIndex" in indices:
             grid_range["endColumnIndex"] = indices["endColumnIndex"]
 
-        return await asyncio.to_thread(
+        return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -660,7 +659,7 @@ def register(tool):
                 },
             )
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
 
     @tool(annotations=ToolAnnotations(title="Merge Cells", destructiveHint=True))
@@ -704,7 +703,7 @@ def register(tool):
         if "endColumnIndex" in indices:
             grid_range["endColumnIndex"] = indices["endColumnIndex"]
 
-        return await asyncio.to_thread(
+        return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -720,7 +719,7 @@ def register(tool):
                 },
             )
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
 
     @tool(annotations=ToolAnnotations(title="Unmerge Cells", destructiveHint=True))
@@ -761,14 +760,14 @@ def register(tool):
         if "endColumnIndex" in indices:
             grid_range["endColumnIndex"] = indices["endColumnIndex"]
 
-        return await asyncio.to_thread(
+        return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
                 body={"requests": [{"unmergeCells": {"range": grid_range}}]},
             )
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
 
     @tool(annotations=ToolAnnotations(title="Freeze Rows/Columns"))
@@ -800,7 +799,7 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        return await asyncio.to_thread(
+        return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -822,7 +821,7 @@ def register(tool):
                 },
             )
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
 
     @tool(annotations=ToolAnnotations(title="Sort Range"))
@@ -881,7 +880,7 @@ def register(tool):
             for s in sort_order
         ]
 
-        return await asyncio.to_thread(
+        return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -897,7 +896,7 @@ def register(tool):
                 },
             )
             .execute,
-            http=thread_http(sheets_service),
+            sheets_service,
         )
 
     @tool(annotations=ToolAnnotations(title="Add Chart", destructiveHint=True))
@@ -1053,7 +1052,7 @@ def register(tool):
             )
 
         try:
-            result = await asyncio.to_thread(
+            result = await execute_in_thread(
                 sheets_service.spreadsheets()
                 .batchUpdate(
                     spreadsheetId=spreadsheet_id,
@@ -1083,7 +1082,7 @@ def register(tool):
                     },
                 )
                 .execute,
-                http=thread_http(sheets_service),
+                sheets_service,
             )
 
             return {

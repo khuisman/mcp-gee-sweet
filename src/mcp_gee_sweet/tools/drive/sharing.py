@@ -6,7 +6,7 @@ from typing import Any
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import thread_http
+from ...auth import execute_in_thread
 
 logger = logging.getLogger(__name__)
 
@@ -39,25 +39,34 @@ def register(tool):
         drive_service = ctx.request_context.lifespan_context.drive_service
 
         async def _share_one(recipient: dict[str, str]) -> dict[str, Any]:
-            email_address = recipient.get("email_address")
-            role = recipient.get("role", "writer")
-
-            if not email_address:
-                return {
-                    "_kind": "failure",
-                    "email_address": None,
-                    "error": "Missing email_address in recipient entry.",
-                }
-
-            if role not in ["reader", "commenter", "writer"]:
-                return {
-                    "_kind": "failure",
-                    "email_address": email_address,
-                    "error": f"Invalid role '{role}'. Must be 'reader', 'commenter', or 'writer'.",
-                }
-
+            # The whole body (including the recipient.get() calls) runs inside this
+            # try/except — a malformed entry (e.g. not a dict) raises from those very
+            # first attribute accesses, before reaching any of the validation-failure
+            # returns below. Catching it here too, with `entry` echoing the raw input,
+            # keeps that failure attributable instead of collapsing to an anonymous
+            # email_address=None result indistinguishable from any other bad entry.
+            email_address = None
             try:
-                result = await asyncio.to_thread(
+                email_address = recipient.get("email_address")
+                role = recipient.get("role", "writer")
+
+                if not email_address:
+                    return {
+                        "_kind": "failure",
+                        "email_address": None,
+                        "entry": recipient,
+                        "error": "Missing email_address in recipient entry.",
+                    }
+
+                if role not in ["reader", "commenter", "writer"]:
+                    return {
+                        "_kind": "failure",
+                        "email_address": email_address,
+                        "entry": recipient,
+                        "error": f"Invalid role '{role}'. Must be 'reader', 'commenter', or 'writer'.",
+                    }
+
+                result = await execute_in_thread(
                     drive_service.permissions()
                     .create(
                         fileId=spreadsheet_id,
@@ -66,7 +75,7 @@ def register(tool):
                         fields="id",
                     )
                     .execute,
-                    http=thread_http(drive_service),
+                    drive_service,
                 )
                 return {
                     "_kind": "success",
@@ -85,6 +94,7 @@ def register(tool):
                 return {
                     "_kind": "failure",
                     "email_address": email_address,
+                    "entry": recipient,
                     "error": f"Failed to share: {error_details}",
                 }
 
@@ -98,7 +108,7 @@ def register(tool):
         failures = []
         for r in raw:
             if isinstance(r, BaseException):
-                failures.append({"email_address": None, "error": str(r)})
+                failures.append({"email_address": None, "entry": None, "error": str(r)})
                 continue
             kind = r.pop("_kind")
             (successes if kind == "success" else failures).append(r)
@@ -119,7 +129,7 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        result = await asyncio.to_thread(
+        result = await execute_in_thread(
             drive_service.permissions()
             .list(
                 fileId=file_id,
@@ -127,7 +137,7 @@ def register(tool):
                 supportsAllDrives=True,
             )
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
 
         return [
@@ -168,7 +178,7 @@ def register(tool):
         if role not in _VALID_ROLES:
             return {"error": f"Invalid role '{role}'. Must be one of: {', '.join(_VALID_ROLES)}"}
 
-        result = await asyncio.to_thread(
+        result = await execute_in_thread(
             drive_service.permissions()
             .update(
                 fileId=file_id,
@@ -178,7 +188,7 @@ def register(tool):
                 fields="id,role",
             )
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
 
         logger.debug("Updated permission %s on %s → %s", permission_id, file_id, role)
@@ -200,7 +210,7 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        await asyncio.to_thread(
+        await execute_in_thread(
             drive_service.permissions()
             .delete(
                 fileId=file_id,
@@ -208,7 +218,7 @@ def register(tool):
                 supportsAllDrives=True,
             )
             .execute,
-            http=thread_http(drive_service),
+            drive_service,
         )
 
         logger.debug("Removed permission %s from %s", permission_id, file_id)
@@ -252,47 +262,53 @@ def register(tool):
         _VALID_ROLES = ("reader", "commenter", "writer")
 
         async def _share_one(perm: dict[str, str]) -> dict[str, Any]:
-            perm_type = perm.get("type")
-            role = perm.get("role", "reader")
-            email_address = perm.get("email_address")
-            domain = perm.get("domain")
-
-            if perm_type not in _VALID_TYPES:
-                return {
-                    "_kind": "failure",
-                    "entry": perm,
-                    "error": f"Invalid type '{perm_type}'. Must be one of: {', '.join(_VALID_TYPES)}",
-                }
-
-            if role not in _VALID_ROLES:
-                return {
-                    "_kind": "failure",
-                    "entry": perm,
-                    "error": f"Invalid role '{role}'. Must be one of: {', '.join(_VALID_ROLES)}",
-                }
-
-            if perm_type in ("user", "group") and not email_address:
-                return {
-                    "_kind": "failure",
-                    "entry": perm,
-                    "error": f"'email_address' required for type='{perm_type}'",
-                }
-
-            if perm_type == "domain" and not domain:
-                return {
-                    "_kind": "failure",
-                    "entry": perm,
-                    "error": "'domain' required for type='domain'",
-                }
-
-            body: dict[str, str] = {"type": perm_type, "role": role}
-            if perm_type in ("user", "group"):
-                body["emailAddress"] = email_address
-            elif perm_type == "domain":
-                body["domain"] = domain
-
+            # Whole body runs inside this try/except — a malformed entry (e.g. not a
+            # dict) raises from the perm.get() calls below, before any validation-
+            # failure return is reached. Catching it here too keeps `entry` echoing
+            # the raw input so the failure stays attributable to a specific item.
             try:
-                result = await asyncio.to_thread(
+                perm_type = perm.get("type")
+                role = perm.get("role", "reader")
+                email_address = perm.get("email_address")
+                domain = perm.get("domain")
+
+                if perm_type not in _VALID_TYPES:
+                    return {
+                        "_kind": "failure",
+                        "entry": perm,
+                        "error": (
+                            f"Invalid type '{perm_type}'. Must be one of: {', '.join(_VALID_TYPES)}"
+                        ),
+                    }
+
+                if role not in _VALID_ROLES:
+                    return {
+                        "_kind": "failure",
+                        "entry": perm,
+                        "error": f"Invalid role '{role}'. Must be one of: {', '.join(_VALID_ROLES)}",
+                    }
+
+                if perm_type in ("user", "group") and not email_address:
+                    return {
+                        "_kind": "failure",
+                        "entry": perm,
+                        "error": f"'email_address' required for type='{perm_type}'",
+                    }
+
+                if perm_type == "domain" and not domain:
+                    return {
+                        "_kind": "failure",
+                        "entry": perm,
+                        "error": "'domain' required for type='domain'",
+                    }
+
+                body: dict[str, str] = {"type": perm_type, "role": role}
+                if perm_type in ("user", "group"):
+                    body["emailAddress"] = email_address
+                elif perm_type == "domain":
+                    body["domain"] = domain
+
+                result = await execute_in_thread(
                     drive_service.permissions()
                     .create(
                         fileId=file_id,
@@ -302,7 +318,7 @@ def register(tool):
                         fields="id",
                     )
                     .execute,
-                    http=thread_http(drive_service),
+                    drive_service,
                 )
                 entry: dict[str, Any] = {
                     "_kind": "success",

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
-from ...auth import thread_http
+from ...auth import execute_in_thread
 from .ast import BulletItem, Cell, DocNode, Heading, NamedBlock, Paragraph, Row, Run, Table
 
 logger = logging.getLogger(__name__)
@@ -226,21 +225,21 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
     # artifact of phase-1 insertText displacing the doc's initial empty paragraph).  The
     # Docs API rejects deleteContentRange on these paragraphs because a paragraph before a
     # table is structurally required, so we shrink them to zero visual height instead.
-    live_doc = await asyncio.to_thread(
+    live_doc = await execute_in_thread(
         docs_service.documents().get(documentId=doc_id).execute,
-        http=thread_http(docs_service),
+        docs_service,
     )
     blank_collapses = _build_blank_para_before_table_collapses(live_doc)
     if blank_collapses:
-        await asyncio.to_thread(
+        await execute_in_thread(
             docs_service.documents()
             .batchUpdate(documentId=doc_id, body={"requests": blank_collapses})
             .execute,
-            http=thread_http(docs_service),
+            docs_service,
         )
-        live_doc = await asyncio.to_thread(
+        live_doc = await execute_in_thread(
             docs_service.documents().get(documentId=doc_id).execute,
-            http=thread_http(docs_service),
+            docs_service,
         )
     doc_tables = _top_level_tables(live_doc)
 
@@ -250,11 +249,11 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
     # Step 3: fill plain cells (no nested table) in one bulk batch
     fill_requests = _build_fill_requests(doc_tables, tables)
     if fill_requests:
-        await asyncio.to_thread(
+        await execute_in_thread(
             docs_service.documents()
             .batchUpdate(documentId=doc_id, body={"requests": fill_requests})
             .execute,
-            http=thread_http(docs_service),
+            docs_service,
         )
 
     # Step 4: fill cells that contain a nested table, preserving true content order
@@ -265,11 +264,11 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
     # Step 5: column widths — requires table startIndex from live doc
     width_requests = _build_width_requests(live_doc, tables)
     if width_requests:
-        await asyncio.to_thread(
+        await execute_in_thread(
             docs_service.documents()
             .batchUpdate(documentId=doc_id, body={"requests": width_requests})
             .execute,
-            http=thread_http(docs_service),
+            docs_service,
         )
 
     # Step 7: Phase 3 cell styling (background, padding, borders)
@@ -287,18 +286,18 @@ async def fill_tables(docs_service, doc_id: str, tables: list[Table]) -> None:
         for cell in row.cells
     )
     if has_cell_styles:
-        live_doc = await asyncio.to_thread(
+        live_doc = await execute_in_thread(
             docs_service.documents().get(documentId=doc_id).execute,
-            http=thread_http(docs_service),
+            docs_service,
         )
         doc_tables = _top_level_tables(live_doc)
         cell_style_requests = _build_cell_style_requests(doc_tables, tables)
         if cell_style_requests:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 docs_service.documents()
                 .batchUpdate(documentId=doc_id, body={"requests": cell_style_requests})
                 .execute,
-                http=thread_http(docs_service),
+                docs_service,
             )
 
 
@@ -459,9 +458,9 @@ async def _fill_children_recursive(
     if _doc_tables is not None:
         doc_tables = _doc_tables
     else:
-        live_doc = await asyncio.to_thread(
+        live_doc = await execute_in_thread(
             docs_service.documents().get(documentId=doc_id).execute,
-            http=thread_http(docs_service),
+            docs_service,
         )
         doc_tables = resolve(live_doc)
 
@@ -537,11 +536,11 @@ async def _fill_children_recursive(
         if round_requests:
             round_requests.sort(key=lambda x: x[0], reverse=True)
             batch = [req for _, reqs in round_requests for req in reqs]
-            await asyncio.to_thread(
+            await execute_in_thread(
                 docs_service.documents()
                 .batchUpdate(documentId=doc_id, body={"requests": batch})
                 .execute,
-                http=thread_http(docs_service),
+                docs_service,
             )
         # No `break` here even when a round emits no requests (e.g. a degenerate
         # zero-column table skipped by the `num_rows > 0 and num_cols > 0` guard
@@ -565,9 +564,9 @@ async def _fill_children_recursive(
             await _fill_table_fully(docs_service, doc_id, child_resolve, table_child)
 
         if pending:
-            live_doc = await asyncio.to_thread(
+            live_doc = await execute_in_thread(
                 docs_service.documents().get(documentId=doc_id).execute,
-                http=thread_http(docs_service),
+                docs_service,
             )
             doc_tables = resolve(live_doc)
 
@@ -581,9 +580,9 @@ async def _fill_table_fully(docs_service, doc_id: str, resolve, ast_table: Table
     a nested table's own plain-text cells (and merges) are never touched by the
     top-level fill_tables passes (those only see the outer tables list).
     """
-    live_doc = await asyncio.to_thread(
+    live_doc = await execute_in_thread(
         docs_service.documents().get(documentId=doc_id).execute,
-        http=thread_http(docs_service),
+        docs_service,
     )
     doc_tables = resolve(live_doc)
     if not doc_tables or doc_tables[0] is None:
@@ -598,11 +597,11 @@ async def _fill_table_fully(docs_service, doc_id: str, resolve, ast_table: Table
 
     fill_requests = _build_fill_requests(doc_tables, [ast_table])
     if fill_requests:
-        await asyncio.to_thread(
+        await execute_in_thread(
             docs_service.documents()
             .batchUpdate(documentId=doc_id, body={"requests": fill_requests})
             .execute,
-            http=thread_http(docs_service),
+            docs_service,
         )
         # The bulk fill just shifted indices — the recursive call must re-fetch.
         await _fill_children_recursive(docs_service, doc_id, resolve, [ast_table])
@@ -642,15 +641,15 @@ async def _apply_merges(
     if not merge_requests:
         return doc_tables
 
-    await asyncio.to_thread(
+    await execute_in_thread(
         docs_service.documents()
         .batchUpdate(documentId=doc_id, body={"requests": merge_requests})
         .execute,
-        http=thread_http(docs_service),
+        docs_service,
     )
-    live_doc = await asyncio.to_thread(
+    live_doc = await execute_in_thread(
         docs_service.documents().get(documentId=doc_id).execute,
-        http=thread_http(docs_service),
+        docs_service,
     )
     updated = resolve(live_doc)
     if len(updated) < len(ast_tables) or any(t is None for t in updated):

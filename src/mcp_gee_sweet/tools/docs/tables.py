@@ -1,11 +1,10 @@
-import asyncio
 import logging
 from typing import Any
 
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import thread_http
+from ...auth import execute_in_thread
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,7 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(
                     documentId=doc_id,
@@ -61,15 +60,15 @@ def register(tool):
                     },
                 )
                 .execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
         except Exception as e:
             return {"error": str(e)}
 
         try:
-            doc = await asyncio.to_thread(
+            doc = await execute_in_thread(
                 lc.docs_service.documents().get(documentId=doc_id).execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
         except Exception as e:
             return {"error": f"table inserted but re-fetch failed: {e}"}
@@ -140,7 +139,7 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(
                     documentId=doc_id,
@@ -160,7 +159,7 @@ def register(tool):
                     },
                 )
                 .execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -197,7 +196,7 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(
                     documentId=doc_id,
@@ -216,7 +215,7 @@ def register(tool):
                     },
                 )
                 .execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -256,7 +255,7 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(
                     documentId=doc_id,
@@ -276,7 +275,7 @@ def register(tool):
                     },
                 )
                 .execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
         except Exception as e:
             return {"error": str(e)}
@@ -317,7 +316,7 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            await asyncio.to_thread(
+            await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(
                     documentId=doc_id,
@@ -336,7 +335,7 @@ def register(tool):
                     },
                 )
                 .execute,
-                http=thread_http(lc.docs_service),
+                lc.docs_service,
             )
         except Exception as e:
             return {"error": str(e)}
