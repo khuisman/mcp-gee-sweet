@@ -1531,6 +1531,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-d176-concurrent-multi-recipient-share-no-cross-attribution-issue-183" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D176: Concurrent multi-recipient share — no cross-attribution (issue #183)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2888,6 +2899,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-d178-concurrent-mixed-uploaddownload-batch-no-cross-attribution-or-corruption-destructive-local-filesystem-issue-183" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D178: Concurrent mixed upload/download batch — no cross-attribution or corruption ⚠️ destructive ⚠️ local-filesystem (issue #183)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3187,6 +3209,17 @@
     <span class="md-ellipsis">
       
         TC-D139: send_notification=False for user share
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d177-concurrent-multi-permission-share-no-cross-attribution-issue-183" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D177: Concurrent multi-permission share — no cross-attribution (issue #183)
       
     </span>
   </a>
@@ -3725,6 +3758,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-d179-large-csv-split-across-concurrent-chunk-writes-lands-correctly-requires-oauth-local-filesystem-issue-183" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D179: Large CSV split across concurrent chunk writes lands correctly ⚠️ requires-oauth ⚠️ local-filesystem (issue #183)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4180,6 +4224,19 @@
 <p><strong>Checks</strong>
 - API error goes to <code>failures</code> list — not a top-level exception
 - 🔍 <strong>Danger check:</strong> no ownership validation before sharing — note that any accessible spreadsheet ID can be shared</p>
+<hr />
+<h3 id="tc-d176-concurrent-multi-recipient-share-no-cross-attribution-issue-183">TC-D176: Concurrent multi-recipient share — no cross-attribution (issue #183)<a class="headerlink" href="#tc-d176-concurrent-multi-recipient-share-no-cross-attribution-issue-183" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #183 made <code>share_spreadsheet</code> issue its per-recipient <code>permissions().create()</code> calls concurrently via <code>asyncio.gather()</code> instead of one at a time. Mocked unit tests can't catch a genuine race against the real Drive API — this exercises enough distinct, identifiable recipients at once to surface any result mixed up between concurrent calls (wrong role or permissionId attributed to the wrong email).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Share {SPREADSHEET_ID} with these 5 recipients at once: recipient1@example.com as reader, recipient2@example.com as commenter, recipient3@example.com as writer, recipient4@example.com as reader, recipient5@example.com as writer"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- All 5 entries appear in <code>successes</code>, none in <code>failures</code>
+- Each entry's <code>email_address</code> and <code>role</code> in the response exactly match what was requested for that recipient — cross-check every one individually, not just the count
+- <code>list_permissions</code> on the spreadsheet afterward confirms each of the 5 emails actually has the role it was assigned (not swapped with another recipient's)</p>
+<p><strong>Teardown</strong>
+<code>remove_permission</code> for each of the 5 test recipients.</p>
 <hr />
 <h2 id="list_folders"><code>list_folders</code><a class="headerlink" href="#list_folders" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d26-list-folders-in-a-specific-parent">TC-D26: List folders in a specific parent<a class="headerlink" href="#tc-d26-list-folders-in-a-specific-parent" title="Permanent link">&para;</a></h3>
@@ -5097,6 +5154,22 @@
 - <code>ValueError</code> raised immediately, before any API calls
 - Error message lists the valid direction values</p>
 <hr />
+<h3 id="tc-d178-concurrent-mixed-uploaddownload-batch-no-cross-attribution-or-corruption-destructive-local-filesystem-issue-183">TC-D178: Concurrent mixed upload/download batch — no cross-attribution or corruption ⚠️ destructive ⚠️ local-filesystem (issue #183)<a class="headerlink" href="#tc-d178-concurrent-mixed-uploaddownload-batch-no-cross-attribution-or-corruption-destructive-local-filesystem-issue-183" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #183 made <code>sync_folder</code>'s per-file transfers run concurrently via <code>asyncio.gather()</code> instead of one at a time, including simultaneous uploads and downloads in the same call. Mocked unit tests can't catch a genuine race against the real Drive API — this exercises enough distinct, identifiable files at once (each with unique content) to surface any result attributed to the wrong file, or file content written to the wrong destination, under real concurrency.</p>
+<p><strong>Setup</strong>
+In <code>{FOLDER_ID}</code>, create 3 Drive-only files (<code>drive-a.txt</code>, <code>drive-b.txt</code>, <code>drive-c.txt</code>), each with distinct content (e.g. containing its own filename as a marker). Locally in <code>/tmp/qa-sync-183/</code>, create 3 local-only files (<code>local-x.txt</code>, <code>local-y.txt</code>, <code>local-z.txt</code>), each with distinct content.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync-183/</code> using direction='bidirectional'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- All 3 Drive-only files appear in <code>downloaded</code>; all 3 local-only files appear in <code>uploaded</code>; <code>failed</code> is empty
+- Each downloaded local file's content matches its <em>own</em> source Drive file's marker — not another file's content (would indicate cross-attribution under concurrency)
+- Each uploaded Drive file's content matches its <em>own</em> source local file's marker (check via <code>export_file</code> or <code>download_file</code> on each)
+- <code>size_bytes</code> equals the sum of the 3 downloaded files' actual sizes</p>
+<p><strong>Teardown</strong>
+Delete the 3 Drive-only test files from <code>{FOLDER_ID}</code>, delete the 3 uploaded local-only files from Drive, remove <code>/tmp/qa-sync-183/</code>.</p>
+<hr />
 <h2 id="list_drives"><code>list_drives</code><a class="headerlink" href="#list_drives" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d120-list-all-shared-drives">TC-D120: List all shared drives<a class="headerlink" href="#tc-d120-list-all-shared-drives" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -5302,6 +5375,19 @@
 <blockquote>
 <p>⚠️ <strong>Note:</strong> Drive requires <code>sendNotificationEmail=True</code> when sharing with non-Google Workspace accounts. If <code>TEST_PERMISSION_EMAIL</code> is a personal Gmail, this test may fail with a Drive API restriction — record as environmental, not a tool bug.</p>
 </blockquote>
+<hr />
+<h3 id="tc-d177-concurrent-multi-permission-share-no-cross-attribution-issue-183">TC-D177: Concurrent multi-permission share — no cross-attribution (issue #183)<a class="headerlink" href="#tc-d177-concurrent-multi-permission-share-no-cross-attribution-issue-183" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Same concurrency change as TC-D176, applied to <code>share_file</code>'s richer type/domain/anyone permission model. This mixes distinct types and roles across several entries at once to catch a result attributed to the wrong entry under concurrent execution.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Share {SPREADSHEET_ID} using share_file with these 4 permissions at once: type='user' email=recipient1@example.com role='reader', type='user' email=recipient2@example.com role='writer', type='user' email=recipient3@example.com role='commenter', type='domain' domain={GWS_DOMAIN} role='reader'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- All 4 entries appear in <code>successes</code>, none in <code>failures</code>
+- Each entry's <code>type</code>, <code>role</code>, and <code>email_address</code>/<code>domain</code> in the response exactly match what was requested for that entry — cross-check individually
+- <code>list_permissions</code> afterward confirms each principal actually has the role it was assigned (not swapped with another entry's)</p>
+<p><strong>Teardown</strong>
+<code>remove_permission</code> for each of the 4 test permissions.</p>
 <hr />
 <h2 id="write_doc_content-table-support-issue-62"><code>write_doc_content</code> — table support (issue #62)<a class="headerlink" href="#write_doc_content-table-support-issue-62" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d140-simple-22-table-created-from-html">TC-D140: Simple 2×2 table created from HTML<a class="headerlink" href="#tc-d140-simple-22-table-created-from-html" title="Permanent link">&para;</a></h3>
@@ -5656,6 +5742,21 @@ Exporting even the small QA fixture spreadsheet as <code>xlsx</code> immediately
 - 🔍 <strong>Known limitation:</strong> same as <code>create_spreadsheet</code> (TC-D04) — service account cannot create in personal Drive, only shared folders it has access to
 - Unit-level equivalent already covered: <code>test_storage_quota_error_returns_helpful_message</code></p>
 <p><strong>Result (2026-07-05) ✅ PASS</strong> Against the service-account server (<code>mcp-gee-sweet-sa</code>), the call returned <code>{"error": "Service accounts cannot create or copy files in personal Drive (no storage quota). Use OAuth or ADC auth for full Drive write access, or use a Shared Drive destination. Check server://auth-status for your current auth method and affected tools."}</code> — the same <code>_SA_QUOTA_ERROR</code> message <code>create_spreadsheet</code> returns, confirming the shared error path works for this tool too.</p>
+<hr />
+<h3 id="tc-d179-large-csv-split-across-concurrent-chunk-writes-lands-correctly-requires-oauth-local-filesystem-issue-183">TC-D179: Large CSV split across concurrent chunk writes lands correctly ⚠️ requires-oauth ⚠️ local-filesystem (issue #183)<a class="headerlink" href="#tc-d179-large-csv-split-across-concurrent-chunk-writes-lands-correctly-requires-oauth-local-filesystem-issue-183" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #183 parallelized <code>import_csv_to_sheet</code>'s chunked row-writing loop via <code>asyncio.gather()</code> — each chunk writes a disjoint row range of the same sheet concurrently instead of sequentially. Mocked unit tests confirm the request shapes are correct but can't catch a genuine race against the real Sheets API (e.g. a chunk's write landing at the wrong row offset, or two chunks' writes overlapping). This forces at least 3 concurrent chunks with distinctly identifiable content per chunk.</p>
+<p><strong>Setup</strong>
+Generate a local CSV with a header row plus 12,000 data rows, where each row's first cell is its own row number (e.g. row 1's cell reads <code>"row-1"</code>, row 5000's reads <code>"row-5000"</code>). With the default <code>_CSV_IMPORT_CHUNK_ROWS=5000</code>, this produces 3 chunks (5000 + 5000 + 2000 rows).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Import <code>/tmp/qa-import-183.csv</code> into a new spreadsheet called 'QA-CSV-Concurrent-183'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>rows_written</code> equals 12,001 (header + 12,000 data rows)
+- Spot-check the boundary rows of each chunk (e.g. rows 1, 4999, 5000, 5001, 9999, 10000, 10001, 12000) via <code>get_sheet_data</code> — each cell's value matches its expected row-number marker, confirming no chunk landed at the wrong offset and no two chunks overlapped or clobbered each other
+- No gaps: every row from 1 to 12,000 is present exactly once</p>
+<p><strong>Teardown</strong>
+Delete the <code>QA-CSV-Concurrent-183</code> spreadsheet.</p>
 
 
 

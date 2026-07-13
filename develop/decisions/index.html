@@ -1433,6 +1433,12 @@
 <td>Named Orchestrator/Dev/QA ×2-lane team, persistent worktree slots, one combined MCP config for Agent View, branch-prefix lane routing</td>
 </tr>
 <tr>
+<td><a href="decision-async-tool-execution/">Async Tool Execution</a></td>
+<td>2026-07-12</td>
+<td>decided</td>
+<td>Full tool layer converted to <code>async def</code> + <code>asyncio.to_thread()</code>; <code>asyncio.gather()</code> for 6 multi-call tools; per-thread HTTP transport fix for the newly-introduced shared-service concurrency risk; <code>cache.py</code> stays synchronous by design</td>
+</tr>
+<tr>
 <td><a href="decision-release-docs-roles/">Release QA Lead and Tech Writer Roles</a></td>
 <td>2026-07-12</td>
 <td>decided</td>

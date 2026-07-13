@@ -1310,6 +1310,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-i24-concurrent-tool-calls-dont-corrupt-each-others-responses-issue-183" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I24: Concurrent tool calls don't corrupt each other's responses (issue #183)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1938,6 +1949,17 @@ Ran all 5 steps live against <code>TEST_SPREADSHEET_ID</code>. Step 0: <code>get
 Warmed the structure cache via <code>list_sheets("BrandNew"...)</code>, then used Playwright to rename the "BrandNew" tab to "BrandNewRenamedQA" directly in the Sheets UI. Immediate <code>list_sheets</code> call (no wait, <code>CACHE_TTL</code> at default 1800s) returned the new name. Log showed <code>DEBUG mcp_gee_sweet.cache Source modified since cache for &lt;id&gt;, marking dirty</code> — the modifiedTime-mismatch path, distinct from the <code>Cache TTL expired</code> path — immediately followed by a fresh <code>Cached 4 sheets</code>. Renamed back via Playwright; confirmed reverted.</p>
 <p><strong>Supplementary live check (2026-07-08) — cache-poisoning regression from code review, not a scripted TC:</strong> the code review on this PR's first pass (before the <code>6d4a59b</code> fix) found that <code>_get_sheet_id</code> (backing ~11 write-path tools: <code>add_rows</code>, <code>rename_sheet</code>, <code>format_cells</code>, etc.) called <code>fetch_sheets()</code> without <code>drive_service</code>, storing the shared structure-cache row with <code>modified_time=None</code> — silently disabling staleness detection for <em>all</em> subsequent readers of that spreadsheet, including <code>list_sheets</code>. Verified the fix closes this end-to-end: <code>refresh_cache</code> (cold) → <code>freeze(sheet="EmptyRenamedQA")</code> (write-path call, cache MISS/STORE) → renamed "EmptyRenamedQA" back to "Empty" via Playwright → <code>list_sheets</code> (read-path, no explicit refresh) immediately returned <code>"Empty"</code>, with the log showing <code>Source modified since cache... marking dirty</code> right after the write-path's own store. Confirms the write-path cache entry now carries a valid <code>modified_time</code>, so it no longer poisons reads by other tools.</p>
 <p>TC-I22/TC-I23 (issue #99) are the only mandatory live QA cases for this PR (see <code>git diff origin/develop...HEAD -- docs/qa/tests/</code>). No existing test case directly exercises the <code>_get_sheet_id</code>/write-path fix or <code>get_multiple_spreadsheet_summary</code>'s per-sheet <code>modified_time</code> fix — the supplementary check above covers the more severe of the two live; the <code>get_multiple_spreadsheet_summary</code> gap is lower-risk (confirmed correct by code trace + unit tests, not independently live-verified here).</p>
+<hr />
+<h3 id="tc-i24-concurrent-tool-calls-dont-corrupt-each-others-responses-issue-183">TC-I24: Concurrent tool calls don't corrupt each other's responses (issue #183)<a class="headerlink" href="#tc-i24-concurrent-tool-calls-dont-corrupt-each-others-responses-issue-183" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #183 converted the entire tool layer to <code>async def</code>, running each Google API call via <code>asyncio.to_thread()</code> so multiple calls can execute in real OS threads simultaneously — both within one gather()-restructured tool call and across two separate, simultaneous client requests. The shared <code>sheets_service</code>/<code>drive_service</code>/etc. objects built once at server startup carry a single <code>httplib2</code>-based transport that isn't safe for concurrent use by itself; the fix (<code>auth.thread_http()</code>) gives each thread its own transport, built from the shared credentials, passed via <code>execute(http=...)</code> at every call site. This is the one thing the mocked unit test suite structurally cannot verify — mocks don't exercise a real shared transport, so a regression here (e.g. someone reverts to the shared service objects' default transport "for simplicity") would pass every unit test and still corrupt live responses under load.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Issue two tool calls back-to-back with no wait between them, each targeting a distinct, identifiable spreadsheet: "Get the data from Sheet1 in {SPREADSHEET_ID}" and, immediately after (same turn or a rapid follow-up), "Get the data from Sheet1 in {a second, distinct spreadsheet ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Each call's response contains data from <em>its own</em> requested spreadsheet, not the other one
+- No response is empty, truncated, or contains a mix of both spreadsheets' data (any of these would indicate the two concurrent <code>.execute()</code> calls interfered with each other's shared transport)</p>
+<p><strong>Note:</strong> also implicitly covered by TC-D176/TC-D177/TC-D178/TC-D179/TC-R36/TC-R37 above, each of which forces several genuinely concurrent <code>.execute()</code> calls within a single gather()-restructured tool and checks per-item attribution. This case adds the cross-request angle (two separate tool calls, not one batched call) that those don't cover.</p>
 <hr />
 <h2 id="tool-filtering-enabled_tools">Tool filtering (<code>ENABLED_TOOLS</code>)<a class="headerlink" href="#tool-filtering-enabled_tools" title="Permanent link">&para;</a></h2>
 <h3 id="tc-i05-cli-flag-only-specified-tools-registered">TC-I05: CLI flag — only specified tools registered<a class="headerlink" href="#tc-i05-cli-flag-only-specified-tools-registered" title="Permanent link">&para;</a></h3>

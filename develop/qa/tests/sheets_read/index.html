@@ -1504,6 +1504,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-r36-5-concurrent-queries-each-result-attributed-to-the-correct-query-issue-183" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-R36: 5 concurrent queries — each result attributed to the correct query (issue #183)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1526,6 +1537,17 @@
     <span class="md-ellipsis">
       
         TC-R16: Happy path — multiple spreadsheet IDs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-r37-concurrent-summary-across-multiple-distinct-spreadsheets-no-cross-attribution-requires-oauth-issue-183" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-R37: Concurrent summary across multiple distinct spreadsheets — no cross-attribution ⚠️ requires-oauth (issue #183)
       
     </span>
   </a>
@@ -2127,6 +2149,22 @@ Set <code>MAX_TOOL_RESPONSE_CHARS=200000</code> in server config and restart the
 <p><strong>Checks</strong>
 - Returns <code>[]</code> — empty list, not an error</p>
 <hr />
+<h3 id="tc-r36-5-concurrent-queries-each-result-attributed-to-the-correct-query-issue-183">TC-R36: 5 concurrent queries — each result attributed to the correct query (issue #183)<a class="headerlink" href="#tc-r36-5-concurrent-queries-each-result-attributed-to-the-correct-query-issue-183" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #183 made <code>get_multiple_sheet_data</code> fetch all queries concurrently via <code>asyncio.gather()</code> instead of one at a time. <code>gather()</code> is documented to preserve result order regardless of completion order, but this can only be verified against the real API, not mocks. Uses 5 distinct, easily-confused ranges from the same sheet so a mixed-up result is obvious.</p>
+<p><strong>Setup</strong>
+No fixture setup needed — query 5 different single-cell ranges from the <code>Sales</code> sheet in one call (e.g. <code>A1</code>, <code>B1</code>, <code>C1</code>, <code>A2</code>, <code>B2</code> — cells with known, distinct values from the existing fixture).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"In one call, get these 5 ranges from the Sales sheet in {SPREADSHEET_ID}: A1, B1, C1, A2, B2"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns 5 results in the same order as the 5 queries were given
+- Each result's <code>data</code> matches the actual cell content at <em>that</em> range, not another range's content
+- No <code>error</code> field on any result</p>
+<p><strong>Result (2026-07-12) ❌ FAIL</strong> Against the OAuth server (<code>mcp-gee-sweet-sky</code>), ran twice back-to-back with the exact 5-range prompt. Both runs returned 3 of 5 results as connection-level errors instead of data — run 1: <code>B1</code> → <code>[SSL] record layer failure (_ssl.c:2658)</code>, <code>A2</code> → <code>Remote end closed connection without response</code>, <code>B2</code> → <code>[SSL] record layer failure (_ssl.c:2658)</code>; run 2 (different ranges failed, confirming it's not one bad range): <code>A1</code> → <code>[Errno 54] Connection reset by peer</code>, <code>C1</code> → <code>Remote end closed connection without response</code>, <code>A2</code> → <code>Remote end closed connection without response</code>. Result order was preserved for the entries that succeeded, but this reliably reproduces the concurrency bug identified in code review: <code>auth.thread_http()</code> (src/mcp_gee_sweet/auth.py:66) is invoked as an eagerly-evaluated kwarg to <code>asyncio.to_thread(...)</code>, so it resolves on the event-loop thread rather than the intended worker thread — every concurrently-gathered call ends up sharing one <code>httplib2.Http</code>/SSL transport across N real worker threads, which is not safe for concurrent use and produces exactly this class of intermittent connection/SSL corruption. This is the core mechanism the PR's own new QA case TC-I24 was written to catch. Sends back to Dev — not a QA-environment flake, reproduced twice with different specific failures each time.</p>
+<p><strong>Dev note (2026-07-13):</strong> Fixed — added <code>execute_in_thread()</code> (<code>src/mcp_gee_sweet/http_transport.py</code>) which defers the <code>thread_http(service)</code> call into the lambda that <code>asyncio.to_thread()</code> actually runs on the worker thread, instead of resolving it eagerly on the event-loop thread. Applied across all 141 affected call sites plus one non-standard site in <code>export_revision</code>. Unit suite green (674 tests); live re-verification of this exact test case still needed — not marking a Result here since it hasn't been re-run live.</p>
+<p><strong>Result (2026-07-13) ✅ PASS (re-verified after fix)</strong> Against the OAuth server (<code>mcp-gee-sweet-sky</code>), ran the identical 5-range prompt 3 times back-to-back after reconnecting to pick up the fix commit (18490d8). All 3 runs returned all 5 results with correct data and zero errors — <code>A1</code>→<code>Product</code>, <code>B1</code>→<code>Q1</code>, <code>C1</code>→<code>Q2</code>, <code>A2</code>→<code>Widget</code>, <code>B2</code>→<code>100</code>, matching the fixture exactly, in the requested order, every time. Previously reproduced 3/5 connection errors on 2/2 runs before the fix; now clean on 3/3 runs after. Confirms the <code>execute_in_thread()</code> fix resolves the live concurrency bug, not just the unit-test suite.</p>
+<hr />
 <h2 id="get_multiple_spreadsheet_summary"><code>get_multiple_spreadsheet_summary</code><a class="headerlink" href="#get_multiple_spreadsheet_summary" title="Permanent link">&para;</a></h2>
 <h3 id="tc-r16-happy-path-multiple-spreadsheet-ids">TC-R16: Happy path — multiple spreadsheet IDs<a class="headerlink" href="#tc-r16-happy-path-multiple-spreadsheet-ids" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2137,6 +2175,21 @@ Set <code>MAX_TOOL_RESPONSE_CHARS=200000</code> in server config and restart the
 - Returns entries for all 3 sheets: Sales, Empty, Notes &amp; Misc
 - Sales entry includes headers (Product, Q1, Q2, Q3) and first data rows
 - Empty sheet entry has empty headers and empty first_rows</p>
+<hr />
+<h3 id="tc-r37-concurrent-summary-across-multiple-distinct-spreadsheets-no-cross-attribution-requires-oauth-issue-183">TC-R37: Concurrent summary across multiple distinct spreadsheets — no cross-attribution ⚠️ requires-oauth (issue #183)<a class="headerlink" href="#tc-r37-concurrent-summary-across-multiple-distinct-spreadsheets-no-cross-attribution-requires-oauth-issue-183" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> TC-R16 exercises the <em>inner</em> per-sheet loop within one spreadsheet, which stayed sequential in #183 — it does not exercise the <em>outer</em> per-spreadsheet loop, which is the part that actually became concurrent via <code>asyncio.gather()</code>. This test specifically targets that outer loop with multiple distinct spreadsheet IDs.</p>
+<p><strong>Setup</strong>
+Create 2 additional throwaway spreadsheets (<code>QA-Summary-183-B</code>, <code>QA-Summary-183-C</code>), each with a distinct, identifiable title and a <code>Sheet1</code> containing distinct header text (e.g. <code>"marker-B"</code> / <code>"marker-C"</code> in cell A1).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Give me summaries of these 3 spreadsheets in one call: {SPREADSHEET_ID}, {the QA-Summary-183-B id}, {the QA-Summary-183-C id}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns 3 entries, one per spreadsheet, in the same order as requested
+- Each entry's <code>title</code> and sheet contents match <em>that</em> spreadsheet — not another one's (would indicate cross-attribution under concurrency)
+- No <code>error</code> field on any entry</p>
+<p><strong>Teardown</strong>
+Delete the 2 throwaway spreadsheets.</p>
 <hr />
 <h3 id="tc-r17-cache-hit-second-call-skips-api">TC-R17: Cache hit — second call skips API<a class="headerlink" href="#tc-r17-cache-hit-second-call-skips-api" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong> (run twice in the same session)</p>

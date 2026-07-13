@@ -1,0 +1,1478 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/decisions/decision-async-tool-execution/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Decision: Async Tool Execution (issue #183) - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#decision-async-tool-execution-issue-183" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Decision: Async Tool Execution (issue #183)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa-checklist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Checklist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_6" id="__nav_6_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/drive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="decision-async-tool-execution-issue-183">Decision: Async Tool Execution (issue #183)<a class="headerlink" href="#decision-async-tool-execution-issue-183" title="Permanent link">&para;</a></h1>
+<p><strong>Date:</strong> 2026-07-12
+<strong>Snapshot commit:</strong> branch <code>feat/ash/issue-183</code></p>
+<h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
+<p>Every tool in this server made Google API calls synchronously and sequentially, even when a single tool logically does several independent calls — syncing N files, fetching N sheets, sharing with N recipients. FastMCP supports async tool handlers natively, so the fix is to convert the tool layer to <code>async def</code>, push each blocking <code>.execute()</code> call onto a worker thread via <code>asyncio.to_thread()</code>, and use <code>asyncio.gather()</code> to run genuinely independent calls within one tool concurrently instead of one at a time.</p>
+<p>This touches all 13 tool files (<code>~144</code> <code>.execute()</code> call sites) plus two non-<code>@tool</code> helper chains that tool functions call into: <code>sheets/helpers.py</code> (<code>_get_sheet_id</code>, <code>_get_sheet_index</code>) and <code>docs/emitter.py</code> (<code>fill_tables</code> and its recursive fill chain).</p>
+<h2 id="decisions">Decisions<a class="headerlink" href="#decisions" title="Permanent link">&para;</a></h2>
+<h3 id="1-shared-transport-thread-safety-fix-new-scope-found-during-design-review">1. Shared-transport thread-safety fix (new scope, found during design review)<a class="headerlink" href="#1-shared-transport-thread-safety-fix-new-scope-found-during-design-review" title="Permanent link">&para;</a></h3>
+<p>Direct inspection of <code>mcp</code>'s <code>func_metadata.call_fn_with_arg_validation</code> confirmed sync tool handlers previously ran straight on the event loop thread — the server was effectively single-threaded for tool execution, so there was no existing thread-safety exposure. Converting to <code>to_thread</code>/<code>gather</code> changes that: multiple <code>.execute()</code> calls can now genuinely run in parallel OS threads against the <em>same</em> <code>sheets_service</code>/<code>drive_service</code>/etc. objects that <code>auth.py</code> builds once at startup and reuses forever. <code>google-api-python-client</code>'s default <code>httplib2</code>-backed transport is not safe for concurrent use of one instance — a new risk introduced by this change, not a pre-existing one, and in scope to fix here.</p>
+<p><strong>The mechanism:</strong> <code>googleapiclient.http.HttpRequest.execute()</code> accepts an <code>http=</code> override — no need to rebuild whole service objects per thread, just swap the transport at the call site. <code>auth.py</code> gained a <code>thread_http(service)</code> helper: a <code>threading.local()</code>-cached <code>AuthorizedHttp</code> per (thread, service), built from the credentials already attached to that service's <code>Resource</code> object (<code>service._http.credentials</code>, set by <code>googleapiclient.discovery.build()</code>). Standard call sites became <code>await asyncio.to_thread(chain.execute, http=thread_http(service))</code>.</p>
+<p><code>MediaIoBaseDownload.next_chunk()</code> doesn't accept an <code>http=</code> override (it reads <code>self._request.http</code> internally), so the three/four chunked-download sites (<code>export_file</code>, <code>download_file</code>, <code>download_folder</code>, <code>sync_folder</code>) instead set <code>request.http = thread_http(drive_service)</code> before starting the chunked loop, then wrap the whole loop in one <code>to_thread</code> call.</p>
+<h3 id="2-cachepy-sqlite-stays-fully-synchronous">2. <code>cache.py</code> (SQLite) stays fully synchronous<a class="headerlink" href="#2-cachepy-sqlite-stays-fully-synchronous" title="Permanent link">&para;</a></h3>
+<p>Deliberate, not an oversight: only the actual Google API <code>.execute()</code> call inside a cache-touching helper gets <code>to_thread</code>-wrapped; the sync <code>cache.get()</code>/<code>cache.store()</code> calls stay on the single event-loop thread, interleaved between <code>await</code>s. Since only one coroutine runs on the event loop at a time (<code>to_thread</code> only offloads the specific blocking call it wraps), concurrent SQLite access never actually occurs even under <code>gather()</code> — no lock needed. A comment at the top of <code>cache.py</code>'s <code>_open()</code> spells this out so a future edit doesn't "fix" it by adding <code>to_thread</code>/locks that would actually introduce the race they're meant to prevent.</p>
+<h3 id="3-gather-restructuring-six-tools-uniform-pattern">3. <code>gather()</code> restructuring — six tools, uniform pattern<a class="headerlink" href="#3-gather-restructuring-six-tools-uniform-pattern" title="Permanent link">&para;</a></h3>
+<p>Named in the issue: <code>sync_folder</code>, <code>get_multiple_sheet_data</code>, <code>get_multiple_spreadsheet_summary</code>. Extended per the issue's own "any tool that currently loops over API calls serially" scope to three more found during design review: <code>import_csv_to_sheet</code> (chunked row writes to disjoint ranges), <code>share_spreadsheet</code>, <code>share_file</code> (per-recipient/per-permission loops).</p>
+<p><strong><code>batch_update_cells</code> scope correction:</strong> the issue named it as a parallelization target, but it has no loop over API calls — it's a single already-batched <code>.execute()</code> call (the loop present is a pure Python list comprehension building the request body, no I/O). Gave it the standard async/<code>to_thread</code> conversion only; there was nothing to <code>gather()</code>.</p>
+<p>Shared pattern across all six: extract per-item work into an inner <code>async def</code>, gather with <code>return_exceptions=True</code>, reduce in one pass afterward. <code>return_exceptions=True</code> matters even though each per-item helper already catches its own errors and returns a tagged result — it also lets every in-flight item finish before an unexpected exception (a genuine bug, not the expected per-item failure path) surfaces, instead of orphaning still-running tasks. <code>gather()</code> preserves the order of the awaitables list, so <code>get_multiple_sheet_data</code>/<code>get_multiple_spreadsheet_summary</code> need no reordering. <code>share_spreadsheet</code>/<code>share_file</code>/<code>sync_folder</code> bucket results by outcome (successes/failures, uploaded/downloaded/failed) — relative order <em>within</em> a bucket now reflects completion order, not input order, since each item still carries its own identity (email, filename) in its result. <code>sync_folder</code>'s reduce pass also sums <code>total_bytes</code> and populates five separate lists from one tagged-result stream, avoiding concurrent mutation of shared accumulators entirely (only the single-threaded reduce pass after <code>gather()</code> touches them).</p>
+<p><code>asyncio.to_thread</code>'s default executor caps at <code>min(32, os.cpu_count() + 4)</code> workers, shared process-wide — a batch larger than that queues rather than fully parallelizing. Timing stays accurate, just with diminishing returns past the cap; noted at each <code>gather()</code> site so it isn't mistaken for a bug later.</p>
+<h3 id="4-test-infrastructure-pytest-asyncio-asyncio_mode-auto">4. Test infrastructure: <code>pytest-asyncio</code>, <code>asyncio_mode = "auto"</code><a class="headerlink" href="#4-test-infrastructure-pytest-asyncio-asyncio_mode-auto" title="Permanent link">&para;</a></h3>
+<p>Confirmed via user decision over two alternatives (anyio pytest plugin, manual <code>asyncio.run()</code> wrapper per test). <code>asyncio_mode = "auto"</code> means converting a test is purely mechanical — <code>def test_x():</code> → <code>async def test_x():</code> plus <code>await</code> at each call site — no <code>@pytest.mark.asyncio</code> decorators needed anywhere. <code>MagicMock</code>/<code>Mock</code>-based service chains needed no changes; <code>asyncio.to_thread(mock_chain.execute, http=...)</code> runs the sync mock callable in a worker thread and awaits the result normally — the mocks don't know or care about the extra <code>http=</code> kwarg.</p>
+<h3 id="5-a-bug-the-mocked-test-suite-structurally-couldnt-catch">5. A bug the mocked test suite structurally couldn't catch<a class="headerlink" href="#5-a-bug-the-mocked-test-suite-structurally-couldnt-catch" title="Permanent link">&para;</a></h3>
+<p><code>_timed</code>'s wrapper (<code>server.py</code>) became unconditionally <code>async def ...: return await func(...)</code>. Any tool registered through <code>tool()</code> that was <em>not</em> itself converted to <code>async def</code> would break at call time — <code>await</code> on a plain sync return value raises <code>TypeError</code>. <code>tools/cache.py</code>'s three tools (<code>get_cache_ttl</code>, <code>set_cache_ttl</code>, <code>refresh_cache</code>) have zero <code>.execute()</code> calls, so they were correctly left out of the <code>.execute()</code>-driven conversion sweep — but that left them as plain <code>def</code> under an <code>async def</code>-only wrapper. Every existing unit test captures the raw inner function via a fake tool registry, bypassing <code>_timed</code> entirely, so <code>pytest -q</code> stayed green throughout even with this broken. Only caught by importing <code>server.py</code> directly and checking <code>inspect.iscoroutinefunction()</code> on every registered tool's unwrapped inner function — a check worth keeping in mind for any future addition of a tool with no I/O of its own. Fixed by converting all three to <code>async def</code> (trivial — no <code>await</code> needed inside, they just satisfy the wrapper's calling convention).</p>
+<h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Full unit suite (665 tests) green; <code>ruff check</code> clean; zero unwrapped <code>.execute()</code> calls remaining (<code>grep -rn "\.execute()" src/mcp_gee_sweet/tools/</code>).</li>
+<li>Manual smoke test: 5 concurrent <code>sync_folder</code> uploads (each artificially delayed 0.2s in the mock) completed in ~0.22s total, not the ~1.0s a serial implementation would take — confirms real concurrency, not just non-blocking syntax.</li>
+<li>Live QA: see <code>docs/qa/tests/infra.md</code> TC-I24 and the six new per-tool cases (<code>docs/qa/tests/drive.md</code> TC-D176–179, <code>docs/qa/tests/sheets_read.md</code> TC-R36–37) — each forces enough distinct, identifiable concurrent items to catch cross-item attribution corruption under the real Drive/Sheets transport, which no mock can exercise.</li>
+</ul>
+<h2 id="round-2-qa-findings-from-pr-293-review-2026-07-13">Round 2 — QA findings from PR #293 review (2026-07-13)<a class="headerlink" href="#round-2-qa-findings-from-pr-293-review-2026-07-13" title="Permanent link">&para;</a></h2>
+<p>QA (<code>/code-review --effort high</code> + live testing) sent the PR back with one live-reproduced blocking bug (TC-R36) and 8 further code-review findings. All 10 are fixed here.</p>
+<h3 id="6-the-actual-thread_http-bug-eager-kwarg-evaluation-not-per-thread-isolation">6. The actual <code>thread_http()</code> bug: eager kwarg evaluation, not per-thread isolation<a class="headerlink" href="#6-the-actual-thread_http-bug-eager-kwarg-evaluation-not-per-thread-isolation" title="Permanent link">&para;</a></h3>
+<p>The mechanism described in §1 was correct in intent but broken in every call site: <code>await asyncio.to_thread(chain.execute, http=thread_http(service))</code> evaluates <code>thread_http(service)</code> as a keyword argument <em>before</em> <code>to_thread</code> schedules the worker thread — Python evaluates all arguments to a call before making the call. So <code>thread_http()</code> always ran on the event-loop thread, and every concurrently-gathered call for a given service resolved the <em>same</em> cached transport, which then got used by N worker threads simultaneously — the exact hazard §1 was meant to prevent. Live-reproduced as intermittent SSL/connection errors under real concurrent load (<code>docs/qa/tests/sheets_read.md</code> TC-R36).</p>
+<p><strong>Fix:</strong> <code>http_transport.py</code> (new module, extracted from <code>auth.py</code> to avoid a circular import with <code>cache.py</code> — see #9 below) gained <code>execute_in_thread(execute_fn, service)</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">execute_in_thread</span><span class="p">(</span><span class="n">execute_fn</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">service</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="k">return</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">to_thread</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">execute_fn</span><span class="p">(</span><span class="n">http</span><span class="o">=</span><span class="n">thread_http</span><span class="p">(</span><span class="n">service</span><span class="p">)))</span>
+</code></pre></div>
+<p><code>execute_fn</code> is the <em>bound but not yet called</em> <code>.execute</code> method (evaluating it is just attribute access — harmless on the event-loop thread); <code>thread_http(service)</code> is now called <em>inside</em> the lambda <code>to_thread</code> runs on the worker thread. All 141 standard call sites converted from <code>asyncio.to_thread(chain.execute, http=thread_http(service))</code> to <code>execute_in_thread(chain.execute, service)</code> via a verified 1:1 mechanical transform (every site's preceding line ended in <code>.execute,</code> and following line was a bare <code>)</code>, confirmed by scripted audit before transforming — no ambiguous block boundaries, unlike the regex-corruption incidents from round 1). One non-standard site (<code>export_revision</code>'s raw <code>.request()</code> call) fixed by hand with the same lambda-deferral pattern.</p>
+<h3 id="7-get_spreadsheet_info-mcp-resource-handler-was-still-fully-synchronous">7. <code>get_spreadsheet_info</code> MCP resource handler was still fully synchronous<a class="headerlink" href="#7-get_spreadsheet_info-mcp-resource-handler-was-still-fully-synchronous" title="Permanent link">&para;</a></h3>
+<p><code>server.py</code>'s <code>@mcp.resource("spreadsheet://{spreadsheet_id}/info")</code> handler predates the tool-layer conversion and was out of scope per the original plan ("tool files," not <code>@mcp.resource</code> handlers) — but that left one synchronous <code>.execute()</code> call blocking the event loop during a live API request, undermining the point of the whole conversion for that one code path. Converted to <code>async def</code>, wrapped via <code>execute_in_thread</code>.</p>
+<h3 id="8-get_modified_timefetch_sheets-in-cachepy-issued-unwrapped-blocking-google-api-calls">8. <code>get_modified_time()</code>/<code>fetch_sheets()</code> in <code>cache.py</code> issued unwrapped blocking Google API calls<a class="headerlink" href="#8-get_modified_timefetch_sheets-in-cachepy-issued-unwrapped-blocking-google-api-calls" title="Permanent link">&para;</a></h3>
+<p>Both are cache-touching helpers, not <code>@tool()</code>-registered functions, so they were missed by the tool-file-scoped conversion sweep despite being called from async tool code (<code>sheets/data.py</code>, <code>sheets/helpers.py</code>, <code>sheets/structure.py</code>) — every call blocked the event loop for the duration of the underlying Drive/Sheets API request. Converted both to <code>async def</code>, wrapped their <code>.execute()</code> calls via <code>execute_in_thread</code>, and awaited all call sites. This is <em>not</em> the same decision as "<code>cache.py</code>'s SQLite I/O stays synchronous" (§2) — that's about the sync <code>cache.get()</code>/<code>store()</code> calls, which correctly stay unwrapped; this is about the actual network call these two helpers make before touching the cache at all.</p>
+<h3 id="9-extracted-thread_httpexecute_in_thread-into-http_transportpy">9. Extracted <code>thread_http</code>/<code>execute_in_thread</code> into <code>http_transport.py</code><a class="headerlink" href="#9-extracted-thread_httpexecute_in_thread-into-http_transportpy" title="Permanent link">&para;</a></h3>
+<p>Fixing #8 requires <code>cache.py</code> to call <code>execute_in_thread</code>, but <code>execute_in_thread</code> lived in <code>auth.py</code>, which already imports from <code>cache.py</code> (<code>SheetStructureCache</code> et al.) — a circular import. Moved both functions into a new <code>http_transport.py</code> with no dependency on either module; <code>auth.py</code> re-exports them (<code>from .http_transport import execute_in_thread, thread_http</code>) so none of the 13 tool files' <code>from ...auth import execute_in_thread, thread_http</code> imports needed to change.</p>
+<h3 id="10-share_spreadsheetshare_file-lost-the-identity-of-a-malformed-input-entry">10. <code>share_spreadsheet</code>/<code>share_file</code> lost the identity of a malformed input entry<a class="headerlink" href="#10-share_spreadsheetshare_file-lost-the-identity-of-a-malformed-input-entry" title="Permanent link">&para;</a></h3>
+<p>Both tools' per-item <code>_share_one</code> closures extracted fields via <code>.get()</code> <em>before</em> entering their own try/except — a non-dict entry (e.g. a bare string in the <code>recipients</code>/<code>permissions</code> list) raised <code>AttributeError</code> from that very first <code>.get()</code> call, escaping to the outer <code>gather(..., return_exceptions=True)</code> catch-all, which only records <code>{"email_address": None, "error": ...}</code> / <code>{"entry": None, "error": ...}</code> — indistinguishable from any other anonymous failure if multiple bad entries were in the same batch. Fixed by wrapping each closure's entire body (field extraction included) in its own try/except, echoing the raw input back as <code>entry</code> even when extraction itself is what failed.</p>
+<h3 id="11-import_csv_to_sheets-concurrent-chunk-writer-could-leave-holes-mid-sheet-on-partial-failure">11. <code>import_csv_to_sheet</code>'s concurrent chunk writer could leave holes mid-sheet on partial failure<a class="headerlink" href="#11-import_csv_to_sheets-concurrent-chunk-writer-could-leave-holes-mid-sheet-on-partial-failure" title="Permanent link">&para;</a></h3>
+<p>Before #183, a chunk-write failure stopped the (then-sequential) loop immediately, leaving a clean truncated prefix — rows 1..N present, nothing after. Under <code>asyncio.gather()</code>, chunks write concurrently, so a later chunk can succeed while an earlier one is still failing, leaving an ambiguous <em>hole</em> rather than a clean boundary, with the old code surfacing only the first raw exception and no indication of which rows were affected. Fixed: <code>_write_chunk</code> now returns a tagged <code>{start_row, end_row, ok, error?}</code> result instead of raising; on any failure the tool returns (rather than raises) an error payload with <code>failed_ranges</code> and <code>written_ranges</code> (each with exact row boundaries) so the missing rows can be retried precisely, alongside the already-created <code>spreadsheetId</code>.</p>
+<h3 id="12-redundant-per-sheet-get_modified_time-call-in-get_multiple_spreadsheet_summary">12. Redundant per-sheet <code>get_modified_time()</code> call in <code>get_multiple_spreadsheet_summary</code><a class="headerlink" href="#12-redundant-per-sheet-get_modified_time-call-in-get_multiple_spreadsheet_summary" title="Permanent link">&para;</a></h3>
+<p>The per-sheet loop refetched <code>get_modified_time(drive_service, spreadsheet_id)</code> for every sheet, even though <code>modifiedTime</code> is a Drive <em>file-level</em> property — identical for every sheet tab in the same spreadsheet at a given instant. The original comment justified this as catching an edit that happened mid-request, but that race-window benefit is marginal compared to N redundant Drive API calls per spreadsheet (now each one a full <code>execute_in_thread</code> round trip). Deduplicated: <code>sheet_mtime</code> now reuses <code>current_mtime</code> captured once before the per-sheet loop.</p>
+<h3 id="13-get_multiple_spreadsheet_summary-was-missing-response-caplocal_path-parity-with-its-sibling">13. <code>get_multiple_spreadsheet_summary</code> was missing response-cap/<code>local_path</code> parity with its sibling<a class="headerlink" href="#13-get_multiple_spreadsheet_summary-was-missing-response-caplocal_path-parity-with-its-sibling" title="Permanent link">&para;</a></h3>
+<p><code>get_multiple_sheet_data</code> and <code>find_in_spreadsheet</code> both call <code>enforce_response_size_cap</code> and support a <code>local_path</code> bypass; <code>get_multiple_spreadsheet_summary</code> did neither, so a large enough batch could silently produce an oversized response with no safety net and no way to redirect it to disk. Added both, matching the sibling tools' contract exactly (<code>{local_path, spreadsheet_count, bytes_written}</code> manifest shape).</p>
+<h3 id="14-local-filesystem-io-sites-still-ran-unwrapped-on-the-event-loop">14. Local-filesystem I/O sites still ran unwrapped on the event loop<a class="headerlink" href="#14-local-filesystem-io-sites-still-ran-unwrapped-on-the-event-loop" title="Permanent link">&para;</a></h3>
+<p>Three sites did blocking disk I/O directly in async tool bodies, with no <code>to_thread</code> wrap — harmless for small files but blocking the whole event loop for however long a large read/write takes, which specifically undermines the paths meant to handle <em>large</em> results: the CSV read in <code>import_csv_to_sheet</code> (<code>csv.reader</code> over the whole file), <code>write_capped_result_to_disk</code> (exists specifically to hold data too large for the response cap), and the single-shot <code>dest.write_bytes(content)</code> sites in <code>transfer.py</code>'s Workspace-file export paths (the chunked-download closures were already correctly wrapped). All three wrapped in <code>asyncio.to_thread</code>; <code>write_capped_result_to_disk</code> becoming <code>async def</code> required <code>await</code> at its 5 call sites (<code>sheets/data.py</code> ×4, <code>docs/content.py</code> ×1).</p>
+<h3 id="15-cache-invalidation-race-a-concurrent-refresh_cache-could-be-silently-undone">15. Cache-invalidation race: a concurrent <code>refresh_cache()</code> could be silently undone<a class="headerlink" href="#15-cache-invalidation-race-a-concurrent-refresh_cache-could-be-silently-undone" title="Permanent link">&para;</a></h3>
+<p><code>refresh_cache(spreadsheet_id=X)</code> calls <code>mark_dirty()</code>, which sets <code>dirty=1</code>. Every cache class's <code>store()</code> does <code>INSERT OR REPLACE ... dirty=0</code> unconditionally. Before #183, a tool call ran to completion on the event loop with no interleaving point, so a read-then-store sequence for a given key could never be interrupted by another call — this race genuinely could not happen. Now that reads have a real <code>await</code> (the <code>.execute()</code> call), a <code>refresh_cache()</code> call landing <em>during</em> another read's in-flight fetch for the same key has its <code>dirty=1</code> silently overwritten back to <code>dirty=0</code> once that read's <code>store()</code> runs afterward — erasing the invalidation's effect with no error or signal.</p>
+<p><strong>Fix:</strong> an in-memory (not persisted — resets are fine, a fresh process has a fresh cache anyway), per-cache-instance monotonic epoch counter, bumped on every <code>mark_dirty</code>/<code>mark_all_dirty</code>. <code>_BaseCache</code> gained <code>snapshot_epoch()</code> (call before starting a fetch) and <code>_store_if_fresh(sql, params, epoch)</code> (skip the write entirely if the epoch changed between snapshot and store — i.e. an invalidation happened mid-fetch). Deliberately coarse (one counter per cache <em>instance</em>, not per-key): a concurrent invalidation for any key blocks in-flight stores for all keys in that cache, causing occasional spurious cache-miss refetches for unrelated keys rather than a precise per-key fix — a correctness-safe tradeoff against a full per-key generation-counter schema migration, scoped to the two caches actually touched by this PR's newly-concurrent code paths (<code>SheetStructureCache</code> via <code>fetch_sheets</code>/<code>get_multiple_spreadsheet_summary</code>, <code>SheetDataCache</code> via the latter's per-sheet loop). <code>store()</code> gained an optional <code>epoch: int | None = None</code> kwarg on both classes — omitting it (as every pre-existing caller does) preserves the old unconditional-write behavior exactly, so this is purely additive.</p>
+<p>DriveFolderCache/DocContentCache/CalendarCache's <code>store()</code> methods have the identical theoretical race (any tool call is now async, so <em>any</em> two calls can interleave, not just gather()'d ones) but weren't part of this fix — out of scope since their tools aren't part of this PR's newly-introduced concurrency and Sky's finding cited only the sheets-side call sites.</p>
+<h3 id="round-2-verification">Round 2 verification<a class="headerlink" href="#round-2-verification" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Full unit suite (674 tests, up from 665) green; <code>ruff check</code>/<code>ruff format --check</code> clean; zero unwrapped <code>.execute()</code> calls remain.</li>
+<li>New regression tests: <code>test_server.py::TestAllToolsAreAsync</code> (enumerates every registered tool via <code>mcp._tool_manager.list_tools()</code> and asserts <code>inspect.iscoroutinefunction(inspect.unwrap(tool.fn))</code> — the exact check that caught #5 in round 1, now automated instead of a one-off manual introspection); <code>test_sharing.py</code>'s two <code>test_malformed_non_dict_entry_stays_attributable</code> tests; <code>test_files.py::test_partial_chunk_failure_reports_failed_and_written_ranges</code>; <code>test_cache.py</code>'s <code>test_store_with_stale_epoch_is_skipped</code>/<code>test_store_with_current_epoch_succeeds</code> pairs for both <code>SheetStructureCache</code> and <code>SheetDataCache</code>.</li>
+<li>Live re-verification of TC-R36 (the concurrency bug's original reproduction) still needed from QA — not re-run live as part of this fix pass; see the "Dev note" appended to that test case in <code>docs/qa/tests/sheets_read.md</code>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
