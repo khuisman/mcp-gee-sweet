@@ -25,3 +25,4 @@ docs/qa/results/*-partial.md
 
 # Generated, machine-specific (absolute paths)
 .claude/mcp-configs/*.json
+.mcp.json
