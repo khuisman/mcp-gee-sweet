@@ -266,6 +266,8 @@ No fixture setup needed — query 5 different single-cell ranges from the `Sales
 
 **Dev note (2026-07-13):** Fixed — added `execute_in_thread()` (`src/mcp_gee_sweet/http_transport.py`) which defers the `thread_http(service)` call into the lambda that `asyncio.to_thread()` actually runs on the worker thread, instead of resolving it eagerly on the event-loop thread. Applied across all 141 affected call sites plus one non-standard site in `export_revision`. Unit suite green (674 tests); live re-verification of this exact test case still needed — not marking a Result here since it hasn't been re-run live.
 
+**Result (2026-07-13) ✅ PASS (re-verified after fix)** Against the OAuth server (`mcp-gee-sweet-sky`), ran the identical 5-range prompt 3 times back-to-back after reconnecting to pick up the fix commit (18490d8). All 3 runs returned all 5 results with correct data and zero errors — `A1`→`Product`, `B1`→`Q1`, `C1`→`Q2`, `A2`→`Widget`, `B2`→`100`, matching the fixture exactly, in the requested order, every time. Previously reproduced 3/5 connection errors on 2/2 runs before the fix; now clean on 3/3 runs after. Confirms the `execute_in_thread()` fix resolves the live concurrency bug, not just the unit-test suite.
+
 ---
 
 ## `get_multiple_spreadsheet_summary`
