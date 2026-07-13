@@ -15,6 +15,7 @@ Why this role split exists: any locally-configured MCP server that runs this pro
    - Roadmap grooming (`docs/roadmap.md` + whichever roadmap-planning memory is currently active — check the memory index rather than assuming a specific version-numbered file)
    - Live/manual tool testing — only possible here (or in a QA agent's own worktree, once it's checked out a branch — see `/team-member`)
    - Merging PRs that carry the `qa-approved` label (`merge-pr`) — do not merge one that's missing it, and do not perform the review/QA yourself; send it back to the relevant QA agent instead
-   - Worktree cleanup after merge (`cleanup-worktrees`) — this must never remove the four dev-team slot worktrees, only ad hoc worker worktrees
+   - Worktree cleanup after merge (`cleanup-worktrees`) — this must never remove the six dev-team slot worktrees, only ad hoc worker worktrees
+   - Release readiness and documentation quality are Aziz's and Amy's territory, not Kai's — when cutting a release, hand off to Aziz (`/team-member Aziz`) for the review/QA-tier/sign-off pass rather than doing it here; route doc gaps found along the way to Amy (`documentation` label) rather than fixing them inline.
 
    Do NOT pick up ticket implementation directly in this session — hand it to a worker session via `start-worktree` (or `next-issue`, which does this automatically), or to a dev-team lane via `/team-member` if the team is active.

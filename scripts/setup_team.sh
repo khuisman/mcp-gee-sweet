@@ -1,23 +1,26 @@
 #!/usr/bin/env bash
-# Idempotently provision the dev-team worktree slots (ash/sky/jay/kit) and
-# write the combined MCP config used by `make claude-team`.
+# Idempotently provision the dev-team worktree slots (ash/sky/jay/kit/aziz/amy)
+# and write the combined MCP config used by `make claude-team`.
 #
 # Each slot rests on its own `team/<name>` branch (never `develop` itself —
 # that branch is always checked out in the main checkout). Dev slots branch
 # off `team/<name>` into `feat/<name>/issue-<n>` per ticket; QA slots stay on
 # `team/<name>` forever and get reset to whatever PR branch they're
-# verifying (see `/team-member`).
+# verifying (see `/team-member`). Aziz and Amy are also persistent
+# `team/<name>` slots but don't get a dedicated MCP server process — Aziz
+# borrows Sky's/Kit's at release-QA time, Amy just needs a worktree to write
+# docs PRs from.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-ROLES=(ash sky jay kit)
+WORKTREE_ROLES=(ash sky jay kit aziz amy)
 CONFIG_FILES=(.env credentials.json service_account.json token.json .claude/settings.local.json)
 
 git fetch origin develop --quiet
 
-for name in "${ROLES[@]}"; do
+for name in "${WORKTREE_ROLES[@]}"; do
   worktree_path="$REPO_ROOT/.claude/worktrees/$name"
 
   if [ ! -d "$worktree_path" ]; then
@@ -57,6 +60,8 @@ role_server() {
 JSON
 }
 
+# No entries for aziz/amy here — they get no dedicated server process,
+# just the shared .mcp.json copy for tool visibility (see WORKTREE_ROLES loop below).
 cat > "$REPO_ROOT/.claude/mcp-configs/team.mcp.json" <<JSON
 {
   "mcpServers": {
@@ -95,7 +100,7 @@ JSON
 
 echo "Copying .mcp.json into repo root and each worktree (Agent-view sessions don't inherit --mcp-config, only per-directory auto-discovery)"
 cp "$REPO_ROOT/.claude/mcp-configs/team.mcp.json" "$REPO_ROOT/.mcp.json"
-for name in "${ROLES[@]}"; do
+for name in "${WORKTREE_ROLES[@]}"; do
   cp "$REPO_ROOT/.claude/mcp-configs/team.mcp.json" "$REPO_ROOT/.claude/worktrees/$name/.mcp.json"
 done
 
