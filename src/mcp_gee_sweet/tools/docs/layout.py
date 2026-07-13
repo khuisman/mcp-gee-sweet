@@ -5,12 +5,14 @@ from googleapiclient.errors import HttpError
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+from ...auth import execute_in_thread
+
 logger = logging.getLogger(__name__)
 
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Create Document Header", destructiveHint=True))
-    def create_header(
+    async def create_header(
         doc_id: str,
         header_type: str = "DEFAULT",
         content: str | None = None,
@@ -42,7 +44,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         header_id = None
         try:
-            response = (
+            response = await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(
                     documentId=doc_id,
@@ -56,7 +58,8 @@ def register(tool):
                         ]
                     },
                 )
-                .execute()
+                .execute,
+                lc.docs_service,
             )
             replies = response.get("replies") or []
             if replies:
@@ -70,10 +73,11 @@ def register(tool):
         # Fallback: if headerId not in response (or header already existed), read from documentStyle
         if header_id is None:
             try:
-                doc = (
+                doc = await execute_in_thread(
                     lc.docs_service.documents()
                     .get(documentId=doc_id, fields="documentStyle")
-                    .execute()
+                    .execute,
+                    lc.docs_service,
                 )
                 style = doc.get("documentStyle", {})
                 header_id = (
@@ -86,19 +90,24 @@ def register(tool):
 
         if content and header_id:
             try:
-                lc.docs_service.documents().batchUpdate(
-                    documentId=doc_id,
-                    body={
-                        "requests": [
-                            {
-                                "insertText": {
-                                    "text": content,
-                                    "location": {"index": 0, "segmentId": header_id},
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(
+                        documentId=doc_id,
+                        body={
+                            "requests": [
+                                {
+                                    "insertText": {
+                                        "text": content,
+                                        "location": {"index": 0, "segmentId": header_id},
+                                    }
                                 }
-                            }
-                        ]
-                    },
-                ).execute()
+                            ]
+                        },
+                    )
+                    .execute,
+                    lc.docs_service,
+                )
             except Exception as e:
                 lc.doc_cache.mark_dirty(doc_id)
                 return {
@@ -112,7 +121,7 @@ def register(tool):
         return {"docId": doc_id, "headerId": header_id}
 
     @tool(annotations=ToolAnnotations(title="Create Document Footer", destructiveHint=True))
-    def create_footer(
+    async def create_footer(
         doc_id: str,
         footer_type: str = "DEFAULT",
         content: str | None = None,
@@ -144,7 +153,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         footer_id = None
         try:
-            response = (
+            response = await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(
                     documentId=doc_id,
@@ -158,7 +167,8 @@ def register(tool):
                         ]
                     },
                 )
-                .execute()
+                .execute,
+                lc.docs_service,
             )
             replies = response.get("replies") or []
             if replies:
@@ -172,10 +182,11 @@ def register(tool):
         # Fallback: if footerId not in response (or footer already existed), read from documentStyle
         if footer_id is None:
             try:
-                doc = (
+                doc = await execute_in_thread(
                     lc.docs_service.documents()
                     .get(documentId=doc_id, fields="documentStyle")
-                    .execute()
+                    .execute,
+                    lc.docs_service,
                 )
                 style = doc.get("documentStyle", {})
                 footer_id = (
@@ -188,19 +199,24 @@ def register(tool):
 
         if content and footer_id:
             try:
-                lc.docs_service.documents().batchUpdate(
-                    documentId=doc_id,
-                    body={
-                        "requests": [
-                            {
-                                "insertText": {
-                                    "text": content,
-                                    "location": {"index": 0, "segmentId": footer_id},
+                await execute_in_thread(
+                    lc.docs_service.documents()
+                    .batchUpdate(
+                        documentId=doc_id,
+                        body={
+                            "requests": [
+                                {
+                                    "insertText": {
+                                        "text": content,
+                                        "location": {"index": 0, "segmentId": footer_id},
+                                    }
                                 }
-                            }
-                        ]
-                    },
-                ).execute()
+                            ]
+                        },
+                    )
+                    .execute,
+                    lc.docs_service,
+                )
             except Exception as e:
                 lc.doc_cache.mark_dirty(doc_id)
                 return {

@@ -4,12 +4,14 @@ from typing import Any
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+from ...auth import execute_in_thread
+
 logger = logging.getLogger(__name__)
 
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Insert Document Table", destructiveHint=True))
-    def insert_doc_table(
+    async def insert_doc_table(
         doc_id: str,
         index: int,
         rows: int,
@@ -41,25 +43,33 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id,
-                body={
-                    "requests": [
-                        {
-                            "insertTable": {
-                                "rows": rows,
-                                "columns": columns,
-                                "location": {"index": index},
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "insertTable": {
+                                    "rows": rows,
+                                    "columns": columns,
+                                    "location": {"index": index},
+                                }
                             }
-                        }
-                    ]
-                },
-            ).execute()
+                        ]
+                    },
+                )
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 
         try:
-            doc = lc.docs_service.documents().get(documentId=doc_id).execute()
+            doc = await execute_in_thread(
+                lc.docs_service.documents().get(documentId=doc_id).execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": f"table inserted but re-fetch failed: {e}"}
 
@@ -104,7 +114,7 @@ def register(tool):
         return {"error": "table inserted but could not locate it in re-fetched doc"}
 
     @tool(annotations=ToolAnnotations(title="Insert Table Row", destructiveHint=True))
-    def insert_table_row(
+    async def insert_table_row(
         doc_id: str,
         table_start_index: int,
         row_index: int,
@@ -129,23 +139,28 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id,
-                body={
-                    "requests": [
-                        {
-                            "insertTableRow": {
-                                "tableCellLocation": {
-                                    "tableStartLocation": {"index": table_start_index},
-                                    "rowIndex": row_index,
-                                    "columnIndex": 0,
-                                },
-                                "insertBelow": insert_below,
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "insertTableRow": {
+                                    "tableCellLocation": {
+                                        "tableStartLocation": {"index": table_start_index},
+                                        "rowIndex": row_index,
+                                        "columnIndex": 0,
+                                    },
+                                    "insertBelow": insert_below,
+                                }
                             }
-                        }
-                    ]
-                },
-            ).execute()
+                        ]
+                    },
+                )
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -160,7 +175,7 @@ def register(tool):
         return {"docId": doc_id, "table_start_index": table_start_index, "row_index": row_index}
 
     @tool(annotations=ToolAnnotations(title="Delete Table Row", destructiveHint=True))
-    def delete_table_row(
+    async def delete_table_row(
         doc_id: str,
         table_start_index: int,
         row_index: int,
@@ -181,22 +196,27 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id,
-                body={
-                    "requests": [
-                        {
-                            "deleteTableRow": {
-                                "tableCellLocation": {
-                                    "tableStartLocation": {"index": table_start_index},
-                                    "rowIndex": row_index,
-                                    "columnIndex": 0,
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "deleteTableRow": {
+                                    "tableCellLocation": {
+                                        "tableStartLocation": {"index": table_start_index},
+                                        "rowIndex": row_index,
+                                        "columnIndex": 0,
+                                    }
                                 }
                             }
-                        }
-                    ]
-                },
-            ).execute()
+                        ]
+                    },
+                )
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -210,7 +230,7 @@ def register(tool):
         return {"docId": doc_id, "table_start_index": table_start_index, "row_index": row_index}
 
     @tool(annotations=ToolAnnotations(title="Insert Table Column", destructiveHint=True))
-    def insert_table_column(
+    async def insert_table_column(
         doc_id: str,
         table_start_index: int,
         column_index: int,
@@ -235,23 +255,28 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id,
-                body={
-                    "requests": [
-                        {
-                            "insertTableColumn": {
-                                "tableCellLocation": {
-                                    "tableStartLocation": {"index": table_start_index},
-                                    "rowIndex": 0,
-                                    "columnIndex": column_index,
-                                },
-                                "insertRight": insert_right,
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "insertTableColumn": {
+                                    "tableCellLocation": {
+                                        "tableStartLocation": {"index": table_start_index},
+                                        "rowIndex": 0,
+                                        "columnIndex": column_index,
+                                    },
+                                    "insertRight": insert_right,
+                                }
                             }
-                        }
-                    ]
-                },
-            ).execute()
+                        ]
+                    },
+                )
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -270,7 +295,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Delete Table Column", destructiveHint=True))
-    def delete_table_column(
+    async def delete_table_column(
         doc_id: str,
         table_start_index: int,
         column_index: int,
@@ -291,22 +316,27 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id,
-                body={
-                    "requests": [
-                        {
-                            "deleteTableColumn": {
-                                "tableCellLocation": {
-                                    "tableStartLocation": {"index": table_start_index},
-                                    "rowIndex": 0,
-                                    "columnIndex": column_index,
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "deleteTableColumn": {
+                                    "tableCellLocation": {
+                                        "tableStartLocation": {"index": table_start_index},
+                                        "rowIndex": 0,
+                                        "columnIndex": column_index,
+                                    }
                                 }
                             }
-                        }
-                    ]
-                },
-            ).execute()
+                        ]
+                    },
+                )
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 

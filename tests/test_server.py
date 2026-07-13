@@ -1,5 +1,6 @@
 """Tests for server.py (_parse_enabled_tools, _auth_status_json, _timed, tool strict args)."""
 
+import inspect
 import json
 import logging
 import sys
@@ -9,6 +10,26 @@ import pytest
 from pydantic import ValidationError
 
 from mcp_gee_sweet.server import _auth_status_json, _parse_enabled_tools, _timed, mcp, tool
+
+
+class TestAllToolsAreAsync:
+    """Regression test for issue #183: _timed's wrapper is unconditionally
+    `async def wrapper(...): return await func(...)`, so any tool registered as
+    a plain `def` breaks with TypeError at call time. This is invisible to the
+    rest of the test suite — every other test captures the raw inner function
+    via a fake tool registry, bypassing _timed entirely. Already hit once for
+    tools/cache.py's get_cache_ttl/set_cache_ttl/refresh_cache (zero .execute()
+    calls, so missed by the .execute()-driven async conversion sweep); this
+    guards against it recurring for any future tool with no I/O of its own.
+    """
+
+    def test_every_registered_tool_is_async(self):
+        tools = mcp._tool_manager.list_tools()
+        assert tools, "no tools registered — registration may be broken"
+        sync_tools = sorted(
+            t.name for t in tools if not inspect.iscoroutinefunction(inspect.unwrap(t.fn))
+        )
+        assert sync_tools == [], f"non-async tool(s) found: {sync_tools}"
 
 
 class TestParseEnabledTools:
@@ -128,78 +149,78 @@ class TestTimed:
     def _access_messages(self):
         return [r.getMessage() for r in self._access_records]
 
-    def test_returns_function_result(self):
+    async def test_returns_function_result(self):
         @_timed
-        def my_func(**_kwargs):
+        async def my_func(**_kwargs):
             return 42
 
-        assert my_func() == 42
+        assert await my_func() == 42
 
-    def test_reraises_exception(self):
+    async def test_reraises_exception(self):
         @_timed
-        def my_func(**_kwargs):
+        async def my_func(**_kwargs):
             raise ValueError("boom")
 
         with pytest.raises(ValueError, match="boom"):
-            my_func()
+            await my_func()
 
-    def test_logs_success_access_line(self):
+    async def test_logs_success_access_line(self):
         @_timed
-        def list_files(**kwargs):
+        async def list_files(**kwargs):
             return []
 
-        list_files()
+        await list_files()
 
         msgs = self._access_messages()
         assert len(msgs) == 1
         assert '"TOOL list_files"' in msgs[0]
         assert "200" in msgs[0]
 
-    def test_logs_500_on_exception(self):
+    async def test_logs_500_on_exception(self):
         @_timed
-        def my_func(**_kwargs):
+        async def my_func(**_kwargs):
             raise RuntimeError("fail")
 
         with pytest.raises(RuntimeError):
-            my_func()
+            await my_func()
 
         msgs = self._access_messages()
         assert len(msgs) == 1
         assert "500" in msgs[0]
 
-    def test_falls_back_to_dash_without_ctx(self):
+    async def test_falls_back_to_dash_without_ctx(self):
         @_timed
-        def my_func(**_kwargs):
+        async def my_func(**_kwargs):
             return None
 
-        my_func()
+        await my_func()
 
         msgs = self._access_messages()
         assert len(msgs) == 1
         assert '"-"' in msgs[0]
 
-    def test_extracts_ip_and_ua_from_ctx(self):
+    async def test_extracts_ip_and_ua_from_ctx(self):
         ctx = MagicMock()
         ctx.request_context.request.client.host = "1.2.3.4"
         ctx.request_context.request.headers = {"user-agent": "test-client/1.0"}
 
         @_timed
-        def my_func(**_kwargs):
+        async def my_func(**_kwargs):
             return None
 
-        my_func(ctx=ctx)
+        await my_func(ctx=ctx)
 
         msgs = self._access_messages()
         assert len(msgs) == 1
         assert "1.2.3.4" in msgs[0]
         assert "test-client/1.0" in msgs[0]
 
-    def test_elapsed_time_appears_in_log(self):
+    async def test_elapsed_time_appears_in_log(self):
         @_timed
-        def my_func(**_kwargs):
+        async def my_func(**_kwargs):
             return None
 
-        my_func()
+        await my_func()
 
         msgs = self._access_messages()
         assert msgs[0].endswith("s")

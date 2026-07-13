@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import time
+from types import SimpleNamespace
 
 from mcp_gee_sweet.cache import (
     CalendarCache,
@@ -81,6 +82,23 @@ class TestSheetStructureCache:
 
     def test_get_stale_sheets_miss_returns_none(self):
         assert self.cache.get_stale_sheets("nonexistent") is None
+
+    def test_store_with_stale_epoch_is_skipped(self):
+        """Regression test (QA finding, #183): a concurrent mark_dirty() (e.g. from
+        refresh_cache()) landing while a fetch is in flight must not be silently
+        undone by that fetch's store() call once it completes — this couldn't
+        happen before tool calls were async (no await point existed for another
+        call to interleave), so it's a race newly possible under concurrency."""
+        epoch = self.cache.snapshot_epoch()
+        self.cache.mark_dirty("sid")  # simulates a concurrent invalidation mid-fetch
+        self.cache.store("sid", self.sheets, epoch=epoch)
+        assert self.cache.get_sheets("sid") is None
+
+    def test_store_with_current_epoch_succeeds(self):
+        """Sanity check: an unstale epoch (no invalidation happened) still writes."""
+        epoch = self.cache.snapshot_epoch()
+        self.cache.store("sid", self.sheets, epoch=epoch)
+        assert self.cache.get_sheets("sid") is not None
 
     def test_close(self):
         self.cache.close()
@@ -218,6 +236,14 @@ class TestSheetDataCache:
         assert result is not None
         assert result["headers"] == ["A"]
 
+    def test_store_with_stale_epoch_is_skipped(self):
+        """Same epoch-guard mechanism as SheetStructureCache — see that class's
+        test_store_with_stale_epoch_is_skipped for the full rationale."""
+        epoch = self.cache.snapshot_epoch()
+        self.cache.mark_dirty("sid", sheet_id=0)
+        self.cache.store("sid", 0, headers=["A"], first_rows=[], rows_to_fetch=1, epoch=epoch)
+        assert self.cache.get("sid", 0, 1) is None
+
     def test_close(self):
         self.cache.close()
 
@@ -343,34 +369,38 @@ class TestDocContentCache:
 
 
 class TestGetModifiedTime:
-    def test_none_drive_service_returns_none(self):
-        assert get_modified_time(None, "fid") is None
+    async def test_none_drive_service_returns_none(self):
+        assert await get_modified_time(None, "fid") is None
 
-    def test_returns_modified_time_on_success(self):
+    async def test_returns_modified_time_on_success(self):
         class FakeFiles:
             def get(self, fileId, fields, supportsAllDrives):
                 class FakeRequest:
-                    def execute(self):
+                    def execute(self, **kwargs):
                         return {"modifiedTime": "2026-01-01T00:00:00Z"}
 
                 return FakeRequest()
 
         class FakeDriveService:
+            _http = SimpleNamespace(credentials=None)
+
             def files(self):
                 return FakeFiles()
 
-        assert get_modified_time(FakeDriveService(), "fid") == "2026-01-01T00:00:00Z"
+        assert await get_modified_time(FakeDriveService(), "fid") == "2026-01-01T00:00:00Z"
 
-    def test_returns_none_on_api_error(self):
+    async def test_returns_none_on_api_error(self):
         class FakeFiles:
             def get(self, fileId, fields, supportsAllDrives):
                 raise Exception("API error")
 
         class FakeDriveService:
+            _http = SimpleNamespace(credentials=None)
+
             def files(self):
                 return FakeFiles()
 
-        assert get_modified_time(FakeDriveService(), "fid") is None
+        assert await get_modified_time(FakeDriveService(), "fid") is None
 
 
 class TestEnvFlag:
@@ -412,9 +442,11 @@ class TestCalendarCacheSetTtl:
 class _FakeSheetsService:
     """Returns a spreadsheet with a single sheet named 'New', id 1."""
 
+    _http = SimpleNamespace(credentials=None)
+
     class _Spreadsheets:
         class _Request:
-            def execute(self):
+            def execute(self, **kwargs):
                 return {
                     "properties": {"title": "New Title"},
                     "sheets": [{"properties": {"title": "New", "sheetId": 1}}],
@@ -430,9 +462,11 @@ class _FakeSheetsService:
 class _FakeDriveService:
     """Reports modifiedTime='v2' for any file."""
 
+    _http = SimpleNamespace(credentials=None)
+
     class _Files:
         class _Request:
-            def execute(self):
+            def execute(self, **kwargs):
                 return {"modifiedTime": "v2"}
 
         def get(self, fileId, fields, supportsAllDrives):
@@ -443,22 +477,22 @@ class _FakeDriveService:
 
 
 class TestFetchSheetsModifiedTimeValidation:
-    def test_stale_cache_triggers_refetch_when_drive_service_given(self):
+    async def test_stale_cache_triggers_refetch_when_drive_service_given(self):
         cache = SheetStructureCache(db_path=DB, ttl=1000)
         cache.store("sid", [SheetInfo(title="Old", sheet_id=0)], modified_time="v1")
 
-        result = fetch_sheets(_FakeSheetsService(), "sid", cache, _FakeDriveService())
+        result = await fetch_sheets(_FakeSheetsService(), "sid", cache, _FakeDriveService())
 
         assert len(result) == 1
         assert result[0].title == "New"
 
-    def test_fresh_cache_skipped_refetch_without_drive_service(self):
+    async def test_fresh_cache_skipped_refetch_without_drive_service(self):
         cache = SheetStructureCache(db_path=DB, ttl=1000)
         cache.store("sid", [SheetInfo(title="Old", sheet_id=0)], modified_time="v1")
 
         # No drive_service passed → no modifiedTime check → TTL-valid cache hit,
         # even though _FakeSheetsService would return a different sheet.
-        result = fetch_sheets(_FakeSheetsService(), "sid", cache)
+        result = await fetch_sheets(_FakeSheetsService(), "sid", cache)
 
         assert result[0].title == "Old"
 
@@ -474,12 +508,14 @@ class TestGetSheetIdModifiedTimePropagation:
     spreadsheet, since a None-vs-anything comparison always skips the check.
     """
 
-    def test_write_path_lookup_refreshes_modified_time_tag_on_miss(self):
+    async def test_write_path_lookup_refreshes_modified_time_tag_on_miss(self):
         cache = SheetStructureCache(db_path=DB, ttl=1000)
         cache.store("sid", [SheetInfo(title="Old", sheet_id=0)], modified_time="v1")
         cache.mark_dirty("sid")  # force the next lookup to be a genuine miss
 
-        sheet_id = _get_sheet_id(_FakeSheetsService(), "sid", "New", cache, _FakeDriveService())
+        sheet_id = await _get_sheet_id(
+            _FakeSheetsService(), "sid", "New", cache, _FakeDriveService()
+        )
 
         assert sheet_id == 1
         # The row was re-stored with a real modified_time ("v2", from

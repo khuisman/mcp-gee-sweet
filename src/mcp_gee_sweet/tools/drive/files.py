@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import logging
 from datetime import datetime, timedelta, timezone
@@ -8,6 +9,7 @@ from googleapiclient.errors import HttpError
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+from ...auth import execute_in_thread
 from ..sheets.helpers import _quote_sheet_name
 from . import _SA_QUOTA_ERROR
 
@@ -18,7 +20,7 @@ _CSV_IMPORT_CHUNK_ROWS = 5000
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Create Spreadsheet", destructiveHint=True))
-    def create_spreadsheet(
+    async def create_spreadsheet(
         title: str, folder_id: str | None = None, ctx: Context = None
     ) -> dict[str, Any]:
         """
@@ -49,10 +51,11 @@ def register(tool):
             file_body["parents"] = [target_folder_id]
 
         try:
-            spreadsheet = (
+            spreadsheet = await execute_in_thread(
                 drive_service.files()
                 .create(supportsAllDrives=True, body=file_body, fields="id, name, parents")
-                .execute()
+                .execute,
+                drive_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
@@ -77,7 +80,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Import CSV to Sheet", destructiveHint=True))
-    def import_csv_to_sheet(
+    async def import_csv_to_sheet(
         local_path: str,
         title: str,
         folder_id: str | None = None,
@@ -100,7 +103,13 @@ def register(tool):
             sheet_name: Name of the sheet the data is written to (default "Sheet1").
 
         Returns:
-            spreadsheetId, title, web_link, and rows_written.
+            spreadsheetId, title, web_link, and rows_written on full success. Rows are
+            written in row-range chunks that run concurrently; if one or more chunks
+            fail, the spreadsheet (already created) may have some rows missing — not
+            necessarily a clean prefix. In that case returns an 'error' summary plus
+            spreadsheetId, title, web_link, rows_attempted, failed_ranges (start_row,
+            end_row, error per failed chunk), and written_ranges (start_row, end_row
+            per chunk that succeeded), so the missing rows can be retried precisely.
 
         Note:
             Requires OAuth or ADC auth. Service accounts cannot create files in personal
@@ -113,8 +122,11 @@ def register(tool):
         if path.suffix.lower() != ".csv":
             return {"error": f"Unsupported file extension '{path.suffix}'. Use .csv"}
 
-        with path.open(newline="", encoding="utf-8") as f:
-            rows = list(csv.reader(f))
+        def _read_csv() -> list[list[str]]:
+            with path.open(newline="", encoding="utf-8") as f:
+                return list(csv.reader(f))
+
+        rows = await asyncio.to_thread(_read_csv)
 
         if not rows:
             return {"error": f"CSV file is empty: {local_path}"}
@@ -132,14 +144,15 @@ def register(tool):
             file_body["parents"] = [target_folder_id]
 
         try:
-            spreadsheet = (
+            spreadsheet = await execute_in_thread(
                 drive_service.files()
                 .create(
                     supportsAllDrives=True,
                     body=file_body,
                     fields="id, name, parents, webViewLink",
                 )
-                .execute()
+                .execute,
+                drive_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
@@ -149,15 +162,16 @@ def register(tool):
         spreadsheet_id = spreadsheet.get("id")
         target_folder_id = target_folder_id or (spreadsheet.get("parents", [None])[0])
 
-        default_sheet = (
+        spreadsheet_meta = await execute_in_thread(
             sheets_service.spreadsheets()
             .get(
                 spreadsheetId=spreadsheet_id,
                 fields="sheets(properties(sheetId,title,gridProperties))",
             )
-            .execute()
-            .get("sheets", [{}])[0]
+            .execute,
+            sheets_service,
         )
+        default_sheet = spreadsheet_meta.get("sheets", [{}])[0]
         default_props = default_sheet.get("properties", {})
         sheet_id = default_props.get("sheetId", 0)
         default_title = default_props.get("title")
@@ -191,24 +205,91 @@ def register(tool):
             )
 
         if requests:
-            sheets_service.spreadsheets().batchUpdate(
-                spreadsheetId=spreadsheet_id, body={"requests": requests}
-            ).execute()
+            await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
+                .execute,
+                sheets_service,
+            )
             lc.cache.mark_dirty(spreadsheet_id)
 
         quoted_sheet = _quote_sheet_name(sheet_name)
-        for start in range(0, len(rows), _CSV_IMPORT_CHUNK_ROWS):
-            chunk = rows[start : start + _CSV_IMPORT_CHUNK_ROWS]
-            sheets_service.spreadsheets().values().update(
-                spreadsheetId=spreadsheet_id,
-                range=f"{quoted_sheet}!A{start + 1}",
-                valueInputOption="USER_ENTERED",
-                body={"values": chunk},
-            ).execute()
+
+        async def _write_chunk(start: int, chunk: list[list]) -> dict[str, Any]:
+            row_range = {"start_row": start + 1, "end_row": start + len(chunk)}
+            try:
+                await execute_in_thread(
+                    sheets_service.spreadsheets()
+                    .values()
+                    .update(
+                        spreadsheetId=spreadsheet_id,
+                        range=f"{quoted_sheet}!A{start + 1}",
+                        valueInputOption="USER_ENTERED",
+                        body={"values": chunk},
+                    )
+                    .execute,
+                    sheets_service,
+                )
+                return {**row_range, "ok": True}
+            except Exception as e:
+                return {**row_range, "ok": False, "error": str(e)}
+
+        # Safe to parallelize: each chunk writes a disjoint row range of the same
+        # sheet (A{start+1} onward, non-overlapping), so there's no read-modify-write
+        # race between chunks. Unlike the old sequential loop — where a failure left a
+        # clean truncated prefix — a concurrent failure can leave a hole mid-sheet (an
+        # earlier chunk can still be in flight when a later one succeeds), so failures
+        # are reported per-range rather than as a single opaque exception.
+        chunks = [
+            (start, rows[start : start + _CSV_IMPORT_CHUNK_ROWS])
+            for start in range(0, len(rows), _CSV_IMPORT_CHUNK_ROWS)
+        ]
+        chunk_results: list[dict[str, Any]] = []
+        if chunks:
+            raw = await asyncio.gather(
+                *(_write_chunk(start, chunk) for start, chunk in chunks), return_exceptions=True
+            )
+            chunk_results = [
+                r
+                if not isinstance(r, BaseException)
+                else {
+                    "start_row": start + 1,
+                    "end_row": start + len(chunk),
+                    "ok": False,
+                    "error": str(r),
+                }
+                for (start, chunk), r in zip(chunks, raw, strict=True)
+            ]
 
         if target_folder_id:
             lc.drive_folder_cache.mark_dirty(target_folder_id)
         lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+
+        failed_ranges = [
+            {"start_row": r["start_row"], "end_row": r["end_row"], "error": r["error"]}
+            for r in chunk_results
+            if not r["ok"]
+        ]
+        if failed_ranges:
+            written_ranges = [
+                {"start_row": r["start_row"], "end_row": r["end_row"]}
+                for r in chunk_results
+                if r["ok"]
+            ]
+            return {
+                "error": (
+                    f"{len(failed_ranges)} of {len(chunk_results)} row-range write(s) failed. "
+                    "The spreadsheet was already created and some rows may be missing "
+                    "(not necessarily a clean prefix — chunks write concurrently). See "
+                    "failed_ranges for exactly which rows need to be retried."
+                ),
+                "spreadsheetId": spreadsheet_id,
+                "title": spreadsheet.get("name", title),
+                "web_link": spreadsheet.get("webViewLink"),
+                "rows_attempted": len(rows),
+                "failed_ranges": failed_ranges,
+                "written_ranges": written_ranges,
+            }
 
         logger.debug(
             "Imported CSV %s into spreadsheet %s (%d rows, %d cols)",
@@ -226,7 +307,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="List Spreadsheets", readOnlyHint=True))
-    def list_spreadsheets(
+    async def list_spreadsheets(
         folder_id: str | None = None, ctx: Context = None
     ) -> list[dict[str, str]]:
         """
@@ -250,7 +331,7 @@ def register(tool):
         else:
             logger.debug("Searching for spreadsheets in 'My Drive'")
 
-        results = (
+        results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=query,
@@ -260,13 +341,14 @@ def register(tool):
                 fields="files(id, name)",
                 orderBy="modifiedTime desc",
             )
-            .execute()
+            .execute,
+            drive_service,
         )
 
         return [{"id": f["id"], "title": f["name"]} for f in results.get("files", [])]
 
     @tool(annotations=ToolAnnotations(title="List Folders", readOnlyHint=True))
-    def list_folders(
+    async def list_folders(
         parent_folder_id: str | None = None, ctx: Context = None
     ) -> list[dict[str, str]]:
         """
@@ -290,7 +372,7 @@ def register(tool):
             query += " and 'root' in parents"
             logger.debug("Searching for folders in 'My Drive' root")
 
-        results = (
+        results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=query,
@@ -300,7 +382,8 @@ def register(tool):
                 fields="files(id, name, parents)",
                 orderBy="name",
             )
-            .execute()
+            .execute,
+            drive_service,
         )
 
         return [
@@ -313,7 +396,7 @@ def register(tool):
         ]
 
     @tool(annotations=ToolAnnotations(title="List Shared Drives", readOnlyHint=True))
-    def list_drives(
+    async def list_drives(
         query: str | None = None,
         max_results: int = 100,
         ctx: Context = None,
@@ -341,9 +424,14 @@ def register(tool):
         if query:
             kwargs["q"] = query
 
+        # Sequential by nature — each page's pageToken depends on the previous
+        # response, so this isn't a gather() candidate.
         drives: list[dict[str, Any]] = []
         while len(drives) < max_results:
-            result = drive_service.drives().list(**kwargs).execute()
+            result = await execute_in_thread(
+                drive_service.drives().list(**kwargs).execute,
+                drive_service,
+            )
             for d in result.get("drives", []):
                 drives.append(
                     {
@@ -362,7 +450,7 @@ def register(tool):
         return drives[:max_results]
 
     @tool(annotations=ToolAnnotations(title="List Files", readOnlyHint=True))
-    def list_files(
+    async def list_files(
         folder_id: str,
         mime_type: str | None = None,
         max_results: int = 100,
@@ -397,7 +485,7 @@ def register(tool):
         if mime_type:
             query += f" and mimeType='{mime_type}'"
 
-        results = (
+        results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=query,
@@ -408,7 +496,8 @@ def register(tool):
                 fields="files(id, name, mimeType, modifiedTime, webViewLink)",
                 orderBy="name",
             )
-            .execute()
+            .execute,
+            drive_service,
         )
 
         files = [
@@ -425,7 +514,7 @@ def register(tool):
         return files
 
     @tool(annotations=ToolAnnotations(title="Search Files", readOnlyHint=True))
-    def search_files(
+    async def search_files(
         query: str,
         mime_type: str | None = None,
         folder_id: str | None = None,
@@ -460,7 +549,7 @@ def register(tool):
             parts.append(f"'{folder_id}' in parents")
 
         try:
-            results = (
+            results = await execute_in_thread(
                 drive_service.files()
                 .list(
                     q=" and ".join(parts),
@@ -471,7 +560,8 @@ def register(tool):
                     fields="files(id, name, mimeType, createdTime, modifiedTime, owners, parents, webViewLink)",
                     orderBy="modifiedTime desc",
                 )
-                .execute()
+                .execute,
+                drive_service,
             )
             return [
                 {
@@ -493,7 +583,7 @@ def register(tool):
             title="Search Spreadsheets by Name or Content", readOnlyHint=True
         )
     )
-    def search_spreadsheets(
+    async def search_spreadsheets(
         query: str, max_results: int = 20, ctx: Context = None
     ) -> list[dict[str, Any]]:
         """
@@ -517,7 +607,7 @@ def register(tool):
         )
 
         try:
-            results = (
+            results = await execute_in_thread(
                 drive_service.files()
                 .list(
                     q=search_query,
@@ -528,7 +618,8 @@ def register(tool):
                     fields="files(id, name, createdTime, modifiedTime, owners, webViewLink)",
                     orderBy="modifiedTime desc",
                 )
-                .execute()
+                .execute,
+                drive_service,
             )
 
             return [
@@ -546,7 +637,7 @@ def register(tool):
             return [{"error": f"Search failed: {e!s}"}]
 
     @tool(annotations=ToolAnnotations(title="Get File Metadata", readOnlyHint=True))
-    def get_file_metadata(file_id: str, ctx: Context = None) -> dict[str, Any]:
+    async def get_file_metadata(file_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Get metadata for any file or folder in Google Drive.
 
@@ -559,14 +650,15 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        f = (
+        f = await execute_in_thread(
             drive_service.files()
             .get(
                 fileId=file_id,
                 fields="id, name, mimeType, parents, createdTime, modifiedTime, size, owners, webViewLink, trashed",
                 supportsAllDrives=True,
             )
-            .execute()
+            .execute,
+            drive_service,
         )
         mime = f["mimeType"]
         result: dict[str, Any] = {
@@ -587,7 +679,7 @@ def register(tool):
         return result
 
     @tool(annotations=ToolAnnotations(title="Create Folder", destructiveHint=True))
-    def create_folder(
+    async def create_folder(
         name: str, parent_folder_id: str | None = None, ctx: Context = None
     ) -> dict[str, Any]:
         """
@@ -612,10 +704,11 @@ def register(tool):
         if target_parent_id:
             file_body["parents"] = [target_parent_id]
 
-        folder = (
+        folder = await execute_in_thread(
             drive_service.files()
             .create(supportsAllDrives=True, body=file_body, fields="id, name, parents")
-            .execute()
+            .execute,
+            drive_service,
         )
 
         folder_id = folder.get("id")
@@ -632,7 +725,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Copy File", destructiveHint=True))
-    def copy_file(
+    async def copy_file(
         file_id: str,
         new_name: str | None = None,
         folder_id: str | None = None,
@@ -664,7 +757,7 @@ def register(tool):
             body["parents"] = [folder_id]
 
         try:
-            copied = (
+            copied = await execute_in_thread(
                 drive_service.files()
                 .copy(
                     fileId=file_id,
@@ -672,7 +765,8 @@ def register(tool):
                     supportsAllDrives=True,
                     fields="id, name, mimeType, parents, webViewLink",
                 )
-                .execute()
+                .execute,
+                drive_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
@@ -692,7 +786,9 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Move File", destructiveHint=True))
-    def move_file(file_id: str, destination_folder_id: str, ctx: Context = None) -> dict[str, Any]:
+    async def move_file(
+        file_id: str, destination_folder_id: str, ctx: Context = None
+    ) -> dict[str, Any]:
         """
         Move a file or folder to a different folder in Google Drive.
 
@@ -706,14 +802,15 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        existing = (
+        existing = await execute_in_thread(
             drive_service.files()
             .get(fileId=file_id, fields="parents", supportsAllDrives=True)
-            .execute()
+            .execute,
+            drive_service,
         )
         previous_parents = ",".join(existing.get("parents", []))
 
-        updated = (
+        updated = await execute_in_thread(
             drive_service.files()
             .update(
                 fileId=file_id,
@@ -722,7 +819,8 @@ def register(tool):
                 supportsAllDrives=True,
                 fields="id, name, parents, mimeType",
             )
-            .execute()
+            .execute,
+            drive_service,
         )
 
         logger.debug("Moved file %s to folder %s", file_id, destination_folder_id)
@@ -740,7 +838,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Rename File", destructiveHint=True))
-    def rename_file(file_id: str, new_name: str, ctx: Context = None) -> dict[str, Any]:
+    async def rename_file(file_id: str, new_name: str, ctx: Context = None) -> dict[str, Any]:
         """
         Rename a file or folder in Google Drive.
 
@@ -754,7 +852,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        updated = (
+        updated = await execute_in_thread(
             drive_service.files()
             .update(
                 fileId=file_id,
@@ -762,7 +860,8 @@ def register(tool):
                 supportsAllDrives=True,
                 fields="id, name, parents",
             )
-            .execute()
+            .execute,
+            drive_service,
         )
 
         parents = updated.get("parents", [])
@@ -776,7 +875,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="List Shared With Me", readOnlyHint=True))
-    def list_shared_with_me(
+    async def list_shared_with_me(
         mime_type: str | None = None,
         max_results: int = 50,
         ctx: Context = None,
@@ -802,7 +901,7 @@ def register(tool):
         if mime_type:
             parts.append(f"mimeType='{mime_type.replace(chr(39), chr(39) * 2)}'")
 
-        results = (
+        results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=" and ".join(parts),
@@ -811,7 +910,8 @@ def register(tool):
                 fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
                 orderBy="modifiedTime desc",
             )
-            .execute()
+            .execute,
+            drive_service,
         )
 
         return [
@@ -827,7 +927,7 @@ def register(tool):
         ]
 
     @tool(annotations=ToolAnnotations(title="List Recent Files", readOnlyHint=True))
-    def list_recent_files(
+    async def list_recent_files(
         max_results: int = 20,
         days: int | None = None,
         mime_type: str | None = None,
@@ -857,7 +957,7 @@ def register(tool):
         if mime_type:
             parts.append(f"mimeType='{mime_type.replace(chr(39), chr(39) * 2)}'")
 
-        results = (
+        results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=" and ".join(parts),
@@ -868,7 +968,8 @@ def register(tool):
                 fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
                 orderBy="modifiedTime desc",
             )
-            .execute()
+            .execute,
+            drive_service,
         )
 
         return [
@@ -884,7 +985,7 @@ def register(tool):
         ]
 
     @tool(annotations=ToolAnnotations(title="Get Storage Quota", readOnlyHint=True))
-    def get_storage_quota(ctx: Context = None) -> dict[str, Any]:
+    async def get_storage_quota(ctx: Context = None) -> dict[str, Any]:
         """
         Get Drive storage usage and limits for the authenticated account.
 
@@ -896,7 +997,10 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        about = drive_service.about().get(fields="storageQuota,user").execute()
+        about = await execute_in_thread(
+            drive_service.about().get(fields="storageQuota,user").execute,
+            drive_service,
+        )
 
         quota = about.get("storageQuota", {})
         user = about.get("user", {})
@@ -911,7 +1015,9 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Trash or Delete File", destructiveHint=True))
-    def delete_file(file_id: str, permanent: bool = False, ctx: Context = None) -> dict[str, Any]:
+    async def delete_file(
+        file_id: str, permanent: bool = False, ctx: Context = None
+    ) -> dict[str, Any]:
         """
         Move a file to the trash or permanently delete it.
 
@@ -927,24 +1033,33 @@ def register(tool):
         drive_service = lc.drive_service
 
         # Fetch parents before deletion so we can invalidate the cache
-        existing = (
+        existing = await execute_in_thread(
             drive_service.files()
             .get(fileId=file_id, fields="parents", supportsAllDrives=True)
-            .execute()
+            .execute,
+            drive_service,
         )
         for parent in existing.get("parents", []):
             lc.drive_folder_cache.mark_dirty(parent)
 
         if permanent:
-            drive_service.files().delete(fileId=file_id, supportsAllDrives=True).execute()
+            await execute_in_thread(
+                drive_service.files().delete(fileId=file_id, supportsAllDrives=True).execute,
+                drive_service,
+            )
             logger.debug("Permanently deleted file %s", file_id)
             return {"fileId": file_id, "action": "deleted"}
 
-        drive_service.files().update(
-            fileId=file_id,
-            body={"trashed": True},
-            supportsAllDrives=True,
-            fields="id",
-        ).execute()
+        await execute_in_thread(
+            drive_service.files()
+            .update(
+                fileId=file_id,
+                body={"trashed": True},
+                supportsAllDrives=True,
+                fields="id",
+            )
+            .execute,
+            drive_service,
+        )
         logger.debug("Trashed file %s", file_id)
         return {"fileId": file_id, "action": "trashed"}

@@ -4,6 +4,8 @@ from typing import Any
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+from ...auth import execute_in_thread
+
 logger = logging.getLogger(__name__)
 
 
@@ -174,7 +176,7 @@ def _build_named_style_requests(style_type: str, entry: dict) -> list[dict]:
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Style Document Range", destructiveHint=True))
-    def style_doc_range(
+    async def style_doc_range(
         doc_id: str,
         ranges: list[dict],
         ctx: Context = None,
@@ -259,9 +261,12 @@ def register(tool):
             return {"error": "no recognised style fields in any range"}
 
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": requests}
-            ).execute()
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -270,7 +275,7 @@ def register(tool):
         return {"docId": doc_id, "requests": len(requests)}
 
     @tool(annotations=ToolAnnotations(title="Style Document Table Cells", destructiveHint=True))
-    def style_doc_table_cells(
+    async def style_doc_table_cells(
         doc_id: str,
         table_start_index: int,
         cells: list[dict],
@@ -369,9 +374,12 @@ def register(tool):
             return {"error": "no style fields found in any cell"}
 
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": requests}
-            ).execute()
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -380,7 +388,7 @@ def register(tool):
         return {"docId": doc_id, "requests": len(requests)}
 
     @tool(annotations=ToolAnnotations(title="Get Document Theme"))
-    def get_doc_theme(
+    async def get_doc_theme(
         doc_id: str,
         ctx: Context = None,
     ) -> dict[str, Any]:
@@ -413,13 +421,16 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            doc = lc.docs_service.documents().get(documentId=doc_id).execute()
+            doc = await execute_in_thread(
+                lc.docs_service.documents().get(documentId=doc_id).execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
         return _read_body_styles(doc)
 
     @tool(annotations=ToolAnnotations(title="Get Document Named Styles"))
-    def get_doc_named_styles(
+    async def get_doc_named_styles(
         doc_id: str,
         ctx: Context = None,
     ) -> dict[str, Any]:
@@ -450,13 +461,16 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            doc = lc.docs_service.documents().get(documentId=doc_id).execute()
+            doc = await execute_in_thread(
+                lc.docs_service.documents().get(documentId=doc_id).execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
         return _read_named_styles(doc)
 
     @tool(annotations=ToolAnnotations(title="Apply Document Theme", destructiveHint=True))
-    def apply_theme(
+    async def apply_theme(
         doc_id: str,
         theme: dict,
         overwrite: bool = False,
@@ -519,7 +533,10 @@ def register(tool):
         doc: dict | None = None
         if overwrite or table_style:
             try:
-                doc = lc.docs_service.documents().get(documentId=doc_id).execute()
+                doc = await execute_in_thread(
+                    lc.docs_service.documents().get(documentId=doc_id).execute,
+                    lc.docs_service,
+                )
             except Exception as e:
                 return {"error": f"failed to fetch doc: {e}"}
 
@@ -655,9 +672,12 @@ def register(tool):
             return {"error": "no style requests could be built from the given theme"}
 
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": requests}
-            ).execute()
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 

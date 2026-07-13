@@ -21,6 +21,10 @@ from .cache import (
     SheetDataCache,
     SheetStructureCache,
 )
+from .http_transport import (  # noqa: F401 — re-exported for tool imports
+    execute_in_thread,
+    thread_http,
+)
 
 logger = logging.getLogger(__name__)
 

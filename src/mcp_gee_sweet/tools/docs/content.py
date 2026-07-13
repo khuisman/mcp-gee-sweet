@@ -12,6 +12,7 @@ from markdown.inlinepatterns import InlineProcessor
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+from ...auth import execute_in_thread
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME
 from ..drive import _SA_QUOTA_ERROR
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
@@ -144,7 +145,7 @@ def _html_to_doc_requests(
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Create Document", destructiveHint=True))
-    def create_doc(
+    async def create_doc(
         title: str,
         content: str | None = None,
         folder_id: str | None = None,
@@ -194,14 +195,15 @@ def register(tool):
             file_body["parents"] = [target_folder_id]
 
         try:
-            doc = (
+            doc = await execute_in_thread(
                 drive_service.files()
                 .create(
                     supportsAllDrives=True,
                     body=file_body,
                     fields="id, name, parents, webViewLink",
                 )
-                .execute()
+                .execute,
+                drive_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
@@ -221,10 +223,13 @@ def register(tool):
                 content, content_format, start_index=1, autolink_urls=autolink_urls
             )
             if content_requests:
-                docs_service.documents().batchUpdate(
-                    documentId=doc_id, body={"requests": content_requests}
-                ).execute()
-            fill_tables(docs_service, doc_id, tables)
+                await execute_in_thread(
+                    docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": content_requests})
+                    .execute,
+                    docs_service,
+                )
+            await fill_tables(docs_service, doc_id, tables)
 
         if target_folder_id:
             lc.drive_folder_cache.mark_dirty(target_folder_id)
@@ -237,7 +242,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Create Document from File", destructiveHint=True))
-    def create_doc_from_file(
+    async def create_doc_from_file(
         local_path: str,
         title: str | None = None,
         folder_id: str | None = None,
@@ -295,14 +300,15 @@ def register(tool):
             file_body["parents"] = [target_folder_id]
 
         try:
-            doc = (
+            doc = await execute_in_thread(
                 drive_service.files()
                 .create(
                     supportsAllDrives=True,
                     body=file_body,
                     fields="id, name, parents, webViewLink",
                 )
-                .execute()
+                .execute,
+                drive_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
@@ -318,10 +324,13 @@ def register(tool):
                 content, content_format, start_index=1, autolink_urls=autolink_urls
             )
             if content_requests:
-                docs_service.documents().batchUpdate(
-                    documentId=doc_id, body={"requests": content_requests}
-                ).execute()
-            fill_tables(docs_service, doc_id, tables)
+                await execute_in_thread(
+                    docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": content_requests})
+                    .execute,
+                    docs_service,
+                )
+            await fill_tables(docs_service, doc_id, tables)
 
         if target_folder_id:
             lc.drive_folder_cache.mark_dirty(target_folder_id)
@@ -334,7 +343,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Get Document Content", readOnlyHint=True))
-    def get_doc_content(
+    async def get_doc_content(
         file_id: str, local_path: str | None = None, ctx: Context = None
     ) -> dict[str, Any]:
         """
@@ -366,31 +375,36 @@ def register(tool):
         metadata = None
         current_mtime = None
         if CACHE_VALIDATE_MODIFIED_TIME:
-            metadata = (
+            metadata = await execute_in_thread(
                 drive_service.files()
                 .get(
                     fileId=file_id,
                     fields="id, name, modifiedTime, webViewLink",
                     supportsAllDrives=True,
                 )
-                .execute()
+                .execute,
+                drive_service,
             )
             current_mtime = metadata.get("modifiedTime")
 
         result = doc_cache.get(file_id, current_modified_time=current_mtime)
         if result is None:
             if metadata is None:
-                metadata = (
+                metadata = await execute_in_thread(
                     drive_service.files()
                     .get(
                         fileId=file_id,
                         fields="id, name, modifiedTime, webViewLink",
                         supportsAllDrives=True,
                     )
-                    .execute()
+                    .execute,
+                    drive_service,
                 )
 
-            content = drive_service.files().export(fileId=file_id, mimeType="text/plain").execute()
+            content = await execute_in_thread(
+                drive_service.files().export(fileId=file_id, mimeType="text/plain").execute,
+                drive_service,
+            )
 
             result = {
                 "id": metadata["id"],
@@ -402,7 +416,7 @@ def register(tool):
             doc_cache.store(file_id, result)
 
         if local_path:
-            return write_capped_result_to_disk(
+            return await write_capped_result_to_disk(
                 result,
                 local_path,
                 default_filename=f"{file_id}_content.json",
@@ -413,7 +427,7 @@ def register(tool):
         return result
 
     @tool(annotations=ToolAnnotations(title="Write Document Content", destructiveHint=True))
-    def write_doc_content(
+    async def write_doc_content(
         doc_id: str,
         content: str,
         content_format: str = "html",
@@ -444,7 +458,10 @@ def register(tool):
         docs_service = lc.docs_service
         drive_service = lc.drive_service
 
-        doc = docs_service.documents().get(documentId=doc_id).execute()
+        doc = await execute_in_thread(
+            docs_service.documents().get(documentId=doc_id).execute,
+            docs_service,
+        )
         body_content = doc.get("body", {}).get("content", [])
         end_index = body_content[-1].get("endIndex", 2) if body_content else 2
 
@@ -473,23 +490,30 @@ def register(tool):
             # from a pre-batch snapshot, so contamination survived even after the clear
             # request above ran earlier in that same batch. A separate call forces the
             # insert to see the already-cleared document state.
-            docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": clear_requests}
-            ).execute()
+            await execute_in_thread(
+                docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": clear_requests})
+                .execute,
+                docs_service,
+            )
 
         content_requests, tables = _to_doc_requests(
             content, content_format, start_index=1, autolink_urls=autolink_urls
         )
         if content_requests:
-            docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": content_requests}
-            ).execute()
-        fill_tables(docs_service, doc_id, tables)
+            await execute_in_thread(
+                docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": content_requests})
+                .execute,
+                docs_service,
+            )
+        await fill_tables(docs_service, doc_id, tables)
 
-        metadata = (
+        metadata = await execute_in_thread(
             drive_service.files()
             .get(fileId=doc_id, fields="webViewLink", supportsAllDrives=True)
-            .execute()
+            .execute,
+            drive_service,
         )
 
         lc.doc_cache.mark_dirty(doc_id)
@@ -497,7 +521,7 @@ def register(tool):
         return {"docId": doc_id, "web_link": metadata.get("webViewLink")}
 
     @tool(annotations=ToolAnnotations(title="Get Document Structure", readOnlyHint=True))
-    def get_doc_structure(doc_id: str, ctx: Context = None) -> dict[str, Any]:
+    async def get_doc_structure(doc_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Return the full structural map of a Google Doc body with element indices.
 
@@ -519,7 +543,10 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            doc = lc.docs_service.documents().get(documentId=doc_id).execute()
+            doc = await execute_in_thread(
+                lc.docs_service.documents().get(documentId=doc_id).execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -615,7 +642,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Insert Document Text", destructiveHint=True))
-    def insert_doc_text(
+    async def insert_doc_text(
         doc_id: str,
         insertions: list[dict],
         ctx: Context = None,
@@ -653,9 +680,12 @@ def register(tool):
                 if "segment_id" in op:
                     location["segmentId"] = op["segment_id"]
                 requests.append({"insertText": {"location": location, "text": op["text"]}})
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": requests}
-            ).execute()
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
         lc.doc_cache.mark_dirty(doc_id)
@@ -663,7 +693,7 @@ def register(tool):
         return {"docId": doc_id, "insertions": len(requests)}
 
     @tool(annotations=ToolAnnotations(title="Delete Document Range", destructiveHint=True))
-    def delete_doc_range(
+    async def delete_doc_range(
         doc_id: str,
         deletions: list[dict],
         ctx: Context = None,
@@ -702,9 +732,12 @@ def register(tool):
                 }
                 for op in sorted_ops
             ]
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": requests}
-            ).execute()
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
         lc.doc_cache.mark_dirty(doc_id)
@@ -712,7 +745,7 @@ def register(tool):
         return {"docId": doc_id, "deletions": len(requests)}
 
     @tool(annotations=ToolAnnotations(title="Insert Inline Image", destructiveHint=True))
-    def insert_inline_image(
+    async def insert_inline_image(
         doc_id: str,
         index: int,
         uri: str | None = None,
@@ -752,10 +785,11 @@ def register(tool):
 
         if drive_file_id:
             try:
-                metadata = (
+                metadata = await execute_in_thread(
                     lc.drive_service.files()
                     .get(fileId=drive_file_id, fields="webContentLink", supportsAllDrives=True)
-                    .execute()
+                    .execute,
+                    lc.drive_service,
                 )
                 uri = metadata.get("webContentLink")
                 if not uri:
@@ -778,9 +812,12 @@ def register(tool):
             image_request["insertInlineImage"]["objectSize"] = object_size
 
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": [image_request]}
-            ).execute()
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": [image_request]})
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 

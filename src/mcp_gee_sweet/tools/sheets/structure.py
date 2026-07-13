@@ -3,6 +3,7 @@ from typing import Any
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+from ...auth import execute_in_thread
 from ...cache import fetch_sheets
 from .helpers import _get_sheet_id, _get_sheet_index, _parse_a1_notation
 
@@ -33,7 +34,7 @@ def _per_column_ranges(sheet_id: int, indices: dict) -> list[dict]:
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="List Sheets", readOnlyHint=True))
-    def list_sheets(spreadsheet_id: str, ctx: Context = None) -> list[str]:
+    async def list_sheets(spreadsheet_id: str, ctx: Context = None) -> list[str]:
         """
         List all sheets in a Google Spreadsheet.
 
@@ -46,11 +47,11 @@ def register(tool):
             refresh_cache() to clear all caches.
         """
         lc = ctx.request_context.lifespan_context
-        sheets = fetch_sheets(lc.sheets_service, spreadsheet_id, lc.cache, lc.drive_service)
+        sheets = await fetch_sheets(lc.sheets_service, spreadsheet_id, lc.cache, lc.drive_service)
         return [s.title for s in sheets]
 
     @tool(annotations=ToolAnnotations(title="Copy Sheet", destructiveHint=True))
-    def copy_sheet(
+    async def copy_sheet(
         src_spreadsheet: str,
         src_sheet: str,
         dst_spreadsheet: str,
@@ -72,7 +73,10 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        src = sheets_service.spreadsheets().get(spreadsheetId=src_spreadsheet).execute()
+        src = await execute_in_thread(
+            sheets_service.spreadsheets().get(spreadsheetId=src_spreadsheet).execute,
+            sheets_service,
+        )
         src_sheet_id = next(
             (
                 s["properties"]["sheetId"]
@@ -85,7 +89,7 @@ def register(tool):
         if src_sheet_id is None:
             return {"error": f"Source sheet '{src_sheet}' not found"}
 
-        copy_result = (
+        copy_result = await execute_in_thread(
             sheets_service.spreadsheets()
             .sheets()
             .copyTo(
@@ -93,13 +97,14 @@ def register(tool):
                 sheetId=src_sheet_id,
                 body={"destinationSpreadsheetId": dst_spreadsheet},
             )
-            .execute()
+            .execute,
+            sheets_service,
         )
 
         result = {"copy": copy_result}
 
         if copy_result.get("title") != dst_sheet:
-            rename_result = (
+            rename_result = await execute_in_thread(
                 sheets_service.spreadsheets()
                 .batchUpdate(
                     spreadsheetId=dst_spreadsheet,
@@ -117,7 +122,8 @@ def register(tool):
                         ]
                     },
                 )
-                .execute()
+                .execute,
+                sheets_service,
             )
             result["rename"] = rename_result
 
@@ -125,7 +131,7 @@ def register(tool):
         return result
 
     @tool(annotations=ToolAnnotations(title="Duplicate Sheet", destructiveHint=True))
-    def duplicate_sheet(
+    async def duplicate_sheet(
         spreadsheet_id: str,
         sheet: str,
         new_name: str | None = None,
@@ -151,7 +157,9 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
@@ -159,19 +167,20 @@ def register(tool):
         if insert_index is not None:
             duplicate_request["insertSheetIndex"] = insert_index
         else:
-            source_index = _get_sheet_index(sheets_service, spreadsheet_id, sheet_id)
+            source_index = await _get_sheet_index(sheets_service, spreadsheet_id, sheet_id)
             if source_index is not None:
                 duplicate_request["insertSheetIndex"] = source_index + 1
         if new_name is not None:
             duplicate_request["newSheetName"] = new_name
 
-        result = (
+        result = await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
                 body={"requests": [{"duplicateSheet": duplicate_request}]},
             )
-            .execute()
+            .execute,
+            sheets_service,
         )
 
         lc.cache.mark_dirty(spreadsheet_id)
@@ -185,7 +194,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Rename Sheet", destructiveHint=True))
-    def rename_sheet(
+    async def rename_sheet(
         spreadsheet: str, sheet: str, new_name: str, ctx: Context = None
     ) -> dict[str, Any]:
         """
@@ -202,7 +211,10 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        spreadsheet_data = sheets_service.spreadsheets().get(spreadsheetId=spreadsheet).execute()
+        spreadsheet_data = await execute_in_thread(
+            sheets_service.spreadsheets().get(spreadsheetId=spreadsheet).execute,
+            sheets_service,
+        )
         sheet_id = next(
             (
                 s["properties"]["sheetId"]
@@ -215,7 +227,7 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        result = (
+        result = await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet,
@@ -230,14 +242,15 @@ def register(tool):
                     ]
                 },
             )
-            .execute()
+            .execute,
+            sheets_service,
         )
 
         lc.cache.mark_dirty(spreadsheet)
         return result
 
     @tool(annotations=ToolAnnotations(title="Create Sheet", destructiveHint=True))
-    def create_sheet(spreadsheet_id: str, title: str, ctx: Context = None) -> dict[str, Any]:
+    async def create_sheet(spreadsheet_id: str, title: str, ctx: Context = None) -> dict[str, Any]:
         """
         Create a new sheet tab in an existing Google Spreadsheet.
 
@@ -251,13 +264,14 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        result = (
+        result = await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
                 body={"requests": [{"addSheet": {"properties": {"title": title}}}]},
             )
-            .execute()
+            .execute,
+            sheets_service,
         )
 
         lc.cache.mark_dirty(spreadsheet_id)
@@ -271,7 +285,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Add Rows", destructiveHint=True))
-    def add_rows(
+    async def add_rows(
         spreadsheet_id: str,
         sheet: str,
         count: int,
@@ -293,12 +307,14 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
         start = start_row if start_row is not None else 0
-        result = (
+        result = await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -318,13 +334,14 @@ def register(tool):
                     ]
                 },
             )
-            .execute()
+            .execute,
+            sheets_service,
         )
 
         return result
 
     @tool(annotations=ToolAnnotations(title="Add Columns", destructiveHint=True))
-    def add_columns(
+    async def add_columns(
         spreadsheet_id: str,
         sheet: str,
         count: int,
@@ -346,12 +363,14 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
         start = start_column if start_column is not None else 0
-        result = (
+        result = await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -371,13 +390,14 @@ def register(tool):
                     ]
                 },
             )
-            .execute()
+            .execute,
+            sheets_service,
         )
 
         return result
 
     @tool(annotations=ToolAnnotations(title="Delete Sheet", destructiveHint=True))
-    def delete_sheet(spreadsheet_id: str, sheet: str, ctx: Context = None) -> dict[str, Any]:
+    async def delete_sheet(spreadsheet_id: str, sheet: str, ctx: Context = None) -> dict[str, Any]:
         """
         Delete a sheet tab from a Google Spreadsheet.
 
@@ -391,24 +411,27 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        result = (
+        result = await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
                 body={"requests": [{"deleteSheet": {"sheetId": sheet_id}}]},
             )
-            .execute()
+            .execute,
+            sheets_service,
         )
 
         lc.cache.mark_dirty(spreadsheet_id)
         return result
 
     @tool(annotations=ToolAnnotations(title="Delete Rows", destructiveHint=True))
-    def delete_rows(
+    async def delete_rows(
         spreadsheet_id: str,
         sheet: str,
         start_row: int,
@@ -431,13 +454,15 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
         end_index = (end_row if end_row is not None else start_row) + 1  # exclusive
 
-        return (
+        return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -456,11 +481,12 @@ def register(tool):
                     ]
                 },
             )
-            .execute()
+            .execute,
+            sheets_service,
         )
 
     @tool(annotations=ToolAnnotations(title="Delete Columns", destructiveHint=True))
-    def delete_columns(
+    async def delete_columns(
         spreadsheet_id: str,
         sheet: str,
         start_column: int,
@@ -483,13 +509,15 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
         end_index = (end_column if end_column is not None else start_column) + 1  # exclusive
 
-        return (
+        return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -508,11 +536,12 @@ def register(tool):
                     ]
                 },
             )
-            .execute()
+            .execute,
+            sheets_service,
         )
 
     @tool(annotations=ToolAnnotations(title="Format Cells", destructiveHint=True))
-    def format_cells(
+    async def format_cells(
         spreadsheet_id: str,
         sheet: str,
         range: str,
@@ -553,7 +582,9 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
@@ -611,7 +642,7 @@ def register(tool):
         if "endColumnIndex" in indices:
             grid_range["endColumnIndex"] = indices["endColumnIndex"]
 
-        return (
+        return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -627,11 +658,12 @@ def register(tool):
                     ]
                 },
             )
-            .execute()
+            .execute,
+            sheets_service,
         )
 
     @tool(annotations=ToolAnnotations(title="Merge Cells", destructiveHint=True))
-    def merge_cells(
+    async def merge_cells(
         spreadsheet_id: str,
         sheet: str,
         range: str,
@@ -654,7 +686,9 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
@@ -669,7 +703,7 @@ def register(tool):
         if "endColumnIndex" in indices:
             grid_range["endColumnIndex"] = indices["endColumnIndex"]
 
-        return (
+        return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -684,11 +718,12 @@ def register(tool):
                     ]
                 },
             )
-            .execute()
+            .execute,
+            sheets_service,
         )
 
     @tool(annotations=ToolAnnotations(title="Unmerge Cells", destructiveHint=True))
-    def unmerge_cells(
+    async def unmerge_cells(
         spreadsheet_id: str,
         sheet: str,
         range: str,
@@ -708,7 +743,9 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
@@ -723,17 +760,18 @@ def register(tool):
         if "endColumnIndex" in indices:
             grid_range["endColumnIndex"] = indices["endColumnIndex"]
 
-        return (
+        return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
                 body={"requests": [{"unmergeCells": {"range": grid_range}}]},
             )
-            .execute()
+            .execute,
+            sheets_service,
         )
 
     @tool(annotations=ToolAnnotations(title="Freeze Rows/Columns"))
-    def freeze(
+    async def freeze(
         spreadsheet_id: str,
         sheet: str,
         rows: int = 0,
@@ -755,11 +793,13 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        return (
+        return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -780,11 +820,12 @@ def register(tool):
                     ]
                 },
             )
-            .execute()
+            .execute,
+            sheets_service,
         )
 
     @tool(annotations=ToolAnnotations(title="Sort Range"))
-    def sort_range(
+    async def sort_range(
         spreadsheet_id: str,
         sheet: str,
         range: str,
@@ -809,7 +850,9 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
@@ -837,7 +880,7 @@ def register(tool):
             for s in sort_order
         ]
 
-        return (
+        return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
@@ -852,11 +895,12 @@ def register(tool):
                     ]
                 },
             )
-            .execute()
+            .execute,
+            sheets_service,
         )
 
     @tool(annotations=ToolAnnotations(title="Add Chart", destructiveHint=True))
-    def add_chart(
+    async def add_chart(
         spreadsheet_id: str,
         sheet: str,
         chart_type: str,
@@ -931,7 +975,9 @@ def register(tool):
                 "error": f"Invalid chart type '{chart_type}'. Must be one of: {', '.join(_VALID_CHART_TYPES)}"
             }
 
-        sheet_id = _get_sheet_id(sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service)
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found in spreadsheet"}
 
@@ -1006,7 +1052,7 @@ def register(tool):
             )
 
         try:
-            result = (
+            result = await execute_in_thread(
                 sheets_service.spreadsheets()
                 .batchUpdate(
                     spreadsheetId=spreadsheet_id,
@@ -1035,7 +1081,8 @@ def register(tool):
                         ]
                     },
                 )
-                .execute()
+                .execute,
+                sheets_service,
             )
 
             return {

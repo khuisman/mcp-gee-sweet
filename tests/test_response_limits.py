@@ -61,9 +61,9 @@ class TestEnforceResponseSizeCap:
 
 
 class TestWriteCappedResultToDisk:
-    def test_writes_dict_result(self, tmp_path):
+    async def test_writes_dict_result(self, tmp_path):
         dest = tmp_path / "out.json"
-        result = response_limits.write_capped_result_to_disk(
+        result = await response_limits.write_capped_result_to_disk(
             {"a": 1}, str(dest), default_filename="fallback.json", manifest_extra={"id": "x"}
         )
         assert result["local_path"] == str(dest)
@@ -71,33 +71,33 @@ class TestWriteCappedResultToDisk:
         assert result["bytes_written"] == dest.stat().st_size
         assert json.loads(dest.read_text()) == {"a": 1}
 
-    def test_writes_list_result(self, tmp_path):
+    async def test_writes_list_result(self, tmp_path):
         dest = tmp_path / "out.json"
-        response_limits.write_capped_result_to_disk(
+        await response_limits.write_capped_result_to_disk(
             [{"a": 1}, {"b": 2}], str(dest), default_filename="fallback.json", manifest_extra={}
         )
         assert json.loads(dest.read_text()) == [{"a": 1}, {"b": 2}]
 
-    def test_directory_path_uses_default_filename(self, tmp_path):
-        result = response_limits.write_capped_result_to_disk(
+    async def test_directory_path_uses_default_filename(self, tmp_path):
+        result = await response_limits.write_capped_result_to_disk(
             {"a": 1}, str(tmp_path), default_filename="fallback.json", manifest_extra={}
         )
         dest = tmp_path / "fallback.json"
         assert result["local_path"] == str(dest)
         assert dest.exists()
 
-    def test_creates_missing_parent_dirs(self, tmp_path):
+    async def test_creates_missing_parent_dirs(self, tmp_path):
         dest = tmp_path / "nested" / "sub" / "out.json"
-        response_limits.write_capped_result_to_disk(
+        await response_limits.write_capped_result_to_disk(
             {"a": 1}, str(dest), default_filename="fallback.json", manifest_extra={}
         )
         assert dest.exists()
 
-    def test_bypasses_cap_even_when_genuinely_oversized(self, tmp_path, monkeypatch):
+    async def test_bypasses_cap_even_when_genuinely_oversized(self, tmp_path, monkeypatch):
         monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
         dest = tmp_path / "out.json"
         big_result = {"filler": "x" * 1000}
-        result = response_limits.write_capped_result_to_disk(
+        result = await response_limits.write_capped_result_to_disk(
             big_result, str(dest), default_filename="fallback.json", manifest_extra={}
         )
         assert json.loads(dest.read_text()) == big_result

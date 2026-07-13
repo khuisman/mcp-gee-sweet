@@ -284,6 +284,23 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
+### TC-D176: Concurrent multi-recipient share — no cross-attribution (issue #183)
+
+**Background:** #183 made `share_spreadsheet` issue its per-recipient `permissions().create()` calls concurrently via `asyncio.gather()` instead of one at a time. Mocked unit tests can't catch a genuine race against the real Drive API — this exercises enough distinct, identifiable recipients at once to surface any result mixed up between concurrent calls (wrong role or permissionId attributed to the wrong email).
+
+**Prompt**
+> "Share {SPREADSHEET_ID} with these 5 recipients at once: recipient1@example.com as reader, recipient2@example.com as commenter, recipient3@example.com as writer, recipient4@example.com as reader, recipient5@example.com as writer"
+
+**Checks**
+- All 5 entries appear in `successes`, none in `failures`
+- Each entry's `email_address` and `role` in the response exactly match what was requested for that recipient — cross-check every one individually, not just the count
+- `list_permissions` on the spreadsheet afterward confirms each of the 5 emails actually has the role it was assigned (not swapped with another recipient's)
+
+**Teardown**
+`remove_permission` for each of the 5 test recipients.
+
+---
+
 ## `list_folders`
 
 ### TC-D26: List folders in a specific parent
@@ -1390,6 +1407,27 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
+### TC-D178: Concurrent mixed upload/download batch — no cross-attribution or corruption ⚠️ destructive ⚠️ local-filesystem (issue #183)
+
+**Background:** #183 made `sync_folder`'s per-file transfers run concurrently via `asyncio.gather()` instead of one at a time, including simultaneous uploads and downloads in the same call. Mocked unit tests can't catch a genuine race against the real Drive API — this exercises enough distinct, identifiable files at once (each with unique content) to surface any result attributed to the wrong file, or file content written to the wrong destination, under real concurrency.
+
+**Setup**
+In `{FOLDER_ID}`, create 3 Drive-only files (`drive-a.txt`, `drive-b.txt`, `drive-c.txt`), each with distinct content (e.g. containing its own filename as a marker). Locally in `/tmp/qa-sync-183/`, create 3 local-only files (`local-x.txt`, `local-y.txt`, `local-z.txt`), each with distinct content.
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-183/` using direction='bidirectional'"
+
+**Checks**
+- All 3 Drive-only files appear in `downloaded`; all 3 local-only files appear in `uploaded`; `failed` is empty
+- Each downloaded local file's content matches its *own* source Drive file's marker — not another file's content (would indicate cross-attribution under concurrency)
+- Each uploaded Drive file's content matches its *own* source local file's marker (check via `export_file` or `download_file` on each)
+- `size_bytes` equals the sum of the 3 downloaded files' actual sizes
+
+**Teardown**
+Delete the 3 Drive-only test files from `{FOLDER_ID}`, delete the 3 uploaded local-only files from Drive, remove `/tmp/qa-sync-183/`.
+
+---
+
 ## `list_drives`
 
 ### TC-D120: List all shared drives
@@ -1639,6 +1677,23 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - `send_notification=False` confirmed — `sendNotificationEmail=False` passed to the API
 
 > ⚠️ **Note:** Drive requires `sendNotificationEmail=True` when sharing with non-Google Workspace accounts. If `TEST_PERMISSION_EMAIL` is a personal Gmail, this test may fail with a Drive API restriction — record as environmental, not a tool bug.
+
+---
+
+### TC-D177: Concurrent multi-permission share — no cross-attribution (issue #183)
+
+**Background:** Same concurrency change as TC-D176, applied to `share_file`'s richer type/domain/anyone permission model. This mixes distinct types and roles across several entries at once to catch a result attributed to the wrong entry under concurrent execution.
+
+**Prompt**
+> "Share {SPREADSHEET_ID} using share_file with these 4 permissions at once: type='user' email=recipient1@example.com role='reader', type='user' email=recipient2@example.com role='writer', type='user' email=recipient3@example.com role='commenter', type='domain' domain={GWS_DOMAIN} role='reader'"
+
+**Checks**
+- All 4 entries appear in `successes`, none in `failures`
+- Each entry's `type`, `role`, and `email_address`/`domain` in the response exactly match what was requested for that entry — cross-check individually
+- `list_permissions` afterward confirms each principal actually has the role it was assigned (not swapped with another entry's)
+
+**Teardown**
+`remove_permission` for each of the 4 test permissions.
 
 ---
 
@@ -2098,3 +2153,23 @@ Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded t
 - Unit-level equivalent already covered: `test_storage_quota_error_returns_helpful_message`
 
 **Result (2026-07-05) ✅ PASS** Against the service-account server (`mcp-gee-sweet-sa`), the call returned `{"error": "Service accounts cannot create or copy files in personal Drive (no storage quota). Use OAuth or ADC auth for full Drive write access, or use a Shared Drive destination. Check server://auth-status for your current auth method and affected tools."}` — the same `_SA_QUOTA_ERROR` message `create_spreadsheet` returns, confirming the shared error path works for this tool too.
+
+---
+
+### TC-D179: Large CSV split across concurrent chunk writes lands correctly ⚠️ requires-oauth ⚠️ local-filesystem (issue #183)
+
+**Background:** #183 parallelized `import_csv_to_sheet`'s chunked row-writing loop via `asyncio.gather()` — each chunk writes a disjoint row range of the same sheet concurrently instead of sequentially. Mocked unit tests confirm the request shapes are correct but can't catch a genuine race against the real Sheets API (e.g. a chunk's write landing at the wrong row offset, or two chunks' writes overlapping). This forces at least 3 concurrent chunks with distinctly identifiable content per chunk.
+
+**Setup**
+Generate a local CSV with a header row plus 12,000 data rows, where each row's first cell is its own row number (e.g. row 1's cell reads `"row-1"`, row 5000's reads `"row-5000"`). With the default `_CSV_IMPORT_CHUNK_ROWS=5000`, this produces 3 chunks (5000 + 5000 + 2000 rows).
+
+**Prompt**
+> "Import `/tmp/qa-import-183.csv` into a new spreadsheet called 'QA-CSV-Concurrent-183'"
+
+**Checks**
+- `rows_written` equals 12,001 (header + 12,000 data rows)
+- Spot-check the boundary rows of each chunk (e.g. rows 1, 4999, 5000, 5001, 9999, 10000, 10001, 12000) via `get_sheet_data` — each cell's value matches its expected row-number marker, confirming no chunk landed at the wrong offset and no two chunks overlapped or clobbered each other
+- No gaps: every row from 1 to 12,000 is present exactly once
+
+**Teardown**
+Delete the `QA-CSV-Concurrent-183` spreadsheet.

@@ -72,18 +72,18 @@ class TestUploadFile:
             "webViewLink": "https://example.com",
         }
 
-    def test_quota_exceeded_returns_friendly_error_dict(self):
+    async def test_quota_exceeded_returns_friendly_error_dict(self):
         """upload_file must return {"error": ...} on storageQuotaExceeded, not raise."""
         mock = MagicMock()
         mock.files.return_value.create.return_value.execute.side_effect = self._quota_err()
         ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock(), folder_id=None)
-        result = _transfer_tools["upload_file"](name="test.txt", content="hello", ctx=ctx)
+        result = await _transfer_tools["upload_file"](name="test.txt", content="hello", ctx=ctx)
         assert "error" in result
         assert "storageQuotaExceeded" not in result["error"]  # raw message replaced
         assert "Service accounts" in result["error"]
         assert "server://auth-status" in result["error"]
 
-    def test_with_folder_marks_folder_cache_dirty(self):
+    async def test_with_folder_marks_folder_cache_dirty(self):
         mock = MagicMock()
         mock.files.return_value.create.return_value.execute.return_value = (
             self._drive_file_response()
@@ -92,44 +92,44 @@ class TestUploadFile:
         ctx = _make_ctx(
             drive_service=mock, drive_folder_cache=folder_cache, folder_id="default_folder"
         )
-        _transfer_tools["upload_file"](
+        await _transfer_tools["upload_file"](
             name="doc.txt", content="hello", folder_id="target_folder", ctx=ctx
         )
         folder_cache.mark_dirty.assert_called_once_with("target_folder")
 
 
 class TestXlsxRangeValues:
-    def test_no_range_returns_all_rows(self):
+    async def test_no_range_returns_all_rows(self):
         wb = _roundtrip(_make_wb([["A", "B"], ["C", "D"]]))
         result = _xlsx_range_values(wb.active, None)
         assert result == [["A", "B"], ["C", "D"]]
 
-    def test_multi_cell_range(self):
+    async def test_multi_cell_range(self):
         wb = _roundtrip(_make_wb([["A", "B", "C"], ["D", "E", "F"], ["G", "H", "I"]]))
         result = _xlsx_range_values(wb.active, "A1:B2")
         assert result == [["A", "B"], ["D", "E"]]
 
-    def test_single_row_range(self):
+    async def test_single_row_range(self):
         wb = _roundtrip(_make_wb([["X", "Y", "Z"]]))
         result = _xlsx_range_values(wb.active, "A1:C1")
         assert result == [["X", "Y", "Z"]]
 
-    def test_single_cell_range(self):
+    async def test_single_cell_range(self):
         wb = _roundtrip(_make_wb([["Hello", "World"]]))
         result = _xlsx_range_values(wb.active, "A1")
         assert result == [["Hello"]]
 
-    def test_empty_cells_return_none(self):
+    async def test_empty_cells_return_none(self):
         wb = _roundtrip(_make_wb([["A", None, "C"]]))
         result = _xlsx_range_values(wb.active, "A1:C1")
         assert result == [["A", None, "C"]]
 
-    def test_numeric_values(self):
+    async def test_numeric_values(self):
         wb = _roundtrip(_make_wb([[1, 2.5, 3]]))
         result = _xlsx_range_values(wb.active, "A1:C1")
         assert result == [[1, 2.5, 3]]
 
-    def test_second_sheet(self):
+    async def test_second_sheet(self):
         wb = openpyxl.Workbook()
         wb.active.title = "Sheet1"
         ws2 = wb.create_sheet("Sheet2")
@@ -159,25 +159,25 @@ class TestExportFile:
         svc.files.return_value.export.return_value.execute.return_value = content_bytes
         return svc
 
-    def test_small_export_succeeds(self):
+    async def test_small_export_succeeds(self):
         ctx = self._ctx(self._workspace_svc(b"small pdf content"))
-        result = _transfer_tools["export_file"](file_id="doc1", export_format="pdf", ctx=ctx)
+        result = await _transfer_tools["export_file"](file_id="doc1", export_format="pdf", ctx=ctx)
         assert result["encoding"] == "base64"
 
-    def test_oversized_base64_content_raises(self, monkeypatch):
+    async def test_oversized_base64_content_raises(self, monkeypatch):
         monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
         ctx = self._ctx(self._workspace_svc(b"x" * 1000))
         with pytest.raises(ValueError, match="safety cap"):
-            _transfer_tools["export_file"](file_id="doc1", export_format="pdf", ctx=ctx)
+            await _transfer_tools["export_file"](file_id="doc1", export_format="pdf", ctx=ctx)
 
-    def test_error_points_to_download_file_not_local_path(self, monkeypatch):
+    async def test_error_points_to_download_file_not_local_path(self, monkeypatch):
         # export_file has no local_path param — download_file is the correct bypass
         # (raw bytes to disk, no base64/JSON overhead), so the error must say so and
         # must not reference a param this tool doesn't have.
         monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
         ctx = self._ctx(self._workspace_svc(b"x" * 1000))
         with pytest.raises(ValueError) as exc_info:
-            _transfer_tools["export_file"](file_id="doc1", export_format="pdf", ctx=ctx)
+            await _transfer_tools["export_file"](file_id="doc1", export_format="pdf", ctx=ctx)
         msg = str(exc_info.value)
         assert "download_file" in msg
         assert "local_path" not in msg

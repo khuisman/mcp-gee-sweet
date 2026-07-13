@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Get Cache TTL", readOnlyHint=True))
-    def get_cache_ttl(ctx: Context = None) -> dict[str, Any]:
+    async def get_cache_ttl(ctx: Context = None) -> dict[str, Any]:
         """
         Read the cache TTL currently in effect for this running process.
 
@@ -21,7 +21,7 @@ def register(tool):
         return {"ttl_seconds": lc.cache.get_ttl()}
 
     @tool(annotations=ToolAnnotations(title="Set Cache TTL"))
-    def set_cache_ttl(ttl_seconds: int, ctx: Context = None) -> dict[str, Any]:
+    async def set_cache_ttl(ttl_seconds: int, ctx: Context = None) -> dict[str, Any]:
         """
         Change the cache time-to-live at runtime, without restarting the server.
 
@@ -61,7 +61,7 @@ def register(tool):
         return {"ttl_seconds": ttl_seconds}
 
     @tool(annotations=ToolAnnotations(title="Refresh Cache", readOnlyHint=True))
-    def refresh_cache(
+    async def refresh_cache(
         spreadsheet_id: str | None = None,
         doc_id: str | None = None,
         folder_id: str | None = None,

@@ -5,6 +5,7 @@ from googleapiclient.errors import HttpError
 from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
+from ...auth import execute_in_thread
 from ..response_limits import enforce_response_size_cap
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ def _parse_action(primary: dict) -> str:
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="List File Activity", readOnlyHint=True))
-    def list_file_activity(
+    async def list_file_activity(
         file_id: str,
         page_size: int = 50,
         page_token: str | None = None,
@@ -107,7 +108,10 @@ def register(tool):
             body["pageToken"] = page_token
 
         try:
-            response = activity_service.activity().query(body=body).execute()
+            response = await execute_in_thread(
+                activity_service.activity().query(body=body).execute,
+                activity_service,
+            )
         except HttpError as e:
             logger.debug("Drive Activity API error for file %s: %s", file_id, e)
             return {"error": str(e)}

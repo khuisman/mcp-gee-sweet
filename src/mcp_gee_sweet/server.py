@@ -60,7 +60,7 @@ if _level_name := os.getenv("DEBUG_LEVEL"):
 from mcp.server.fastmcp import FastMCP  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402
 
-from .auth import spreadsheet_lifespan  # noqa: E402
+from .auth import execute_in_thread, spreadsheet_lifespan  # noqa: E402
 
 
 def _parse_enabled_tools() -> set | None:
@@ -102,11 +102,11 @@ _tool_access_logger = logging.getLogger("mcp_gee_sweet.access")
 
 def _timed(func):
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
+    async def wrapper(*args, **kwargs):
         start = time.perf_counter()
         status = 200
         try:
-            return func(*args, **kwargs)
+            return await func(*args, **kwargs)
         except Exception:
             status = 500
             raise
@@ -217,7 +217,7 @@ def get_auth_status() -> str:
 
 
 @mcp.resource("spreadsheet://{spreadsheet_id}/info")
-def get_spreadsheet_info(spreadsheet_id: str) -> str:
+async def get_spreadsheet_info(spreadsheet_id: str) -> str:
     """
     Get basic information about a Google Spreadsheet.
 
@@ -230,7 +230,10 @@ def get_spreadsheet_info(spreadsheet_id: str) -> str:
     context = mcp.get_lifespan_context()
     sheets_service = context.sheets_service
 
-    spreadsheet = sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+    spreadsheet = await execute_in_thread(
+        sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute,
+        sheets_service,
+    )
     info = {
         "title": spreadsheet.get("properties", {}).get("title", "Unknown"),
         "sheets": [

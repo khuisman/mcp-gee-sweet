@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from .http_transport import execute_in_thread
+
 logger = logging.getLogger(__name__)
 
 
@@ -54,8 +56,12 @@ def _connect(path: str) -> sqlite3.Connection:
 def _open(db_path: str) -> sqlite3.Connection:
     # Each cache class holds its own connection to the same DB file. WAL mode lets
     # them read concurrently without blocking each other. All cache I/O is synchronous
-    # on the asyncio event loop — acceptable at this scale; wrap in asyncio.to_thread()
-    # if it ever shows up in profiling.
+    # on the asyncio event loop — deliberately NOT wrapped in asyncio.to_thread(), even
+    # though tool code now runs concurrent .execute() calls via asyncio.gather() (#183).
+    # A sync call here only ever runs on the single event-loop thread, interleaved
+    # between awaits, so it can never race with another coroutine's cache access —
+    # wrapping it in to_thread() would introduce real OS-thread concurrency against
+    # this connection with no lock protecting it. Leave this synchronous.
     try:
         return _connect(db_path)
     except sqlite3.OperationalError as exc:
@@ -105,7 +111,7 @@ def _safe_write(conn: sqlite3.Connection, sql: str, params: tuple) -> None:
         logger.warning("Cache write failed (%s), continuing without caching", exc)
 
 
-def get_modified_time(drive_service: Any, file_id: str) -> str | None:
+async def get_modified_time(drive_service: Any, file_id: str) -> str | None:
     """Fetch a Drive file's modifiedTime, or None if unavailable/on any failure.
 
     Used to validate a cache hit against the live source before serving it —
@@ -115,10 +121,11 @@ def get_modified_time(drive_service: Any, file_id: str) -> str | None:
     if drive_service is None:
         return None
     try:
-        meta = (
+        meta = await execute_in_thread(
             drive_service.files()
             .get(fileId=file_id, fields="modifiedTime", supportsAllDrives=True)
-            .execute()
+            .execute,
+            drive_service,
         )
         return meta.get("modifiedTime")
     except Exception as e:
@@ -146,6 +153,13 @@ class _BaseCache:
     def __init__(self, db_path: str = CACHE_DB_PATH, ttl: int = CACHE_TTL):
         self._ttl = ttl
         self._conn = _open(db_path)
+        # In-memory only (not persisted) — bumped on every dirty-marking. A read that
+        # snapshots this before an async fetch and passes it to store() afterward lets
+        # store() detect whether a refresh_cache() (or any other invalidation) landed
+        # *during* that fetch's await, and skip overwriting dirty=1 with stale-relative-
+        # to-the-invalidation data. Needed only now that tool calls are async and can
+        # interleave — sync tool execution never left a window for this to happen.
+        self._epoch = 0
         logger.debug("%s cache opened: %s", self._NS, db_path)
 
     def set_ttl(self, ttl: int) -> None:
@@ -157,15 +171,37 @@ class _BaseCache:
     def close(self):
         self._conn.close()
 
+    def snapshot_epoch(self) -> int:
+        """Call before starting a fetch that will later call store(); pass the result
+        as store()'s `epoch` kwarg so it can detect a concurrent invalidation."""
+        return self._epoch
+
+    def _store_if_fresh(self, sql: str, params: tuple, epoch: int | None) -> bool:
+        """Run an INSERT OR REPLACE unless `epoch` is stale — i.e. a mark_dirty()
+        happened after the caller's snapshot_epoch() call. Returns whether it wrote.
+        """
+        if epoch is not None and epoch != self._epoch:
+            logger.debug(
+                "%s cache store skipped — invalidated during fetch (epoch %s != %s)",
+                self._NS,
+                epoch,
+                self._epoch,
+            )
+            return False
+        _safe_write(self._conn, sql, params)
+        return True
+
     def _mark_dirty_key(self, key: str) -> None:
         _safe_write(
             self._conn,
             "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?",
             (self._NS, key),
         )
+        self._epoch += 1
 
     def mark_all_dirty(self):
         _safe_write(self._conn, "UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
+        self._epoch += 1
         logger.debug("Invalidated all %s cache entries", self._NS)
 
     def _check_modified_time(
@@ -243,19 +279,21 @@ class SheetStructureCache(_BaseCache):
         sheets: list[SheetInfo],
         title: str | None = None,
         modified_time: str | None = None,
+        epoch: int | None = None,
     ):
         value: dict = {"sheets": [{"title": s.title, "sheet_id": s.sheet_id} for s in sheets]}
         if title is not None:
             value["title"] = title
         if modified_time is not None:
             value["modified_time"] = modified_time
-        _safe_write(
-            self._conn,
+        wrote = self._store_if_fresh(
             "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty)"
             " VALUES (?,?,?,?,0)",
             (self._NS, spreadsheet_id, json.dumps(value), time.time()),
+            epoch,
         )
-        logger.debug("Cached %d sheets for %s", len(sheets), spreadsheet_id)
+        if wrote:
+            logger.debug("Cached %d sheets for %s", len(sheets), spreadsheet_id)
 
     def mark_dirty(self, spreadsheet_id: str):
         self._mark_dirty_key(spreadsheet_id)
@@ -330,12 +368,12 @@ class SheetDataCache(_BaseCache):
         first_rows: list,
         rows_to_fetch: int,
         modified_time: str | None = None,
+        epoch: int | None = None,
     ):
         value: dict = {"headers": headers, "first_rows": first_rows}
         if modified_time is not None:
             value["modified_time"] = modified_time
-        _safe_write(
-            self._conn,
+        wrote = self._store_if_fresh(
             "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty, rows_fetched)"
             " VALUES (?,?,?,?,0,?)",
             (
@@ -345,8 +383,10 @@ class SheetDataCache(_BaseCache):
                 time.time(),
                 rows_to_fetch,
             ),
+            epoch,
         )
-        logger.debug("Cached sheet data for %s/%s", spreadsheet_id, sheet_id)
+        if wrote:
+            logger.debug("Cached sheet data for %s/%s", spreadsheet_id, sheet_id)
 
     def mark_dirty(self, spreadsheet_id: str, sheet_id: int | None = None):
         if sheet_id is not None:
@@ -518,7 +558,7 @@ class CalendarCache(_BaseCache):
         logger.debug("Marked calendar cache dirty for %s", calendar_id)
 
 
-def fetch_sheets(
+async def fetch_sheets(
     sheets_service: Any,
     spreadsheet_id: str,
     cache: SheetStructureCache,
@@ -532,28 +572,35 @@ def fetch_sheets(
     instead of waiting out the TTL.
     """
     current_mtime = (
-        get_modified_time(drive_service, spreadsheet_id) if CACHE_VALIDATE_MODIFIED_TIME else None
+        await get_modified_time(drive_service, spreadsheet_id)
+        if CACHE_VALIDATE_MODIFIED_TIME
+        else None
     )
     cached = cache.get_sheets(spreadsheet_id, current_modified_time=current_mtime)
     if cached is not None:
         logger.debug("Cache hit: %d sheets for %s", len(cached), spreadsheet_id)
         return cached
 
+    # Snapshot before the API await so store() can tell whether a concurrent
+    # mark_dirty() (e.g. refresh_cache()) landed while this fetch was in flight —
+    # if so, store() skips writing rather than silently clearing that invalidation.
+    epoch = cache.snapshot_epoch()
     try:
-        spreadsheet = (
+        spreadsheet = await execute_in_thread(
             sheets_service.spreadsheets()
             .get(
                 spreadsheetId=spreadsheet_id,
                 fields="properties.title,sheets(properties(title,sheetId))",
             )
-            .execute()
+            .execute,
+            sheets_service,
         )
         sheets = [
             SheetInfo(title=s["properties"]["title"], sheet_id=s["properties"]["sheetId"])
             for s in spreadsheet.get("sheets", [])
         ]
         title = spreadsheet.get("properties", {}).get("title")
-        cache.store(spreadsheet_id, sheets, title=title, modified_time=current_mtime)
+        cache.store(spreadsheet_id, sheets, title=title, modified_time=current_mtime, epoch=epoch)
         return sheets
     except Exception as e:
         # Fall back to stale cache rather than hard-failing

@@ -1,6 +1,8 @@
 import re
 from typing import TYPE_CHECKING, Any
 
+from ...auth import execute_in_thread
+
 if TYPE_CHECKING:
     from ...cache import SheetStructureCache
 
@@ -72,7 +74,7 @@ def _parse_a1_notation(range_str: str) -> dict[str, int]:
     return result
 
 
-def _get_sheet_id(
+async def _get_sheet_id(
     sheets_service: Any,
     spreadsheet_id: str,
     sheet_name: str,
@@ -84,7 +86,7 @@ def _get_sheet_id(
         from ...cache import fetch_sheets
 
         try:
-            sheets = fetch_sheets(sheets_service, spreadsheet_id, cache, drive_service)
+            sheets = await fetch_sheets(sheets_service, spreadsheet_id, cache, drive_service)
             for s in sheets:
                 if s.title == sheet_name:
                     return s.sheet_id
@@ -95,10 +97,11 @@ def _get_sheet_id(
             return None
 
     try:
-        spreadsheet = (
+        spreadsheet = await execute_in_thread(
             sheets_service.spreadsheets()
             .get(spreadsheetId=spreadsheet_id, fields="sheets(properties(title,sheetId))")
-            .execute()
+            .execute,
+            sheets_service,
         )
         for sheet in spreadsheet.get("sheets", []):
             if sheet["properties"]["title"] == sheet_name:
@@ -108,13 +111,14 @@ def _get_sheet_id(
         return None
 
 
-def _get_sheet_index(sheets_service: Any, spreadsheet_id: str, sheet_id: int) -> int | None:
+async def _get_sheet_index(sheets_service: Any, spreadsheet_id: str, sheet_id: int) -> int | None:
     """Return the current 0-based tab position of sheet_id, or None if not found."""
     try:
-        spreadsheet = (
+        spreadsheet = await execute_in_thread(
             sheets_service.spreadsheets()
             .get(spreadsheetId=spreadsheet_id, fields="sheets.properties(sheetId,index)")
-            .execute()
+            .execute,
+            sheets_service,
         )
         for sheet in spreadsheet.get("sheets", []):
             if sheet["properties"]["sheetId"] == sheet_id:

@@ -84,10 +84,10 @@ class TestInsertTableRow:
     def _ctx(self, docs_svc=None):
         return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
 
-    def test_insert_below_default(self):
+    async def test_insert_below_default(self):
         docs_svc = MagicMock()
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["insert_table_row"](
+        result = await _docs_tools["insert_table_row"](
             doc_id="doc1", table_start_index=5, row_index=1, ctx=ctx
         )
         assert result == {"docId": "doc1", "table_start_index": 5, "row_index": 1}
@@ -98,22 +98,22 @@ class TestInsertTableRow:
         assert req["tableCellLocation"]["columnIndex"] == 0
         assert req["insertBelow"] is True
 
-    def test_insert_above(self):
+    async def test_insert_above(self):
         docs_svc = MagicMock()
         ctx = self._ctx(docs_svc=docs_svc)
-        _docs_tools["insert_table_row"](
+        await _docs_tools["insert_table_row"](
             doc_id="doc1", table_start_index=5, row_index=0, insert_below=False, ctx=ctx
         )
         body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
         assert body["requests"][0]["insertTableRow"]["insertBelow"] is False
 
-    def test_api_error_returns_error(self):
+    async def test_api_error_returns_error(self):
         docs_svc = MagicMock()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
             "API error"
         )
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["insert_table_row"](
+        result = await _docs_tools["insert_table_row"](
             doc_id="doc1", table_start_index=5, row_index=0, ctx=ctx
         )
         assert "error" in result
@@ -123,10 +123,10 @@ class TestDeleteTableRow:
     def _ctx(self, docs_svc=None):
         return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
 
-    def test_sends_correct_request(self):
+    async def test_sends_correct_request(self):
         docs_svc = MagicMock()
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["delete_table_row"](
+        result = await _docs_tools["delete_table_row"](
             doc_id="doc1", table_start_index=5, row_index=2, ctx=ctx
         )
         assert result == {"docId": "doc1", "table_start_index": 5, "row_index": 2}
@@ -136,13 +136,13 @@ class TestDeleteTableRow:
         assert req["tableCellLocation"]["rowIndex"] == 2
         assert req["tableCellLocation"]["columnIndex"] == 0
 
-    def test_api_error_returns_error(self):
+    async def test_api_error_returns_error(self):
         docs_svc = MagicMock()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
             "API error"
         )
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["delete_table_row"](
+        result = await _docs_tools["delete_table_row"](
             doc_id="doc1", table_start_index=5, row_index=0, ctx=ctx
         )
         assert "error" in result
@@ -152,10 +152,10 @@ class TestInsertTableColumn:
     def _ctx(self, docs_svc=None):
         return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
 
-    def test_insert_right_default(self):
+    async def test_insert_right_default(self):
         docs_svc = MagicMock()
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["insert_table_column"](
+        result = await _docs_tools["insert_table_column"](
             doc_id="doc1", table_start_index=5, column_index=1, ctx=ctx
         )
         assert result == {"docId": "doc1", "table_start_index": 5, "column_index": 1}
@@ -166,22 +166,22 @@ class TestInsertTableColumn:
         assert req["tableCellLocation"]["rowIndex"] == 0
         assert req["insertRight"] is True
 
-    def test_insert_left(self):
+    async def test_insert_left(self):
         docs_svc = MagicMock()
         ctx = self._ctx(docs_svc=docs_svc)
-        _docs_tools["insert_table_column"](
+        await _docs_tools["insert_table_column"](
             doc_id="doc1", table_start_index=5, column_index=0, insert_right=False, ctx=ctx
         )
         body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
         assert body["requests"][0]["insertTableColumn"]["insertRight"] is False
 
-    def test_api_error_returns_error(self):
+    async def test_api_error_returns_error(self):
         docs_svc = MagicMock()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
             "API error"
         )
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["insert_table_column"](
+        result = await _docs_tools["insert_table_column"](
             doc_id="doc1", table_start_index=5, column_index=0, ctx=ctx
         )
         assert "error" in result
@@ -191,10 +191,10 @@ class TestDeleteTableColumn:
     def _ctx(self, docs_svc=None):
         return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
 
-    def test_sends_correct_request(self):
+    async def test_sends_correct_request(self):
         docs_svc = MagicMock()
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["delete_table_column"](
+        result = await _docs_tools["delete_table_column"](
             doc_id="doc1", table_start_index=5, column_index=2, ctx=ctx
         )
         assert result == {"docId": "doc1", "table_start_index": 5, "column_index": 2}
@@ -204,13 +204,13 @@ class TestDeleteTableColumn:
         assert req["tableCellLocation"]["columnIndex"] == 2
         assert req["tableCellLocation"]["rowIndex"] == 0
 
-    def test_api_error_returns_error(self):
+    async def test_api_error_returns_error(self):
         docs_svc = MagicMock()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
             "API error"
         )
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["delete_table_column"](
+        result = await _docs_tools["delete_table_column"](
             doc_id="doc1", table_start_index=5, column_index=0, ctx=ctx
         )
         assert "error" in result
@@ -226,7 +226,7 @@ def _nested_html(inner_rows: str = "<tr><td>inner</td></tr>") -> str:
 
 
 class TestNestedTableParser:
-    def test_simple_nested_table_parsed(self):
+    async def test_simple_nested_table_parsed(self):
         nodes = html_to_ast(_nested_html())
         assert len(nodes) == 1
         outer = nodes[0]
@@ -235,35 +235,35 @@ class TestNestedTableParser:
         tables = _tables_in(cell)
         assert len(tables) == 1
 
-    def test_nested_cell_text_correct(self):
+    async def test_nested_cell_text_correct(self):
         nodes = html_to_ast(_nested_html())
         inner = _tables_in(nodes[0].rows[0].cells[0])[0]
         assert _runs_in(inner.rows[0].cells[0])[0].text == "inner"
 
-    def test_outer_cell_has_only_the_nested_table_when_no_surrounding_text(self):
+    async def test_outer_cell_has_only_the_nested_table_when_no_surrounding_text(self):
         nodes = html_to_ast(_nested_html())
         cell = nodes[0].rows[0].cells[0]
         assert _runs_in(cell) == []
         assert len(cell.children) == 1
 
-    def test_nested_table_multiple_rows(self):
+    async def test_nested_table_multiple_rows(self):
         nodes = html_to_ast(_nested_html("<tr><td>R0</td></tr><tr><td>R1</td></tr>"))
         inner = _tables_in(nodes[0].rows[0].cells[0])[0]
         assert len(inner.rows) == 2
         assert _runs_in(inner.rows[0].cells[0])[0].text == "R0"
         assert _runs_in(inner.rows[1].cells[0])[0].text == "R1"
 
-    def test_nested_table_multiple_cols(self):
+    async def test_nested_table_multiple_cols(self):
         nodes = html_to_ast(_nested_html("<tr><td>A</td><td>B</td></tr>"))
         inner = _tables_in(nodes[0].rows[0].cells[0])[0]
         assert len(inner.rows[0].cells) == 2
         assert _runs_in(inner.rows[0].cells[1])[0].text == "B"
 
-    def test_non_nested_cell_has_no_table_child(self):
+    async def test_non_nested_cell_has_no_table_child(self):
         nodes = html_to_ast("<table><tr><td>plain</td></tr></table>")
         assert _tables_in(nodes[0].rows[0].cells[0]) == []
 
-    def test_sibling_cell_text_preserved(self):
+    async def test_sibling_cell_text_preserved(self):
         # Col 0 has nested table; col 1 has plain text
         nodes = html_to_ast(
             "<table><tr><td><table><tr><td>inner</td></tr></table></td><td>plain</td></tr></table>"
@@ -272,7 +272,7 @@ class TestNestedTableParser:
         assert _tables_in(outer.rows[0].cells[0]) != []
         assert _runs_in(outer.rows[0].cells[1])[0].text == "plain"
 
-    def test_table_depth_resets_to_zero(self):
+    async def test_table_depth_resets_to_zero(self):
         from mcp_gee_sweet.tools.docs.html_parser import _AstParser
 
         parser = _AstParser()
@@ -283,7 +283,7 @@ class TestNestedTableParser:
     # -- issue #108/#275: text sharing a cell with a nested table must not be
     # dropped, and must stay in true source order relative to the table(s) --
 
-    def test_leading_text_stays_with_outer_cell(self):
+    async def test_leading_text_stays_with_outer_cell(self):
         # Exact reproduction from #108: text before the nested <table> used to
         # bleed into the nested table's own first cell instead of staying put.
         nodes = html_to_ast(
@@ -294,7 +294,7 @@ class TestNestedTableParser:
         assert isinstance(outer.children[1], Table)
         assert _runs_in(outer.children[1].rows[0].cells[0])[0].text == "inner"
 
-    def test_trailing_text_stays_with_outer_cell(self):
+    async def test_trailing_text_stays_with_outer_cell(self):
         # Text after the nested table already worked before the fix — guard
         # against a regression while touching this code path.
         nodes = html_to_ast(
@@ -304,7 +304,7 @@ class TestNestedTableParser:
         assert isinstance(outer.children[0], Table)
         assert outer.children[1].text == "After"
 
-    def test_leading_text_formatting_preserved(self):
+    async def test_leading_text_formatting_preserved(self):
         nodes = html_to_ast(
             "<table><tr><td>Some <b>bold</b> label "
             "<table><tr><td>inner</td></tr></table></td></tr></table>"
@@ -314,7 +314,7 @@ class TestNestedTableParser:
         texts_and_bold = [(r.text, r.bold) for r in leading_runs]
         assert texts_and_bold == [("Some ", None), ("bold", True), (" label ", None)]
 
-    def test_leading_and_trailing_text_in_true_order(self):
+    async def test_leading_and_trailing_text_in_true_order(self):
         # Issue #275: text before AND after a nested table, in the same cell,
         # must preserve true source order — not collapse into one block.
         nodes = html_to_ast(
@@ -326,7 +326,7 @@ class TestNestedTableParser:
         assert outer.children[0].text == "Before "
         assert outer.children[2].text == " After"
 
-    def test_multiple_nested_tables_with_text_between(self):
+    async def test_multiple_nested_tables_with_text_between(self):
         # A cell may contain more than one nested table, with text interleaved
         # between them, in true order (not supported before #275).
         nodes = html_to_ast(
@@ -349,7 +349,7 @@ class TestNestedTableParser:
 
 
 class TestNestedTableEmitter:
-    def test_outer_table_emits_insert_table(self):
+    async def test_outer_table_emits_insert_table(self):
         requests, tables = _html_to_doc_requests(
             "<table><tr><td><table><tr><td>x</td></tr></table></td></tr></table>"
         )
@@ -359,7 +359,7 @@ class TestNestedTableEmitter:
         assert table_inserts[0]["insertTable"]["rows"] == 1
         assert table_inserts[0]["insertTable"]["columns"] == 1
 
-    def test_tables_list_contains_outer_with_nested_cell(self):
+    async def test_tables_list_contains_outer_with_nested_cell(self):
         _, tables = _html_to_doc_requests(
             "<table><tr><td><table><tr><td>x</td></tr></table></td></tr></table>"
         )
@@ -382,32 +382,32 @@ def _table_content_elem(inner_doc_table: dict) -> dict:
 
 
 class TestAstCellToDocCell:
-    def test_single_cell_matches(self):
+    async def test_single_cell_matches(self):
         ast_table = _table(_row(_cell("x")))
         doc_cell = {"startIndex": 9, "content": [_para_elem(10)]}
         doc_table = {"tableRows": [{"tableCells": [doc_cell]}]}
         assert _ast_cell_to_doc_cell(doc_table, ast_table, r=0, ast_col=0) is doc_cell
 
-    def test_second_column_matches_by_position(self):
+    async def test_second_column_matches_by_position(self):
         ast_table = _table(_row(_cell("a"), _cell("b")))
         doc_cell_a = {"startIndex": 9, "content": [_para_elem(10)]}
         doc_cell_b = {"startIndex": 19, "content": [_para_elem(20)]}
         doc_table = {"tableRows": [{"tableCells": [doc_cell_a, doc_cell_b]}]}
         assert _ast_cell_to_doc_cell(doc_table, ast_table, r=0, ast_col=1) is doc_cell_b
 
-    def test_row_out_of_range_returns_none(self):
+    async def test_row_out_of_range_returns_none(self):
         ast_table = _table(_row(_cell("x")))
         doc_table = {"tableRows": []}
         assert _ast_cell_to_doc_cell(doc_table, ast_table, r=0, ast_col=0) is None
 
 
 class TestCellParaStartForCursor:
-    def test_cursor_zero_returns_first_paragraph(self):
+    async def test_cursor_zero_returns_first_paragraph(self):
         ast_cell = Cell(children=[Run("x")])
         doc_cell = {"content": [_para_elem(10)]}
         assert _cell_para_start_for_cursor(doc_cell, ast_cell, cursor=0) == 10
 
-    def test_after_one_table_returns_second_paragraph(self):
+    async def test_after_one_table_returns_second_paragraph(self):
         inner = _table(_row(_cell("x")))
         ast_cell = Cell(children=[inner, Run("After")])
         doc_cell = {
@@ -415,7 +415,7 @@ class TestCellParaStartForCursor:
         }
         assert _cell_para_start_for_cursor(doc_cell, ast_cell, cursor=1) == 20
 
-    def test_missing_paragraph_returns_none(self):
+    async def test_missing_paragraph_returns_none(self):
         inner = _table(_row(_cell("x")))
         ast_cell = Cell(children=[inner, Run("After")])
         doc_cell = {"content": [_para_elem(10)]}  # no paragraph after the table yet
@@ -423,19 +423,19 @@ class TestCellParaStartForCursor:
 
 
 class TestTextOffsetSinceLastTable:
-    def test_no_preceding_children_is_zero(self):
+    async def test_no_preceding_children_is_zero(self):
         assert _text_offset_since_last_table([Run("x")], cursor=0) == 0
 
-    def test_sums_runs_since_start(self):
+    async def test_sums_runs_since_start(self):
         children = [Run("AB"), Run("CDE")]
         assert _text_offset_since_last_table(children, cursor=2) == 5
 
-    def test_stops_at_nearest_preceding_table(self):
+    async def test_stops_at_nearest_preceding_table(self):
         inner = _table(_row(_cell("x")))
         children = [Run("AB"), inner, Run("CDE")]
         assert _text_offset_since_last_table(children, cursor=3) == 3
 
-    def test_zero_for_a_table_immediately_after_another_table(self):
+    async def test_zero_for_a_table_immediately_after_another_table(self):
         t1 = _table(_row(_cell("x")))
         t2 = _table(_row(_cell("y")))
         children = [t1, t2]
@@ -443,7 +443,7 @@ class TestTextOffsetSinceLastTable:
 
 
 class TestFindNthTableInCell:
-    def test_finds_only_table(self):
+    async def test_finds_only_table(self):
         ast_table = _table(_row(_cell("x")))
         nested_doc_table = {"tableRows": [{"tableCells": [{"content": [_para_elem(30)]}]}]}
         doc_cell = {
@@ -454,7 +454,7 @@ class TestFindNthTableInCell:
         result = _find_nth_table_in_cell(doc_table, ast_table, r=0, c=0, occurrence=0)
         assert result is nested_doc_table
 
-    def test_second_occurrence_found(self):
+    async def test_second_occurrence_found(self):
         ast_table = _table(_row(_cell("x")))
         first_nested = {"tableRows": [{"tableCells": [{"content": [_para_elem(30)]}]}]}
         second_nested = {"tableRows": [{"tableCells": [{"content": [_para_elem(50)]}]}]}
@@ -471,7 +471,7 @@ class TestFindNthTableInCell:
         result = _find_nth_table_in_cell(doc_table, ast_table, r=0, c=0, occurrence=1)
         assert result is second_nested
 
-    def test_occurrence_not_found_returns_none(self):
+    async def test_occurrence_not_found_returns_none(self):
         ast_table = _table(_row(_cell("x")))
         doc_cell = {"startIndex": 9, "content": [_para_elem(10)]}
         doc_table = {"tableRows": [{"tableCells": [doc_cell]}]}
@@ -626,13 +626,15 @@ class TestFillNestedCellContent:
     than hand-computed index fixtures for this much re-fetch/recursion logic
     (issues #108, #275)."""
 
-    def _run(self, outer_cell: Cell) -> FakeDoc:
+    async def _run(self, outer_cell: Cell) -> FakeDoc:
         doc = FakeDoc()
         doc.content = [TableNode(1, 1)]
         ast_table = Table(rows=[Row(cells=[outer_cell])])
 
         svc = MagicMock()
-        svc.documents.return_value.get.return_value.execute.side_effect = lambda: doc.get()
+        svc.documents.return_value.get.return_value.execute.side_effect = lambda **_kwargs: (
+            doc.get()
+        )
 
         def do_batch(documentId, body):
             doc.batch_update(body["requests"])
@@ -641,33 +643,33 @@ class TestFillNestedCellContent:
             return m
 
         svc.documents.return_value.batchUpdate.side_effect = do_batch
-        _fill_nested_cell_content(svc, "doc1", [ast_table])
+        await _fill_nested_cell_content(svc, "doc1", [ast_table])
         return doc
 
-    def test_leading_text_only(self):
+    async def test_leading_text_only(self):
         # children = [Run("Some label "), Table(inner)] — issue #108's exact repro.
         inner = _table(_row(_cell("inner")))
-        doc = self._run(Cell(children=[Run("Some label "), inner]))
+        doc = await self._run(Cell(children=[Run("Some label "), inner]))
         assert doc.describe_cell(0, 0, 0) == ["Para:Some label ", "Table"]
 
-    def test_trailing_text_only_regression_guard(self):
+    async def test_trailing_text_only_regression_guard(self):
         inner = _table(_row(_cell("inner")))
-        doc = self._run(Cell(children=[inner, Run("After")]))
+        doc = await self._run(Cell(children=[inner, Run("After")]))
         assert doc.describe_cell(0, 0, 0) == ["Table", "Para:After"]
 
-    def test_leading_and_trailing_text_around_one_table(self):
+    async def test_leading_and_trailing_text_around_one_table(self):
         # Issue #275's exact repro: text before AND after one nested table must
         # land on the correct side of it, not both merge before the table.
         inner = _table(_row(_cell("Inner")))
-        doc = self._run(Cell(children=[Run("Before "), inner, Run(" After")]))
+        doc = await self._run(Cell(children=[Run("Before "), inner, Run(" After")]))
         assert doc.describe_cell(0, 0, 0) == ["Para:Before ", "Table", "Para: After"]
 
-    def test_two_nested_tables_with_text_between(self):
+    async def test_two_nested_tables_with_text_between(self):
         # General case: multiple nested tables in one cell, with text
         # interleaved — validates the fully general children ordering.
         t1 = _table(_row(_cell("1")))
         t2 = _table(_row(_cell("2")))
-        doc = self._run(Cell(children=[Run("A"), t1, Run("B"), t2, Run("C")]))
+        doc = await self._run(Cell(children=[Run("A"), t1, Run("B"), t2, Run("C")]))
         assert doc.describe_cell(0, 0, 0) == [
             "Para:A",
             "Table",
@@ -676,11 +678,11 @@ class TestFillNestedCellContent:
             "Para:C",
         ]
 
-    def test_nested_tables_own_text_is_filled(self):
+    async def test_nested_tables_own_text_is_filled(self):
         # A nested table's own plain cells must be filled too — not just its
         # shell inserted (a regression this exact test class caught once).
         inner = _table(_row(_cell("Inner")))
-        doc = self._run(Cell(children=[Run("Before "), inner, Run(" After")]))
+        doc = await self._run(Cell(children=[Run("Before "), inner, Run(" After")]))
         outer_table = doc.content[0]
         outer_cell = outer_table.rows[0][0]
         nested_table = next(c for c in outer_cell.content if isinstance(c, TableNode))
@@ -689,12 +691,12 @@ class TestFillNestedCellContent:
             f"Para:{c.text}" if isinstance(c, Para) else "Table" for c in nested_cell.content
         ] == ["Para:Inner"]
 
-    def test_deeply_nested_mixed_content_at_every_level(self):
+    async def test_deeply_nested_mixed_content_at_every_level(self):
         # A nested table's own cell may itself contain a further nested table,
         # with text on both sides, at any depth.
         deep = _table(_row(_cell("deep")))
         mid = _table(_row(Cell(children=[Run("mid-before "), deep, Run(" mid-after")])))
-        doc = self._run(Cell(children=[Run("outer-before "), mid, Run(" outer-after")]))
+        doc = await self._run(Cell(children=[Run("outer-before "), mid, Run(" outer-after")]))
         assert doc.describe_cell(0, 0, 0) == [
             "Para:outer-before ",
             "Table",
@@ -714,21 +716,21 @@ class TestFillNestedCellContent:
         deep_cell = deep_table.rows[0][0]
         assert [c.text for c in deep_cell.content if isinstance(c, Para) and c.text] == ["deep"]
 
-    def test_plain_cells_produce_no_calls(self):
+    async def test_plain_cells_produce_no_calls(self):
         ast_table = _table(_row(_cell("plain")))
         svc = MagicMock()
-        _fill_nested_cell_content(svc, "doc1", [ast_table])
+        await _fill_nested_cell_content(svc, "doc1", [ast_table])
         svc.documents.return_value.get.assert_not_called()
         svc.documents.return_value.batchUpdate.assert_not_called()
 
-    def test_degenerate_zero_column_table_does_not_abandon_trailing_content(self):
+    async def test_degenerate_zero_column_table_does_not_abandon_trailing_content(self):
         # A table with a row but no cells has num_cols == 0, so the
         # `num_rows > 0 and num_cols > 0` guard skips its insertTable request —
         # that round then has no requests at all. The loop must not treat an
         # empty round as "done": trailing content after the skipped table still
         # needs to be processed, not silently abandoned.
         degenerate = Table(rows=[Row(cells=[])])
-        doc = self._run(Cell(children=[degenerate, Run("After")]))
+        doc = await self._run(Cell(children=[degenerate, Run("After")]))
         assert doc.describe_cell(0, 0, 0) == ["Para:After"]
 
 
@@ -742,13 +744,15 @@ class TestNestedTableMerges:
     must emit mergeTableCells for them, mirroring the outer-table merge phase in
     fill_tables(), instead of silently leaving an unmerged shell (#109)."""
 
-    def _run(self, outer_cell: Cell) -> tuple[FakeDoc, list[list[dict]]]:
+    async def _run(self, outer_cell: Cell) -> tuple[FakeDoc, list[list[dict]]]:
         doc = FakeDoc()
         doc.content = [TableNode(1, 1)]
         ast_table = Table(rows=[Row(cells=[outer_cell])])
 
         svc = MagicMock()
-        svc.documents.return_value.get.return_value.execute.side_effect = lambda: doc.get()
+        svc.documents.return_value.get.return_value.execute.side_effect = lambda **_kwargs: (
+            doc.get()
+        )
 
         batches: list[list[dict]] = []
 
@@ -760,12 +764,12 @@ class TestNestedTableMerges:
             return m
 
         svc.documents.return_value.batchUpdate.side_effect = do_batch
-        _fill_nested_cell_content(svc, "doc1", [ast_table])
+        await _fill_nested_cell_content(svc, "doc1", [ast_table])
         return doc, batches
 
-    def test_colspan_merge_emitted_and_only_anchor_cell_filled(self):
+    async def test_colspan_merge_emitted_and_only_anchor_cell_filled(self):
         inner = _table(_row(_cell("Header", colspan=2)))
-        doc, batches = self._run(Cell(children=[inner]))
+        doc, batches = await self._run(Cell(children=[inner]))
 
         merge_reqs = [r for batch in batches for r in batch if "mergeTableCells" in r]
         assert len(merge_reqs) == 1
@@ -779,9 +783,9 @@ class TestNestedTableMerges:
         assert nested_table.rows[0][0].content[0].text == "Header"
         assert nested_table.rows[0][1].content[0].text == ""  # colspan phantom — untouched
 
-    def test_rowspan_merge_emitted_and_only_anchor_cell_filled(self):
+    async def test_rowspan_merge_emitted_and_only_anchor_cell_filled(self):
         inner = _table(_row(_cell("A", rowspan=2), _cell("B")), _row(_cell("C")))
-        doc, batches = self._run(Cell(children=[inner]))
+        doc, batches = await self._run(Cell(children=[inner]))
 
         merge_reqs = [r for batch in batches for r in batch if "mergeTableCells" in r]
         assert len(merge_reqs) == 1
@@ -797,18 +801,18 @@ class TestNestedTableMerges:
         assert nested_table.rows[1][0].content[0].text == ""  # rowspan phantom — untouched
         assert nested_table.rows[1][1].content[0].text == "C"
 
-    def test_no_merge_call_when_nested_table_has_no_spans(self):
+    async def test_no_merge_call_when_nested_table_has_no_spans(self):
         inner = _table(_row(_cell("A"), _cell("B")))
-        _doc, batches = self._run(Cell(children=[inner]))
+        _doc, batches = await self._run(Cell(children=[inner]))
         assert not any("mergeTableCells" in r for batch in batches for r in batch)
 
-    def test_merge_precedes_fill_in_batch_order(self):
+    async def test_merge_precedes_fill_in_batch_order(self):
         # Pin the documented phase order in _fill_table_fully — merge runs (and
         # is re-fetched) before the bulk text fill, mirroring fill_tables()'s own
         # outer-table phase order. (The batch preceding both is the round
         # algorithm's own insertTable for the nested table's shell.)
         inner = _table(_row(_cell("Header", colspan=2)))
-        _doc, batches = self._run(Cell(children=[inner]))
+        _doc, batches = await self._run(Cell(children=[inner]))
 
         merge_idx = next(
             i for i, batch in enumerate(batches) if any("mergeTableCells" in r for r in batch)
@@ -818,7 +822,7 @@ class TestNestedTableMerges:
         )
         assert merge_idx < fill_idx
 
-    def test_raises_when_table_vanishes_from_resolve_after_merge(self):
+    async def test_raises_when_table_vanishes_from_resolve_after_merge(self):
         # mergeTableCells doesn't shift indices or delete content, so a resolve
         # failure right after one is an anomaly, not a normal "not there yet"
         # case — it must surface loudly rather than silently drop the fill and
@@ -840,7 +844,7 @@ class TestNestedTableMerges:
         svc.documents.return_value.get.return_value.execute.return_value = {"body": {"content": []}}
 
         with pytest.raises(RuntimeError, match="vanished"):
-            _apply_merges(svc, "doc1", [doc_table], [ast_table], lambda _live_doc: [])
+            await _apply_merges(svc, "doc1", [doc_table], [ast_table], lambda _live_doc: [])
 
 
 # ---------------------------------------------------------------------------
@@ -849,7 +853,7 @@ class TestNestedTableMerges:
 
 
 class TestSkippedTableDoesNotDesyncTablePairing:
-    def test_empty_row_table_excluded_from_ast_to_requests_tables(self):
+    async def test_empty_row_table_excluded_from_ast_to_requests_tables(self):
         # A top-level <table><tr></tr></table> has a row but zero cells, so num_cols == 0
         # and no insertTable request is emitted for it. It must not appear in the returned
         # `tables` list either, or the table after it desyncs from doc_tables in fill_tables().
@@ -861,7 +865,7 @@ class TestSkippedTableDoesNotDesyncTablePairing:
         assert len(table_inserts) == 1
         assert tables == [normal_table]
 
-    def test_fill_requests_land_on_correct_table_after_a_skip(self):
+    async def test_fill_requests_land_on_correct_table_after_a_skip(self):
         # Simulates fill_tables(): doc_tables comes from the live doc, which only ever
         # contains tables that actually got an insertTable request — i.e. never the
         # skipped empty-row table. ast_tables must be the same (already-filtered) list

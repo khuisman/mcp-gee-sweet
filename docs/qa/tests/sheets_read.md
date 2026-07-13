@@ -247,6 +247,29 @@ Set `MAX_TOOL_RESPONSE_CHARS=200000` in server config and restart the server (e.
 
 ---
 
+### TC-R36: 5 concurrent queries — each result attributed to the correct query (issue #183)
+
+**Background:** #183 made `get_multiple_sheet_data` fetch all queries concurrently via `asyncio.gather()` instead of one at a time. `gather()` is documented to preserve result order regardless of completion order, but this can only be verified against the real API, not mocks. Uses 5 distinct, easily-confused ranges from the same sheet so a mixed-up result is obvious.
+
+**Setup**
+No fixture setup needed — query 5 different single-cell ranges from the `Sales` sheet in one call (e.g. `A1`, `B1`, `C1`, `A2`, `B2` — cells with known, distinct values from the existing fixture).
+
+**Prompt**
+> "In one call, get these 5 ranges from the Sales sheet in {SPREADSHEET_ID}: A1, B1, C1, A2, B2"
+
+**Checks**
+- Returns 5 results in the same order as the 5 queries were given
+- Each result's `data` matches the actual cell content at *that* range, not another range's content
+- No `error` field on any result
+
+**Result (2026-07-12) ❌ FAIL** Against the OAuth server (`mcp-gee-sweet-sky`), ran twice back-to-back with the exact 5-range prompt. Both runs returned 3 of 5 results as connection-level errors instead of data — run 1: `B1` → `[SSL] record layer failure (_ssl.c:2658)`, `A2` → `Remote end closed connection without response`, `B2` → `[SSL] record layer failure (_ssl.c:2658)`; run 2 (different ranges failed, confirming it's not one bad range): `A1` → `[Errno 54] Connection reset by peer`, `C1` → `Remote end closed connection without response`, `A2` → `Remote end closed connection without response`. Result order was preserved for the entries that succeeded, but this reliably reproduces the concurrency bug identified in code review: `auth.thread_http()` (src/mcp_gee_sweet/auth.py:66) is invoked as an eagerly-evaluated kwarg to `asyncio.to_thread(...)`, so it resolves on the event-loop thread rather than the intended worker thread — every concurrently-gathered call ends up sharing one `httplib2.Http`/SSL transport across N real worker threads, which is not safe for concurrent use and produces exactly this class of intermittent connection/SSL corruption. This is the core mechanism the PR's own new QA case TC-I24 was written to catch. Sends back to Dev — not a QA-environment flake, reproduced twice with different specific failures each time.
+
+**Dev note (2026-07-13):** Fixed — added `execute_in_thread()` (`src/mcp_gee_sweet/http_transport.py`) which defers the `thread_http(service)` call into the lambda that `asyncio.to_thread()` actually runs on the worker thread, instead of resolving it eagerly on the event-loop thread. Applied across all 141 affected call sites plus one non-standard site in `export_revision`. Unit suite green (674 tests); live re-verification of this exact test case still needed — not marking a Result here since it hasn't been re-run live.
+
+**Result (2026-07-13) ✅ PASS (re-verified after fix)** Against the OAuth server (`mcp-gee-sweet-sky`), ran the identical 5-range prompt 3 times back-to-back after reconnecting to pick up the fix commit (18490d8). All 3 runs returned all 5 results with correct data and zero errors — `A1`→`Product`, `B1`→`Q1`, `C1`→`Q2`, `A2`→`Widget`, `B2`→`100`, matching the fixture exactly, in the requested order, every time. Previously reproduced 3/5 connection errors on 2/2 runs before the fix; now clean on 3/3 runs after. Confirms the `execute_in_thread()` fix resolves the live concurrency bug, not just the unit-test suite.
+
+---
+
 ## `get_multiple_spreadsheet_summary`
 
 ### TC-R16: Happy path — multiple spreadsheet IDs
@@ -258,6 +281,26 @@ Set `MAX_TOOL_RESPONSE_CHARS=200000` in server config and restart the server (e.
 - Returns entries for all 3 sheets: Sales, Empty, Notes & Misc
 - Sales entry includes headers (Product, Q1, Q2, Q3) and first data rows
 - Empty sheet entry has empty headers and empty first_rows
+
+---
+
+### TC-R37: Concurrent summary across multiple distinct spreadsheets — no cross-attribution ⚠️ requires-oauth (issue #183)
+
+**Background:** TC-R16 exercises the *inner* per-sheet loop within one spreadsheet, which stayed sequential in #183 — it does not exercise the *outer* per-spreadsheet loop, which is the part that actually became concurrent via `asyncio.gather()`. This test specifically targets that outer loop with multiple distinct spreadsheet IDs.
+
+**Setup**
+Create 2 additional throwaway spreadsheets (`QA-Summary-183-B`, `QA-Summary-183-C`), each with a distinct, identifiable title and a `Sheet1` containing distinct header text (e.g. `"marker-B"` / `"marker-C"` in cell A1).
+
+**Prompt**
+> "Give me summaries of these 3 spreadsheets in one call: {SPREADSHEET_ID}, {the QA-Summary-183-B id}, {the QA-Summary-183-C id}"
+
+**Checks**
+- Returns 3 entries, one per spreadsheet, in the same order as requested
+- Each entry's `title` and sheet contents match *that* spreadsheet — not another one's (would indicate cross-attribution under concurrency)
+- No `error` field on any entry
+
+**Teardown**
+Delete the 2 throwaway spreadsheets.
 
 ---
 

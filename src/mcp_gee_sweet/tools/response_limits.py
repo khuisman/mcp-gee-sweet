@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -29,17 +30,25 @@ def enforce_response_size_cap(
         )
 
 
-def write_capped_result_to_disk(
+async def write_capped_result_to_disk(
     result: Any, local_path: str, *, default_filename: str, manifest_extra: dict[str, Any]
 ) -> dict[str, Any]:
     """Write result (dict or list) to local_path and return a manifest dict.
 
     Resolves a directory path via default_filename, mirroring get_sheet_data's
-    original local_path handling from issue #235.
+    original local_path handling from issue #235. This path exists specifically to
+    hold data too large for the response-size cap, so the write itself is offloaded
+    to a worker thread rather than blocking the event loop for however long a large
+    write takes.
     """
     dest = Path(local_path)
     if dest.is_dir():
         dest = dest / default_filename
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(json.dumps(result))
-    return {"local_path": str(dest), "bytes_written": dest.stat().st_size, **manifest_extra}
+
+    def _write() -> int:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(json.dumps(result))
+        return dest.stat().st_size
+
+    bytes_written = await asyncio.to_thread(_write)
+    return {"local_path": str(dest), "bytes_written": bytes_written, **manifest_extra}
