@@ -262,6 +262,8 @@ No fixture setup needed — query 5 different single-cell ranges from the `Sales
 - Each result's `data` matches the actual cell content at *that* range, not another range's content
 - No `error` field on any result
 
+**Result (2026-07-12) ❌ FAIL** Against the OAuth server (`mcp-gee-sweet-sky`), ran twice back-to-back with the exact 5-range prompt. Both runs returned 3 of 5 results as connection-level errors instead of data — run 1: `B1` → `[SSL] record layer failure (_ssl.c:2658)`, `A2` → `Remote end closed connection without response`, `B2` → `[SSL] record layer failure (_ssl.c:2658)`; run 2 (different ranges failed, confirming it's not one bad range): `A1` → `[Errno 54] Connection reset by peer`, `C1` → `Remote end closed connection without response`, `A2` → `Remote end closed connection without response`. Result order was preserved for the entries that succeeded, but this reliably reproduces the concurrency bug identified in code review: `auth.thread_http()` (src/mcp_gee_sweet/auth.py:66) is invoked as an eagerly-evaluated kwarg to `asyncio.to_thread(...)`, so it resolves on the event-loop thread rather than the intended worker thread — every concurrently-gathered call ends up sharing one `httplib2.Http`/SSL transport across N real worker threads, which is not safe for concurrent use and produces exactly this class of intermittent connection/SSL corruption. This is the core mechanism the PR's own new QA case TC-I24 was written to catch. Sends back to Dev — not a QA-environment flake, reproduced twice with different specific failures each time.
+
 ---
 
 ## `get_multiple_spreadsheet_summary`
