@@ -824,6 +824,88 @@ def register(tool):
             sheets_service,
         )
 
+    @tool(annotations=ToolAnnotations(title="Update Sheet Properties"))
+    async def update_sheet_properties(
+        spreadsheet_id: str,
+        sheet: str,
+        tab_color: dict | None = None,
+        show_gridlines: bool | None = None,
+        right_to_left: bool | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Update sheet-level display properties: tab color, gridline visibility,
+        right-to-left layout.
+
+        Note: the Sheets API does not expose row/column header visibility as a
+        settable sheet property, so it isn't included here. Frozen row/column
+        counts are handled separately by the freeze tool.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet
+            sheet: The name of the sheet
+            tab_color: RGB color dict for the sheet tab, e.g.
+                       {"red": 1.0, "green": 0.0, "blue": 0.0}. Pass {} to
+                       clear the tab color back to the default.
+            show_gridlines: Whether gridlines are shown in the UI. False hides them.
+            right_to_left: Whether the sheet uses right-to-left layout.
+
+        Returns:
+            Result of the batchUpdate operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        properties: dict[str, Any] = {"sheetId": sheet_id}
+        fields: list[str] = []
+
+        if tab_color is not None:
+            if tab_color == {}:
+                # tabColor has no explicit-presence tracking on the wire, so an
+                # empty dict is indistinguishable from black (0,0,0). The newer
+                # tabColorStyle field does support clearing back to the default.
+                properties["tabColorStyle"] = {}
+                fields.append("tabColorStyle")
+            else:
+                properties["tabColor"] = tab_color
+                fields.append("tabColor")
+
+        if show_gridlines is not None:
+            properties["gridProperties"] = {"hideGridlines": not show_gridlines}
+            fields.append("gridProperties.hideGridlines")
+
+        if right_to_left is not None:
+            properties["rightToLeft"] = right_to_left
+            fields.append("rightToLeft")
+
+        if not fields:
+            return {"error": "No properties provided to update"}
+
+        return await execute_in_thread(
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "updateSheetProperties": {
+                                "properties": properties,
+                                "fields": ",".join(fields),
+                            }
+                        }
+                    ]
+                },
+            )
+            .execute,
+            sheets_service,
+        )
+
     @tool(annotations=ToolAnnotations(title="Sort Range"))
     async def sort_range(
         spreadsheet_id: str,
