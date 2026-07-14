@@ -690,6 +690,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - No error in response
 - Sales tab visibly returns to the default (no color) state in the Sheets UI, not black
 
+**Result (2026-07-14) ✅ PASS — fix verified** Re-verified live after the `tabColorStyle` fix, twice with different starting colors (green→clear, then purple→clear combined with `show_gridlines` in the same call). Both times the Sales tab's `.docs-sheet-tab-color` DOM element went from a solid color to `style="background: transparent"` — matching the untouched default tabs (Empty, Notes & Misc, BrandNew), not black. Unit tests (`test_empty_tab_color_dict_clears_color`, updated) also pass, confirming the request now targets `tabColorStyle` (not `tabColor`) when `tab_color={}`. TC-S57b closed.
+
 ---
 
 ### TC-S58: Hide gridlines ⚠️ destructive
