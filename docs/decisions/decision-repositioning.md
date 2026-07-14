@@ -11,7 +11,7 @@
 
 ### Official Google Workspace MCP servers (Developer Preview Program)
 
-Per `developers.google.com/workspace/guides/configure-mcp-servers`: **"Developer Preview: Available as part of the Google Workspace Developer Preview Program, which grants early access to certain features."** Five products have a dedicated server — Gmail (10 tools), Drive (8 tools), Calendar (9 tools), People API (3 tools), Chat (4 tools). **Google Sheets, Google Docs, Google Forms, and Google Sites have no dedicated official MCP server at all** — not developer-preview, not anything. This is the opposite of what issue #263 assumed: for our two deepest domains, the original "no official alternative exists" claim is still literally true today. For Drive and Calendar, an official (preview-stage) alternative now exists, but it's a fraction of this project's surface (31 Drive tools / 8 Calendar tools here vs. 8 / 9 there).
+Per `developers.google.com/workspace/guides/configure-mcp-servers`: **"Developer Preview: Available as part of the Google Workspace Developer Preview Program, which grants early access to certain features."** Five products have a dedicated server — Gmail (10 tools), Drive (8 tools), Calendar (9 tools), People API (3 tools), Chat (4 tools). **Google Sheets, Google Docs, Google Forms, and Google Sites have no dedicated official MCP server at all** — not developer-preview, not anything. This is the opposite of what issue #263 assumed: for our two deepest domains, the original "no official alternative exists" claim is still literally true today. For Drive and Calendar, an official (preview-stage) alternative now exists, but it's a fraction of this project's surface (32 Drive tools / 13 Calendar tools here vs. 8 / 9 there).
 
 The December 2025 Google Cloud "GA MCP support" announcement (BigQuery, GKE, GCE, Maps) is a separate product line — Cloud infrastructure, not Workspace productivity — and is explicitly out of scope per this project's own scope table in `design.md`. Not a relevant comparator here.
 
@@ -52,6 +52,12 @@ Sheets (comments, conditional formatting, protected ranges, dropdown validation,
 ### 5. `decision-fork.md` stays a historical record
 
 Per issue #263's own instruction: add a pointer note to `decision-fork.md` marking it superseded by this doc for *current* positioning, without rewriting its original reasoning — it remains an accurate record of the 2026-05-09 fork decision and the alternatives evaluated at that time.
+
+### 6. Correction: our own tool counts were also unverified — caught in PR review, not before
+
+The first draft of this doc and the comparison table pulled *our own* per-domain tool counts from `docs/roadmap.md`'s "What's implemented" section (Sheets 24, Drive 31, Docs 20, Calendar 8) without independently counting from source — the exact mistake this whole rewrite exists to avoid in competitors. PR review (`gh pr view 306`, comment from `khuisman`) caught it by counting `@tool(...)` registrations directly. Recounted via the same mechanism `scripts/gen_tool_docs.py` already uses (`register_all()` with a capturing decorator, not grep) and found the actual counts materially higher: **Sheets 25** (`duplicate_sheet` was undocumented in `roadmap.md`), **Drive 32** (`import_csv_to_sheet` was undocumented), **Docs 20** (accurate, no change), **Calendar 13** (an entire calendar-management sub-feature — `create_calendar`/`update_calendar`/`delete_calendar`/`add_calendar_to_list`/`remove_calendar_from_list` — was missing from `roadmap.md` entirely, not just miscounted). Total across the four domains: **90**, not 84 (the stale "84 tools" headline in `README.md`/`docs/index.md` was corrected too — it dated to the v0.8.0 release and was never bumped as tools shipped afterward).
+
+This doc's own tables and `docs/roadmap.md`'s "What's implemented" headers are corrected to match. Follow-up: file a ticket to extend `scripts/gen_tool_docs.py` (or add a companion pre-commit check) to validate hardcoded tool counts in prose docs against the live source count, so this class of drift fails a commit instead of requiring a human reviewer to catch it by hand — `collect_tools()` already has the exact data needed, grouped by module.
 
 ## What changes in the docs
 
