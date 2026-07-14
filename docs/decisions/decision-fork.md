@@ -5,6 +5,8 @@
 
 > This is a point-in-time record. It captures context, alternatives, and reasoning as they were understood on the date above — not the current state of the project.
 
+> **Superseded for current positioning** by [Repositioning](decision-repositioning.md) (2026-07-14), which re-evaluates the competitive landscape now that Google's Workspace Developer Preview Program has shipped official MCP servers for some products (not Sheets or Docs, still zero coverage there). This document's fork reasoning and May 2026 alternatives survey remain an accurate historical record and are left as-is.
+
 ## Background
 
 This project began as a fork of [xing5/mcp-google-sheets](https://github.com/xing5/mcp-google-sheets), a community MCP server for interacting with Google Sheets. The original repo was chosen specifically because it included `get_sheet_formulas` — access to raw cell formulas via the Sheets API — which most alternatives lacked. As of May 2026, Google has not released an official MCP server for Sheets or Drive (official servers exist for Maps, BigQuery, GCE, and GKE), so community solutions are the only option.
