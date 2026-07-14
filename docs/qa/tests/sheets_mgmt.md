@@ -674,6 +674,24 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - No error in response
 - Sales tab visibly shows a red color in the Sheets UI
 
+**Result (2026-07-13) ✅ PASS** API call succeeded, no error field. Visually confirmed via Playwright: DOM element `.docs-sheet-tab-color` on the Sales tab has `style="background: rgb(255, 0, 0)"` — matches the requested red.
+
+---
+
+### TC-S57b: Clear tab color with `{}` ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Clear the tab color of the Sales sheet in {SPREADSHEET_ID}" (tool called with `tab_color={}`)
+
+**Checks**
+- `updateSheetProperties` request has `properties.tabColor == {}`
+- `fields` includes `tabColor`
+- No error in response
+- Sales tab visibly returns to the default (no color) state in the Sheets UI, not black
+
+**Result (2026-07-13) ❌ FAIL — bug confirmed** API call succeeds with no error, but the docstring's claim ("Pass `{}` to clear the tab color back to the default") is **false**. Visually confirmed via Playwright: after calling `tab_color={}`, the Sales tab's `.docs-sheet-tab-color` DOM element renders `style="background: rgb(0, 0, 0)"` — solid **black**, not cleared. For comparison, sheets that have never had a tab color set (Empty, Notes & Misc, BrandNew) render `style="background: transparent"`. Root cause: the tool only ever writes the deprecated `tabColor` field; the Sheets API's `Color` proto has no explicit-presence tracking, so an empty `{}` is indistinguishable on the wire from `{red:0,green:0,blue:0}` (black). The actual way to clear a tab color is to target the newer `tabColorStyle` field instead — confirmed live: `batch_update` with `{"updateSheetProperties": {"properties": {"sheetId": ..., "tabColorStyle": {}}, "fields": "tabColorStyle"}}` correctly restores `background: transparent`. **Fix needed in `update_sheet_properties`**: either drop the "pass `{}` to clear" claim from the docstring, or (better) special-case an empty `tab_color` dict to write `tabColorStyle` with an empty value instead of `tabColor`. Fixture Sales tab color was restored to transparent using the `tabColorStyle` workaround above after this test.
+
 ---
 
 ### TC-S58: Hide gridlines ⚠️ destructive
@@ -687,6 +705,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - `fields` includes `gridProperties.hideGridlines`
 - No error in response
 - Gridlines are visibly absent from the Sales sheet in the Sheets UI
+
+**Result (2026-07-13) ✅ PASS** API call succeeded, no error field. Visually confirmed via Playwright screenshot: no gridlines visible between cells on the Sales sheet after the call.
 
 ---
 
@@ -702,6 +722,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - No error in response
 - Sheet layout visibly mirrors to right-to-left in the Sheets UI (row headers on the right)
 
+**Result (2026-07-13) ✅ PASS** API call succeeded, no error field. Visually confirmed via Playwright screenshot: column headers ran right-to-left (A on the far right, K on the far left) after the call.
+
 ---
 
 ### TC-S60: Combine tab color, gridlines, and right-to-left in one call ⚠️ destructive
@@ -715,6 +737,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - `fields` lists all three: `tabColor`, `gridProperties.hideGridlines`, `rightToLeft`
 - No error in response
 
+**Result (2026-07-13) ✅ PASS** Single `update_sheet_properties` call with `tab_color`, `show_gridlines=true`, `right_to_left=false` all set returned `{"spreadsheetId":"...","replies":[{}]}`, no error field — confirming the tool folds all three into one `updateSheetProperties` request (per code: one `properties`/`fields` dict shared across all provided args). Unit test `test_multiple_properties_produce_multiple_fields` independently confirms the request-body shape (all three keys present in both `properties` and `fields`).
+
 ---
 
 ### TC-S61: No properties provided returns error
@@ -723,6 +747,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Calling with no `tab_color`, `show_gridlines`, or `right_to_left` → `{"error": "No properties provided to update"}`
 - No `batchUpdate` call is made
 
+**Result (2026-07-13) ✅ PASS** `tests/sheets/test_structure.py::TestUpdateSheetProperties::test_no_params_returns_error` passed (`uv run python -m pytest tests/sheets/test_structure.py -k UpdateSheetProperties`, 9/9 passed).
+
 ---
 
 ### TC-S62: update_sheet_properties — sheet not found returns error
@@ -730,6 +756,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks (unit test)**
 - Sheet not found → `{"error": "Sheet 'X' not found"}`
 - No `batchUpdate` call is made
+
+**Result (2026-07-13) ✅ PASS** Unit test `test_returns_error_when_sheet_not_found` passed. Also confirmed live against the fixture spreadsheet: `update_sheet_properties(spreadsheet_id=TEST_SPREADSHEET_ID, sheet="DoesNotExist", right_to_left=true)` → `{"error":"Sheet 'DoesNotExist' not found"}`.
 
 ---
 
