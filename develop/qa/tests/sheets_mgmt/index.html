@@ -2099,6 +2099,100 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#update_sheet_properties" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        update_sheet_properties
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="update_sheet_properties">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s57-set-tab-color-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S57: Set tab color ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s57b-clear-tab-color-with-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S57b: Clear tab color with {} ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s58-hide-gridlines-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S58: Hide gridlines ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s59-set-right-to-left-layout-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S59: Set right-to-left layout ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s60-combine-tab-color-gridlines-and-right-to-left-in-one-call-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S60: Combine tab color, gridlines, and right-to-left in one call ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s61-no-properties-provided-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S61: No properties provided returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s62-update_sheet_properties-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S62: update_sheet_properties — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#sort_range" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2750,6 +2844,83 @@
 <p><strong>Checks (unit test)</strong>
 - Sheet not found → <code>{"error": "Sheet 'X' not found"}</code></p>
 <p><strong>Result (2026-06-21) ✅</strong> Unit test confirms error.</p>
+<hr />
+<h2 id="update_sheet_properties"><code>update_sheet_properties</code><a class="headerlink" href="#update_sheet_properties" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s57-set-tab-color-destructive">TC-S57: Set tab color ⚠️ destructive<a class="headerlink" href="#tc-s57-set-tab-color-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Set the tab color of the Sales sheet in {SPREADSHEET_ID} to red (red=1.0, green=0.0, blue=0.0)"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateSheetProperties</code> request has <code>properties.tabColor == {"red": 1.0, "green": 0.0, "blue": 0.0}</code>
+- <code>fields</code> includes <code>tabColor</code>
+- No error in response
+- Sales tab visibly shows a red color in the Sheets UI</p>
+<p><strong>Result (2026-07-13) ✅ PASS</strong> API call succeeded, no error field. Visually confirmed via Playwright: DOM element <code>.docs-sheet-tab-color</code> on the Sales tab has <code>style="background: rgb(255, 0, 0)"</code> — matches the requested red.</p>
+<hr />
+<h3 id="tc-s57b-clear-tab-color-with-destructive">TC-S57b: Clear tab color with <code>{}</code> ⚠️ destructive<a class="headerlink" href="#tc-s57b-clear-tab-color-with-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Clear the tab color of the Sales sheet in {SPREADSHEET_ID}" (tool called with <code>tab_color={}</code>)</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateSheetProperties</code> request has <code>properties.tabColorStyle == {}</code>
+- <code>fields</code> includes <code>tabColorStyle</code>, and does not include <code>tabColor</code>
+- No error in response
+- Sales tab visibly returns to the default (no color) state in the Sheets UI, not black</p>
+<p><strong>Result (2026-07-14) ✅ PASS — fix verified</strong> Re-verified live after the <code>tabColorStyle</code> fix, twice with different starting colors (green→clear, then purple→clear combined with <code>show_gridlines</code> in the same call). Both times the Sales tab's <code>.docs-sheet-tab-color</code> DOM element went from a solid color to <code>style="background: transparent"</code> — matching the untouched default tabs (Empty, Notes &amp; Misc, BrandNew), not black. Unit tests (<code>test_empty_tab_color_dict_clears_color</code>, updated) also pass, confirming the request now targets <code>tabColorStyle</code> (not <code>tabColor</code>) when <code>tab_color={}</code>. TC-S57b closed.</p>
+<hr />
+<h3 id="tc-s58-hide-gridlines-destructive">TC-S58: Hide gridlines ⚠️ destructive<a class="headerlink" href="#tc-s58-hide-gridlines-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Hide the gridlines on the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateSheetProperties</code> request has <code>properties.gridProperties.hideGridlines == True</code>
+- <code>fields</code> includes <code>gridProperties.hideGridlines</code>
+- No error in response
+- Gridlines are visibly absent from the Sales sheet in the Sheets UI</p>
+<p><strong>Result (2026-07-13) ✅ PASS</strong> API call succeeded, no error field. Visually confirmed via Playwright screenshot: no gridlines visible between cells on the Sales sheet after the call.</p>
+<hr />
+<h3 id="tc-s59-set-right-to-left-layout-destructive">TC-S59: Set right-to-left layout ⚠️ destructive<a class="headerlink" href="#tc-s59-set-right-to-left-layout-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Set the Sales sheet in {SPREADSHEET_ID} to right-to-left layout"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateSheetProperties</code> request has <code>properties.rightToLeft == True</code>
+- <code>fields</code> includes <code>rightToLeft</code>
+- No error in response
+- Sheet layout visibly mirrors to right-to-left in the Sheets UI (row headers on the right)</p>
+<p><strong>Result (2026-07-13) ✅ PASS</strong> API call succeeded, no error field. Visually confirmed via Playwright screenshot: column headers ran right-to-left (A on the far right, K on the far left) after the call.</p>
+<hr />
+<h3 id="tc-s60-combine-tab-color-gridlines-and-right-to-left-in-one-call-destructive">TC-S60: Combine tab color, gridlines, and right-to-left in one call ⚠️ destructive<a class="headerlink" href="#tc-s60-combine-tab-color-gridlines-and-right-to-left-in-one-call-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"On the Sales sheet in {SPREADSHEET_ID}, set the tab color to blue (red=0.0, green=0.0, blue=1.0), show gridlines, and turn off right-to-left layout — all in one call"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Single <code>updateSheetProperties</code> request in the batchUpdate body
+- <code>properties</code> includes <code>tabColor</code>, <code>gridProperties.hideGridlines == False</code>, and <code>rightToLeft == False</code>
+- <code>fields</code> lists all three: <code>tabColor</code>, <code>gridProperties.hideGridlines</code>, <code>rightToLeft</code>
+- No error in response</p>
+<p><strong>Result (2026-07-13) ✅ PASS</strong> Single <code>update_sheet_properties</code> call with <code>tab_color</code>, <code>show_gridlines=true</code>, <code>right_to_left=false</code> all set returned <code>{"spreadsheetId":"...","replies":[{}]}</code>, no error field — confirming the tool folds all three into one <code>updateSheetProperties</code> request (per code: one <code>properties</code>/<code>fields</code> dict shared across all provided args). Unit test <code>test_multiple_properties_produce_multiple_fields</code> independently confirms the request-body shape (all three keys present in both <code>properties</code> and <code>fields</code>).</p>
+<hr />
+<h3 id="tc-s61-no-properties-provided-returns-error">TC-S61: No properties provided returns error<a class="headerlink" href="#tc-s61-no-properties-provided-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Calling with no <code>tab_color</code>, <code>show_gridlines</code>, or <code>right_to_left</code> → <code>{"error": "No properties provided to update"}</code>
+- No <code>batchUpdate</code> call is made</p>
+<p><strong>Result (2026-07-13) ✅ PASS</strong> <code>tests/sheets/test_structure.py::TestUpdateSheetProperties::test_no_params_returns_error</code> passed (<code>uv run python -m pytest tests/sheets/test_structure.py -k UpdateSheetProperties</code>, 9/9 passed).</p>
+<hr />
+<h3 id="tc-s62-update_sheet_properties-sheet-not-found-returns-error">TC-S62: update_sheet_properties — sheet not found returns error<a class="headerlink" href="#tc-s62-update_sheet_properties-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Sheet not found → <code>{"error": "Sheet 'X' not found"}</code>
+- No <code>batchUpdate</code> call is made</p>
+<p><strong>Result (2026-07-13) ✅ PASS</strong> Unit test <code>test_returns_error_when_sheet_not_found</code> passed. Also confirmed live against the fixture spreadsheet: <code>update_sheet_properties(spreadsheet_id=TEST_SPREADSHEET_ID, sheet="DoesNotExist", right_to_left=true)</code> → <code>{"error":"Sheet 'DoesNotExist' not found"}</code>.</p>
 <hr />
 <h2 id="sort_range"><code>sort_range</code><a class="headerlink" href="#sort_range" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s46-sort-a-data-range-ascending-by-first-column-destructive">TC-S46: Sort a data range ascending by first column ⚠️ destructive<a class="headerlink" href="#tc-s46-sort-a-data-range-ascending-by-first-column-destructive" title="Permanent link">&para;</a></h3>
