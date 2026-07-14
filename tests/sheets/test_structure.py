@@ -766,16 +766,22 @@ class TestUpdateSheetProperties:
         assert "tabColor" in req["fields"]
 
     async def test_empty_tab_color_dict_clears_color(self):
-        """Passing {} should still be treated as 'set tab_color' (clear to default),
-        not skipped, since the check is `is not None` rather than truthiness."""
+        """Passing {} should be treated as 'clear tab_color to default' via
+        tabColorStyle, not tabColor — tabColor has no explicit-presence
+        tracking on the wire, so an empty dict there is indistinguishable
+        from black rather than "unset" (see docs/qa/tests/sheets_mgmt.md
+        TC-S57b)."""
         svc = self._sheets_service()
         ctx = _make_ctx(sheets_service=svc, cache=None)
         await _structure_tools["update_sheet_properties"](
             spreadsheet_id="ss1", sheet="Sheet1", tab_color={}, ctx=ctx
         )
         req = self._update_props_request(svc)
-        assert req["properties"]["tabColor"] == {}
-        assert "tabColor" in req["fields"]
+        assert req["properties"]["tabColorStyle"] == {}
+        assert "tabColor" not in req["properties"]
+        field_list = req["fields"].split(",")
+        assert "tabColorStyle" in field_list
+        assert "tabColor" not in field_list
 
     async def test_show_gridlines_false_sets_hide_gridlines_true(self):
         svc = self._sheets_service()

@@ -866,8 +866,15 @@ def register(tool):
         fields: list[str] = []
 
         if tab_color is not None:
-            properties["tabColor"] = tab_color
-            fields.append("tabColor")
+            if tab_color == {}:
+                # tabColor has no explicit-presence tracking on the wire, so an
+                # empty dict is indistinguishable from black (0,0,0). The newer
+                # tabColorStyle field does support clearing back to the default.
+                properties["tabColorStyle"] = {}
+                fields.append("tabColorStyle")
+            else:
+                properties["tabColor"] = tab_color
+                fields.append("tabColor")
 
         if show_gridlines is not None:
             properties["gridProperties"] = {"hideGridlines": not show_gridlines}

@@ -685,12 +685,10 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 > "Clear the tab color of the Sales sheet in {SPREADSHEET_ID}" (tool called with `tab_color={}`)
 
 **Checks**
-- `updateSheetProperties` request has `properties.tabColor == {}`
-- `fields` includes `tabColor`
+- `updateSheetProperties` request has `properties.tabColorStyle == {}`
+- `fields` includes `tabColorStyle`, and does not include `tabColor`
 - No error in response
 - Sales tab visibly returns to the default (no color) state in the Sheets UI, not black
-
-**Result (2026-07-13) ❌ FAIL — bug confirmed** API call succeeds with no error, but the docstring's claim ("Pass `{}` to clear the tab color back to the default") is **false**. Visually confirmed via Playwright: after calling `tab_color={}`, the Sales tab's `.docs-sheet-tab-color` DOM element renders `style="background: rgb(0, 0, 0)"` — solid **black**, not cleared. For comparison, sheets that have never had a tab color set (Empty, Notes & Misc, BrandNew) render `style="background: transparent"`. Root cause: the tool only ever writes the deprecated `tabColor` field; the Sheets API's `Color` proto has no explicit-presence tracking, so an empty `{}` is indistinguishable on the wire from `{red:0,green:0,blue:0}` (black). The actual way to clear a tab color is to target the newer `tabColorStyle` field instead — confirmed live: `batch_update` with `{"updateSheetProperties": {"properties": {"sheetId": ..., "tabColorStyle": {}}, "fields": "tabColorStyle"}}` correctly restores `background: transparent`. **Fix needed in `update_sheet_properties`**: either drop the "pass `{}` to clear" claim from the docstring, or (better) special-case an empty `tab_color` dict to write `tabColorStyle` with an empty value instead of `tabColor`. Fixture Sales tab color was restored to transparent using the `tabColorStyle` workaround above after this test.
 
 ---
 
