@@ -660,6 +660,79 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 ---
 
+## `update_sheet_properties`
+
+### TC-S57: Set tab color ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Set the tab color of the Sales sheet in {SPREADSHEET_ID} to red (red=1.0, green=0.0, blue=0.0)"
+
+**Checks**
+- `updateSheetProperties` request has `properties.tabColor == {"red": 1.0, "green": 0.0, "blue": 0.0}`
+- `fields` includes `tabColor`
+- No error in response
+- Sales tab visibly shows a red color in the Sheets UI
+
+---
+
+### TC-S58: Hide gridlines ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Hide the gridlines on the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- `updateSheetProperties` request has `properties.gridProperties.hideGridlines == True`
+- `fields` includes `gridProperties.hideGridlines`
+- No error in response
+- Gridlines are visibly absent from the Sales sheet in the Sheets UI
+
+---
+
+### TC-S59: Set right-to-left layout ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Set the Sales sheet in {SPREADSHEET_ID} to right-to-left layout"
+
+**Checks**
+- `updateSheetProperties` request has `properties.rightToLeft == True`
+- `fields` includes `rightToLeft`
+- No error in response
+- Sheet layout visibly mirrors to right-to-left in the Sheets UI (row headers on the right)
+
+---
+
+### TC-S60: Combine tab color, gridlines, and right-to-left in one call ⚠️ destructive
+
+**Prompt**
+> "On the Sales sheet in {SPREADSHEET_ID}, set the tab color to blue (red=0.0, green=0.0, blue=1.0), show gridlines, and turn off right-to-left layout — all in one call"
+
+**Checks**
+- Single `updateSheetProperties` request in the batchUpdate body
+- `properties` includes `tabColor`, `gridProperties.hideGridlines == False`, and `rightToLeft == False`
+- `fields` lists all three: `tabColor`, `gridProperties.hideGridlines`, `rightToLeft`
+- No error in response
+
+---
+
+### TC-S61: No properties provided returns error
+
+**Checks (unit test)**
+- Calling with no `tab_color`, `show_gridlines`, or `right_to_left` → `{"error": "No properties provided to update"}`
+- No `batchUpdate` call is made
+
+---
+
+### TC-S62: update_sheet_properties — sheet not found returns error
+
+**Checks (unit test)**
+- Sheet not found → `{"error": "Sheet 'X' not found"}`
+- No `batchUpdate` call is made
+
+---
+
 ## `sort_range`
 
 ### TC-S46: Sort a data range ascending by first column ⚠️ destructive

@@ -740,6 +740,120 @@ class TestFreeze:
         assert "error" in result
 
 
+class TestUpdateSheetProperties:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _update_props_request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["updateSheetProperties"]
+
+    async def test_tab_color_sets_property_and_field(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        color = {"red": 1.0, "green": 0.0, "blue": 0.0}
+        await _structure_tools["update_sheet_properties"](
+            spreadsheet_id="ss1", sheet="Sheet1", tab_color=color, ctx=ctx
+        )
+        req = self._update_props_request(svc)
+        assert req["properties"]["tabColor"] == color
+        assert req["properties"]["sheetId"] == 0
+        assert "tabColor" in req["fields"]
+
+    async def test_empty_tab_color_dict_clears_color(self):
+        """Passing {} should still be treated as 'set tab_color' (clear to default),
+        not skipped, since the check is `is not None` rather than truthiness."""
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["update_sheet_properties"](
+            spreadsheet_id="ss1", sheet="Sheet1", tab_color={}, ctx=ctx
+        )
+        req = self._update_props_request(svc)
+        assert req["properties"]["tabColor"] == {}
+        assert "tabColor" in req["fields"]
+
+    async def test_show_gridlines_false_sets_hide_gridlines_true(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["update_sheet_properties"](
+            spreadsheet_id="ss1", sheet="Sheet1", show_gridlines=False, ctx=ctx
+        )
+        req = self._update_props_request(svc)
+        assert req["properties"]["gridProperties"]["hideGridlines"] is True
+        assert "gridProperties.hideGridlines" in req["fields"]
+
+    async def test_show_gridlines_true_sets_hide_gridlines_false(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["update_sheet_properties"](
+            spreadsheet_id="ss1", sheet="Sheet1", show_gridlines=True, ctx=ctx
+        )
+        req = self._update_props_request(svc)
+        assert req["properties"]["gridProperties"]["hideGridlines"] is False
+
+    async def test_right_to_left_sets_property_and_field(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["update_sheet_properties"](
+            spreadsheet_id="ss1", sheet="Sheet1", right_to_left=True, ctx=ctx
+        )
+        req = self._update_props_request(svc)
+        assert req["properties"]["rightToLeft"] is True
+        assert "rightToLeft" in req["fields"]
+
+    async def test_multiple_properties_produce_multiple_fields(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        color = {"red": 0.2, "green": 0.4, "blue": 0.6}
+        await _structure_tools["update_sheet_properties"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            tab_color=color,
+            show_gridlines=False,
+            right_to_left=True,
+            ctx=ctx,
+        )
+        req = self._update_props_request(svc)
+        assert "tabColor" in req["fields"]
+        assert "gridProperties.hideGridlines" in req["fields"]
+        assert "rightToLeft" in req["fields"]
+        assert req["properties"]["tabColor"] == color
+        assert req["properties"]["gridProperties"]["hideGridlines"] is True
+        assert req["properties"]["rightToLeft"] is True
+
+    async def test_no_params_returns_error(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["update_sheet_properties"](
+            spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["update_sheet_properties"](
+            spreadsheet_id="ss1", sheet="Missing", right_to_left=True, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_sheet_id_included_in_properties(self):
+        svc = self._sheets_service(sheet_id=42)
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["update_sheet_properties"](
+            spreadsheet_id="ss1", sheet="Sheet1", show_gridlines=False, ctx=ctx
+        )
+        req = self._update_props_request(svc)
+        assert req["properties"]["sheetId"] == 42
+
+
 class TestSortRange:
     def _sheets_service(self, sheet_id=0):
         mock = MagicMock()
