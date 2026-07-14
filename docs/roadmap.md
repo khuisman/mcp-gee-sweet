@@ -6,14 +6,14 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 
 ## What's implemented
 
-### Google Sheets — 24 tools
+### Google Sheets — 25 tools
 - **Read:** `get_sheet_data`, `get_sheet_formulas`, `get_multiple_sheet_data`, `get_multiple_spreadsheet_summary`, `find_in_spreadsheet`
 - **Write:** `update_cells`, `batch_update_cells`, `batch_update` _(raw batchUpdate passthrough — escape hatch for anything not covered by named tools)_
-- **Structure:** `list_sheets`, `create_sheet`, `rename_sheet`, `copy_sheet`, `delete_sheet`, `add_rows`, `add_columns`, `delete_rows`, `delete_columns`, `format_cells`, `merge_cells`, `unmerge_cells`, `freeze`, `sort_range`, `add_chart`
+- **Structure:** `list_sheets`, `create_sheet`, `rename_sheet`, `copy_sheet`, `duplicate_sheet`, `delete_sheet`, `add_rows`, `add_columns`, `delete_rows`, `delete_columns`, `format_cells`, `merge_cells`, `unmerge_cells`, `freeze`, `sort_range`, `add_chart`
 - **Data ops:** `clear_values`
 
-### Google Drive — 31 tools
-- **Files:** `list_files`, `list_spreadsheets`, `search_files`, `search_spreadsheets`, `list_folders`, `list_drives`, `get_file_metadata`, `create_spreadsheet`, `create_folder`, `copy_file`, `move_file`, `rename_file`, `delete_file`, `list_shared_with_me`, `list_recent_files`, `get_storage_quota`
+### Google Drive — 32 tools
+- **Files:** `list_files`, `list_spreadsheets`, `search_files`, `search_spreadsheets`, `list_folders`, `list_drives`, `get_file_metadata`, `create_spreadsheet`, `import_csv_to_sheet`, `create_folder`, `copy_file`, `move_file`, `rename_file`, `delete_file`, `list_shared_with_me`, `list_recent_files`, `get_storage_quota`
 - **Sharing:** `share_spreadsheet`, `share_file`, `list_permissions`, `update_permission`, `remove_permission`
 - **Transfer:** `upload_file`, `upload_local_file`, `upload_local_folder`, `download_file`, `download_folder`, `sync_folder`, `export_file`, `export_revision`, `list_revisions`
 - **Activity:** `list_file_activity` _(Drive Activity API v2; requires `drive.activity.readonly` scope)_
@@ -23,8 +23,9 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 - **Styling:** `style_doc_range`, `style_doc_table_cells`, `get_doc_theme`, `get_doc_named_styles`, `apply_theme`
 - **Table structure:** `insert_table_row`, `delete_table_row`, `insert_table_column`, `delete_table_column`
 
-### Google Calendar — 8 tools
-`list_calendars`, `get_calendar`, `list_events`, `get_event`, `create_event`, `update_event`, `delete_event`, `find_free_slots`
+### Google Calendar — 13 tools
+- **Calendars:** `list_calendars`, `get_calendar`, `create_calendar`, `update_calendar`, `delete_calendar`, `add_calendar_to_list`, `remove_calendar_from_list`
+- **Events:** `list_events`, `get_event`, `create_event`, `update_event`, `delete_event`, `find_free_slots`
 
 ---
 
@@ -174,6 +175,25 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [ ] `add_note` / `clear_note` — cell notes (distinct from comments) ([#131](https://github.com/khuisman/mcp-gee-sweet/issues/131)) _(freema/mcp-gsheets)_
 - [ ] Pivot tables — create and update pivot table specs via batchUpdate ([#133](https://github.com/khuisman/mcp-gee-sweet/issues/133))
 - [ ] Developer metadata — key-value metadata attached to rows, columns, or ranges ([#134](https://github.com/khuisman/mcp-gee-sweet/issues/134))
+- [ ] Sheet comments and cell notes (add/get/list/reply/resolve/delete) — we have zero comment tooling on Sheets today _(a-bonus/google-docs-mcp)_
+- [ ] Conditional formatting rules — add/get/delete _(a-bonus/google-docs-mcp)_
+- [ ] Protected ranges — protect/unprotect a range _(a-bonus/google-docs-mcp)_
+- [ ] Dropdown / data validation on a range _(a-bonus/google-docs-mcp)_
+- [ ] Row grouping (outline/collapse) — group/ungroup rows _(a-bonus/google-docs-mcp)_
+- [ ] Auto-resize columns/rows to fit content _(a-bonus/google-docs-mcp)_
+- [ ] Write-side column widths / row heights — companion to the read-only `get_sheet_dimensions` above ([#132](https://github.com/khuisman/mcp-gee-sweet/issues/132)) _(a-bonus/google-docs-mcp)_
+- [ ] Native Sheets "Tables" object support (create/list/get/delete/update a structured Table, distinct from a plain range) — a newer Sheets API feature we don't touch at all _(a-bonus/google-docs-mcp)_
+- [ ] Copy formatting only, without values (paste-special-style) _(a-bonus/google-docs-mcp)_
+
+**Docs**
+- [ ] Doc comments (add/get/list/reply/resolve/delete) — we have zero comment tooling on Docs today _(a-bonus/google-docs-mcp)_
+- [ ] Multi-tab document support (list/add/rename tabs) — Google Docs' newer per-document tabs feature _(a-bonus/google-docs-mcp)_
+- [ ] Smart chips — date chips, person chips, rich links; `list_smart_chips` to enumerate existing ones _(a-bonus/google-docs-mcp)_
+- [ ] Section breaks and per-section page styling _(a-bonus/google-docs-mcp)_
+- [ ] Page breaks _(a-bonus/google-docs-mcp)_
+- [ ] Table structure discovery and cloning (read a table's row/column structure; clone an existing table) _(a-bonus/google-docs-mcp)_
+- [ ] Finer-grained table styling — per-border, per-column-width, per-row-height table styling beyond what `style_doc_table_cells` currently exposes _(a-bonus/google-docs-mcp)_
+- [ ] Footnote management _(piotr-agier/google-drive-mcp)_
 
 **Calendar**
 - [ ] Working location / OOO / Focus time events ([#164](https://github.com/khuisman/mcp-gee-sweet/issues/164))
@@ -315,3 +335,5 @@ Requires `gmail/v1` client and `https://www.googleapis.com/auth/gmail.modify` sc
 - [xing5/mcp-google-sheets](https://github.com/xing5/mcp-google-sheets) — original upstream this project was forked from
 - [freema/mcp-gsheets](https://github.com/freema/mcp-gsheets) — most comprehensive Sheets-specific MCP server; primary source for formatting, validation, and sheet property roadmap items
 - [piotr-agier/google-drive-mcp](https://github.com/piotr-agier/google-drive-mcp) — full Workspace suite; primary source for Drive file operations, permissions, and named/protected range roadmap items
+- [a-bonus/google-docs-mcp](https://github.com/a-bonus/google-docs-mcp) — source-verified ~44 Sheets tools / ~39 Docs tools (one-file-per-operation style, exceeds its own README's claimed counts); primary source for the Sheets comments/conditional-formatting/protected-ranges/validation/grouping cluster and the Docs comments/tabs/smart-chips/section-breaks cluster added 2026-07-14
+- [taylorwilsdon/google_workspace_mcp](https://github.com/taylorwilsdon/google_workspace_mcp) — 12-service, source-verified 115-tool server; only project reviewed with a confirmed Markdown *export* tool (`get_doc_as_markdown`, see [#300](https://github.com/khuisman/mcp-gee-sweet/issues/300)) — our Markdown support is currently input-only
