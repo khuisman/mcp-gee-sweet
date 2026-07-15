@@ -187,6 +187,78 @@ class TestInsertTableColumn:
         assert "error" in result
 
 
+class TestMergeTableCells:
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    async def test_sends_correct_request_defaults(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = await _docs_tools["merge_table_cells"](
+            doc_id="doc1", table_start_index=5, row_index=0, column_index=1, ctx=ctx
+        )
+        assert result == {
+            "docId": "doc1",
+            "table_start_index": 5,
+            "row_index": 0,
+            "column_index": 1,
+            "row_span": 1,
+            "column_span": 1,
+        }
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        tr = body["requests"][0]["mergeTableCells"]["tableRange"]
+        assert tr["tableCellLocation"]["tableStartLocation"]["index"] == 5
+        assert tr["tableCellLocation"]["rowIndex"] == 0
+        assert tr["tableCellLocation"]["columnIndex"] == 1
+        assert tr["rowSpan"] == 1
+        assert tr["columnSpan"] == 1
+
+    async def test_sends_correct_request_with_spans(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = await _docs_tools["merge_table_cells"](
+            doc_id="doc1",
+            table_start_index=5,
+            row_index=1,
+            column_index=2,
+            row_span=2,
+            column_span=3,
+            ctx=ctx,
+        )
+        assert result == {
+            "docId": "doc1",
+            "table_start_index": 5,
+            "row_index": 1,
+            "column_index": 2,
+            "row_span": 2,
+            "column_span": 3,
+        }
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        tr = body["requests"][0]["mergeTableCells"]["tableRange"]
+        assert tr["rowSpan"] == 2
+        assert tr["columnSpan"] == 3
+
+    async def test_marks_doc_cache_dirty(self):
+        docs_svc = MagicMock()
+        doc_cache = MagicMock()
+        ctx = _make_ctx(docs_service=docs_svc, doc_cache=doc_cache)
+        await _docs_tools["merge_table_cells"](
+            doc_id="doc1", table_start_index=5, row_index=0, column_index=0, ctx=ctx
+        )
+        doc_cache.mark_dirty.assert_called_once_with("doc1")
+
+    async def test_api_error_returns_error(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "API error"
+        )
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = await _docs_tools["merge_table_cells"](
+            doc_id="doc1", table_start_index=5, row_index=0, column_index=0, ctx=ctx
+        )
+        assert "error" in result
+
+
 class TestDeleteTableColumn:
     def _ctx(self, docs_svc=None):
         return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
