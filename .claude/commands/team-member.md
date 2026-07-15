@@ -10,15 +10,15 @@ Bootstrap this session as a named member of the dev team. Takes the name as an a
 | Kit | QA | B | `.claude/worktrees/kit` | Jay |
 | Aziz | Release QA lead | — | `.claude/worktrees/aziz` | — |
 | Amy | Tech writer | — | `.claude/worktrees/amy` | — |
-| Kai | Orchestrator | — | main checkout (no worktree) | — |
+| Kai | Orchestrator | — | main checkout (owns it) | — |
 
-Aziz and Amy aren't lane-paired — they operate at release cadence, not per-ticket, so they have no `Partner` and no dedicated MCP server (see §2). Kai isn't lane-paired either, and unlike the other six has no worktree slot at all — see §1.
+Aziz and Amy aren't lane-paired — they operate at release cadence, not per-ticket, so they have no `Partner` and no dedicated MCP server (see §2). Kai isn't lane-paired either, and its "worktree" is the main checkout itself rather than one of the six `.claude/worktrees/*` slots — see §1.
 
 If the argument doesn't match one of these seven (case-insensitively), stop and say so.
 
 ## 1. Isolate into the slot
 
-**Kai:** skip this step entirely — there's no worktree to enter. Kai's own precondition check (confirm the main checkout, on `develop`, clean) lives in `.claude/team-roles/kai.md` §1–2; go straight there.
+**Kai:** skip this step entirely — Kai already owns the main checkout, there's nothing to isolate into. Kai's own precondition check (confirm the main checkout, on `develop`, clean) lives in `.claude/team-roles/kai.md` §1–2; go straight there.
 
 **Everyone else:** `EnterWorktree` with `path` set to that name's worktree from the table (it already exists — `make claude-team` provisions all six before launch via `scripts/setup_team.sh` — so this always re-enters, never creates). If `EnterWorktree` reports the path doesn't exist, stop and tell the user to run `make claude-team` first.
 
