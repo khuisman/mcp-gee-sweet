@@ -12,4 +12,6 @@ Branch naming for this slot always puts `<name>` as the **second** `/`-separated
   5. Commit and push (with confirmation, per this repo's normal rule), open a PR referencing the issue (`Closes #<n>`) targeting `develop`.
   6. Remove the `ready-for-development` label once the PR is open.
   7. Report the PR URL. Leave the branch checked out — don't return to `team/<name>` until the ticket is fully merged (see `/merge-pr`'s team-slot reset step).
-- **On any other branch (mid-ticket):** report status — whether a PR is already open, what CI/QA said if anything, and whether it's waiting on QA or on further work — rather than claiming a new ticket.
+- **On any other branch:** check this branch's PR history: `gh pr list --head <branch> --state all --json number,state,mergedAt`.
+  - **A `MERGED` entry exists:** this ticket already shipped and this slot was never reset (e.g. Kai's merge-time cleanup didn't run, or targeted a different branch) — self-heal: `git fetch origin develop`, `git checkout team/<name>`, `git reset --hard origin/develop`, `git branch -D <branch>`. Then treat this slot as idle and fall through to the idle-branch flow above to pick up the next ticket.
+  - **No `MERGED` entry (open, closed-without-merge, or no PR at all):** mid-ticket — report status: whether a PR is already open, what CI/QA said if anything, and whether it's waiting on QA or on further work — rather than claiming a new ticket. Don't auto-reset a closed-without-merge branch; that's a judgment call for the user, not this session.
