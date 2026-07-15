@@ -1334,6 +1334,8 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** delete the table
 
+**Result (2026-07-14) ✅ PASS** Inserted a 2×3 table, called `merge_table_cells(table_start_index, row_index=0, column_index=0, row_span=1, column_span=2)`. Response matched exactly: `{"docId", "table_start_index", "row_index": 0, "column_index": 0, "row_span": 1, "column_span": 2}`. Playwright screenshot confirmed row 0's first two columns render as one wide cell while row 1 kept three separate cells. Re-fetched `get_doc_structure`: table still reported 3 physical columns in row 0 (cells at col 0, 1, 2 all present with distinct indices). Table deleted via `delete_doc_range`.
+
 ### TC-DOC92: Merge a vertical range of cells (rowspan) ⚠️ destructive
 **Setup:** insert a 3×2 table; note its `tableStartIndex`
 
@@ -1348,6 +1350,8 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Cleanup:** delete the table
 
+**Result (2026-07-14) ✅ PASS** Inserted a 3×2 table, called `merge_table_cells(table_start_index, row_index=0, column_index=0, row_span=2, column_span=1)`. Response matched exactly: `{"docId", "table_start_index", "row_index": 0, "column_index": 0, "row_span": 2, "column_span": 1}`. Playwright screenshot confirmed column 0's first two rows render as one tall cell while column 1 kept two separate cells across the same rows; row 2 unaffected. Table deleted via `delete_doc_range`.
+
 ### TC-DOC93: API error returned gracefully (merge range exceeds table bounds)
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
@@ -1359,6 +1363,8 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - Error message references an API failure
 
 **Cleanup:** delete the table
+
+**Result (2026-07-14) ✅ PASS** Inserted a 2×2 table, called `merge_table_cells(row_index=0, column_index=0, row_span=1, column_span=99)`. Returned `{"error": "<HttpError 400 ... Invalid requests[0].mergeTableCells: The table range extends outside the bounds of the table.>"}`. No exception raised. Table deleted via `delete_doc_range`.
 
 ---
 
