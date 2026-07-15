@@ -824,3 +824,40 @@ def register(tool):
         lc.doc_cache.mark_dirty(doc_id)
         logger.debug("insert_inline_image: at index %d in doc %s", index, doc_id)
         return {"docId": doc_id, "index": index}
+
+    @tool(annotations=ToolAnnotations(title="Insert Page Break", destructiveHint=True))
+    async def insert_page_break(
+        doc_id: str,
+        index: int,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Insert an explicit page break at a specific index in a Google Doc.
+
+        Use get_doc_structure to find a suitable insertion index.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            index: Document body index where the page break should be inserted.
+
+        Returns:
+            Confirmation with docId and the insertion index.
+        """
+        lc = ctx.request_context.lifespan_context
+
+        try:
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={"requests": [{"insertPageBreak": {"location": {"index": index}}}]},
+                )
+                .execute,
+                lc.docs_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug("insert_page_break: at index %d in doc %s", index, doc_id)
+        return {"docId": doc_id, "index": index}

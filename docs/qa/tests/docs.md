@@ -1605,4 +1605,35 @@ Fetch-path call raised: `get_doc_content: the response is 49700 characters, over
 **Result (2026-07-05) ✅ PASS**
 `create_doc` succeeded (docId `1elTfZ70c6AO66cjLQ7O-PrzzUlYGmVwiKuNWjDXVMGI`). `get_doc_structure` confirmed the entire line ("See https://example.com/inert here") is a single unstyled run — no `link_url`, no underline. Doc trashed after verification. Visual check (re-created identical content, Playwright screenshot, re-trashed): entire line renders as plain black text, no blue/underline anywhere.
 
+---
+
+## `insert_page_break` (#148)
+
+### TC-DOC94: Insert a page break at a given index ⚠️ destructive
+**Setup:** create a doc with two short paragraphs; note the `endIndex` of the first paragraph
+
+**Prompt**
+**Playwright: required**
+> "Insert a page break at index {N} in doc {DOC_ID}"
+
+**Checks**
+- Call succeeds with no API error
+- Response contains `docId` and `index: N`
+- `get_doc_structure` does not surface the page break as its own element (it's an inline element inside the paragraph, not a top-level body element) — this is expected, not a bug
+- 🔍 Visual check in Google Docs: the second paragraph starts on a new page
+
+**Cleanup:** delete the created doc
+
+---
+
+### TC-DOC95: API error returned gracefully (index beyond document end)
+**Prompt**
+> "Insert a page break at index 99999 in doc {DOC_ID}"
+
+**Checks**
+- Returns `{"error": "..."}` — does not raise an exception
+- Error message references an API failure (index out of bounds)
+
+**Cleanup:** none (no mutation applied)
+
 **Result: PENDING** — same restart blocker as TC-DOC82.
