@@ -294,6 +294,86 @@ def register(tool):
             "column_index": column_index,
         }
 
+    @tool(annotations=ToolAnnotations(title="Merge Table Cells", destructiveHint=True))
+    async def merge_table_cells(
+        doc_id: str,
+        table_start_index: int,
+        row_index: int,
+        column_index: int,
+        row_span: int = 1,
+        column_span: int = 1,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Merge a rectangular range of cells in an existing table into one cell.
+
+        Use get_doc_structure to find the table's startIndex and the row/column
+        of the merge range's top-left (anchor) cell. Merging doesn't delete
+        content or shift character indices: cells covered by the merge remain
+        physical entries in the doc, they're just no longer independently
+        addressable in the rendered table.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            table_start_index: The startIndex of the table (from get_doc_structure).
+            row_index: Zero-based row of the merge range's top-left cell.
+            column_index: Zero-based column of the merge range's top-left cell.
+            row_span: Number of rows the merged cell should span (default 1).
+            column_span: Number of columns the merged cell should span (default 1).
+
+        Returns:
+            Confirmation with docId, table_start_index, row_index, column_index,
+            row_span, and column_span.
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "mergeTableCells": {
+                                    "tableRange": {
+                                        "tableCellLocation": {
+                                            "tableStartLocation": {"index": table_start_index},
+                                            "rowIndex": row_index,
+                                            "columnIndex": column_index,
+                                        },
+                                        "rowSpan": row_span,
+                                        "columnSpan": column_span,
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                )
+                .execute,
+                lc.docs_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug(
+            "merge_table_cells: (%d,%d) span %dx%d in table at %d in doc %s",
+            row_index,
+            column_index,
+            row_span,
+            column_span,
+            table_start_index,
+            doc_id,
+        )
+        return {
+            "docId": doc_id,
+            "table_start_index": table_start_index,
+            "row_index": row_index,
+            "column_index": column_index,
+            "row_span": row_span,
+            "column_span": column_span,
+        }
+
     @tool(annotations=ToolAnnotations(title="Delete Table Column", destructiveHint=True))
     async def delete_table_column(
         doc_id: str,
