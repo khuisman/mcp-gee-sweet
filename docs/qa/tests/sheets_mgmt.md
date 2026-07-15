@@ -503,6 +503,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - `properties.hiddenByUser: true`, `fields: hiddenByUser`
 - Row 5 collapses to a thin line in the Sheets UI with a show-row chevron
 
+**Result (2026-07-14) ✅ PASS**
+`hide_rows(spreadsheet_id, sheet="Sales", start_row=4)` → `{"replies":[{}]}`. Playwright screenshot confirmed row headers skip from 4 straight to 6 with expand chevrons at the boundary.
+
 ---
 
 ### TC-S64: Hide a range of rows ⚠️ destructive
@@ -515,6 +518,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - `startIndex: 2`, `endIndex: 5` in the request (inclusive end_row=4 translated to exclusive 5)
 - All three rows collapse in the UI
 
+**Result (2026-07-14) ✅ PASS**
+`hide_rows(spreadsheet_id, sheet="Sales", start_row=2, end_row=4)` → `{"replies":[{}]}`. Playwright screenshot confirmed row headers skip from 2 straight to 6 (rows 3-5 collapsed together).
+
 ---
 
 ### TC-S65: Hide rows — sheet not found returns error
@@ -524,6 +530,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 **Checks**
 - Response contains `error` field
+
+**Result (2026-07-14) ✅ PASS**
+`hide_rows(spreadsheet_id, sheet="NoSuchSheet", start_row=0)` → `{"error":"Sheet 'NoSuchSheet' not found"}`.
 
 ---
 
@@ -539,6 +548,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - `updateDimensionProperties` request sent with `properties.hiddenByUser: false`
 - Row 5 reappears in the Sheets UI
 
+**Result (2026-07-14) ✅ PASS**
+`unhide_rows(spreadsheet_id, sheet="Sales", start_row=4)` → `{"replies":[{}]}`. Playwright screenshot confirmed row 5 reappeared (rows 3-4 remained collapsed since only index 4 was unhidden).
+
 ---
 
 ### TC-S67: Unhide rows — sheet not found returns error
@@ -548,6 +560,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 **Checks**
 - Response contains `error` field
+
+**Result (2026-07-14) ✅ PASS**
+`unhide_rows(spreadsheet_id, sheet="NoSuchSheet", start_row=0)` → `{"error":"Sheet 'NoSuchSheet' not found"}`.
 
 ---
 
@@ -564,6 +579,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - `properties.hiddenByUser: true`
 - Column B collapses in the Sheets UI
 
+**Result (2026-07-14) ✅ PASS**
+`hide_columns(spreadsheet_id, sheet="Sales", start_column=1)` → `{"replies":[{}]}`. Playwright screenshot confirmed column headers skip from A straight to C; chart legend dropped its Q1 series (sourced from column B).
+
 ---
 
 ### TC-S69: Hide a range of columns ⚠️ destructive
@@ -576,6 +594,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - `startIndex: 2`, `endIndex: 5` in the request
 - All columns in range collapse in the UI
 
+**Result (2026-07-14) ✅ PASS**
+`hide_columns(spreadsheet_id, sheet="Sales", start_column=2, end_column=4)` → `{"replies":[{}]}`. Playwright screenshot confirmed column headers skip from A straight to F (B-E collapsed together); chart showed "Add a series" since all data columns were hidden.
+
 ---
 
 ### TC-S70: Hide columns — sheet not found returns error
@@ -585,6 +606,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 **Checks**
 - Response contains `error` field
+
+**Result (2026-07-14) ✅ PASS**
+`hide_columns(spreadsheet_id, sheet="NoSuchSheet", start_column=0)` → `{"error":"Sheet 'NoSuchSheet' not found"}`.
 
 ---
 
@@ -600,6 +624,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - `updateDimensionProperties` request sent with `properties.hiddenByUser: false`
 - Column B reappears in the Sheets UI
 
+**Result (2026-07-14) ✅ PASS**
+`unhide_columns(spreadsheet_id, sheet="Sales", start_column=1)` → `{"replies":[{}]}`. Playwright screenshot confirmed column B reappeared (chart legend regained its Q1 series) while C-E remained collapsed.
+
 ---
 
 ### TC-S72: Unhide columns — sheet not found returns error
@@ -609,6 +636,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 **Checks**
 - Response contains `error` field
+
+**Result (2026-07-14) ✅ PASS**
+`unhide_columns(spreadsheet_id, sheet="NoSuchSheet", start_column=0)` → `{"error":"Sheet 'NoSuchSheet' not found"}`.
 
 ---
 
