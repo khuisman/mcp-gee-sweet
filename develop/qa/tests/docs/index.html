@@ -2223,6 +2223,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#merge_table_cells-150" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        merge_table_cells (#150)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="merge_table_cells (#150)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc91-merge-a-horizontal-range-of-cells-colspan-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC91: Merge a horizontal range of cells (colspan) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc92-merge-a-vertical-range-of-cells-rowspan-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC92: Merge a vertical range of cells (rowspan) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc93-api-error-returned-gracefully-merge-range-exceeds-table-bounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC93: API error returned gracefully (merge range exceeds table bounds)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#create_header-create_footer-147" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3669,6 +3719,46 @@
 - Returns <code>{"error": "..."}</code> — does not raise an exception
 - Error message references an API failure</p>
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>delete_table_row(row_index=99)</code> on a 2×2 table. Returned <code>{"error": "..."}</code> with an API error message referencing an invalid row index. No exception raised.</p>
+<hr />
+<h2 id="merge_table_cells-150"><code>merge_table_cells</code> (#150)<a class="headerlink" href="#merge_table_cells-150" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc91-merge-a-horizontal-range-of-cells-colspan-destructive">TC-DOC91: Merge a horizontal range of cells (colspan) ⚠️ destructive<a class="headerlink" href="#tc-doc91-merge-a-horizontal-range-of-cells-colspan-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a 2×3 table; note its <code>tableStartIndex</code></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Merge cells in the table at index {tableStartIndex} in doc {DOC_ID} starting at row 0, column 0, spanning 1 row and 2 columns"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Response contains <code>docId</code>, <code>table_start_index</code>, <code>row_index: 0</code>, <code>column_index: 0</code>, <code>row_span: 1</code>, <code>column_span: 2</code>
+- 🔍 Visual check in Google Docs: row 0's first two columns render as one wide cell; row 1 is unaffected
+- Re-fetch <code>get_doc_structure</code> still reports 3 physical columns in row 0 (merge doesn't delete the covered cell, it only changes rendering)</p>
+<p><strong>Cleanup:</strong> delete the table</p>
+<p><strong>Result (2026-07-14) ✅ PASS</strong> Inserted a 2×3 table, called <code>merge_table_cells(table_start_index, row_index=0, column_index=0, row_span=1, column_span=2)</code>. Response matched exactly: <code>{"docId", "table_start_index", "row_index": 0, "column_index": 0, "row_span": 1, "column_span": 2}</code>. Playwright screenshot confirmed row 0's first two columns render as one wide cell while row 1 kept three separate cells. Re-fetched <code>get_doc_structure</code>: table still reported 3 physical columns in row 0 (cells at col 0, 1, 2 all present with distinct indices). Table deleted via <code>delete_doc_range</code>.</p>
+<h3 id="tc-doc92-merge-a-vertical-range-of-cells-rowspan-destructive">TC-DOC92: Merge a vertical range of cells (rowspan) ⚠️ destructive<a class="headerlink" href="#tc-doc92-merge-a-vertical-range-of-cells-rowspan-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a 3×2 table; note its <code>tableStartIndex</code></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Merge cells in the table at index {tableStartIndex} in doc {DOC_ID} starting at row 0, column 0, spanning 2 rows and 1 column"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Response contains <code>docId</code>, <code>table_start_index</code>, <code>row_index: 0</code>, <code>column_index: 0</code>, <code>row_span: 2</code>, <code>column_span: 1</code>
+- 🔍 Visual check in Google Docs: column 0's first two rows render as one tall cell; column 1 is unaffected in both rows</p>
+<p><strong>Cleanup:</strong> delete the table</p>
+<p><strong>Result (2026-07-14) ✅ PASS</strong> Inserted a 3×2 table, called <code>merge_table_cells(table_start_index, row_index=0, column_index=0, row_span=2, column_span=1)</code>. Response matched exactly: <code>{"docId", "table_start_index", "row_index": 0, "column_index": 0, "row_span": 2, "column_span": 1}</code>. Playwright screenshot confirmed column 0's first two rows render as one tall cell while column 1 kept two separate cells across the same rows; row 2 unaffected. Table deleted via <code>delete_doc_range</code>.</p>
+<h3 id="tc-doc93-api-error-returned-gracefully-merge-range-exceeds-table-bounds">TC-DOC93: API error returned gracefully (merge range exceeds table bounds)<a class="headerlink" href="#tc-doc93-api-error-returned-gracefully-merge-range-exceeds-table-bounds" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Merge cells in the table at index {tableStartIndex} in doc {DOC_ID} starting at row 0, column 0, spanning 1 row and 99 columns"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — does not raise an exception
+- Error message references an API failure</p>
+<p><strong>Cleanup:</strong> delete the table</p>
+<p><strong>Result (2026-07-14) ✅ PASS</strong> Inserted a 2×2 table, called <code>merge_table_cells(row_index=0, column_index=0, row_span=1, column_span=99)</code>. Returned <code>{"error": "&lt;HttpError 400 ... Invalid requests[0].mergeTableCells: The table range extends outside the bounds of the table.&gt;"}</code>. No exception raised. Table deleted via <code>delete_doc_range</code>.</p>
 <hr />
 <h2 id="create_header-create_footer-147"><code>create_header</code> / <code>create_footer</code> (#147)<a class="headerlink" href="#create_header-create_footer-147" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc68-create-a-default-page-header-destructive">TC-DOC68: Create a default page header ⚠️ destructive<a class="headerlink" href="#tc-doc68-create-a-default-page-header-destructive" title="Permanent link">&para;</a></h3>
