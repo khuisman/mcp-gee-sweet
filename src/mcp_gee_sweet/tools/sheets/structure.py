@@ -32,6 +32,41 @@ def _per_column_ranges(sheet_id: int, indices: dict) -> list[dict]:
     ]
 
 
+async def _set_dimension_hidden(
+    sheets_service,
+    spreadsheet_id: str,
+    sheet_id: int,
+    dimension: str,
+    start_index: int,
+    end_index: int,
+    hidden: bool,
+) -> dict[str, Any]:
+    return await execute_in_thread(
+        sheets_service.spreadsheets()
+        .batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={
+                "requests": [
+                    {
+                        "updateDimensionProperties": {
+                            "range": {
+                                "sheetId": sheet_id,
+                                "dimension": dimension,
+                                "startIndex": start_index,
+                                "endIndex": end_index,
+                            },
+                            "properties": {"hiddenByUser": hidden},
+                            "fields": "hiddenByUser",
+                        }
+                    }
+                ]
+            },
+        )
+        .execute,
+        sheets_service,
+    )
+
+
 def register(tool):
     @tool(annotations=ToolAnnotations(title="List Sheets", readOnlyHint=True))
     async def list_sheets(spreadsheet_id: str, ctx: Context = None) -> list[str]:
@@ -538,6 +573,150 @@ def register(tool):
             )
             .execute,
             sheets_service,
+        )
+
+    @tool(annotations=ToolAnnotations(title="Hide Rows", destructiveHint=True))
+    async def hide_rows(
+        spreadsheet_id: str,
+        sheet: str,
+        start_row: int,
+        end_row: int | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Hide rows in a sheet from view.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet (found in the URL)
+            sheet: The name of the sheet
+            start_row: 0-based index of the first row to hide
+            end_row: 0-based index of the last row to hide (inclusive).
+                     If omitted, hides only start_row.
+
+        Returns:
+            Result of the batchUpdate operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        end_index = (end_row if end_row is not None else start_row) + 1  # exclusive
+
+        return await _set_dimension_hidden(
+            sheets_service, spreadsheet_id, sheet_id, "ROWS", start_row, end_index, True
+        )
+
+    @tool(annotations=ToolAnnotations(title="Unhide Rows", destructiveHint=True))
+    async def unhide_rows(
+        spreadsheet_id: str,
+        sheet: str,
+        start_row: int,
+        end_row: int | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Unhide previously hidden rows in a sheet.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet (found in the URL)
+            sheet: The name of the sheet
+            start_row: 0-based index of the first row to unhide
+            end_row: 0-based index of the last row to unhide (inclusive).
+                     If omitted, unhides only start_row.
+
+        Returns:
+            Result of the batchUpdate operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        end_index = (end_row if end_row is not None else start_row) + 1  # exclusive
+
+        return await _set_dimension_hidden(
+            sheets_service, spreadsheet_id, sheet_id, "ROWS", start_row, end_index, False
+        )
+
+    @tool(annotations=ToolAnnotations(title="Hide Columns", destructiveHint=True))
+    async def hide_columns(
+        spreadsheet_id: str,
+        sheet: str,
+        start_column: int,
+        end_column: int | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Hide columns in a sheet from view.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet (found in the URL)
+            sheet: The name of the sheet
+            start_column: 0-based index of the first column to hide (0 = column A)
+            end_column: 0-based index of the last column to hide (inclusive).
+                        If omitted, hides only start_column.
+
+        Returns:
+            Result of the batchUpdate operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        end_index = (end_column if end_column is not None else start_column) + 1  # exclusive
+
+        return await _set_dimension_hidden(
+            sheets_service, spreadsheet_id, sheet_id, "COLUMNS", start_column, end_index, True
+        )
+
+    @tool(annotations=ToolAnnotations(title="Unhide Columns", destructiveHint=True))
+    async def unhide_columns(
+        spreadsheet_id: str,
+        sheet: str,
+        start_column: int,
+        end_column: int | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Unhide previously hidden columns in a sheet.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet (found in the URL)
+            sheet: The name of the sheet
+            start_column: 0-based index of the first column to unhide (0 = column A)
+            end_column: 0-based index of the last column to unhide (inclusive).
+                        If omitted, unhides only start_column.
+
+        Returns:
+            Result of the batchUpdate operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        end_index = (end_column if end_column is not None else start_column) + 1  # exclusive
+
+        return await _set_dimension_hidden(
+            sheets_service, spreadsheet_id, sheet_id, "COLUMNS", start_column, end_index, False
         )
 
     @tool(annotations=ToolAnnotations(title="Format Cells", destructiveHint=True))

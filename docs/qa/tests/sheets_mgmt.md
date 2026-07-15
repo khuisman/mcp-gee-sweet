@@ -490,6 +490,128 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 ---
 
+## `hide_rows` / `unhide_rows`
+
+### TC-S63: Hide a single row ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Hide row 5 (0-based index 4) on the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- `updateDimensionProperties` request sent with `dimension: ROWS`, `startIndex: 4`, `endIndex: 5`
+- `properties.hiddenByUser: true`, `fields: hiddenByUser`
+- Row 5 collapses to a thin line in the Sheets UI with a show-row chevron
+
+---
+
+### TC-S64: Hide a range of rows ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Hide rows 3 through 5 (0-based indices 2–4) on the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- `startIndex: 2`, `endIndex: 5` in the request (inclusive end_row=4 translated to exclusive 5)
+- All three rows collapse in the UI
+
+---
+
+### TC-S65: Hide rows — sheet not found returns error
+
+**Prompt**
+> "Hide row 0 on a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"
+
+**Checks**
+- Response contains `error` field
+
+---
+
+### TC-S66: Unhide a previously hidden row ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Unhide row 5 (0-based index 4) on the Sales sheet in {SPREADSHEET_ID}"
+
+**Setup:** Row 5 hidden by a prior `hide_rows` call (e.g. TC-S63).
+
+**Checks**
+- `updateDimensionProperties` request sent with `properties.hiddenByUser: false`
+- Row 5 reappears in the Sheets UI
+
+---
+
+### TC-S67: Unhide rows — sheet not found returns error
+
+**Prompt**
+> "Unhide row 0 on a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"
+
+**Checks**
+- Response contains `error` field
+
+---
+
+## `hide_columns` / `unhide_columns`
+
+### TC-S68: Hide a single column ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Hide column B (0-based index 1) on the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- `updateDimensionProperties` request sent with `dimension: COLUMNS`, `startIndex: 1`, `endIndex: 2`
+- `properties.hiddenByUser: true`
+- Column B collapses in the Sheets UI
+
+---
+
+### TC-S69: Hide a range of columns ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Hide columns C through E (0-based indices 2–4) on the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- `startIndex: 2`, `endIndex: 5` in the request
+- All columns in range collapse in the UI
+
+---
+
+### TC-S70: Hide columns — sheet not found returns error
+
+**Prompt**
+> "Hide column 0 on a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"
+
+**Checks**
+- Response contains `error` field
+
+---
+
+### TC-S71: Unhide a previously hidden column ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Unhide column B (0-based index 1) on the Sales sheet in {SPREADSHEET_ID}"
+
+**Setup:** Column B hidden by a prior `hide_columns` call (e.g. TC-S68).
+
+**Checks**
+- `updateDimensionProperties` request sent with `properties.hiddenByUser: false`
+- Column B reappears in the Sheets UI
+
+---
+
+### TC-S72: Unhide columns — sheet not found returns error
+
+**Prompt**
+> "Unhide column 0 on a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"
+
+**Checks**
+- Response contains `error` field
+
+---
+
 ## `format_cells`
 
 ### TC-S33: Apply bold and background color to a range ⚠️ destructive
