@@ -31,6 +31,10 @@ Dev branches are named `<type>/<devname>/issue-<n>`, inserting the name as the s
 
 Its existing rule — remove any worktree whose branch has a merged PR and is clean — would otherwise delete a team-slot worktree the moment its first ticket's PR merges, since a just-merged dev-team branch (e.g. `fix/ash/issue-241`) matches exactly that rule. Two changes: `/merge-pr`'s cleanup step now resets a team-slot worktree back to `team/<name>` in place (rather than removing the worktree) as soon as its PR merges, and `/cleanup-worktrees` itself unconditionally skips the four team-slot paths regardless of branch/PR state, as a second line of defense.
 
+## Addendum (2026-07-16): `lane-a`/`lane-b` labels for pickup, not runtime routing
+
+Decision 4 rejected a `lane:a`/`lane:b` label for QA-finds-Dev's-PR routing — the branch name already resolves that unambiguously at runtime. This addendum adds `lane-a`/`lane-b` labels for a different problem: an *idle* Dev slot picking its *next* ticket, before any branch exists. `dev.md`'s pickup query previously took the lowest-numbered `ready-for-development` issue with no lane awareness, which meant pre-queuing both lanes' next tickets at once (an established, previously-safe pattern) could misroute if a lane happened to free up before its intended ticket, e.g. Jay grabbing a lower-numbered ticket meant for Ash. `dev.md` now filters its pickup query by the matching lane label, and Kai always pairs `ready-for-development` with the correct lane label when queuing — see `.claude/team-roles/kai.md`, `.claude/team-roles/dev.md`.
+
 ## When to Re-evaluate
 
 - If the shared-MCP-config tool boundary (decision 3) turns out to be leaky in practice (an agent calling another role's tools by mistake), look at per-agent permission allow-lists rather than reintroducing per-role processes — Agent View's constraints haven't changed, so separate processes still won't fit the workflow.
