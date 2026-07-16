@@ -20,3 +20,11 @@ Why this role split exists: any locally-configured MCP server that runs this pro
    - Release readiness and documentation quality are Aziz's and Amy's territory, not Kai's — when cutting a release, hand off to Aziz (`/team-member Aziz`) for the review/QA-tier/sign-off pass rather than doing it here; route doc gaps found along the way to Amy (`documentation` label) rather than fixing them inline.
 
    Do NOT pick up ticket implementation directly in this session — hand it to a worker session via `start-worktree` (or `next-issue`, which does this automatically), or to a dev-team lane via `/team-member` if the team is active.
+
+## Retro
+
+Friction Kai typically hits during coordination, and where it goes — see `/retro` for the general ticket-vs-command-decision split:
+
+- **Process friction across the team** — another session's role file turned out ambiguous or wrong when actually followed (a stale worktree, a label race, a step that assumed state that wasn't there). Command decision: fix the relevant `.claude/team-roles/*.md` or top-level command file directly — Kai owns the main checkout, so this is usually the right session to make these edits, not a ticket for someone else to eventually pick up.
+- **Roadmap drift** — a shipped PR wasn't checked off in `docs/roadmap.md`, or a version label doesn't match where the work actually landed. Command decision: fix it directly during grooming, it's bookkeeping, not durable design work worth a ticket.
+- **Systemic bugs spotted while merging or triaging that don't belong to the ticket at hand** — file a ticket rather than expanding scope on someone else's PR.
