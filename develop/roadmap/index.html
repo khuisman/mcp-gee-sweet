@@ -1854,6 +1854,8 @@
 <h3 id="tier-2-useful-for-structured-work-plus-defects-surfaced-since-v081-target-v090">Tier 2 — Useful for structured work, plus defects surfaced since v0.8.1 <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9">v0.9.0</a>)</em><a class="headerlink" href="#tier-2-useful-for-structured-work-plus-defects-surfaced-since-v081-target-v090" title="Permanent link">&para;</a></h3>
 <p><strong>Defects</strong> <em>(found after v0.8.1 shipped; too late for that release, don't warrant a standalone patch)</em>
 - [x] Dev prereleases become unreachable once the base version's stable release ships — <code>format-jinja</code> never bumps past the last tag, so <code>X.Y.Z.devN</code> is a PEP 440 pre-release of the already-published <code>X.Y.Z</code> and always loses precedence to it; fix is <code>bump = true</code> in <code>[tool.uv-dynamic-versioning]</code> (PR #318) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/317">#317</a>)
+- [ ] <code>sync_folder</code> doesn't recurse into subfolders — one-level-only Drive query silently reports a clean "in sync" result while ignoring every nested file (confirmed live: 225 files across 22 subfolders ignored, only the root-level file seen) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/315">#315</a>)
+- [ ] <code>download_folder</code>'s file loop is genuinely sequential (<code>for f in ...: await asyncio.to_thread(...)</code>) — the one multi-file transfer path missed when the <code>asyncio.gather</code> pattern was established (#183); <code>sync_folder</code>'s own transfer step already uses it correctly (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/316">#316</a>)
 - [x] Bare URLs in markdown content aren't autolinked — Python-Markdown's built-in autolink only fires on <code>&lt;https://...&gt;</code> or <code>[text](url)</code>, not a bare URL (PR #265) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/248">#248</a>)
 - [x] <code>zip(doc_tables, ast_tables)</code> in <code>emitter.py</code> silently cross-pairs tables when one is skipped (zero-row/zero-col table), misapplying fill/merge/style requests to the wrong table — surfaced during #276's review (PR #282) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/277">#277</a>)</p>
 <p><strong>Sheets</strong>
@@ -1941,6 +1943,8 @@
 <p><strong>Calendar</strong>
 - [ ] Working location / OOO / Focus time events (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/164">#164</a>)
 - [ ] Watch notifications — webhook push on calendar or event changes (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/165">#165</a>)</p>
+<p><strong>Infrastructure</strong>
+- [ ] <code>notifications/progress</code> feedback for long-running transfer calls (<code>download_folder</code>, <code>sync_folder</code>) — no tool uses MCP progress reporting today, would establish a new pattern; split from #316 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/319">#319</a>)</p>
 <h3 id="decisions-needed-blocking-backlog-no-assigned-version">Decisions Needed — blocking backlog <em>(no assigned version)</em><a class="headerlink" href="#decisions-needed-blocking-backlog-no-assigned-version" title="Permanent link">&para;</a></h3>
 <p>Design questions raised during Phase 1 QA that need a deliberate product/API decision rather than just code. Each blocks whichever tool it names until resolved — pick these up opportunistically alongside the tool they affect, or dedicate a pass to clear the backlog.</p>
 <ul>
