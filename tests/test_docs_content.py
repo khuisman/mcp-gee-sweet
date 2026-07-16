@@ -706,6 +706,42 @@ class TestInsertInlineImage:
         assert "error" in result
 
 
+# ---------------------------------------------------------------------------
+# insert_page_break (#148)
+# ---------------------------------------------------------------------------
+
+
+class TestInsertPageBreak:
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    async def test_sends_correct_request(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = await _docs_tools["insert_page_break"](doc_id="doc1", index=5, ctx=ctx)
+        assert result == {"docId": "doc1", "index": 5}
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        req = body["requests"][0]["insertPageBreak"]
+        assert req["location"]["index"] == 5
+
+    async def test_marks_doc_cache_dirty(self):
+        docs_svc = MagicMock()
+        doc_cache = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        ctx.request_context.lifespan_context.doc_cache = doc_cache
+        await _docs_tools["insert_page_break"](doc_id="doc1", index=1, ctx=ctx)
+        doc_cache.mark_dirty.assert_called_once_with("doc1")
+
+    async def test_api_error_returns_error(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "API error"
+        )
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = await _docs_tools["insert_page_break"](doc_id="doc1", index=1, ctx=ctx)
+        assert "error" in result
+
+
 class TestGetDocContent:
     def _drive_svc(self, content=b"hello world"):
         svc = MagicMock()
