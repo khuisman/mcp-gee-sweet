@@ -2443,6 +2443,45 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#insert_page_break-148" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        insert_page_break (#148)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="insert_page_break (#148)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc94-insert-a-page-break-at-a-given-index-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC94: Insert a page break at a given index ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc95-api-error-returned-gracefully-index-beyond-document-end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC95: API error returned gracefully (index beyond document end)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -3941,7 +3980,35 @@ Fetch-path call raised: <code>get_doc_content: the response is 49700 characters,
 <p><strong>Cleanup:</strong> delete the created doc</p>
 <p><strong>Result (2026-07-05) ✅ PASS</strong>
 <code>create_doc</code> succeeded (docId <code>1elTfZ70c6AO66cjLQ7O-PrzzUlYGmVwiKuNWjDXVMGI</code>). <code>get_doc_structure</code> confirmed the entire line ("See https://example.com/inert here") is a single unstyled run — no <code>link_url</code>, no underline. Doc trashed after verification. Visual check (re-created identical content, Playwright screenshot, re-trashed): entire line renders as plain black text, no blue/underline anywhere.</p>
-<p><strong>Result: PENDING</strong> — same restart blocker as TC-DOC82.</p>
+<hr />
+<h2 id="insert_page_break-148"><code>insert_page_break</code> (#148)<a class="headerlink" href="#insert_page_break-148" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc94-insert-a-page-break-at-a-given-index-destructive">TC-DOC94: Insert a page break at a given index ⚠️ destructive<a class="headerlink" href="#tc-doc94-insert-a-page-break-at-a-given-index-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> create a doc with two short paragraphs; note the <code>endIndex</code> of the first paragraph</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Insert a page break at index {N} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Response contains <code>docId</code> and <code>index: N</code>
+- <code>get_doc_structure</code> does not surface the page break as its own element (it's an inline element inside the paragraph, not a top-level body element) — this is expected, not a bug
+- 🔍 Visual check in Google Docs: the second paragraph starts on a new page</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-15) ✅ PASS</strong>
+Created a doc with two paragraphs; <code>get_doc_structure</code> showed the first paragraph ending at index 38. <code>insert_page_break(index=38)</code> returned <code>{"docId": ..., "index": 38}</code> with no API error. Re-fetched <code>get_doc_structure</code>: the page break did not appear as its own top-level element (as expected) — the second paragraph's <code>startIndex</code> shifted from 38 to 40, consistent with an inline break being inserted. Playwright visual check: navigated to the doc, clicked into the body, pressed Ctrl+End to reach the document end — the accessibility live region announced "Entering page 2 of 2," confirming the second paragraph now renders on a new page. Doc trashed after verification.</p>
+<hr />
+<h3 id="tc-doc95-api-error-returned-gracefully-index-beyond-document-end">TC-DOC95: API error returned gracefully (index beyond document end)<a class="headerlink" href="#tc-doc95-api-error-returned-gracefully-index-beyond-document-end" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Insert a page break at index 99999 in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — does not raise an exception
+- Error message references an API failure (index out of bounds)</p>
+<p><strong>Cleanup:</strong> none (no mutation applied)</p>
+<p><strong>Result (2026-07-15) ✅ PASS</strong>
+<code>insert_page_break(doc_id=&lt;TEST_DOC_ID&gt;, index=99999)</code> returned <code>{"error": "&lt;HttpError 400 ... Index 99999 must be less than the end index of the referenced segment, 89. ...&gt;"}</code> — no exception raised, error clearly references the out-of-bounds index. No mutation applied to the fixture doc.</p>
 
 
 
