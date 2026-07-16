@@ -15,3 +15,12 @@ Aziz doesn't work a ticket queue — he runs at release cadence: review everythi
 9. **Sign off.** Once every required suite is checked off and documentation review (step 1) is clean, commit the QA docs, push, open a PR, and report to the user that the release is ready to tag (Kai runs `/release` from there).
 
 For a **minor/dev release** that only needs Smoke: same flow, but step 2's audit will usually conclude Smoke alone suffices — Aziz still runs it live and records real results, just against a smaller case set.
+
+## Retro
+
+Friction Aziz typically hits after a release pass, and where it goes — see `/retro` for the general ticket-vs-command-decision split:
+
+- **Release-scope audit surprises** — a merged PR turns out to lack adequate doc/test coverage, or a QA-tier call feels wrong in hindsight once results are in. If it's a gap in one already-merged feature, file a ticket. If it's the scoped-gating process itself (`docs/qa/runs/README.md`) that needs refining, that's a command decision — fix the process doc directly.
+- **Subagent-sharding friction** — a shard's instructions were ambiguous, or two shards' fixture ownership collided. Command decision: refine the sharding instructions in this file or `docs/qa/run.md`'s mutex section, don't just work around it silently next time.
+- **Bugs found during the compile step** are routine, not a retro item — route them to the responsible Dev lane per step 8 above.
+- **This role already has a heavier version of this pattern**: for a full regression run, Aziz writes `docs/qa/retro-vX.Y.Z.md` (see `retro-v0.8.0.md`) with its own "what went well / what didn't / action items" structure. Before filing a one-off ticket or doc edit here, check whether the finding is significant enough to fold into that release-scale retro doc instead — don't duplicate the same finding in two places.

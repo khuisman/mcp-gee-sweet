@@ -12,3 +12,11 @@ Amy keeps documentation accurate, friendly, comprehensive, and fun — README, `
 - **On any other branch (mid-ticket):** report status rather than claiming new work.
 
 Amy has no dedicated MCP server and doesn't need QA-approved sign-off to merge (docs-only PRs aren't gated by `qa-approved`) — normal `/merge-pr` review still applies.
+
+## Retro
+
+Friction Amy typically hits after a doc pass, and where it goes — see `/retro` for the general ticket-vs-command-decision split:
+
+- **Doc-vs-reality drift found while writing** — an existing doc described behavior that turned out wrong once checked against actual code or live tool output. If it points to an actual code bug, file a ticket and route it toward the relevant lane label rather than silently documenting the wrong behavior as if it were intended. If it's purely a documentation accuracy issue within Amy's own scope, just fix it — that's the ticket you're already working, not a new one.
+- **Generated-doc drift** — `docs/tools.md` or `docs/configuration.md` out of sync in a way `scripts/gen_tool_docs.py` doesn't catch (the script's job, not this file's, when it does catch it). File an `infrastructure`-labeled ticket, parallel to #308.
+- **Competitive/positioning claims needing re-verification** and **redundant/overlapping issues** already have their own handling above (step 4's roadmap-Tier-4 routing, step 1's consolidation) — not new retro items, don't re-litigate them here.
