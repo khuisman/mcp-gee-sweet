@@ -943,6 +943,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - `range` covers A1:D5
 - No error in response
 
+**Result (2026-07-16) ✅ PASS (API-verified, not visual)** The Sales sheet's A1:D5 region is fully covered by the known stacked-chart fixture pollution (see `run.md`'s "Chart-covered grid" entry), so a screenshot can't show the border. Used `get_sheet_data(range="A1:D5", include_grid_data=True)` instead: perimeter cells (row 1 all columns = top; row 5 all columns = bottom; column A all rows = left; column D all rows = right) all show `{"style": "SOLID", "color": {}}` (empty color = black), exactly matching the request. No error in the batchUpdate response.
+
 ---
 
 ### TC-S86: Apply dashed inner gridlines inside a range ⚠️ destructive
@@ -956,6 +958,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - `top`/`bottom`/`left`/`right` are not set
 - No error in response
 
+**Result (2026-07-16) ✅ PASS (API-verified, not visual)** Same chart-coverage limitation as TC-S85 — verified via `get_sheet_data(range="A1:C3", include_grid_data=True)`. Interior cell edges between rows/columns show `DASHED`, while the pre-existing perimeter `SOLID` borders from TC-S85 (which this call's request did not include top/bottom/left/right keys for) were left completely untouched — confirming the tool only sends the edges it was given and doesn't clobber unspecified ones. No error in response.
+
 ---
 
 ### TC-S87: Clear an existing border edge with style NONE ⚠️ destructive
@@ -968,6 +972,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - `updateBorders` request includes `right.style="NONE"`
 - No error in response
 
+**Result (2026-07-16) ✅ PASS (API-verified, not visual)** Same chart-coverage limitation. Verified via `get_sheet_data(range="D1:D5", include_grid_data=True)`: the `right` border is absent from every cell in column D after the call, while `top`/`bottom` borders from TC-S85 remain — confirming only the targeted edge was cleared. No error in response.
+
 ---
 
 ### TC-S88: update_borders — no border params returns error
@@ -976,12 +982,16 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Calling `update_borders` with no edge params returns `{"error": ...}`
 - No batchUpdate API call made
 
+**Result (2026-07-16) ✅ PASS** `test_no_params_returns_error` passes.
+
 ---
 
 ### TC-S89: update_borders — border spec missing style returns error
 
 **Checks (unit test)**
 - An edge dict without a `"style"` key returns `{"error": ...}` before any API call
+
+**Result (2026-07-16) ✅ PASS** `test_missing_style_returns_error` passes.
 
 ---
 
@@ -990,12 +1000,25 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks (unit test)**
 - An unrecognized `style` value (e.g. `"SQUIGGLY"`) returns `{"error": ...}` listing valid styles, before any API call
 
+**Result (2026-07-16) ✅ PASS** `test_invalid_style_returns_error` passes.
+
 ---
 
 ### TC-S91: update_borders — sheet not found returns error
 
 **Checks (unit test)**
 - Sheet name not in spreadsheet → `{"error": "Sheet 'X' not found"}`
+
+**Result (2026-07-16) ✅ PASS** `test_returns_error_when_sheet_not_found` passes.
+
+---
+
+### TC-S92: update_borders — non-string style value crashes instead of returning a clean error ⚠️ FAIL (gap, blocks pass)
+
+**Checks (unit test — not yet present in the suite)**
+- Calling `update_borders` with an edge dict whose `"style"` value is not a string (e.g. `top={"style": 5}` or `top={"style": None}`) should return `{"error": ...}`, same as the existing "invalid style" and "missing style" cases.
+
+**Result (2026-07-16) ❌ FAIL — no coverage, confirmed crash** Code review (high effort) found that `update_borders`'s validation only checks `"style" not in border` (key presence) before calling `border["style"].upper()` (line ~1094, and again in `_border_spec`). Since `top`/`bottom`/etc. are typed as plain `dict | None`, FastMCP/pydantic places no constraint on dict *contents*, so `top={"style": 5}` passes the schema and reaches `.upper()`, raising an unhandled `AttributeError`. `server.py`'s `_timed` wrapper logs status 500 and re-raises rather than converting to `{"error": ...}`, so callers get a hard crash instead of the clean validation error the rest of the function is designed to give. No existing test exercises a non-string `style` value. Needs an `isinstance(border["style"], str)` check (or equivalent) before calling `.upper()`, plus a regression test.
 
 ---
 
