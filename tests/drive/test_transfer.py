@@ -181,3 +181,186 @@ class TestExportFile:
         msg = str(exc_info.value)
         assert "download_file" in msg
         assert "local_path" not in msg
+
+
+class _FakeDriveFS:
+    """Fakes the slice of the Drive API sync_folder needs: per-folder `files().list`,
+    plus `files().create`/`files().update` that record what would have been written."""
+
+    def __init__(self, children: dict[str, list[dict]]):
+        self.children = children  # folder_id -> Drive API file/folder dicts
+        self.list_calls: list[str] = []  # folder ids queried, in order
+        self.created_folders: list[dict] = []
+        self.created_files: list[dict] = []
+        self.updated_files: list[dict] = []
+
+        self.svc = MagicMock()
+        self.svc.files.return_value.list.side_effect = self._list
+        self.svc.files.return_value.create.side_effect = self._create
+        self.svc.files.return_value.update.side_effect = self._update
+
+    def _list(self, **kwargs):
+        folder_id = kwargs["q"].split("'")[1]
+        self.list_calls.append(folder_id)
+        resp = MagicMock()
+        resp.execute.return_value = {"files": self.children.get(folder_id, [])}
+        return resp
+
+    def _create(self, **kwargs):
+        body = kwargs["body"]
+        resp = MagicMock()
+        if body.get("mimeType") == "application/vnd.google-apps.folder":
+            new_id = f"new-folder-{len(self.created_folders)}"
+            self.created_folders.append(body)
+            resp.execute.return_value = {"id": new_id}
+        else:
+            self.created_files.append(body)
+            resp.execute.return_value = {"id": f"new-file-{len(self.created_files)}"}
+        return resp
+
+    def _update(self, **kwargs):
+        self.updated_files.append(kwargs)
+        resp = MagicMock()
+        resp.execute.return_value = {"id": kwargs.get("fileId")}
+        return resp
+
+
+def _drive_file(name, file_id, mtime="2024-01-01T00:00:00.000Z", mime="text/plain"):
+    return {"id": file_id, "name": name, "mimeType": mime, "modifiedTime": mtime}
+
+
+def _drive_folder(name, folder_id):
+    return {"id": folder_id, "name": name, "mimeType": "application/vnd.google-apps.folder"}
+
+
+class TestSyncFolderRecursive:
+    """Issue #315: sync_folder silently ignored every subfolder, one level deep,
+    reporting a clean 'in sync' result instead of surfacing the gap. `recursive=True`
+    now walks matching subfolders to any depth; subfolders left alone because the
+    sync direction wouldn't create them on the missing side are reported under
+    'folders_skipped' instead of vanishing silently."""
+
+    def _ctx(self, fs: _FakeDriveFS):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = fs.svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        return ctx
+
+    async def test_default_is_non_recursive_and_ignores_subfolders(self, tmp_path):
+        # A subfolder plus export_format set together used to hit the pre-existing bug
+        # where a folder's mimeType (starts with "application/vnd.google-apps.", same
+        # prefix as real Workspace docs) got treated as an exportable file and failed.
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file("readme.txt", "f1"),
+                    _drive_folder("sub", "subid"),
+                ]
+            }
+        )
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            dry_run=True,
+            ctx=self._ctx(fs),
+        )
+        names = [a["name"] for a in result["actions"]]
+        assert names == ["readme.txt"]
+        assert result["failed"] == []
+        assert result["folders_skipped"] == []
+        assert fs.list_calls == ["root"]  # subfolder never queried
+
+    async def test_recursive_both_sides_descends_into_matching_subfolder(self, tmp_path):
+        (tmp_path / "sub").mkdir()
+        fs = _FakeDriveFS(
+            {
+                "root": [_drive_folder("sub", "subid")],
+                "subid": [_drive_file("nested.txt", "f1")],
+            }
+        )
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            dry_run=True,
+            recursive=True,
+            ctx=self._ctx(fs),
+        )
+        actions_by_name = {a["name"]: a for a in result["actions"]}
+        assert actions_by_name["sub/nested.txt"]["action"] == "download"
+        assert result["folders_skipped"] == []
+        assert set(fs.list_calls) == {"root", "subid"}
+
+    async def test_recursive_drive_only_subfolder_downloaded_when_direction_allows(self, tmp_path):
+        fs = _FakeDriveFS(
+            {
+                "root": [_drive_folder("sub", "subid")],
+                "subid": [_drive_file("nested.txt", "f1")],
+            }
+        )
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            dry_run=True,
+            recursive=True,
+            ctx=self._ctx(fs),
+        )
+        actions_by_name = {a["name"]: a for a in result["actions"]}
+        assert actions_by_name["sub/nested.txt"]["action"] == "download"
+        assert result["folders_skipped"] == []
+        # dry_run never touches the filesystem, even to descend
+        assert not (tmp_path / "sub").exists()
+
+    async def test_recursive_drive_only_subfolder_skipped_under_upload_direction(self, tmp_path):
+        fs = _FakeDriveFS(
+            {
+                "root": [_drive_folder("sub", "subid")],
+                "subid": [_drive_file("nested.txt", "f1")],
+            }
+        )
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            dry_run=True,
+            recursive=True,
+            ctx=self._ctx(fs),
+        )
+        assert result["folders_skipped"] == ["sub/"]
+        assert result["actions"] == []
+        assert fs.list_calls == ["root"]  # subfolder's children never fetched
+
+    async def test_recursive_local_only_subfolder_skipped_under_download_direction(self, tmp_path):
+        (tmp_path / "sub").mkdir()
+        (tmp_path / "sub" / "local.txt").write_text("hi")
+        fs = _FakeDriveFS({"root": []})
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="download",
+            dry_run=True,
+            recursive=True,
+            ctx=self._ctx(fs),
+        )
+        assert result["folders_skipped"] == ["sub/"]
+        assert fs.created_folders == []
+
+    async def test_recursive_local_only_subfolder_uploaded_creates_drive_folder(self, tmp_path):
+        (tmp_path / "sub").mkdir()
+        (tmp_path / "sub" / "local.txt").write_text("hi")
+        fs = _FakeDriveFS({"root": []})
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            recursive=True,
+            ctx=self._ctx(fs),
+        )
+        assert fs.created_folders == [
+            {"name": "sub", "mimeType": "application/vnd.google-apps.folder", "parents": ["root"]}
+        ]
+        assert result["uploaded"] == ["sub/local.txt"]
+        assert fs.created_files[0]["name"] == "local.txt"
+        assert fs.created_files[0]["parents"] == ["new-folder-0"]
+        assert result["folders_skipped"] == []

@@ -1428,6 +1428,59 @@ Delete the 3 Drive-only test files from `{FOLDER_ID}`, delete the 3 uploaded loc
 
 ---
 
+### TC-D190: `recursive=True` walks into subfolders present on both sides (issue #315) ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** #315 — `sync_folder` only ever looked at files directly inside `folder_id`; a folder with subfolders on both sides reported a clean "in sync" result while silently ignoring everything nested one level down. `recursive=True` fixes this by walking matching subfolders to any depth.
+
+**Setup**
+In `{FOLDER_ID}`, create a subfolder named `nested` (via `create_folder`). Inside it, create a Drive-only text file `deep.txt` with content `hello from nested`. Locally, create the same subfolder path `/tmp/qa-sync-315/nested/` (empty) so the subfolder itself exists on both sides but the file is Drive-only.
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-315/` bidirectionally with recursive=True"
+
+**Checks**
+- `downloaded` includes `nested/deep.txt` (not just `deep.txt`) — the relative path carries the subfolder prefix
+- `/tmp/qa-sync-315/nested/deep.txt` exists locally with content `hello from nested`
+- `folders_skipped` is empty
+- Re-running the same sync afterward reports `nested/deep.txt` under `skipped` (`in sync`), confirming the recursive mtime comparison also worked, not just the initial download
+
+**Teardown**
+Delete `nested` (and its contents) from `{FOLDER_ID}` via `delete_file`. Remove `/tmp/qa-sync-315/`.
+
+---
+
+### TC-D191: `recursive=True` reports out-of-scope subfolders under `folders_skipped` instead of silently ignoring them ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** #315's fallback ask (if full recursion weren't viable) was to at least surface subfolders the sync can't safely touch, rather than reporting a clean result. Even with recursion implemented, a subfolder that exists on only one side is deliberately left alone when the sync `direction` wouldn't create it on the other side — this confirms that case is reported, not silently dropped.
+
+**Setup**
+In `{FOLDER_ID}`, create a subfolder named `drive-only-sub` (via `create_folder`) with one file inside it. Do not create any local counterpart.
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-315b/` using direction='upload' and recursive=True"
+
+**Checks**
+- `folders_skipped` contains `drive-only-sub/`
+- `downloaded` and `uploaded` do not mention anything under `drive-only-sub/`
+- `/tmp/qa-sync-315b/drive-only-sub/` was not created on disk
+
+**Teardown**
+Delete `drive-only-sub` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-315b/` if created.
+
+---
+
+### TC-D192: default `recursive=False` still ignores subfolders entirely (regression guard) ⚠️ local-filesystem
+
+**Prompt**
+> "Do a dry run sync of {FOLDER_ID} with `/tmp/qa-sync-315c/` in bidirectional mode" *(ensure {FOLDER_ID} has at least one subfolder with files in it, alongside a top-level file)*
+
+**Checks**
+- `actions` only lists the top-level file(s) — nothing from inside the subfolder appears
+- `folders_skipped` is empty (subfolders aren't even considered when `recursive` is omitted)
+- No entry in `failed` referencing the subfolder itself (guards against a pre-existing bug where a subfolder's mimeType could be mistaken for an exportable Workspace file when `export_format` was set)
+
+---
+
 ## `list_drives`
 
 ### TC-D120: List all shared drives
