@@ -642,6 +642,150 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 ---
 
+## `resize_rows` / `resize_columns`
+
+### TC-S73: Resize a single row to an explicit pixel height ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Set row 5 (0-based index 4) on the Sales sheet in {SPREADSHEET_ID} to 60 pixels tall"
+
+**Checks**
+- `updateDimensionProperties` request sent with `dimension: ROWS`, `startIndex: 4`, `endIndex: 5`
+- `properties.pixelSize: 60`, `fields: pixelSize`
+- Row 5 visibly taller in the Sheets UI
+
+---
+
+### TC-S74: Resize a range of rows ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Set rows 3 through 5 (0-based indices 2–4) on the Sales sheet in {SPREADSHEET_ID} to 40 pixels tall"
+
+**Checks**
+- `startIndex: 2`, `endIndex: 5` in the request (inclusive end_row=4 translated to exclusive 5)
+- All three rows resize in the UI
+
+---
+
+### TC-S75: Auto-resize rows to fit content ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Auto-fit the height of row 5 (0-based index 4) on the Sales sheet in {SPREADSHEET_ID} to its content"
+
+**Setup:** Row 5 previously set to an oversized pixel height (e.g. TC-S73).
+
+**Checks**
+- `autoResizeDimensions` request sent with `dimensions.dimension: ROWS`, `startIndex: 4`, `endIndex: 5`
+- Row 5 shrinks back to content-fit height in the Sheets UI
+
+---
+
+### TC-S76: Resize rows — neither pixel_size nor auto_resize given returns error
+
+**Prompt**
+> "Resize row 0 on the Sales sheet in {SPREADSHEET_ID} without specifying a size or auto-fit"
+
+**Checks**
+- Response contains `error` field
+- No `batchUpdate` call made
+
+---
+
+### TC-S77: Resize rows — both pixel_size and auto_resize given returns error
+
+**Prompt**
+> "Resize row 0 on the Sales sheet in {SPREADSHEET_ID} to 50 pixels and also auto-fit it"
+
+**Checks**
+- Response contains `error` field
+- No `batchUpdate` call made
+
+---
+
+### TC-S78: Resize rows — sheet not found returns error
+
+**Prompt**
+> "Set row 0 to 50 pixels tall on a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"
+
+**Checks**
+- Response contains `error` field
+
+---
+
+### TC-S79: Resize a single column to an explicit pixel width ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Set column B (0-based index 1) on the Sales sheet in {SPREADSHEET_ID} to 200 pixels wide"
+
+**Checks**
+- `updateDimensionProperties` request sent with `dimension: COLUMNS`, `startIndex: 1`, `endIndex: 2`
+- `properties.pixelSize: 200`, `fields: pixelSize`
+- Column B visibly wider in the Sheets UI
+
+---
+
+### TC-S80: Resize a range of columns ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Set columns C through E (0-based indices 2–4) on the Sales sheet in {SPREADSHEET_ID} to 50 pixels wide"
+
+**Checks**
+- `startIndex: 2`, `endIndex: 5` in the request
+- All columns in range resize in the UI
+
+---
+
+### TC-S81: Auto-resize columns to fit content ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Auto-fit the width of column B (0-based index 1) on the Sales sheet in {SPREADSHEET_ID} to its content"
+
+**Setup:** Column B previously set to an oversized pixel width (e.g. TC-S79).
+
+**Checks**
+- `autoResizeDimensions` request sent with `dimensions.dimension: COLUMNS`, `startIndex: 1`, `endIndex: 2`
+- Column B shrinks back to content-fit width in the Sheets UI
+
+---
+
+### TC-S82: Resize columns — neither pixel_size nor auto_resize given returns error
+
+**Prompt**
+> "Resize column 0 on the Sales sheet in {SPREADSHEET_ID} without specifying a size or auto-fit"
+
+**Checks**
+- Response contains `error` field
+- No `batchUpdate` call made
+
+---
+
+### TC-S83: Resize columns — both pixel_size and auto_resize given returns error
+
+**Prompt**
+> "Resize column 0 on the Sales sheet in {SPREADSHEET_ID} to 100 pixels and also auto-fit it"
+
+**Checks**
+- Response contains `error` field
+- No `batchUpdate` call made
+
+---
+
+### TC-S84: Resize columns — sheet not found returns error
+
+**Prompt**
+> "Set column 0 to 100 pixels wide on a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"
+
+**Checks**
+- Response contains `error` field
+
+---
+
 ## `format_cells`
 
 ### TC-S33: Apply bold and background color to a range ⚠️ destructive

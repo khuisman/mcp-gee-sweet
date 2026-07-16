@@ -694,6 +694,165 @@ class TestUnhideColumns:
         assert "error" in result
 
 
+class TestResizeRows:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]
+
+    async def test_pixel_size_sets_updateDimensionProperties(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["resize_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=3, pixel_size=50, ctx=ctx
+        )
+        req = self._request(svc)["updateDimensionProperties"]
+        assert req["range"]["startIndex"] == 3
+        assert req["range"]["endIndex"] == 4
+        assert req["range"]["dimension"] == "ROWS"
+        assert req["properties"] == {"pixelSize": 50}
+        assert req["fields"] == "pixelSize"
+
+    async def test_range_of_rows_end_index_is_inclusive(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["resize_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=2, end_row=5, pixel_size=30, ctx=ctx
+        )
+        req = self._request(svc)["updateDimensionProperties"]
+        assert req["range"]["startIndex"] == 2
+        assert req["range"]["endIndex"] == 6  # end_row=5 inclusive → exclusive index 6
+
+    async def test_auto_resize_sets_autoResizeDimensions(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["resize_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=3, auto_resize=True, ctx=ctx
+        )
+        req = self._request(svc)["autoResizeDimensions"]
+        assert req["dimensions"]["startIndex"] == 3
+        assert req["dimensions"]["endIndex"] == 4
+        assert req["dimensions"]["dimension"] == "ROWS"
+
+    async def test_returns_error_when_neither_option_given(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["resize_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=0, ctx=ctx
+        )
+        assert "error" in result
+
+    async def test_returns_error_when_both_options_given(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["resize_rows"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            start_row=0,
+            pixel_size=50,
+            auto_resize=True,
+            ctx=ctx,
+        )
+        assert "error" in result
+
+    async def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["resize_rows"](
+            spreadsheet_id="ss1", sheet="Missing", start_row=0, pixel_size=50, ctx=ctx
+        )
+        assert "error" in result
+
+
+class TestResizeColumns:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]
+
+    async def test_pixel_size_sets_updateDimensionProperties(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["resize_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=0, pixel_size=120, ctx=ctx
+        )
+        req = self._request(svc)["updateDimensionProperties"]
+        assert req["range"]["startIndex"] == 0
+        assert req["range"]["endIndex"] == 1
+        assert req["range"]["dimension"] == "COLUMNS"
+        assert req["properties"] == {"pixelSize": 120}
+        assert req["fields"] == "pixelSize"
+
+    async def test_range_of_columns_end_index_is_inclusive(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["resize_columns"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            start_column=1,
+            end_column=3,
+            pixel_size=80,
+            ctx=ctx,
+        )
+        req = self._request(svc)["updateDimensionProperties"]
+        assert req["range"]["startIndex"] == 1
+        assert req["range"]["endIndex"] == 4  # end_column=3 inclusive → exclusive index 4
+
+    async def test_auto_resize_sets_autoResizeDimensions(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["resize_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=0, auto_resize=True, ctx=ctx
+        )
+        req = self._request(svc)["autoResizeDimensions"]
+        assert req["dimensions"]["startIndex"] == 0
+        assert req["dimensions"]["endIndex"] == 1
+        assert req["dimensions"]["dimension"] == "COLUMNS"
+
+    async def test_returns_error_when_neither_option_given(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["resize_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=0, ctx=ctx
+        )
+        assert "error" in result
+
+    async def test_returns_error_when_both_options_given(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["resize_columns"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            start_column=0,
+            pixel_size=80,
+            auto_resize=True,
+            ctx=ctx,
+        )
+        assert "error" in result
+
+    async def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["resize_columns"](
+            spreadsheet_id="ss1", sheet="Missing", start_column=0, pixel_size=80, ctx=ctx
+        )
+        assert "error" in result
+
+
 class TestFormatCells:
     def _sheets_service(self, sheet_id=0):
         mock = MagicMock()
