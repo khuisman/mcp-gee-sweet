@@ -655,6 +655,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - `properties.pixelSize: 60`, `fields: pixelSize`
 - Row 5 visibly taller in the Sheets UI
 
+**Result (2026-07-15) ✅ PASS** `resize_rows(spreadsheet_id, sheet="Sales", start_row=4, pixel_size=60)` → `{"replies":[{}]}`, no error. Playwright was skipped for this run — the shared fixture's Sales sheet currently has ~12 overlapping chart objects left over from other QA passes, which visually cover rows 1–22 and make row-height differences unreadable in a screenshot. Verified precisely instead via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`, which returns `rowMetadata[].pixelSize` — confirmed row index 4 read back 60 immediately after this call (before being overwritten by TC-S74/TC-S75 below).
+
 ---
 
 ### TC-S74: Resize a range of rows ⚠️ destructive
@@ -666,6 +668,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - `startIndex: 2`, `endIndex: 5` in the request (inclusive end_row=4 translated to exclusive 5)
 - All three rows resize in the UI
+
+**Result (2026-07-15) ✅ PASS** `resize_rows(spreadsheet_id, sheet="Sales", start_row=2, end_row=4, pixel_size=40)` → `{"replies":[{}]}`, no error. Confirmed via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`: `rowMetadata` for row indices 2 and 3 both read back `pixelSize: 40` after the full test sequence (index 4 was subsequently auto-resized by TC-S75, as expected).
 
 ---
 
@@ -681,6 +685,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - `autoResizeDimensions` request sent with `dimensions.dimension: ROWS`, `startIndex: 4`, `endIndex: 5`
 - Row 5 shrinks back to content-fit height in the Sheets UI
 
+**Result (2026-07-15) ✅ PASS** `resize_rows(spreadsheet_id, sheet="Sales", start_row=4, auto_resize=True)` → `{"replies":[{}]}`, no error. Confirmed via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`: row index 4's `pixelSize` read back as `21` (Sheets' default/content-fit height for plain text), down from the `40` set by TC-S74 moments earlier — confirms `autoResizeDimensions` fired and took effect.
+
 ---
 
 ### TC-S76: Resize rows — neither pixel_size nor auto_resize given returns error
@@ -691,6 +697,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - Response contains `error` field
 - No `batchUpdate` call made
+
+**Result (2026-07-15) ✅ PASS** `resize_rows(spreadsheet_id, sheet="Sales", start_row=0)` → `{"error":"Specify pixel_size or set auto_resize=True"}`. Returned before any batchUpdate call.
 
 ---
 
@@ -703,6 +711,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Response contains `error` field
 - No `batchUpdate` call made
 
+**Result (2026-07-15) ✅ PASS** `resize_rows(spreadsheet_id, sheet="Sales", start_row=0, pixel_size=50, auto_resize=True)` → `{"error":"Specify only one of pixel_size or auto_resize"}`. Returned before any batchUpdate call.
+
 ---
 
 ### TC-S78: Resize rows — sheet not found returns error
@@ -712,6 +722,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 **Checks**
 - Response contains `error` field
+
+**Result (2026-07-15) ✅ PASS** `resize_rows(spreadsheet_id, sheet="NoSuchSheet", start_row=0, pixel_size=50)` → `{"error":"Sheet 'NoSuchSheet' not found"}`.
 
 ---
 
@@ -726,6 +738,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - `properties.pixelSize: 200`, `fields: pixelSize`
 - Column B visibly wider in the Sheets UI
 
+**Result (2026-07-15) ✅ PASS** `resize_columns(spreadsheet_id, sheet="Sales", start_column=1, pixel_size=200)` → `{"replies":[{}]}`, no error. Playwright skipped — see "Chart-covered grid" note in `docs/qa/run.md`. Verified via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`: column index 1's `pixelSize` read back `200` immediately after this call (before being overwritten by TC-S81 below).
+
 ---
 
 ### TC-S80: Resize a range of columns ⚠️ destructive
@@ -737,6 +751,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - `startIndex: 2`, `endIndex: 5` in the request
 - All columns in range resize in the UI
+
+**Result (2026-07-15) ✅ PASS** `resize_columns(spreadsheet_id, sheet="Sales", start_column=2, end_column=4, pixel_size=50)` → `{"replies":[{}]}`, no error. Confirmed via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`: column indices 2, 3, and 4 all read back `pixelSize: 50`.
 
 ---
 
@@ -752,6 +768,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - `autoResizeDimensions` request sent with `dimensions.dimension: COLUMNS`, `startIndex: 1`, `endIndex: 2`
 - Column B shrinks back to content-fit width in the Sheets UI
 
+**Result (2026-07-15) ✅ PASS** `resize_columns(spreadsheet_id, sheet="Sales", start_column=1, auto_resize=True)` → `{"replies":[{}]}`, no error. Confirmed via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`: column index 1's `pixelSize` read back `28` (content-fit for the short numeric values in column B), down from the `200` set by TC-S79 — confirms `autoResizeDimensions` fired and took effect.
+
 ---
 
 ### TC-S82: Resize columns — neither pixel_size nor auto_resize given returns error
@@ -762,6 +780,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - Response contains `error` field
 - No `batchUpdate` call made
+
+**Result (2026-07-15) ✅ PASS** `resize_columns(spreadsheet_id, sheet="Sales", start_column=0)` → `{"error":"Specify pixel_size or set auto_resize=True"}`. Returned before any batchUpdate call.
 
 ---
 
@@ -774,6 +794,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Response contains `error` field
 - No `batchUpdate` call made
 
+**Result (2026-07-15) ✅ PASS** `resize_columns(spreadsheet_id, sheet="Sales", start_column=0, pixel_size=100, auto_resize=True)` → `{"error":"Specify only one of pixel_size or auto_resize"}`. Returned before any batchUpdate call.
+
 ---
 
 ### TC-S84: Resize columns — sheet not found returns error
@@ -783,6 +805,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 **Checks**
 - Response contains `error` field
+
+**Result (2026-07-15) ✅ PASS** `resize_columns(spreadsheet_id, sheet="NoSuchSheet", start_column=0, pixel_size=100)` → `{"error":"Sheet 'NoSuchSheet' not found"}`.
 
 ---
 
