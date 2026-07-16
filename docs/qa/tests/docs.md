@@ -1665,7 +1665,7 @@ These operate on the Drive `comments`/`replies` resource, not the Docs API — t
 ---
 
 ### TC-DOC97: Add a comment anchored to quoted text ⚠️ destructive
-**Setup:** `{DOC_ID}` must contain the literal text "QA anchor target" somewhere (use `write_doc_content` to add it first if absent)
+**Setup:** `{DOC_ID}` must contain the literal text "QA anchor target" somewhere. Use `insert_doc_text` to append it if absent (check `get_doc_structure` for a safe index) — `write_doc_content` replaces the *entire* doc body and would wipe the fixture's existing content, don't use it here.
 
 **Prompt**
 > "Add a comment 'QA TC-DOC97: anchored note.' to doc {DOC_ID}, quoting the text 'QA anchor target'"
