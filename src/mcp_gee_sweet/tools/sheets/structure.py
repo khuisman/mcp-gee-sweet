@@ -9,6 +9,26 @@ from .helpers import _get_sheet_id, _get_sheet_index, _parse_a1_notation
 
 _VALID_CHART_TYPES = ["COLUMN", "BAR", "LINE", "AREA", "PIE", "SCATTER", "COMBO", "HISTOGRAM"]
 
+_VALID_BORDER_STYLES = [
+    "DOTTED",
+    "DASHED",
+    "SOLID",
+    "SOLID_MEDIUM",
+    "SOLID_THICK",
+    "DOUBLE",
+    "NONE",
+]
+
+
+def _border_spec(border: dict) -> dict[str, Any]:
+    """Convert a {"style", "color", "width"} dict into a Sheets API Border object."""
+    spec: dict[str, Any] = {"style": border["style"].upper()}
+    if "color" in border:
+        spec["color"] = border["color"]
+    if "width" in border:
+        spec["width"] = border["width"]
+    return spec
+
 
 def _per_column_ranges(sheet_id: int, indices: dict) -> list[dict]:
     """Split a parsed A1 range into one source-range dict per column.
@@ -1005,6 +1025,100 @@ def register(tool):
                         }
                     ]
                 },
+            )
+            .execute,
+            sheets_service,
+        )
+
+    @tool(annotations=ToolAnnotations(title="Update Borders", destructiveHint=True))
+    async def update_borders(
+        spreadsheet_id: str,
+        sheet: str,
+        range: str,
+        top: dict | None = None,
+        bottom: dict | None = None,
+        left: dict | None = None,
+        right: dict | None = None,
+        inner_horizontal: dict | None = None,
+        inner_vertical: dict | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Apply or clear borders on the edges of a cell range.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet
+            sheet: The name of the sheet
+            range: A1 notation range to border (e.g. "A1:D5")
+            top: Border spec for the top edge of the range, e.g.
+                 {"style": "SOLID", "color": {"red": 0.0, "green": 0.0, "blue": 0.0}}.
+                 "style" is required and must be one of "DOTTED", "DASHED", "SOLID",
+                 "SOLID_MEDIUM", "SOLID_THICK", "DOUBLE", or "NONE" (clears the border).
+                 "color" is an optional RGB dict. "width" is optional and deprecated
+                 by the Sheets API in favor of "style", but still accepted.
+            bottom: Border spec for the bottom edge, same shape as top.
+            left: Border spec for the left edge, same shape as top.
+            right: Border spec for the right edge, same shape as top.
+            inner_horizontal: Border spec for the horizontal lines between rows
+                               inside the range, same shape as top.
+            inner_vertical: Border spec for the vertical lines between columns
+                             inside the range, same shape as top.
+
+        Returns:
+            Result of the batchUpdate operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        edges = {
+            "top": top,
+            "bottom": bottom,
+            "left": left,
+            "right": right,
+            "innerHorizontal": inner_horizontal,
+            "innerVertical": inner_vertical,
+        }
+        provided = {key: value for key, value in edges.items() if value is not None}
+        if not provided:
+            return {"error": "No border parameters provided"}
+
+        for key, border in provided.items():
+            if "style" not in border:
+                return {"error": f"Border spec for '{key}' is missing required 'style' key"}
+            if not isinstance(border["style"], str):
+                return {"error": f"Border spec for '{key}' has a non-string 'style' value"}
+            if border["style"].upper() not in _VALID_BORDER_STYLES:
+                return {
+                    "error": f"Invalid border style '{border['style']}' for '{key}'. "
+                    f"Must be one of: {', '.join(_VALID_BORDER_STYLES)}"
+                }
+
+        indices = _parse_a1_notation(range)
+        grid_range = {
+            "sheetId": sheet_id,
+            "startRowIndex": indices.get("startRowIndex", 0),
+            "startColumnIndex": indices.get("startColumnIndex", 0),
+        }
+        if "endRowIndex" in indices:
+            grid_range["endRowIndex"] = indices["endRowIndex"]
+        if "endColumnIndex" in indices:
+            grid_range["endColumnIndex"] = indices["endColumnIndex"]
+
+        update_borders_request: dict[str, Any] = {"range": grid_range}
+        for key, border in provided.items():
+            update_borders_request[key] = _border_spec(border)
+
+        return await execute_in_thread(
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": [{"updateBorders": update_borders_request}]},
             )
             .execute,
             sheets_service,
