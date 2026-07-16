@@ -2331,6 +2331,111 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#update_borders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        update_borders
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="update_borders">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s85-apply-a-solid-border-around-all-four-edges-of-a-range-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S85: Apply a solid border around all four edges of a range ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s86-apply-dashed-inner-gridlines-inside-a-range-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S86: Apply dashed inner gridlines inside a range ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s87-clear-an-existing-border-edge-with-style-none-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S87: Clear an existing border edge with style NONE ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s88-update_borders-no-border-params-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S88: update_borders — no border params returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s89-update_borders-border-spec-missing-style-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S89: update_borders — border spec missing style returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s90-update_borders-invalid-style-value-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S90: update_borders — invalid style value returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s91-update_borders-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S91: update_borders — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s92-update_borders-non-string-style-value-returns-error-does-not-crash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S92: update_borders — non-string style value returns error, does not crash
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#freeze" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3347,6 +3452,69 @@
 <p><strong>Checks (unit test)</strong>
 - Sheet not found → <code>{"error": "Sheet 'X' not found"}</code></p>
 <p><strong>Result (2026-06-21) ✅</strong> Unit test confirms error.</p>
+<hr />
+<h2 id="update_borders"><code>update_borders</code><a class="headerlink" href="#update_borders" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s85-apply-a-solid-border-around-all-four-edges-of-a-range-destructive">TC-S85: Apply a solid border around all four edges of a range ⚠️ destructive<a class="headerlink" href="#tc-s85-apply-a-solid-border-around-all-four-edges-of-a-range-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Add a black solid border around all four edges of A1:D5 on the Sales sheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateBorders</code> request sent with <code>top</code>, <code>bottom</code>, <code>left</code>, <code>right</code> all <code>style="SOLID"</code>
+- <code>color</code> set to black on each edge
+- <code>range</code> covers A1:D5
+- No error in response</p>
+<p><strong>Result (2026-07-16) ✅ PASS (API-verified, not visual)</strong> The Sales sheet's A1:D5 region is fully covered by the known stacked-chart fixture pollution (see <code>run.md</code>'s "Chart-covered grid" entry), so a screenshot can't show the border. Used <code>get_sheet_data(range="A1:D5", include_grid_data=True)</code> instead: perimeter cells (row 1 all columns = top; row 5 all columns = bottom; column A all rows = left; column D all rows = right) all show <code>{"style": "SOLID", "color": {}}</code> (empty color = black), exactly matching the request. No error in the batchUpdate response.</p>
+<hr />
+<h3 id="tc-s86-apply-dashed-inner-gridlines-inside-a-range-destructive">TC-S86: Apply dashed inner gridlines inside a range ⚠️ destructive<a class="headerlink" href="#tc-s86-apply-dashed-inner-gridlines-inside-a-range-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Add dashed inner horizontal and vertical borders inside A1:C3 on the Sales sheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateBorders</code> request includes <code>innerHorizontal</code> and <code>innerVertical</code>, both <code>style="DASHED"</code>
+- <code>top</code>/<code>bottom</code>/<code>left</code>/<code>right</code> are not set
+- No error in response</p>
+<p><strong>Result (2026-07-16) ✅ PASS (API-verified, not visual)</strong> Same chart-coverage limitation as TC-S85 — verified via <code>get_sheet_data(range="A1:C3", include_grid_data=True)</code>. Interior cell edges between rows/columns show <code>DASHED</code>, while the pre-existing perimeter <code>SOLID</code> borders from TC-S85 (which this call's request did not include top/bottom/left/right keys for) were left completely untouched — confirming the tool only sends the edges it was given and doesn't clobber unspecified ones. No error in response.</p>
+<hr />
+<h3 id="tc-s87-clear-an-existing-border-edge-with-style-none-destructive">TC-S87: Clear an existing border edge with style NONE ⚠️ destructive<a class="headerlink" href="#tc-s87-clear-an-existing-border-edge-with-style-none-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Remove the border from the right edge of A1:D5 on the Sales sheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateBorders</code> request includes <code>right.style="NONE"</code>
+- No error in response</p>
+<p><strong>Result (2026-07-16) ✅ PASS (API-verified, not visual)</strong> Same chart-coverage limitation. Verified via <code>get_sheet_data(range="D1:D5", include_grid_data=True)</code>: the <code>right</code> border is absent from every cell in column D after the call, while <code>top</code>/<code>bottom</code> borders from TC-S85 remain — confirming only the targeted edge was cleared. No error in response.</p>
+<hr />
+<h3 id="tc-s88-update_borders-no-border-params-returns-error">TC-S88: update_borders — no border params returns error<a class="headerlink" href="#tc-s88-update_borders-no-border-params-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Calling <code>update_borders</code> with no edge params returns <code>{"error": ...}</code>
+- No batchUpdate API call made</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong> <code>test_no_params_returns_error</code> passes.</p>
+<hr />
+<h3 id="tc-s89-update_borders-border-spec-missing-style-returns-error">TC-S89: update_borders — border spec missing style returns error<a class="headerlink" href="#tc-s89-update_borders-border-spec-missing-style-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- An edge dict without a <code>"style"</code> key returns <code>{"error": ...}</code> before any API call</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong> <code>test_missing_style_returns_error</code> passes.</p>
+<hr />
+<h3 id="tc-s90-update_borders-invalid-style-value-returns-error">TC-S90: update_borders — invalid style value returns error<a class="headerlink" href="#tc-s90-update_borders-invalid-style-value-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- An unrecognized <code>style</code> value (e.g. <code>"SQUIGGLY"</code>) returns <code>{"error": ...}</code> listing valid styles, before any API call</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong> <code>test_invalid_style_returns_error</code> passes.</p>
+<hr />
+<h3 id="tc-s91-update_borders-sheet-not-found-returns-error">TC-S91: update_borders — sheet not found returns error<a class="headerlink" href="#tc-s91-update_borders-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Sheet name not in spreadsheet → <code>{"error": "Sheet 'X' not found"}</code></p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong> <code>test_returns_error_when_sheet_not_found</code> passes.</p>
+<hr />
+<h3 id="tc-s92-update_borders-non-string-style-value-returns-error-does-not-crash">TC-S92: update_borders — non-string style value returns error, does not crash<a class="headerlink" href="#tc-s92-update_borders-non-string-style-value-returns-error-does-not-crash" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Calling <code>update_borders</code> with an edge dict whose <code>"style"</code> value is not a string (e.g. <code>top={"style": 5}</code> or <code>top={"style": None}</code>) returns <code>{"error": ...}</code>, same as the existing "invalid style" and "missing style" cases.</p>
+<p><strong>Result (2026-07-16) ✅ PASS — fix verified</strong> Originally failed: validation only checked <code>"style" not in border</code> (key presence) before calling <code>.upper()</code>, so a non-string style (e.g. <code>top={"style": 5}</code>) reached <code>border["style"].upper()</code> and crashed with an unhandled <code>AttributeError</code> instead of a clean error. Fixed by adding <code>if not isinstance(border["style"], str): return {"error": ...}</code> before the <code>.upper()</code> call. Verified three ways: unit test <code>test_non_string_style_returns_error</code> passes (covers both <code>5</code> and <code>None</code>); confirmed live against the real <code>update_borders</code> MCP tool with <code>top={"style": 5}</code> and <code>top={"style": null}</code> — both return <code>{"error": "Border spec for 'top' has a non-string 'style' value"}</code> with no crash. TC-S92 closed.</p>
 <hr />
 <h2 id="freeze"><code>freeze</code><a class="headerlink" href="#freeze" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s42-freeze-the-header-row-destructive">TC-S42: Freeze the header row ⚠️ destructive<a class="headerlink" href="#tc-s42-freeze-the-header-row-destructive" title="Permanent link">&para;</a></h3>
