@@ -142,6 +142,9 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | `apply_theme` | Apply a theme dict to a Google Doc by updating its named style definitions. | `doc_id`, `theme`, `overwrite?` |
 | `create_header` | Add a page header to a Google Doc. | `doc_id`, `header_type?`, `content?` |
 | `create_footer` | Add a page footer to a Google Doc. | `doc_id`, `footer_type?`, `content?` |
+| `list_doc_comments` | List comments (and their replies) on a Google Doc via the Drive comments resource. | `doc_id`, `page_size?`, `page_token?`, `include_deleted?` |
+| `add_doc_comment` | Add a comment to a Google Doc via the Drive comments resource. | `doc_id`, `content`, `quoted_text?` |
+| `resolve_doc_comment` | Mark a comment on a Google Doc as resolved, by posting a reply with a "resolve" action via the Drive comments resource. | `doc_id`, `comment_id`, `reply_content?` |
 
 `write_doc_content` accepts HTML and converts it to Docs API requests via the HTML→AST→emitter pipeline. See [Docs AST Pipeline](design/docs-ast-pipeline.md) for the design.
 

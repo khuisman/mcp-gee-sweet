@@ -43,6 +43,7 @@ Logic is split across `src/mcp_gee_sweet/`: `server.py` (MCP setup, tool decorat
   - `docs/tables.py` — tools (`insert_doc_table`, `insert_table_row`, `delete_table_row`, `insert_table_column`, `delete_table_column`, `merge_table_cells`)
   - `docs/style.py` — helpers (`_NAMED_STYLE_TYPES`, `_read_body_styles`, `_read_named_styles`, `_build_named_style_requests`) and tools (`style_doc_range`, `style_doc_table_cells`, `get_doc_theme`, `get_doc_named_styles`, `apply_theme`)
   - `docs/layout.py` — tools (`create_header`, `create_footer`)
+  - `docs/comments.py` — tools (`list_doc_comments`, `add_doc_comment`, `resolve_doc_comment`) via the Drive `comments`/`replies` resource, not the Docs API
   - `docs/ast.py` — dataclass schema
   - `docs/html_parser.py` — HTML→AST
   - `docs/emitter.py` — AST→Docs API requests + multi-phase table fill including nested table and cell styling support

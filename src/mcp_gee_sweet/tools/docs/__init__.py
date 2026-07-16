@@ -1,3 +1,4 @@
+from .comments import register as _register_comments
 from .content import register as _register_content
 from .layout import register as _register_layout
 from .style import register as _register_style
@@ -9,3 +10,4 @@ def register(tool):
     _register_tables(tool)
     _register_style(tool)
     _register_layout(tool)
+    _register_comments(tool)
