@@ -1013,12 +1013,12 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 ---
 
-### TC-S92: update_borders — non-string style value crashes instead of returning a clean error ⚠️ FAIL (gap, blocks pass)
+### TC-S92: update_borders — non-string style value returns error, does not crash
 
-**Checks (unit test — not yet present in the suite)**
-- Calling `update_borders` with an edge dict whose `"style"` value is not a string (e.g. `top={"style": 5}` or `top={"style": None}`) should return `{"error": ...}`, same as the existing "invalid style" and "missing style" cases.
+**Checks (unit test)**
+- Calling `update_borders` with an edge dict whose `"style"` value is not a string (e.g. `top={"style": 5}` or `top={"style": None}`) returns `{"error": ...}`, same as the existing "invalid style" and "missing style" cases.
 
-**Result (2026-07-16) ❌ FAIL — no coverage, confirmed crash** Code review (high effort) found that `update_borders`'s validation only checks `"style" not in border` (key presence) before calling `border["style"].upper()` (line ~1094, and again in `_border_spec`). Since `top`/`bottom`/etc. are typed as plain `dict | None`, FastMCP/pydantic places no constraint on dict *contents*, so `top={"style": 5}` passes the schema and reaches `.upper()`, raising an unhandled `AttributeError`. `server.py`'s `_timed` wrapper logs status 500 and re-raises rather than converting to `{"error": ...}`, so callers get a hard crash instead of the clean validation error the rest of the function is designed to give. No existing test exercises a non-string `style` value. Needs an `isinstance(border["style"], str)` check (or equivalent) before calling `.upper()`, plus a regression test.
+**Result (2026-07-16) ✅ PASS — fix verified** Originally failed: validation only checked `"style" not in border` (key presence) before calling `.upper()`, so a non-string style (e.g. `top={"style": 5}`) reached `border["style"].upper()` and crashed with an unhandled `AttributeError` instead of a clean error. Fixed by adding `if not isinstance(border["style"], str): return {"error": ...}` before the `.upper()` call. Verified three ways: unit test `test_non_string_style_returns_error` passes (covers both `5` and `None`); confirmed live against the real `update_borders` MCP tool with `top={"style": 5}` and `top={"style": null}` — both return `{"error": "Border spec for 'top' has a non-string 'style' value"}` with no crash. TC-S92 closed.
 
 ---
 
