@@ -1061,6 +1061,16 @@ class TestUpdateBorders:
         assert "error" in result
         assert not svc.spreadsheets.return_value.batchUpdate.called
 
+    async def test_non_string_style_returns_error(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        for bad_style in (5, None):
+            result = await _structure_tools["update_borders"](
+                spreadsheet_id="ss1", sheet="Sheet1", range="A1", top={"style": bad_style}, ctx=ctx
+            )
+            assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
     async def test_returns_error_when_sheet_not_found(self):
         svc = self._sheets_service()
         ctx = _make_ctx(sheets_service=svc, cache=None)

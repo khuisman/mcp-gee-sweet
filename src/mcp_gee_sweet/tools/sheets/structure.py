@@ -1091,6 +1091,8 @@ def register(tool):
         for key, border in provided.items():
             if "style" not in border:
                 return {"error": f"Border spec for '{key}' is missing required 'style' key"}
+            if not isinstance(border["style"], str):
+                return {"error": f"Border spec for '{key}' has a non-string 'style' value"}
             if border["style"].upper() not in _VALID_BORDER_STYLES:
                 return {
                     "error": f"Invalid border style '{border['style']}' for '{key}'. "
