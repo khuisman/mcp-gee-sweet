@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 _COMMENT_FIELDS = (
     "id,content,htmlContent,author(displayName,emailAddress),createdTime,"
     "modifiedTime,resolved,deleted,quotedFileContent(value),"
-    "replies(id,content,author(displayName,emailAddress),createdTime,action,deleted)"
+    "replies(id,content,author(displayName,emailAddress),createdTime,modifiedTime,"
+    "action,deleted)"
 )
 
 
@@ -31,6 +32,7 @@ def _map_reply(reply: dict[str, Any]) -> dict[str, Any]:
         "content": reply.get("content"),
         "author": _map_author(reply.get("author")),
         "created_time": reply.get("createdTime"),
+        "modified_time": reply.get("modifiedTime"),
         "action": reply.get("action"),
         "deleted": reply.get("deleted", False),
     }
@@ -74,8 +76,12 @@ def register(tool):
             - doc_id: echoed back for reference
             - comments: list of comments, each with id, content, author
               (display_name, email_address), created_time, modified_time, resolved,
-              deleted, quoted_text (the anchored text, if any), and replies (same
-              shape as a comment plus an action field: "resolve" or "reopen")
+              deleted, quoted_text (the anchored text, if any), and replies. Each
+              reply has id, content, author, created_time, modified_time, deleted,
+              and action ("resolve" or "reopen", or None for an ordinary reply) —
+              replies have no resolved or quoted_text field of their own; a
+              comment's resolved status is derived from its most recent reply's
+              action.
             - next_page_token: present when more results are available
             Raises ValueError if the response exceeds a safety cap (default 40,000
             characters, set MAX_TOOL_RESPONSE_CHARS to change it) — lower page_size
@@ -112,7 +118,7 @@ def register(tool):
 
         return result
 
-    @tool(annotations=ToolAnnotations(title="Add Document Comment"))
+    @tool(annotations=ToolAnnotations(title="Add Document Comment", destructiveHint=True))
     async def add_doc_comment(
         doc_id: str,
         content: str,
@@ -159,7 +165,7 @@ def register(tool):
             "quoted_text": quoted.get("value") if quoted else None,
         }
 
-    @tool(annotations=ToolAnnotations(title="Resolve Document Comment"))
+    @tool(annotations=ToolAnnotations(title="Resolve Document Comment", destructiveHint=True))
     async def resolve_doc_comment(
         doc_id: str,
         comment_id: str,

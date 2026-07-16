@@ -7,15 +7,17 @@ from mcp_gee_sweet.tools import docs as docs_module
 
 def _make_tool_registry():
     captured = {}
+    captured_annotations = {}
 
     def tool(annotations=None):
         def decorator(func):
             captured[func.__name__] = func
+            captured_annotations[func.__name__] = annotations
             return func
 
         return decorator
 
-    return tool, captured
+    return tool, captured, captured_annotations
 
 
 def _make_ctx(**services):
@@ -26,8 +28,21 @@ def _make_ctx(**services):
     return ctx
 
 
-_docs_tool, _docs_tools = _make_tool_registry()
+_docs_tool, _docs_tools, _docs_annotations = _make_tool_registry()
 docs_module.register(_docs_tool)
+
+
+class TestToolAnnotations:
+    """Mutating comment tools must set destructiveHint, like every other mutating tool."""
+
+    def test_add_doc_comment_has_destructive_hint(self):
+        assert _docs_annotations["add_doc_comment"].destructiveHint is True
+
+    def test_resolve_doc_comment_has_destructive_hint(self):
+        assert _docs_annotations["resolve_doc_comment"].destructiveHint is True
+
+    def test_list_doc_comments_is_read_only_not_destructive(self):
+        assert _docs_annotations["list_doc_comments"].readOnlyHint is True
 
 
 class TestListDocComments:
@@ -53,6 +68,7 @@ class TestListDocComments:
                             "content": "Agreed",
                             "author": {"displayName": "Bob", "emailAddress": "bob@example.com"},
                             "createdTime": "2026-07-01T01:00:00Z",
+                            "modifiedTime": "2026-07-01T01:05:00Z",
                             "action": None,
                             "deleted": False,
                         }
@@ -73,6 +89,7 @@ class TestListDocComments:
         assert comment["resolved"] is False
         assert len(comment["replies"]) == 1
         assert comment["replies"][0]["author"]["display_name"] == "Bob"
+        assert comment["replies"][0]["modified_time"] == "2026-07-01T01:05:00Z"
 
     async def test_empty_comments_returns_empty_list(self):
         drive = MagicMock()
