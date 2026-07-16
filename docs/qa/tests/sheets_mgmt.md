@@ -929,6 +929,76 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 ---
 
+## `update_borders`
+
+### TC-S85: Apply a solid border around all four edges of a range ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Add a black solid border around all four edges of A1:D5 on the Sales sheet"
+
+**Checks**
+- `updateBorders` request sent with `top`, `bottom`, `left`, `right` all `style="SOLID"`
+- `color` set to black on each edge
+- `range` covers A1:D5
+- No error in response
+
+---
+
+### TC-S86: Apply dashed inner gridlines inside a range ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Add dashed inner horizontal and vertical borders inside A1:C3 on the Sales sheet"
+
+**Checks**
+- `updateBorders` request includes `innerHorizontal` and `innerVertical`, both `style="DASHED"`
+- `top`/`bottom`/`left`/`right` are not set
+- No error in response
+
+---
+
+### TC-S87: Clear an existing border edge with style NONE ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Remove the border from the right edge of A1:D5 on the Sales sheet"
+
+**Checks**
+- `updateBorders` request includes `right.style="NONE"`
+- No error in response
+
+---
+
+### TC-S88: update_borders — no border params returns error
+
+**Checks (unit test)**
+- Calling `update_borders` with no edge params returns `{"error": ...}`
+- No batchUpdate API call made
+
+---
+
+### TC-S89: update_borders — border spec missing style returns error
+
+**Checks (unit test)**
+- An edge dict without a `"style"` key returns `{"error": ...}` before any API call
+
+---
+
+### TC-S90: update_borders — invalid style value returns error
+
+**Checks (unit test)**
+- An unrecognized `style` value (e.g. `"SQUIGGLY"`) returns `{"error": ...}` listing valid styles, before any API call
+
+---
+
+### TC-S91: update_borders — sheet not found returns error
+
+**Checks (unit test)**
+- Sheet name not in spreadsheet → `{"error": "Sheet 'X' not found"}`
+
+---
+
 ## `freeze`
 
 ### TC-S42: Freeze the header row ⚠️ destructive

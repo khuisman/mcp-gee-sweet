@@ -948,6 +948,128 @@ class TestFormatCells:
         assert "userEnteredFormat.horizontalAlignment" in fields
 
 
+class TestUpdateBorders:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _update_borders_request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["updateBorders"]
+
+    async def test_top_border_sets_style_and_range(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["update_borders"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:D5",
+            top={"style": "SOLID"},
+            ctx=ctx,
+        )
+        req = self._update_borders_request(svc)
+        assert req["top"]["style"] == "SOLID"
+        assert req["range"] == {
+            "sheetId": 0,
+            "startRowIndex": 0,
+            "startColumnIndex": 0,
+            "endRowIndex": 5,
+            "endColumnIndex": 4,
+        }
+
+    async def test_color_and_width_included_when_present(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        color = {"red": 1.0, "green": 0.0, "blue": 0.0}
+        await _structure_tools["update_borders"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            bottom={"style": "DASHED", "color": color, "width": 2},
+            ctx=ctx,
+        )
+        req = self._update_borders_request(svc)
+        assert req["bottom"] == {"style": "DASHED", "color": color, "width": 2}
+
+    async def test_style_is_uppercased(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["update_borders"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", left={"style": "solid"}, ctx=ctx
+        )
+        req = self._update_borders_request(svc)
+        assert req["left"]["style"] == "SOLID"
+
+    async def test_multiple_edges_produce_multiple_keys(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["update_borders"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:C3",
+            top={"style": "SOLID"},
+            bottom={"style": "SOLID"},
+            inner_horizontal={"style": "DOTTED"},
+            inner_vertical={"style": "DOTTED"},
+            ctx=ctx,
+        )
+        req = self._update_borders_request(svc)
+        assert "top" in req
+        assert "bottom" in req
+        assert "innerHorizontal" in req
+        assert "innerVertical" in req
+        assert "left" not in req
+        assert "right" not in req
+
+    async def test_none_style_clears_border(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["update_borders"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", right={"style": "NONE"}, ctx=ctx
+        )
+        req = self._update_borders_request(svc)
+        assert req["right"]["style"] == "NONE"
+
+    async def test_no_params_returns_error(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["update_borders"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_missing_style_returns_error(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["update_borders"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", top={"color": {"red": 1.0}}, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_invalid_style_returns_error(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["update_borders"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", top={"style": "SQUIGGLY"}, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["update_borders"](
+            spreadsheet_id="ss1", sheet="Missing", range="A1", top={"style": "SOLID"}, ctx=ctx
+        )
+        assert "error" in result
+
+
 class TestMergeCells:
     def _sheets_service(self, sheet_id=0):
         mock = MagicMock()
