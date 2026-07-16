@@ -2063,6 +2063,21 @@
 <td>Add a page footer to a Google Doc.</td>
 <td><code>doc_id</code>, <code>footer_type?</code>, <code>content?</code></td>
 </tr>
+<tr>
+<td><code>list_doc_comments</code></td>
+<td>List comments (and their replies) on a Google Doc via the Drive comments resource.</td>
+<td><code>doc_id</code>, <code>page_size?</code>, <code>page_token?</code>, <code>include_deleted?</code></td>
+</tr>
+<tr>
+<td><code>add_doc_comment</code></td>
+<td>Add a comment to a Google Doc via the Drive comments resource.</td>
+<td><code>doc_id</code>, <code>content</code>, <code>quoted_text?</code></td>
+</tr>
+<tr>
+<td><code>resolve_doc_comment</code></td>
+<td>Mark a comment on a Google Doc as resolved, by posting a reply with a "resolve" action via the Drive comments resource.</td>
+<td><code>doc_id</code>, <code>comment_id</code>, <code>reply_content?</code></td>
+</tr>
 </tbody>
 </table>
 <p><code>write_doc_content</code> accepts HTML and converts it to Docs API requests via the HTML→AST→emitter pipeline. See <a href="../design/docs-ast-pipeline/">Docs AST Pipeline</a> for the design.</p>

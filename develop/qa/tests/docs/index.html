@@ -2482,6 +2482,89 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#list_doc_comments-add_doc_comment-resolve_doc_comment-151" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_doc_comments / add_doc_comment / resolve_doc_comment (#151)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_doc_comments / add_doc_comment / resolve_doc_comment (#151)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc96-add-a-comment-with-no-quoted-text-anchor-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC96: Add a comment with no quoted-text anchor ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc97-add-a-comment-anchored-to-quoted-text-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC97: Add a comment anchored to quoted text ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc98-list-comments-reflects-previously-added-comments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC98: List comments reflects previously added comments
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc99-resolve-a-comment-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC99: Resolve a comment ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc100-resolve-a-non-existent-comment-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC100: Resolve a non-existent comment ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc101-list-comments-on-a-non-existent-doc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC101: List comments on a non-existent doc
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4009,6 +4092,84 @@ Created a doc with two paragraphs; <code>get_doc_structure</code> showed the fir
 <p><strong>Cleanup:</strong> none (no mutation applied)</p>
 <p><strong>Result (2026-07-15) ✅ PASS</strong>
 <code>insert_page_break(doc_id=&lt;TEST_DOC_ID&gt;, index=99999)</code> returned <code>{"error": "&lt;HttpError 400 ... Index 99999 must be less than the end index of the referenced segment, 89. ...&gt;"}</code> — no exception raised, error clearly references the out-of-bounds index. No mutation applied to the fixture doc.</p>
+<hr />
+<h2 id="list_doc_comments-add_doc_comment-resolve_doc_comment-151"><code>list_doc_comments</code> / <code>add_doc_comment</code> / <code>resolve_doc_comment</code> (#151)<a class="headerlink" href="#list_doc_comments-add_doc_comment-resolve_doc_comment-151" title="Permanent link">&para;</a></h2>
+<p>These operate on the Drive <code>comments</code>/<code>replies</code> resource, not the Docs API — they work against any file type Drive supports comments on (Docs, Sheets, Slides), but are scoped here to the doc fixture. There is no <code>delete_doc_comment</code> tool (out of scope for #151), so comments added during QA are not cleanable via a tool call — they persist as real threads on the fixture doc until removed manually in the Docs UI. Keep test comment text prefixed <code>QA TC-DOC…</code> so they're identifiable for manual cleanup.</p>
+<h3 id="tc-doc96-add-a-comment-with-no-quoted-text-anchor-destructive">TC-DOC96: Add a comment with no quoted-text anchor ⚠️ destructive<a class="headerlink" href="#tc-doc96-add-a-comment-with-no-quoted-text-anchor-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add a comment 'QA TC-DOC96: general note.' to doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>id</code>, <code>content</code> matching the input text, <code>author</code> (<code>display_name</code>/<code>email_address</code> populated from the caller's identity), <code>created_time</code>
+- <code>quoted_text</code> is <code>null</code> — no anchor was requested
+- No error</p>
+<p><strong>Cleanup:</strong> none available — no <code>delete_doc_comment</code> tool exists; the comment persists on the fixture doc (see section note above)</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong>
+<code>add_doc_comment(doc_id=&lt;TEST_DOC_ID&gt;, content="QA TC-DOC96: general note.")</code> returned <code>id: "AAAB-5FtNYE"</code>, <code>content</code> matching the input, <code>author.display_name: "Kevin Huisman"</code>, <code>created_time</code>, <code>quoted_text: null</code>. No error. Note: <code>author.email_address</code> was <code>null</code> rather than populated — this is Drive API behavior for the authenticated OAuth user's own comments (email visibility is a privacy-scoped field), not a tool defect; the tool correctly passes through whatever the API returns.</p>
+<hr />
+<h3 id="tc-doc97-add-a-comment-anchored-to-quoted-text-destructive">TC-DOC97: Add a comment anchored to quoted text ⚠️ destructive<a class="headerlink" href="#tc-doc97-add-a-comment-anchored-to-quoted-text-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>{DOC_ID}</code> must contain the literal text "QA anchor target" somewhere (use <code>write_doc_content</code> to add it first if absent)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add a comment 'QA TC-DOC97: anchored note.' to doc {DOC_ID}, quoting the text 'QA anchor target'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>quoted_text: "QA anchor target"</code> — the anchor round-trips through the API response
+- <code>list_doc_comments</code> on the same doc shows this comment with the same <code>quoted_text</code></p>
+<p><strong>Cleanup:</strong> none available (see section note above)</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong>
+Doc lacked the literal text "QA anchor target", so it was inserted via <code>insert_doc_text</code> (not <code>write_doc_content</code>, which replaces the whole doc body — using it as the setup note suggests would have wiped the fixture's existing content). <code>add_doc_comment(doc_id=&lt;TEST_DOC_ID&gt;, content="QA TC-DOC97: anchored note.", quoted_text="QA anchor target")</code> returned <code>quoted_text: "QA anchor target"</code>, round-tripping correctly. Confirmed via <code>list_doc_comments</code> in TC-DOC98 below.</p>
+<hr />
+<h3 id="tc-doc98-list-comments-reflects-previously-added-comments">TC-DOC98: List comments reflects previously added comments<a class="headerlink" href="#tc-doc98-list-comments-reflects-previously-added-comments" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> run TC-DOC96 and TC-DOC97 first</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List the comments on doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Both the TC-DOC96 and TC-DOC97 comments appear in <code>comments</code>
+- Each has <code>resolved: false</code> and <code>replies: []</code>
+- The TC-DOC97 entry has <code>quoted_text: "QA anchor target"</code>; the TC-DOC96 entry has <code>quoted_text: null</code>
+- <code>doc_id</code> in the response matches <code>{DOC_ID}</code></p>
+<p><strong>Cleanup:</strong> none (read-only)</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong>
+<code>list_doc_comments(doc_id=&lt;TEST_DOC_ID&gt;)</code> returned both comments: TC-DOC97 (<code>quoted_text: "QA anchor target"</code>) and TC-DOC96 (<code>quoted_text: null</code>), both <code>resolved: false</code> and <code>replies: []</code>, <code>doc_id</code> echoed correctly.</p>
+<hr />
+<h3 id="tc-doc99-resolve-a-comment-destructive">TC-DOC99: Resolve a comment ⚠️ destructive<a class="headerlink" href="#tc-doc99-resolve-a-comment-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the <code>id</code> returned by TC-DOC96 as <code>{COMMENT_ID}</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Resolve comment {COMMENT_ID} on doc {DOC_ID} with the reply 'Handled.'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>doc_id</code>, <code>comment_id</code>, <code>reply_id</code>, and <code>action: "resolve"</code>
+- Re-running <code>list_doc_comments</code> shows that comment with <code>resolved: true</code> and a reply with <code>content: "Handled."</code> and <code>action: "resolve"</code></p>
+<p><strong>Cleanup:</strong> none available — resolving doesn't remove the comment thread, just marks it resolved (see section note above)</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong>
+<code>resolve_doc_comment(doc_id=&lt;TEST_DOC_ID&gt;, comment_id="AAAB-5FtNYE", reply_content="Handled.")</code> returned <code>doc_id</code>, <code>comment_id</code>, <code>reply_id: "AAAB-5FtNYQ"</code>, <code>action: "resolve"</code>. Re-ran <code>list_doc_comments</code>: the TC-DOC96 comment now shows <code>resolved: true</code> with a reply <code>content: "Handled.", action: "resolve"</code>. The reply also included <code>modified_time</code> — confirms the fix from PR review comment (missing <code>modified_time</code> on replies) is live.</p>
+<hr />
+<h3 id="tc-doc100-resolve-a-non-existent-comment-id">TC-DOC100: Resolve a non-existent comment ID<a class="headerlink" href="#tc-doc100-resolve-a-non-existent-comment-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Resolve comment 'not-a-real-comment-id' on doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- API error propagates — not a silent success or server crash</p>
+<p><strong>Cleanup:</strong> none (no mutation applied)</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong>
+<code>resolve_doc_comment(doc_id=&lt;TEST_DOC_ID&gt;, comment_id="not-a-real-comment-id")</code> raised <code>HttpError 404 ... "Comment not found: not-a-real-comment-id."</code> — propagated cleanly, no silent success, no server crash.</p>
+<hr />
+<h3 id="tc-doc101-list-comments-on-a-non-existent-doc">TC-DOC101: List comments on a non-existent doc<a class="headerlink" href="#tc-doc101-list-comments-on-a-non-existent-doc" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List the comments on doc 'not-a-real-doc-id'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- API error propagates — not a silent empty list or server crash</p>
+<p><strong>Cleanup:</strong> none (no mutation applied)</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong>
+<code>list_doc_comments(doc_id="not-a-real-doc-id")</code> raised <code>HttpError 404 ... "File not found: not-a-real-doc-id."</code> — propagated cleanly, no silent empty list, no server crash.</p>
 
 
 
