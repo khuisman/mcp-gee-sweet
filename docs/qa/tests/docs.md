@@ -1641,3 +1641,86 @@ Created a doc with two paragraphs; `get_doc_structure` showed the first paragrap
 
 **Result (2026-07-15) ✅ PASS**
 `insert_page_break(doc_id=<TEST_DOC_ID>, index=99999)` returned `{"error": "<HttpError 400 ... Index 99999 must be less than the end index of the referenced segment, 89. ...>"}` — no exception raised, error clearly references the out-of-bounds index. No mutation applied to the fixture doc.
+
+---
+
+## `list_doc_comments` / `add_doc_comment` / `resolve_doc_comment` (#151)
+
+These operate on the Drive `comments`/`replies` resource, not the Docs API — they work against any file type Drive supports comments on (Docs, Sheets, Slides), but are scoped here to the doc fixture. There is no `delete_doc_comment` tool (out of scope for #151), so comments added during QA are not cleanable via a tool call — they persist as real threads on the fixture doc until removed manually in the Docs UI. Keep test comment text prefixed `QA TC-DOC…` so they're identifiable for manual cleanup.
+
+### TC-DOC96: Add a comment with no quoted-text anchor ⚠️ destructive
+**Prompt**
+> "Add a comment 'QA TC-DOC96: general note.' to doc {DOC_ID}"
+
+**Checks**
+- Returns `id`, `content` matching the input text, `author` (`display_name`/`email_address` populated from the caller's identity), `created_time`
+- `quoted_text` is `null` — no anchor was requested
+- No error
+
+**Cleanup:** none available — no `delete_doc_comment` tool exists; the comment persists on the fixture doc (see section note above)
+
+---
+
+### TC-DOC97: Add a comment anchored to quoted text ⚠️ destructive
+**Setup:** `{DOC_ID}` must contain the literal text "QA anchor target" somewhere (use `write_doc_content` to add it first if absent)
+
+**Prompt**
+> "Add a comment 'QA TC-DOC97: anchored note.' to doc {DOC_ID}, quoting the text 'QA anchor target'"
+
+**Checks**
+- Returns `quoted_text: "QA anchor target"` — the anchor round-trips through the API response
+- `list_doc_comments` on the same doc shows this comment with the same `quoted_text`
+
+**Cleanup:** none available (see section note above)
+
+---
+
+### TC-DOC98: List comments reflects previously added comments
+**Setup:** run TC-DOC96 and TC-DOC97 first
+
+**Prompt**
+> "List the comments on doc {DOC_ID}"
+
+**Checks**
+- Both the TC-DOC96 and TC-DOC97 comments appear in `comments`
+- Each has `resolved: false` and `replies: []`
+- The TC-DOC97 entry has `quoted_text: "QA anchor target"`; the TC-DOC96 entry has `quoted_text: null`
+- `doc_id` in the response matches `{DOC_ID}`
+
+**Cleanup:** none (read-only)
+
+---
+
+### TC-DOC99: Resolve a comment ⚠️ destructive
+**Setup:** use the `id` returned by TC-DOC96 as `{COMMENT_ID}`
+
+**Prompt**
+> "Resolve comment {COMMENT_ID} on doc {DOC_ID} with the reply 'Handled.'"
+
+**Checks**
+- Returns `doc_id`, `comment_id`, `reply_id`, and `action: "resolve"`
+- Re-running `list_doc_comments` shows that comment with `resolved: true` and a reply with `content: "Handled."` and `action: "resolve"`
+
+**Cleanup:** none available — resolving doesn't remove the comment thread, just marks it resolved (see section note above)
+
+---
+
+### TC-DOC100: Resolve a non-existent comment ID
+**Prompt**
+> "Resolve comment 'not-a-real-comment-id' on doc {DOC_ID}"
+
+**Checks**
+- API error propagates — not a silent success or server crash
+
+**Cleanup:** none (no mutation applied)
+
+---
+
+### TC-DOC101: List comments on a non-existent doc
+**Prompt**
+> "List the comments on doc 'not-a-real-doc-id'"
+
+**Checks**
+- API error propagates — not a silent empty list or server crash
+
+**Cleanup:** none (no mutation applied)
