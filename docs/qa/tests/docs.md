@@ -1624,6 +1624,9 @@ Fetch-path call raised: `get_doc_content: the response is 49700 characters, over
 
 **Cleanup:** delete the created doc
 
+**Result (2026-07-15) ✅ PASS**
+Created a doc with two paragraphs; `get_doc_structure` showed the first paragraph ending at index 38. `insert_page_break(index=38)` returned `{"docId": ..., "index": 38}` with no API error. Re-fetched `get_doc_structure`: the page break did not appear as its own top-level element (as expected) — the second paragraph's `startIndex` shifted from 38 to 40, consistent with an inline break being inserted. Playwright visual check: navigated to the doc, clicked into the body, pressed Ctrl+End to reach the document end — the accessibility live region announced "Entering page 2 of 2," confirming the second paragraph now renders on a new page. Doc trashed after verification.
+
 ---
 
 ### TC-DOC95: API error returned gracefully (index beyond document end)
@@ -1636,4 +1639,5 @@ Fetch-path call raised: `get_doc_content: the response is 49700 characters, over
 
 **Cleanup:** none (no mutation applied)
 
-**Result: PENDING** — same restart blocker as TC-DOC82.
+**Result (2026-07-15) ✅ PASS**
+`insert_page_break(doc_id=<TEST_DOC_ID>, index=99999)` returned `{"error": "<HttpError 400 ... Index 99999 must be less than the end index of the referenced segment, 89. ...>"}` — no exception raised, error clearly references the out-of-bounds index. No mutation applied to the fixture doc.
