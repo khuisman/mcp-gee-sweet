@@ -96,12 +96,15 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 ### Tier 2 — Useful for structured work, plus defects surfaced since v0.8.1 _(target: [v0.9.0](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9))_
 
 **Defects** _(found after v0.8.1 shipped; too late for that release, don't warrant a standalone patch)_
+- [x] Dev prereleases become unreachable once the base version's stable release ships — `format-jinja` never bumps past the last tag, so `X.Y.Z.devN` is a PEP 440 pre-release of the already-published `X.Y.Z` and always loses precedence to it; fix is `bump = true` in `[tool.uv-dynamic-versioning]` (PR #318) ([#317](https://github.com/khuisman/mcp-gee-sweet/issues/317))
+- [ ] `sync_folder` doesn't recurse into subfolders — one-level-only Drive query silently reports a clean "in sync" result while ignoring every nested file (confirmed live: 225 files across 22 subfolders ignored, only the root-level file seen) ([#315](https://github.com/khuisman/mcp-gee-sweet/issues/315))
+- [ ] `download_folder`'s file loop is genuinely sequential (`for f in ...: await asyncio.to_thread(...)`) — the one multi-file transfer path missed when the `asyncio.gather` pattern was established (#183); `sync_folder`'s own transfer step already uses it correctly ([#316](https://github.com/khuisman/mcp-gee-sweet/issues/316))
 - [x] Bare URLs in markdown content aren't autolinked — Python-Markdown's built-in autolink only fires on `<https://...>` or `[text](url)`, not a bare URL (PR #265) ([#248](https://github.com/khuisman/mcp-gee-sweet/issues/248))
 - [x] `zip(doc_tables, ast_tables)` in `emitter.py` silently cross-pairs tables when one is skipped (zero-row/zero-col table), misapplying fill/merge/style requests to the wrong table — surfaced during #276's review (PR #282) ([#277](https://github.com/khuisman/mcp-gee-sweet/issues/277))
 
 **Sheets**
 - [ ] `update_borders` — border style, width, color on a range ([#122](https://github.com/khuisman/mcp-gee-sweet/issues/122)) _(freema/mcp-gsheets)_
-- [ ] `hide_rows` / `hide_columns` / unhide — toggle row or column visibility ([#123](https://github.com/khuisman/mcp-gee-sweet/issues/123)) _(freema/mcp-gsheets)_
+- [x] `hide_rows` / `hide_columns` / unhide — toggle row or column visibility ([#123](https://github.com/khuisman/mcp-gee-sweet/issues/123)) _(freema/mcp-gsheets)_ (PR #311)
 - [ ] `resize_rows` / `resize_columns` — set pixel height/width, or auto-fit to content ([#124](https://github.com/khuisman/mcp-gee-sweet/issues/124)) _(freema/mcp-gsheets)_
 - [ ] `add_data_validation` / `get_data_validation` — dropdowns, checkboxes, value constraints ([#125](https://github.com/khuisman/mcp-gee-sweet/issues/125)) _(freema/mcp-gsheets)_
 - [x] `update_sheet_properties` — tab color, hide/show gridlines (PR #301) ([#126](https://github.com/khuisman/mcp-gee-sweet/issues/126)) _(freema/mcp-gsheets)_
@@ -117,7 +120,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 
 **Docs**
 - [ ] `insert_page_break` — explicit page break at an index ([#148](https://github.com/khuisman/mcp-gee-sweet/issues/148))
-- [ ] `merge_table_cells` — merge cells in an existing table (distinct from write-time colspan) ([#150](https://github.com/khuisman/mcp-gee-sweet/issues/150))
+- [x] `merge_table_cells` — merge cells in an existing table (distinct from write-time colspan) ([#150](https://github.com/khuisman/mcp-gee-sweet/issues/150)) (PR #310)
 - [ ] Comments API — list, add, resolve doc comments ([#151](https://github.com/khuisman/mcp-gee-sweet/issues/151))
 - [ ] `create_named_range` / `create_bookmark` — anchor points for internal links ([#152](https://github.com/khuisman/mcp-gee-sweet/issues/152))
 - [x] Rowspan emitter — closed as duplicate, already implemented via #100 (rowspan support) and PR #287 (nested-table colspan/rowspan) ([#195](https://github.com/khuisman/mcp-gee-sweet/issues/195))
@@ -198,6 +201,9 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 **Calendar**
 - [ ] Working location / OOO / Focus time events ([#164](https://github.com/khuisman/mcp-gee-sweet/issues/164))
 - [ ] Watch notifications — webhook push on calendar or event changes ([#165](https://github.com/khuisman/mcp-gee-sweet/issues/165))
+
+**Infrastructure**
+- [ ] `notifications/progress` feedback for long-running transfer calls (`download_folder`, `sync_folder`) — no tool uses MCP progress reporting today, would establish a new pattern; split from #316 ([#319](https://github.com/khuisman/mcp-gee-sweet/issues/319))
 
 ### Decisions Needed — blocking backlog _(no assigned version)_
 

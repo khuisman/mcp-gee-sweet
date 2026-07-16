@@ -517,6 +517,183 @@ class TestDeleteColumns:
         assert "error" in result
 
 
+class TestHideRows:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _dimension_request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["updateDimensionProperties"]
+
+    async def test_single_row_end_index_is_start_plus_one(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["hide_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=3, ctx=ctx
+        )
+        req = self._dimension_request(svc)
+        assert req["range"]["startIndex"] == 3
+        assert req["range"]["endIndex"] == 4
+        assert req["range"]["dimension"] == "ROWS"
+        assert req["properties"] == {"hiddenByUser": True}
+        assert req["fields"] == "hiddenByUser"
+
+    async def test_range_of_rows_end_index_is_inclusive(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["hide_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=2, end_row=5, ctx=ctx
+        )
+        req = self._dimension_request(svc)
+        assert req["range"]["startIndex"] == 2
+        assert req["range"]["endIndex"] == 6  # end_row=5 inclusive → exclusive index 6
+
+    async def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["hide_rows"](
+            spreadsheet_id="ss1", sheet="Missing", start_row=0, ctx=ctx
+        )
+        assert "error" in result
+
+
+class TestUnhideRows:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _dimension_request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["updateDimensionProperties"]
+
+    async def test_single_row_sets_hidden_false(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["unhide_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=3, ctx=ctx
+        )
+        req = self._dimension_request(svc)
+        assert req["range"]["startIndex"] == 3
+        assert req["range"]["endIndex"] == 4
+        assert req["range"]["dimension"] == "ROWS"
+        assert req["properties"] == {"hiddenByUser": False}
+
+    async def test_range_of_rows_end_index_is_inclusive(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["unhide_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=2, end_row=5, ctx=ctx
+        )
+        req = self._dimension_request(svc)
+        assert req["range"]["startIndex"] == 2
+        assert req["range"]["endIndex"] == 6
+
+    async def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["unhide_rows"](
+            spreadsheet_id="ss1", sheet="Missing", start_row=0, ctx=ctx
+        )
+        assert "error" in result
+
+
+class TestHideColumns:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _dimension_request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["updateDimensionProperties"]
+
+    async def test_single_column_end_index_is_start_plus_one(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["hide_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=0, ctx=ctx
+        )
+        req = self._dimension_request(svc)
+        assert req["range"]["startIndex"] == 0
+        assert req["range"]["endIndex"] == 1
+        assert req["range"]["dimension"] == "COLUMNS"
+        assert req["properties"] == {"hiddenByUser": True}
+
+    async def test_range_of_columns_end_index_is_inclusive(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["hide_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=1, end_column=3, ctx=ctx
+        )
+        req = self._dimension_request(svc)
+        assert req["range"]["startIndex"] == 1
+        assert req["range"]["endIndex"] == 4  # end_column=3 inclusive → exclusive index 4
+
+    async def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["hide_columns"](
+            spreadsheet_id="ss1", sheet="Missing", start_column=0, ctx=ctx
+        )
+        assert "error" in result
+
+
+class TestUnhideColumns:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _dimension_request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["updateDimensionProperties"]
+
+    async def test_single_column_sets_hidden_false(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["unhide_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=0, ctx=ctx
+        )
+        req = self._dimension_request(svc)
+        assert req["range"]["startIndex"] == 0
+        assert req["range"]["endIndex"] == 1
+        assert req["range"]["dimension"] == "COLUMNS"
+        assert req["properties"] == {"hiddenByUser": False}
+
+    async def test_range_of_columns_end_index_is_inclusive(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["unhide_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=1, end_column=3, ctx=ctx
+        )
+        req = self._dimension_request(svc)
+        assert req["range"]["startIndex"] == 1
+        assert req["range"]["endIndex"] == 4
+
+    async def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["unhide_columns"](
+            spreadsheet_id="ss1", sheet="Missing", start_column=0, ctx=ctx
+        )
+        assert "error" in result
+
+
 class TestFormatCells:
     def _sheets_service(self, sheet_id=0):
         mock = MagicMock()
