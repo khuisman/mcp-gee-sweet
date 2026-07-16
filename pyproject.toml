@@ -37,6 +37,9 @@ source = "uv-dynamic-versioning"
 pattern = "default"
 strict = false
 fallback-version = "0.0.0"
+# bump the base version past the last tag so dev builds outrank the already-published
+# stable release under PEP 440 (X.Y.Z.devN otherwise sorts below a shipped X.Y.Z) — #317
+bump = true
 # omit local git hash (+abc1234) — PyPI rejects local version identifiers (PEP 440)
 format-jinja = "{% if distance == 0 %}{{ base }}{% else %}{{ base }}.dev{{ distance }}{% endif %}"
 

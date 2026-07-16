@@ -96,6 +96,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 ### Tier 2 — Useful for structured work, plus defects surfaced since v0.8.1 _(target: [v0.9.0](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9))_
 
 **Defects** _(found after v0.8.1 shipped; too late for that release, don't warrant a standalone patch)_
+- [ ] Dev prereleases become unreachable once the base version's stable release ships — `format-jinja` never bumps past the last tag, so `X.Y.Z.devN` is a PEP 440 pre-release of the already-published `X.Y.Z` and always loses precedence to it; fix is `bump = true` in `[tool.uv-dynamic-versioning]` ([#317](https://github.com/khuisman/mcp-gee-sweet/issues/317))
 - [x] Bare URLs in markdown content aren't autolinked — Python-Markdown's built-in autolink only fires on `<https://...>` or `[text](url)`, not a bare URL (PR #265) ([#248](https://github.com/khuisman/mcp-gee-sweet/issues/248))
 - [x] `zip(doc_tables, ast_tables)` in `emitter.py` silently cross-pairs tables when one is skipped (zero-row/zero-col table), misapplying fill/merge/style requests to the wrong table — surfaced during #276's review (PR #282) ([#277](https://github.com/khuisman/mcp-gee-sweet/issues/277))
 
