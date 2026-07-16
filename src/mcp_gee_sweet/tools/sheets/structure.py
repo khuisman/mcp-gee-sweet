@@ -67,6 +67,73 @@ async def _set_dimension_hidden(
     )
 
 
+async def _set_dimension_pixel_size(
+    sheets_service,
+    spreadsheet_id: str,
+    sheet_id: int,
+    dimension: str,
+    start_index: int,
+    end_index: int,
+    pixel_size: int,
+) -> dict[str, Any]:
+    return await execute_in_thread(
+        sheets_service.spreadsheets()
+        .batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={
+                "requests": [
+                    {
+                        "updateDimensionProperties": {
+                            "range": {
+                                "sheetId": sheet_id,
+                                "dimension": dimension,
+                                "startIndex": start_index,
+                                "endIndex": end_index,
+                            },
+                            "properties": {"pixelSize": pixel_size},
+                            "fields": "pixelSize",
+                        }
+                    }
+                ]
+            },
+        )
+        .execute,
+        sheets_service,
+    )
+
+
+async def _auto_resize_dimension(
+    sheets_service,
+    spreadsheet_id: str,
+    sheet_id: int,
+    dimension: str,
+    start_index: int,
+    end_index: int,
+) -> dict[str, Any]:
+    return await execute_in_thread(
+        sheets_service.spreadsheets()
+        .batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={
+                "requests": [
+                    {
+                        "autoResizeDimensions": {
+                            "dimensions": {
+                                "sheetId": sheet_id,
+                                "dimension": dimension,
+                                "startIndex": start_index,
+                                "endIndex": end_index,
+                            }
+                        }
+                    }
+                ]
+            },
+        )
+        .execute,
+        sheets_service,
+    )
+
+
 def register(tool):
     @tool(annotations=ToolAnnotations(title="List Sheets", readOnlyHint=True))
     async def list_sheets(spreadsheet_id: str, ctx: Context = None) -> list[str]:
@@ -717,6 +784,108 @@ def register(tool):
 
         return await _set_dimension_hidden(
             sheets_service, spreadsheet_id, sheet_id, "COLUMNS", start_column, end_index, False
+        )
+
+    @tool(annotations=ToolAnnotations(title="Resize Rows", destructiveHint=True))
+    async def resize_rows(
+        spreadsheet_id: str,
+        sheet: str,
+        start_row: int,
+        end_row: int | None = None,
+        pixel_size: int | None = None,
+        auto_resize: bool = False,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Set an explicit pixel height for rows, or auto-fit them to content.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet (found in the URL)
+            sheet: The name of the sheet
+            start_row: 0-based index of the first row to resize
+            end_row: 0-based index of the last row to resize (inclusive).
+                     If omitted, resizes only start_row.
+            pixel_size: Explicit row height in pixels. Mutually exclusive with auto_resize.
+            auto_resize: If True, auto-fit row height to content instead of setting
+                         an explicit pixel_size.
+
+        Returns:
+            Result of the batchUpdate operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        if pixel_size is None and not auto_resize:
+            return {"error": "Specify pixel_size or set auto_resize=True"}
+        if pixel_size is not None and auto_resize:
+            return {"error": "Specify only one of pixel_size or auto_resize"}
+
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        end_index = (end_row if end_row is not None else start_row) + 1  # exclusive
+
+        if auto_resize:
+            return await _auto_resize_dimension(
+                sheets_service, spreadsheet_id, sheet_id, "ROWS", start_row, end_index
+            )
+
+        return await _set_dimension_pixel_size(
+            sheets_service, spreadsheet_id, sheet_id, "ROWS", start_row, end_index, pixel_size
+        )
+
+    @tool(annotations=ToolAnnotations(title="Resize Columns", destructiveHint=True))
+    async def resize_columns(
+        spreadsheet_id: str,
+        sheet: str,
+        start_column: int,
+        end_column: int | None = None,
+        pixel_size: int | None = None,
+        auto_resize: bool = False,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Set an explicit pixel width for columns, or auto-fit them to content.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet (found in the URL)
+            sheet: The name of the sheet
+            start_column: 0-based index of the first column to resize (0 = column A)
+            end_column: 0-based index of the last column to resize (inclusive).
+                        If omitted, resizes only start_column.
+            pixel_size: Explicit column width in pixels. Mutually exclusive with auto_resize.
+            auto_resize: If True, auto-fit column width to content instead of setting
+                         an explicit pixel_size.
+
+        Returns:
+            Result of the batchUpdate operation
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        if pixel_size is None and not auto_resize:
+            return {"error": "Specify pixel_size or set auto_resize=True"}
+        if pixel_size is not None and auto_resize:
+            return {"error": "Specify only one of pixel_size or auto_resize"}
+
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        end_index = (end_column if end_column is not None else start_column) + 1  # exclusive
+
+        if auto_resize:
+            return await _auto_resize_dimension(
+                sheets_service, spreadsheet_id, sheet_id, "COLUMNS", start_column, end_index
+            )
+
+        return await _set_dimension_pixel_size(
+            sheets_service, spreadsheet_id, sheet_id, "COLUMNS", start_column, end_index, pixel_size
         )
 
     @tool(annotations=ToolAnnotations(title="Format Cells", destructiveHint=True))
