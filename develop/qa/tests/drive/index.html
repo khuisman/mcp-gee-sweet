@@ -2910,6 +2910,94 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-d190-recursivetrue-walks-into-subfolders-present-on-both-sides-issue-315-destructive-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D190: recursive=True walks into subfolders present on both sides (issue #315) ⚠️ destructive ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d191-recursivetrue-reports-out-of-scope-subfolders-under-folders_skipped-instead-of-silently-ignoring-them-destructive-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D191: recursive=True reports out-of-scope subfolders under folders_skipped instead of silently ignoring them ⚠️ destructive ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d192-default-recursivefalse-still-ignores-subfolders-entirely-regression-guard-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D192: default recursive=False still ignores subfolders entirely (regression guard) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d193-recursivetrue-same-named-drive-file-and-folder-no-longer-crashes-the-whole-sync-pr-328-review-destructive-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D193: recursive=True — same-named Drive file and folder no longer crashes the whole sync (PR #328 review) ⚠️ destructive ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d194-recursivetrue-drive-folder-creation-failure-for-a-local-only-subfolder-is-recorded-as-failed-not-an-uncaught-crash-pr-328-review-destructive-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D194: recursive=True — Drive folder-creation failure for a local-only subfolder is recorded as failed, not an uncaught crash (PR #328 review) ⚠️ destructive ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d195-download_folder-skips-subfolders-instead-of-attempting-to-export-them-pr-328-review-destructive-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D195: download_folder skips subfolders instead of attempting to export them (PR #328 review) ⚠️ destructive ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d196-recursivetrue-dry-run-trips-the-response-size-cap-on-a-large-action-list-pr-328-review-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D196: recursive=True dry-run trips the response-size cap on a large action list (PR #328 review) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d197-recursivetrue-sibling-subfolders-sync-correctly-with-no-cross-attribution-under-concurrent-descent-pr-328-review-destructive-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D197: recursive=True — sibling subfolders sync correctly with no cross-attribution under concurrent descent (PR #328 review) ⚠️ destructive ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5169,6 +5257,128 @@ In <code>{FOLDER_ID}</code>, create 3 Drive-only files (<code>drive-a.txt</code>
 - <code>size_bytes</code> equals the sum of the 3 downloaded files' actual sizes</p>
 <p><strong>Teardown</strong>
 Delete the 3 Drive-only test files from <code>{FOLDER_ID}</code>, delete the 3 uploaded local-only files from Drive, remove <code>/tmp/qa-sync-183/</code>.</p>
+<hr />
+<h3 id="tc-d190-recursivetrue-walks-into-subfolders-present-on-both-sides-issue-315-destructive-local-filesystem">TC-D190: <code>recursive=True</code> walks into subfolders present on both sides (issue #315) ⚠️ destructive ⚠️ local-filesystem<a class="headerlink" href="#tc-d190-recursivetrue-walks-into-subfolders-present-on-both-sides-issue-315-destructive-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #315 — <code>sync_folder</code> only ever looked at files directly inside <code>folder_id</code>; a folder with subfolders on both sides reported a clean "in sync" result while silently ignoring everything nested one level down. <code>recursive=True</code> fixes this by walking matching subfolders to any depth.</p>
+<p><strong>Setup</strong>
+In <code>{FOLDER_ID}</code>, create a subfolder named <code>nested</code> (via <code>create_folder</code>). Inside it, create a Drive-only text file <code>deep.txt</code> with content <code>hello from nested</code>. Locally, create the same subfolder path <code>/tmp/qa-sync-315/nested/</code> (empty) so the subfolder itself exists on both sides but the file is Drive-only.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync-315/</code> bidirectionally with recursive=True"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>downloaded</code> includes <code>nested/deep.txt</code> (not just <code>deep.txt</code>) — the relative path carries the subfolder prefix
+- <code>/tmp/qa-sync-315/nested/deep.txt</code> exists locally with content <code>hello from nested</code>
+- <code>folders_skipped</code> is empty
+- Re-running the same sync afterward reports <code>nested/deep.txt</code> under <code>skipped</code> (<code>in sync</code>), confirming the recursive mtime comparison also worked, not just the initial download</p>
+<p><strong>Result (2026-07-17)</strong> ⚠️ PARTIAL — recursive descent, download, and <code>folders_skipped</code>-empty all confirmed live (nested file downloaded to <code>qa328-nested/deep.txt</code> with correct content and prefix). The re-sync check <strong>fails</strong>: the second sync re-<code>upload</code>ed the file instead of reporting <code>skipped</code>/"in sync". Root cause confirmed live and unrelated to recursion — <code>download</code> never sets the local file's mtime to match Drive's <code>modifiedTime</code>, so any real time gap (&gt;5s tolerance) between download and the next comparison makes the local copy look "newer" and triggers a needless re-upload. Reproduces identically on the pre-existing top-level fixture files (<code>qa-notes.md</code>, <code>qa-upload.txt</code>), confirming this is a pre-existing defect in the base (non-recursive) mtime-diff logic, not something this PR's recursion work introduced or worsened. Filed as #346 rather than blocking this PR.</p>
+<p><strong>Teardown</strong>
+Delete <code>nested</code> (and its contents) from <code>{FOLDER_ID}</code> via <code>delete_file</code>. Remove <code>/tmp/qa-sync-315/</code>.</p>
+<hr />
+<h3 id="tc-d191-recursivetrue-reports-out-of-scope-subfolders-under-folders_skipped-instead-of-silently-ignoring-them-destructive-local-filesystem">TC-D191: <code>recursive=True</code> reports out-of-scope subfolders under <code>folders_skipped</code> instead of silently ignoring them ⚠️ destructive ⚠️ local-filesystem<a class="headerlink" href="#tc-d191-recursivetrue-reports-out-of-scope-subfolders-under-folders_skipped-instead-of-silently-ignoring-them-destructive-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #315's fallback ask (if full recursion weren't viable) was to at least surface subfolders the sync can't safely touch, rather than reporting a clean result. Even with recursion implemented, a subfolder that exists on only one side is deliberately left alone when the sync <code>direction</code> wouldn't create it on the other side — this confirms that case is reported, not silently dropped.</p>
+<p><strong>Setup</strong>
+In <code>{FOLDER_ID}</code>, create a subfolder named <code>drive-only-sub</code> (via <code>create_folder</code>) with one file inside it. Do not create any local counterpart.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync-315b/</code> using direction='upload' and recursive=True"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>folders_skipped</code> contains <code>drive-only-sub/</code>
+- <code>downloaded</code> and <code>uploaded</code> do not mention anything under <code>drive-only-sub/</code>
+- <code>/tmp/qa-sync-315b/drive-only-sub/</code> was not created on disk</p>
+<p><strong>Result (2026-07-17) ✅ PASS</strong></p>
+<p><strong>Teardown</strong>
+Delete <code>drive-only-sub</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-315b/</code> if created.</p>
+<hr />
+<h3 id="tc-d192-default-recursivefalse-still-ignores-subfolders-entirely-regression-guard-local-filesystem">TC-D192: default <code>recursive=False</code> still ignores subfolders entirely (regression guard) ⚠️ local-filesystem<a class="headerlink" href="#tc-d192-default-recursivefalse-still-ignores-subfolders-entirely-regression-guard-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Do a dry run sync of {FOLDER_ID} with <code>/tmp/qa-sync-315c/</code> in bidirectional mode" <em>(ensure {FOLDER_ID} has at least one subfolder with files in it, alongside a top-level file)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>actions</code> only lists the top-level file(s) — nothing from inside the subfolder appears
+- <code>folders_skipped</code> is empty (subfolders aren't even considered when <code>recursive</code> is omitted)
+- No entry in <code>failed</code> referencing the subfolder itself (guards against a pre-existing bug where a subfolder's mimeType could be mistaken for an exportable Workspace file when <code>export_format</code> was set)</p>
+<p><strong>Result (2026-07-17) ✅ PASS</strong></p>
+<hr />
+<h3 id="tc-d193-recursivetrue-same-named-drive-file-and-folder-no-longer-crashes-the-whole-sync-pr-328-review-destructive-local-filesystem">TC-D193: <code>recursive=True</code> — same-named Drive file and folder no longer crashes the whole sync (PR #328 review) ⚠️ destructive ⚠️ local-filesystem<a class="headerlink" href="#tc-d193-recursivetrue-same-named-drive-file-and-folder-no-longer-crashes-the-whole-sync-pr-328-review-destructive-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Sky's code review on PR #328 found that Drive allows a file and a folder to share a name in the same parent (items are keyed by ID, not name). With <code>recursive=True</code> and a download-permitting direction, the file-level pass downloads the file to <code>dest_dir/name</code>, then the folder-level pass calls <code>child_dest_dir.mkdir(parents=True, exist_ok=True)</code> on the same path — <code>exist_ok</code> only tolerates an <em>existing directory</em>, not an existing file, so this used to raise an uncaught <code>FileExistsError</code> and abort the entire sync, discarding all accumulated results. Fixed by checking for the collision first and recording it as a <code>failed</code> entry instead of crashing.</p>
+<p><strong>Setup</strong>
+In <code>{FOLDER_ID}</code>, create a Drive-only text file named <code>collide</code> with content <code>i am a file</code>. Separately, create a Drive folder also named <code>collide</code> (via <code>create_folder</code>) directly inside <code>{FOLDER_ID}</code>, with one file inside it, e.g. <code>inner.txt</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync-328a/</code> bidirectionally with recursive=True"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The call succeeds and returns a normal result — no exception, no aborted/partial response
+- <code>downloaded</code> includes <code>collide</code> (the file)
+- <code>failed</code> includes an entry whose <code>name</code> is <code>collide/</code> and whose <code>error</code> mentions the name already existing as a file
+- <code>/tmp/qa-sync-328a/collide</code> exists locally as the downloaded file's content (<code>i am a file</code>), not overwritten or corrupted by the failed mkdir attempt</p>
+<p><strong>Result (2026-07-17) ✅ PASS</strong></p>
+<p><strong>Teardown</strong>
+Delete both the <code>collide</code> file and the <code>collide</code> folder (with its contents) from <code>{FOLDER_ID}</code> via <code>delete_file</code>. Remove <code>/tmp/qa-sync-328a/</code>.</p>
+<hr />
+<h3 id="tc-d194-recursivetrue-drive-folder-creation-failure-for-a-local-only-subfolder-is-recorded-as-failed-not-an-uncaught-crash-pr-328-review-destructive-local-filesystem">TC-D194: <code>recursive=True</code> — Drive folder-creation failure for a local-only subfolder is recorded as <code>failed</code>, not an uncaught crash (PR #328 review) ⚠️ destructive ⚠️ local-filesystem<a class="headerlink" href="#tc-d194-recursivetrue-drive-folder-creation-failure-for-a-local-only-subfolder-is-recorded-as-failed-not-an-uncaught-crash-pr-328-review-destructive-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Unlike every file-level transfer (each wrapped and converted to a <code>failed</code> entry on error), the <code>drive_service.files().create(...)</code> call for a local-only subfolder being uploaded had no try/except. A transient network/permission/quota error there used to propagate uncaught through <code>sync_folder</code>, aborting the whole multi-level sync instead of recording one failed item. Covered primarily by a unit test (<code>tests/drive/test_transfer.py::TestSyncFolderRecursive::test_drive_folder_create_failure_recorded_as_failed_not_crashed</code>) that forces a <code>create()</code> failure deterministically — reproducing a genuine transient Drive API failure live isn't practical. This live check only confirms the surrounding recursive-upload path still behaves normally; it does not exercise the failure branch itself.</p>
+<p><strong>Setup</strong>
+Locally, create <code>/tmp/qa-sync-328b/sub/local.txt</code> with content <code>hello</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync-328b/</code> using direction='upload' and recursive=True"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>uploaded</code> includes <code>sub/local.txt</code>
+- A new Drive folder named <code>sub</code> now exists inside <code>{FOLDER_ID}</code> (via <code>list_folders</code> or <code>list_files</code>), containing <code>local.txt</code>
+- <code>failed</code> is empty (happy path — the try/except added around folder creation doesn't change success behavior)</p>
+<p><strong>Result (2026-07-17) ✅ PASS</strong></p>
+<p><strong>Teardown</strong>
+Delete the <code>sub</code> folder (and its contents) from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-328b/</code>.</p>
+<hr />
+<h3 id="tc-d195-download_folder-skips-subfolders-instead-of-attempting-to-export-them-pr-328-review-destructive-local-filesystem">TC-D195: <code>download_folder</code> skips subfolders instead of attempting to export them (PR #328 review) ⚠️ destructive ⚠️ local-filesystem<a class="headerlink" href="#tc-d195-download_folder-skips-subfolders-instead-of-attempting-to-export-them-pr-328-review-destructive-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> The decision doc for #315 claimed the folder/Workspace-mimeType conflation bug (a subfolder's mimeType sharing the <code>application/vnd.google-apps.</code> prefix with real Workspace docs) "can no longer happen ... regardless of <code>recursive</code>" — but that was only true for <code>sync_folder</code>'s own traversal via <code>_list_drive_children</code>. <code>download_folder</code> has separate listing code that still classified purely by mimeType prefix, so <code>download_folder(folder_id, local_path, export_format='pdf')</code> on a folder containing a subfolder still tried to <code>.export()</code> the subfolder and failed. Fixed by always skipping folder-mimeType items before the Workspace-file check runs.</p>
+<p><strong>Setup</strong>
+In <code>{FOLDER_ID}</code>, create a subfolder named <code>nested-sub</code> (via <code>create_folder</code>) with one file inside it. Also ensure at least one top-level Google Doc exists directly in <code>{FOLDER_ID}</code> (for the export_format path to have something legitimate to do).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Download all files from {FOLDER_ID} to <code>/tmp/qa-download-328/</code> exporting Workspace files as pdf"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>skipped</code> includes <code>nested-sub</code> — the subfolder itself, listed as skipped, not attempted
+- <code>failed</code> contains no entry mentioning <code>nested-sub</code> (guards the specific regression: previously this would appear in <code>failed</code> with an export error)
+- The top-level Google Doc's <code>.pdf</code> export appears under <code>downloaded</code> as before — confirms the fix didn't disturb normal Workspace-file export
+- <code>/tmp/qa-download-328/nested-sub/</code> was never created (this tool is non-recursive; the subfolder's contents are never touched)</p>
+<p><strong>Result (2026-07-17) ✅ PASS</strong> — run against an isolated scratch folder (not directly in <code>{FOLDER_ID}</code>) to avoid dragging in the shared fixture folder's ~10 pre-existing pollution items into the export; same tool behavior either way.</p>
+<p><strong>Teardown</strong>
+Delete <code>nested-sub</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-download-328/</code>.</p>
+<hr />
+<h3 id="tc-d196-recursivetrue-dry-run-trips-the-response-size-cap-on-a-large-action-list-pr-328-review-local-filesystem">TC-D196: <code>recursive=True</code> dry-run trips the response-size cap on a large action list (PR #328 review) ⚠️ local-filesystem<a class="headerlink" href="#tc-d196-recursivetrue-dry-run-trips-the-response-size-cap-on-a-large-action-list-pr-328-review-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>recursive=True</code> removes the previous implicit bound (one folder's direct children) on the <code>actions</code> list; nothing called <code>enforce_response_size_cap</code> the way other large-payload tools (e.g. <code>export_file</code>) do. The #315 decision doc's own reproduction case (22 subfolders / ~225 files) was a realistic scale to hit <code>MAX_TOOL_RESPONSE_CHARS</code>. This needs a large real Drive tree to trip live — if no existing fixture of that scale is available, this may need to be run against a temporarily-constructed large folder rather than the standard QA fixtures.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Do a dry run sync of {LARGE_FOLDER_ID} with a matching local directory in bidirectional mode with recursive=True" <em>(requires a Drive folder with enough nested files/subfolders — roughly 20+ subfolders / 200+ files — to serialize past 40,000 characters)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call raises <code>ValueError</code> mentioning the actual response size and the 40,000-character cap
+- Error message does not offer a <code>local_path</code> bypass (unlike <code>get_sheet_data</code>'s cap message) — <code>sync_folder</code>'s <code>local_path</code> param already means the sync destination, not a dump target for the oversized response
+- Error message suggests narrowing scope (folder, direction, or non-recursive) instead</p>
+<p><strong>Result (2026-07-17)</strong> pending — a 20+ subfolder / 200+ file live fixture is impractical to construct and tear down for a single scoped QA pass (200+ setup/teardown tool calls). Already deterministically unit-tested (<code>TestSyncFolderResponseSizeCap::test_oversized_result_raises</code>, monkeypatches the cap to trigger reliably) and passing. Not re-attempted live this pass.</p>
+<hr />
+<h3 id="tc-d197-recursivetrue-sibling-subfolders-sync-correctly-with-no-cross-attribution-under-concurrent-descent-pr-328-review-destructive-local-filesystem">TC-D197: <code>recursive=True</code> — sibling subfolders sync correctly with no cross-attribution under concurrent descent (PR #328 review) ⚠️ destructive ⚠️ local-filesystem<a class="headerlink" href="#tc-d197-recursivetrue-sibling-subfolders-sync-correctly-with-no-cross-attribution-under-concurrent-descent-pr-328-review-destructive-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> CLAUDE.md names <code>sync_folder</code> among the tools that parallelize per-item work via <code>asyncio.gather(..., return_exceptions=True)</code>. The recursive descent into sibling subfolders originally awaited each one sequentially instead, right next to the file-level loop in the same function that does use <code>gather</code> — wall-clock time scaled with the sum of subfolder round-trips instead of the max. Fixed by gathering sibling <code>_sync_level</code> calls the same way. Genuine concurrency (not just correctness) is unit-tested via a real-thread synchronization barrier (<code>tests/drive/test_transfer.py::TestSyncFolderRecursive::test_recursive_sibling_subfolders_descend_concurrently</code>); this live check confirms correctness under real concurrent Drive API calls — a mocked test can't catch a genuine race the way #183's TC-D178/TC-D179 precedent established.</p>
+<p><strong>Setup</strong>
+In <code>{FOLDER_ID}</code>, create two subfolders, <code>sib-a</code> and <code>sib-b</code>, each with 3-4 distinct files with unique identifiable content (e.g. containing their own filename as a marker).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync-328c/</code> bidirectionally with recursive=True"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>downloaded</code> includes all files from both <code>sib-a/</code> and <code>sib-b/</code> with correct relative-path prefixes
+- Each downloaded file's local content matches its own source file's marker — not another file's content (would indicate cross-attribution under concurrency)
+- <code>failed</code> is empty</p>
+<p><strong>Result (2026-07-17) ✅ PASS</strong></p>
+<p><strong>Teardown</strong>
+Delete <code>sib-a</code> and <code>sib-b</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-328c/</code>.</p>
 <hr />
 <h2 id="list_drives"><code>list_drives</code><a class="headerlink" href="#list_drives" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d120-list-all-shared-drives">TC-D120: List all shared drives<a class="headerlink" href="#tc-d120-list-all-shared-drives" title="Permanent link">&para;</a></h3>
