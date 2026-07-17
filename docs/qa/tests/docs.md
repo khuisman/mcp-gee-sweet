@@ -1911,7 +1911,7 @@ Returned `{"error": "<HttpError 400 ... Index 99998 must be less than the end in
 **Checks**
 - Call succeeds with no API error
 - Response contains `docId`, a non-empty string `namedRangeId`, `name: "intro"`, `index: N`
-- 🔍 Visual check in Google Docs: Insert > Link > Bookmarks does **not** list "intro" — confirms this is a named-range-backed anchor, not a native Docs UI bookmark (documented limitation)
+- 🔍 Visual check in Google Docs: Insert > Link, then click the "Headings, bookmarks, and tabs" button in the link dialog — the resulting list does **not** include "intro" — confirms this is a named-range-backed anchor, not a native Docs UI bookmark (documented limitation)
 
 **Cleanup:** delete the created doc
 
