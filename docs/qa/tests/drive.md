@@ -1444,6 +1444,8 @@ In `{FOLDER_ID}`, create a subfolder named `nested` (via `create_folder`). Insid
 - `folders_skipped` is empty
 - Re-running the same sync afterward reports `nested/deep.txt` under `skipped` (`in sync`), confirming the recursive mtime comparison also worked, not just the initial download
 
+**Result (2026-07-17)** ⚠️ PARTIAL — recursive descent, download, and `folders_skipped`-empty all confirmed live (nested file downloaded to `qa328-nested/deep.txt` with correct content and prefix). The re-sync check **fails**: the second sync re-`upload`ed the file instead of reporting `skipped`/"in sync". Root cause confirmed live and unrelated to recursion — `download` never sets the local file's mtime to match Drive's `modifiedTime`, so any real time gap (>5s tolerance) between download and the next comparison makes the local copy look "newer" and triggers a needless re-upload. Reproduces identically on the pre-existing top-level fixture files (`qa-notes.md`, `qa-upload.txt`), confirming this is a pre-existing defect in the base (non-recursive) mtime-diff logic, not something this PR's recursion work introduced or worsened. Filed as #346 rather than blocking this PR.
+
 **Teardown**
 Delete `nested` (and its contents) from `{FOLDER_ID}` via `delete_file`. Remove `/tmp/qa-sync-315/`.
 
@@ -1464,6 +1466,8 @@ In `{FOLDER_ID}`, create a subfolder named `drive-only-sub` (via `create_folder`
 - `downloaded` and `uploaded` do not mention anything under `drive-only-sub/`
 - `/tmp/qa-sync-315b/drive-only-sub/` was not created on disk
 
+**Result (2026-07-17) ✅ PASS**
+
 **Teardown**
 Delete `drive-only-sub` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-315b/` if created.
 
@@ -1478,6 +1482,8 @@ Delete `drive-only-sub` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-315b/` if creat
 - `actions` only lists the top-level file(s) — nothing from inside the subfolder appears
 - `folders_skipped` is empty (subfolders aren't even considered when `recursive` is omitted)
 - No entry in `failed` referencing the subfolder itself (guards against a pre-existing bug where a subfolder's mimeType could be mistaken for an exportable Workspace file when `export_format` was set)
+
+**Result (2026-07-17) ✅ PASS**
 
 ---
 
@@ -1496,6 +1502,8 @@ In `{FOLDER_ID}`, create a Drive-only text file named `collide` with content `i 
 - `downloaded` includes `collide` (the file)
 - `failed` includes an entry whose `name` is `collide/` and whose `error` mentions the name already existing as a file
 - `/tmp/qa-sync-328a/collide` exists locally as the downloaded file's content (`i am a file`), not overwritten or corrupted by the failed mkdir attempt
+
+**Result (2026-07-17) ✅ PASS**
 
 **Teardown**
 Delete both the `collide` file and the `collide` folder (with its contents) from `{FOLDER_ID}` via `delete_file`. Remove `/tmp/qa-sync-328a/`.
@@ -1516,6 +1524,8 @@ Locally, create `/tmp/qa-sync-328b/sub/local.txt` with content `hello`.
 - `uploaded` includes `sub/local.txt`
 - A new Drive folder named `sub` now exists inside `{FOLDER_ID}` (via `list_folders` or `list_files`), containing `local.txt`
 - `failed` is empty (happy path — the try/except added around folder creation doesn't change success behavior)
+
+**Result (2026-07-17) ✅ PASS**
 
 **Teardown**
 Delete the `sub` folder (and its contents) from `{FOLDER_ID}`. Remove `/tmp/qa-sync-328b/`.
@@ -1538,6 +1548,8 @@ In `{FOLDER_ID}`, create a subfolder named `nested-sub` (via `create_folder`) wi
 - The top-level Google Doc's `.pdf` export appears under `downloaded` as before — confirms the fix didn't disturb normal Workspace-file export
 - `/tmp/qa-download-328/nested-sub/` was never created (this tool is non-recursive; the subfolder's contents are never touched)
 
+**Result (2026-07-17) ✅ PASS** — run against an isolated scratch folder (not directly in `{FOLDER_ID}`) to avoid dragging in the shared fixture folder's ~10 pre-existing pollution items into the export; same tool behavior either way.
+
 **Teardown**
 Delete `nested-sub` from `{FOLDER_ID}`. Remove `/tmp/qa-download-328/`.
 
@@ -1555,6 +1567,8 @@ Delete `nested-sub` from `{FOLDER_ID}`. Remove `/tmp/qa-download-328/`.
 - Error message does not offer a `local_path` bypass (unlike `get_sheet_data`'s cap message) — `sync_folder`'s `local_path` param already means the sync destination, not a dump target for the oversized response
 - Error message suggests narrowing scope (folder, direction, or non-recursive) instead
 
+**Result (2026-07-17)** pending — a 20+ subfolder / 200+ file live fixture is impractical to construct and tear down for a single scoped QA pass (200+ setup/teardown tool calls). Already deterministically unit-tested (`TestSyncFolderResponseSizeCap::test_oversized_result_raises`, monkeypatches the cap to trigger reliably) and passing. Not re-attempted live this pass.
+
 ---
 
 ### TC-D197: `recursive=True` — sibling subfolders sync correctly with no cross-attribution under concurrent descent (PR #328 review) ⚠️ destructive ⚠️ local-filesystem
@@ -1571,6 +1585,8 @@ In `{FOLDER_ID}`, create two subfolders, `sib-a` and `sib-b`, each with 3-4 dist
 - `downloaded` includes all files from both `sib-a/` and `sib-b/` with correct relative-path prefixes
 - Each downloaded file's local content matches its own source file's marker — not another file's content (would indicate cross-attribution under concurrency)
 - `failed` is empty
+
+**Result (2026-07-17) ✅ PASS**
 
 **Teardown**
 Delete `sib-a` and `sib-b` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-328c/`.
