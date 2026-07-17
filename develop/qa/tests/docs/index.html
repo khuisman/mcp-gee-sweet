@@ -2565,6 +2565,95 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#htmlmarkdown-doc-image-conversion-332-333" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HTML/Markdown → Doc image conversion (#332, #333)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="HTML/Markdown → Doc image conversion (#332, #333)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc102-html-image-conversion-every-placement-should-produce-a-visible-image-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC102: HTML image conversion — every placement should produce a visible image ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc103-markdown-image-conversion-shares-the-same-drop-as-the-html-path-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC103: Markdown image conversion shares the same drop as the HTML path ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#htmlmarkdown-doc-nested-list-conversion-334" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HTML/Markdown → Doc nested list conversion (#334)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="HTML/Markdown → Doc nested list conversion (#334)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc104-direct-html-nested-lists-parent-item-text-must-survive-when-a-sub-list-follows-it-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC104: Direct HTML nested lists — parent item text must survive when a sub-list follows it ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc105-markdown-nested-lists-at-gfm-standard-23-space-indentation-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC105: Markdown nested lists at GFM-standard (2/3-space) indentation ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc106-markdown-nested-lists-at-4-space-indentation-isolates-bugs-12-from-bug-3-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC106: Markdown nested lists at 4-space indentation — isolates bugs 1+2 from bug 3 ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4170,6 +4259,100 @@ Doc lacked the literal text "QA anchor target", so it was inserted via <code>ins
 <p><strong>Cleanup:</strong> none (no mutation applied)</p>
 <p><strong>Result (2026-07-16) ✅ PASS</strong>
 <code>list_doc_comments(doc_id="not-a-real-doc-id")</code> raised <code>HttpError 404 ... "File not found: not-a-real-doc-id."</code> — propagated cleanly, no silent empty list, no server crash.</p>
+<h2 id="htmlmarkdown-doc-image-conversion-332-333">HTML/Markdown → Doc image conversion (#332, #333)<a class="headerlink" href="#htmlmarkdown-doc-image-conversion-332-333" title="Permanent link">&para;</a></h2>
+<p><strong>Background:</strong> <code>_AstParser</code> in <code>html_parser.py</code> has no <code>&lt;img&gt;</code> handling at all — <code>handle_starttag</code>/<code>handle_endtag</code> recognize block tags, inline formatting tags, table tags, and list tags, but an <code>img</code> tag matches none of those branches and is silently ignored. Since markdown images (<code>![alt](src)</code>) are converted to <code>&lt;img&gt;</code> HTML by <code>_md_to_html</code> before reaching this same parser, <strong>every</strong> content path that goes through the shared AST pipeline — <code>create_doc</code>, <code>create_doc_from_file</code>, <code>write_doc_content</code>, for both <code>content_format="html"</code> and <code>content_format="markdown"</code> — drops images with no error, no warning, and no placeholder. The only working path today is the separate <code>insert_inline_image</code> tool (TC-DOC57/58), which requires a second pass of index bookkeeping after the doc already exists (the manual workaround documented in #332/#333).</p>
+<p>This is worse than a simple drop in two cases, both verified directly against <code>html_to_ast</code> on the fixtures below:
+- A paragraph (or table cell) whose <strong>only</strong> content is an image produces <strong>zero</strong> AST nodes for it — not even an empty paragraph/cell. <code>ast_to_requests</code>'s guard <code>if not text.strip(): continue</code> (and the equivalent cell-fill guard in <code>emitter.py</code>) discards it entirely.
+- An inline image inside running text (<code>"before &lt;img&gt; after"</code>) leaves no gap, marker, or trace — the surrounding runs are simply concatenated (<code>"before "</code> + <code>" after"</code>), so a caller inspecting <code>get_doc_structure</code> afterward has no signal an image was ever present in the source.</p>
+<p><strong>Fixtures:</strong> <code>docs/qa/fixtures/tc-doc102-image-conversion.html</code> and <code>docs/qa/fixtures/tc-doc103-image-conversion.md</code> — each covers 8 placement cases: standalone image paragraph, inline mid-paragraph, two consecutive images with no separating text, image wrapped in a link, image inside a list item, image inside a table cell, image inside a nested table cell (HTML only — markdown tables can't nest, matching the documented limitation in TC-DOC51; the markdown fixture substitutes reference-style <code>![alt][ref]</code> syntax for its Case 7 instead), and an image with an unreachable URL (included specifically to show the drop happens at parse time, before any HTTP fetch is attempted — a dead image URL fails identically to a live one).</p>
+<h3 id="tc-doc102-html-image-conversion-every-placement-should-produce-a-visible-image-requires-oauth-destructive">TC-DOC102: HTML image conversion — every placement should produce a visible image ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc102-html-image-conversion-every-placement-should-produce-a-visible-image-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc102-image-conversion.html"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>docId</code> and <code>web_link</code> returned with no <code>error</code>
+- <code>get_doc_structure</code> shows all 8 headings and surrounding paragraph text intact
+- Each of the 8 cases produces an inline image element (<code>get_doc_structure</code> doesn't currently surface inline images explicitly — cross-check via element/paragraph text length matching an image occupying one index slot, as in TC-DOC57)
+- 🔍 Visual check in Google Docs: an image renders in each of the 8 cases, including inside the plain table cell and the nested table cell
+- Final paragraph after Case 8 is present (confirms the document isn't truncated)</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-16) ❌ FAIL — verified via direct code execution (<code>html_to_ast</code>), not yet run live against the Docs API.</strong> Running the fixture through <code>html_to_ast</code> this session confirms every one of the 8 cases drops its image with zero trace:
+- Case 1 (standalone image paragraph): the paragraph containing only the image produces <strong>no AST node at all</strong> — not even an empty paragraph. <code>get_doc_structure</code> would show "Paragraph before the image." followed directly by "Paragraph after the image." with nothing between them.
+- Case 2 (inline mid-paragraph): AST paragraph text is <code>"Text before "</code> + <code>" text after, same paragraph."</code> — concatenated with no gap or marker.
+- Case 3 (two consecutive images, no text): produces <strong>zero</strong> AST nodes — the whole paragraph vanishes.
+- Case 4 (image wrapped in a link): produces <strong>zero</strong> AST nodes — same as Case 3, since the only content was the image.
+- Case 5 (image inside a list item): <code>BulletItem</code> text is <code>"List item with an image "</code> + <code>" inline"</code> — image silently gone, item otherwise intact.
+- Case 6 (image inside a table cell): cell <code>children</code> is <code>[]</code> — completely empty cell, no error.
+- Case 7 (image inside a nested table cell): the nested <code>Table</code> itself comes through correctly as a structural node, but its own single cell (containing only the image) is empty, same as Case 6.
+- Case 8 (unreachable URL): produces <strong>zero</strong> AST nodes, identically to Case 1/3/4 — confirms the drop happens at parse time regardless of URL validity.
+- Live execution + Playwright visual check still needed to confirm end-to-end behavior against the real API; not run this session (no live MCP tool access outside a release pass — see <code>.claude/team-roles/aziz.md</code>).</p>
+<hr />
+<h3 id="tc-doc103-markdown-image-conversion-shares-the-same-drop-as-the-html-path-requires-oauth-destructive">TC-DOC103: Markdown image conversion shares the same drop as the HTML path ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc103-markdown-image-conversion-shares-the-same-drop-as-the-html-path-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc103-image-conversion.md"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>docId</code> and <code>web_link</code> returned with no <code>error</code>
+- Same 8-case expectations as TC-DOC102 (Case 7 here is reference-style <code>![alt][ref]</code> syntax instead of a nested table)
+- 🔍 Visual check: images render in all 8 cases, including the reference-style image</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-16) ❌ FAIL — verified via direct code execution (<code>_md_to_html</code> → <code>html_to_ast</code>), not yet run live.</strong> <code>_md_to_html</code> correctly converts every markdown image (inline, reference-style, link-wrapped) into an <code>&lt;img&gt;</code> tag first — confirmed by inspecting the intermediate HTML — so the markdown path funnels into the exact same unhandled-<code>img</code> gap as TC-DOC102. AST output is byte-for-byte equivalent to the HTML fixture's (same 8 cases, same drops), including reference-style Case 7 collapsing to a paragraph containing only <code>"Reference-style: "</code>. This confirms the bug is in the shared <code>html_to_ast</code> parser, not in markdown-specific handling — a single fix in <code>html_parser.py</code> closes both #332/#333 for every content path at once, rather than needing a separate markdown-only fix.</p>
+<hr />
+<h2 id="htmlmarkdown-doc-nested-list-conversion-334">HTML/Markdown → Doc nested list conversion (#334)<a class="headerlink" href="#htmlmarkdown-doc-nested-list-conversion-334" title="Permanent link">&para;</a></h2>
+<p><strong>Background:</strong> Three independent, compounding bugs, isolated separately below:</p>
+<ol>
+<li><strong>Parser data loss (<code>html_parser.py</code>, both HTML and Markdown paths):</strong> <code>_AstParser.handle_starttag</code>'s block-tag branch (<code>if tag in _BLOCK_TAGS and self._table_depth == 0:</code>) unconditionally resets <code>self._run_buf</code>/<code>self._pending_runs</code> whenever ANY block tag opens — including a nested <code>&lt;li&gt;</code> opening inside an already-open outer <code>&lt;li&gt;</code>. There's no stack/save-restore of the outer block's in-progress buffer, so <strong>the outer list item's own text is silently destroyed</strong> whenever that item has both its own text and a nested sub-list (the extremely common <code>&lt;li&gt;Item text&lt;ul&gt;...&lt;/ul&gt;&lt;/li&gt;</code> shape — e.g. any markdown of the form <code>- Item:\n  - sub\n  - sub</code>). This is data loss, not just a rendering/flattening issue: verified directly against <code>html_to_ast</code> — a source list with "Parent A has text" + 2 nested children produces only the 2 children in the AST; "Parent A has text" never appears anywhere.</li>
+<li><strong>Emitter ignores depth (<code>emitter.py</code>):</strong> even where the parser <em>does</em> correctly track nesting (<code>BulletItem.depth</code>, verified correct in all cases below, including the ones unaffected by bug 1), <code>ast_to_requests</code> never reads <code>.depth</code> or <code>.paragraph_style</code> — <code>createParagraphBullets</code> is emitted with only <code>range</code> and <code>bulletPreset</code>, no indentation. Google Docs infers a bullet's nesting level from paragraph indentation, not an explicit field on the create request, so <strong>every bullet renders at nesting level 0 in the live document regardless of source depth.</strong> This is a real gap even for a list with zero parent-text collisions.</li>
+<li><strong>Markdown-specific, on top of 1+2:</strong> python-markdown's <code>sane_lists</code> extension (used by <code>_md_to_html</code>) only recognizes a sub-list as nested when indented by exactly 4 spaces or a tab. The CommonMark/GFM-standard indentation that most people and tools (including Claude) write by default — 2 spaces under a <code>-</code>/<code>*</code> marker, 3 spaces under a <code>1.</code> marker — is silently flattened to the parent list <strong>before it even reaches the HTML parser</strong>, with no warning. Verified empirically this session (<code>uv run python3 -c "import markdown; ..."</code>) across four indentation widths.</li>
+</ol>
+<p><strong>Fixtures:</strong> <code>docs/qa/fixtures/tc-doc104-nested-lists.html</code> (direct HTML, isolates bugs 1+2 with no markdown-library involvement), <code>docs/qa/fixtures/tc-doc105-nested-lists-gfm.md</code> (GFM-standard 2/3-space indentation, adds bug 3 on top), <code>docs/qa/fixtures/tc-doc106-nested-lists-4space.md</code> (4-space indentation — the documented python-markdown workaround — reproduces bugs 1+2 only, proving they're independent of bug 3). Each fixture has 3 cases: parent item with its own text + a nested sub-list (bug 1 trigger), a bare parent item with no text of its own (isolates bug 2 alone, since there's no parent text to lose), and ordered-in-ordered nesting.</p>
+<h3 id="tc-doc104-direct-html-nested-lists-parent-item-text-must-survive-when-a-sub-list-follows-it-requires-oauth-destructive">TC-DOC104: Direct HTML nested lists — parent item text must survive when a sub-list follows it ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc104-direct-html-nested-lists-parent-item-text-must-survive-when-a-sub-list-follows-it-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: contents of docs/qa/fixtures/tc-doc104-nested-lists.html"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>get_doc_structure</code> shows "Parent A has text" and "Parent B has text" as their own bullet items, each followed by their nested children
+- Case 2's bare-nested children ("Bare-nested child C1"/"C2") appear at a visibly deeper indentation than Case 2's (absent) parent
+- Case 3's "Top ordered 1" survives as its own item, with "Nested ordered 1.1"/"1.2" indented under it
+- 🔍 Visual check in Google Docs: 3 distinct indentation levels are visible in Case 1 (Parent A / Child A2 / Grandchild A2a), and Case 2/3's nesting is visually indented, not flush-left</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-16) ❌ FAIL — verified via direct code execution (<code>html_to_ast</code>), not yet run live.</strong> Confirmed exactly the predicted content loss: "Parent A has text" and "Parent B has text" (Case 1) and "Top ordered 1" (Case 3) — every parent item that has both its own text and a nested sub-list — produce <strong>zero</strong> <code>BulletItem</code>s; only their children survive, at depths 1/2 computed correctly. Case 2 (bare parent, no text to lose) correctly preserves both children at <code>depth=1</code> — this isolates bug 2 cleanly: depth is tracked right, but since <code>ast_to_requests</code> never emits it (confirmed by <code>grep -n "depth\|indentStart\|nestingLevel" emitter.py</code> returning zero matches in the relevant code), even these correctly-tracked items would still render at nesting level 0 in the live doc. Live execution + Playwright visual check still needed to confirm the live-rendering half of bug 2 (indentation is not exposed by <code>get_doc_structure</code> today — a related tooling gap, see note below).</p>
+<hr />
+<h3 id="tc-doc105-markdown-nested-lists-at-gfm-standard-23-space-indentation-requires-oauth-destructive">TC-DOC105: Markdown nested lists at GFM-standard (2/3-space) indentation ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc105-markdown-nested-lists-at-gfm-standard-23-space-indentation-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Write this markdown to doc {DOC_ID} using content_format='markdown': contents of docs/qa/fixtures/tc-doc105-nested-lists-gfm.md"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Same nesting expectations as TC-DOC104 (this is the indentation width most humans/AI tools write by default — it should behave the same as explicit HTML nesting)
+- No literal <code>1.</code>/<code>2.</code> digit-dot text visible anywhere in bullet content</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-16) ❌ FAIL — verified via direct code execution (<code>_md_to_html</code>), not yet run live.</strong> This is worse than TC-DOC104, not merely equivalent: 2-space indentation doesn't clear <code>sane_lists</code>' 4-space nesting threshold, so the sub-list syntax is never recognized as a list at all.
+- Case 1: "Child A1" and "Child A2" become <strong>sibling</strong> bullets of "Parent A has text" (fully flattened, not nested) — while "Parent B has text" ends up with the literal text <code>"Parent B has text\n  1. Ordered child B1\n  2. Ordered child B2"</code> glued into ONE bullet item, i.e. the ordered sub-items render as raw, visible <code>1.</code>/<code>2.</code> characters in the doc rather than as list items or even flattened siblings — a strictly worse failure mode a user would see as garbled text, not just missing indentation.
+- Case 2: a bare <code>-</code> marker with nothing else on its line, followed by an indented sub-list, isn't recognized as a list item at all by <code>sane_lists</code> — the whole block degrades to a single plain paragraph containing the literal source text (<code>"-\n  - Bare-nested child C1\n  - Bare-nested child C2"</code>).
+- Case 3: "Top ordered 1" survives as its own item (no bug-1 collision at this indentation, since the sub-items aren't recognized as nested — they become plain siblings instead), but "Nested ordered 1.1"/"1.2" render as flat siblings, not nested, and are mis-numbered as continuing the same list as "Top ordered 1"/"2" in the live doc.
+- Live execution + Playwright visual check still needed; not run this session.</p>
+<hr />
+<h3 id="tc-doc106-markdown-nested-lists-at-4-space-indentation-isolates-bugs-12-from-bug-3-requires-oauth-destructive">TC-DOC106: Markdown nested lists at 4-space indentation — isolates bugs 1+2 from bug 3 ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc106-markdown-nested-lists-at-4-space-indentation-isolates-bugs-12-from-bug-3-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Write this markdown to doc {DOC_ID} using content_format='markdown': contents of docs/qa/fixtures/tc-doc106-nested-lists-4space.md"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Same nesting expectations as TC-DOC104 — 4-space indentation is the one width where <code>_md_to_html</code> produces genuinely nested <code>&lt;ul&gt;</code>/<code>&lt;ol&gt;</code> HTML, so this TC should behave identically to TC-DOC104 once bugs 1+2 are fixed
+- Confirms whether a "use 4 spaces" workaround note in tool docstrings would be sufficient today (it would not — bugs 1+2 still apply at this indentation)</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-16) ❌ FAIL — verified via direct code execution (<code>_md_to_html</code> → <code>html_to_ast</code>), not yet run live.</strong> At 4-space indentation, <code>_md_to_html</code> produces properly nested <code>&lt;ul&gt;</code>/<code>&lt;ol&gt;</code> HTML (confirmed by inspecting the intermediate HTML output), so this fixture reproduces TC-DOC104's HTML-path results exactly: "Parent A has text"/"Parent B has text"/"Top ordered 1" all lost to bug 1, correct <code>depth</code> values (1, 2) on the surviving children, Case 2's bare-parent children correctly preserved at <code>depth=1</code>. This confirms bugs 1+2 are independent of the markdown-library indentation quirk (bug 3) — fixing <code>_md_to_html</code>'s indentation sensitivity alone would not fix nested lists; <code>html_parser.py</code> and <code>emitter.py</code> both need fixing regardless of indentation width used.</p>
+<hr />
+<p><strong>Tooling gap note (not a fix, just a QA-visibility limitation):</strong> <code>get_doc_structure</code> doesn't currently expose paragraph indentation or the Docs API's bullet <code>nestingLevel</code> field, so confirming bug 2's live-rendering half (or a future fix for it) requires a Playwright visual check every time rather than a structural assertion. Worth a follow-up ticket if this bug is fixed — the same way <code>font_family</code> is already a known <code>get_doc_structure</code> gap (TC-DOC42/47).</p>
 
 
 

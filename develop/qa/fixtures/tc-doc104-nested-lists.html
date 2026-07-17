@@ -1,0 +1,42 @@
+<h1>Nested List Structure Test (direct HTML)</h1>
+
+<h2>Case 1: parent item has its own text AND a nested sub-list</h2>
+<ul>
+  <li>Parent A has text
+    <ul>
+      <li>Child A1</li>
+      <li>Child A2
+        <ul>
+          <li>Grandchild A2a</li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li>Parent B has text
+    <ol>
+      <li>Ordered child B1</li>
+      <li>Ordered child B2</li>
+    </ol>
+  </li>
+</ul>
+
+<h2>Case 2: parent item has NO text of its own, just a nested list</h2>
+<ul>
+  <li>
+    <ul>
+      <li>Bare-nested child C1</li>
+      <li>Bare-nested child C2</li>
+    </ul>
+  </li>
+</ul>
+
+<h2>Case 3: ordered list nested inside ordered list</h2>
+<ol>
+  <li>Top ordered 1
+    <ol>
+      <li>Nested ordered 1.1</li>
+      <li>Nested ordered 1.2</li>
+    </ol>
+  </li>
+  <li>Top ordered 2</li>
+</ol>
