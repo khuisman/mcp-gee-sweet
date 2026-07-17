@@ -1428,6 +1428,171 @@ Delete the 3 Drive-only test files from `{FOLDER_ID}`, delete the 3 uploaded loc
 
 ---
 
+### TC-D190: `recursive=True` walks into subfolders present on both sides (issue #315) ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** #315 — `sync_folder` only ever looked at files directly inside `folder_id`; a folder with subfolders on both sides reported a clean "in sync" result while silently ignoring everything nested one level down. `recursive=True` fixes this by walking matching subfolders to any depth.
+
+**Setup**
+In `{FOLDER_ID}`, create a subfolder named `nested` (via `create_folder`). Inside it, create a Drive-only text file `deep.txt` with content `hello from nested`. Locally, create the same subfolder path `/tmp/qa-sync-315/nested/` (empty) so the subfolder itself exists on both sides but the file is Drive-only.
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-315/` bidirectionally with recursive=True"
+
+**Checks**
+- `downloaded` includes `nested/deep.txt` (not just `deep.txt`) — the relative path carries the subfolder prefix
+- `/tmp/qa-sync-315/nested/deep.txt` exists locally with content `hello from nested`
+- `folders_skipped` is empty
+- Re-running the same sync afterward reports `nested/deep.txt` under `skipped` (`in sync`), confirming the recursive mtime comparison also worked, not just the initial download
+
+**Result (2026-07-17)** ⚠️ PARTIAL — recursive descent, download, and `folders_skipped`-empty all confirmed live (nested file downloaded to `qa328-nested/deep.txt` with correct content and prefix). The re-sync check **fails**: the second sync re-`upload`ed the file instead of reporting `skipped`/"in sync". Root cause confirmed live and unrelated to recursion — `download` never sets the local file's mtime to match Drive's `modifiedTime`, so any real time gap (>5s tolerance) between download and the next comparison makes the local copy look "newer" and triggers a needless re-upload. Reproduces identically on the pre-existing top-level fixture files (`qa-notes.md`, `qa-upload.txt`), confirming this is a pre-existing defect in the base (non-recursive) mtime-diff logic, not something this PR's recursion work introduced or worsened. Filed as #346 rather than blocking this PR.
+
+**Teardown**
+Delete `nested` (and its contents) from `{FOLDER_ID}` via `delete_file`. Remove `/tmp/qa-sync-315/`.
+
+---
+
+### TC-D191: `recursive=True` reports out-of-scope subfolders under `folders_skipped` instead of silently ignoring them ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** #315's fallback ask (if full recursion weren't viable) was to at least surface subfolders the sync can't safely touch, rather than reporting a clean result. Even with recursion implemented, a subfolder that exists on only one side is deliberately left alone when the sync `direction` wouldn't create it on the other side — this confirms that case is reported, not silently dropped.
+
+**Setup**
+In `{FOLDER_ID}`, create a subfolder named `drive-only-sub` (via `create_folder`) with one file inside it. Do not create any local counterpart.
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-315b/` using direction='upload' and recursive=True"
+
+**Checks**
+- `folders_skipped` contains `drive-only-sub/`
+- `downloaded` and `uploaded` do not mention anything under `drive-only-sub/`
+- `/tmp/qa-sync-315b/drive-only-sub/` was not created on disk
+
+**Result (2026-07-17) ✅ PASS**
+
+**Teardown**
+Delete `drive-only-sub` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-315b/` if created.
+
+---
+
+### TC-D192: default `recursive=False` still ignores subfolders entirely (regression guard) ⚠️ local-filesystem
+
+**Prompt**
+> "Do a dry run sync of {FOLDER_ID} with `/tmp/qa-sync-315c/` in bidirectional mode" *(ensure {FOLDER_ID} has at least one subfolder with files in it, alongside a top-level file)*
+
+**Checks**
+- `actions` only lists the top-level file(s) — nothing from inside the subfolder appears
+- `folders_skipped` is empty (subfolders aren't even considered when `recursive` is omitted)
+- No entry in `failed` referencing the subfolder itself (guards against a pre-existing bug where a subfolder's mimeType could be mistaken for an exportable Workspace file when `export_format` was set)
+
+**Result (2026-07-17) ✅ PASS**
+
+---
+
+### TC-D193: `recursive=True` — same-named Drive file and folder no longer crashes the whole sync (PR #328 review) ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** Sky's code review on PR #328 found that Drive allows a file and a folder to share a name in the same parent (items are keyed by ID, not name). With `recursive=True` and a download-permitting direction, the file-level pass downloads the file to `dest_dir/name`, then the folder-level pass calls `child_dest_dir.mkdir(parents=True, exist_ok=True)` on the same path — `exist_ok` only tolerates an *existing directory*, not an existing file, so this used to raise an uncaught `FileExistsError` and abort the entire sync, discarding all accumulated results. Fixed by checking for the collision first and recording it as a `failed` entry instead of crashing.
+
+**Setup**
+In `{FOLDER_ID}`, create a Drive-only text file named `collide` with content `i am a file`. Separately, create a Drive folder also named `collide` (via `create_folder`) directly inside `{FOLDER_ID}`, with one file inside it, e.g. `inner.txt`.
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-328a/` bidirectionally with recursive=True"
+
+**Checks**
+- The call succeeds and returns a normal result — no exception, no aborted/partial response
+- `downloaded` includes `collide` (the file)
+- `failed` includes an entry whose `name` is `collide/` and whose `error` mentions the name already existing as a file
+- `/tmp/qa-sync-328a/collide` exists locally as the downloaded file's content (`i am a file`), not overwritten or corrupted by the failed mkdir attempt
+
+**Result (2026-07-17) ✅ PASS**
+
+**Teardown**
+Delete both the `collide` file and the `collide` folder (with its contents) from `{FOLDER_ID}` via `delete_file`. Remove `/tmp/qa-sync-328a/`.
+
+---
+
+### TC-D194: `recursive=True` — Drive folder-creation failure for a local-only subfolder is recorded as `failed`, not an uncaught crash (PR #328 review) ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** Unlike every file-level transfer (each wrapped and converted to a `failed` entry on error), the `drive_service.files().create(...)` call for a local-only subfolder being uploaded had no try/except. A transient network/permission/quota error there used to propagate uncaught through `sync_folder`, aborting the whole multi-level sync instead of recording one failed item. Covered primarily by a unit test (`tests/drive/test_transfer.py::TestSyncFolderRecursive::test_drive_folder_create_failure_recorded_as_failed_not_crashed`) that forces a `create()` failure deterministically — reproducing a genuine transient Drive API failure live isn't practical. This live check only confirms the surrounding recursive-upload path still behaves normally; it does not exercise the failure branch itself.
+
+**Setup**
+Locally, create `/tmp/qa-sync-328b/sub/local.txt` with content `hello`.
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-328b/` using direction='upload' and recursive=True"
+
+**Checks**
+- `uploaded` includes `sub/local.txt`
+- A new Drive folder named `sub` now exists inside `{FOLDER_ID}` (via `list_folders` or `list_files`), containing `local.txt`
+- `failed` is empty (happy path — the try/except added around folder creation doesn't change success behavior)
+
+**Result (2026-07-17) ✅ PASS**
+
+**Teardown**
+Delete the `sub` folder (and its contents) from `{FOLDER_ID}`. Remove `/tmp/qa-sync-328b/`.
+
+---
+
+### TC-D195: `download_folder` skips subfolders instead of attempting to export them (PR #328 review) ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** The decision doc for #315 claimed the folder/Workspace-mimeType conflation bug (a subfolder's mimeType sharing the `application/vnd.google-apps.` prefix with real Workspace docs) "can no longer happen ... regardless of `recursive`" — but that was only true for `sync_folder`'s own traversal via `_list_drive_children`. `download_folder` has separate listing code that still classified purely by mimeType prefix, so `download_folder(folder_id, local_path, export_format='pdf')` on a folder containing a subfolder still tried to `.export()` the subfolder and failed. Fixed by always skipping folder-mimeType items before the Workspace-file check runs.
+
+**Setup**
+In `{FOLDER_ID}`, create a subfolder named `nested-sub` (via `create_folder`) with one file inside it. Also ensure at least one top-level Google Doc exists directly in `{FOLDER_ID}` (for the export_format path to have something legitimate to do).
+
+**Prompt**
+> "Download all files from {FOLDER_ID} to `/tmp/qa-download-328/` exporting Workspace files as pdf"
+
+**Checks**
+- `skipped` includes `nested-sub` — the subfolder itself, listed as skipped, not attempted
+- `failed` contains no entry mentioning `nested-sub` (guards the specific regression: previously this would appear in `failed` with an export error)
+- The top-level Google Doc's `.pdf` export appears under `downloaded` as before — confirms the fix didn't disturb normal Workspace-file export
+- `/tmp/qa-download-328/nested-sub/` was never created (this tool is non-recursive; the subfolder's contents are never touched)
+
+**Result (2026-07-17) ✅ PASS** — run against an isolated scratch folder (not directly in `{FOLDER_ID}`) to avoid dragging in the shared fixture folder's ~10 pre-existing pollution items into the export; same tool behavior either way.
+
+**Teardown**
+Delete `nested-sub` from `{FOLDER_ID}`. Remove `/tmp/qa-download-328/`.
+
+---
+
+### TC-D196: `recursive=True` dry-run trips the response-size cap on a large action list (PR #328 review) ⚠️ local-filesystem
+
+**Background:** `recursive=True` removes the previous implicit bound (one folder's direct children) on the `actions` list; nothing called `enforce_response_size_cap` the way other large-payload tools (e.g. `export_file`) do. The #315 decision doc's own reproduction case (22 subfolders / ~225 files) was a realistic scale to hit `MAX_TOOL_RESPONSE_CHARS`. This needs a large real Drive tree to trip live — if no existing fixture of that scale is available, this may need to be run against a temporarily-constructed large folder rather than the standard QA fixtures.
+
+**Prompt**
+> "Do a dry run sync of {LARGE_FOLDER_ID} with a matching local directory in bidirectional mode with recursive=True" *(requires a Drive folder with enough nested files/subfolders — roughly 20+ subfolders / 200+ files — to serialize past 40,000 characters)*
+
+**Checks**
+- Call raises `ValueError` mentioning the actual response size and the 40,000-character cap
+- Error message does not offer a `local_path` bypass (unlike `get_sheet_data`'s cap message) — `sync_folder`'s `local_path` param already means the sync destination, not a dump target for the oversized response
+- Error message suggests narrowing scope (folder, direction, or non-recursive) instead
+
+**Result (2026-07-17)** pending — a 20+ subfolder / 200+ file live fixture is impractical to construct and tear down for a single scoped QA pass (200+ setup/teardown tool calls). Already deterministically unit-tested (`TestSyncFolderResponseSizeCap::test_oversized_result_raises`, monkeypatches the cap to trigger reliably) and passing. Not re-attempted live this pass.
+
+---
+
+### TC-D197: `recursive=True` — sibling subfolders sync correctly with no cross-attribution under concurrent descent (PR #328 review) ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** CLAUDE.md names `sync_folder` among the tools that parallelize per-item work via `asyncio.gather(..., return_exceptions=True)`. The recursive descent into sibling subfolders originally awaited each one sequentially instead, right next to the file-level loop in the same function that does use `gather` — wall-clock time scaled with the sum of subfolder round-trips instead of the max. Fixed by gathering sibling `_sync_level` calls the same way. Genuine concurrency (not just correctness) is unit-tested via a real-thread synchronization barrier (`tests/drive/test_transfer.py::TestSyncFolderRecursive::test_recursive_sibling_subfolders_descend_concurrently`); this live check confirms correctness under real concurrent Drive API calls — a mocked test can't catch a genuine race the way #183's TC-D178/TC-D179 precedent established.
+
+**Setup**
+In `{FOLDER_ID}`, create two subfolders, `sib-a` and `sib-b`, each with 3-4 distinct files with unique identifiable content (e.g. containing their own filename as a marker).
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-328c/` bidirectionally with recursive=True"
+
+**Checks**
+- `downloaded` includes all files from both `sib-a/` and `sib-b/` with correct relative-path prefixes
+- Each downloaded file's local content matches its own source file's marker — not another file's content (would indicate cross-attribution under concurrency)
+- `failed` is empty
+
+**Result (2026-07-17) ✅ PASS**
+
+**Teardown**
+Delete `sib-a` and `sib-b` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-328c/`.
+
+---
+
 ## `list_drives`
 
 ### TC-D120: List all shared drives

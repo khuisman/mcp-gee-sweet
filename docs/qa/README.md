@@ -29,7 +29,7 @@ Prompt-driven integration tests for mcp-gee-sweet. Each test case is a natural l
 | [tests/sheets_mgmt.md](tests/sheets_mgmt.md) | Sheets management tools | TC-S## |
 | [tests/sheets_charts.md](tests/sheets_charts.md) | Sheets chart tools | TC-C## |
 | [tests/drive.md](tests/drive.md) | Drive + Docs (legacy combined) | TC-D## |
-| [tests/docs.md](tests/docs.md) | Docs direct API tools | TC-D## |
+| [tests/docs.md](tests/docs.md) | Docs direct API tools | TC-DOC## |
 | [tests/infra.md](tests/infra.md) | Infrastructure | TC-I## |
 | [tests/calendar.md](tests/calendar.md) | Calendar tools | TC-CAL## |
 
@@ -69,7 +69,7 @@ Each test case follows this structure:
 
 ### Fixture files
 
-If a test needs a local file (e.g. a `.md` or `.html` to upload), **commit it to `docs/qa/fixtures/`** and reference it by repo path — don't ask the tester to write content by hand. Name fixtures after their TC number: `tc-d195-create-doc.md`.
+If a test needs a local file (e.g. a `.md` or `.html` to upload), **commit it to `docs/qa/fixtures/`** and reference it by repo path — don't ask the tester to write content by hand. Name fixtures after their TC number: `tc-d195-create-doc.md`. Note: several `docs.md` fixtures (`tc-d195-*`, `tc-d196-*`, `tc-d213-*`, `tc-d226-*`) still carry `TC-D##`-prefixed filenames from before `docs.md` was split onto its own `TC-DOC##` sequence — their current headers are `TC-DOC44`, `TC-DOC45`, etc., not the number in the filename. Don't assume a `TC-D<N>`-shaped filename means that number is claimed in `drive.md`'s own sequence, and don't assume a fixture's filename number matches its test case's current number.
 
 ### Checks quality bar
 
