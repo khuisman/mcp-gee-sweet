@@ -54,6 +54,14 @@ Give each parallel shard's conductor prompt this protocol explicitly (path, acqu
 
 ---
 
+## Drive fixture-folder pollution
+
+`TEST_FOLDER_ID` accumulates stray items across many creation/copy test categories that don't tear down after themselves (tracked in [#304](https://github.com/khuisman/mcp-gee-sweet/issues/304) — dedicated QA account/cleanup sweep). As of 2026-07-17 it held ~15 duplicate leftovers (`Copy of mcp-gee-sweet-qa-fixtures` ×2, `QA-Cache-Check` ×2, `QA-Copy-Explicit`, `QA-Create-Explicit`, `QA-Doc-Copy`, `QA-DocCache`, `QA-HTML-Doc` ×2, `QA-Markdown-Doc` ×2, `QA-Table-Doc` ×2, loose `qa-notes.md`/`qa-upload.txt`, two leftover folders).
+
+This matters for any test that syncs, lists, or downloads the whole folder (`sync_folder`, `download_folder`, `list_files` against `TEST_FOLDER_ID` directly) — the pollution items show up in results alongside whatever the test actually cares about, and a `recursive`/whole-folder operation will process all of it. Until #304 lands: for a test that needs a clean or isolated Drive tree (rather than "does this tool correctly handle files that happen to be in `TEST_FOLDER_ID`"), create a throwaway child folder under `TEST_FOLDER_ID` for that test's own fixtures instead of working at the shared top level, and delete it in teardown. Same tool behavior either way — this only reduces noise and avoids accidentally sweeping up items you don't own.
+
+---
+
 ## Conductor prompt
 
 ```
