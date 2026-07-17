@@ -1,6 +1,7 @@
 """Tests for tools/drive/transfer.py (upload_file, _xlsx_range_values, etc.)."""
 
 import io
+import threading
 from unittest.mock import MagicMock
 
 import openpyxl
@@ -364,3 +365,189 @@ class TestSyncFolderRecursive:
         assert fs.created_files[0]["name"] == "local.txt"
         assert fs.created_files[0]["parents"] == ["new-folder-0"]
         assert result["folders_skipped"] == []
+
+    async def test_file_folder_name_collision_recorded_as_failed_not_crashed(self, tmp_path):
+        """PR #328 review: a Drive file and a Drive folder can share a name (keyed by
+        ID, not name). A local file already occupying the subfolder's target path
+        (e.g. downloaded moments earlier at the file level) used to crash the whole
+        sync via an uncaught FileExistsError from mkdir(exist_ok=True) — exist_ok only
+        tolerates an existing *directory*, not an existing file at the same path."""
+        (tmp_path / "collide").write_text("existing local file, not a directory")
+        fs = _FakeDriveFS(
+            {
+                "root": [_drive_folder("collide", "collide-folder-id")],
+                "collide-folder-id": [],
+            }
+        )
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="download",
+            recursive=True,
+            ctx=self._ctx(fs),
+        )
+        assert result["failed"] == [
+            {
+                "name": "collide/",
+                "error": (
+                    "cannot create local folder 'collide': a file with the same name "
+                    "already exists at this path"
+                ),
+            }
+        ]
+        # the pre-existing local file itself must survive untouched
+        assert (tmp_path / "collide").read_text() == "existing local file, not a directory"
+
+    async def test_drive_folder_create_failure_recorded_as_failed_not_crashed(self, tmp_path):
+        """PR #328 review: unlike every file-level transfer, the Drive folder-create
+        call for a local-only subfolder being uploaded had no try/except — a
+        transient API error there used to propagate uncaught and abort the entire
+        multi-level sync instead of recording one failed item."""
+        (tmp_path / "sub").mkdir()
+        (tmp_path / "sub" / "local.txt").write_text("hi")
+
+        def _create(**kwargs):
+            if kwargs["body"].get("mimeType") == "application/vnd.google-apps.folder":
+                resp = MagicMock(status=500)
+                raise HttpError(resp=resp, content=b'{"error": {"message": "boom"}}')
+            resp = MagicMock()
+            resp.execute.return_value = {"id": "new-file"}
+            return resp
+
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        svc.files.return_value.create.side_effect = _create
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            recursive=True,
+            ctx=ctx,
+        )
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["name"] == "sub/"
+        assert "boom" in result["failed"][0]["error"]
+        # the call itself must not raise — proven by reaching this line at all
+
+    async def test_recursive_sibling_subfolders_descend_concurrently(self, tmp_path):
+        """PR #328 review: sibling subfolder recursion was awaited one at a time
+        instead of gathered, so wall-clock time scaled with the sum of subfolder
+        round-trips instead of the max. A synchronization barrier proves both
+        siblings' Drive list calls are genuinely in flight together at the same
+        time, in real OS threads via execute_in_thread — if recursion regresses to
+        sequential awaits, only one call is ever in flight and the barrier times
+        out. The barrier must live inside `.execute()`, not `.list()`: `.list()` is
+        evaluated eagerly on the event-loop thread while building the call chain,
+        before execute_in_thread ever hands off to a worker thread — blocking there
+        would freeze the single-threaded event loop itself rather than proving
+        cross-thread concurrency."""
+        barrier = threading.Barrier(2, timeout=2)
+
+        class _ConcurrentFakeDriveFS(_FakeDriveFS):
+            def _list(self, **kwargs):
+                folder_id = kwargs["q"].split("'")[1]
+                self.list_calls.append(folder_id)
+                resp = MagicMock()
+                if folder_id in ("alpha-id", "beta-id"):
+
+                    def _execute(*args, folder_id=folder_id, **kwargs):
+                        barrier.wait()
+                        return {"files": self.children.get(folder_id, [])}
+
+                    resp.execute.side_effect = _execute
+                else:
+                    resp.execute.return_value = {"files": self.children.get(folder_id, [])}
+                return resp
+
+        fs = _ConcurrentFakeDriveFS(
+            {
+                "root": [_drive_folder("alpha", "alpha-id"), _drive_folder("beta", "beta-id")],
+                "alpha-id": [_drive_file("a.txt", "fa")],
+                "beta-id": [_drive_file("b.txt", "fb")],
+            }
+        )
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            dry_run=True,
+            recursive=True,
+            ctx=self._ctx(fs),
+        )
+        names = {a["name"] for a in result["actions"]}
+        assert names == {"alpha/a.txt", "beta/b.txt"}
+        assert result["failed"] == []
+
+
+class TestDownloadFolder:
+    """PR #328 review: download_folder's own Drive listing had the same folder/
+    Workspace-file mimeType conflation bug sync_folder's _list_drive_children was
+    fixed for — the two tools don't share that helper, so download_folder needed
+    its own fix. Subfolders must always be skipped (this tool never descends into
+    them), never handed to export()."""
+
+    def _ctx(self, drive_svc):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = drive_svc
+        return ctx
+
+    async def test_subfolders_always_skipped_not_exported(self, tmp_path):
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {"id": "sub1", "name": "subdir", "mimeType": "application/vnd.google-apps.folder"},
+            ]
+        }
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            ctx=self._ctx(svc),
+        )
+        assert result["skipped"] == ["subdir"]
+        assert result["downloaded"] == []
+        assert result["failed"] == []
+        svc.files.return_value.export.assert_not_called()
+
+
+class TestSyncFolderResponseSizeCap:
+    """PR #328 review: recursive=True removes the previous implicit bound (one
+    folder's direct children) on every result list, especially 'actions' during a
+    dry run — nothing enforced the shared response-size safety net other capped
+    tools use (issue #235/#242)."""
+
+    def _ctx(self, fs: _FakeDriveFS):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = fs.svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        return ctx
+
+    async def test_oversized_result_raises(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
+        fs = _FakeDriveFS({"root": [_drive_file("readme.txt", "f1")]})
+        with pytest.raises(ValueError, match="safety cap"):
+            await _transfer_tools["sync_folder"](
+                folder_id="root",
+                local_path=str(tmp_path),
+                dry_run=True,
+                ctx=self._ctx(fs),
+            )
+
+    async def test_error_does_not_offer_local_path_bypass(self, tmp_path, monkeypatch):
+        # sync_folder's local_path param already means the sync destination — it
+        # can't double as a place to dump the oversized response, so the error must
+        # not suggest passing it for that (unlike get_sheet_data's local_path, which
+        # exists specifically for this purpose).
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
+        fs = _FakeDriveFS({"root": [_drive_file("readme.txt", "f1")]})
+        with pytest.raises(ValueError) as exc_info:
+            await _transfer_tools["sync_folder"](
+                folder_id="root",
+                local_path=str(tmp_path),
+                dry_run=True,
+                ctx=self._ctx(fs),
+            )
+        assert "local_path" not in str(exc_info.value)

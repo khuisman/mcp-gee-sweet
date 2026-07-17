@@ -328,6 +328,10 @@ async def _sync_level(
                     continue
                 local_folder_map[p.name] = p
 
+        # (child_drive_id, child_dest_dir, child_rel_prefix) for every subfolder that
+        # survives the prep step below and is ready to be recursed into.
+        child_calls: list[tuple[str | None, Path, str]] = []
+
         for name in sorted(drive_folder_map.keys() | local_folder_map.keys()):
             in_drive = name in drive_folder_map
             in_local = name in local_folder_map
@@ -342,6 +346,21 @@ async def _sync_level(
                     continue
                 child_drive_id = drive_folder_map[name]["id"]
                 if not dry_run:
+                    # A Drive file and a Drive folder can share a name (they're keyed
+                    # by ID, not name) — if the file-level pass above just downloaded
+                    # a same-named file here, exist_ok=True won't save us since the
+                    # existing path isn't a directory.
+                    if child_dest_dir.exists() and not child_dest_dir.is_dir():
+                        failed.append(
+                            {
+                                "name": child_rel_prefix,
+                                "error": (
+                                    f"cannot create local folder '{name}': a file with "
+                                    "the same name already exists at this path"
+                                ),
+                            }
+                        )
+                        continue
                     child_dest_dir.mkdir(parents=True, exist_ok=True)
             else:  # local only
                 if direction not in ("upload", "bidirectional"):
@@ -350,24 +369,33 @@ async def _sync_level(
                 if dry_run:
                     child_drive_id = None  # simulate: not created yet
                 else:
-                    created = await execute_in_thread(
-                        drive_service.files()
-                        .create(
-                            body={
-                                "name": name,
-                                "mimeType": "application/vnd.google-apps.folder",
-                                "parents": [drive_folder_id],
-                            },
-                            supportsAllDrives=True,
-                            fields="id",
+                    try:
+                        created = await execute_in_thread(
+                            drive_service.files()
+                            .create(
+                                body={
+                                    "name": name,
+                                    "mimeType": "application/vnd.google-apps.folder",
+                                    "parents": [drive_folder_id],
+                                },
+                                supportsAllDrives=True,
+                                fields="id",
+                            )
+                            .execute,
+                            drive_service,
                         )
-                        .execute,
-                        drive_service,
-                    )
+                    except Exception as e:
+                        failed.append({"name": child_rel_prefix, "error": str(e)})
+                        continue
                     child_drive_id = created["id"]
                     lc.drive_folder_cache.mark_dirty(drive_folder_id)
 
-            total_bytes += await _sync_level(
+            child_calls.append((child_drive_id, child_dest_dir, child_rel_prefix))
+
+        async def _descend(
+            child_drive_id: str | None, child_dest_dir: Path, child_rel_prefix: str
+        ) -> int:
+            return await _sync_level(
                 lc,
                 drive_service,
                 child_drive_id,
@@ -386,6 +414,20 @@ async def _sync_level(
                 actions,
                 folders_skipped,
             )
+
+        # Sibling subfolders are independent — descend into all of them concurrently
+        # instead of awaiting one at a time, same rationale as the file-level gather
+        # above. Shared accumulator lists are safe to append into concurrently since
+        # asyncio coroutines never actually run in parallel, only interleaved at
+        # await points.
+        child_results = await asyncio.gather(
+            *(_descend(*c) for c in child_calls), return_exceptions=True
+        )
+        for (_, _, child_rel_prefix), r in zip(child_calls, child_results, strict=True):
+            if isinstance(r, BaseException):
+                failed.append({"name": child_rel_prefix, "error": str(r)})
+            else:
+                total_bytes += r
 
     return total_bytes
 
@@ -983,7 +1025,8 @@ def register(tool):
 
         For non-Google files the raw content is downloaded. Google Workspace files
         are skipped unless export_format is provided, in which case they are exported
-        to that format.
+        to that format. Subfolders are always skipped, regardless of export_format —
+        this tool never descends into them.
 
         Args:
             folder_id: The Google Drive folder ID.
@@ -1031,6 +1074,12 @@ def register(tool):
             fid = f["id"]
             fname = f["name"]
             fmime = f.get("mimeType", "")
+
+            if fmime == "application/vnd.google-apps.folder":
+                # Non-recursive: subfolders are never descended into or exported.
+                skipped.append(fname)
+                continue
+
             is_workspace = fmime.startswith("application/vnd.google-apps.")
 
             if is_workspace and not export_format:
@@ -1228,4 +1277,16 @@ def register(tool):
         }
         if dry_run:
             result["actions"] = actions
+
+        # recursive=True removes the previous implicit bound (one folder's direct
+        # children) on every list here, especially 'actions' during a dry run — the
+        # decision doc's own reproduction case (22 subfolders / ~225 files) is a
+        # realistic scale to hit the cap.
+        enforce_response_size_cap(
+            result,
+            tool_name="sync_folder",
+            hint="Recursive syncs can produce very large result lists. Narrow "
+            "folder_id, direction, or recursive scope, or ",
+            local_path_available=False,
+        )
         return result
