@@ -1103,6 +1103,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#drive-fixture-folder-pollution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drive fixture-folder pollution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#conductor-prompt" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1538,6 +1549,10 @@
 <li><strong>When it's not needed:</strong> a single-shard full run (no parallel agents) never contends with itself — skip the lock entirely in that case.</li>
 </ul>
 <p>Give each parallel shard's conductor prompt this protocol explicitly (path, acquire/release commands, backoff, staleness threshold) rather than assuming priority ordering or hoping timing works out.</p>
+<hr />
+<h2 id="drive-fixture-folder-pollution">Drive fixture-folder pollution<a class="headerlink" href="#drive-fixture-folder-pollution" title="Permanent link">&para;</a></h2>
+<p><code>TEST_FOLDER_ID</code> accumulates stray items across many creation/copy test categories that don't tear down after themselves (tracked in <a href="https://github.com/khuisman/mcp-gee-sweet/issues/304">#304</a> — dedicated QA account/cleanup sweep). As of 2026-07-17 it held ~15 duplicate leftovers (<code>Copy of mcp-gee-sweet-qa-fixtures</code> ×2, <code>QA-Cache-Check</code> ×2, <code>QA-Copy-Explicit</code>, <code>QA-Create-Explicit</code>, <code>QA-Doc-Copy</code>, <code>QA-DocCache</code>, <code>QA-HTML-Doc</code> ×2, <code>QA-Markdown-Doc</code> ×2, <code>QA-Table-Doc</code> ×2, loose <code>qa-notes.md</code>/<code>qa-upload.txt</code>, two leftover folders).</p>
+<p>This matters for any test that syncs, lists, or downloads the whole folder (<code>sync_folder</code>, <code>download_folder</code>, <code>list_files</code> against <code>TEST_FOLDER_ID</code> directly) — the pollution items show up in results alongside whatever the test actually cares about, and a <code>recursive</code>/whole-folder operation will process all of it. Until #304 lands: for a test that needs a clean or isolated Drive tree (rather than "does this tool correctly handle files that happen to be in <code>TEST_FOLDER_ID</code>"), create a throwaway child folder under <code>TEST_FOLDER_ID</code> for that test's own fixtures instead of working at the shared top level, and delete it in teardown. Same tool behavior either way — this only reduces noise and avoids accidentally sweeping up items you don't own.</p>
 <hr />
 <h2 id="conductor-prompt">Conductor prompt<a class="headerlink" href="#conductor-prompt" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>You are the QA conductor for mcp-gee-sweet. Your job is to execute the full test suite against the live MCP server, record outcomes, and save a results report.
