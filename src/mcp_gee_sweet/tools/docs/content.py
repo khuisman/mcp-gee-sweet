@@ -143,6 +143,55 @@ def _html_to_doc_requests(
     return _to_doc_requests(html_content, "html", start_index)
 
 
+async def _create_named_range(
+    docs_service, doc_cache, doc_id: str, name: str, start_index: int, end_index: int
+) -> dict[str, Any]:
+    """Shared implementation backing create_named_range and create_bookmark.
+
+    Returns {"error": ...} on any API failure or a success response with no
+    usable reply — never raises, matching every sibling tool in this file.
+    """
+    try:
+        response = await execute_in_thread(
+            docs_service.documents()
+            .batchUpdate(
+                documentId=doc_id,
+                body={
+                    "requests": [
+                        {
+                            "createNamedRange": {
+                                "name": name,
+                                "range": {
+                                    "startIndex": start_index,
+                                    "endIndex": end_index,
+                                },
+                            }
+                        }
+                    ]
+                },
+            )
+            .execute,
+            docs_service,
+        )
+        replies = response.get("replies") or []
+        named_range_id = (
+            replies[0].get("createNamedRange", {}).get("namedRangeId") if replies else None
+        )
+        if not named_range_id:
+            return {"error": "Docs API returned no namedRangeId for createNamedRange"}
+    except Exception as e:
+        return {"error": str(e)}
+
+    doc_cache.mark_dirty(doc_id)
+    return {
+        "docId": doc_id,
+        "namedRangeId": named_range_id,
+        "name": name,
+        "startIndex": start_index,
+        "endIndex": end_index,
+    }
+
+
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Create Document", destructiveHint=True))
     async def create_doc(
@@ -778,48 +827,19 @@ def register(tool):
             programmatic reference via the API.
         """
         lc = ctx.request_context.lifespan_context
-        try:
-            response = await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(
-                    documentId=doc_id,
-                    body={
-                        "requests": [
-                            {
-                                "createNamedRange": {
-                                    "name": name,
-                                    "range": {
-                                        "startIndex": start_index,
-                                        "endIndex": end_index,
-                                    },
-                                }
-                            }
-                        ]
-                    },
-                )
-                .execute,
-                lc.docs_service,
-            )
-        except Exception as e:
-            return {"error": str(e)}
-
-        named_range_id = response["replies"][0]["createNamedRange"]["namedRangeId"]
-        lc.doc_cache.mark_dirty(doc_id)
-        logger.debug(
-            "create_named_range: %r [%d, %d) in doc %s -> %s",
-            name,
-            start_index,
-            end_index,
-            doc_id,
-            named_range_id,
+        result = await _create_named_range(
+            lc.docs_service, lc.doc_cache, doc_id, name, start_index, end_index
         )
-        return {
-            "docId": doc_id,
-            "namedRangeId": named_range_id,
-            "name": name,
-            "startIndex": start_index,
-            "endIndex": end_index,
-        }
+        if "error" not in result:
+            logger.debug(
+                "create_named_range: %r [%d, %d) in doc %s -> %s",
+                name,
+                start_index,
+                end_index,
+                doc_id,
+                result["namedRangeId"],
+            )
+        return result
 
     @tool(annotations=ToolAnnotations(title="Create Bookmark", destructiveHint=True))
     async def create_bookmark(
@@ -855,44 +875,22 @@ def register(tool):
             create_named_range directly for an anchor spanning more than one character.
         """
         lc = ctx.request_context.lifespan_context
-        try:
-            response = await execute_in_thread(
-                lc.docs_service.documents()
-                .batchUpdate(
-                    documentId=doc_id,
-                    body={
-                        "requests": [
-                            {
-                                "createNamedRange": {
-                                    "name": name,
-                                    "range": {
-                                        "startIndex": index,
-                                        "endIndex": index + 1,
-                                    },
-                                }
-                            }
-                        ]
-                    },
-                )
-                .execute,
-                lc.docs_service,
-            )
-        except Exception as e:
-            return {"error": str(e)}
-
-        named_range_id = response["replies"][0]["createNamedRange"]["namedRangeId"]
-        lc.doc_cache.mark_dirty(doc_id)
+        result = await _create_named_range(
+            lc.docs_service, lc.doc_cache, doc_id, name, index, index + 1
+        )
+        if "error" in result:
+            return result
         logger.debug(
             "create_bookmark: %r at index %d in doc %s -> %s",
             name,
             index,
             doc_id,
-            named_range_id,
+            result["namedRangeId"],
         )
         return {
-            "docId": doc_id,
-            "namedRangeId": named_range_id,
-            "name": name,
+            "docId": result["docId"],
+            "namedRangeId": result["namedRangeId"],
+            "name": result["name"],
             "index": index,
         }
 

@@ -792,6 +792,23 @@ class TestCreateNamedRange:
         )
         assert "error" in result
 
+    async def test_success_response_with_empty_replies_returns_error_not_crash(self):
+        """Regression (PR #337 review): a success response with no/empty replies must
+        not raise IndexError/KeyError — every sibling tool in this file guarantees
+        {"error": ...} instead."""
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": []
+        }
+        doc_cache = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        ctx.request_context.lifespan_context.doc_cache = doc_cache
+        result = await _docs_tools["create_named_range"](
+            doc_id="doc1", name="section-a", start_index=5, end_index=10, ctx=ctx
+        )
+        assert "error" in result
+        doc_cache.mark_dirty.assert_not_called()
+
 
 class TestCreateBookmark:
     def _ctx(self, docs_svc=None):
@@ -835,6 +852,21 @@ class TestCreateBookmark:
         ctx = self._ctx(docs_svc=docs_svc)
         result = await _docs_tools["create_bookmark"](doc_id="doc1", name="intro", index=7, ctx=ctx)
         assert "error" in result
+
+    async def test_success_response_with_empty_replies_returns_error_not_crash(self):
+        """Regression (PR #337 review): a success response with no/empty replies must
+        not raise IndexError/KeyError — every sibling tool in this file guarantees
+        {"error": ...} instead."""
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": []
+        }
+        doc_cache = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        ctx.request_context.lifespan_context.doc_cache = doc_cache
+        result = await _docs_tools["create_bookmark"](doc_id="doc1", name="intro", index=7, ctx=ctx)
+        assert "error" in result
+        doc_cache.mark_dirty.assert_not_called()
 
 
 class TestGetDocContent:
