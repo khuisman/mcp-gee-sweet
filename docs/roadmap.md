@@ -101,6 +101,8 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [ ] `download_folder`'s file loop is genuinely sequential (`for f in ...: await asyncio.to_thread(...)`) — the one multi-file transfer path missed when the `asyncio.gather` pattern was established (#183); `sync_folder`'s own transfer step already uses it correctly ([#316](https://github.com/khuisman/mcp-gee-sweet/issues/316))
 - [x] Bare URLs in markdown content aren't autolinked — Python-Markdown's built-in autolink only fires on `<https://...>` or `[text](url)`, not a bare URL (PR #265) ([#248](https://github.com/khuisman/mcp-gee-sweet/issues/248))
 - [x] `zip(doc_tables, ast_tables)` in `emitter.py` silently cross-pairs tables when one is skipped (zero-row/zero-col table), misapplying fill/merge/style requests to the wrong table — surfaced during #276's review (PR #282) ([#277](https://github.com/khuisman/mcp-gee-sweet/issues/277))
+- [ ] Nested `<li>` silently deletes the parent list item's own text (HTML and Markdown paths) — `handle_starttag` clobbers the outer block's in-progress run buffer with no save/restore; found by Aziz auditing the markdown/HTML-to-Doc pipeline ([#335](https://github.com/khuisman/mcp-gee-sweet/issues/335))
+- [ ] Nested bullet/numbered list depth is computed correctly but never emitted as Docs indentation — every list renders flat regardless of source nesting; `ast_to_requests` never reads `BulletItem.depth`; found alongside #335 ([#336](https://github.com/khuisman/mcp-gee-sweet/issues/336))
 
 **Sheets**
 - [x] `update_borders` — border style, width, color on a range (PR #325) ([#122](https://github.com/khuisman/mcp-gee-sweet/issues/122)) _(freema/mcp-gsheets)_
@@ -122,11 +124,14 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [x] `insert_page_break` — explicit page break at an index ([#148](https://github.com/khuisman/mcp-gee-sweet/issues/148)) (PR #314)
 - [x] `merge_table_cells` — merge cells in an existing table (distinct from write-time colspan) ([#150](https://github.com/khuisman/mcp-gee-sweet/issues/150)) (PR #310)
 - [x] Comments API — list, add, resolve doc comments (PR #324) ([#151](https://github.com/khuisman/mcp-gee-sweet/issues/151))
-- [ ] `create_named_range` / `create_bookmark` — anchor points for internal links ([#152](https://github.com/khuisman/mcp-gee-sweet/issues/152))
+- [x] `create_named_range` / `create_bookmark` — anchor points for internal links (PR #337) ([#152](https://github.com/khuisman/mcp-gee-sweet/issues/152))
 - [x] Rowspan emitter — closed as duplicate, already implemented via #100 (rowspan support) and PR #287 (nested-table colspan/rowspan) ([#195](https://github.com/khuisman/mcp-gee-sweet/issues/195))
 - [x] Warn/error on mixed text + nested table in same cell — shipped as the fuller `Cell.children: list[Run | Table]` ordered model, also fixing trailing-text-after-nested-table ordering ([#275](https://github.com/khuisman/mcp-gee-sweet/issues/275)) in the same PR (PR #276) ([#108](https://github.com/khuisman/mcp-gee-sweet/issues/108))
 - [x] colspan/rowspan inside nested tables (PR #287) ([#109](https://github.com/khuisman/mcp-gee-sweet/issues/109))
 - [ ] `find_in_doc` — search doc text and return match locations, parallel to `find_in_spreadsheet`; removes the manual index math currently needed to retrofit links (or any style) onto text already in a doc, raised while fixing #248 ([#262](https://github.com/khuisman/mcp-gee-sweet/issues/262))
+- [ ] Markdown-to-Doc image support — `![alt](path)` silently dropped today; local file path, `drive:<id>`, or HTTPS URL should all resolve to an inline image at the right position ([#333](https://github.com/khuisman/mcp-gee-sweet/issues/333))
+- [ ] Expose paragraph list/nesting info in `get_doc_structure`, plus a tool to set/change bullet membership and nesting level on an existing range (`createParagraphBullets`/`deleteParagraphBullets` equivalent) — markdown converter currently flattens indented sub-lists into the parent list with no way to detect or fix it after the fact ([#334](https://github.com/khuisman/mcp-gee-sweet/issues/334))
+- [ ] Soft-break paragraph helper (single paragraph, multiple lines joined by soft breaks, explicit named style) + document `delete_doc_range`'s paragraph-merge-inherits-neighbor-style behavior ([#332](https://github.com/khuisman/mcp-gee-sweet/issues/332))
 
 **Drive**
 - [ ] `restore_file` / `empty_trash` — undelete or permanently purge trashed files ([#138](https://github.com/khuisman/mcp-gee-sweet/issues/138))
