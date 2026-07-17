@@ -2654,6 +2654,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#create_named_range-create_bookmark-152" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_named_range / create_bookmark (#152)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="create_named_range / create_bookmark (#152)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc107-create_named_range-creates-a-named-range-over-a-span-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC107: create_named_range creates a named range over a span ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc108-create_named_range-api-error-returned-gracefully-end_index-beyond-document-end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC108: create_named_range — API error returned gracefully (end_index beyond document end)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc109-create_bookmark-creates-a-single-character-named-range-anchor-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC109: create_bookmark creates a single-character named range anchor ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc110-create_bookmark-api-error-returned-gracefully-index-beyond-document-end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC110: create_bookmark — API error returned gracefully (index beyond document end)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4353,6 +4414,60 @@ Doc lacked the literal text "QA anchor target", so it was inserted via <code>ins
 <p><strong>Result (2026-07-16) ❌ FAIL — verified via direct code execution (<code>_md_to_html</code> → <code>html_to_ast</code>), not yet run live.</strong> At 4-space indentation, <code>_md_to_html</code> produces properly nested <code>&lt;ul&gt;</code>/<code>&lt;ol&gt;</code> HTML (confirmed by inspecting the intermediate HTML output), so this fixture reproduces TC-DOC104's HTML-path results exactly: "Parent A has text"/"Parent B has text"/"Top ordered 1" all lost to bug 1, correct <code>depth</code> values (1, 2) on the surviving children, Case 2's bare-parent children correctly preserved at <code>depth=1</code>. This confirms bugs 1+2 are independent of the markdown-library indentation quirk (bug 3) — fixing <code>_md_to_html</code>'s indentation sensitivity alone would not fix nested lists; <code>html_parser.py</code> and <code>emitter.py</code> both need fixing regardless of indentation width used.</p>
 <hr />
 <p><strong>Tooling gap note (not a fix, just a QA-visibility limitation):</strong> <code>get_doc_structure</code> doesn't currently expose paragraph indentation or the Docs API's bullet <code>nestingLevel</code> field, so confirming bug 2's live-rendering half (or a future fix for it) requires a Playwright visual check every time rather than a structural assertion. Worth a follow-up ticket if this bug is fixed — the same way <code>font_family</code> is already a known <code>get_doc_structure</code> gap (TC-DOC42/47).</p>
+<hr />
+<h2 id="create_named_range-create_bookmark-152"><code>create_named_range</code> / <code>create_bookmark</code> (#152)<a class="headerlink" href="#create_named_range-create_bookmark-152" title="Permanent link">&para;</a></h2>
+<p>The Docs API has no dedicated bookmark-creation endpoint — <code>create_bookmark</code> is implemented as a thin wrapper over <code>createNamedRange</code> spanning a single character. Neither tool's output is visible anywhere in the Docs UI (named ranges aren't a UI-surfaced concept), so verification is API-round-trip only, except TC-DOC109 which specifically checks the UI does <em>not</em> show the bookmark, to confirm the docstring's caveat is accurate.</p>
+<h3 id="tc-doc107-create_named_range-creates-a-named-range-over-a-span-destructive">TC-DOC107: <code>create_named_range</code> creates a named range over a span ⚠️ destructive<a class="headerlink" href="#tc-doc107-create_named_range-creates-a-named-range-over-a-span-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> create a doc with a paragraph of text; call <code>get_doc_structure</code> to get its <code>startIndex</code>/<code>endIndex</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a named range called 'section-a' spanning indices {N} to {M} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Response contains <code>docId</code>, a non-empty string <code>namedRangeId</code>, <code>name: "section-a"</code>, <code>startIndex: N</code>, <code>endIndex: M</code></p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-17) ✅ PASS</strong>
+<code>create_named_range(doc_id, name="section-a", start_index=1, end_index=64)</code> against a doc with one paragraph of real text returned <code>{"docId": ..., "namedRangeId": "kix.kmeha3539w3s", "name": "section-a", "startIndex": 1, "endIndex": 64}</code> — all fields present and correct. Note: <code>create_doc</code>'s <code>content</code> param and a plain-text (no wrapping tag) call to <code>write_doc_content</code> both silently produced an empty document body (confirmed live via Playwright screenshot) — wrapping the same text in <code>&lt;p&gt;...&lt;/p&gt;</code> via <code>write_doc_content</code> worked. This is unrelated to <code>create_named_range</code>/<code>create_bookmark</code> (not touched by this PR) but is a real, reproducible bug in the existing HTML content pipeline; flagging separately, not blocking this PR.</p>
+<hr />
+<h3 id="tc-doc108-create_named_range-api-error-returned-gracefully-end_index-beyond-document-end">TC-DOC108: <code>create_named_range</code> — API error returned gracefully (end_index beyond document end)<a class="headerlink" href="#tc-doc108-create_named_range-api-error-returned-gracefully-end_index-beyond-document-end" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a named range called 'bad' spanning indices 1 to 99999 in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — does not raise an exception
+- Error message references an API failure (index out of bounds)</p>
+<p><strong>Cleanup:</strong> none (no mutation applied)</p>
+<p><strong>Result (2026-07-17) ✅ PASS</strong>
+Returned <code>{"error": "&lt;HttpError 400 ... Index 99998 must be less than the end index of the referenced segment, 65.&gt;"}</code> — clean error dict, no exception, references index out of bounds.</p>
+<hr />
+<h3 id="tc-doc109-create_bookmark-creates-a-single-character-named-range-anchor-destructive">TC-DOC109: <code>create_bookmark</code> creates a single-character named range anchor ⚠️ destructive<a class="headerlink" href="#tc-doc109-create_bookmark-creates-a-single-character-named-range-anchor-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> create a doc with a paragraph of text; call <code>get_doc_structure</code> to get a valid index <code>N</code> within it</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Create a bookmark called 'intro' at index {N} in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- Response contains <code>docId</code>, a non-empty string <code>namedRangeId</code>, <code>name: "intro"</code>, <code>index: N</code>
+- 🔍 Visual check in Google Docs: Insert &gt; Link, then click the "Headings, bookmarks, and tabs" button in the link dialog — the resulting list does <strong>not</strong> include "intro" — confirms this is a named-range-backed anchor, not a native Docs UI bookmark (documented limitation)</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-17) ✅ PASS</strong>
+<code>create_bookmark(doc_id, name="intro", index=1)</code> returned <code>{"docId": ..., "namedRangeId": "kix.jare8zg6gej", "name": "intro", "index": 1}</code>. Playwright: Insert &gt; Link &gt; "Headings, bookmarks, and tabs" listed only "Tab 1" — "intro" does not appear, confirming the documented limitation (not a native Docs UI bookmark).</p>
+<hr />
+<h3 id="tc-doc110-create_bookmark-api-error-returned-gracefully-index-beyond-document-end">TC-DOC110: <code>create_bookmark</code> — API error returned gracefully (index beyond document end)<a class="headerlink" href="#tc-doc110-create_bookmark-api-error-returned-gracefully-index-beyond-document-end" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a bookmark called 'bad' at index 99999 in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — does not raise an exception
+- Error message references an API failure (index out of bounds)</p>
+<p><strong>Cleanup:</strong> none (no mutation applied)</p>
+<p><strong>Result (2026-07-17) ✅ PASS</strong>
+Returned <code>{"error": "&lt;HttpError 400 ... Index 99999 must be less than the end index of the referenced segment, 65.&gt;"}</code> — clean error dict, no exception, references index out of bounds.</p>
 
 
 
