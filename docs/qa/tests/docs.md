@@ -1862,3 +1862,61 @@ This is worse than a simple drop in two cases, both verified directly against `h
 ---
 
 **Tooling gap note (not a fix, just a QA-visibility limitation):** `get_doc_structure` doesn't currently expose paragraph indentation or the Docs API's bullet `nestingLevel` field, so confirming bug 2's live-rendering half (or a future fix for it) requires a Playwright visual check every time rather than a structural assertion. Worth a follow-up ticket if this bug is fixed — the same way `font_family` is already a known `get_doc_structure` gap (TC-DOC42/47).
+
+---
+
+## `create_named_range` / `create_bookmark` (#152)
+
+The Docs API has no dedicated bookmark-creation endpoint — `create_bookmark` is implemented as a thin wrapper over `createNamedRange` spanning a single character. Neither tool's output is visible anywhere in the Docs UI (named ranges aren't a UI-surfaced concept), so verification is API-round-trip only, except TC-DOC109 which specifically checks the UI does *not* show the bookmark, to confirm the docstring's caveat is accurate.
+
+### TC-DOC107: `create_named_range` creates a named range over a span ⚠️ destructive
+**Setup:** create a doc with a paragraph of text; call `get_doc_structure` to get its `startIndex`/`endIndex`
+
+**Prompt**
+> "Create a named range called 'section-a' spanning indices {N} to {M} in doc {DOC_ID}"
+
+**Checks**
+- Call succeeds with no API error
+- Response contains `docId`, a non-empty string `namedRangeId`, `name: "section-a"`, `startIndex: N`, `endIndex: M`
+
+**Cleanup:** delete the created doc
+
+---
+
+### TC-DOC108: `create_named_range` — API error returned gracefully (end_index beyond document end)
+**Prompt**
+> "Create a named range called 'bad' spanning indices 1 to 99999 in doc {DOC_ID}"
+
+**Checks**
+- Returns `{"error": "..."}` — does not raise an exception
+- Error message references an API failure (index out of bounds)
+
+**Cleanup:** none (no mutation applied)
+
+---
+
+### TC-DOC109: `create_bookmark` creates a single-character named range anchor ⚠️ destructive
+**Setup:** create a doc with a paragraph of text; call `get_doc_structure` to get a valid index `N` within it
+
+**Prompt**
+**Playwright: required**
+> "Create a bookmark called 'intro' at index {N} in doc {DOC_ID}"
+
+**Checks**
+- Call succeeds with no API error
+- Response contains `docId`, a non-empty string `namedRangeId`, `name: "intro"`, `index: N`
+- 🔍 Visual check in Google Docs: Insert > Link > Bookmarks does **not** list "intro" — confirms this is a named-range-backed anchor, not a native Docs UI bookmark (documented limitation)
+
+**Cleanup:** delete the created doc
+
+---
+
+### TC-DOC110: `create_bookmark` — API error returned gracefully (index beyond document end)
+**Prompt**
+> "Create a bookmark called 'bad' at index 99999 in doc {DOC_ID}"
+
+**Checks**
+- Returns `{"error": "..."}` — does not raise an exception
+- Error message references an API failure (index out of bounds)
+
+**Cleanup:** none (no mutation applied)

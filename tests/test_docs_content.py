@@ -742,6 +742,101 @@ class TestInsertPageBreak:
         assert "error" in result
 
 
+class TestCreateNamedRange:
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    def _docs_svc(self, named_range_id="nr1"):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": [{"createNamedRange": {"namedRangeId": named_range_id}}]
+        }
+        return docs_svc
+
+    async def test_sends_correct_request(self):
+        docs_svc = self._docs_svc()
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = await _docs_tools["create_named_range"](
+            doc_id="doc1", name="section-a", start_index=5, end_index=10, ctx=ctx
+        )
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        req = body["requests"][0]["createNamedRange"]
+        assert req["name"] == "section-a"
+        assert req["range"] == {"startIndex": 5, "endIndex": 10}
+        assert result == {
+            "docId": "doc1",
+            "namedRangeId": "nr1",
+            "name": "section-a",
+            "startIndex": 5,
+            "endIndex": 10,
+        }
+
+    async def test_marks_doc_cache_dirty(self):
+        docs_svc = self._docs_svc()
+        doc_cache = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        ctx.request_context.lifespan_context.doc_cache = doc_cache
+        await _docs_tools["create_named_range"](
+            doc_id="doc1", name="section-a", start_index=5, end_index=10, ctx=ctx
+        )
+        doc_cache.mark_dirty.assert_called_once_with("doc1")
+
+    async def test_api_error_returns_error(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "API error"
+        )
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = await _docs_tools["create_named_range"](
+            doc_id="doc1", name="section-a", start_index=5, end_index=10, ctx=ctx
+        )
+        assert "error" in result
+
+
+class TestCreateBookmark:
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    def _docs_svc(self, named_range_id="nr1"):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": [{"createNamedRange": {"namedRangeId": named_range_id}}]
+        }
+        return docs_svc
+
+    async def test_sends_single_character_named_range(self):
+        docs_svc = self._docs_svc()
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = await _docs_tools["create_bookmark"](doc_id="doc1", name="intro", index=7, ctx=ctx)
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        req = body["requests"][0]["createNamedRange"]
+        assert req["name"] == "intro"
+        assert req["range"] == {"startIndex": 7, "endIndex": 8}
+        assert result == {
+            "docId": "doc1",
+            "namedRangeId": "nr1",
+            "name": "intro",
+            "index": 7,
+        }
+
+    async def test_marks_doc_cache_dirty(self):
+        docs_svc = self._docs_svc()
+        doc_cache = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc)
+        ctx.request_context.lifespan_context.doc_cache = doc_cache
+        await _docs_tools["create_bookmark"](doc_id="doc1", name="intro", index=7, ctx=ctx)
+        doc_cache.mark_dirty.assert_called_once_with("doc1")
+
+    async def test_api_error_returns_error(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "API error"
+        )
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = await _docs_tools["create_bookmark"](doc_id="doc1", name="intro", index=7, ctx=ctx)
+        assert "error" in result
+
+
 class TestGetDocContent:
     def _drive_svc(self, content=b"hello world"):
         svc = MagicMock()

@@ -744,6 +744,158 @@ def register(tool):
         logger.debug("delete_doc_range: %d deletions in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "deletions": len(requests)}
 
+    @tool(annotations=ToolAnnotations(title="Create Named Range", destructiveHint=True))
+    async def create_named_range(
+        doc_id: str,
+        name: str,
+        start_index: int,
+        end_index: int,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Create a named range over a span of content in a Google Doc.
+
+        A named range lets you reference a section of the document by name later
+        (e.g. with ReplaceNamedRangeContentRequest via batch_update) without
+        tracking raw indices yourself — the Docs API automatically shifts the
+        range's bounds as content is inserted or deleted elsewhere in the doc.
+
+        Use get_doc_structure to find start/end indices for the target span.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            name: Name for the range. Not required to be unique; 1-256 UTF-16 code units.
+            start_index: Start of the range (inclusive).
+            end_index: End of the range (exclusive).
+
+        Returns:
+            Confirmation with docId, namedRangeId, name, startIndex, endIndex.
+
+        Note:
+            Named ranges are not visible in the Docs UI and cannot be used as
+            internal hyperlink targets (the Link object only supports UI-created
+            bookmarks and headings, not named ranges) — they exist purely for
+            programmatic reference via the API.
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            response = await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "createNamedRange": {
+                                    "name": name,
+                                    "range": {
+                                        "startIndex": start_index,
+                                        "endIndex": end_index,
+                                    },
+                                }
+                            }
+                        ]
+                    },
+                )
+                .execute,
+                lc.docs_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        named_range_id = response["replies"][0]["createNamedRange"]["namedRangeId"]
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug(
+            "create_named_range: %r [%d, %d) in doc %s -> %s",
+            name,
+            start_index,
+            end_index,
+            doc_id,
+            named_range_id,
+        )
+        return {
+            "docId": doc_id,
+            "namedRangeId": named_range_id,
+            "name": name,
+            "startIndex": start_index,
+            "endIndex": end_index,
+        }
+
+    @tool(annotations=ToolAnnotations(title="Create Bookmark", destructiveHint=True))
+    async def create_bookmark(
+        doc_id: str,
+        name: str,
+        index: int,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Create a lightweight, named anchor point at a single position in a Google Doc.
+
+        The Docs API has no dedicated bookmark-creation endpoint (Docs UI bookmarks
+        can only be inserted by hand). This is a convenience wrapper around
+        create_named_range that spans the single character at `index`, giving you a
+        named position you can look up later without hardcoding raw indices — the
+        range's bounds shift automatically as the API tracks surrounding edits.
+
+        Use get_doc_structure to find a suitable index.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            name: Name for the bookmark. Not required to be unique; 1-256 UTF-16 code units.
+            index: Document position to anchor at (the character at this index is
+                included in the underlying named range).
+
+        Returns:
+            Confirmation with docId, namedRangeId, name, index.
+
+        Note:
+            This is not a Docs UI bookmark: it won't appear in Insert > Bookmark and
+            cannot be used as an internal hyperlink target (the Link object only
+            supports UI-created bookmarks and headings, not named ranges). Use
+            create_named_range directly for an anchor spanning more than one character.
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            response = await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "createNamedRange": {
+                                    "name": name,
+                                    "range": {
+                                        "startIndex": index,
+                                        "endIndex": index + 1,
+                                    },
+                                }
+                            }
+                        ]
+                    },
+                )
+                .execute,
+                lc.docs_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        named_range_id = response["replies"][0]["createNamedRange"]["namedRangeId"]
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug(
+            "create_bookmark: %r at index %d in doc %s -> %s",
+            name,
+            index,
+            doc_id,
+            named_range_id,
+        )
+        return {
+            "docId": doc_id,
+            "namedRangeId": named_range_id,
+            "name": name,
+            "index": index,
+        }
+
     @tool(annotations=ToolAnnotations(title="Insert Inline Image", destructiveHint=True))
     async def insert_inline_image(
         doc_id: str,
