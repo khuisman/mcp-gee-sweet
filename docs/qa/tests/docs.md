@@ -1881,6 +1881,9 @@ The Docs API has no dedicated bookmark-creation endpoint — `create_bookmark` i
 
 **Cleanup:** delete the created doc
 
+**Result (2026-07-17) ✅ PASS**
+`create_named_range(doc_id, name="section-a", start_index=1, end_index=64)` against a doc with one paragraph of real text returned `{"docId": ..., "namedRangeId": "kix.kmeha3539w3s", "name": "section-a", "startIndex": 1, "endIndex": 64}` — all fields present and correct. Note: `create_doc`'s `content` param and a plain-text (no wrapping tag) call to `write_doc_content` both silently produced an empty document body (confirmed live via Playwright screenshot) — wrapping the same text in `<p>...</p>` via `write_doc_content` worked. This is unrelated to `create_named_range`/`create_bookmark` (not touched by this PR) but is a real, reproducible bug in the existing HTML content pipeline; flagging separately, not blocking this PR.
+
 ---
 
 ### TC-DOC108: `create_named_range` — API error returned gracefully (end_index beyond document end)
@@ -1892,6 +1895,9 @@ The Docs API has no dedicated bookmark-creation endpoint — `create_bookmark` i
 - Error message references an API failure (index out of bounds)
 
 **Cleanup:** none (no mutation applied)
+
+**Result (2026-07-17) ✅ PASS**
+Returned `{"error": "<HttpError 400 ... Index 99998 must be less than the end index of the referenced segment, 65.>"}` — clean error dict, no exception, references index out of bounds.
 
 ---
 
@@ -1909,6 +1915,9 @@ The Docs API has no dedicated bookmark-creation endpoint — `create_bookmark` i
 
 **Cleanup:** delete the created doc
 
+**Result (2026-07-17) ✅ PASS**
+`create_bookmark(doc_id, name="intro", index=1)` returned `{"docId": ..., "namedRangeId": "kix.jare8zg6gej", "name": "intro", "index": 1}`. Playwright: Insert > Link > "Headings, bookmarks, and tabs" listed only "Tab 1" — "intro" does not appear, confirming the documented limitation (not a native Docs UI bookmark).
+
 ---
 
 ### TC-DOC110: `create_bookmark` — API error returned gracefully (index beyond document end)
@@ -1920,3 +1929,6 @@ The Docs API has no dedicated bookmark-creation endpoint — `create_bookmark` i
 - Error message references an API failure (index out of bounds)
 
 **Cleanup:** none (no mutation applied)
+
+**Result (2026-07-17) ✅ PASS**
+Returned `{"error": "<HttpError 400 ... Index 99999 must be less than the end index of the referenced segment, 65.>"}` — clean error dict, no exception, references index out of bounds.
