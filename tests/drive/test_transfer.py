@@ -2,7 +2,7 @@
 
 import io
 import threading
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import openpyxl
 import pytest
@@ -245,6 +245,7 @@ class TestSyncFolderRecursive:
         ctx = MagicMock()
         ctx.request_context.lifespan_context.drive_service = fs.svc
         ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
         return ctx
 
     async def test_default_is_non_recursive_and_ignores_subfolders(self, tmp_path):
@@ -366,6 +367,67 @@ class TestSyncFolderRecursive:
         assert fs.created_files[0]["parents"] == ["new-folder-0"]
         assert result["folders_skipped"] == []
 
+    async def test_reports_progress_for_each_transfer_not_after_the_whole_batch(self, tmp_path):
+        """#316: sync_folder's per-level transfers already run concurrently (#293),
+        but nothing reported progress, so a large single-level sync was still silent
+        for its whole duration. Progress must be reported inside each transfer's own
+        coroutine as it completes — not after the level's asyncio.gather resolves,
+        which would only ever deliver one final burst instead of live updates."""
+        (tmp_path / "a.txt").write_text("hi")
+        (tmp_path / "b.txt").write_text("bye")
+        fs = _FakeDriveFS({"root": []})
+        ctx = self._ctx(fs)
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            ctx=ctx,
+        )
+        assert set(result["uploaded"]) == {"a.txt", "b.txt"}
+        assert ctx.report_progress.await_count == 2
+        completed_values = sorted(c.args[0] for c in ctx.report_progress.await_args_list)
+        assert completed_values == [1, 2]
+        messages = [c.args[2] for c in ctx.report_progress.await_args_list]
+        assert any("a.txt" in m for m in messages)
+        assert any("b.txt" in m for m in messages)
+
+    async def test_dry_run_reports_no_progress(self, tmp_path):
+        """dry_run transfers nothing, so no progress update should fire either."""
+        (tmp_path / "a.txt").write_text("hi")
+        fs = _FakeDriveFS({"root": []})
+        ctx = self._ctx(fs)
+
+        await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            dry_run=True,
+            ctx=ctx,
+        )
+        ctx.report_progress.assert_not_awaited()
+
+    async def test_report_progress_failure_does_not_demote_a_successful_upload(self, tmp_path):
+        """PR #351 review: ctx.report_progress raising (e.g. a dropped session)
+        must not overwrite an already-successful upload's result, and must not
+        skip the drive_folder_cache invalidation that a real mutation earns."""
+        (tmp_path / "a.txt").write_text("hi")
+        fs = _FakeDriveFS({"root": []})
+        ctx = self._ctx(fs)
+        ctx.report_progress.side_effect = RuntimeError("connection dropped")
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            ctx=ctx,
+        )
+        assert result["uploaded"] == ["a.txt"]
+        assert result["failed"] == []
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_once_with(
+            "root"
+        )
+
     async def test_file_folder_name_collision_recorded_as_failed_not_crashed(self, tmp_path):
         """PR #328 review: a Drive file and a Drive folder can share a name (keyed by
         ID, not name). A local file already occupying the subfolder's target path
@@ -420,6 +482,7 @@ class TestSyncFolderRecursive:
         ctx = MagicMock()
         ctx.request_context.lifespan_context.drive_service = svc
         ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
 
         result = await _transfer_tools["sync_folder"](
             folder_id="root",
@@ -492,6 +555,7 @@ class TestDownloadFolder:
     def _ctx(self, drive_svc):
         ctx = MagicMock()
         ctx.request_context.lifespan_context.drive_service = drive_svc
+        ctx.report_progress = AsyncMock()
         return ctx
 
     async def test_subfolders_always_skipped_not_exported(self, tmp_path):
@@ -512,6 +576,149 @@ class TestDownloadFolder:
         assert result["failed"] == []
         svc.files.return_value.export.assert_not_called()
 
+    async def test_files_download_concurrently(self, tmp_path):
+        """#316: download_folder used to loop sequentially, awaiting one transfer at
+        a time — 1.04s/file on a real 217-file folder. A synchronization barrier
+        proves two exports are genuinely in flight together, in real OS threads via
+        execute_in_thread — a regression back to a sequential loop would only ever
+        have one call in flight and the barrier would time out."""
+        barrier = threading.Barrier(2, timeout=2)
+
+        def _export(**kwargs):
+            resp = MagicMock()
+
+            def _execute(*args, **kwargs):
+                barrier.wait()
+                return b"content"
+
+            resp.execute.side_effect = _execute
+            return resp
+
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "doc1",
+                    "name": "Doc One",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+                {
+                    "id": "doc2",
+                    "name": "Doc Two",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+            ]
+        }
+        svc.files.return_value.export.side_effect = _export
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            ctx=self._ctx(svc),
+        )
+        assert set(result["downloaded"]) == {"Doc One.pdf", "Doc Two.pdf"}
+        assert result["failed"] == []
+
+    async def test_reports_progress_as_files_complete(self, tmp_path):
+        """#316: the 226s call was silent for its entire duration. Each completed
+        transfer must fire a notifications/progress update via ctx.report_progress,
+        counted against the known total, instead of arriving all at once (or not
+        at all) after every download finishes."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "doc1",
+                    "name": "Doc One",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+                {
+                    "id": "doc2",
+                    "name": "Doc Two",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+            ]
+        }
+        svc.files.return_value.export.return_value.execute.return_value = b"content"
+        ctx = self._ctx(svc)
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            ctx=ctx,
+        )
+        assert result["failed"] == []
+        assert ctx.report_progress.await_count == 2
+        completed_values = sorted(c.args[0] for c in ctx.report_progress.await_args_list)
+        assert completed_values == [1, 2]
+        for c in ctx.report_progress.await_args_list:
+            assert c.args[1] == 2  # total
+
+    async def test_duplicate_drive_filenames_do_not_race_or_double_count(self, tmp_path):
+        """PR #351 review, live-reproduced: Drive allows two files with the same
+        name (distinct IDs) in one folder; the local filesystem doesn't. The old
+        sequential loop was accidentally safe here (each existence check ran only
+        after the previous file had fully written) — the concurrent rewrite must
+        dedupe by destination path instead of letting two writers race onto the
+        same file and double-count size_bytes."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "doc1",
+                    "name": "Report",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+                {
+                    "id": "doc2",
+                    "name": "Report",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+            ]
+        }
+        svc.files.return_value.export.return_value.execute.return_value = b"content"
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            ctx=self._ctx(svc),
+        )
+        assert result["downloaded"] == ["Report.pdf"]
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["name"] == "Report"
+        assert "duplicate filename" in result["failed"][0]["error"]
+        assert result["size_bytes"] == len(b"content")
+        assert (tmp_path / "Report.pdf").read_bytes() == b"content"
+
+    async def test_report_progress_failure_does_not_demote_a_successful_download(self, tmp_path):
+        """PR #351 review: ctx.report_progress raising (e.g. a dropped session)
+        must not overwrite an already-successful download's result."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "doc1",
+                    "name": "Doc One",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+            ]
+        }
+        svc.files.return_value.export.return_value.execute.return_value = b"content"
+        ctx = self._ctx(svc)
+        ctx.report_progress.side_effect = RuntimeError("connection dropped")
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            ctx=ctx,
+        )
+        assert result["downloaded"] == ["Doc One.pdf"]
+        assert result["failed"] == []
+
 
 class TestSyncFolderResponseSizeCap:
     """PR #328 review: recursive=True removes the previous implicit bound (one
@@ -523,6 +730,7 @@ class TestSyncFolderResponseSizeCap:
         ctx = MagicMock()
         ctx.request_context.lifespan_context.drive_service = fs.svc
         ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
         return ctx
 
     async def test_oversized_result_raises(self, tmp_path, monkeypatch):

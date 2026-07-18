@@ -1593,6 +1593,78 @@ Delete `sib-a` and `sib-b` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-328c/`.
 
 ---
 
+### TC-D198: `download_folder` transfers files concurrently instead of one at a time (issue #316) ⚠️ local-filesystem
+
+**Background:** Live testing measured `download_folder` against a real 217-file Shared Drive folder at 226s total — roughly 1.04s/file, scaling linearly, consistent with a sequential `for file in files: await download(file)` loop rather than concurrent fan-out. `sync_folder`'s per-level transfers already ran concurrently via `asyncio.gather()` (#293); `download_folder` had its own separate, still-sequential loop. Fixed by rewriting it to the same concurrent-gather pattern. Genuine concurrency (not just correctness) is unit-tested via a real-thread synchronization barrier (`tests/drive/test_transfer.py::TestDownloadFolder::test_files_download_concurrently`); this live check confirms wall-clock time actually improves and results stay correctly attributed under real concurrent Drive API calls.
+
+**Setup**
+In `{FOLDER_ID}`, ensure at least 10-15 non-Workspace files exist.
+
+**Prompt**
+> "Download all files from {FOLDER_ID} to `/tmp/qa-download-316/` and tell me how long the call took"
+
+**Checks**
+- Wall-clock time is well under (file count × ~1s) — concurrent fan-out means total time tracks the slowest individual transfer, not the sum of all of them
+- Every file appears in `downloaded` with the correct name and `size_bytes` matching its own source file — no content or name cross-attribution between files under concurrency
+- `failed` is empty
+
+**Result (2026-07-17) ❌ FAIL** Ran against the live `{FOLDER_ID}` fixture, which (due to accumulated fixture drift) happens to contain two Drive files named `qa-notes.md` (distinct IDs, different source MIME types) and two named `qa-upload.txt` (distinct IDs). `download_folder` reported both as `"downloaded": ["qa-notes.md", "qa-notes.md", "qa-upload.txt", "qa-upload.txt"]` with `size_bytes: 296` (both files' sizes summed), but only one physical copy of each landed on disk — the second concurrent writer clobbered the first. This directly violates this test case's own second check ("no content or name cross-attribution between files under concurrency"): the tool's response claims two independent successful downloads for a file that was actually overwritten mid-flight, and double-counts its byte total. Root cause: `download_folder`'s new candidate-collection loop (`src/mcp_gee_sweet/tools/drive/transfer.py:1098-1130`) checks `skip_if_exists` against the pre-transfer filesystem state for every Drive file before any download starts, so two Drive files that map to the same local name (Drive allows duplicate names, keyed by ID) both pass the check and are queued into `candidates`; `asyncio.gather` (line 1178) then runs both `_download_one` calls concurrently, racing to write the same path. The prior sequential implementation was accidentally safe here since each file's existence check ran only after the previous file had fully written. Confirmed reproducible: re-ran after a clean `/mcp reconnect` against a fresh empty destination directory and got the same result both times.
+
+**Follow-up (2026-07-17, commit `3ad523c`) ✅ FIXED** — re-ran the identical live call against the same `{FOLDER_ID}` fixture (still carrying the incidental `qa-notes.md`/`qa-upload.txt` duplicates). `downloaded` now contains each name exactly once, `failed` carries an explicit "duplicate filename" entry for each extra, `size_bytes` (148) matches only the single-copy total, and the files on disk are intact/uncorrupted. See TC-D200 for a purpose-built reproduction of the same fix.
+
+**Teardown**
+Remove `/tmp/qa-download-316/`.
+
+---
+
+### TC-D199: `download_folder` and `sync_folder` emit `notifications/progress` updates as each transfer completes (issue #316)
+
+**Background:** Both tools previously ran silently for their entire duration — the 226s `download_folder` call above returned nothing until the very end, with no indication to the caller of whether it was working or hung. Both now call `ctx.report_progress()` from inside each individual transfer's own coroutine right as it finishes, not after the whole concurrent batch resolves, so a caller that supplied a progressToken sees a live stream of updates spread across the call's duration instead of one final burst. The two tools' messages aren't identical: `download_folder` knows its file count upfront (a single non-recursive listing), so it reports a real `total` and a message like `"12/217: report.pdf: ok"`. `sync_folder` doesn't know the total ahead of time (recursive descent discovers files level by level), so it always passes `total=None` and reports a running count with a message like `"readme.txt: download_ok"` — no "N/total" prefix. Progress is file-count based, not byte-size, for both: neither tool's Drive listing fetches a `size` field, and a Workspace file's exported size is unknown until after the export completes, so an accurate byte total isn't available upfront (a size-based mode is tracked separately in #352). `sync_folder`'s dry-run mode never transfers anything, so it never reports progress either. `ctx.report_progress()` itself is wrapped in a try/except at both call sites (PR #351 review) — a failed notification (e.g. a dropped session) no longer downgrades an already-successful transfer to a reported failure.
+
+**Note:** `notifications/progress` is a protocol-level message, not part of the tool's JSON response — whether it's visible during this QA pass depends on whether the MCP client surfaces raw progress notifications in the transcript. The exact per-item call count, `total`, and message content are already asserted against a mocked `ctx` in `tests/drive/test_transfer.py::TestDownloadFolder::test_reports_progress_as_files_complete` and `TestSyncFolderRecursive::test_reports_progress_for_each_transfer_not_after_the_whole_batch`/`test_dry_run_reports_no_progress`. If the client doesn't surface progress notifications, this check can only confirm the call still completes normally with the notification calls in place.
+
+**Setup**
+In `{FOLDER_ID}`, ensure at least 5 files exist.
+
+**Prompt**
+> "Download all files from {FOLDER_ID} to `/tmp/qa-progress-316/`"
+
+**Checks**
+- If progress notifications are visible in the client: multiple discrete "N/total" updates appear spread across the call, not a single update at the very end
+- Regardless of notification visibility: the call completes normally and `downloaded` is correct
+
+**Result (2026-07-17) ⚠️ PARTIAL** This QA client (Claude Code direct tool calls) doesn't set a `progressToken`, so raw `notifications/progress` messages aren't visible in this transcript — the first check couldn't be exercised live, consistent with this test case's own caveat. Second check confirmed: `download_folder` completed normally against `{FOLDER_ID}` with no error from the new `ctx.report_progress(...)` call path (which no-ops safely with no token, per `Context.report_progress`'s own guard). Note: code review separately found `ctx.report_progress` is *not* wrapped in a try/except at either call site (`transfer.py:298` in `_sync_level`, `transfer.py:1172` in `download_folder`) — if a real client supplies a progressToken and the notification send fails mid-transfer (e.g. a dropped SSE connection on a long sync), an already-successful transfer gets misreported as failed. That failure mode requires a live, then-interrupted session to trigger and wasn't reproducible in this pass; flagged in code review as a confirmed defect regardless.
+
+**Follow-up (2026-07-17, commit `3ad523c`) ✅ FIXED** — both call sites now wrap `ctx.report_progress(...)` in try/except, logging at debug level and letting the transfer's own already-computed result stand regardless of notification-channel failure. Confirmed via new unit tests (`test_report_progress_failure_does_not_demote_a_successful_upload`/`_download`, both inject a `RuntimeError` via `ctx.report_progress.side_effect` and assert the item still lands in `uploaded`/`downloaded`, not `failed`) — full suite passes (767 tests). `download_folder`'s message now also includes the outcome suffix (`f"{completed}/{total}: {name}: {kind}"`), matching its docstring example and closing the doc/code mismatch flagged in code review.
+
+**Teardown**
+Remove `/tmp/qa-progress-316/`.
+
+---
+
+### TC-D200: `download_folder` — two Drive files with the same name no longer race or double-count (PR #351 review) ⚠️ local-filesystem
+
+**Background:** QA's TC-D198 pass live-reproduced a correctness bug in the concurrency fix: `download_folder`'s candidate-collection loop checked `skip_if_exists` against the pre-transfer filesystem state for every Drive file before any download started. Drive allows two files with the same name (distinct IDs) in one folder — the local filesystem doesn't — so two same-named files both passed the check and were queued into the same concurrent batch, racing to write the identical local path. The prior sequential implementation was accidentally safe here (each file's existence check ran only after the previous file had fully written). Fixed by deduping candidates by destination path as they're collected: the first file claims the path, later files with the same destination are recorded under `failed` with an explanatory "duplicate filename" error instead of being queued to write. Unit-tested deterministically (`tests/drive/test_transfer.py::TestDownloadFolder::test_duplicate_drive_filenames_do_not_race_or_double_count`); this live check confirms the fix against the exact fixture-drift scenario QA's TC-D198 run hit.
+
+**Setup**
+In `{FOLDER_ID}`, create two Drive files with the identical name, e.g. `dup-test.txt` (distinct IDs — two separate `upload_file` calls with the same `name`), with different content each (so a content mix-up is detectable).
+
+**Prompt**
+> "Download all files from {FOLDER_ID} to `/tmp/qa-dup-351/`"
+
+**Checks**
+- `downloaded` contains `dup-test.txt` exactly once (not twice)
+- `failed` contains exactly one entry for `dup-test.txt` (or the export-suffixed name, if the duplicate involves Workspace files) whose `error` mentions "duplicate filename"
+- `/tmp/qa-dup-351/dup-test.txt` exists and its content matches whichever of the two Drive files was actually downloaded (i.e. content is intact, not corrupted by a partial concurrent write)
+- `size_bytes` reflects only the one file that was actually downloaded, not both
+
+**Result (2026-07-17) ✅ PASS** Uploaded two distinct-ID files named `dup-test.txt` (different content each) to `{FOLDER_ID}`, then ran `download_folder`. Response: `"downloaded": [..., "dup-test.txt", ...]` exactly once, `"failed"` included exactly one `dup-test.txt` entry with `error` containing "duplicate filename", and `size_bytes` reflected only the single downloaded copy. On disk, `dup-test.txt` contained one file's content intact (not interleaved/corrupted). This re-verifies the fix from `3ad523c` against a purpose-built duplicate, on top of the incidental fixture-drift duplicates re-checked under TC-D198.
+
+**Teardown**
+Delete both `dup-test.txt` files from `{FOLDER_ID}`. Remove `/tmp/qa-dup-351/`.
+
+---
+
 ## `list_drives`
 
 ### TC-D120: List all shared drives
