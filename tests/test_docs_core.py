@@ -23,6 +23,8 @@ from mcp_gee_sweet.tools.docs.emitter import (
     _build_merge_requests,
     _build_phantom_set,
     _physical_to_ast_indices,
+    _run_group_fill_requests,
+    _text_offset_since_last_table,
 )
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 
@@ -182,6 +184,30 @@ class TestHtmlToDocRequests:
         text_start = insert_texts[0]["insertText"]["location"]["index"]
         table_idx = insert_tables[0]["insertTable"]["location"]["index"]
         assert text_start <= table_idx <= text_start + len("Before\n")
+
+    def test_astral_characters_use_utf16_indices(self):
+        requests, _ = _html_to_doc_requests(
+            "<p>😀</p><p><b>X</b></p><table><tr><td>T</td></tr></table>"
+        )
+
+        styled_x = next(r["updateTextStyle"]["range"] for r in requests if "updateTextStyle" in r)
+        table_index = next(
+            r["insertTable"]["location"]["index"] for r in requests if "insertTable" in r
+        )
+
+        assert styled_x == {"startIndex": 4, "endIndex": 5}
+        assert table_index == 6
+
+    def test_astral_characters_use_utf16_indices_inside_table_cells(self):
+        runs = [Run("😀"), Run("X", bold=True)]
+
+        requests = _run_group_fill_requests(runs, para_start=10)
+        clear_range = requests[1]["updateTextStyle"]["range"]
+        styled_x = requests[2]["updateTextStyle"]["range"]
+
+        assert clear_range == {"startIndex": 10, "endIndex": 13}
+        assert styled_x == {"startIndex": 12, "endIndex": 13}
+        assert _text_offset_since_last_table(runs, cursor=2) == 3
 
     def test_heading_gets_delete_bullets(self):
         requests, _ = _html_to_doc_requests("<h1>Title</h1>")

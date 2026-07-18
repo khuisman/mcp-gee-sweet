@@ -23,6 +23,7 @@ from ..response_limits import enforce_response_size_cap, write_capped_result_to_
 from .ast import Table
 from .emitter import ast_to_requests, fill_tables
 from .html_parser import html_to_ast
+from .indices import utf16_len
 from .style import _NAMED_STYLE_TYPES, _text_style_and_fields
 
 logger = logging.getLogger(__name__)
@@ -148,15 +149,6 @@ def _html_to_doc_requests(
     return _to_doc_requests(html_content, "html", start_index)
 
 
-def _utf16_units(ch: str) -> int:
-    """UTF-16 code units a single Python character occupies. Docs API indices
-    (startIndex/endIndex) are UTF-16 code units, not Python code points — an
-    astral-plane character (most emoji, some CJK/math symbols) is one Python
-    str character but 2 UTF-16 units (a surrogate pair), so every offset past
-    one would drift by 1 if counted with plain enumerate()."""
-    return 2 if ord(ch) > 0xFFFF else 1
-
-
 def _collect_doc_paragraphs(content: list[dict[str, Any]]) -> Iterator[tuple[str, list[int]]]:
     """Walk document body content, recursing into table cells, yielding each
     paragraph's text paired with a parallel list of document character indices
@@ -191,7 +183,7 @@ def _collect_doc_paragraphs(content: list[dict[str, Any]]) -> Iterator[tuple[str
                     text_parts.append(run_text)
                     for ch in run_text:
                         indices.append(offset)
-                        offset += _utf16_units(ch)
+                        offset += utf16_len(ch)
                 else:
                     end = pe.get("endIndex")
                     if end is not None:
@@ -833,7 +825,7 @@ def register(tool):
                     {
                         "start_index": para_indices[start_char],
                         "end_index": para_indices[end_char - 1]
-                        + _utf16_units(para_text[end_char - 1]),
+                        + utf16_len(para_text[end_char - 1]),
                         "matched_text": para_text[start_char:end_char],
                         "context": para_text.rstrip("\n"),
                     }
@@ -1255,7 +1247,7 @@ def register(tool):
             }
 
         joined_text = "\v".join(line["text"] for line in lines)
-        end_index = index + sum(_utf16_units(ch) for ch in joined_text)
+        end_index = index + utf16_len(joined_text)
 
         requests: list[dict[str, Any]] = [
             {"insertText": {"location": {"index": index}, "text": joined_text}},
@@ -1272,7 +1264,7 @@ def register(tool):
         cursor = index
         for i, line in enumerate(lines):
             line_start = cursor
-            line_end = line_start + sum(_utf16_units(ch) for ch in line["text"])
+            line_end = line_start + utf16_len(line["text"])
             line_ranges.append({"start_index": line_start, "end_index": line_end})
 
             text_style, fields = _text_style_and_fields(line)
@@ -1455,7 +1447,7 @@ def register(tool):
                     "index": i,
                     "entry": entry,
                     "marker_start": matches[0],
-                    "marker_len": sum(_utf16_units(ch) for ch in marker),
+                    "marker_len": utf16_len(marker),
                     "local_path": local_path,
                     "width": image.get("width"),
                     "height": image.get("height"),

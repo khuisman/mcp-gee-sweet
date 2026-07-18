@@ -6,6 +6,7 @@ import logging
 
 from ...auth import execute_in_thread
 from .ast import BulletItem, Cell, DocNode, Heading, NamedBlock, Paragraph, Row, Run, Table
+from .indices import utf16_len
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,8 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
     Returns (requests, tables) where tables is the list of Table AST nodes in document
     order.
     """
-    full_text = ""
+    text_parts: list[str] = []
+    utf16_offset = 0
     segment_meta: list[tuple] = []  # (node, doc_start, doc_end)
     tables: list[Table] = []
     table_positions: list[int] = []  # doc index for each table
@@ -38,9 +40,9 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
                 # insertTable request never shows up there.
                 continue
             tables.append(node)
-            table_positions.append(start_index + len(full_text))
+            table_positions.append(start_index + utf16_offset)
         else:
-            doc_start = start_index + len(full_text)
+            doc_start = start_index + utf16_offset
             # Checkbox glyph prefix for task list items
             prefix = ""
             if isinstance(node, BulletItem) and node.checked is not None:
@@ -48,11 +50,14 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
             text = prefix + "".join(r.text for r in node.runs)
             if not text.strip():
                 continue
-            full_text += text + "\n"
-            doc_end = start_index + len(full_text)
-            segment_meta.append((node, doc_start, doc_end, len(prefix)))
+            appended_text = text + "\n"
+            text_parts.append(appended_text)
+            utf16_offset += utf16_len(appended_text)
+            doc_end = start_index + utf16_offset
+            segment_meta.append((node, doc_start, doc_end, utf16_len(prefix)))
 
     requests: list[dict] = []
+    full_text = "".join(text_parts)
 
     if full_text:
         requests.append({"insertText": {"location": {"index": start_index}, "text": full_text}})
@@ -101,7 +106,7 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
             # prefix_len skips past any checkbox glyph so run offsets stay accurate
             offset = prefix_len
             for run in node.runs:
-                run_len = len(run.text)
+                run_len = utf16_len(run.text)
                 if run_len > 0:
                     style_reqs = _run_style_requests(
                         run, doc_start + offset, doc_start + offset + run_len
@@ -374,7 +379,7 @@ def _text_offset_since_last_table(children: list[Run | Table], cursor: int) -> i
         if _is_insertable_table(child):
             break
         if isinstance(child, Run):
-            offset += len(child.text)
+            offset += utf16_len(child.text)
     return offset
 
 
@@ -401,7 +406,7 @@ def _run_group_fill_requests(runs: list[Run], para_start: int) -> list[dict]:
         # Clear any fontSize inherited from a preceding heading — see _build_fill_requests.
         {
             "updateTextStyle": {
-                "range": {"startIndex": para_start, "endIndex": para_start + len(text)},
+                "range": {"startIndex": para_start, "endIndex": para_start + utf16_len(text)},
                 "textStyle": {},
                 "fields": "fontSize",
             }
@@ -409,7 +414,7 @@ def _run_group_fill_requests(runs: list[Run], para_start: int) -> list[dict]:
     ]
     offset = 0
     for run in runs:
-        run_len = len(run.text)
+        run_len = utf16_len(run.text)
         if run_len > 0:
             requests.extend(
                 _run_style_requests(run, para_start + offset, para_start + offset + run_len)
