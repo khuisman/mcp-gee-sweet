@@ -77,6 +77,8 @@ Set `AUTH_METHOD` to pin a specific method with no fallback — removes ambiguit
 
 **A1 notation helpers**: `_parse_a1_notation`, `_column_index_to_letter`, and `_letter_to_column_index` convert between A1 ranges and the 0-based row/column indices the Sheets batchUpdate API requires. The Sheets values API uses A1 notation directly; batchUpdate requires numeric indices — keep that distinction in mind when adding new tools.
 
+**Docs API indices are UTF-16 code units, not Python code points**: every `startIndex`/`endIndex` in the Docs API counts UTF-16 code units — an astral-plane character (most emoji, some CJK/math symbols) is one Python `str` character but a 2-unit surrogate pair. `content.py`'s `find_in_doc`/`_collect_doc_paragraphs` accounts for this via `_utf16_units`. `emitter.py`'s offset math (table positions, paragraph-style ranges, inline run-style ranges) does not — it derives offsets from plain `len()`/`enumerate()`, a confirmed-pattern bug tracked in #358. Any new code deriving a Docs API index from Python string length needs `_utf16_units`-style accounting instead of raw `len()`.
+
 **MCP resources**: Two resources are registered — `server://auth-status` (active auth method and Drive capability limits) and `spreadsheet://{spreadsheet_id}/info` (sheet list and grid properties). Both use `mcp.get_lifespan_context()` (not `ctx`) because resources don't receive a `Context` argument the same way tools do.
 
 **`batch_update` tool**: This is a passthrough to the Sheets `spreadsheets().batchUpdate()` endpoint and accepts raw request objects. It's the escape hatch for any operation not covered by the named tools (formatting, conditional formatting, dimension properties, etc.).
