@@ -295,11 +295,22 @@ async def _sync_level(
             # live progress during the wait (the actual complaint in #316).
             if result["kind"] in ("upload_ok", "upload_fail", "download_ok", "download_fail"):
                 progress_count[0] += 1
-                await ctx.report_progress(
-                    progress_count[0],
-                    None,
-                    f"{rel_prefix}{result['name']}: {result['kind']}",
-                )
+                try:
+                    await ctx.report_progress(
+                        progress_count[0],
+                        None,
+                        f"{rel_prefix}{result['name']}: {result['kind']}",
+                    )
+                except Exception:
+                    # The transfer already succeeded or failed on its own terms —
+                    # a broken notification channel (e.g. a dropped session) must
+                    # not overwrite that outcome with a spurious failure. PR #351
+                    # review: this was previously unguarded and a report_progress
+                    # exception here would propagate out, turning an already-
+                    # successful transfer into a "failed" item at the gather below.
+                    logger.debug(
+                        "report_progress failed for %s%s", rel_prefix, result["name"], exc_info=True
+                    )
             return result
 
         # return_exceptions=True: every failure path inside _run_one is already caught
@@ -1096,6 +1107,7 @@ def register(tool):
         total_bytes = 0
 
         candidates: list[tuple[str, str, bool, Path]] = []
+        claimed_dest: set[str] = set()
         for f in results.get("files", []):
             fid = f["id"]
             fname = f["name"]
@@ -1126,6 +1138,27 @@ def register(tool):
             if skip_if_exists and dest_file.exists():
                 skipped.append(dest_file.name)
                 continue
+
+            # Drive allows two files with the same name (distinct IDs) in one
+            # folder; the local filesystem doesn't. Concurrent transfers below
+            # would otherwise race to write the identical path — keep the first
+            # candidate and record the rest as failed instead of silently
+            # clobbering content or double-counting size_bytes (PR #351 review,
+            # live-reproduced against a fixture folder with duplicate names).
+            dest_key = str(dest_file)
+            if dest_key in claimed_dest:
+                failed.append(
+                    {
+                        "name": fname,
+                        "error": (
+                            f"duplicate filename: another file named '{dest_file.name}' "
+                            "already claims this destination path — only the first is "
+                            "downloaded"
+                        ),
+                    }
+                )
+                continue
+            claimed_dest.add(dest_key)
 
             candidates.append((fid, fname, is_workspace, dest_file))
 
@@ -1169,7 +1202,18 @@ def register(tool):
             # each concurrent download finishes rather than arriving in one burst
             # after asyncio.gather resolves — see #316.
             completed += 1
-            await ctx.report_progress(completed, total, f"{completed}/{total}: {result['name']}")
+            try:
+                await ctx.report_progress(
+                    completed, total, f"{completed}/{total}: {result['name']}: {result['kind']}"
+                )
+            except Exception:
+                # The download already succeeded or failed on its own terms — a
+                # broken notification channel must not overwrite that outcome.
+                # PR #351 review: this was previously unguarded and a
+                # report_progress exception here would propagate out, turning an
+                # already-successful download into a "failed" item at the
+                # gather below.
+                logger.debug("report_progress failed for %s", result["name"], exc_info=True)
             return result
 
         # Concurrent fan-out, same pattern as _sync_level's _run_one: previously this

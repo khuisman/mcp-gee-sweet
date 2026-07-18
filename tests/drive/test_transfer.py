@@ -407,6 +407,27 @@ class TestSyncFolderRecursive:
         )
         ctx.report_progress.assert_not_awaited()
 
+    async def test_report_progress_failure_does_not_demote_a_successful_upload(self, tmp_path):
+        """PR #351 review: ctx.report_progress raising (e.g. a dropped session)
+        must not overwrite an already-successful upload's result, and must not
+        skip the drive_folder_cache invalidation that a real mutation earns."""
+        (tmp_path / "a.txt").write_text("hi")
+        fs = _FakeDriveFS({"root": []})
+        ctx = self._ctx(fs)
+        ctx.report_progress.side_effect = RuntimeError("connection dropped")
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            ctx=ctx,
+        )
+        assert result["uploaded"] == ["a.txt"]
+        assert result["failed"] == []
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_once_with(
+            "root"
+        )
+
     async def test_file_folder_name_collision_recorded_as_failed_not_crashed(self, tmp_path):
         """PR #328 review: a Drive file and a Drive folder can share a name (keyed by
         ID, not name). A local file already occupying the subfolder's target path
@@ -634,6 +655,69 @@ class TestDownloadFolder:
         assert completed_values == [1, 2]
         for c in ctx.report_progress.await_args_list:
             assert c.args[1] == 2  # total
+
+    async def test_duplicate_drive_filenames_do_not_race_or_double_count(self, tmp_path):
+        """PR #351 review, live-reproduced: Drive allows two files with the same
+        name (distinct IDs) in one folder; the local filesystem doesn't. The old
+        sequential loop was accidentally safe here (each existence check ran only
+        after the previous file had fully written) — the concurrent rewrite must
+        dedupe by destination path instead of letting two writers race onto the
+        same file and double-count size_bytes."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "doc1",
+                    "name": "Report",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+                {
+                    "id": "doc2",
+                    "name": "Report",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+            ]
+        }
+        svc.files.return_value.export.return_value.execute.return_value = b"content"
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            ctx=self._ctx(svc),
+        )
+        assert result["downloaded"] == ["Report.pdf"]
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["name"] == "Report"
+        assert "duplicate filename" in result["failed"][0]["error"]
+        assert result["size_bytes"] == len(b"content")
+        assert (tmp_path / "Report.pdf").read_bytes() == b"content"
+
+    async def test_report_progress_failure_does_not_demote_a_successful_download(self, tmp_path):
+        """PR #351 review: ctx.report_progress raising (e.g. a dropped session)
+        must not overwrite an already-successful download's result."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "doc1",
+                    "name": "Doc One",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+            ]
+        }
+        svc.files.return_value.export.return_value.execute.return_value = b"content"
+        ctx = self._ctx(svc)
+        ctx.report_progress.side_effect = RuntimeError("connection dropped")
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            ctx=ctx,
+        )
+        assert result["downloaded"] == ["Doc One.pdf"]
+        assert result["failed"] == []
 
 
 class TestSyncFolderResponseSizeCap:

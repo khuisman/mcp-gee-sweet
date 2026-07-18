@@ -1617,7 +1617,7 @@ Remove `/tmp/qa-download-316/`.
 
 ### TC-D199: `download_folder` and `sync_folder` emit `notifications/progress` updates as each transfer completes (issue #316)
 
-**Background:** Both tools previously ran silently for their entire duration — the 226s `download_folder` call above returned nothing until the very end, with no indication to the caller of whether it was working or hung. Both now call `ctx.report_progress()` from inside each individual transfer's own coroutine right as it finishes, not after the whole concurrent batch resolves — so a caller that supplied a progressToken sees a live stream of "N/total: name" updates spread across the call's duration instead of one final burst. Progress is file-count based, not byte-size: neither tool's Drive listing fetches a `size` field, and a Workspace file's exported size is unknown until after the export completes, so an accurate byte total isn't available upfront (file count is used deliberately here, per issue #316's own example wording — a size-based mode is tracked separately as potential future work, not part of this fix). `sync_folder`'s dry-run mode never transfers anything, so it never reports progress either.
+**Background:** Both tools previously ran silently for their entire duration — the 226s `download_folder` call above returned nothing until the very end, with no indication to the caller of whether it was working or hung. Both now call `ctx.report_progress()` from inside each individual transfer's own coroutine right as it finishes, not after the whole concurrent batch resolves, so a caller that supplied a progressToken sees a live stream of updates spread across the call's duration instead of one final burst. The two tools' messages aren't identical: `download_folder` knows its file count upfront (a single non-recursive listing), so it reports a real `total` and a message like `"12/217: report.pdf: ok"`. `sync_folder` doesn't know the total ahead of time (recursive descent discovers files level by level), so it always passes `total=None` and reports a running count with a message like `"readme.txt: download_ok"` — no "N/total" prefix. Progress is file-count based, not byte-size, for both: neither tool's Drive listing fetches a `size` field, and a Workspace file's exported size is unknown until after the export completes, so an accurate byte total isn't available upfront (a size-based mode is tracked separately in #352). `sync_folder`'s dry-run mode never transfers anything, so it never reports progress either. `ctx.report_progress()` itself is wrapped in a try/except at both call sites (PR #351 review) — a failed notification (e.g. a dropped session) no longer downgrades an already-successful transfer to a reported failure.
 
 **Note:** `notifications/progress` is a protocol-level message, not part of the tool's JSON response — whether it's visible during this QA pass depends on whether the MCP client surfaces raw progress notifications in the transcript. The exact per-item call count, `total`, and message content are already asserted against a mocked `ctx` in `tests/drive/test_transfer.py::TestDownloadFolder::test_reports_progress_as_files_complete` and `TestSyncFolderRecursive::test_reports_progress_for_each_transfer_not_after_the_whole_batch`/`test_dry_run_reports_no_progress`. If the client doesn't surface progress notifications, this check can only confirm the call still completes normally with the notification calls in place.
 
@@ -1635,6 +1635,27 @@ In `{FOLDER_ID}`, ensure at least 5 files exist.
 
 **Teardown**
 Remove `/tmp/qa-progress-316/`.
+
+---
+
+### TC-D200: `download_folder` — two Drive files with the same name no longer race or double-count (PR #351 review) ⚠️ local-filesystem
+
+**Background:** QA's TC-D198 pass live-reproduced a correctness bug in the concurrency fix: `download_folder`'s candidate-collection loop checked `skip_if_exists` against the pre-transfer filesystem state for every Drive file before any download started. Drive allows two files with the same name (distinct IDs) in one folder — the local filesystem doesn't — so two same-named files both passed the check and were queued into the same concurrent batch, racing to write the identical local path. The prior sequential implementation was accidentally safe here (each file's existence check ran only after the previous file had fully written). Fixed by deduping candidates by destination path as they're collected: the first file claims the path, later files with the same destination are recorded under `failed` with an explanatory "duplicate filename" error instead of being queued to write. Unit-tested deterministically (`tests/drive/test_transfer.py::TestDownloadFolder::test_duplicate_drive_filenames_do_not_race_or_double_count`); this live check confirms the fix against the exact fixture-drift scenario QA's TC-D198 run hit.
+
+**Setup**
+In `{FOLDER_ID}`, create two Drive files with the identical name, e.g. `dup-test.txt` (distinct IDs — two separate `upload_file` calls with the same `name`), with different content each (so a content mix-up is detectable).
+
+**Prompt**
+> "Download all files from {FOLDER_ID} to `/tmp/qa-dup-351/`"
+
+**Checks**
+- `downloaded` contains `dup-test.txt` exactly once (not twice)
+- `failed` contains exactly one entry for `dup-test.txt` (or the export-suffixed name, if the duplicate involves Workspace files) whose `error` mentions "duplicate filename"
+- `/tmp/qa-dup-351/dup-test.txt` exists and its content matches whichever of the two Drive files was actually downloaded (i.e. content is intact, not corrupted by a partial concurrent write)
+- `size_bytes` reflects only the one file that was actually downloaded, not both
+
+**Teardown**
+Delete both `dup-test.txt` files from `{FOLDER_ID}`. Remove `/tmp/qa-dup-351/`.
 
 ---
 
