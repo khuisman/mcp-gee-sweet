@@ -1593,6 +1593,47 @@ Delete `sib-a` and `sib-b` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-328c/`.
 
 ---
 
+### TC-D198: `download_folder` transfers files concurrently instead of one at a time (issue #316) ⚠️ local-filesystem
+
+**Background:** Live testing measured `download_folder` against a real 217-file Shared Drive folder at 226s total — roughly 1.04s/file, scaling linearly, consistent with a sequential `for file in files: await download(file)` loop rather than concurrent fan-out. `sync_folder`'s per-level transfers already ran concurrently via `asyncio.gather()` (#293); `download_folder` had its own separate, still-sequential loop. Fixed by rewriting it to the same concurrent-gather pattern. Genuine concurrency (not just correctness) is unit-tested via a real-thread synchronization barrier (`tests/drive/test_transfer.py::TestDownloadFolder::test_files_download_concurrently`); this live check confirms wall-clock time actually improves and results stay correctly attributed under real concurrent Drive API calls.
+
+**Setup**
+In `{FOLDER_ID}`, ensure at least 10-15 non-Workspace files exist.
+
+**Prompt**
+> "Download all files from {FOLDER_ID} to `/tmp/qa-download-316/` and tell me how long the call took"
+
+**Checks**
+- Wall-clock time is well under (file count × ~1s) — concurrent fan-out means total time tracks the slowest individual transfer, not the sum of all of them
+- Every file appears in `downloaded` with the correct name and `size_bytes` matching its own source file — no content or name cross-attribution between files under concurrency
+- `failed` is empty
+
+**Teardown**
+Remove `/tmp/qa-download-316/`.
+
+---
+
+### TC-D199: `download_folder` and `sync_folder` emit `notifications/progress` updates as each transfer completes (issue #316)
+
+**Background:** Both tools previously ran silently for their entire duration — the 226s `download_folder` call above returned nothing until the very end, with no indication to the caller of whether it was working or hung. Both now call `ctx.report_progress()` from inside each individual transfer's own coroutine right as it finishes, not after the whole concurrent batch resolves — so a caller that supplied a progressToken sees a live stream of "N/total: name" updates spread across the call's duration instead of one final burst. Progress is file-count based, not byte-size: neither tool's Drive listing fetches a `size` field, and a Workspace file's exported size is unknown until after the export completes, so an accurate byte total isn't available upfront (file count is used deliberately here, per issue #316's own example wording — a size-based mode is tracked separately as potential future work, not part of this fix). `sync_folder`'s dry-run mode never transfers anything, so it never reports progress either.
+
+**Note:** `notifications/progress` is a protocol-level message, not part of the tool's JSON response — whether it's visible during this QA pass depends on whether the MCP client surfaces raw progress notifications in the transcript. The exact per-item call count, `total`, and message content are already asserted against a mocked `ctx` in `tests/drive/test_transfer.py::TestDownloadFolder::test_reports_progress_as_files_complete` and `TestSyncFolderRecursive::test_reports_progress_for_each_transfer_not_after_the_whole_batch`/`test_dry_run_reports_no_progress`. If the client doesn't surface progress notifications, this check can only confirm the call still completes normally with the notification calls in place.
+
+**Setup**
+In `{FOLDER_ID}`, ensure at least 5 files exist.
+
+**Prompt**
+> "Download all files from {FOLDER_ID} to `/tmp/qa-progress-316/`"
+
+**Checks**
+- If progress notifications are visible in the client: multiple discrete "N/total" updates appear spread across the call, not a single update at the very end
+- Regardless of notification visibility: the call completes normally and `downloaded` is correct
+
+**Teardown**
+Remove `/tmp/qa-progress-316/`.
+
+---
+
 ## `list_drives`
 
 ### TC-D120: List all shared drives

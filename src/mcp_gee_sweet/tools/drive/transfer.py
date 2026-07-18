@@ -81,6 +81,8 @@ async def _sync_level(
     failed: list[dict[str, str]],
     actions: list[dict[str, str]],
     folders_skipped: list[str],
+    ctx: Context,
+    progress_count: list[int],
 ) -> int:
     """
     Sync the files directly inside one Drive-folder/local-dir pair and, if `recursive`,
@@ -285,13 +287,30 @@ async def _sync_level(
             except Exception as e:
                 return {"kind": "download_fail", "name": name, "error": str(e)}
 
+        async def _run_one_with_progress(step: dict[str, str]) -> dict[str, Any]:
+            result = await _run_one(step)
+            # Report per-item, not after the whole gather resolves — the gather
+            # blocks until every concurrent transfer at this level finishes, so
+            # reporting afterward would deliver a single silent burst instead of
+            # live progress during the wait (the actual complaint in #316).
+            if result["kind"] in ("upload_ok", "upload_fail", "download_ok", "download_fail"):
+                progress_count[0] += 1
+                await ctx.report_progress(
+                    progress_count[0],
+                    None,
+                    f"{rel_prefix}{result['name']}: {result['kind']}",
+                )
+            return result
+
         # return_exceptions=True: every failure path inside _run_one is already caught
         # and converted into a *_fail result dict, but this also lets every in-flight
         # transfer finish before surfacing an unexpected exception, instead of
         # orphaning in-flight uploads/downloads. Thread-pool default (~32 workers)
         # means very large plans queue rather than fully parallelizing — timing stays
         # accurate, just with diminishing returns past that.
-        raw = await asyncio.gather(*(_run_one(step) for step in plan), return_exceptions=True)
+        raw = await asyncio.gather(
+            *(_run_one_with_progress(step) for step in plan), return_exceptions=True
+        )
 
         level_changed = False
         for step, o in zip(plan, raw, strict=True):
@@ -413,6 +432,8 @@ async def _sync_level(
                 failed,
                 actions,
                 folders_skipped,
+                ctx,
+                progress_count,
             )
 
         # Sibling subfolders are independent — descend into all of them concurrently
@@ -1028,6 +1049,10 @@ def register(tool):
         to that format. Subfolders are always skipped, regardless of export_format —
         this tool never descends into them.
 
+        Files transfer concurrently rather than one at a time. If the caller supplied
+        a progressToken, a `notifications/progress` update is sent as each file
+        finishes (e.g. "12/217: report.pdf: ok").
+
         Args:
             folder_id: The Google Drive folder ID.
             local_path: Local directory to download files into (created if needed).
@@ -1070,6 +1095,7 @@ def register(tool):
         failed: list[dict[str, str]] = []
         total_bytes = 0
 
+        candidates: list[tuple[str, str, bool, Path]] = []
         for f in results.get("files", []):
             fid = f["id"]
             fname = f["name"]
@@ -1101,6 +1127,15 @@ def register(tool):
                 skipped.append(dest_file.name)
                 continue
 
+            candidates.append((fid, fname, is_workspace, dest_file))
+
+        total = len(candidates)
+        completed = 0
+
+        async def _download_one(
+            fid: str, fname: str, is_workspace: bool, dest_file: Path
+        ) -> dict[str, Any]:
+            nonlocal completed
             try:
                 if is_workspace:
                     target_mime = _EXPORT_MIME[export_format][0]
@@ -1125,11 +1160,32 @@ def register(tool):
                     await asyncio.to_thread(_download_to_completion)
 
                 size = dest_file.stat().st_size
-                total_bytes += size
-                downloaded.append(dest_file.name)
                 logger.debug("Downloaded %s → %s (%d bytes)", fid, dest_file, size)
+                result: dict[str, Any] = {"kind": "ok", "name": dest_file.name, "bytes": size}
             except Exception as e:
-                failed.append({"name": fname, "error": str(e)})
+                result = {"kind": "fail", "name": fname, "error": str(e)}
+
+            # Reported here, inside the per-item coroutine, so updates stream in as
+            # each concurrent download finishes rather than arriving in one burst
+            # after asyncio.gather resolves — see #316.
+            completed += 1
+            await ctx.report_progress(completed, total, f"{completed}/{total}: {result['name']}")
+            return result
+
+        # Concurrent fan-out, same pattern as _sync_level's _run_one: previously this
+        # was a sequential `for` loop awaiting one transfer at a time (#316), which
+        # measured 1.04s/file and scaled linearly with folder size.
+        raw = await asyncio.gather(*(_download_one(*c) for c in candidates), return_exceptions=True)
+
+        for c, o in zip(candidates, raw, strict=True):
+            if isinstance(o, BaseException):
+                failed.append({"name": c[1], "error": str(o)})
+                continue
+            if o["kind"] == "ok":
+                downloaded.append(o["name"])
+                total_bytes += o["bytes"]
+            else:
+                failed.append({"name": o["name"], "error": o["error"]})
 
         return {
             "downloaded": downloaded,
@@ -1204,6 +1260,14 @@ def register(tool):
         includes an 'actions' list showing every file considered at every level
         visited, with the reason.
 
+        ## Progress
+
+        File transfers within each level run concurrently rather than one at a time.
+        If the caller supplied a progressToken, a `notifications/progress` update is
+        sent as each individual upload/download completes (skips and conflicts don't
+        emit updates — they're free, not transfers). No update is sent during dry_run,
+        since nothing is transferred.
+
         Args:
             folder_id: Google Drive folder ID to sync against.
             local_path: Local directory path to sync against (created if needed).
@@ -1263,6 +1327,8 @@ def register(tool):
             failed,
             actions,
             folders_skipped,
+            ctx,
+            [0],
         )
 
         result: dict[str, Any] = {
