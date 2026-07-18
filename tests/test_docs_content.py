@@ -1075,14 +1075,55 @@ def _build_doc_body(paragraph_runs: list[list[str]]) -> tuple[dict, list[tuple[i
 class TestCollectDocParagraphs:
     def test_single_run_paragraph(self):
         doc, paragraphs = _build_doc_body([["Hello world\n"]])
-        result = _collect_doc_paragraphs(doc["body"]["content"])
+        result = list(_collect_doc_paragraphs(doc["body"]["content"]))
         assert result == [("Hello world\n", list(range(1, 13)))]
 
     def test_multi_run_paragraph_indices_stay_contiguous(self):
         doc, _ = _build_doc_body([["Contact: ", "test@example.com", " again\n"]])
-        text, indices = _collect_doc_paragraphs(doc["body"]["content"])[0]
+        text, indices = next(_collect_doc_paragraphs(doc["body"]["content"]))
         assert text == "Contact: test@example.com again\n"
         assert indices == list(range(1, 1 + len(text)))
+
+    def test_missing_start_index_carries_offset_forward_instead_of_dropping(self):
+        # Regression: the Docs API doesn't always populate a ParagraphElement's
+        # startIndex (observed on a document's very first element). The old
+        # implementation silently dropped any run missing it; this run's index
+        # must instead be derived from the paragraph's own startIndex.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "paragraph": {
+                            "elements": [{"textRun": {"content": "no index\n"}}],
+                        },
+                    }
+                ]
+            }
+        }
+        text, indices = next(_collect_doc_paragraphs(doc["body"]["content"]))
+        assert text == "no index\n"
+        assert indices == list(range(1, 1 + len(text)))
+
+    def test_astral_character_advances_offset_by_two_utf16_units(self):
+        # Regression: Docs API indices are UTF-16 code units. "😀" (U+1F600) is
+        # one Python character but a surrogate pair (2 units) in UTF-16 — the
+        # character immediately after it must land 2 units past its own index,
+        # not 1.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [{"startIndex": 1, "textRun": {"content": "hi 😀 bye\n"}}],
+                        },
+                    }
+                ]
+            }
+        }
+        text, indices = next(_collect_doc_paragraphs(doc["body"]["content"]))
+        emoji_pos = text.index("😀")
+        assert indices[emoji_pos + 1] == indices[emoji_pos] + 2
 
     def test_recurses_into_table_cells(self):
         doc = {
@@ -1120,7 +1161,7 @@ class TestCollectDocParagraphs:
                 ]
             }
         }
-        result = _collect_doc_paragraphs(doc["body"]["content"])
+        result = list(_collect_doc_paragraphs(doc["body"]["content"]))
         assert result == [("cell one\n", list(range(3, 12)))]
 
     def test_skips_non_text_paragraph_elements(self):
@@ -1142,7 +1183,7 @@ class TestCollectDocParagraphs:
                 ]
             }
         }
-        result = _collect_doc_paragraphs(doc["body"]["content"])
+        result = list(_collect_doc_paragraphs(doc["body"]["content"]))
         assert result == [("text\n", [2, 3, 4, 5, 6])]
 
 
@@ -1154,6 +1195,37 @@ class TestFindInDoc:
         docs_svc = MagicMock()
         docs_svc.documents.return_value.get.return_value.execute.return_value = doc
         return docs_svc
+
+    async def test_docs_api_error_returns_error_dict(self):
+        # Regression: documents().get() had no try/except, unlike every sibling
+        # tool in this file — an invalid doc_id raised instead of returning
+        # {"error": ...}.
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.side_effect = HttpError(
+            resp=MagicMock(status=404), content=b'{"error": {"message": "not found"}}'
+        )
+        ctx = self._ctx(docs_svc)
+
+        result = await _docs_tools["find_in_doc"](doc_id="missing", query="x", ctx=ctx)
+
+        assert "error" in result
+
+    async def test_match_offset_after_astral_character_is_utf16_correct(self):
+        # Regression: offsets used to be computed via enumerate() over Python
+        # characters (code points). "😀" is 1 Python character but 2 UTF-16
+        # units — a match after it must land 1 unit further than naive
+        # code-point counting would put it.
+        doc, _ = _build_doc_body([["hi 😀 needle\n"]])
+        ctx = self._ctx(self._docs_svc(doc))
+
+        results = await _docs_tools["find_in_doc"](doc_id="doc1", query="needle", ctx=ctx)
+
+        assert len(results) == 1
+        # "hi 😀 " is 5 Python chars before "needle" starts, so naive
+        # code-point math (the old, buggy behavior) would put start_index at
+        # 1 + 5 = 6. "😀" actually costs 2 UTF-16 units instead of 1, so the
+        # correct start_index is one further, at 7.
+        assert results[0]["start_index"] == 7
 
     async def test_literal_case_insensitive_by_default(self):
         doc, paragraphs = _build_doc_body([["Hello World\n"], ["another hello here\n"]])

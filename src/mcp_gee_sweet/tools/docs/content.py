@@ -2,6 +2,7 @@ import html as html_module
 import logging
 import re
 import xml.etree.ElementTree as etree
+from collections.abc import Iterator
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -144,35 +145,57 @@ def _html_to_doc_requests(
     return _to_doc_requests(html_content, "html", start_index)
 
 
-def _collect_doc_paragraphs(content: list[dict[str, Any]]) -> list[tuple[str, list[int]]]:
+def _utf16_units(ch: str) -> int:
+    """UTF-16 code units a single Python character occupies. Docs API indices
+    (startIndex/endIndex) are UTF-16 code units, not Python code points — an
+    astral-plane character (most emoji, some CJK/math symbols) is one Python
+    str character but 2 UTF-16 units (a surrogate pair), so every offset past
+    one would drift by 1 if counted with plain enumerate()."""
+    return 2 if ord(ch) > 0xFFFF else 1
+
+
+def _collect_doc_paragraphs(content: list[dict[str, Any]]) -> Iterator[tuple[str, list[int]]]:
     """Walk document body content, recursing into table cells, yielding each
     paragraph's text paired with a parallel list of document character indices
-    (one per character in the text) — lets a match's in-paragraph span be
-    translated back into document offsets usable with style_doc_range.
+    (one per Python character in the text, in UTF-16 code units) — lets a
+    match's in-paragraph span be translated back into document offsets usable
+    with style_doc_range.
 
-    Each paragraph's last textRun already ends with the API's own trailing "\\n"
-    for the paragraph mark, so no separator needs to be inserted between
-    paragraphs — indices stay contiguous across the whole walk."""
-    paragraphs: list[tuple[str, list[int]]] = []
+    A generator so a caller (e.g. find_in_doc bounding results by max_results)
+    can stop pulling early without walking the rest of a large document.
+
+    Each ParagraphElement carries its own startIndex, but the Docs API doesn't
+    always populate it (observed on a document's very first element). When
+    present it's trusted directly, resyncing the running offset; when absent,
+    the offset just carries forward from the paragraph's own startIndex plus
+    whatever's been consumed so far, so one missing field doesn't silently
+    drop that element's text the way an unconditional skip would."""
     for elem in content:
         if "paragraph" in elem:
-            chars: list[str] = []
+            offset = elem.get("startIndex", 0)
+            text_parts: list[str] = []
             indices: list[int] = []
             for pe in elem["paragraph"].get("elements", []):
-                tr = pe.get("textRun")
                 start = pe.get("startIndex")
-                if not tr or not tr.get("content") or start is None:
-                    continue
-                for i, ch in enumerate(tr["content"]):
-                    chars.append(ch)
-                    indices.append(start + i)
-            if chars:
-                paragraphs.append(("".join(chars), indices))
+                if start is not None:
+                    offset = start
+                tr = pe.get("textRun")
+                if tr and tr.get("content"):
+                    run_text = tr["content"]
+                    text_parts.append(run_text)
+                    for ch in run_text:
+                        indices.append(offset)
+                        offset += _utf16_units(ch)
+                else:
+                    end = pe.get("endIndex")
+                    if end is not None:
+                        offset = end
+            if text_parts:
+                yield "".join(text_parts), indices
         elif "table" in elem:
             for row in elem["table"].get("tableRows", []):
                 for cell in row.get("tableCells", []):
-                    paragraphs.extend(_collect_doc_paragraphs(cell.get("content", [])))
-    return paragraphs
+                    yield from _collect_doc_paragraphs(cell.get("content", []))
 
 
 async def _create_named_range(
@@ -738,8 +761,10 @@ def register(tool):
 
         Matches feed directly into style_doc_range's ranges — e.g. to link up
         bare URLs already sitting in a doc: find_in_doc(doc_id,
-        query=r"https?://\\S+", regex=True), then style_doc_range with
-        link_url per match.
+        query=r'https?://[^\\s<>"]+(?<![.,;:!?)])', regex=True), then
+        style_doc_range with link_url per match. The trailing negative
+        lookbehind keeps a URL followed by sentence punctuation (or an
+        unmatched closing paren) from swallowing it into the link.
 
         Args:
             doc_id: The Google Doc file ID.
@@ -760,7 +785,8 @@ def register(tool):
             text in the document body, including table cells; headers,
             footers, and footnotes are not searched. A zero-length regex match
             (e.g. "x*" with no "x" present) is skipped. Returns {"error": ...}
-            if query is an invalid regex. max_results bounds match count, not
+            if query is an invalid regex, or if the Docs API call itself fails
+            (e.g. doc_id doesn't exist). max_results bounds match count, not
             response size — matched context can still be large. Raises
             ValueError if the response exceeds a safety cap (default 40,000
             characters, set MAX_TOOL_RESPONSE_CHARS to change it) and
@@ -777,10 +803,13 @@ def register(tool):
         except re.error as e:
             return {"error": f"Invalid regex: {e}"}
 
-        doc = await execute_in_thread(
-            docs_service.documents().get(documentId=doc_id).execute,
-            docs_service,
-        )
+        try:
+            doc = await execute_in_thread(
+                docs_service.documents().get(documentId=doc_id).execute,
+                docs_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
 
         results: list[dict[str, Any]] = []
         for para_text, para_indices in _collect_doc_paragraphs(
@@ -797,7 +826,8 @@ def register(tool):
                 results.append(
                     {
                         "start_index": para_indices[start_char],
-                        "end_index": para_indices[end_char - 1] + 1,
+                        "end_index": para_indices[end_char - 1]
+                        + _utf16_units(para_text[end_char - 1]),
                         "matched_text": para_text[start_char:end_char],
                         "context": para_text.rstrip("\n"),
                     }
