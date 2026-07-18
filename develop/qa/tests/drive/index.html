@@ -3031,6 +3031,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-d201-sync_folder-no-longer-re-uploads-a-file-after-downloading-it-issue-346-destructive-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D201: sync_folder no longer re-uploads a file after downloading it (issue #346) ⚠️ destructive ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5463,6 +5474,22 @@ In <code>{FOLDER_ID}</code>, create two Drive files with the identical name, e.g
 <p><strong>Result (2026-07-17) ✅ PASS</strong> Uploaded two distinct-ID files named <code>dup-test.txt</code> (different content each) to <code>{FOLDER_ID}</code>, then ran <code>download_folder</code>. Response: <code>"downloaded": [..., "dup-test.txt", ...]</code> exactly once, <code>"failed"</code> included exactly one <code>dup-test.txt</code> entry with <code>error</code> containing "duplicate filename", and <code>size_bytes</code> reflected only the single downloaded copy. On disk, <code>dup-test.txt</code> contained one file's content intact (not interleaved/corrupted). This re-verifies the fix from <code>3ad523c</code> against a purpose-built duplicate, on top of the incidental fixture-drift duplicates re-checked under TC-D198.</p>
 <p><strong>Teardown</strong>
 Delete both <code>dup-test.txt</code> files from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-dup-351/</code>.</p>
+<hr />
+<h3 id="tc-d201-sync_folder-no-longer-re-uploads-a-file-after-downloading-it-issue-346-destructive-local-filesystem">TC-D201: <code>sync_folder</code> no longer re-uploads a file after downloading it (issue #346) ⚠️ destructive ⚠️ local-filesystem<a class="headerlink" href="#tc-d201-sync_folder-no-longer-re-uploads-a-file-after-downloading-it-issue-346-destructive-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> TC-D190's re-sync check found that a downloaded file's local mtime defaulted to write time ("now"), not Drive's <code>modifiedTime</code> — since "now" is always later than Drive's original timestamp, the next sync saw the file as locally newer (outside the 5s tolerance) and re-uploaded it, repeating on every subsequent sync. Filed as #346 rather than blocking #315/#328. Fixed by setting the local file's mtime to Drive's <code>modifiedTime</code> (via <code>os.utime</code>) right after a successful download, mirroring what the upload branch already does in reverse for the Drive side. Unit-tested deterministically (<code>tests/drive/test_transfer.py::TestSyncFolderDownloadMtimeRoundTrip</code>); this live check re-runs TC-D190's exact failing scenario to confirm the fix.</p>
+<p><strong>Setup</strong>
+In <code>{FOLDER_ID}</code>, ensure at least one Drive-only file exists that isn't already present locally (a fresh scratch fixture is fine — no need to reuse the polluted long-standing fixture files).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync-346/</code> bidirectionally" <em>(run twice in a row)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- First run: the file appears in <code>downloaded</code>
+- Second run (any real time gap is fine — no need to wait past the 5s tolerance deliberately, ordinary tool-call latency between the two prompts is enough): the same file appears in <code>skipped</code> ("in sync"), not <code>uploaded</code>
+- No entry for the file appears in <code>conflicts</code> on either run</p>
+<p><strong>Result (2026-07-17) ✅ PASS</strong> Uploaded <code>qa-mtime-346.txt</code> to <code>{FOLDER_ID}</code>, ran <code>sync_folder(direction="bidirectional")</code> twice against a fresh local dir. First run: <code>downloaded</code> included <code>qa-mtime-346.txt</code>. Second run: <code>qa-mtime-346.txt</code> moved to <code>skipped</code>, with <code>uploaded</code>/<code>conflicts</code> both empty — no re-upload loop. Bonus: the two pre-existing raw (non-Workspace) fixture files (<code>qa-notes.md</code>, <code>qa-upload.txt</code>) also settled into <code>skipped</code> on the second run, confirming the fix holds on the raw-file download branch, not just the Workspace-export branch the unit tests exercise.</p>
+<p><strong>Teardown</strong>
+Delete the test file from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-346/</code>.</p>
 <hr />
 <h2 id="list_drives"><code>list_drives</code><a class="headerlink" href="#list_drives" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d120-list-all-shared-drives">TC-D120: List all shared drives<a class="headerlink" href="#tc-d120-list-all-shared-drives" title="Permanent link">&para;</a></h3>
