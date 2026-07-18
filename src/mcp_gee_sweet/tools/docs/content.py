@@ -172,7 +172,10 @@ def _collect_doc_paragraphs(content: list[dict[str, Any]]) -> Iterator[tuple[str
     drop that element's text the way an unconditional skip would."""
     for elem in content:
         if "paragraph" in elem:
-            offset = elem.get("startIndex", 0)
+            # Google Docs body content is never index 0 — a missing startIndex
+            # here only happens on the document's very first element, which
+            # implicitly starts at 1 (same convention as tables.py/emitter.py).
+            offset = elem.get("startIndex", 1)
             text_parts: list[str] = []
             indices: list[int] = []
             for pe in elem["paragraph"].get("elements", []):

@@ -1105,6 +1105,26 @@ class TestCollectDocParagraphs:
         assert text == "no index\n"
         assert indices == list(range(1, 1 + len(text)))
 
+    def test_missing_start_index_at_both_levels_defaults_to_document_start(self):
+        # Regression: Google Docs body content is never index 0 — when the
+        # very first element of a document omits startIndex at both the
+        # paragraph and its first run (the actual documented quirk), the
+        # fallback must be 1, not 0.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [{"textRun": {"content": "no index anywhere\n"}}],
+                        },
+                    }
+                ]
+            }
+        }
+        text, indices = next(_collect_doc_paragraphs(doc["body"]["content"]))
+        assert text == "no index anywhere\n"
+        assert indices == list(range(1, 1 + len(text)))
+
     def test_astral_character_advances_offset_by_two_utf16_units(self):
         # Regression: Docs API indices are UTF-16 code units. "😀" (U+1F600) is
         # one Python character but a surrogate pair (2 units) in UTF-16 — the
