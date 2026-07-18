@@ -14,6 +14,7 @@ from mcp_gee_sweet.tools.docs.ast import (
     Paragraph,
 )
 from mcp_gee_sweet.tools.docs.content import (
+    _collect_doc_paragraphs,
     _md_to_html,
     _to_doc_requests,
 )
@@ -1045,3 +1046,343 @@ class TestWriteDocContent:
             "updateTextStyle" in r and r["updateTextStyle"].get("fields") == "*" for r in calls[0]
         )
         assert not any("deleteContentRange" in r for r in calls[0])
+
+
+def _build_doc_body(paragraph_runs: list[list[str]]) -> tuple[dict, list[tuple[int, str]]]:
+    """Build a synthetic Docs API body from a list of paragraphs, each a list of
+    textRun content strings (the last run of a paragraph should end in "\\n",
+    matching how the real API terminates a paragraph). Returns (doc, paragraphs)
+    where paragraphs is [(start_index, concatenated_text), ...] for computing
+    expected offsets in tests without hand-counting characters."""
+    idx = 1
+    content = []
+    paragraphs = []
+    for runs in paragraph_runs:
+        para_start = idx
+        elements = []
+        for text in runs:
+            elements.append(
+                {"startIndex": idx, "endIndex": idx + len(text), "textRun": {"content": text}}
+            )
+            idx += len(text)
+        content.append(
+            {"startIndex": para_start, "endIndex": idx, "paragraph": {"elements": elements}}
+        )
+        paragraphs.append((para_start, "".join(runs)))
+    return {"body": {"content": content}}, paragraphs
+
+
+class TestCollectDocParagraphs:
+    def test_single_run_paragraph(self):
+        doc, paragraphs = _build_doc_body([["Hello world\n"]])
+        result = list(_collect_doc_paragraphs(doc["body"]["content"]))
+        assert result == [("Hello world\n", list(range(1, 13)))]
+
+    def test_multi_run_paragraph_indices_stay_contiguous(self):
+        doc, _ = _build_doc_body([["Contact: ", "test@example.com", " again\n"]])
+        text, indices = next(_collect_doc_paragraphs(doc["body"]["content"]))
+        assert text == "Contact: test@example.com again\n"
+        assert indices == list(range(1, 1 + len(text)))
+
+    def test_missing_start_index_carries_offset_forward_instead_of_dropping(self):
+        # Regression: the Docs API doesn't always populate a ParagraphElement's
+        # startIndex (observed on a document's very first element). The old
+        # implementation silently dropped any run missing it; this run's index
+        # must instead be derived from the paragraph's own startIndex.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "paragraph": {
+                            "elements": [{"textRun": {"content": "no index\n"}}],
+                        },
+                    }
+                ]
+            }
+        }
+        text, indices = next(_collect_doc_paragraphs(doc["body"]["content"]))
+        assert text == "no index\n"
+        assert indices == list(range(1, 1 + len(text)))
+
+    def test_missing_start_index_at_both_levels_defaults_to_document_start(self):
+        # Regression: Google Docs body content is never index 0 — when the
+        # very first element of a document omits startIndex at both the
+        # paragraph and its first run (the actual documented quirk), the
+        # fallback must be 1, not 0.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [{"textRun": {"content": "no index anywhere\n"}}],
+                        },
+                    }
+                ]
+            }
+        }
+        text, indices = next(_collect_doc_paragraphs(doc["body"]["content"]))
+        assert text == "no index anywhere\n"
+        assert indices == list(range(1, 1 + len(text)))
+
+    def test_astral_character_advances_offset_by_two_utf16_units(self):
+        # Regression: Docs API indices are UTF-16 code units. "😀" (U+1F600) is
+        # one Python character but a surrogate pair (2 units) in UTF-16 — the
+        # character immediately after it must land 2 units past its own index,
+        # not 1.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [{"startIndex": 1, "textRun": {"content": "hi 😀 bye\n"}}],
+                        },
+                    }
+                ]
+            }
+        }
+        text, indices = next(_collect_doc_paragraphs(doc["body"]["content"]))
+        emoji_pos = text.index("😀")
+        assert indices[emoji_pos + 1] == indices[emoji_pos] + 2
+
+    def test_recurses_into_table_cells(self):
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 2,
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        {
+                                            "content": [
+                                                {
+                                                    "paragraph": {
+                                                        "elements": [
+                                                            {
+                                                                "startIndex": 3,
+                                                                "endIndex": 10,
+                                                                "textRun": {
+                                                                    "content": "cell one\n"
+                                                                },
+                                                            }
+                                                        ]
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                    }
+                ]
+            }
+        }
+        result = list(_collect_doc_paragraphs(doc["body"]["content"]))
+        assert result == [("cell one\n", list(range(3, 12)))]
+
+    def test_skips_non_text_paragraph_elements(self):
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"startIndex": 1, "endIndex": 2, "pageBreak": {}},
+                                {
+                                    "startIndex": 2,
+                                    "endIndex": 8,
+                                    "textRun": {"content": "text\n"},
+                                },
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+        result = list(_collect_doc_paragraphs(doc["body"]["content"]))
+        assert result == [("text\n", [2, 3, 4, 5, 6])]
+
+
+class TestFindInDoc:
+    def _ctx(self, docs_svc):
+        return _make_ctx(docs_service=docs_svc)
+
+    def _docs_svc(self, doc):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = doc
+        return docs_svc
+
+    async def test_docs_api_error_returns_error_dict(self):
+        # Regression: documents().get() had no try/except, unlike every sibling
+        # tool in this file — an invalid doc_id raised instead of returning
+        # {"error": ...}.
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.side_effect = HttpError(
+            resp=MagicMock(status=404), content=b'{"error": {"message": "not found"}}'
+        )
+        ctx = self._ctx(docs_svc)
+
+        result = await _docs_tools["find_in_doc"](doc_id="missing", query="x", ctx=ctx)
+
+        assert "error" in result
+
+    async def test_match_offset_after_astral_character_is_utf16_correct(self):
+        # Regression: offsets used to be computed via enumerate() over Python
+        # characters (code points). "😀" is 1 Python character but 2 UTF-16
+        # units — a match after it must land 1 unit further than naive
+        # code-point counting would put it.
+        doc, _ = _build_doc_body([["hi 😀 needle\n"]])
+        ctx = self._ctx(self._docs_svc(doc))
+
+        results = await _docs_tools["find_in_doc"](doc_id="doc1", query="needle", ctx=ctx)
+
+        assert len(results) == 1
+        # "hi 😀 " is 5 Python chars before "needle" starts, so naive
+        # code-point math (the old, buggy behavior) would put start_index at
+        # 1 + 5 = 6. "😀" actually costs 2 UTF-16 units instead of 1, so the
+        # correct start_index is one further, at 7.
+        assert results[0]["start_index"] == 7
+
+    async def test_literal_case_insensitive_by_default(self):
+        doc, paragraphs = _build_doc_body([["Hello World\n"], ["another hello here\n"]])
+        ctx = self._ctx(self._docs_svc(doc))
+
+        results = await _docs_tools["find_in_doc"](doc_id="doc1", query="hello", ctx=ctx)
+
+        assert len(results) == 2
+        p0_start, p0_text = paragraphs[0]
+        p1_start, p1_text = paragraphs[1]
+        assert results[0]["start_index"] == p0_start
+        assert results[0]["end_index"] == p0_start + len("Hello")
+        assert results[0]["matched_text"] == "Hello"
+        assert results[0]["context"] == "Hello World"
+        assert results[1]["start_index"] == p1_start + p1_text.index("hello")
+        assert results[1]["matched_text"] == "hello"
+
+    async def test_case_sensitive_excludes_different_case(self):
+        doc, _ = _build_doc_body([["Hello World\n"], ["another hello here\n"]])
+        ctx = self._ctx(self._docs_svc(doc))
+
+        results = await _docs_tools["find_in_doc"](
+            doc_id="doc1", query="hello", case_sensitive=True, ctx=ctx
+        )
+
+        assert len(results) == 1
+        assert results[0]["matched_text"] == "hello"
+
+    async def test_no_match_returns_empty_list(self):
+        doc, _ = _build_doc_body([["Hello World\n"]])
+        ctx = self._ctx(self._docs_svc(doc))
+
+        results = await _docs_tools["find_in_doc"](doc_id="doc1", query="missing", ctx=ctx)
+
+        assert results == []
+
+    async def test_regex_query(self):
+        doc, paragraphs = _build_doc_body(
+            [["Contact: ", "test@example.com", " or admin@example.com\n"]]
+        )
+        ctx = self._ctx(self._docs_svc(doc))
+
+        results = await _docs_tools["find_in_doc"](
+            doc_id="doc1", query=r"[\w.]+@[\w.]+", regex=True, ctx=ctx
+        )
+
+        assert [r["matched_text"] for r in results] == ["test@example.com", "admin@example.com"]
+        para_start, para_text = paragraphs[0]
+        assert results[0]["start_index"] == para_start + para_text.index("test@example.com")
+
+    async def test_invalid_regex_returns_error(self):
+        doc, _ = _build_doc_body([["text\n"]])
+        ctx = self._ctx(self._docs_svc(doc))
+
+        result = await _docs_tools["find_in_doc"](
+            doc_id="doc1", query="(unclosed", regex=True, ctx=ctx
+        )
+
+        assert "error" in result
+
+    async def test_zero_length_regex_match_is_skipped(self):
+        doc, _ = _build_doc_body([["hello\n"]])
+        ctx = self._ctx(self._docs_svc(doc))
+
+        results = await _docs_tools["find_in_doc"](doc_id="doc1", query="z*", regex=True, ctx=ctx)
+
+        assert results == []
+
+    async def test_max_results_truncates(self):
+        doc, _ = _build_doc_body([["aaaa\n"]])
+        ctx = self._ctx(self._docs_svc(doc))
+
+        results = await _docs_tools["find_in_doc"](doc_id="doc1", query="a", max_results=2, ctx=ctx)
+
+        assert len(results) == 2
+
+    async def test_searches_table_cell_text(self):
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        {
+                                            "content": [
+                                                {
+                                                    "paragraph": {
+                                                        "elements": [
+                                                            {
+                                                                "startIndex": 5,
+                                                                "endIndex": 21,
+                                                                "textRun": {
+                                                                    "content": "needle in cell\n"
+                                                                },
+                                                            }
+                                                        ]
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+        ctx = self._ctx(self._docs_svc(doc))
+
+        results = await _docs_tools["find_in_doc"](doc_id="doc1", query="needle", ctx=ctx)
+
+        assert len(results) == 1
+        assert results[0]["start_index"] == 5
+        assert results[0]["matched_text"] == "needle"
+
+    async def test_oversized_result_raises(self, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        doc, _ = _build_doc_body([["needle needle needle\n"]])
+        ctx = self._ctx(self._docs_svc(doc))
+
+        with pytest.raises(ValueError, match="safety cap"):
+            await _docs_tools["find_in_doc"](doc_id="doc1", query="needle", ctx=ctx)
+
+    async def test_local_path_bypasses_cap_and_writes_results(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        doc, _ = _build_doc_body([["needle needle needle\n"]])
+        ctx = self._ctx(self._docs_svc(doc))
+        dest = tmp_path / "out.json"
+
+        result = await _docs_tools["find_in_doc"](
+            doc_id="doc1", query="needle", local_path=str(dest), ctx=ctx
+        )
+
+        assert result["local_path"] == str(dest)
+        assert result["match_count"] == 3
+        written = json.loads(dest.read_text())
+        assert len(written) == 3
