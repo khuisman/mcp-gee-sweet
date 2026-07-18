@@ -5,7 +5,13 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ...cache import fetch_sheets
-from .helpers import _get_sheet_id, _get_sheet_index, _parse_a1_notation
+from .helpers import (
+    _column_index_to_letter,
+    _get_sheet_id,
+    _get_sheet_index,
+    _parse_a1_notation,
+    _quote_sheet_name,
+)
 
 _VALID_CHART_TYPES = ["COLUMN", "BAR", "LINE", "AREA", "PIE", "SCATTER", "COMBO", "HISTOGRAM"]
 
@@ -17,6 +23,38 @@ _VALID_BORDER_STYLES = [
     "SOLID_THICK",
     "DOUBLE",
     "NONE",
+]
+
+_VALID_CONDITION_TYPES = [
+    "BOOLEAN",
+    "TEXT_CONTAINS",
+    "TEXT_NOT_CONTAINS",
+    "TEXT_STARTS_WITH",
+    "TEXT_ENDS_WITH",
+    "TEXT_EQ",
+    "TEXT_IS_EMAIL",
+    "TEXT_IS_URL",
+    "DATE_EQ",
+    "DATE_BEFORE",
+    "DATE_AFTER",
+    "DATE_ON_OR_BEFORE",
+    "DATE_ON_OR_AFTER",
+    "DATE_BETWEEN",
+    "DATE_NOT_BETWEEN",
+    "DATE_IS_VALID",
+    "NUMBER_GREATER",
+    "NUMBER_GREATER_THAN_EQ",
+    "NUMBER_LESS",
+    "NUMBER_LESS_THAN_EQ",
+    "NUMBER_EQ",
+    "NUMBER_NOT_EQ",
+    "NUMBER_BETWEEN",
+    "NUMBER_NOT_BETWEEN",
+    "ONE_OF_RANGE",
+    "ONE_OF_LIST",
+    "BLANK",
+    "NOT_BLANK",
+    "CUSTOM_FORMULA",
 ]
 
 
@@ -1123,6 +1161,170 @@ def register(tool):
             .execute,
             sheets_service,
         )
+
+    @tool(annotations=ToolAnnotations(title="Add Data Validation", destructiveHint=True))
+    async def add_data_validation(
+        spreadsheet_id: str,
+        sheet: str,
+        range: str,
+        condition_type: str,
+        values: list[str] | None = None,
+        input_message: str | None = None,
+        strict: bool = True,
+        show_custom_ui: bool = True,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Set a data validation rule on a cell range — dropdown lists, checkboxes, or
+        date/number/text constraints.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet
+            sheet: The name of the sheet
+            range: A1 notation range to validate (e.g. "A2:A100")
+            condition_type: One of the Sheets API's condition types:
+                "ONE_OF_LIST"      — dropdown of custom values (values = the list items)
+                "ONE_OF_RANGE"     — dropdown sourced from another range (values = one
+                                     item, the source range in A1 notation, e.g.
+                                     ["Sheet2!A:A"])
+                "BOOLEAN"          — checkbox (omit values for a plain TRUE/FALSE
+                                     checkbox, or give two values for custom
+                                     checked/unchecked labels)
+                "NUMBER_GREATER", "NUMBER_GREATER_THAN_EQ", "NUMBER_LESS",
+                "NUMBER_LESS_THAN_EQ", "NUMBER_EQ", "NUMBER_NOT_EQ" — one numeric value
+                "NUMBER_BETWEEN", "NUMBER_NOT_BETWEEN" — two numeric values
+                "DATE_EQ", "DATE_BEFORE", "DATE_AFTER", "DATE_ON_OR_BEFORE",
+                "DATE_ON_OR_AFTER" — one date value, e.g. "2025-01-01"
+                "DATE_BETWEEN", "DATE_NOT_BETWEEN" — two date values
+                "DATE_IS_VALID"    — no values; any parseable date passes
+                "TEXT_CONTAINS", "TEXT_NOT_CONTAINS", "TEXT_STARTS_WITH",
+                "TEXT_ENDS_WITH", "TEXT_EQ" — one text value
+                "TEXT_IS_EMAIL", "TEXT_IS_URL" — no values
+                "BLANK", "NOT_BLANK" — no values
+                "CUSTOM_FORMULA"   — one formula string, e.g. "=A1>0"
+            values: Condition values as plain strings — see condition_type above for
+                    how many each type expects. Numbers and dates are passed as
+                    strings; the Sheets API parses them per the cell's format.
+            input_message: Optional help text shown when a user selects a cell in range.
+            strict: If True (default), reject input that fails the rule. If False,
+                    show a warning but still allow it.
+            show_custom_ui: If True (default), show the built-in dropdown/checkbox UI
+                    for condition types that support one (ONE_OF_LIST, ONE_OF_RANGE,
+                    BOOLEAN). Ignored by condition types with no UI (e.g. NUMBER_*,
+                    TEXT_*).
+
+        Returns:
+            Result of the batchUpdate operation.
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        normalized_type = condition_type.upper()
+        if normalized_type not in _VALID_CONDITION_TYPES:
+            return {
+                "error": f"Invalid condition_type '{condition_type}'. "
+                f"Must be one of: {', '.join(_VALID_CONDITION_TYPES)}"
+            }
+
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        indices = _parse_a1_notation(range)
+        grid_range = {
+            "sheetId": sheet_id,
+            "startRowIndex": indices.get("startRowIndex", 0),
+            "startColumnIndex": indices.get("startColumnIndex", 0),
+        }
+        if "endRowIndex" in indices:
+            grid_range["endRowIndex"] = indices["endRowIndex"]
+        if "endColumnIndex" in indices:
+            grid_range["endColumnIndex"] = indices["endColumnIndex"]
+
+        condition: dict[str, Any] = {"type": normalized_type}
+        if values:
+            condition["values"] = [{"userEnteredValue": str(v)} for v in values]
+
+        rule: dict[str, Any] = {
+            "condition": condition,
+            "strict": strict,
+            "showCustomUi": show_custom_ui,
+        }
+        if input_message is not None:
+            rule["inputMessage"] = input_message
+
+        return await execute_in_thread(
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": [{"setDataValidation": {"range": grid_range, "rule": rule}}]},
+            )
+            .execute,
+            sheets_service,
+        )
+
+    @tool(annotations=ToolAnnotations(title="Get Data Validation", readOnlyHint=True))
+    async def get_data_validation(
+        spreadsheet_id: str,
+        sheet: str,
+        range: str,
+        ctx: Context = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Read existing data validation rules for a cell range.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet
+            sheet: The name of the sheet
+            range: A1 notation range to inspect (e.g. "A1:A100")
+
+        Returns:
+            List of {cell, rule} for every cell in the range that has a validation
+            rule; cells without one are omitted. 'rule' matches the Sheets API's
+            DataValidationRule shape: {condition: {type, values}, inputMessage,
+            strict, showCustomUi}.
+        """
+        sheets_service = ctx.request_context.lifespan_context.sheets_service
+
+        quoted = _quote_sheet_name(sheet)
+        full_range = f"{quoted}!{range}"
+
+        result = await execute_in_thread(
+            sheets_service.spreadsheets()
+            .get(
+                spreadsheetId=spreadsheet_id,
+                ranges=[full_range],
+                fields="sheets.data(startRow,startColumn,rowData.values.dataValidation)",
+            )
+            .execute,
+            sheets_service,
+        )
+
+        sheets_data = result.get("sheets", [])
+        if not sheets_data:
+            return []
+        grid_data_list = sheets_data[0].get("data", [])
+        if not grid_data_list:
+            return []
+        grid_data = grid_data_list[0]
+
+        start_row = grid_data.get("startRow", 0)
+        start_col = grid_data.get("startColumn", 0)
+
+        matches: list[dict[str, Any]] = []
+        for row_offset, row in enumerate(grid_data.get("rowData", [])):
+            for col_offset, cell in enumerate(row.get("values", [])):
+                rule = cell.get("dataValidation")
+                if rule is None:
+                    continue
+                row_index = start_row + row_offset
+                col_index = start_col + col_offset
+                cell_ref = f"{_column_index_to_letter(col_index)}{row_index + 1}"
+                matches.append({"cell": cell_ref, "rule": rule})
+
+        return matches
 
     @tool(annotations=ToolAnnotations(title="Merge Cells", destructiveHint=True))
     async def merge_cells(

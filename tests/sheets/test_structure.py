@@ -1080,6 +1080,209 @@ class TestUpdateBorders:
         assert "error" in result
 
 
+class TestAddDataValidation:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _set_data_validation_request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["setDataValidation"]
+
+    async def test_one_of_list_sets_condition_and_values(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A2:A100",
+            condition_type="one_of_list",
+            values=["Yes", "No", "Maybe"],
+            ctx=ctx,
+        )
+        req = self._set_data_validation_request(svc)
+        rule = req["rule"]
+        assert rule["condition"]["type"] == "ONE_OF_LIST"
+        assert rule["condition"]["values"] == [
+            {"userEnteredValue": "Yes"},
+            {"userEnteredValue": "No"},
+            {"userEnteredValue": "Maybe"},
+        ]
+        assert rule["strict"] is True
+        assert rule["showCustomUi"] is True
+
+    async def test_boolean_without_values_omits_condition_values(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="B2:B10",
+            condition_type="boolean",
+            ctx=ctx,
+        )
+        req = self._set_data_validation_request(svc)
+        assert req["rule"]["condition"] == {"type": "BOOLEAN"}
+
+    async def test_custom_formula_passes_formula_string_through(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="C2:C10",
+            condition_type="custom_formula",
+            values=["=C2>0"],
+            ctx=ctx,
+        )
+        req = self._set_data_validation_request(svc)
+        assert req["rule"]["condition"]["values"] == [{"userEnteredValue": "=C2>0"}]
+
+    async def test_strict_false_and_show_custom_ui_false_pass_through(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            condition_type="NUMBER_GREATER",
+            values=["0"],
+            strict=False,
+            show_custom_ui=False,
+            ctx=ctx,
+        )
+        req = self._set_data_validation_request(svc)
+        assert req["rule"]["strict"] is False
+        assert req["rule"]["showCustomUi"] is False
+
+    async def test_input_message_included_when_provided(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            condition_type="NOT_BLANK",
+            input_message="This field is required",
+            ctx=ctx,
+        )
+        req = self._set_data_validation_request(svc)
+        assert req["rule"]["inputMessage"] == "This field is required"
+
+    async def test_range_maps_to_grid_range_indices(self):
+        svc = self._sheets_service(sheet_id=42)
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="B2:C5",
+            condition_type="NOT_BLANK",
+            ctx=ctx,
+        )
+        req = self._set_data_validation_request(svc)
+        assert req["range"] == {
+            "sheetId": 42,
+            "startRowIndex": 1,
+            "startColumnIndex": 1,
+            "endRowIndex": 5,
+            "endColumnIndex": 3,
+        }
+
+    async def test_invalid_condition_type_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            condition_type="NOT_A_REAL_TYPE",
+            ctx=ctx,
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Missing",
+            range="A1",
+            condition_type="NOT_BLANK",
+            ctx=ctx,
+        )
+        assert "error" in result
+
+
+class TestGetDataValidation:
+    def _sheets_service(self, grid_data):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"data": [grid_data]}]
+        }
+        return mock
+
+    async def test_returns_cells_that_have_a_rule_skips_ones_that_dont(self):
+        rule = {"condition": {"type": "BOOLEAN"}, "strict": True, "showCustomUi": True}
+        grid_data = {
+            "startRow": 0,
+            "startColumn": 0,
+            "rowData": [
+                {"values": [{"dataValidation": rule}, {}]},
+                {"values": [{}, {"dataValidation": rule}]},
+            ],
+        }
+        svc = self._sheets_service(grid_data)
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["get_data_validation"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1:B2", ctx=ctx
+        )
+        assert result == [
+            {"cell": "A1", "rule": rule},
+            {"cell": "B2", "rule": rule},
+        ]
+
+    async def test_offsets_use_start_row_and_start_column(self):
+        rule = {"condition": {"type": "NOT_BLANK"}, "strict": True, "showCustomUi": True}
+        grid_data = {
+            "startRow": 4,
+            "startColumn": 2,
+            "rowData": [{"values": [{"dataValidation": rule}]}],
+        }
+        svc = self._sheets_service(grid_data)
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["get_data_validation"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="C5", ctx=ctx
+        )
+        assert result == [{"cell": "C5", "rule": rule}]
+
+    async def test_no_validation_in_range_returns_empty_list(self):
+        grid_data = {
+            "startRow": 0,
+            "startColumn": 0,
+            "rowData": [{"values": [{}, {}]}],
+        }
+        svc = self._sheets_service(grid_data)
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["get_data_validation"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1:B1", ctx=ctx
+        )
+        assert result == []
+
+    async def test_no_sheets_in_response_returns_empty_list(self):
+        svc = MagicMock()
+        svc.spreadsheets.return_value.get.return_value.execute.return_value = {"sheets": []}
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["get_data_validation"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", ctx=ctx
+        )
+        assert result == []
+
+
 class TestMergeCells:
     def _sheets_service(self, sheet_id=0):
         mock = MagicMock()

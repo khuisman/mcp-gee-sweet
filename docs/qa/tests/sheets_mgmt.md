@@ -1022,6 +1022,73 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 ---
 
+## `add_data_validation` / `get_data_validation`
+
+### TC-S93: ONE_OF_LIST sets a dropdown and get_data_validation reads it back ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Add a dropdown to A1:A5 on the Sales sheet with the options Yes, No, Maybe"
+
+**Checks**
+- `setDataValidation` request sent with `condition.type == "ONE_OF_LIST"` and `condition.values` matching `["Yes", "No", "Maybe"]` (as `userEnteredValue` entries)
+- `range` covers A1:A5
+- Selecting a cell in A1:A5 in the Sheets UI shows a dropdown arrow with exactly those three options
+- Calling `get_data_validation(range="A1:A5")` afterward returns one `{cell, rule}` entry per cell in the range, each with `condition.type == "ONE_OF_LIST"` and the same three values
+
+---
+
+### TC-S94: BOOLEAN with no values renders a plain checkbox ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Add a checkbox to B1:B5 on the Sales sheet"
+
+**Checks**
+- `setDataValidation` request sent with `condition == {"type": "BOOLEAN"}` — no `values` key
+- Cells B1:B5 render as checkboxes in the Sheets UI, not free text
+- `get_data_validation(range="B1:B5")` returns `condition.type == "BOOLEAN"` for each cell, no `values` key
+
+---
+
+### TC-S95: NUMBER_BETWEEN with strict=False shows a warning instead of rejecting
+
+**Prompt**
+> "Add data validation to C1:C5 on the Sales sheet requiring a number between 1 and 10, but only warn instead of blocking invalid entries"
+
+**Checks**
+- `setDataValidation` request sent with `condition.type == "NUMBER_BETWEEN"`, `condition.values` = `["1", "10"]`, and `rule.strict == false`
+- No error in response
+
+---
+
+### TC-S96: get_data_validation returns an empty list for a range with no rules
+
+**Prompt**
+> "Check what data validation rules exist on D1:D5 on the Sales sheet" *(a range with no validation applied)*
+
+**Checks**
+- Returns `[]`
+- No error
+
+---
+
+### TC-S97: add_data_validation — invalid condition_type returns error (unit test)
+
+**Checks (unit test)**
+- Calling `add_data_validation` with an unrecognized `condition_type` (e.g. `"NOT_A_REAL_TYPE"`) returns `{"error": ...}` listing valid types, before any API call
+- Covered by `test_invalid_condition_type_returns_error_without_api_call`
+
+---
+
+### TC-S98: add_data_validation — sheet not found returns error (unit test)
+
+**Checks (unit test)**
+- Sheet name not in spreadsheet → `{"error": "Sheet 'X' not found"}`, before any API call
+- Covered by `test_returns_error_when_sheet_not_found`
+
+---
+
 ## `freeze`
 
 ### TC-S42: Freeze the header row ⚠️ destructive
