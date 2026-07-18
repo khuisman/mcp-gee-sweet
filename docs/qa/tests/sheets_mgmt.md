@@ -1135,6 +1135,8 @@ Deleted and recreated the `Empty` fixture sheet to clear the test rule.
 - Call succeeds (no `HttpError`)
 - `get_data_validation` on the same range reads back `userEnteredValue` starting with `=` (e.g. `"=Sales!$A$2:$A$5"`)
 
+**Result (2026-07-18) ✅ PASS** Re-ran the exact TC-S99 failing call (`values=["Sales!A2:A5"]`, no `=`) — succeeded (no `HttpError`). `get_data_validation` read back `userEnteredValue: "=Sales!$A$2:$A$5"` on all 3 cells, confirming auto-prepend fired correctly.
+
 **Teardown**
 Clear the test rule from the range used.
 
@@ -1149,6 +1151,8 @@ Clear the test rule from the range used.
 
 **Checks**
 - Returns `{"error": "Sheet 'NonexistentSheetXYZ' not found"}` — no raw `HttpError` reaches the client
+
+**Result (2026-07-18) ✅ PASS** Re-ran the exact TC-S100 failing call — returned `{"error": "Sheet 'NonexistentSheetXYZ' not found"}` cleanly, no raw `HttpError`.
 
 ---
 
