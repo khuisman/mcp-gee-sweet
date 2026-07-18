@@ -2710,6 +2710,61 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-doc111-find_in_doc-literal-case-insensitive-search-returns-correct-offsets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC111: find_in_doc literal case-insensitive search returns correct offsets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc112-find_in_doc-regex-search-feeds-directly-into-style_doc_range-to-hyperlink-matches-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC112: find_in_doc regex search feeds directly into style_doc_range to hyperlink matches ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc113-find_in_doc-case_sensitivetrue-excludes-different-case-matches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC113: find_in_doc case_sensitive=True excludes different-case matches
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc114-find_in_doc-invalid-regex-returned-gracefully" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC114: find_in_doc invalid regex returned gracefully
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc115-find_in_doc-searches-table-cell-text" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC115: find_in_doc searches table cell text
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4468,6 +4523,71 @@ Returned <code>{"error": "&lt;HttpError 400 ... Index 99998 must be less than th
 <p><strong>Cleanup:</strong> none (no mutation applied)</p>
 <p><strong>Result (2026-07-17) ✅ PASS</strong>
 Returned <code>{"error": "&lt;HttpError 400 ... Index 99999 must be less than the end index of the referenced segment, 65.&gt;"}</code> — clean error dict, no exception, references index out of bounds.</p>
+<hr />
+<h3 id="tc-doc111-find_in_doc-literal-case-insensitive-search-returns-correct-offsets">TC-DOC111: <code>find_in_doc</code> literal case-insensitive search returns correct offsets<a class="headerlink" href="#tc-doc111-find_in_doc-literal-case-insensitive-search-returns-correct-offsets" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> create a doc via <code>write_doc_content</code> with content <code>&lt;p&gt;Hello World&lt;/p&gt;&lt;p&gt;another hello here&lt;/p&gt;</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Find all instances of 'hello' in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns a list of 2 matches
+- First match: <code>matched_text</code> is <code>"Hello"</code>, <code>context</code> is <code>"Hello World"</code>
+- Second match: <code>matched_text</code> is <code>"hello"</code>, <code>context</code> is <code>"another hello here"</code>
+- Each match's <code>start_index</code>/<code>end_index</code> span exactly the matched text — confirm by calling <code>get_doc_structure</code> and slicing the paragraph text at those offsets</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-18) ✅ PASS</strong>
+2 matches returned. <code>start_index</code>/<code>end_index</code> (1-6, 21-26) confirmed exact against <code>get_doc_structure</code> paragraph offsets (paragraphs start at 1 and 13).</p>
+<hr />
+<h3 id="tc-doc112-find_in_doc-regex-search-feeds-directly-into-style_doc_range-to-hyperlink-matches-destructive">TC-DOC112: <code>find_in_doc</code> regex search feeds directly into <code>style_doc_range</code> to hyperlink matches ⚠️ destructive<a class="headerlink" href="#tc-doc112-find_in_doc-regex-search-feeds-directly-into-style_doc_range-to-hyperlink-matches-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> create a doc via <code>write_doc_content</code> with content <code>&lt;p&gt;Contact test@example.com or admin@example.com for help&lt;/p&gt;</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Find every email address in doc {DOC_ID} using a regex, then turn each one into a mailto: link"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>find_in_doc(doc_id, query=r"[\w.]+@[\w.]+", regex=True)</code> returns 2 matches with the correct <code>matched_text</code> values and offsets
+- Calling <code>style_doc_range</code> with <code>link_url="mailto:" + matched_text</code> at each returned <code>start_index</code>/<code>end_index</code> succeeds
+- <code>get_doc_structure</code> afterward shows both runs with <code>link_url</code> set to the corresponding <code>mailto:</code> address, confirming the offsets from <code>find_in_doc</code> landed on the exact right characters</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-18) ✅ PASS</strong>
+2 email matches found; <code>style_doc_range</code> applied <code>mailto:</code> links at the returned offsets; <code>get_doc_structure</code> afterward showed both runs split exactly at the email boundaries with the correct <code>link_url</code>.</p>
+<hr />
+<h3 id="tc-doc113-find_in_doc-case_sensitivetrue-excludes-different-case-matches">TC-DOC113: <code>find_in_doc</code> case_sensitive=True excludes different-case matches<a class="headerlink" href="#tc-doc113-find_in_doc-case_sensitivetrue-excludes-different-case-matches" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> create a doc via <code>write_doc_content</code> with content <code>&lt;p&gt;Hello World, another hello here&lt;/p&gt;</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Find case-sensitive matches of 'hello' in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns exactly 1 match (<code>matched_text: "hello"</code>) — the capitalized "Hello" in the same doc is excluded</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-18) ✅ PASS</strong>
+Exactly 1 match returned (<code>"hello"</code>); capitalized "Hello" correctly excluded.</p>
+<hr />
+<h3 id="tc-doc114-find_in_doc-invalid-regex-returned-gracefully">TC-DOC114: <code>find_in_doc</code> invalid regex returned gracefully<a class="headerlink" href="#tc-doc114-find_in_doc-invalid-regex-returned-gracefully" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> create a doc via <code>write_doc_content</code> with any content</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Search doc {DOC_ID} using the regex '(unclosed'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> referencing the invalid regex — does not raise an exception</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-18) ✅ PASS</strong>
+Returned <code>{"error": "Invalid regex: missing ), unterminated subpattern at position 0"}}</code> — clean error dict, no exception. Also spot-checked live: an invalid <code>doc_id</code> now returns <code>{"error": "&lt;HttpError 404 ...&gt;"}</code> instead of raising (regression test for the fix to the missing-try/except finding from code review).</p>
+<hr />
+<h3 id="tc-doc115-find_in_doc-searches-table-cell-text">TC-DOC115: <code>find_in_doc</code> searches table cell text<a class="headerlink" href="#tc-doc115-find_in_doc-searches-table-cell-text" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> create a doc, insert a 1x1 table via <code>insert_doc_table</code>, then write "needle" into the cell via <code>insert_doc_text</code> at the cell's <code>paragraphStartIndex</code> (from <code>get_doc_structure</code>)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Find 'needle' in doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns 1 match with <code>matched_text: "needle"</code> and <code>start_index</code> equal to the cell's <code>paragraphStartIndex</code></p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-18) ✅ PASS</strong>
+1 match returned, <code>start_index</code> (11) equal to the cell's <code>paragraphStartIndex</code> (11).</p>
 
 
 
