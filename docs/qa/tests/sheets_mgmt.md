@@ -1022,6 +1022,140 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 ---
 
+## `add_data_validation` / `get_data_validation`
+
+### TC-S93: ONE_OF_LIST sets a dropdown and get_data_validation reads it back ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Add a dropdown to A1:A5 on the Sales sheet with the options Yes, No, Maybe"
+
+**Checks**
+- `setDataValidation` request sent with `condition.type == "ONE_OF_LIST"` and `condition.values` matching `["Yes", "No", "Maybe"]` (as `userEnteredValue` entries)
+- `range` covers A1:A5
+- Selecting a cell in A1:A5 in the Sheets UI shows a dropdown arrow with exactly those three options
+- Calling `get_data_validation(range="A1:A5")` afterward returns one `{cell, rule}` entry per cell in the range, each with `condition.type == "ONE_OF_LIST"` and the same three values
+
+**Result (2026-07-17) ✅ PASS (direct tool call, not Playwright UI)** — ran against a scratch range on the fixture's `Empty` sheet rather than `Sales`, but the tool logic is sheet-agnostic. `add_data_validation(condition_type="ONE_OF_LIST", values=["Yes","No","Maybe"])` succeeded; `get_data_validation` read back all 5 cells with `condition.type == "ONE_OF_LIST"` and the exact same 3 values. UI dropdown rendering not independently verified via Playwright this pass.
+
+---
+
+### TC-S94: BOOLEAN with no values renders a plain checkbox ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Add a checkbox to B1:B5 on the Sales sheet"
+
+**Checks**
+- `setDataValidation` request sent with `condition == {"type": "BOOLEAN"}` — no `values` key
+- Cells B1:B5 render as checkboxes in the Sheets UI, not free text
+- `get_data_validation(range="B1:B5")` returns `condition.type == "BOOLEAN"` for each cell, no `values` key
+
+---
+
+### TC-S95: NUMBER_BETWEEN with strict=False shows a warning instead of rejecting
+
+**Prompt**
+> "Add data validation to C1:C5 on the Sales sheet requiring a number between 1 and 10, but only warn instead of blocking invalid entries"
+
+**Checks**
+- `setDataValidation` request sent with `condition.type == "NUMBER_BETWEEN"`, `condition.values` = `["1", "10"]`, and `rule.strict == false`
+- No error in response
+
+---
+
+### TC-S96: get_data_validation returns an empty list for a range with no rules
+
+**Prompt**
+> "Check what data validation rules exist on D1:D5 on the Sales sheet" *(a range with no validation applied)*
+
+**Checks**
+- Returns `[]`
+- No error
+
+**Result (2026-07-17) ✅ PASS** `get_data_validation` on an untouched range returned `[]`, no error.
+
+---
+
+### TC-S97: add_data_validation — invalid condition_type returns error (unit test)
+
+**Checks (unit test)**
+- Calling `add_data_validation` with an unrecognized `condition_type` (e.g. `"NOT_A_REAL_TYPE"`) returns `{"error": ...}` listing valid types, before any API call
+- Covered by `test_invalid_condition_type_returns_error_without_api_call`
+
+---
+
+### TC-S98: add_data_validation — sheet not found returns error (unit test)
+
+**Checks (unit test)**
+- Sheet name not in spreadsheet → `{"error": "Sheet 'X' not found"}`, before any API call
+- Covered by `test_returns_error_when_sheet_not_found`
+
+---
+
+### TC-S99: `add_data_validation` ONE_OF_RANGE — the documented value format always fails ❌ code review finding
+
+**Background:** `add_data_validation`'s own docstring documents `ONE_OF_RANGE`'s `values` as "one item, the source range in A1 notation, e.g. `["Sheet2!A:A"]`" — no leading `=`. Live-tested against the real Sheets API and confirmed this format is rejected outright.
+
+**Prompt (direct tool calls)**
+> `add_data_validation(condition_type="ONE_OF_RANGE", values=["Sales!A2:A5"])` — exactly as the docstring documents.
+
+**Checks**
+- Should succeed and create a range-sourced dropdown.
+
+**Result (2026-07-17) ❌ FAIL** `HttpError 400: "Invalid ConditionValue.userEnteredValue: Sales!A2:A5 for ConditionType: ONE_OF_RANGE"`. Retried with a leading `=` (`values=["=Sales!A2:A5"]`) — succeeded, and `get_data_validation` read back the rule correctly with `userEnteredValue: "=Sales!$A$2:$A$5"`. The docstring's example is missing the required `=` prefix; every caller who follows it as written gets a guaranteed failure.
+
+**Teardown**
+Deleted and recreated the `Empty` fixture sheet to clear the test rule.
+
+---
+
+### TC-S100: `get_data_validation` on a nonexistent sheet raises raw, not a clean error ❌ code review finding
+
+**Background:** Every other `sheet`-taking tool in `structure.py` (~22 of them, including `add_data_validation`) checks sheet existence first and returns `{"error": "Sheet 'X' not found"}`. `get_data_validation` skips this check entirely.
+
+**Prompt (direct tool call)**
+> `get_data_validation(sheet="NonexistentSheetXYZ", range="A1:A5")`
+
+**Checks**
+- Should return `{"error": "Sheet 'NonexistentSheetXYZ' not found"}`, matching every sibling tool's behavior for the same mistake.
+
+**Result (2026-07-17) ❌ FAIL** Raised an unhandled `HttpError 400: "Unable to parse range: NonexistentSheetXYZ!A1:A5"` straight through to the MCP client instead. `server.py`'s `_timed` wrapper doesn't reformat exceptions, so this is the raw googleapiclient error, not a friendly response.
+
+---
+
+### TC-S101: `add_data_validation` ONE_OF_RANGE auto-corrects a missing `=` (PR #361 review fix)
+
+**Background:** TC-S99 found that `add_data_validation(condition_type="ONE_OF_RANGE", ...)` always failed with the docstring's own documented value format (a bare range reference, no leading `=`) — the real Sheets API rejects `userEnteredValue` without it. Fixed by auto-prepending `=` to each value when `condition_type` is `ONE_OF_RANGE` and the caller didn't already include one, instead of requiring callers to know this API quirk. Unit-tested deterministically (`TestAddDataValidation::test_one_of_range_auto_prepends_equals_when_missing`, `test_one_of_range_does_not_double_prepend_equals`); this live check re-runs TC-S99's exact failing call.
+
+**Prompt (direct tool call)**
+> `add_data_validation(condition_type="ONE_OF_RANGE", values=["Sales!A2:A5"])` — the exact call that failed in TC-S99, with no leading `=`.
+
+**Checks**
+- Call succeeds (no `HttpError`)
+- `get_data_validation` on the same range reads back `userEnteredValue` starting with `=` (e.g. `"=Sales!$A$2:$A$5"`)
+
+**Result (2026-07-18) ✅ PASS** Re-ran the exact TC-S99 failing call (`values=["Sales!A2:A5"]`, no `=`) — succeeded (no `HttpError`). `get_data_validation` read back `userEnteredValue: "=Sales!$A$2:$A$5"` on all 3 cells, confirming auto-prepend fired correctly.
+
+**Teardown**
+Clear the test rule from the range used.
+
+---
+
+### TC-S102: `get_data_validation` on a nonexistent sheet returns a clean error (PR #361 review fix)
+
+**Background:** TC-S100 found that `get_data_validation` was missing the sheet-existence check every sibling tool in this file has, so a bad sheet name raised a raw `HttpError` instead of `{"error": ...}`. Fixed by adding the same `_get_sheet_id` check `add_data_validation` already has, before the grid-data fetch. Unit-tested (`TestGetDataValidation::test_sheet_not_found_returns_error_not_raw_http_error`); this live check re-runs TC-S100's exact failing call.
+
+**Prompt (direct tool call)**
+> `get_data_validation(sheet="NonexistentSheetXYZ", range="A1:A5")` — the exact call that raised in TC-S100.
+
+**Checks**
+- Returns `{"error": "Sheet 'NonexistentSheetXYZ' not found"}` — no raw `HttpError` reaches the client
+
+**Result (2026-07-18) ✅ PASS** Re-ran the exact TC-S100 failing call — returned `{"error": "Sheet 'NonexistentSheetXYZ' not found"}` cleanly, no raw `HttpError`.
+
+---
+
 ## `freeze`
 
 ### TC-S42: Freeze the header row ⚠️ destructive
