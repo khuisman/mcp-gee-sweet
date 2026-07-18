@@ -1186,7 +1186,8 @@ def register(tool):
                 "ONE_OF_LIST"      — dropdown of custom values (values = the list items)
                 "ONE_OF_RANGE"     — dropdown sourced from another range (values = one
                                      item, the source range in A1 notation, e.g.
-                                     ["Sheet2!A:A"])
+                                     ["Sheet2!A:A"] — a leading "=" is added
+                                     automatically if you omit it)
                 "BOOLEAN"          — checkbox (omit values for a plain TRUE/FALSE
                                      checkbox, or give two values for custom
                                      checked/unchecked labels)
@@ -1245,7 +1246,16 @@ def register(tool):
 
         condition: dict[str, Any] = {"type": normalized_type}
         if values:
-            condition["values"] = [{"userEnteredValue": str(v)} for v in values]
+            # ONE_OF_RANGE's userEnteredValue must be a formula-style range reference
+            # (a leading "=") or the real Sheets API rejects it with a 400 — confirmed
+            # live in PR #361 review (TC-S99). Auto-prepend rather than erroring, since
+            # a bare "Sheet2!A:A" (no "=") is the more natural way to write a range.
+            if normalized_type == "ONE_OF_RANGE":
+                condition["values"] = [
+                    {"userEnteredValue": v if v.startswith("=") else f"={v}"} for v in values
+                ]
+            else:
+                condition["values"] = [{"userEnteredValue": str(v)} for v in values]
 
         rule: dict[str, Any] = {
             "condition": condition,
@@ -1271,7 +1281,7 @@ def register(tool):
         sheet: str,
         range: str,
         ctx: Context = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[dict[str, Any]] | dict[str, Any]:
         """
         Read existing data validation rules for a cell range.
 
@@ -1284,9 +1294,20 @@ def register(tool):
             List of {cell, rule} for every cell in the range that has a validation
             rule; cells without one are omitted. 'rule' matches the Sheets API's
             DataValidationRule shape: {condition: {type, values}, inputMessage,
-            strict, showCustomUi}.
+            strict, showCustomUi}. Returns {"error": ...} if the sheet isn't found.
         """
-        sheets_service = ctx.request_context.lifespan_context.sheets_service
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        # Every other sheet-taking tool in this file checks existence first — this
+        # one didn't, and a bad sheet name raised a raw HttpError straight through
+        # to the client instead of the clean {"error": ...} its sibling
+        # add_data_validation already returns (PR #361 review, TC-S100).
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
 
         quoted = _quote_sheet_name(sheet)
         full_range = f"{quoted}!{range}"

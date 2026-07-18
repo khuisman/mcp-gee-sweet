@@ -1124,6 +1124,34 @@ Deleted and recreated the `Empty` fixture sheet to clear the test rule.
 
 ---
 
+### TC-S101: `add_data_validation` ONE_OF_RANGE auto-corrects a missing `=` (PR #361 review fix)
+
+**Background:** TC-S99 found that `add_data_validation(condition_type="ONE_OF_RANGE", ...)` always failed with the docstring's own documented value format (a bare range reference, no leading `=`) — the real Sheets API rejects `userEnteredValue` without it. Fixed by auto-prepending `=` to each value when `condition_type` is `ONE_OF_RANGE` and the caller didn't already include one, instead of requiring callers to know this API quirk. Unit-tested deterministically (`TestAddDataValidation::test_one_of_range_auto_prepends_equals_when_missing`, `test_one_of_range_does_not_double_prepend_equals`); this live check re-runs TC-S99's exact failing call.
+
+**Prompt (direct tool call)**
+> `add_data_validation(condition_type="ONE_OF_RANGE", values=["Sales!A2:A5"])` — the exact call that failed in TC-S99, with no leading `=`.
+
+**Checks**
+- Call succeeds (no `HttpError`)
+- `get_data_validation` on the same range reads back `userEnteredValue` starting with `=` (e.g. `"=Sales!$A$2:$A$5"`)
+
+**Teardown**
+Clear the test rule from the range used.
+
+---
+
+### TC-S102: `get_data_validation` on a nonexistent sheet returns a clean error (PR #361 review fix)
+
+**Background:** TC-S100 found that `get_data_validation` was missing the sheet-existence check every sibling tool in this file has, so a bad sheet name raised a raw `HttpError` instead of `{"error": ...}`. Fixed by adding the same `_get_sheet_id` check `add_data_validation` already has, before the grid-data fetch. Unit-tested (`TestGetDataValidation::test_sheet_not_found_returns_error_not_raw_http_error`); this live check re-runs TC-S100's exact failing call.
+
+**Prompt (direct tool call)**
+> `get_data_validation(sheet="NonexistentSheetXYZ", range="A1:A5")` — the exact call that raised in TC-S100.
+
+**Checks**
+- Returns `{"error": "Sheet 'NonexistentSheetXYZ' not found"}` — no raw `HttpError` reaches the client
+
+---
+
 ## `freeze`
 
 ### TC-S42: Freeze the header row ⚠️ destructive

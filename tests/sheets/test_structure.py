@@ -1142,6 +1142,38 @@ class TestAddDataValidation:
         req = self._set_data_validation_request(svc)
         assert req["rule"]["condition"]["values"] == [{"userEnteredValue": "=C2>0"}]
 
+    async def test_one_of_range_auto_prepends_equals_when_missing(self):
+        """PR #361 review (TC-S99): the real Sheets API rejects ONE_OF_RANGE's
+        userEnteredValue without a leading '=' (400 error, live-confirmed) — a
+        bare range reference like "Sheet2!A:A" must be auto-corrected rather
+        than passed through as documented, which always failed."""
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A2:A100",
+            condition_type="one_of_range",
+            values=["Sheet2!A:A"],
+            ctx=ctx,
+        )
+        req = self._set_data_validation_request(svc)
+        assert req["rule"]["condition"]["values"] == [{"userEnteredValue": "=Sheet2!A:A"}]
+
+    async def test_one_of_range_does_not_double_prepend_equals(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A2:A100",
+            condition_type="one_of_range",
+            values=["=Sheet2!A:A"],
+            ctx=ctx,
+        )
+        req = self._set_data_validation_request(svc)
+        assert req["rule"]["condition"]["values"] == [{"userEnteredValue": "=Sheet2!A:A"}]
+
     async def test_strict_false_and_show_custom_ui_false_pass_through(self):
         svc = self._sheets_service()
         ctx = _make_ctx(sheets_service=svc, cache=None)
@@ -1219,11 +1251,28 @@ class TestAddDataValidation:
 
 
 class TestGetDataValidation:
-    def _sheets_service(self, grid_data):
+    def _sheets_service(self, grid_data, sheet_id=0, sheet_exists=True):
+        # get_data_validation now makes two distinct spreadsheets().get() calls —
+        # one for the sheet-existence check (fields includes "properties"), one
+        # for the actual grid-data fetch (fields includes "data") — so the mock
+        # must distinguish them by the fields kwarg rather than returning one
+        # canned response for both (PR #361 review, TC-S100).
         mock = MagicMock()
-        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
-            "sheets": [{"data": [grid_data]}]
-        }
+
+        def _get(**kwargs):
+            resp = MagicMock()
+            if "properties" in kwargs.get("fields", ""):
+                sheets = (
+                    [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+                    if sheet_exists
+                    else []
+                )
+                resp.execute.return_value = {"sheets": sheets}
+            else:
+                resp.execute.return_value = {"sheets": [{"data": [grid_data]}]}
+            return resp
+
+        mock.spreadsheets.return_value.get.side_effect = _get
         return mock
 
     async def test_returns_cells_that_have_a_rule_skips_ones_that_dont(self):
@@ -1273,14 +1322,39 @@ class TestGetDataValidation:
         )
         assert result == []
 
-    async def test_no_sheets_in_response_returns_empty_list(self):
+    async def test_no_sheets_in_data_response_returns_empty_list(self):
+        """Sheet exists, but the grid-data fetch itself comes back with no
+        'sheets' entry — defensive branch, not expected with the real API for
+        an existing sheet, but guarded against regardless."""
         svc = MagicMock()
-        svc.spreadsheets.return_value.get.return_value.execute.return_value = {"sheets": []}
+
+        def _get(**kwargs):
+            resp = MagicMock()
+            if "properties" in kwargs.get("fields", ""):
+                resp.execute.return_value = {
+                    "sheets": [{"properties": {"title": "Sheet1", "sheetId": 0}}]
+                }
+            else:
+                resp.execute.return_value = {"sheets": []}
+            return resp
+
+        svc.spreadsheets.return_value.get.side_effect = _get
         ctx = _make_ctx(sheets_service=svc, cache=None)
         result = await _structure_tools["get_data_validation"](
             spreadsheet_id="ss1", sheet="Sheet1", range="A1", ctx=ctx
         )
         assert result == []
+
+    async def test_sheet_not_found_returns_error_not_raw_http_error(self):
+        """PR #361 review (TC-S100): a nonexistent sheet used to raise a raw
+        HttpError straight through to the client instead of the clean
+        {"error": ...} every sibling tool in this file already returns."""
+        svc = self._sheets_service(grid_data=None, sheet_exists=False)
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["get_data_validation"](
+            spreadsheet_id="ss1", sheet="Missing", range="A1", ctx=ctx
+        )
+        assert result == {"error": "Sheet 'Missing' not found"}
 
 
 class TestMergeCells:
