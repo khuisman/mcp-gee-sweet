@@ -2998,6 +2998,39 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-d198-download_folder-transfers-files-concurrently-instead-of-one-at-a-time-issue-316-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D198: download_folder transfers files concurrently instead of one at a time (issue #316) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d199-download_folder-and-sync_folder-emit-notificationsprogress-updates-as-each-transfer-completes-issue-316" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D199: download_folder and sync_folder emit notifications/progress updates as each transfer completes (issue #316)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d200-download_folder-two-drive-files-with-the-same-name-no-longer-race-or-double-count-pr-351-review-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D200: download_folder — two Drive files with the same name no longer race or double-count (PR #351 review) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5379,6 +5412,57 @@ In <code>{FOLDER_ID}</code>, create two subfolders, <code>sib-a</code> and <code
 <p><strong>Result (2026-07-17) ✅ PASS</strong></p>
 <p><strong>Teardown</strong>
 Delete <code>sib-a</code> and <code>sib-b</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-328c/</code>.</p>
+<hr />
+<h3 id="tc-d198-download_folder-transfers-files-concurrently-instead-of-one-at-a-time-issue-316-local-filesystem">TC-D198: <code>download_folder</code> transfers files concurrently instead of one at a time (issue #316) ⚠️ local-filesystem<a class="headerlink" href="#tc-d198-download_folder-transfers-files-concurrently-instead-of-one-at-a-time-issue-316-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Live testing measured <code>download_folder</code> against a real 217-file Shared Drive folder at 226s total — roughly 1.04s/file, scaling linearly, consistent with a sequential <code>for file in files: await download(file)</code> loop rather than concurrent fan-out. <code>sync_folder</code>'s per-level transfers already ran concurrently via <code>asyncio.gather()</code> (#293); <code>download_folder</code> had its own separate, still-sequential loop. Fixed by rewriting it to the same concurrent-gather pattern. Genuine concurrency (not just correctness) is unit-tested via a real-thread synchronization barrier (<code>tests/drive/test_transfer.py::TestDownloadFolder::test_files_download_concurrently</code>); this live check confirms wall-clock time actually improves and results stay correctly attributed under real concurrent Drive API calls.</p>
+<p><strong>Setup</strong>
+In <code>{FOLDER_ID}</code>, ensure at least 10-15 non-Workspace files exist.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Download all files from {FOLDER_ID} to <code>/tmp/qa-download-316/</code> and tell me how long the call took"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Wall-clock time is well under (file count × ~1s) — concurrent fan-out means total time tracks the slowest individual transfer, not the sum of all of them
+- Every file appears in <code>downloaded</code> with the correct name and <code>size_bytes</code> matching its own source file — no content or name cross-attribution between files under concurrency
+- <code>failed</code> is empty</p>
+<p><strong>Result (2026-07-17) ❌ FAIL</strong> Ran against the live <code>{FOLDER_ID}</code> fixture, which (due to accumulated fixture drift) happens to contain two Drive files named <code>qa-notes.md</code> (distinct IDs, different source MIME types) and two named <code>qa-upload.txt</code> (distinct IDs). <code>download_folder</code> reported both as <code>"downloaded": ["qa-notes.md", "qa-notes.md", "qa-upload.txt", "qa-upload.txt"]</code> with <code>size_bytes: 296</code> (both files' sizes summed), but only one physical copy of each landed on disk — the second concurrent writer clobbered the first. This directly violates this test case's own second check ("no content or name cross-attribution between files under concurrency"): the tool's response claims two independent successful downloads for a file that was actually overwritten mid-flight, and double-counts its byte total. Root cause: <code>download_folder</code>'s new candidate-collection loop (<code>src/mcp_gee_sweet/tools/drive/transfer.py:1098-1130</code>) checks <code>skip_if_exists</code> against the pre-transfer filesystem state for every Drive file before any download starts, so two Drive files that map to the same local name (Drive allows duplicate names, keyed by ID) both pass the check and are queued into <code>candidates</code>; <code>asyncio.gather</code> (line 1178) then runs both <code>_download_one</code> calls concurrently, racing to write the same path. The prior sequential implementation was accidentally safe here since each file's existence check ran only after the previous file had fully written. Confirmed reproducible: re-ran after a clean <code>/mcp reconnect</code> against a fresh empty destination directory and got the same result both times.</p>
+<p><strong>Follow-up (2026-07-17, commit <code>3ad523c</code>) ✅ FIXED</strong> — re-ran the identical live call against the same <code>{FOLDER_ID}</code> fixture (still carrying the incidental <code>qa-notes.md</code>/<code>qa-upload.txt</code> duplicates). <code>downloaded</code> now contains each name exactly once, <code>failed</code> carries an explicit "duplicate filename" entry for each extra, <code>size_bytes</code> (148) matches only the single-copy total, and the files on disk are intact/uncorrupted. See TC-D200 for a purpose-built reproduction of the same fix.</p>
+<p><strong>Teardown</strong>
+Remove <code>/tmp/qa-download-316/</code>.</p>
+<hr />
+<h3 id="tc-d199-download_folder-and-sync_folder-emit-notificationsprogress-updates-as-each-transfer-completes-issue-316">TC-D199: <code>download_folder</code> and <code>sync_folder</code> emit <code>notifications/progress</code> updates as each transfer completes (issue #316)<a class="headerlink" href="#tc-d199-download_folder-and-sync_folder-emit-notificationsprogress-updates-as-each-transfer-completes-issue-316" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Both tools previously ran silently for their entire duration — the 226s <code>download_folder</code> call above returned nothing until the very end, with no indication to the caller of whether it was working or hung. Both now call <code>ctx.report_progress()</code> from inside each individual transfer's own coroutine right as it finishes, not after the whole concurrent batch resolves, so a caller that supplied a progressToken sees a live stream of updates spread across the call's duration instead of one final burst. The two tools' messages aren't identical: <code>download_folder</code> knows its file count upfront (a single non-recursive listing), so it reports a real <code>total</code> and a message like <code>"12/217: report.pdf: ok"</code>. <code>sync_folder</code> doesn't know the total ahead of time (recursive descent discovers files level by level), so it always passes <code>total=None</code> and reports a running count with a message like <code>"readme.txt: download_ok"</code> — no "N/total" prefix. Progress is file-count based, not byte-size, for both: neither tool's Drive listing fetches a <code>size</code> field, and a Workspace file's exported size is unknown until after the export completes, so an accurate byte total isn't available upfront (a size-based mode is tracked separately in #352). <code>sync_folder</code>'s dry-run mode never transfers anything, so it never reports progress either. <code>ctx.report_progress()</code> itself is wrapped in a try/except at both call sites (PR #351 review) — a failed notification (e.g. a dropped session) no longer downgrades an already-successful transfer to a reported failure.</p>
+<p><strong>Note:</strong> <code>notifications/progress</code> is a protocol-level message, not part of the tool's JSON response — whether it's visible during this QA pass depends on whether the MCP client surfaces raw progress notifications in the transcript. The exact per-item call count, <code>total</code>, and message content are already asserted against a mocked <code>ctx</code> in <code>tests/drive/test_transfer.py::TestDownloadFolder::test_reports_progress_as_files_complete</code> and <code>TestSyncFolderRecursive::test_reports_progress_for_each_transfer_not_after_the_whole_batch</code>/<code>test_dry_run_reports_no_progress</code>. If the client doesn't surface progress notifications, this check can only confirm the call still completes normally with the notification calls in place.</p>
+<p><strong>Setup</strong>
+In <code>{FOLDER_ID}</code>, ensure at least 5 files exist.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Download all files from {FOLDER_ID} to <code>/tmp/qa-progress-316/</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- If progress notifications are visible in the client: multiple discrete "N/total" updates appear spread across the call, not a single update at the very end
+- Regardless of notification visibility: the call completes normally and <code>downloaded</code> is correct</p>
+<p><strong>Result (2026-07-17) ⚠️ PARTIAL</strong> This QA client (Claude Code direct tool calls) doesn't set a <code>progressToken</code>, so raw <code>notifications/progress</code> messages aren't visible in this transcript — the first check couldn't be exercised live, consistent with this test case's own caveat. Second check confirmed: <code>download_folder</code> completed normally against <code>{FOLDER_ID}</code> with no error from the new <code>ctx.report_progress(...)</code> call path (which no-ops safely with no token, per <code>Context.report_progress</code>'s own guard). Note: code review separately found <code>ctx.report_progress</code> is <em>not</em> wrapped in a try/except at either call site (<code>transfer.py:298</code> in <code>_sync_level</code>, <code>transfer.py:1172</code> in <code>download_folder</code>) — if a real client supplies a progressToken and the notification send fails mid-transfer (e.g. a dropped SSE connection on a long sync), an already-successful transfer gets misreported as failed. That failure mode requires a live, then-interrupted session to trigger and wasn't reproducible in this pass; flagged in code review as a confirmed defect regardless.</p>
+<p><strong>Follow-up (2026-07-17, commit <code>3ad523c</code>) ✅ FIXED</strong> — both call sites now wrap <code>ctx.report_progress(...)</code> in try/except, logging at debug level and letting the transfer's own already-computed result stand regardless of notification-channel failure. Confirmed via new unit tests (<code>test_report_progress_failure_does_not_demote_a_successful_upload</code>/<code>_download</code>, both inject a <code>RuntimeError</code> via <code>ctx.report_progress.side_effect</code> and assert the item still lands in <code>uploaded</code>/<code>downloaded</code>, not <code>failed</code>) — full suite passes (767 tests). <code>download_folder</code>'s message now also includes the outcome suffix (<code>f"{completed}/{total}: {name}: {kind}"</code>), matching its docstring example and closing the doc/code mismatch flagged in code review.</p>
+<p><strong>Teardown</strong>
+Remove <code>/tmp/qa-progress-316/</code>.</p>
+<hr />
+<h3 id="tc-d200-download_folder-two-drive-files-with-the-same-name-no-longer-race-or-double-count-pr-351-review-local-filesystem">TC-D200: <code>download_folder</code> — two Drive files with the same name no longer race or double-count (PR #351 review) ⚠️ local-filesystem<a class="headerlink" href="#tc-d200-download_folder-two-drive-files-with-the-same-name-no-longer-race-or-double-count-pr-351-review-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> QA's TC-D198 pass live-reproduced a correctness bug in the concurrency fix: <code>download_folder</code>'s candidate-collection loop checked <code>skip_if_exists</code> against the pre-transfer filesystem state for every Drive file before any download started. Drive allows two files with the same name (distinct IDs) in one folder — the local filesystem doesn't — so two same-named files both passed the check and were queued into the same concurrent batch, racing to write the identical local path. The prior sequential implementation was accidentally safe here (each file's existence check ran only after the previous file had fully written). Fixed by deduping candidates by destination path as they're collected: the first file claims the path, later files with the same destination are recorded under <code>failed</code> with an explanatory "duplicate filename" error instead of being queued to write. Unit-tested deterministically (<code>tests/drive/test_transfer.py::TestDownloadFolder::test_duplicate_drive_filenames_do_not_race_or_double_count</code>); this live check confirms the fix against the exact fixture-drift scenario QA's TC-D198 run hit.</p>
+<p><strong>Setup</strong>
+In <code>{FOLDER_ID}</code>, create two Drive files with the identical name, e.g. <code>dup-test.txt</code> (distinct IDs — two separate <code>upload_file</code> calls with the same <code>name</code>), with different content each (so a content mix-up is detectable).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Download all files from {FOLDER_ID} to <code>/tmp/qa-dup-351/</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>downloaded</code> contains <code>dup-test.txt</code> exactly once (not twice)
+- <code>failed</code> contains exactly one entry for <code>dup-test.txt</code> (or the export-suffixed name, if the duplicate involves Workspace files) whose <code>error</code> mentions "duplicate filename"
+- <code>/tmp/qa-dup-351/dup-test.txt</code> exists and its content matches whichever of the two Drive files was actually downloaded (i.e. content is intact, not corrupted by a partial concurrent write)
+- <code>size_bytes</code> reflects only the one file that was actually downloaded, not both</p>
+<p><strong>Result (2026-07-17) ✅ PASS</strong> Uploaded two distinct-ID files named <code>dup-test.txt</code> (different content each) to <code>{FOLDER_ID}</code>, then ran <code>download_folder</code>. Response: <code>"downloaded": [..., "dup-test.txt", ...]</code> exactly once, <code>"failed"</code> included exactly one <code>dup-test.txt</code> entry with <code>error</code> containing "duplicate filename", and <code>size_bytes</code> reflected only the single downloaded copy. On disk, <code>dup-test.txt</code> contained one file's content intact (not interleaved/corrupted). This re-verifies the fix from <code>3ad523c</code> against a purpose-built duplicate, on top of the incidental fixture-drift duplicates re-checked under TC-D198.</p>
+<p><strong>Teardown</strong>
+Delete both <code>dup-test.txt</code> files from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-dup-351/</code>.</p>
 <hr />
 <h2 id="list_drives"><code>list_drives</code><a class="headerlink" href="#list_drives" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d120-list-all-shared-drives">TC-D120: List all shared drives<a class="headerlink" href="#tc-d120-list-all-shared-drives" title="Permanent link">&para;</a></h3>
