@@ -1608,6 +1608,8 @@ In `{FOLDER_ID}`, ensure at least 10-15 non-Workspace files exist.
 - Every file appears in `downloaded` with the correct name and `size_bytes` matching its own source file — no content or name cross-attribution between files under concurrency
 - `failed` is empty
 
+**Result (2026-07-17) ❌ FAIL** Ran against the live `{FOLDER_ID}` fixture, which (due to accumulated fixture drift) happens to contain two Drive files named `qa-notes.md` (distinct IDs, different source MIME types) and two named `qa-upload.txt` (distinct IDs). `download_folder` reported both as `"downloaded": ["qa-notes.md", "qa-notes.md", "qa-upload.txt", "qa-upload.txt"]` with `size_bytes: 296` (both files' sizes summed), but only one physical copy of each landed on disk — the second concurrent writer clobbered the first. This directly violates this test case's own second check ("no content or name cross-attribution between files under concurrency"): the tool's response claims two independent successful downloads for a file that was actually overwritten mid-flight, and double-counts its byte total. Root cause: `download_folder`'s new candidate-collection loop (`src/mcp_gee_sweet/tools/drive/transfer.py:1098-1130`) checks `skip_if_exists` against the pre-transfer filesystem state for every Drive file before any download starts, so two Drive files that map to the same local name (Drive allows duplicate names, keyed by ID) both pass the check and are queued into `candidates`; `asyncio.gather` (line 1178) then runs both `_download_one` calls concurrently, racing to write the same path. The prior sequential implementation was accidentally safe here since each file's existence check ran only after the previous file had fully written. Confirmed reproducible: re-ran after a clean `/mcp reconnect` against a fresh empty destination directory and got the same result both times.
+
 **Teardown**
 Remove `/tmp/qa-download-316/`.
 
@@ -1628,6 +1630,8 @@ In `{FOLDER_ID}`, ensure at least 5 files exist.
 **Checks**
 - If progress notifications are visible in the client: multiple discrete "N/total" updates appear spread across the call, not a single update at the very end
 - Regardless of notification visibility: the call completes normally and `downloaded` is correct
+
+**Result (2026-07-17) ⚠️ PARTIAL** This QA client (Claude Code direct tool calls) doesn't set a `progressToken`, so raw `notifications/progress` messages aren't visible in this transcript — the first check couldn't be exercised live, consistent with this test case's own caveat. Second check confirmed: `download_folder` completed normally against `{FOLDER_ID}` with no error from the new `ctx.report_progress(...)` call path (which no-ops safely with no token, per `Context.report_progress`'s own guard). Note: code review separately found `ctx.report_progress` is *not* wrapped in a try/except at either call site (`transfer.py:298` in `_sync_level`, `transfer.py:1172` in `download_folder`) — if a real client supplies a progressToken and the notification send fails mid-transfer (e.g. a dropped SSE connection on a long sync), an already-successful transfer gets misreported as failed. That failure mode requires a live, then-interrupted session to trigger and wasn't reproducible in this pass; flagged in code review as a confirmed defect regardless.
 
 **Teardown**
 Remove `/tmp/qa-progress-316/`.
