@@ -2436,6 +2436,133 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#add_data_validation-get_data_validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_data_validation / get_data_validation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="add_data_validation / get_data_validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s93-one_of_list-sets-a-dropdown-and-get_data_validation-reads-it-back-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S93: ONE_OF_LIST sets a dropdown and get_data_validation reads it back ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s94-boolean-with-no-values-renders-a-plain-checkbox-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S94: BOOLEAN with no values renders a plain checkbox ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s95-number_between-with-strictfalse-shows-a-warning-instead-of-rejecting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S95: NUMBER_BETWEEN with strict=False shows a warning instead of rejecting
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s96-get_data_validation-returns-an-empty-list-for-a-range-with-no-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S96: get_data_validation returns an empty list for a range with no rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s97-add_data_validation-invalid-condition_type-returns-error-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S97: add_data_validation — invalid condition_type returns error (unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s98-add_data_validation-sheet-not-found-returns-error-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S98: add_data_validation — sheet not found returns error (unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s99-add_data_validation-one_of_range-the-documented-value-format-always-fails-code-review-finding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S99: add_data_validation ONE_OF_RANGE — the documented value format always fails ❌ code review finding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s100-get_data_validation-on-a-nonexistent-sheet-raises-raw-not-a-clean-error-code-review-finding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S100: get_data_validation on a nonexistent sheet raises raw, not a clean error ❌ code review finding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s101-add_data_validation-one_of_range-auto-corrects-a-missing-pr-361-review-fix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S101: add_data_validation ONE_OF_RANGE auto-corrects a missing = (PR #361 review fix)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s102-get_data_validation-on-a-nonexistent-sheet-returns-a-clean-error-pr-361-review-fix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S102: get_data_validation on a nonexistent sheet returns a clean error (PR #361 review fix)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#freeze" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3515,6 +3642,105 @@
 <p><strong>Checks (unit test)</strong>
 - Calling <code>update_borders</code> with an edge dict whose <code>"style"</code> value is not a string (e.g. <code>top={"style": 5}</code> or <code>top={"style": None}</code>) returns <code>{"error": ...}</code>, same as the existing "invalid style" and "missing style" cases.</p>
 <p><strong>Result (2026-07-16) ✅ PASS — fix verified</strong> Originally failed: validation only checked <code>"style" not in border</code> (key presence) before calling <code>.upper()</code>, so a non-string style (e.g. <code>top={"style": 5}</code>) reached <code>border["style"].upper()</code> and crashed with an unhandled <code>AttributeError</code> instead of a clean error. Fixed by adding <code>if not isinstance(border["style"], str): return {"error": ...}</code> before the <code>.upper()</code> call. Verified three ways: unit test <code>test_non_string_style_returns_error</code> passes (covers both <code>5</code> and <code>None</code>); confirmed live against the real <code>update_borders</code> MCP tool with <code>top={"style": 5}</code> and <code>top={"style": null}</code> — both return <code>{"error": "Border spec for 'top' has a non-string 'style' value"}</code> with no crash. TC-S92 closed.</p>
+<hr />
+<h2 id="add_data_validation-get_data_validation"><code>add_data_validation</code> / <code>get_data_validation</code><a class="headerlink" href="#add_data_validation-get_data_validation" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s93-one_of_list-sets-a-dropdown-and-get_data_validation-reads-it-back-destructive">TC-S93: ONE_OF_LIST sets a dropdown and get_data_validation reads it back ⚠️ destructive<a class="headerlink" href="#tc-s93-one_of_list-sets-a-dropdown-and-get_data_validation-reads-it-back-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Add a dropdown to A1:A5 on the Sales sheet with the options Yes, No, Maybe"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>setDataValidation</code> request sent with <code>condition.type == "ONE_OF_LIST"</code> and <code>condition.values</code> matching <code>["Yes", "No", "Maybe"]</code> (as <code>userEnteredValue</code> entries)
+- <code>range</code> covers A1:A5
+- Selecting a cell in A1:A5 in the Sheets UI shows a dropdown arrow with exactly those three options
+- Calling <code>get_data_validation(range="A1:A5")</code> afterward returns one <code>{cell, rule}</code> entry per cell in the range, each with <code>condition.type == "ONE_OF_LIST"</code> and the same three values</p>
+<p><strong>Result (2026-07-17) ✅ PASS (direct tool call, not Playwright UI)</strong> — ran against a scratch range on the fixture's <code>Empty</code> sheet rather than <code>Sales</code>, but the tool logic is sheet-agnostic. <code>add_data_validation(condition_type="ONE_OF_LIST", values=["Yes","No","Maybe"])</code> succeeded; <code>get_data_validation</code> read back all 5 cells with <code>condition.type == "ONE_OF_LIST"</code> and the exact same 3 values. UI dropdown rendering not independently verified via Playwright this pass.</p>
+<hr />
+<h3 id="tc-s94-boolean-with-no-values-renders-a-plain-checkbox-destructive">TC-S94: BOOLEAN with no values renders a plain checkbox ⚠️ destructive<a class="headerlink" href="#tc-s94-boolean-with-no-values-renders-a-plain-checkbox-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Add a checkbox to B1:B5 on the Sales sheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>setDataValidation</code> request sent with <code>condition == {"type": "BOOLEAN"}</code> — no <code>values</code> key
+- Cells B1:B5 render as checkboxes in the Sheets UI, not free text
+- <code>get_data_validation(range="B1:B5")</code> returns <code>condition.type == "BOOLEAN"</code> for each cell, no <code>values</code> key</p>
+<hr />
+<h3 id="tc-s95-number_between-with-strictfalse-shows-a-warning-instead-of-rejecting">TC-S95: NUMBER_BETWEEN with strict=False shows a warning instead of rejecting<a class="headerlink" href="#tc-s95-number_between-with-strictfalse-shows-a-warning-instead-of-rejecting" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add data validation to C1:C5 on the Sales sheet requiring a number between 1 and 10, but only warn instead of blocking invalid entries"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>setDataValidation</code> request sent with <code>condition.type == "NUMBER_BETWEEN"</code>, <code>condition.values</code> = <code>["1", "10"]</code>, and <code>rule.strict == false</code>
+- No error in response</p>
+<hr />
+<h3 id="tc-s96-get_data_validation-returns-an-empty-list-for-a-range-with-no-rules">TC-S96: get_data_validation returns an empty list for a range with no rules<a class="headerlink" href="#tc-s96-get_data_validation-returns-an-empty-list-for-a-range-with-no-rules" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Check what data validation rules exist on D1:D5 on the Sales sheet" <em>(a range with no validation applied)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>[]</code>
+- No error</p>
+<p><strong>Result (2026-07-17) ✅ PASS</strong> <code>get_data_validation</code> on an untouched range returned <code>[]</code>, no error.</p>
+<hr />
+<h3 id="tc-s97-add_data_validation-invalid-condition_type-returns-error-unit-test">TC-S97: add_data_validation — invalid condition_type returns error (unit test)<a class="headerlink" href="#tc-s97-add_data_validation-invalid-condition_type-returns-error-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Calling <code>add_data_validation</code> with an unrecognized <code>condition_type</code> (e.g. <code>"NOT_A_REAL_TYPE"</code>) returns <code>{"error": ...}</code> listing valid types, before any API call
+- Covered by <code>test_invalid_condition_type_returns_error_without_api_call</code></p>
+<hr />
+<h3 id="tc-s98-add_data_validation-sheet-not-found-returns-error-unit-test">TC-S98: add_data_validation — sheet not found returns error (unit test)<a class="headerlink" href="#tc-s98-add_data_validation-sheet-not-found-returns-error-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Sheet name not in spreadsheet → <code>{"error": "Sheet 'X' not found"}</code>, before any API call
+- Covered by <code>test_returns_error_when_sheet_not_found</code></p>
+<hr />
+<h3 id="tc-s99-add_data_validation-one_of_range-the-documented-value-format-always-fails-code-review-finding">TC-S99: <code>add_data_validation</code> ONE_OF_RANGE — the documented value format always fails ❌ code review finding<a class="headerlink" href="#tc-s99-add_data_validation-one_of_range-the-documented-value-format-always-fails-code-review-finding" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>add_data_validation</code>'s own docstring documents <code>ONE_OF_RANGE</code>'s <code>values</code> as "one item, the source range in A1 notation, e.g. <code>["Sheet2!A:A"]</code>" — no leading <code>=</code>. Live-tested against the real Sheets API and confirmed this format is rejected outright.</p>
+<p><strong>Prompt (direct tool calls)</strong></p>
+<blockquote>
+<p><code>add_data_validation(condition_type="ONE_OF_RANGE", values=["Sales!A2:A5"])</code> — exactly as the docstring documents.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Should succeed and create a range-sourced dropdown.</p>
+<p><strong>Result (2026-07-17) ❌ FAIL</strong> <code>HttpError 400: "Invalid ConditionValue.userEnteredValue: Sales!A2:A5 for ConditionType: ONE_OF_RANGE"</code>. Retried with a leading <code>=</code> (<code>values=["=Sales!A2:A5"]</code>) — succeeded, and <code>get_data_validation</code> read back the rule correctly with <code>userEnteredValue: "=Sales!$A$2:$A$5"</code>. The docstring's example is missing the required <code>=</code> prefix; every caller who follows it as written gets a guaranteed failure.</p>
+<p><strong>Teardown</strong>
+Deleted and recreated the <code>Empty</code> fixture sheet to clear the test rule.</p>
+<hr />
+<h3 id="tc-s100-get_data_validation-on-a-nonexistent-sheet-raises-raw-not-a-clean-error-code-review-finding">TC-S100: <code>get_data_validation</code> on a nonexistent sheet raises raw, not a clean error ❌ code review finding<a class="headerlink" href="#tc-s100-get_data_validation-on-a-nonexistent-sheet-raises-raw-not-a-clean-error-code-review-finding" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Every other <code>sheet</code>-taking tool in <code>structure.py</code> (~22 of them, including <code>add_data_validation</code>) checks sheet existence first and returns <code>{"error": "Sheet 'X' not found"}</code>. <code>get_data_validation</code> skips this check entirely.</p>
+<p><strong>Prompt (direct tool call)</strong></p>
+<blockquote>
+<p><code>get_data_validation(sheet="NonexistentSheetXYZ", range="A1:A5")</code></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Should return <code>{"error": "Sheet 'NonexistentSheetXYZ' not found"}</code>, matching every sibling tool's behavior for the same mistake.</p>
+<p><strong>Result (2026-07-17) ❌ FAIL</strong> Raised an unhandled <code>HttpError 400: "Unable to parse range: NonexistentSheetXYZ!A1:A5"</code> straight through to the MCP client instead. <code>server.py</code>'s <code>_timed</code> wrapper doesn't reformat exceptions, so this is the raw googleapiclient error, not a friendly response.</p>
+<hr />
+<h3 id="tc-s101-add_data_validation-one_of_range-auto-corrects-a-missing-pr-361-review-fix">TC-S101: <code>add_data_validation</code> ONE_OF_RANGE auto-corrects a missing <code>=</code> (PR #361 review fix)<a class="headerlink" href="#tc-s101-add_data_validation-one_of_range-auto-corrects-a-missing-pr-361-review-fix" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> TC-S99 found that <code>add_data_validation(condition_type="ONE_OF_RANGE", ...)</code> always failed with the docstring's own documented value format (a bare range reference, no leading <code>=</code>) — the real Sheets API rejects <code>userEnteredValue</code> without it. Fixed by auto-prepending <code>=</code> to each value when <code>condition_type</code> is <code>ONE_OF_RANGE</code> and the caller didn't already include one, instead of requiring callers to know this API quirk. Unit-tested deterministically (<code>TestAddDataValidation::test_one_of_range_auto_prepends_equals_when_missing</code>, <code>test_one_of_range_does_not_double_prepend_equals</code>); this live check re-runs TC-S99's exact failing call.</p>
+<p><strong>Prompt (direct tool call)</strong></p>
+<blockquote>
+<p><code>add_data_validation(condition_type="ONE_OF_RANGE", values=["Sales!A2:A5"])</code> — the exact call that failed in TC-S99, with no leading <code>=</code>.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds (no <code>HttpError</code>)
+- <code>get_data_validation</code> on the same range reads back <code>userEnteredValue</code> starting with <code>=</code> (e.g. <code>"=Sales!$A$2:$A$5"</code>)</p>
+<p><strong>Result (2026-07-18) ✅ PASS</strong> Re-ran the exact TC-S99 failing call (<code>values=["Sales!A2:A5"]</code>, no <code>=</code>) — succeeded (no <code>HttpError</code>). <code>get_data_validation</code> read back <code>userEnteredValue: "=Sales!$A$2:$A$5"</code> on all 3 cells, confirming auto-prepend fired correctly.</p>
+<p><strong>Teardown</strong>
+Clear the test rule from the range used.</p>
+<hr />
+<h3 id="tc-s102-get_data_validation-on-a-nonexistent-sheet-returns-a-clean-error-pr-361-review-fix">TC-S102: <code>get_data_validation</code> on a nonexistent sheet returns a clean error (PR #361 review fix)<a class="headerlink" href="#tc-s102-get_data_validation-on-a-nonexistent-sheet-returns-a-clean-error-pr-361-review-fix" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> TC-S100 found that <code>get_data_validation</code> was missing the sheet-existence check every sibling tool in this file has, so a bad sheet name raised a raw <code>HttpError</code> instead of <code>{"error": ...}</code>. Fixed by adding the same <code>_get_sheet_id</code> check <code>add_data_validation</code> already has, before the grid-data fetch. Unit-tested (<code>TestGetDataValidation::test_sheet_not_found_returns_error_not_raw_http_error</code>); this live check re-runs TC-S100's exact failing call.</p>
+<p><strong>Prompt (direct tool call)</strong></p>
+<blockquote>
+<p><code>get_data_validation(sheet="NonexistentSheetXYZ", range="A1:A5")</code> — the exact call that raised in TC-S100.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "Sheet 'NonexistentSheetXYZ' not found"}</code> — no raw <code>HttpError</code> reaches the client</p>
+<p><strong>Result (2026-07-18) ✅ PASS</strong> Re-ran the exact TC-S100 failing call — returned <code>{"error": "Sheet 'NonexistentSheetXYZ' not found"}</code> cleanly, no raw <code>HttpError</code>.</p>
 <hr />
 <h2 id="freeze"><code>freeze</code><a class="headerlink" href="#freeze" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s42-freeze-the-header-row-destructive">TC-S42: Freeze the header row ⚠️ destructive<a class="headerlink" href="#tc-s42-freeze-the-header-row-destructive" title="Permanent link">&para;</a></h3>
