@@ -1036,6 +1036,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Selecting a cell in A1:A5 in the Sheets UI shows a dropdown arrow with exactly those three options
 - Calling `get_data_validation(range="A1:A5")` afterward returns one `{cell, rule}` entry per cell in the range, each with `condition.type == "ONE_OF_LIST"` and the same three values
 
+**Result (2026-07-17) ✅ PASS (direct tool call, not Playwright UI)** — ran against a scratch range on the fixture's `Empty` sheet rather than `Sales`, but the tool logic is sheet-agnostic. `add_data_validation(condition_type="ONE_OF_LIST", values=["Yes","No","Maybe"])` succeeded; `get_data_validation` read back all 5 cells with `condition.type == "ONE_OF_LIST"` and the exact same 3 values. UI dropdown rendering not independently verified via Playwright this pass.
+
 ---
 
 ### TC-S94: BOOLEAN with no values renders a plain checkbox ⚠️ destructive
@@ -1071,6 +1073,8 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Returns `[]`
 - No error
 
+**Result (2026-07-17) ✅ PASS** `get_data_validation` on an untouched range returned `[]`, no error.
+
 ---
 
 ### TC-S97: add_data_validation — invalid condition_type returns error (unit test)
@@ -1086,6 +1090,37 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks (unit test)**
 - Sheet name not in spreadsheet → `{"error": "Sheet 'X' not found"}`, before any API call
 - Covered by `test_returns_error_when_sheet_not_found`
+
+---
+
+### TC-S99: `add_data_validation` ONE_OF_RANGE — the documented value format always fails ❌ code review finding
+
+**Background:** `add_data_validation`'s own docstring documents `ONE_OF_RANGE`'s `values` as "one item, the source range in A1 notation, e.g. `["Sheet2!A:A"]`" — no leading `=`. Live-tested against the real Sheets API and confirmed this format is rejected outright.
+
+**Prompt (direct tool calls)**
+> `add_data_validation(condition_type="ONE_OF_RANGE", values=["Sales!A2:A5"])` — exactly as the docstring documents.
+
+**Checks**
+- Should succeed and create a range-sourced dropdown.
+
+**Result (2026-07-17) ❌ FAIL** `HttpError 400: "Invalid ConditionValue.userEnteredValue: Sales!A2:A5 for ConditionType: ONE_OF_RANGE"`. Retried with a leading `=` (`values=["=Sales!A2:A5"]`) — succeeded, and `get_data_validation` read back the rule correctly with `userEnteredValue: "=Sales!$A$2:$A$5"`. The docstring's example is missing the required `=` prefix; every caller who follows it as written gets a guaranteed failure.
+
+**Teardown**
+Deleted and recreated the `Empty` fixture sheet to clear the test rule.
+
+---
+
+### TC-S100: `get_data_validation` on a nonexistent sheet raises raw, not a clean error ❌ code review finding
+
+**Background:** Every other `sheet`-taking tool in `structure.py` (~22 of them, including `add_data_validation`) checks sheet existence first and returns `{"error": "Sheet 'X' not found"}`. `get_data_validation` skips this check entirely.
+
+**Prompt (direct tool call)**
+> `get_data_validation(sheet="NonexistentSheetXYZ", range="A1:A5")`
+
+**Checks**
+- Should return `{"error": "Sheet 'NonexistentSheetXYZ' not found"}`, matching every sibling tool's behavior for the same mistake.
+
+**Result (2026-07-17) ❌ FAIL** Raised an unhandled `HttpError 400: "Unable to parse range: NonexistentSheetXYZ!A1:A5"` straight through to the MCP client instead. `server.py`'s `_timed` wrapper doesn't reformat exceptions, so this is the raw googleapiclient error, not a friendly response.
 
 ---
 
