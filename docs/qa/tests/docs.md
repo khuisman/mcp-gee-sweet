@@ -1932,3 +1932,73 @@ Returned `{"error": "<HttpError 400 ... Index 99998 must be less than the end in
 
 **Result (2026-07-17) ✅ PASS**
 Returned `{"error": "<HttpError 400 ... Index 99999 must be less than the end index of the referenced segment, 65.>"}` — clean error dict, no exception, references index out of bounds.
+
+---
+
+### TC-DOC111: `find_in_doc` literal case-insensitive search returns correct offsets
+**Setup:** create a doc via `write_doc_content` with content `<p>Hello World</p><p>another hello here</p>`
+
+**Prompt**
+> "Find all instances of 'hello' in doc {DOC_ID}"
+
+**Checks**
+- Returns a list of 2 matches
+- First match: `matched_text` is `"Hello"`, `context` is `"Hello World"`
+- Second match: `matched_text` is `"hello"`, `context` is `"another hello here"`
+- Each match's `start_index`/`end_index` span exactly the matched text — confirm by calling `get_doc_structure` and slicing the paragraph text at those offsets
+
+**Cleanup:** delete the created doc
+
+---
+
+### TC-DOC112: `find_in_doc` regex search feeds directly into `style_doc_range` to hyperlink matches ⚠️ destructive
+**Setup:** create a doc via `write_doc_content` with content `<p>Contact test@example.com or admin@example.com for help</p>`
+
+**Prompt**
+> "Find every email address in doc {DOC_ID} using a regex, then turn each one into a mailto: link"
+
+**Checks**
+- `find_in_doc(doc_id, query=r"[\w.]+@[\w.]+", regex=True)` returns 2 matches with the correct `matched_text` values and offsets
+- Calling `style_doc_range` with `link_url="mailto:" + matched_text` at each returned `start_index`/`end_index` succeeds
+- `get_doc_structure` afterward shows both runs with `link_url` set to the corresponding `mailto:` address, confirming the offsets from `find_in_doc` landed on the exact right characters
+
+**Cleanup:** delete the created doc
+
+---
+
+### TC-DOC113: `find_in_doc` case_sensitive=True excludes different-case matches
+**Setup:** create a doc via `write_doc_content` with content `<p>Hello World, another hello here</p>`
+
+**Prompt**
+> "Find case-sensitive matches of 'hello' in doc {DOC_ID}"
+
+**Checks**
+- Returns exactly 1 match (`matched_text: "hello"`) — the capitalized "Hello" in the same doc is excluded
+
+**Cleanup:** delete the created doc
+
+---
+
+### TC-DOC114: `find_in_doc` invalid regex returned gracefully
+**Setup:** create a doc via `write_doc_content` with any content
+
+**Prompt**
+> "Search doc {DOC_ID} using the regex '(unclosed'"
+
+**Checks**
+- Returns `{"error": "..."}` referencing the invalid regex — does not raise an exception
+
+**Cleanup:** delete the created doc
+
+---
+
+### TC-DOC115: `find_in_doc` searches table cell text
+**Setup:** create a doc, insert a 1x1 table via `insert_doc_table`, then write "needle" into the cell via `insert_doc_text` at the cell's `paragraphStartIndex` (from `get_doc_structure`)
+
+**Prompt**
+> "Find 'needle' in doc {DOC_ID}"
+
+**Checks**
+- Returns 1 match with `matched_text: "needle"` and `start_index` equal to the cell's `paragraphStartIndex`
+
+**Cleanup:** delete the created doc
