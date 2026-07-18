@@ -1949,6 +1949,9 @@ Returned `{"error": "<HttpError 400 ... Index 99999 must be less than the end in
 
 **Cleanup:** delete the created doc
 
+**Result (2026-07-18) ✅ PASS**
+2 matches returned. `start_index`/`end_index` (1-6, 21-26) confirmed exact against `get_doc_structure` paragraph offsets (paragraphs start at 1 and 13).
+
 ---
 
 ### TC-DOC112: `find_in_doc` regex search feeds directly into `style_doc_range` to hyperlink matches ⚠️ destructive
@@ -1964,6 +1967,9 @@ Returned `{"error": "<HttpError 400 ... Index 99999 must be less than the end in
 
 **Cleanup:** delete the created doc
 
+**Result (2026-07-18) ✅ PASS**
+2 email matches found; `style_doc_range` applied `mailto:` links at the returned offsets; `get_doc_structure` afterward showed both runs split exactly at the email boundaries with the correct `link_url`.
+
 ---
 
 ### TC-DOC113: `find_in_doc` case_sensitive=True excludes different-case matches
@@ -1976,6 +1982,9 @@ Returned `{"error": "<HttpError 400 ... Index 99999 must be less than the end in
 - Returns exactly 1 match (`matched_text: "hello"`) — the capitalized "Hello" in the same doc is excluded
 
 **Cleanup:** delete the created doc
+
+**Result (2026-07-18) ✅ PASS**
+Exactly 1 match returned (`"hello"`); capitalized "Hello" correctly excluded.
 
 ---
 
@@ -1990,6 +1999,9 @@ Returned `{"error": "<HttpError 400 ... Index 99999 must be less than the end in
 
 **Cleanup:** delete the created doc
 
+**Result (2026-07-18) ✅ PASS**
+Returned `{"error": "Invalid regex: missing ), unterminated subpattern at position 0"}}` — clean error dict, no exception. Also spot-checked live: an invalid `doc_id` now returns `{"error": "<HttpError 404 ...>"}` instead of raising (regression test for the fix to the missing-try/except finding from code review).
+
 ---
 
 ### TC-DOC115: `find_in_doc` searches table cell text
@@ -2002,3 +2014,6 @@ Returned `{"error": "<HttpError 400 ... Index 99999 must be less than the end in
 - Returns 1 match with `matched_text: "needle"` and `start_index` equal to the cell's `paragraphStartIndex`
 
 **Cleanup:** delete the created doc
+
+**Result (2026-07-18) ✅ PASS**
+1 match returned, `start_index` (11) equal to the cell's `paragraphStartIndex` (11).
