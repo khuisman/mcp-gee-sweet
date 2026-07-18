@@ -188,7 +188,7 @@ This project has an opinionated roadmap and is maintained by one person. The dir
 - One issue per PR — keep scope matched to what the issue actually asks for.
 - Open a feature branch before pushing (`feat/`, `fix/`, `docs/` prefixes).
 - Fill out the PR template: what changed and why, the issue it closes, and what testing confirms it. Testing bar by change type:
-  - **Bug fix** — a QA test case (or existing one) that reproduces the bug and confirms the fix.
+  - **Bug fix** — a unit test that reproduces the bug and confirms the fix. A live `docs/qa/tests/*.md` test case (see [QA operations](#qa-operations)) is welcome too if you have QA fixtures configured, but it's not required to merge — we'll add live QA coverage as a follow-up before the fix ships in a release.
   - **Refactor** — existing unit tests and QA test cases for the touched code still pass; note explicitly if behavior is unchanged.
   - **New tool** — QA test cases and a checklist entry, see [Adding a new tool](#adding-a-new-tool). PRs without them will be asked to add them.
   - **Docs only** — no tests required, but run `make lint` and let pre-commit hooks pass.
