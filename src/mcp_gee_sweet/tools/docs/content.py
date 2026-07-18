@@ -1,6 +1,8 @@
 import html as html_module
 import logging
+import re
 import xml.etree.ElementTree as etree
+from collections.abc import Iterator
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -141,6 +143,62 @@ def _html_to_doc_requests(
     html_content: str, start_index: int = 1
 ) -> tuple[list[dict], list[Table]]:
     return _to_doc_requests(html_content, "html", start_index)
+
+
+def _utf16_units(ch: str) -> int:
+    """UTF-16 code units a single Python character occupies. Docs API indices
+    (startIndex/endIndex) are UTF-16 code units, not Python code points — an
+    astral-plane character (most emoji, some CJK/math symbols) is one Python
+    str character but 2 UTF-16 units (a surrogate pair), so every offset past
+    one would drift by 1 if counted with plain enumerate()."""
+    return 2 if ord(ch) > 0xFFFF else 1
+
+
+def _collect_doc_paragraphs(content: list[dict[str, Any]]) -> Iterator[tuple[str, list[int]]]:
+    """Walk document body content, recursing into table cells, yielding each
+    paragraph's text paired with a parallel list of document character indices
+    (one per Python character in the text, in UTF-16 code units) — lets a
+    match's in-paragraph span be translated back into document offsets usable
+    with style_doc_range.
+
+    A generator so a caller (e.g. find_in_doc bounding results by max_results)
+    can stop pulling early without walking the rest of a large document.
+
+    Each ParagraphElement carries its own startIndex, but the Docs API doesn't
+    always populate it (observed on a document's very first element). When
+    present it's trusted directly, resyncing the running offset; when absent,
+    the offset just carries forward from the paragraph's own startIndex plus
+    whatever's been consumed so far, so one missing field doesn't silently
+    drop that element's text the way an unconditional skip would."""
+    for elem in content:
+        if "paragraph" in elem:
+            # Google Docs body content is never index 0 — a missing startIndex
+            # here only happens on the document's very first element, which
+            # implicitly starts at 1 (same convention as tables.py/emitter.py).
+            offset = elem.get("startIndex", 1)
+            text_parts: list[str] = []
+            indices: list[int] = []
+            for pe in elem["paragraph"].get("elements", []):
+                start = pe.get("startIndex")
+                if start is not None:
+                    offset = start
+                tr = pe.get("textRun")
+                if tr and tr.get("content"):
+                    run_text = tr["content"]
+                    text_parts.append(run_text)
+                    for ch in run_text:
+                        indices.append(offset)
+                        offset += _utf16_units(ch)
+                else:
+                    end = pe.get("endIndex")
+                    if end is not None:
+                        offset = end
+            if text_parts:
+                yield "".join(text_parts), indices
+        elif "table" in elem:
+            for row in elem["table"].get("tableRows", []):
+                for cell in row.get("tableCells", []):
+                    yield from _collect_doc_paragraphs(cell.get("content", []))
 
 
 async def _create_named_range(
@@ -689,6 +747,109 @@ def register(tool):
             "title": doc.get("title"),
             "elements": elements,
         }
+
+    @tool(annotations=ToolAnnotations(title="Find in Document", readOnlyHint=True))
+    async def find_in_doc(
+        doc_id: str,
+        query: str,
+        regex: bool = False,
+        case_sensitive: bool = False,
+        max_results: int = 50,
+        local_path: str | None = None,
+        ctx: Context = None,
+    ) -> list[dict[str, Any]] | dict[str, Any]:
+        """
+        Search a Google Doc's text and return match locations as document
+        character offsets.
+
+        Matches feed directly into style_doc_range's ranges — e.g. to link up
+        bare URLs already sitting in a doc: find_in_doc(doc_id,
+        query=r'https?://[^\\s<>"]+(?<![.,;:!?)])', regex=True), then
+        style_doc_range with link_url per match. The trailing negative
+        lookbehind keeps a URL followed by sentence punctuation (or an
+        unmatched closing paren) from swallowing it into the link.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            query: Text to search for. Interpreted literally by default; pass
+                regex=True to treat it as a Python regular expression.
+            regex: Whether query is a regular expression (default False).
+            case_sensitive: Whether the search is case-sensitive (default False).
+            max_results: Maximum number of matches to return (default 50).
+            local_path: Optional local filesystem path (file or directory) to write the
+                result to instead of returning it inline. Bypasses the response-size cap.
+                Same caveat as download_file/download_folder: this path is resolved on the
+                *server's* filesystem, not the caller's.
+
+        Returns:
+            List of matches, each with start_index/end_index (document offsets
+            usable directly as a style_doc_range range), matched_text, and
+            context (the containing paragraph's full text). Searches paragraph
+            text in the document body, including table cells; headers,
+            footers, and footnotes are not searched. A zero-length regex match
+            (e.g. "x*" with no "x" present) is skipped. Returns {"error": ...}
+            if query is an invalid regex, or if the Docs API call itself fails
+            (e.g. doc_id doesn't exist). max_results bounds match count, not
+            response size — matched context can still be large. Raises
+            ValueError if the response exceeds a safety cap (default 40,000
+            characters, set MAX_TOOL_RESPONSE_CHARS to change it) and
+            local_path is not set — lower max_results, or pass local_path. If
+            local_path is set, returns {local_path, doc_id, query, match_count,
+            bytes_written} instead.
+        """
+        lc = ctx.request_context.lifespan_context
+        docs_service = lc.docs_service
+
+        flags = 0 if case_sensitive else re.IGNORECASE
+        try:
+            pattern = re.compile(query, flags) if regex else re.compile(re.escape(query), flags)
+        except re.error as e:
+            return {"error": f"Invalid regex: {e}"}
+
+        try:
+            doc = await execute_in_thread(
+                docs_service.documents().get(documentId=doc_id).execute,
+                docs_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        results: list[dict[str, Any]] = []
+        for para_text, para_indices in _collect_doc_paragraphs(
+            doc.get("body", {}).get("content", [])
+        ):
+            if len(results) >= max_results:
+                break
+            for m in pattern.finditer(para_text):
+                if len(results) >= max_results:
+                    break
+                start_char, end_char = m.start(), m.end()
+                if start_char == end_char:
+                    continue
+                results.append(
+                    {
+                        "start_index": para_indices[start_char],
+                        "end_index": para_indices[end_char - 1]
+                        + _utf16_units(para_text[end_char - 1]),
+                        "matched_text": para_text[start_char:end_char],
+                        "context": para_text.rstrip("\n"),
+                    }
+                )
+
+        if local_path:
+            return await write_capped_result_to_disk(
+                results,
+                local_path,
+                default_filename="find_in_doc_results.json",
+                manifest_extra={
+                    "doc_id": doc_id,
+                    "query": query,
+                    "match_count": len(results),
+                },
+            )
+
+        enforce_response_size_cap(results, tool_name="find_in_doc")
+        return results
 
     @tool(annotations=ToolAnnotations(title="Insert Document Text", destructiveHint=True))
     async def insert_doc_text(
