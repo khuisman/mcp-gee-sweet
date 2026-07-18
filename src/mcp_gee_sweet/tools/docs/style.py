@@ -117,6 +117,31 @@ def _read_named_styles(doc: dict) -> dict:
     return theme
 
 
+def _text_style_and_fields(style: dict) -> tuple[dict, list[str]]:
+    """Build a Docs API textStyle dict + field mask from a flat style dict keyed
+    by bold/italic/underline/strikethrough/font_size/foreground_color/link_url.
+
+    Shared by style_doc_range and insert_softbreak_paragraph so both tools draw
+    per-run styling from the same key vocabulary and request-building logic.
+    """
+    text_style: dict = {}
+    fields: list[str] = []
+    for key in ("bold", "italic", "underline", "strikethrough"):
+        if key in style:
+            text_style[key] = style[key]
+            fields.append(key)
+    if "font_size" in style:
+        text_style["fontSize"] = {"magnitude": style["font_size"], "unit": "PT"}
+        fields.append("fontSize")
+    if "foreground_color" in style:
+        text_style["foregroundColor"] = {"color": {"rgbColor": style["foreground_color"]}}
+        fields.append("foregroundColor")
+    if "link_url" in style:
+        text_style["link"] = {"url": style["link_url"]} if style["link_url"] else {}
+        fields.append("link")
+    return text_style, fields
+
+
 def _build_named_style_requests(style_type: str, entry: dict) -> list[dict]:
     """Build an updateNamedStyle batchUpdate request for one named style type.
 
@@ -225,26 +250,7 @@ def register(tool):
                     }
                 )
 
-            text_style = {}
-            text_fields = []
-            for key, api_key in [
-                ("bold", "bold"),
-                ("italic", "italic"),
-                ("underline", "underline"),
-                ("strikethrough", "strikethrough"),
-            ]:
-                if key in r:
-                    text_style[api_key] = r[key]
-                    text_fields.append(api_key)
-            if "font_size" in r:
-                text_style["fontSize"] = {"magnitude": r["font_size"], "unit": "PT"}
-                text_fields.append("fontSize")
-            if "foreground_color" in r:
-                text_style["foregroundColor"] = {"color": {"rgbColor": r["foreground_color"]}}
-                text_fields.append("foregroundColor")
-            if "link_url" in r:
-                text_style["link"] = {"url": r["link_url"]} if r["link_url"] else {}
-                text_fields.append("link")
+            text_style, text_fields = _text_style_and_fields(r)
 
             if text_style:
                 requests.append(

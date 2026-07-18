@@ -2105,3 +2105,18 @@ Tagged `⚠️ requires-oauth` on every case that reaches the upload step — th
 - `get_doc_structure` shows the doc completely unchanged — no image, no marker text removed (the tool uploads/shares before touching the document, and none of these three ever reached that step)
 
 **Cleanup:** delete the created doc
+
+---
+
+### TC-DOC121: A marker that's a substring of unrelated document text is not falsely matched
+**Setup:** create a doc via `write_doc_content` with content `<p>Reference build IMG10 in the changelog.</p>` — note there is no standalone "IMG1" token anywhere, only "IMG1" as the first four characters of "IMG10"
+
+**Prompt**
+> "In doc {DOC_ID}, insert local images: marker 'IMG1', local_path '<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png', into folder {FOLDER_ID}"
+
+**Checks**
+- `results` has one entry with an `error` containing "not found" — plain substring search would incorrectly match "IMG1" inside "IMG10" and report success
+- `get_doc_structure` shows the doc completely unchanged (no upload happened, since the marker never resolved)
+- No file was uploaded to Drive (nothing to clean up)
+
+**Cleanup:** delete the created doc

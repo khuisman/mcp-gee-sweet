@@ -1748,3 +1748,141 @@ class TestInsertLocalImages:
         )
 
         assert "error" in result
+
+    async def test_substring_marker_not_present_is_not_falsely_matched(self, tmp_path):
+        # Regression: plain substring search would match "IMG1" inside "IMG10"
+        # even though "IMG1" never appears as its own marker in the document.
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["IMG10\n"]])
+        docs_svc = self._docs_svc(doc)
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "IMG1", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        assert "error" in result["results"][0]
+        assert "not found" in result["results"][0]["error"]
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_substring_markers_both_present_resolve_to_correct_positions(self, tmp_path):
+        # Regression: requesting both "IMG1" and "IMG10" where each appears exactly
+        # once (in separate paragraphs) must not report a false "occurs twice" for
+        # either — longest-first matching must not let "IMG10" ever get counted as
+        # an extra occurrence of "IMG1".
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, paragraphs = _build_doc_body([["IMG1 here\n"], ["IMG10 there\n"]])
+        docs_svc = self._docs_svc(doc)
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[
+                {"marker": "IMG1", "local_path": str(img)},
+                {"marker": "IMG10", "local_path": str(img)},
+            ],
+            ctx=ctx,
+        )
+
+        assert all("error" not in r for r in result["results"])
+        assert result["results"][0]["index"] == paragraphs[0][0]
+        assert result["results"][1]["index"] == paragraphs[1][0]
+
+    async def test_marker_with_astral_character_deletes_correct_utf16_span(self, tmp_path):
+        # Regression: marker_len must be counted in UTF-16 units, not Python code
+        # points — "😀" is 1 Python char but 2 UTF-16 units, so a naive len(marker)
+        # would leave the deleteContentRange one unit short, stranding a character.
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, paragraphs = _build_doc_body([["before 😀MARK after\n"]])
+        docs_svc = self._docs_svc(doc)
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+        para_start, para_text = paragraphs[0]
+        marker = "😀MARK"
+        marker_start = para_start + para_text.index(marker)
+        # "😀" costs 2 UTF-16 units + "MARK" costs 4 -> 6 total, not len(marker) == 5.
+        expected_end = marker_start + 1 + 6
+
+        await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": marker, "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        delete_req = next(
+            r["deleteContentRange"] for r in body["requests"] if "deleteContentRange" in r
+        )
+        assert delete_req["range"]["endIndex"] == expected_end
+
+    async def test_failed_batchupdate_entry_has_error_but_no_fileid(self, tmp_path):
+        # Regression: the doc-edit-failure handler used to reuse the same entry
+        # dict that already carried "fileId" from a successful upload, leaving
+        # both fileId and error set — contradicting the documented either/or contract.
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "batchUpdate failed"
+        )
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        entry = result["results"][0]
+        assert "error" in entry
+        assert "fileId" not in entry
+
+    async def test_results_order_matches_images_input_order_not_doc_position_order(self, tmp_path):
+        # Regression: successes used to be appended in descending-document-position
+        # order (used internally for batchUpdate construction) while failures were
+        # appended in input order, so results didn't line up with the images argument
+        # whenever a caller listed markers in an order different from their document
+        # position. Here "TWO" (input index 0) sits *after* "ONE" (input index 1) in
+        # the document, so document-position order would put ONE first — but the
+        # correct output order is input order: TWO's outcome, then ONE's.
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["ONE\n"], ["TWO\n"]])
+        docs_svc = self._docs_svc(doc)
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[
+                {"marker": "TWO", "local_path": str(img)},
+                {"marker": "ONE", "local_path": str(img)},
+            ],
+            ctx=ctx,
+        )
+
+        assert [r["marker"] for r in result["results"]] == ["TWO", "ONE"]
+
+    async def test_results_order_preserved_with_mixed_success_and_early_failure(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["ONE\n"]])
+        docs_svc = self._docs_svc(doc)
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[
+                {"marker": "MISSING", "local_path": str(img)},
+                {"marker": "ONE", "local_path": str(img)},
+            ],
+            ctx=ctx,
+        )
+
+        assert [r["marker"] for r in result["results"]] == ["MISSING", "ONE"]
+        assert "error" in result["results"][0]
+        assert "error" not in result["results"][1]

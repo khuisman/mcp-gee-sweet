@@ -11,7 +11,7 @@ from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.drive import transfer as transfer_module
-from mcp_gee_sweet.tools.drive.transfer import _xlsx_range_values
+from mcp_gee_sweet.tools.drive.transfer import _upload_local_file, _xlsx_range_values
 
 
 def _make_tool_registry():
@@ -98,6 +98,93 @@ class TestUploadFile:
             name="doc.txt", content="hello", folder_id="target_folder", ctx=ctx
         )
         folder_cache.mark_dirty.assert_called_once_with("target_folder")
+
+
+class TestUploadLocalFileCore:
+    """Direct tests for _upload_local_file — the module-level helper factored out
+    of the upload_local_file tool so docs/content.py's insert_local_images can
+    call it directly."""
+
+    def _quota_err(self):
+        resp = MagicMock()
+        resp.status = 403
+        return HttpError(resp=resp, content=b'{"error": {"reason": "storageQuotaExceeded"}}')
+
+    async def test_missing_local_file_raises(self, tmp_path):
+        drive_svc = MagicMock()
+        with pytest.raises(ValueError, match="No file found"):
+            await _upload_local_file(drive_svc, str(tmp_path / "missing.txt"), "folder1")
+
+    async def test_uploads_and_returns_file_metadata(self, tmp_path):
+        local_file = tmp_path / "pic.png"
+        local_file.write_bytes(b"fake-bytes")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "pic.png",
+            "webViewLink": "https://example.com/pic",
+        }
+
+        result = await _upload_local_file(drive_svc, str(local_file), "folder1")
+
+        assert result == {
+            "fileId": "fid1",
+            "name": "pic.png",
+            "web_link": "https://example.com/pic",
+            "skipped": False,
+        }
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["body"] == {"name": "pic.png", "parents": ["folder1"]}
+
+    async def test_skip_if_exists_returns_existing_file_without_uploading(self, tmp_path):
+        local_file = tmp_path / "pic.png"
+        local_file.write_bytes(b"fake-bytes")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"id": "existing1", "name": "pic.png", "webViewLink": "https://x/existing"}]
+        }
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", skip_if_exists=True
+        )
+
+        assert result == {
+            "fileId": "existing1",
+            "name": "pic.png",
+            "web_link": "https://x/existing",
+            "skipped": True,
+        }
+        drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_quota_exceeded_returns_friendly_error_dict(self, tmp_path):
+        local_file = tmp_path / "pic.png"
+        local_file.write_bytes(b"fake-bytes")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.side_effect = self._quota_err()
+
+        result = await _upload_local_file(drive_svc, str(local_file), "folder1")
+
+        assert "error" in result
+        assert "Service accounts" in result["error"]
+
+    async def test_custom_name_used_instead_of_filename(self, tmp_path):
+        local_file = tmp_path / "pic.png"
+        local_file.write_bytes(b"fake-bytes")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "renamed.png",
+            "webViewLink": "https://example.com/pic",
+        }
+
+        result = await _upload_local_file(drive_svc, str(local_file), "folder1", name="renamed.png")
+
+        assert result["name"] == "renamed.png"
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["body"]["name"] == "renamed.png"
 
 
 class TestXlsxRangeValues:

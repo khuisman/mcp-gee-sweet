@@ -1,3 +1,4 @@
+import asyncio
 import html as html_module
 import logging
 import re
@@ -22,7 +23,7 @@ from ..response_limits import enforce_response_size_cap, write_capped_result_to_
 from .ast import Table
 from .emitter import ast_to_requests, fill_tables
 from .html_parser import html_to_ast
-from .style import _NAMED_STYLE_TYPES
+from .style import _NAMED_STYLE_TYPES, _text_style_and_fields
 
 logger = logging.getLogger(__name__)
 
@@ -1222,8 +1223,12 @@ def register(tool):
             index: Document position to insert at. Use get_doc_structure to find it.
             lines: List of line dicts, each with:
                 text (str): the line's text (required, non-empty).
-                bold, italic, underline, strikethrough (bool, optional): per-line
-                    text style, applied only to that line's own span.
+                Optional per-line text style, applied only to that line's own span
+                (same vocabulary as style_doc_range's text-style fields):
+                  bold, italic, underline, strikethrough (bool)
+                  font_size (float): size in points
+                  foreground_color (dict): {"red": 0-1, "green": 0-1, "blue": 0-1}
+                  link_url (str): set a hyperlink
             named_style_type: Paragraph style applied to the whole paragraph the
                 inserted block ends up in (per Docs API updateParagraphStyle
                 semantics, this covers the entire paragraph touched by the insert,
@@ -1270,12 +1275,7 @@ def register(tool):
             line_end = line_start + sum(_utf16_units(ch) for ch in line["text"])
             line_ranges.append({"start_index": line_start, "end_index": line_end})
 
-            text_style: dict[str, Any] = {}
-            fields: list[str] = []
-            for key in ("bold", "italic", "underline", "strikethrough"):
-                if key in line:
-                    text_style[key] = line[key]
-                    fields.append(key)
+            text_style, fields = _text_style_and_fields(line)
             if text_style:
                 requests.append(
                     {
@@ -1338,17 +1338,23 @@ def register(tool):
         text, then deletes the marker text.
 
         All markers are located in a single pass over the document's current text
-        before any edits are applied, then edits are applied highest-index-first so
-        replacing one marker never invalidates another marker's already-computed
-        position — same convention as insert_doc_text/delete_doc_range. Uploading
-        and sharing happen before any document edit, so a failed upload never
-        leaves the doc partially edited.
+        before any edits are applied — markers are matched longest-first at each
+        position, so one marker that's a substring of another (e.g. "IMG1" vs
+        "IMG10") can't produce a false match or a false "occurs twice" collision.
+        Uploads and shares run in parallel; the document edit is one batchUpdate
+        applied highest-index-first so replacing one marker never invalidates
+        another marker's already-computed position — same convention as
+        insert_doc_text/delete_doc_range. Uploading and sharing happen before any
+        document edit, so a failed upload never leaves the doc partially edited.
 
         Args:
             doc_id: The Google Doc file ID.
             images: List of image dicts, each with:
                 marker (str): exact literal text already present in the doc body,
-                    marking where this image goes. Must occur exactly once in the
+                    marking where this image goes. Matched as a whole token — not
+                    immediately preceded or followed by another letter, digit, or
+                    underscore — so a marker like "IMG1" can't falsely match inside
+                    unrelated text like "IMG10". Must occur exactly once in the
                     document (searched case-sensitively) — an ambiguous or missing
                     marker fails just that image, not the whole call.
                 local_path: absolute path to the local image file.
@@ -1357,10 +1363,13 @@ def register(tool):
                 configured default folder.
 
         Returns:
-            Dictionary with docId and results — a list of per-image outcomes, each
-            echoing marker and local_path plus either fileId + index on success or
-            error on failure (marker not found, marker not unique, local file
-            missing, upload failure, or sharing failure).
+            Dictionary with docId and results — a list of per-image outcomes in the
+            same order as the `images` argument, each echoing marker and local_path
+            plus either fileId + index on success, or error on failure (marker not
+            found, marker not unique, local file missing, upload failure, sharing
+            failure, or — rare, since uploads happen first — a failed document edit;
+            that last case never carries a fileId even though the upload itself
+            succeeded, since the image was never actually placed).
 
         Note:
             Uploaded images end up shared anyone-with-link/reader — remove that
@@ -1387,75 +1396,84 @@ def register(tool):
 
         paragraphs = list(_collect_doc_paragraphs(doc.get("body", {}).get("content", [])))
 
-        results: list[dict[str, Any]] = []
-        placements: list[dict[str, Any]] = []  # located in the doc, ready to upload+place
+        # Locate every requested marker in a single pass over the document. Two
+        # measures guard against one marker being a substring of another piece of
+        # text: (1) each match must be a whole token — not immediately preceded or
+        # followed by another letter/digit/underscore — so a marker "IMG1" can't
+        # match inside unrelated document text "IMG10"; (2) alternatives are tried
+        # longest-first, so if two *requested* markers legitimately overlap at the
+        # same position (e.g. both "IMG1" and "IMG10" are real, distinct markers
+        # present in the doc), the longer one wins there rather than the shorter
+        # one swallowing part of it.
+        marker_texts = {img.get("marker") for img in images if img.get("marker")}
+        located: dict[str, list[int]] = {m: [] for m in marker_texts}
+        if marker_texts:
+            alternation = "|".join(
+                re.escape(m) for m in sorted(marker_texts, key=len, reverse=True)
+            )
+            combined = re.compile(rf"(?<![A-Za-z0-9_])(?:{alternation})(?![A-Za-z0-9_])")
+            for para_text, para_indices in paragraphs:
+                for m in combined.finditer(para_text):
+                    located[m.group(0)].append(para_indices[m.start()])
 
-        for image in images:
+        # outcomes is index-aligned with `images` throughout, so the returned
+        # `results` list always matches caller input order regardless of the
+        # order placements finish uploading or get written to the doc.
+        outcomes: list[dict[str, Any] | None] = [None] * len(images)
+        placements: list[dict[str, Any]] = []  # located + validated, ready to upload+place
+
+        for i, image in enumerate(images):
             marker = image.get("marker")
             local_path = image.get("local_path")
             entry: dict[str, Any] = {"marker": marker, "local_path": local_path}
 
             if not marker:
                 entry["error"] = "missing 'marker'"
-                results.append(entry)
+                outcomes[i] = entry
                 continue
             if not local_path:
                 entry["error"] = "missing 'local_path'"
-                results.append(entry)
+                outcomes[i] = entry
                 continue
             if not Path(local_path).is_file():
                 entry["error"] = f"No file found at {local_path!r}"
-                results.append(entry)
+                outcomes[i] = entry
                 continue
 
-            matches: list[int] = []
-            for para_text, para_indices in paragraphs:
-                start_char = 0
-                while True:
-                    found = para_text.find(marker, start_char)
-                    if found == -1:
-                        break
-                    matches.append(para_indices[found])
-                    start_char = found + len(marker)
+            matches = located.get(marker, [])
             if not matches:
                 entry["error"] = f"marker {marker!r} not found in document"
-                results.append(entry)
+                outcomes[i] = entry
                 continue
             if len(matches) > 1:
                 entry["error"] = f"marker {marker!r} occurs {len(matches)} times; must be unique"
-                results.append(entry)
+                outcomes[i] = entry
                 continue
 
             placements.append(
                 {
+                    "index": i,
                     "entry": entry,
                     "marker_start": matches[0],
-                    "marker_len": len(marker),
+                    "marker_len": sum(_utf16_units(ch) for ch in marker),
                     "local_path": local_path,
                     "width": image.get("width"),
                     "height": image.get("height"),
                 }
             )
 
-        for placement in placements:
+        async def _upload_and_share(placement: dict[str, Any]) -> None:
             entry = placement["entry"]
             try:
                 upload = await _upload_local_file(
                     drive_service, placement["local_path"], target_folder_id, skip_if_exists=False
                 )
-            except Exception as e:
-                entry["error"] = f"upload failed: {e}"
-                placement["failed"] = True
-                results.append(entry)
-                continue
-            if "error" in upload:
-                entry["error"] = upload["error"]
-                placement["failed"] = True
-                results.append(entry)
-                continue
+                if "error" in upload:
+                    entry["error"] = upload["error"]
+                    placement["failed"] = True
+                    return
 
-            file_id = upload["fileId"]
-            try:
+                file_id = upload["fileId"]
                 await execute_in_thread(
                     drive_service.permissions()
                     .create(
@@ -1474,12 +1492,9 @@ def register(tool):
                     drive_service,
                 )
             except Exception as e:
-                entry["error"] = (
-                    f"uploaded as {file_id} but failed to prepare it for embedding: {e}"
-                )
+                entry["error"] = f"upload/share failed: {e}"
                 placement["failed"] = True
-                results.append(entry)
-                continue
+                return
 
             uri = metadata.get("webContentLink")
             if not uri:
@@ -1487,23 +1502,39 @@ def register(tool):
                     f"uploaded and shared as {file_id} but Drive returned no webContentLink"
                 )
                 placement["failed"] = True
-                results.append(entry)
-                continue
+                return
 
             placement["file_id"] = file_id
             placement["uri"] = uri
             entry["fileId"] = file_id
 
-        lc.drive_folder_cache.mark_dirty(target_folder_id)
+        if placements:
+            # return_exceptions=True: _upload_and_share already catches its own
+            # errors, but this also guards against anything unexpected escaping it
+            # without one failed image's exception aborting every other upload.
+            gather_results = await asyncio.gather(
+                *(_upload_and_share(p) for p in placements), return_exceptions=True
+            )
+            for placement, result in zip(placements, gather_results):
+                if isinstance(result, BaseException):
+                    placement["failed"] = True
+                    placement["entry"]["error"] = f"upload/share failed: {result}"
+
+        if any("file_id" in p for p in placements):
+            lc.drive_folder_cache.mark_dirty(target_folder_id)
+
+        for placement in placements:
+            if placement.get("failed"):
+                outcomes[placement["index"]] = placement["entry"]
 
         ready = [p for p in placements if not p.get("failed")]
         if not ready:
-            return {"docId": doc_id, "results": results}
+            return {"docId": doc_id, "results": outcomes}
 
-        ready.sort(key=lambda p: p["marker_start"], reverse=True)
-
+        # Highest marker_start first, so an earlier (lower-index) marker's position
+        # is never shifted by a later edit — same convention as insert_doc_text.
         requests: list[dict[str, Any]] = []
-        for placement in ready:
+        for placement in sorted(ready, key=lambda p: p["marker_start"], reverse=True):
             marker_start = placement["marker_start"]
             image_request: dict[str, Any] = {
                 "insertInlineImage": {
@@ -1540,13 +1571,15 @@ def register(tool):
             )
         except Exception as e:
             for placement in ready:
-                placement["entry"]["error"] = f"doc edit failed: {e}"
-                results.append(placement["entry"])
-            return {"docId": doc_id, "results": results}
+                entry = placement["entry"]
+                entry.pop("fileId", None)
+                entry["error"] = f"doc edit failed: {e}"
+                outcomes[placement["index"]] = entry
+            return {"docId": doc_id, "results": outcomes}
 
         for placement in ready:
             placement["entry"]["index"] = placement["marker_start"]
-            results.append(placement["entry"])
+            outcomes[placement["index"]] = placement["entry"]
 
         lc.doc_cache.mark_dirty(doc_id)
         logger.debug(
@@ -1555,4 +1588,4 @@ def register(tool):
             len(images),
             doc_id,
         )
-        return {"docId": doc_id, "results": results}
+        return {"docId": doc_id, "results": outcomes}
