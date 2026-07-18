@@ -3,6 +3,7 @@ import base64
 import io
 import logging
 import mimetypes
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -281,6 +282,14 @@ async def _sync_level(
                                 _, done = downloader.next_chunk()
 
                     await asyncio.to_thread(_download_to_completion)
+                # Mirror what the upload branch above does in reverse: set the
+                # local file's mtime to Drive's modifiedTime so the round trip
+                # stays within _SYNC_MTIME_TOLERANCE on the next sync. Without
+                # this the local mtime is "now" (write time), which is always
+                # later than Drive's original timestamp — the next sync sees the
+                # file as locally newer and re-uploads it, indefinitely (#346).
+                dtime = _drive_mtime(entry)
+                os.utime(dest_file, (dtime.timestamp(), dtime.timestamp()))
                 size = dest_file.stat().st_size
                 logger.debug("Synced (download) Drive → %s%s (%d bytes)", rel_prefix, name, size)
                 return {"kind": "download_ok", "name": name, "bytes": size}

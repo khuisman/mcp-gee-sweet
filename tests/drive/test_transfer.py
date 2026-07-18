@@ -2,6 +2,7 @@
 
 import io
 import threading
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import openpyxl
@@ -543,6 +544,80 @@ class TestSyncFolderRecursive:
         names = {a["name"] for a in result["actions"]}
         assert names == {"alpha/a.txt", "beta/b.txt"}
         assert result["failed"] == []
+
+
+class TestSyncFolderDownloadMtimeRoundTrip:
+    """Issue #346: a downloaded file's local mtime defaulted to write time ('now'),
+    not Drive's modifiedTime — since 'now' is always later than Drive's original
+    timestamp, the next sync saw the file as locally newer and re-uploaded it
+    (harmless to content, but wasteful, and repeats on every subsequent sync).
+    Fixed by setting the local file's mtime to Drive's modifiedTime after a
+    successful download, mirroring what the upload branch already does in
+    reverse for the Drive side."""
+
+    def _ctx(self, fs: _FakeDriveFS):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = fs.svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    def _workspace_fs(self, drive_mtime: str) -> _FakeDriveFS:
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "a",
+                        "fa",
+                        mtime=drive_mtime,
+                        mime="application/vnd.google-apps.document",
+                    )
+                ]
+            }
+        )
+        fs.svc.files.return_value.export.return_value.execute.return_value = b"content"
+        return fs
+
+    async def test_downloaded_file_mtime_matches_drive_modifiedtime(self, tmp_path):
+        drive_mtime = "2024-06-01T12:00:00.000Z"
+        fs = self._workspace_fs(drive_mtime)
+
+        await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            export_format="pdf",
+            ctx=self._ctx(fs),
+        )
+
+        local_mtime = datetime.fromtimestamp((tmp_path / "a.pdf").stat().st_mtime, tz=timezone.utc)
+        expected = datetime.fromisoformat(drive_mtime.replace("Z", "+00:00"))
+        assert abs((local_mtime - expected).total_seconds()) < 1
+
+    async def test_resync_after_download_reports_skipped_not_reuploaded(self, tmp_path):
+        drive_mtime = "2024-06-01T12:00:00.000Z"
+        fs = self._workspace_fs(drive_mtime)
+        ctx = self._ctx(fs)
+
+        first = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            export_format="pdf",
+            ctx=ctx,
+        )
+        assert first["downloaded"] == ["a.pdf"]
+
+        second = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            export_format="pdf",
+            ctx=ctx,
+        )
+        assert second["skipped"] == ["a.pdf"]
+        assert second["downloaded"] == []
+        assert second["uploaded"] == []
 
 
 class TestDownloadFolder:
