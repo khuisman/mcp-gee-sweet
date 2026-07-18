@@ -1680,6 +1680,8 @@ In `{FOLDER_ID}`, ensure at least one Drive-only file exists that isn't already 
 - Second run (any real time gap is fine — no need to wait past the 5s tolerance deliberately, ordinary tool-call latency between the two prompts is enough): the same file appears in `skipped` ("in sync"), not `uploaded`
 - No entry for the file appears in `conflicts` on either run
 
+**Result (2026-07-17) ✅ PASS** Uploaded `qa-mtime-346.txt` to `{FOLDER_ID}`, ran `sync_folder(direction="bidirectional")` twice against a fresh local dir. First run: `downloaded` included `qa-mtime-346.txt`. Second run: `qa-mtime-346.txt` moved to `skipped`, with `uploaded`/`conflicts` both empty — no re-upload loop. Bonus: the two pre-existing raw (non-Workspace) fixture files (`qa-notes.md`, `qa-upload.txt`) also settled into `skipped` on the second run, confirming the fix holds on the raw-file download branch, not just the Workspace-export branch the unit tests exercise.
+
 **Teardown**
 Delete the test file from `{FOLDER_ID}`. Remove `/tmp/qa-sync-346/`.
 
