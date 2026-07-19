@@ -2770,6 +2770,106 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#insert_softbreak_paragraph-332" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        insert_softbreak_paragraph (#332)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="insert_softbreak_paragraph (#332)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc116-two-lines-join-into-a-single-soft-break-paragraph-with-an-explicit-style-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC116: Two lines join into a single soft-break paragraph with an explicit style ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc117-invalid-named_style_type-rejected-without-mutating-the-doc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC117: Invalid named_style_type rejected without mutating the doc
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#insert_local_images-332" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        insert_local_images (#332)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="insert_local_images (#332)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc118-single-marker-is-replaced-by-an-uploaded-image-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC118: Single marker is replaced by an uploaded image ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc119-two-markers-are-placed-in-one-call-higher-index-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC119: Two markers are placed in one call, higher index first
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc120-marker-not-found-not-unique-local-file-missing-all-fail-per-image-without-mutating-the-doc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC120: Marker not found / not unique / local file missing all fail per-image without mutating the doc
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc121-a-marker-thats-a-substring-of-unrelated-document-text-is-not-falsely-matched" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC121: A marker that's a substring of unrelated document text is not falsely matched
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -3012,7 +3112,7 @@
 
 <h1 id="docs-direct-api-tools-qa-test-cases">Docs Direct API Tools — QA Test Cases<a class="headerlink" href="#docs-direct-api-tools-qa-test-cases" title="Permanent link">&para;</a></h1>
 <p>Source: <code>src/mcp_gee_sweet/tools/docs/</code> (package: <code>__init__.py</code>, <code>ast.py</code>, <code>html_parser.py</code>, <code>emitter.py</code>)</p>
-<p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute <code>{DOC_ID}</code> from <code>fixtures.local.md</code>.</p>
+<p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute <code>{DOC_ID}</code> (and, for <code>insert_local_images</code>, <code>{FOLDER_ID}</code>) from <code>fixtures.local.md</code>.</p>
 <p>These tools operate on document body indices. Use <code>get_doc_structure</code> first in any session to obtain current indices before calling insert/delete/style operations.</p>
 <hr />
 <h2 id="get_doc_structure"><code>get_doc_structure</code><a class="headerlink" href="#get_doc_structure" title="Permanent link">&para;</a></h2>
@@ -4588,6 +4688,98 @@ Returned <code>{"error": "Invalid regex: missing ), unterminated subpattern at p
 <p><strong>Cleanup:</strong> delete the created doc</p>
 <p><strong>Result (2026-07-18) ✅ PASS</strong>
 1 match returned, <code>start_index</code> (11) equal to the cell's <code>paragraphStartIndex</code> (11).</p>
+<hr />
+<h2 id="insert_softbreak_paragraph-332"><code>insert_softbreak_paragraph</code> (#332)<a class="headerlink" href="#insert_softbreak_paragraph-332" title="Permanent link">&para;</a></h2>
+<p>Not tagged <code>⚠️ requires-oauth</code> — like <code>insert_doc_text</code>/<code>style_doc_range</code>, the tool itself is auth-agnostic; only the fixture doc happens to live in personal Drive.</p>
+<h3 id="tc-doc116-two-lines-join-into-a-single-soft-break-paragraph-with-an-explicit-style-destructive">TC-DOC116: Two lines join into a single soft-break paragraph with an explicit style ⚠️ destructive<a class="headerlink" href="#tc-doc116-two-lines-join-into-a-single-soft-break-paragraph-with-an-explicit-style-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> create a doc with a placeholder paragraph via <code>write_doc_content</code>; note the placeholder paragraph's <code>startIndex</code></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Insert a soft-break paragraph at index {N} in doc {DOC_ID} with lines [{text: 'Document ID: KH-OPS-001', bold: true}, {text: 'Category: AWS / Database'}], named_style_type HEADING_2"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response has no <code>error</code>; <code>start_index</code>/<code>end_index</code>/<code>line_ranges</code> are present, and each <code>line_ranges</code> entry's span matches its line's text length
+- <code>get_doc_structure</code> shows <strong>one</strong> paragraph element spanning the inserted block (not two) — confirms the <code>\v</code> separator did not create a paragraph break
+- That paragraph's <code>namedStyleType</code> is <code>HEADING_2</code>
+- 🔍 Visual check in Google Docs: the two lines render as one tight paragraph (no blank-line gap between them) with a visible line break; only the first line is bold</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-19) ✅ PASS</strong>
+Structural checks confirmed (single paragraph, HEADING_2, correct line_ranges). Playwright screenshot confirmed one tight paragraph with a visible soft line break, only "Document ID: KH-OPS-001" bold.</p>
+<hr />
+<h3 id="tc-doc117-invalid-named_style_type-rejected-without-mutating-the-doc">TC-DOC117: Invalid named_style_type rejected without mutating the doc<a class="headerlink" href="#tc-doc117-invalid-named_style_type-rejected-without-mutating-the-doc" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> create a doc via <code>write_doc_content</code> with any content</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Insert a soft-break paragraph at index 1 in doc {DOC_ID} with lines [{text: 'x'}], named_style_type 'NOT_A_STYLE'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> naming the invalid value — does not raise an exception
+- <code>get_doc_structure</code> shows the doc unchanged (no insertion occurred)</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-19) ✅ PASS</strong>
+Returned <code>{"error": "invalid named_style_type 'NOT_A_STYLE'; must be one of: ..."}}</code>; doc structure confirmed unchanged.</p>
+<hr />
+<h2 id="insert_local_images-332"><code>insert_local_images</code> (#332)<a class="headerlink" href="#insert_local_images-332" title="Permanent link">&para;</a></h2>
+<p><strong>Fixture:</strong> <code>docs/qa/fixtures/qa-fixture-pixel.png</code> — a 1×1 pixel PNG, small enough to commit directly; only used to confirm placement/replacement mechanics, not visual image quality.</p>
+<p>Tagged <code>⚠️ requires-oauth</code> on every case that reaches the upload step — the tool calls the same local-file-upload path as <code>upload_local_file</code>, which cannot write to personal Drive under a service account (see its docstring). Error-path cases that return before any upload (marker not found/not unique, missing local file) are not tagged, matching the convention for <code>insert_inline_image</code>'s own error-path tests.</p>
+<h3 id="tc-doc118-single-marker-is-replaced-by-an-uploaded-image-requires-oauth-destructive">TC-DOC118: Single marker is replaced by an uploaded image ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc118-single-marker-is-replaced-by-an-uploaded-image-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> create a doc via <code>write_doc_content</code> with content <code>&lt;p&gt;before&lt;/p&gt;&lt;p&gt;IMGMARKERONE&lt;/p&gt;&lt;p&gt;after&lt;/p&gt;</code></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"In doc {DOC_ID}, insert local images: marker 'IMGMARKERONE', local_path '<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png', into folder {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>results</code> has exactly one entry with no <code>error</code>, a <code>fileId</code>, and an <code>index</code> equal to the "IMGMARKERONE" paragraph's <code>startIndex</code> (from a prior <code>get_doc_structure</code>)
+- <code>get_doc_structure</code> afterward: the marker text is gone, the "before"/"after" paragraphs are unaffected, and the middle paragraph's <code>endIndex - startIndex</code> is now 2 (one image "character" + the paragraph's trailing <code>\n</code>)
+- The uploaded file (<code>results[0].fileId</code>) is shared <code>anyone</code>/<code>reader</code> (<code>list_permissions</code>)
+- 🔍 Visual check in Google Docs: an image renders where the marker used to be, and the literal marker text is gone</p>
+<p><strong>Cleanup:</strong> delete the created doc; delete the uploaded image file</p>
+<p><strong>Result (2026-07-19) ✅ PASS</strong>
+<code>results</code> had one entry, <code>fileId</code> present, <code>index</code> 8 matched the marker paragraph's <code>startIndex</code>. Middle paragraph's span was exactly 2 (image + <code>\n</code>); before/after paragraphs unaffected. <code>list_permissions</code> confirmed <code>anyone</code>/<code>reader</code>.</p>
+<hr />
+<h3 id="tc-doc119-two-markers-are-placed-in-one-call-higher-index-first">TC-DOC119: Two markers are placed in one call, higher index first<a class="headerlink" href="#tc-doc119-two-markers-are-placed-in-one-call-higher-index-first" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> create a doc via <code>write_doc_content</code> with content <code>&lt;p&gt;MARKERONE&lt;/p&gt;&lt;p&gt;MARKERTWO&lt;/p&gt;</code></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"In doc {DOC_ID}, insert local images: marker 'MARKERONE' and marker 'MARKERTWO', both using local_path '<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png', into folder {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>results</code> has two entries, both with no <code>error</code> and distinct <code>fileId</code>s
+- <code>get_doc_structure</code> afterward: both marker texts are gone and both paragraphs now contain only an image
+- 🔍 Visual check: both paragraphs show an image, in the original top-to-bottom order</p>
+<p><strong>Cleanup:</strong> delete the created doc; delete both uploaded image files</p>
+<p><strong>Result (2026-07-19) ✅ PASS</strong>
+Both entries succeeded with distinct fileIds, returned in input order (MARKERONE, MARKERTWO) despite MARKERTWO sitting at the higher document index — confirms the results-ordering fix live. Both paragraphs reduced to image-only spans afterward.</p>
+<hr />
+<h3 id="tc-doc120-marker-not-found-not-unique-local-file-missing-all-fail-per-image-without-mutating-the-doc">TC-DOC120: Marker not found / not unique / local file missing all fail per-image without mutating the doc<a class="headerlink" href="#tc-doc120-marker-not-found-not-unique-local-file-missing-all-fail-per-image-without-mutating-the-doc" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> create a doc via <code>write_doc_content</code> with content <code>&lt;p&gt;DUPMARKER&lt;/p&gt;&lt;p&gt;DUPMARKER&lt;/p&gt;</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"In doc {DOC_ID}, insert local images: marker 'NOPE' with local_path '<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png'; marker 'DUPMARKER' with the same local_path; marker 'ANY' with local_path '/nonexistent/missing.png' — all into folder {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>results</code> has three entries, each with an <code>error</code> and no <code>fileId</code>: "not found" for NOPE, "must be unique" for DUPMARKER (occurs twice), a missing-file message for ANY
+- <code>get_doc_structure</code> shows the doc completely unchanged — no image, no marker text removed (the tool uploads/shares before touching the document, and none of these three ever reached that step)</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-19) ✅ PASS</strong>
+All three error messages matched exactly (not found / occurs 2 times / no file found); no <code>fileId</code> on any entry; doc structure confirmed unchanged.</p>
+<hr />
+<h3 id="tc-doc121-a-marker-thats-a-substring-of-unrelated-document-text-is-not-falsely-matched">TC-DOC121: A marker that's a substring of unrelated document text is not falsely matched<a class="headerlink" href="#tc-doc121-a-marker-thats-a-substring-of-unrelated-document-text-is-not-falsely-matched" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> create a doc via <code>write_doc_content</code> with content <code>&lt;p&gt;Reference build IMG10 in the changelog.&lt;/p&gt;</code> — note there is no standalone "IMG1" token anywhere, only "IMG1" as the first four characters of "IMG10"</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"In doc {DOC_ID}, insert local images: marker 'IMG1', local_path '<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png', into folder {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>results</code> has one entry with an <code>error</code> containing "not found" — plain substring search would incorrectly match "IMG1" inside "IMG10" and report success
+- <code>get_doc_structure</code> shows the doc completely unchanged (no upload happened, since the marker never resolved)
+- No file was uploaded to Drive (nothing to clean up)</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-19) ✅ PASS</strong>
+Returned <code>{"error": "marker 'IMG1' not found in document"}}</code> — confirms the substring-collision fix live; the prior implementation would have falsely matched inside "IMG10".</p>
 
 
 

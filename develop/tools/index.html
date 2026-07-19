@@ -2024,6 +2024,16 @@
 <td><code>doc_id</code>, <code>index</code></td>
 </tr>
 <tr>
+<td><code>insert_softbreak_paragraph</code></td>
+<td>Insert a single paragraph built from multiple lines joined by soft line breaks (Shift+Enter in the Docs UI), with the paragraph's style set explicitly rather than inherited from whatever is at <code>index</code>.</td>
+<td><code>doc_id</code>, <code>index</code>, <code>lines</code>, <code>named_style_type?</code></td>
+</tr>
+<tr>
+<td><code>insert_local_images</code></td>
+<td>Upload local image files to Drive and swap each into a Google Doc at a plain-text marker, in one call.</td>
+<td><code>doc_id</code>, <code>images</code>, <code>folder_id?</code></td>
+</tr>
+<tr>
 <td><code>insert_doc_table</code></td>
 <td>Insert an empty table at a specific position in a Google Doc.</td>
 <td><code>doc_id</code>, <code>index</code>, <code>rows</code>, <code>columns</code></td>
