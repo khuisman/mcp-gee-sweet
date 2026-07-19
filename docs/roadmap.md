@@ -105,7 +105,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [ ] Nested `<li>` silently deletes the parent list item's own text (HTML and Markdown paths) — `handle_starttag` clobbers the outer block's in-progress run buffer with no save/restore; found by Aziz auditing the markdown/HTML-to-Doc pipeline ([#335](https://github.com/khuisman/mcp-gee-sweet/issues/335))
 - [ ] Nested bullet/numbered list depth is computed correctly but never emitted as Docs indentation — every list renders flat regardless of source nesting; `ast_to_requests` never reads `BulletItem.depth`; found alongside #335 ([#336](https://github.com/khuisman/mcp-gee-sweet/issues/336))
 - [ ] `emitter.py` computes Docs API insertion offsets via Python `len()` instead of UTF-16 code units — wrong for any astral-plane character (most emoji, some CJK/math symbols); fix in progress via external contributor PR #360 ([#358](https://github.com/khuisman/mcp-gee-sweet/issues/358))
-- [ ] `spreadsheet://{id}/info` MCP resource throws `'FastMCP' object has no attribute 'get_lifespan_context'` — discovered live during #361's QA, possibly a regression from the mcp SDK bump (#349/#350) ([#363](https://github.com/khuisman/mcp-gee-sweet/issues/363))
+- [x] `spreadsheet://{id}/info` MCP resource throws `'FastMCP' object has no attribute 'get_lifespan_context'` — discovered live during #361's QA, possibly a regression from the mcp SDK bump (#349/#350) (PR #368) ([#363](https://github.com/khuisman/mcp-gee-sweet/issues/363))
 - [ ] Plain-text content (no wrapping tag) silently produces an empty doc body _(on deck — `ready-for-development`, open for outside contribution)_ ([#343](https://github.com/khuisman/mcp-gee-sweet/issues/343))
 
 **Sheets**
