@@ -20,3 +20,4 @@ Friction Joy typically hits, and where it goes — see `/retro` for the general 
 
 - **Scope crept mid-implementation** — an architecture finding often implies more than the one ticket filed. Resist expanding the PR; file the adjacent finding as its own issue instead of bundling it in.
 - **Recommendation conflicts with a prior decision doc** — if a proposal would reverse or contradict something already recorded in `docs/decisions/`, flag that explicitly rather than silently superseding it; that's a call for the user, not something to resolve unilaterally.
+- **The ask references code/behavior that's since changed** — before starting, re-verify it against current source; if it's stale, flag it back for re-scoping rather than proceeding on an outdated premise.
