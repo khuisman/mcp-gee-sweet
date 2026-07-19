@@ -2155,6 +2155,9 @@ Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the su
 
 **Cleanup:** write fixture content back
 
+**Result (2026-07-19) ✅ PASS**
+`get_doc_structure` returned three paragraphs in order: "Item text", "sub a", "sub b". Fixture restored.
+
 ---
 
 ### TC-DOC123: Three-level nested list preserves every parent's own text, in document order ⚠️ destructive
@@ -2168,6 +2171,9 @@ Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the su
 
 **Cleanup:** write fixture content back
 
+**Result (2026-07-19) ✅ PASS**
+`get_doc_structure` returned three paragraphs in order: "Parent A has text", "Child A1 has text", "Grandchild A2a". Fixture restored.
+
 ---
 
 ### TC-DOC124: Nested list via Markdown also preserves the parent line's text ⚠️ destructive
@@ -2180,3 +2186,6 @@ Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the su
 - Note: 4-space indentation is used deliberately — 2-space indentation doesn't clear the `sane_lists` nesting threshold and produces a flat, unnested list instead (a separate, already-tracked issue, #334)
 
 **Cleanup:** write fixture content back
+
+**Result (2026-07-19) ✅ PASS**
+`get_doc_structure` returned three paragraphs in order: "Item text:", "sub a", "sub b" — confirms the fix applies through the Markdown pipeline too. Fixture restored.
