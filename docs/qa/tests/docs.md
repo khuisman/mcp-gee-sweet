@@ -2138,3 +2138,45 @@ All three error messages matched exactly (not found / occurs 2 times / no file f
 
 **Result (2026-07-19) ✅ PASS**
 Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the substring-collision fix live; the prior implementation would have falsely matched inside "IMG10".
+
+---
+
+## Nested list parent-text handling — `write_doc_content` (issue #335)
+
+**Note:** nested-list *indentation* is a separate, not-yet-fixed issue (#336) — `BulletItem.depth` is computed correctly but the Docs writer doesn't yet turn it into visual indentation, so all bullets below may render at the same flat list level for now. These test cases only cover #335: that a parent `<li>`'s own text is no longer silently dropped when it also contains a nested `<ul>`/`<ol>`, and that it appears before its children in document order. None are tagged `Playwright: required` since indentation (the only visual signature) isn't verifiable until #336 lands — `get_doc_structure` text/order checks are sufficient here.
+
+### TC-DOC122: Parent `<li>` text survives alongside a nested list ⚠️ destructive
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<ul><li>Item text<ul><li>sub a</li><li>sub b</li></ul></li></ul>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows **three** bulleted paragraphs in order: "Item text", "sub a", "sub b" — previously the parent's "Item text" paragraph was dropped entirely, leaving only the two children
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-DOC123: Three-level nested list preserves every parent's own text, in document order ⚠️ destructive
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<ul><li>Parent A has text<ul><li>Child A1 has text<ul><li>Grandchild A2a</li></ul></li></ul></li></ul>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows three bulleted paragraphs in order: "Parent A has text", "Child A1 has text", "Grandchild A2a" — all three levels' own text present, none clobbered by the nested `<li>` below it
+- Order matches source order (each parent before its own children) — a fix that only restores the buffer at the outer `</li>` close would emit children before their parent instead
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-DOC124: Nested list via Markdown also preserves the parent line's text ⚠️ destructive
+**Prompt**
+> "Write this Markdown to doc {DOC_ID} with content_format='markdown': `- Item text:\n    - sub a\n    - sub b`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows three bulleted paragraphs: "Item text:", "sub a", "sub b" — confirms the fix applies through the Markdown→HTML pipeline too, not just raw HTML
+- Note: 4-space indentation is used deliberately — 2-space indentation doesn't clear the `sane_lists` nesting threshold and produces a flat, unnested list instead (a separate, already-tracked issue, #334)
+
+**Cleanup:** write fixture content back

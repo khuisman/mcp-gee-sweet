@@ -80,6 +80,47 @@ class _AstParser(HTMLParser):
         runs, self._pending_runs = self._pending_runs, []
         return runs
 
+    def _make_bullet_item(self, runs: list[Run]) -> BulletItem:
+        ordered = self._list_ordered[-1] if self._list_ordered else False
+        depth = len(self._list_ordered) - 1
+        # Detect task list markers written as literal [x] / [ ] by the markdown library
+        checked = None
+        if runs:
+            first_text = runs[0].text
+            if first_text.startswith(("[x] ", "[X] ")):
+                checked = True
+                runs[0].text = first_text[4:]
+                if not runs[0].text:
+                    runs.pop(0)
+            elif first_text.startswith("[ ] "):
+                checked = False
+                runs[0].text = first_text[4:]
+                if not runs[0].text:
+                    runs.pop(0)
+        return BulletItem(runs=runs, depth=depth, ordered=ordered, checked=checked)
+
+    def _flush_open_li_before_nesting(self):
+        """A nested <ul>/<ol> is opening inside an already-open <li>. The run
+        buffer is shared across nesting levels (like the nested-table-in-cell
+        case above, #108) — if this <li> has its own text, it must be flushed
+        and emitted as its own BulletItem *now*, before descending into the
+        children. Waiting until the outer </li> would both let the nested
+        <li>'s start tag clobber the buffer (#335) and emit the parent after
+        its children, since a streaming parser closes children before their
+        parent. Marking the block closed here (not just flushed) means the
+        eventual outer </li> — whose block_tag no longer matches once a
+        nested <li> has overwritten it — is correctly a no-op rather than a
+        second, empty append.
+        """
+        if self._block_tag != "li":
+            return
+        runs = self._flush_pending_runs()
+        text = "".join(r.text for r in runs).strip()
+        if not text:
+            return
+        self._nodes.append(self._make_bullet_item(runs))
+        self._block_tag = None
+
     # ------------------------------------------------------------------
     # HTMLParser callbacks
     # ------------------------------------------------------------------
@@ -131,9 +172,11 @@ class _AstParser(HTMLParser):
 
         # --- list context ---
         if tag == "ol":
+            self._flush_open_li_before_nesting()
             self._list_ordered.append(True)
             return
         if tag == "ul":
+            self._flush_open_li_before_nesting()
             self._list_ordered.append(False)
             return
 
@@ -239,25 +282,7 @@ class _AstParser(HTMLParser):
                     level = int(tag[1])
                     self._nodes.append(Heading(level=level, runs=runs))
                 elif tag == "li":
-                    ordered = self._list_ordered[-1] if self._list_ordered else False
-                    depth = len(self._list_ordered) - 1
-                    # Detect task list markers written as literal [x] / [ ] by the markdown library
-                    checked = None
-                    if runs:
-                        first_text = runs[0].text
-                        if first_text.startswith(("[x] ", "[X] ")):
-                            checked = True
-                            runs[0].text = first_text[4:]
-                            if not runs[0].text:
-                                runs.pop(0)
-                        elif first_text.startswith("[ ] "):
-                            checked = False
-                            runs[0].text = first_text[4:]
-                            if not runs[0].text:
-                                runs.pop(0)
-                    self._nodes.append(
-                        BulletItem(runs=runs, depth=depth, ordered=ordered, checked=checked)
-                    )
+                    self._nodes.append(self._make_bullet_item(runs))
                 elif tag == "p" and self._block_named_style:
                     self._nodes.append(NamedBlock(style_type=self._block_named_style, runs=runs))
                 else:

@@ -252,6 +252,72 @@ class TestTaskList:
         assert bullets[2].checked is None
 
 
+class TestNestedLists:
+    """A nested <ul>/<ol> inside an <li> that also has its own text (#335, #336)."""
+
+    def _bullets(self, html):
+        return [n for n in html_to_ast(html) if isinstance(n, BulletItem)]
+
+    def _texts_depths(self, html):
+        return [("".join(r.text for r in b.runs), b.depth) for b in self._bullets(html)]
+
+    async def test_parent_text_survives_alongside_nested_list(self):
+        html = "<ul><li>Item text<ul><li>sub a</li><li>sub b</li></ul></li></ul>"
+        assert self._texts_depths(html) == [
+            ("Item text", 0),
+            ("sub a", 1),
+            ("sub b", 1),
+        ]
+
+    async def test_parent_bullet_precedes_its_children_in_document_order(self):
+        # The AST is a flat, ordered list — a parent emitted after its children
+        # would render in the wrong position regardless of its depth value.
+        html = "<ul><li>Item text<ul><li>sub a</li></ul></li></ul>"
+        bullets = self._bullets(html)
+        assert [b.depth for b in bullets] == [0, 1]
+
+    async def test_three_level_nesting_preserves_every_parent_text(self):
+        html = (
+            "<ul><li>Parent A has text"
+            "<ul><li>Child A1 has text<ul><li>Grandchild A2a</li></ul></li></ul>"
+            "</li></ul>"
+        )
+        assert self._texts_depths(html) == [
+            ("Parent A has text", 0),
+            ("Child A1 has text", 1),
+            ("Grandchild A2a", 2),
+        ]
+
+    async def test_ordered_sibling_after_unordered_parent_text(self):
+        html = "<ul><li>Parent B has text<ol><li>Child B1</li><li>Child B2</li></ol></li></ul>"
+        bullets = self._bullets(html)
+        assert [b.ordered for b in bullets] == [False, True, True]
+
+    async def test_parent_with_no_own_text_unaffected(self):
+        # Control case: an <li> that is just a wrapper around a nested list,
+        # with no text of its own — nothing should be emitted for it, and
+        # both children must still come through.
+        html = "<ul><li><ul><li>Child A1</li><li>Child A2</li></ul></li></ul>"
+        assert self._texts_depths(html) == [("Child A1", 1), ("Child A2", 1)]
+
+    async def test_bold_run_in_parent_text_survives(self):
+        html = "<ul><li>Item <b>text</b><ul><li>sub</li></ul></li></ul>"
+        bullets = self._bullets(html)
+        parent = bullets[0]
+        bold_run = next((r for r in parent.runs if r.bold), None)
+        assert bold_run is not None
+        assert bold_run.text == "text"
+
+    async def test_nested_list_via_markdown_preserves_parent_text(self):
+        md = "- Item text:\n    - sub a\n    - sub b"
+        html = _md_to_html(md)
+        assert self._texts_depths(html) == [
+            ("Item text:", 0),
+            ("sub a", 1),
+            ("sub b", 1),
+        ]
+
+
 # ---------------------------------------------------------------------------
 # Markdown pipeline — _md_to_html and _to_doc_requests
 # ---------------------------------------------------------------------------
