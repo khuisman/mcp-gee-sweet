@@ -115,15 +115,13 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [x] `add_data_validation` / `get_data_validation` — dropdowns, checkboxes, value constraints ([#125](https://github.com/khuisman/mcp-gee-sweet/issues/125)) _(freema/mcp-gsheets)_ (PR #361)
 - [x] `update_sheet_properties` — tab color, hide/show gridlines (PR #301) ([#126](https://github.com/khuisman/mcp-gee-sweet/issues/126)) _(freema/mcp-gsheets)_
 - [x] `duplicate_sheet` — copy a sheet within the same spreadsheet (PR #286) ([#127](https://github.com/khuisman/mcp-gee-sweet/issues/127))
-- [ ] Partial (rich-text) hyperlinks in `update_cells` ([#89](https://github.com/khuisman/mcp-gee-sweet/issues/89))
+- [ ] Partial (rich-text) hyperlinks in `update_cells` _(on deck — `ready-for-development`, open for outside contribution)_ ([#89](https://github.com/khuisman/mcp-gee-sweet/issues/89))
 - [x] `import_csv_to_sheet` — populate a spreadsheet from a local CSV file (PR #272) ([#187](https://github.com/khuisman/mcp-gee-sweet/issues/187))
-- [ ] `get_sheet_dimensions` — read column widths, row heights, frozen counts _(on deck — `ready-for-development`, open for outside contribution)_ ([#132](https://github.com/khuisman/mcp-gee-sweet/issues/132)) _(freema/mcp-gsheets)_
-- [ ] `add_note` / `clear_note` — cell notes (distinct from comments) _(on deck — `ready-for-development`, open for outside contribution)_ ([#131](https://github.com/khuisman/mcp-gee-sweet/issues/131)) _(freema/mcp-gsheets)_
 
 **Calendar**
 - [x] `create_calendar` / `update_calendar` / `delete_calendar` — calendar lifecycle (PR #266) ([#156](https://github.com/khuisman/mcp-gee-sweet/issues/156))
 - [x] `add_calendar_to_list` / `remove_calendar_from_list` — subscribe/unsubscribe (PR #269) ([#157](https://github.com/khuisman/mcp-gee-sweet/issues/157))
-- [ ] Calendar ACL — share a calendar with users or groups ([#158](https://github.com/khuisman/mcp-gee-sweet/issues/158))
+- [ ] Calendar ACL — share a calendar with users or groups _(on deck — `ready-for-development`, open for outside contribution)_ ([#158](https://github.com/khuisman/mcp-gee-sweet/issues/158))
 - [ ] `list_all_events` — query all subscribed calendars in parallel _(decision needed — also tracked in Decisions Needed)_ ([#194](https://github.com/khuisman/mcp-gee-sweet/issues/194))
 
 **Docs**
@@ -139,14 +137,12 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [ ] Expose paragraph list/nesting info in `get_doc_structure`, plus a tool to set/change bullet membership and nesting level on an existing range (`createParagraphBullets`/`deleteParagraphBullets` equivalent) — markdown converter currently flattens indented sub-lists into the parent list with no way to detect or fix it after the fact ([#334](https://github.com/khuisman/mcp-gee-sweet/issues/334))
 - [ ] Soft-break paragraph helper (single paragraph, multiple lines joined by soft breaks, explicit named style) + document `delete_doc_range`'s paragraph-merge-inherits-neighbor-style behavior ([#332](https://github.com/khuisman/mcp-gee-sweet/issues/332))
 - [ ] `update_doc_from_file` — update an existing Doc in place from a local `.md`/`.html` file, reading server-side like `create_doc_from_file` instead of round-tripping full content through the caller's context ([#341](https://github.com/khuisman/mcp-gee-sweet/issues/341))
-- [ ] Raw `batchUpdate` passthrough for Docs — escape hatch mirroring Sheets' `batch_update` _(on deck — `ready-for-development`, open for outside contribution)_ ([#339](https://github.com/khuisman/mcp-gee-sweet/issues/339))
-- [ ] Read/list/delete tools for named ranges (complement to `create_named_range`) _(on deck — `ready-for-development`, open for outside contribution)_ ([#340](https://github.com/khuisman/mcp-gee-sweet/issues/340))
 
 **Drive**
-- [ ] `restore_file` / `empty_trash` — undelete or permanently purge trashed files ([#138](https://github.com/khuisman/mcp-gee-sweet/issues/138))
-- [ ] `star_file` / `unstar_file` — mark files with a star for easy retrieval ([#139](https://github.com/khuisman/mcp-gee-sweet/issues/139))
-- [ ] `transfer_ownership` — transfer a file to another user ([#140](https://github.com/khuisman/mcp-gee-sweet/issues/140))
-- [ ] `create_shortcut` — create a Drive shortcut to a file ([#141](https://github.com/khuisman/mcp-gee-sweet/issues/141))
+- [ ] `restore_file` / `empty_trash` — undelete or permanently purge trashed files _(on deck — `ready-for-development`, open for outside contribution)_ ([#138](https://github.com/khuisman/mcp-gee-sweet/issues/138))
+- [ ] `star_file` / `unstar_file` — mark files with a star for easy retrieval _(on deck — `ready-for-development`, open for outside contribution)_ ([#139](https://github.com/khuisman/mcp-gee-sweet/issues/139))
+- [ ] `transfer_ownership` — transfer a file to another user _(on deck — `ready-for-development`, open for outside contribution)_ ([#140](https://github.com/khuisman/mcp-gee-sweet/issues/140))
+- [ ] `create_shortcut` — create a Drive shortcut to a file _(on deck — `ready-for-development`, open for outside contribution)_ ([#141](https://github.com/khuisman/mcp-gee-sweet/issues/141))
 - [ ] `sync_folder` — option to convert markdown files to Google Docs on upload ([#211](https://github.com/khuisman/mcp-gee-sweet/issues/211))
 - [ ] `upload_local_file` with Drive format conversion (CSV→Sheets, MD→Docs) ([#188](https://github.com/khuisman/mcp-gee-sweet/issues/188))
 - [ ] Expose `md5Checksum` in `list_files`/`get_file_metadata` for real content-diffing, and let `sync_folder` diff by checksum instead of/in addition to `modifiedTime` — mtime is unreliable across in-place overwrites, `upload_local_file`'s "now" stamp, and content-preserving regenerations; related to #239 ([#274](https://github.com/khuisman/mcp-gee-sweet/issues/274))
@@ -188,6 +184,8 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 ### Tier 4 — Nice to have / niche _(no assigned version)_
 
 **Sheets**
+- [ ] `get_sheet_dimensions` — read column widths, row heights, frozen counts ([#132](https://github.com/khuisman/mcp-gee-sweet/issues/132)) _(freema/mcp-gsheets)_
+- [ ] `add_note` / `clear_note` — cell notes (distinct from comments) ([#131](https://github.com/khuisman/mcp-gee-sweet/issues/131)) _(freema/mcp-gsheets)_
 - [ ] Pivot tables — create and update pivot table specs via batchUpdate ([#133](https://github.com/khuisman/mcp-gee-sweet/issues/133))
 - [ ] Developer metadata — key-value metadata attached to rows, columns, or ranges ([#134](https://github.com/khuisman/mcp-gee-sweet/issues/134))
 - [ ] Sheet comments and cell notes (add/get/list/reply/resolve/delete) — we have zero comment tooling on Sheets today _(a-bonus/google-docs-mcp)_
