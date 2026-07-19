@@ -11,7 +11,9 @@ from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.docs import content as content_module
 from mcp_gee_sweet.tools.docs.ast import (
     BulletItem,
+    Heading,
     Paragraph,
+    Table,
 )
 from mcp_gee_sweet.tools.docs.content import (
     _collect_doc_paragraphs,
@@ -316,6 +318,70 @@ class TestNestedLists:
             ("sub a", 1),
             ("sub b", 1),
         ]
+
+
+class TestLiInterruptedByOtherBlocks:
+    """A block tag other than <ul>/<ol> — <pre>, <table>, <p>, <h1-h6> — opening
+    inside an open <li> that has its own text (#335 review round). The
+    interrupting construct must not drop the <li>'s text, must not lose text
+    after it closes but before the real </li>, and must not leak inline
+    formatting state (e.g. an unclosed <b>) into everything that follows.
+    """
+
+    async def test_pre_inside_li_preserves_parent_text(self):
+        nodes = html_to_ast("<ul><li>Note:<pre>code</pre></li></ul>")
+        assert isinstance(nodes[0], BulletItem)
+        assert "".join(r.text for r in nodes[0].runs) == "Note:"
+        assert isinstance(nodes[1], Paragraph)
+        assert "".join(r.text for r in nodes[1].runs) == "code"
+
+    async def test_table_inside_li_preserves_parent_text(self):
+        nodes = html_to_ast("<ul><li>Before<table><tr><td>cell</td></tr></table></li></ul>")
+        assert isinstance(nodes[0], BulletItem)
+        assert "".join(r.text for r in nodes[0].runs) == "Before"
+        assert isinstance(nodes[1], Table)
+
+    async def test_paragraph_inside_li_preserves_parent_text(self):
+        nodes = html_to_ast("<ul><li>Before<p>Middle</p></li></ul>")
+        assert isinstance(nodes[0], BulletItem)
+        assert "".join(r.text for r in nodes[0].runs) == "Before"
+        assert isinstance(nodes[1], Paragraph)
+        assert "".join(r.text for r in nodes[1].runs) == "Middle"
+
+    async def test_heading_inside_li_preserves_parent_text(self):
+        nodes = html_to_ast("<ul><li>Before<h2>Middle</h2></li></ul>")
+        assert isinstance(nodes[0], BulletItem)
+        assert "".join(r.text for r in nodes[0].runs) == "Before"
+        assert isinstance(nodes[1], Heading)
+        assert "".join(r.text for r in nodes[1].runs) == "Middle"
+
+    async def test_trailing_text_after_nested_list_is_not_dropped(self):
+        html = "<ul><li>Parent<ul><li>Child</li></ul>trailing text</li></ul>"
+        bullets = [n for n in html_to_ast(html) if isinstance(n, BulletItem)]
+        texts_depths = [("".join(r.text for r in b.runs), b.depth) for b in bullets]
+        assert texts_depths == [
+            ("Parent", 0),
+            ("Child", 1),
+            ("trailing text", 0),
+        ]
+
+    async def test_unclosed_bold_does_not_leak_past_nested_list(self):
+        html = "<ul><li>Item <b>bold text<ul><li>sub</li></ul></li></ul><p>After the list</p>"
+        nodes = html_to_ast(html)
+        bullets = [n for n in nodes if isinstance(n, BulletItem)]
+        sub_run = next(r for r in bullets[1].runs if r.text == "sub")
+        assert sub_run.bold is None
+        paragraph = next(n for n in nodes if isinstance(n, Paragraph))
+        after_run = next(r for r in paragraph.runs if r.text == "After the list")
+        assert after_run.bold is None
+
+    async def test_no_interruption_no_reopen_is_a_no_op(self):
+        # Sanity check that ordinary (non-<li>) block boundaries are unaffected
+        # by the new reopen bookkeeping.
+        nodes = html_to_ast("<p>One</p><pre>two</pre><table><tr><td>three</td></tr></table>")
+        assert isinstance(nodes[0], Paragraph)
+        assert isinstance(nodes[1], Paragraph)
+        assert isinstance(nodes[2], Table)
 
 
 # ---------------------------------------------------------------------------

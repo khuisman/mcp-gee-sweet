@@ -54,6 +54,13 @@ class _AstParser(HTMLParser):
         # --- named block style (data-style on <p>) ---
         self._block_named_style: str | None = None
 
+        # --- li-interruption stack ---
+        # One entry per nested block-ish construct opened (ul/ol, the outermost
+        # table, pre, or any _BLOCK_TAGS tag) recording whether it interrupted an
+        # open <li> (see _flush_li_before_nested_block). Popped at that same
+        # construct's matching close to decide whether to reopen the <li>.
+        self._li_reopen_stack: list[bool] = []
+
     # ------------------------------------------------------------------
     # helpers
     # ------------------------------------------------------------------
@@ -99,27 +106,63 @@ class _AstParser(HTMLParser):
                     runs.pop(0)
         return BulletItem(runs=runs, depth=depth, ordered=ordered, checked=checked)
 
-    def _flush_open_li_before_nesting(self):
-        """A nested <ul>/<ol> is opening inside an already-open <li>. The run
-        buffer is shared across nesting levels (like the nested-table-in-cell
-        case above, #108) — if this <li> has its own text, it must be flushed
-        and emitted as its own BulletItem *now*, before descending into the
-        children. Waiting until the outer </li> would both let the nested
-        <li>'s start tag clobber the buffer (#335) and emit the parent after
-        its children, since a streaming parser closes children before their
-        parent. Marking the block closed here (not just flushed) means the
-        eventual outer </li> — whose block_tag no longer matches once a
-        nested <li> has overwritten it — is correctly a no-op rather than a
-        second, empty append.
+    def _close_dangling_inline_formatting(self):
+        """A block boundary is starting while inline formatting tags may still
+        be open (e.g. an unclosed <b> before a nested list/table/pre/etc). Real
+        HTML doesn't allow block content inside a true inline element — a
+        browser would auto-close it here — so treat the boundary as an implicit
+        close for all inline state. Otherwise formatting silently leaks into
+        every node for the rest of the document, since the tag that would have
+        decremented these depths never arrives.
+        """
+        self._bold_depth = 0
+        self._italic_depth = 0
+        self._underline_depth = 0
+        self._strike_depth = 0
+        self._code_depth = 0
+        self._link_url = []
+
+    def _flush_li_before_nested_block(self) -> bool:
+        """A block-ish construct (nested <ul>/<ol>, the outermost <table>,
+        <pre>, or another _BLOCK_TAGS tag) is opening inside an already-open
+        <li>. The run buffer is shared across nesting levels (like the
+        nested-table-in-cell case above, #108) — if this <li> has its own
+        text, it must be flushed and emitted as its own BulletItem *now*,
+        before descending into the nested construct. Waiting until the outer
+        </li> would both let the nested construct's start tag clobber the
+        buffer (#335) and emit the parent after its children, since a
+        streaming parser closes children before their parent.
+
+        Marking the block closed here (not just flushed) means the eventual
+        outer </li> — whose block_tag no longer matches once the nested
+        construct has overwritten it — is correctly a no-op rather than a
+        second, empty append. The caller is responsible for reopening the
+        <li> (via _reopen_li_if_needed, keyed off this method's return value)
+        once the nested construct's own matching close tag is reached, so any
+        trailing text after it (before the real </li>) isn't dropped.
+
+        Returns True if an open <li> was interrupted (and so must be reopened
+        later), False otherwise — callers push this to `_li_reopen_stack` and
+        pop it at the matching close, regardless of the value, to stay
+        balanced across arbitrary nesting depth.
         """
         if self._block_tag != "li":
-            return
+            return False
         runs = self._flush_pending_runs()
         text = "".join(r.text for r in runs).strip()
-        if not text:
-            return
-        self._nodes.append(self._make_bullet_item(runs))
+        if text:
+            self._nodes.append(self._make_bullet_item(runs))
         self._block_tag = None
+        self._close_dangling_inline_formatting()
+        return True
+
+    def _reopen_li_if_needed(self, should_reopen: bool):
+        if not should_reopen:
+            return
+        self._block_tag = "li"
+        self._run_buf = []
+        self._pending_runs = []
+        self._block_named_style = None
 
     # ------------------------------------------------------------------
     # HTMLParser callbacks
@@ -130,7 +173,9 @@ class _AstParser(HTMLParser):
 
         # --- table structure ---
         if tag == "table":
-            if self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell:
+            if self._table_depth == 0:
+                self._li_reopen_stack.append(self._flush_li_before_nested_block())
+            elif self._table_stack and self._table_stack[-1].in_cell:
                 # A nested table is opening inside an already-open cell. The run
                 # buffer is shared across nesting levels, so any text typed before
                 # this point must be flushed now and attached to the outer cell —
@@ -172,16 +217,17 @@ class _AstParser(HTMLParser):
 
         # --- list context ---
         if tag == "ol":
-            self._flush_open_li_before_nesting()
+            self._li_reopen_stack.append(self._flush_li_before_nested_block())
             self._list_ordered.append(True)
             return
         if tag == "ul":
-            self._flush_open_li_before_nesting()
+            self._li_reopen_stack.append(self._flush_li_before_nested_block())
             self._list_ordered.append(False)
             return
 
         # --- pre / code block ---
         if tag == "pre" and self._table_depth == 0:
+            self._li_reopen_stack.append(self._flush_li_before_nested_block())
             self._block_tag = "pre"
             self._in_pre = True
             self._run_buf = []
@@ -190,6 +236,7 @@ class _AstParser(HTMLParser):
 
         # --- block elements ---
         if tag in _BLOCK_TAGS and self._table_depth == 0:
+            self._li_reopen_stack.append(self._flush_li_before_nested_block())
             self._block_tag = tag
             self._run_buf = []
             self._pending_runs = []
@@ -234,6 +281,8 @@ class _AstParser(HTMLParser):
                     elif self._table_stack:
                         self._table_stack[-1].append_nested_table(node)
             self._table_depth -= 1
+            if self._table_depth == 0 and self._li_reopen_stack:
+                self._reopen_li_if_needed(self._li_reopen_stack.pop())
             return
 
         if self._table_depth >= 1 and self._table_stack:
@@ -253,10 +302,14 @@ class _AstParser(HTMLParser):
         if tag == "ol" and self._list_ordered:
             if self._list_ordered[-1]:
                 self._list_ordered.pop()
+                if self._li_reopen_stack:
+                    self._reopen_li_if_needed(self._li_reopen_stack.pop())
             return
         if tag == "ul" and self._list_ordered:
             if not self._list_ordered[-1]:
                 self._list_ordered.pop()
+                if self._li_reopen_stack:
+                    self._reopen_li_if_needed(self._li_reopen_stack.pop())
             return
 
         # --- pre / code block ---
@@ -271,6 +324,8 @@ class _AstParser(HTMLParser):
                 self._nodes.append(Paragraph(runs=runs))
             self._block_tag = None
             self._in_pre = False
+            if self._li_reopen_stack:
+                self._reopen_li_if_needed(self._li_reopen_stack.pop())
             return
 
         # --- block elements ---
@@ -289,6 +344,8 @@ class _AstParser(HTMLParser):
                     self._nodes.append(Paragraph(runs=runs))
             self._block_named_style = None
             self._block_tag = None
+            if self._li_reopen_stack:
+                self._reopen_li_if_needed(self._li_reopen_stack.pop())
             return
 
         # --- inline elements ---
