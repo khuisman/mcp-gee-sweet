@@ -1114,6 +1114,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#clearing-sheet-level-state-with-no-direct-tool-eg-data-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clearing sheet-level state with no direct tool (e.g. data validation)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#conductor-prompt" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1553,6 +1564,10 @@
 <h2 id="drive-fixture-folder-pollution">Drive fixture-folder pollution<a class="headerlink" href="#drive-fixture-folder-pollution" title="Permanent link">&para;</a></h2>
 <p><code>TEST_FOLDER_ID</code> accumulates stray items across many creation/copy test categories that don't tear down after themselves (tracked in <a href="https://github.com/khuisman/mcp-gee-sweet/issues/304">#304</a> — dedicated QA account/cleanup sweep). As of 2026-07-17 it held ~15 duplicate leftovers (<code>Copy of mcp-gee-sweet-qa-fixtures</code> ×2, <code>QA-Cache-Check</code> ×2, <code>QA-Copy-Explicit</code>, <code>QA-Create-Explicit</code>, <code>QA-Doc-Copy</code>, <code>QA-DocCache</code>, <code>QA-HTML-Doc</code> ×2, <code>QA-Markdown-Doc</code> ×2, <code>QA-Table-Doc</code> ×2, loose <code>qa-notes.md</code>/<code>qa-upload.txt</code>, two leftover folders).</p>
 <p>This matters for any test that syncs, lists, or downloads the whole folder (<code>sync_folder</code>, <code>download_folder</code>, <code>list_files</code> against <code>TEST_FOLDER_ID</code> directly) — the pollution items show up in results alongside whatever the test actually cares about, and a <code>recursive</code>/whole-folder operation will process all of it. Until #304 lands: for a test that needs a clean or isolated Drive tree (rather than "does this tool correctly handle files that happen to be in <code>TEST_FOLDER_ID</code>"), create a throwaway child folder under <code>TEST_FOLDER_ID</code> for that test's own fixtures instead of working at the shared top level, and delete it in teardown. Same tool behavior either way — this only reduces noise and avoids accidentally sweeping up items you don't own.</p>
+<hr />
+<h2 id="clearing-sheet-level-state-with-no-direct-tool-eg-data-validation">Clearing sheet-level state with no direct tool (e.g. data validation)<a class="headerlink" href="#clearing-sheet-level-state-with-no-direct-tool-eg-data-validation" title="Permanent link">&para;</a></h2>
+<p>Some sheet-level state has a tool to <em>set</em> it but none to <em>clear</em> it, and no tool exposes a sheet's numeric <code>sheetId</code> by name to fall back to the raw <code>batch_update</code> escape hatch (<code>list_sheets</code> returns names only; the <code>spreadsheet://{id}/info</code> resource that's supposed to cover this is currently broken — <a href="https://github.com/khuisman/mcp-gee-sweet/issues/363">#363</a>; tracked as a product gap in <a href="https://github.com/khuisman/mcp-gee-sweet/issues/365">#365</a>). Hit live testing <code>add_data_validation</code>/<code>get_data_validation</code> (PR #361, 2026-07-18): no way to clear a validation rule from the fixture's <code>Empty</code> sheet between test cases.</p>
+<p>Workaround for a <em>scratch</em> fixture sheet (never do this to a sheet with real data — it destroys everything on the tab, not just the state you're trying to clear): <code>delete_sheet(sheet="Empty")</code> then <code>create_sheet(title="Empty")</code>. Fully resets the tab to blank, including any validation/formatting/merges, and is safe here because every QA tool call references the sheet by name, never by the ID that changes on recreate.</p>
 <hr />
 <h2 id="conductor-prompt">Conductor prompt<a class="headerlink" href="#conductor-prompt" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>You are the QA conductor for mcp-gee-sweet. Your job is to execute the full test suite against the live MCP server, record outcomes, and save a results report.
