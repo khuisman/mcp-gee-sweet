@@ -1321,6 +1321,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-i25-serverauth-status-resource-resolves-lifespan-context-issue-363" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I25: server://auth-status resource resolves lifespan context (issue #363)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i26-spreadsheetidinfo-resource-resolves-lifespan-context-issue-363" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I26: spreadsheet://{id}/info resource resolves lifespan context (issue #363)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1847,6 +1869,10 @@
 <td>TC-I23 (<code>CACHE_VALIDATE_MODIFIED_TIME</code>, issue #99)</td>
 <td>Unit-tested in <code>tests/test_cache.py</code> (modified-time comparison in <code>_get_valid</code>, <code>get_modified_time</code> helper, <code>fetch_sheets</code> wiring). Live verification needs an edit path outside the MCP tools' own <code>mark_dirty</code> calls (which already invalidate immediately) — see TC-I23 below for the Playwright-based approach</td>
 </tr>
+<tr>
+<td>TC-I25, I26 (MCP resources reach lifespan context, issue #363)</td>
+<td>Unit-tested in <code>tests/test_server.py::TestResourcesReadLifespanContextViaGetContext</code> (monkeypatches <code>mcp.get_context()</code>), but that proves only that <code>server.py</code>'s own code is correct against a fake — it can't prove the real <code>mcp</code> SDK's <code>FastMCP.get_context()</code> still returns a real <code>.request_context.lifespan_context</code> end-to-end through the actual resource-read protocol. Needs live verification — see TC-I25/TC-I26 below</td>
+</tr>
 </tbody>
 </table>
 <hr />
@@ -1960,6 +1986,28 @@ Warmed the structure cache via <code>list_sheets("BrandNew"...)</code>, then use
 - Each call's response contains data from <em>its own</em> requested spreadsheet, not the other one
 - No response is empty, truncated, or contains a mix of both spreadsheets' data (any of these would indicate the two concurrent <code>.execute()</code> calls interfered with each other's shared transport)</p>
 <p><strong>Note:</strong> also implicitly covered by TC-D176/TC-D177/TC-D178/TC-D179/TC-R36/TC-R37 above, each of which forces several genuinely concurrent <code>.execute()</code> calls within a single gather()-restructured tool and checks per-item attribution. This case adds the cross-request angle (two separate tool calls, not one batched call) that those don't cover.</p>
+<hr />
+<h3 id="tc-i25-serverauth-status-resource-resolves-lifespan-context-issue-363">TC-I25: <code>server://auth-status</code> resource resolves lifespan context (issue #363)<a class="headerlink" href="#tc-i25-serverauth-status-resource-resolves-lifespan-context-issue-363" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Both <code>server.py</code> resources previously called <code>mcp.get_lifespan_context()</code>, which never existed on <code>FastMCP</code> (confirmed absent as far back as <code>mcp==1.27.1</code> — not a regression from #350's SDK bump). Every read raised <code>'FastMCP' object has no attribute 'get_lifespan_context'</code>. Fixed to use <code>mcp.get_context().request_context.lifespan_context</code>, the same path every tool already uses via <code>ctx.request_context.lifespan_context</code>. This reproduces the exact regression scenario, not just a happy-path spot check.</p>
+<p><strong>Setup</strong>
+Server running with any auth method.</p>
+<p><strong>Action</strong>
+Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</code> against this server.</p>
+<p><strong>Checks</strong>
+- No <code>AttributeError</code> / <code>'FastMCP' object has no attribute 'get_lifespan_context'</code>
+- Returns valid JSON with <code>auth_method</code> matching the server's actual configured auth method</p>
+<p><strong>Result:</strong> ✅ PASS (2026-07-19, mcp-gee-sweet-sky, oauth). <code>{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "reason": null}</code> — no AttributeError, <code>auth_method</code> matches configured oauth.</p>
+<hr />
+<h3 id="tc-i26-spreadsheetidinfo-resource-resolves-lifespan-context-issue-363">TC-I26: <code>spreadsheet://{id}/info</code> resource resolves lifespan context (issue #363)<a class="headerlink" href="#tc-i26-spreadsheetidinfo-resource-resolves-lifespan-context-issue-363" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Same regression and fix as TC-I25, but for the resource that actually calls the Sheets API (<code>execute_in_thread</code> off <code>context.sheets_service</code>) — proves the fix works on the <code>async def</code> resource path too, not just the sync one.</p>
+<p><strong>Setup</strong>
+Server running with any auth method.</p>
+<p><strong>Action</strong>
+Call <code>ReadMcpResourceTool</code> with <code>uri: "spreadsheet://{SPREADSHEET_ID}/info"</code> against this server.</p>
+<p><strong>Checks</strong>
+- No <code>AttributeError</code> / <code>'FastMCP' object has no attribute 'get_lifespan_context'</code>
+- Returns valid JSON with <code>title</code> and a <code>sheets</code> array matching the spreadsheet's actual tabs</p>
+<p><strong>Result:</strong> ✅ PASS (2026-07-19, mcp-gee-sweet-sky, TEST_SPREADSHEET_ID). Returned <code>title: "mcp-gee-sweet-qa-fixtures"</code> and 4 sheets (<code>Sales</code>, <code>Notes &amp; Misc</code>, <code>BrandNew</code>, <code>Empty</code>) matching the fixture's actual tabs — no AttributeError.</p>
 <hr />
 <h2 id="tool-filtering-enabled_tools">Tool filtering (<code>ENABLED_TOOLS</code>)<a class="headerlink" href="#tool-filtering-enabled_tools" title="Permanent link">&para;</a></h2>
 <h3 id="tc-i05-cli-flag-only-specified-tools-registered">TC-I05: CLI flag — only specified tools registered<a class="headerlink" href="#tc-i05-cli-flag-only-specified-tools-registered" title="Permanent link">&para;</a></h3>
