@@ -106,6 +106,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [ ] Nested bullet/numbered list depth is computed correctly but never emitted as Docs indentation — every list renders flat regardless of source nesting; `ast_to_requests` never reads `BulletItem.depth`; found alongside #335 ([#336](https://github.com/khuisman/mcp-gee-sweet/issues/336))
 - [ ] `emitter.py` computes Docs API insertion offsets via Python `len()` instead of UTF-16 code units — wrong for any astral-plane character (most emoji, some CJK/math symbols); fix in progress via external contributor PR #360 ([#358](https://github.com/khuisman/mcp-gee-sweet/issues/358))
 - [ ] `spreadsheet://{id}/info` MCP resource throws `'FastMCP' object has no attribute 'get_lifespan_context'` — discovered live during #361's QA, possibly a regression from the mcp SDK bump (#349/#350) ([#363](https://github.com/khuisman/mcp-gee-sweet/issues/363))
+- [ ] Plain-text content (no wrapping tag) silently produces an empty doc body _(on deck — `ready-for-development`, open for outside contribution)_ ([#343](https://github.com/khuisman/mcp-gee-sweet/issues/343))
 
 **Sheets**
 - [x] `update_borders` — border style, width, color on a range (PR #325) ([#122](https://github.com/khuisman/mcp-gee-sweet/issues/122)) _(freema/mcp-gsheets)_
@@ -116,6 +117,8 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [x] `duplicate_sheet` — copy a sheet within the same spreadsheet (PR #286) ([#127](https://github.com/khuisman/mcp-gee-sweet/issues/127))
 - [ ] Partial (rich-text) hyperlinks in `update_cells` ([#89](https://github.com/khuisman/mcp-gee-sweet/issues/89))
 - [x] `import_csv_to_sheet` — populate a spreadsheet from a local CSV file (PR #272) ([#187](https://github.com/khuisman/mcp-gee-sweet/issues/187))
+- [ ] `get_sheet_dimensions` — read column widths, row heights, frozen counts _(on deck — `ready-for-development`, open for outside contribution)_ ([#132](https://github.com/khuisman/mcp-gee-sweet/issues/132)) _(freema/mcp-gsheets)_
+- [ ] `add_note` / `clear_note` — cell notes (distinct from comments) _(on deck — `ready-for-development`, open for outside contribution)_ ([#131](https://github.com/khuisman/mcp-gee-sweet/issues/131)) _(freema/mcp-gsheets)_
 
 **Calendar**
 - [x] `create_calendar` / `update_calendar` / `delete_calendar` — calendar lifecycle (PR #266) ([#156](https://github.com/khuisman/mcp-gee-sweet/issues/156))
@@ -136,6 +139,8 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [ ] Expose paragraph list/nesting info in `get_doc_structure`, plus a tool to set/change bullet membership and nesting level on an existing range (`createParagraphBullets`/`deleteParagraphBullets` equivalent) — markdown converter currently flattens indented sub-lists into the parent list with no way to detect or fix it after the fact ([#334](https://github.com/khuisman/mcp-gee-sweet/issues/334))
 - [ ] Soft-break paragraph helper (single paragraph, multiple lines joined by soft breaks, explicit named style) + document `delete_doc_range`'s paragraph-merge-inherits-neighbor-style behavior ([#332](https://github.com/khuisman/mcp-gee-sweet/issues/332))
 - [ ] `update_doc_from_file` — update an existing Doc in place from a local `.md`/`.html` file, reading server-side like `create_doc_from_file` instead of round-tripping full content through the caller's context ([#341](https://github.com/khuisman/mcp-gee-sweet/issues/341))
+- [ ] Raw `batchUpdate` passthrough for Docs — escape hatch mirroring Sheets' `batch_update` _(on deck — `ready-for-development`, open for outside contribution)_ ([#339](https://github.com/khuisman/mcp-gee-sweet/issues/339))
+- [ ] Read/list/delete tools for named ranges (complement to `create_named_range`) _(on deck — `ready-for-development`, open for outside contribution)_ ([#340](https://github.com/khuisman/mcp-gee-sweet/issues/340))
 
 **Drive**
 - [ ] `restore_file` / `empty_trash` — undelete or permanently purge trashed files ([#138](https://github.com/khuisman/mcp-gee-sweet/issues/138))
@@ -183,8 +188,6 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 ### Tier 4 — Nice to have / niche _(no assigned version)_
 
 **Sheets**
-- [ ] `get_sheet_dimensions` — read column widths, row heights, frozen counts ([#132](https://github.com/khuisman/mcp-gee-sweet/issues/132)) _(freema/mcp-gsheets)_
-- [ ] `add_note` / `clear_note` — cell notes (distinct from comments) ([#131](https://github.com/khuisman/mcp-gee-sweet/issues/131)) _(freema/mcp-gsheets)_
 - [ ] Pivot tables — create and update pivot table specs via batchUpdate ([#133](https://github.com/khuisman/mcp-gee-sweet/issues/133))
 - [ ] Developer metadata — key-value metadata attached to rows, columns, or ranges ([#134](https://github.com/khuisman/mcp-gee-sweet/issues/134))
 - [ ] Sheet comments and cell notes (add/get/list/reply/resolve/delete) — we have zero comment tooling on Sheets today _(a-bonus/google-docs-mcp)_
