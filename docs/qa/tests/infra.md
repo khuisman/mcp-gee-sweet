@@ -23,6 +23,7 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I21 (strict tool arg validation, issue #239) | ✅ Unit-tested in `tests/test_server.py::TestToolStrictArgs` (dummy tool + real `list_sheets`) and live-tested — see Result entry below |
 | TC-I22 (`set_cache_ttl`/`get_cache_ttl`, issue #99) | Unit-tested in `tests/test_cache.py` (`set_ttl`/`get_ttl` on all 5 cache classes) — TTL change takes effect on the next lookup without a restart, and is readable back |
 | TC-I23 (`CACHE_VALIDATE_MODIFIED_TIME`, issue #99) | Unit-tested in `tests/test_cache.py` (modified-time comparison in `_get_valid`, `get_modified_time` helper, `fetch_sheets` wiring). Live verification needs an edit path outside the MCP tools' own `mark_dirty` calls (which already invalidate immediately) — see TC-I23 below for the Playwright-based approach |
+| TC-I25, I26 (MCP resources reach lifespan context, issue #363) | Unit-tested in `tests/test_server.py::TestResourcesReadLifespanContextViaGetContext` (monkeypatches `mcp.get_context()`), but that proves only that `server.py`'s own code is correct against a fake — it can't prove the real `mcp` SDK's `FastMCP.get_context()` still returns a real `.request_context.lifespan_context` end-to-end through the actual resource-read protocol. Needs live verification — see TC-I25/TC-I26 below |
 
 ---
 
@@ -159,6 +160,38 @@ TC-I22/TC-I23 (issue #99) are the only mandatory live QA cases for this PR (see 
 - No response is empty, truncated, or contains a mix of both spreadsheets' data (any of these would indicate the two concurrent `.execute()` calls interfered with each other's shared transport)
 
 **Note:** also implicitly covered by TC-D176/TC-D177/TC-D178/TC-D179/TC-R36/TC-R37 above, each of which forces several genuinely concurrent `.execute()` calls within a single gather()-restructured tool and checks per-item attribution. This case adds the cross-request angle (two separate tool calls, not one batched call) that those don't cover.
+
+---
+
+### TC-I25: `server://auth-status` resource resolves lifespan context (issue #363)
+
+**Background:** Both `server.py` resources previously called `mcp.get_lifespan_context()`, which never existed on `FastMCP` (confirmed absent as far back as `mcp==1.27.1` — not a regression from #350's SDK bump). Every read raised `'FastMCP' object has no attribute 'get_lifespan_context'`. Fixed to use `mcp.get_context().request_context.lifespan_context`, the same path every tool already uses via `ctx.request_context.lifespan_context`. This reproduces the exact regression scenario, not just a happy-path spot check.
+
+**Setup**
+Server running with any auth method.
+
+**Action**
+Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against this server.
+
+**Checks**
+- No `AttributeError` / `'FastMCP' object has no attribute 'get_lifespan_context'`
+- Returns valid JSON with `auth_method` matching the server's actual configured auth method
+
+---
+
+### TC-I26: `spreadsheet://{id}/info` resource resolves lifespan context (issue #363)
+
+**Background:** Same regression and fix as TC-I25, but for the resource that actually calls the Sheets API (`execute_in_thread` off `context.sheets_service`) — proves the fix works on the `async def` resource path too, not just the sync one.
+
+**Setup**
+Server running with any auth method.
+
+**Action**
+Call `ReadMcpResourceTool` with `uri: "spreadsheet://{SPREADSHEET_ID}/info"` against this server.
+
+**Checks**
+- No `AttributeError` / `'FastMCP' object has no attribute 'get_lifespan_context'`
+- Returns valid JSON with `title` and a `sheets` array matching the spreadsheet's actual tabs
 
 ---
 

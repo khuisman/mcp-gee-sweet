@@ -9,7 +9,15 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import ValidationError
 
-from mcp_gee_sweet.server import _auth_status_json, _parse_enabled_tools, _timed, mcp, tool
+from mcp_gee_sweet.server import (
+    _auth_status_json,
+    _parse_enabled_tools,
+    _timed,
+    get_auth_status,
+    get_spreadsheet_info,
+    mcp,
+    tool,
+)
 
 
 class TestAllToolsAreAsync:
@@ -119,6 +127,51 @@ class TestAuthStatusResource:
         status = self._get_status("adc")
         assert status["can_create_in_personal_drive"] is True
         assert status["limited_tools"] == []
+
+
+class TestResourcesReadLifespanContextViaGetContext:
+    """Regression test for issue #363: both MCP resources called the nonexistent
+    `mcp.get_lifespan_context()` (never a real FastMCP API, confirmed absent even
+    in mcp==1.27.1, so not a regression from #350's SDK bump). TestAuthStatusResource
+    above only exercises `_auth_status_json()` directly, never the resource function
+    itself, so it never caught this. These tests call the actual resource functions
+    and monkeypatch `mcp.get_context()` the way FastMCP really provides it, so a
+    reintroduction of `get_lifespan_context()` (or any other API drift) fails loudly.
+    """
+
+    def _fake_context(self, **lifespan_attrs):
+        fake_ctx = MagicMock()
+        for k, v in lifespan_attrs.items():
+            setattr(fake_ctx.request_context.lifespan_context, k, v)
+        return fake_ctx
+
+    def test_get_auth_status_reads_auth_method_via_get_context(self, monkeypatch):
+        monkeypatch.setattr(mcp, "get_context", lambda: self._fake_context(auth_method="oauth"))
+        result = json.loads(get_auth_status())
+        assert result["auth_method"] == "oauth"
+
+    async def test_get_spreadsheet_info_reads_sheets_service_via_get_context(self, monkeypatch):
+        sheets_service = MagicMock()
+        sheets_service.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "properties": {"title": "Test Sheet"},
+            "sheets": [
+                {
+                    "properties": {
+                        "title": "Sheet1",
+                        "sheetId": 0,
+                        "gridProperties": {"rowCount": 10, "columnCount": 5},
+                    }
+                }
+            ],
+        }
+        monkeypatch.setattr(
+            mcp, "get_context", lambda: self._fake_context(sheets_service=sheets_service)
+        )
+        result = json.loads(await get_spreadsheet_info("some-spreadsheet-id"))
+        assert result["title"] == "Test Sheet"
+        assert result["sheets"] == [
+            {"title": "Sheet1", "sheetId": 0, "gridProperties": {"rowCount": 10, "columnCount": 5}}
+        ]
 
 
 class TestTimed:

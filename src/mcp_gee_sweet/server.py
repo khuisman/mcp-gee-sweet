@@ -212,7 +212,7 @@ def get_auth_status() -> str:
     Returns a JSON summary of the active auth method and which tools are
     restricted. Useful for deciding which tools to attempt before calling them.
     """
-    context = mcp.get_lifespan_context()
+    context = mcp.get_context().request_context.lifespan_context
     return _auth_status_json(context.auth_method)
 
 
@@ -227,7 +227,7 @@ async def get_spreadsheet_info(spreadsheet_id: str) -> str:
     Returns:
         JSON string with spreadsheet information
     """
-    context = mcp.get_lifespan_context()
+    context = mcp.get_context().request_context.lifespan_context
     sheets_service = context.sheets_service
 
     spreadsheet = await execute_in_thread(
