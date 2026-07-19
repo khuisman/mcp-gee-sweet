@@ -2039,6 +2039,9 @@ Not tagged `⚠️ requires-oauth` — like `insert_doc_text`/`style_doc_range`,
 
 **Cleanup:** delete the created doc
 
+**Result (2026-07-19) ✅ PASS**
+Structural checks confirmed (single paragraph, HEADING_2, correct line_ranges). Playwright screenshot confirmed one tight paragraph with a visible soft line break, only "Document ID: KH-OPS-001" bold.
+
 ---
 
 ### TC-DOC117: Invalid named_style_type rejected without mutating the doc
@@ -2052,6 +2055,9 @@ Not tagged `⚠️ requires-oauth` — like `insert_doc_text`/`style_doc_range`,
 - `get_doc_structure` shows the doc unchanged (no insertion occurred)
 
 **Cleanup:** delete the created doc
+
+**Result (2026-07-19) ✅ PASS**
+Returned `{"error": "invalid named_style_type 'NOT_A_STYLE'; must be one of: ..."}}`; doc structure confirmed unchanged.
 
 ---
 
@@ -2076,6 +2082,9 @@ Tagged `⚠️ requires-oauth` on every case that reaches the upload step — th
 
 **Cleanup:** delete the created doc; delete the uploaded image file
 
+**Result (2026-07-19) ✅ PASS**
+`results` had one entry, `fileId` present, `index` 8 matched the marker paragraph's `startIndex`. Middle paragraph's span was exactly 2 (image + `\n`); before/after paragraphs unaffected. `list_permissions` confirmed `anyone`/`reader`.
+
 ---
 
 ### TC-DOC119: Two markers are placed in one call, higher index first
@@ -2092,6 +2101,9 @@ Tagged `⚠️ requires-oauth` on every case that reaches the upload step — th
 
 **Cleanup:** delete the created doc; delete both uploaded image files
 
+**Result (2026-07-19) ✅ PASS**
+Both entries succeeded with distinct fileIds, returned in input order (MARKERONE, MARKERTWO) despite MARKERTWO sitting at the higher document index — confirms the results-ordering fix live. Both paragraphs reduced to image-only spans afterward.
+
 ---
 
 ### TC-DOC120: Marker not found / not unique / local file missing all fail per-image without mutating the doc
@@ -2105,6 +2117,9 @@ Tagged `⚠️ requires-oauth` on every case that reaches the upload step — th
 - `get_doc_structure` shows the doc completely unchanged — no image, no marker text removed (the tool uploads/shares before touching the document, and none of these three ever reached that step)
 
 **Cleanup:** delete the created doc
+
+**Result (2026-07-19) ✅ PASS**
+All three error messages matched exactly (not found / occurs 2 times / no file found); no `fileId` on any entry; doc structure confirmed unchanged.
 
 ---
 
@@ -2120,3 +2135,6 @@ Tagged `⚠️ requires-oauth` on every case that reaches the upload step — th
 - No file was uploaded to Drive (nothing to clean up)
 
 **Cleanup:** delete the created doc
+
+**Result (2026-07-19) ✅ PASS**
+Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the substring-collision fix live; the prior implementation would have falsely matched inside "IMG10".
