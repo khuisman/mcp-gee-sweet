@@ -62,6 +62,14 @@ This matters for any test that syncs, lists, or downloads the whole folder (`syn
 
 ---
 
+## Clearing sheet-level state with no direct tool (e.g. data validation)
+
+Some sheet-level state has a tool to *set* it but none to *clear* it, and no tool exposes a sheet's numeric `sheetId` by name to fall back to the raw `batch_update` escape hatch (`list_sheets` returns names only; the `spreadsheet://{id}/info` resource that's supposed to cover this is currently broken — [#363](https://github.com/khuisman/mcp-gee-sweet/issues/363); tracked as a product gap in [#365](https://github.com/khuisman/mcp-gee-sweet/issues/365)). Hit live testing `add_data_validation`/`get_data_validation` (PR #361, 2026-07-18): no way to clear a validation rule from the fixture's `Empty` sheet between test cases.
+
+Workaround for a *scratch* fixture sheet (never do this to a sheet with real data — it destroys everything on the tab, not just the state you're trying to clear): `delete_sheet(sheet="Empty")` then `create_sheet(title="Empty")`. Fully resets the tab to blank, including any validation/formatting/merges, and is safe here because every QA tool call references the sheet by name, never by the ID that changes on recreate.
+
+---
+
 ## Conductor prompt
 
 ```
