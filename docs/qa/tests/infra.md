@@ -177,6 +177,8 @@ Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against this serve
 - No `AttributeError` / `'FastMCP' object has no attribute 'get_lifespan_context'`
 - Returns valid JSON with `auth_method` matching the server's actual configured auth method
 
+**Result:** ✅ PASS (2026-07-19, mcp-gee-sweet-sky, oauth). `{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "reason": null}` — no AttributeError, `auth_method` matches configured oauth.
+
 ---
 
 ### TC-I26: `spreadsheet://{id}/info` resource resolves lifespan context (issue #363)
@@ -192,6 +194,8 @@ Call `ReadMcpResourceTool` with `uri: "spreadsheet://{SPREADSHEET_ID}/info"` aga
 **Checks**
 - No `AttributeError` / `'FastMCP' object has no attribute 'get_lifespan_context'`
 - Returns valid JSON with `title` and a `sheets` array matching the spreadsheet's actual tabs
+
+**Result:** ✅ PASS (2026-07-19, mcp-gee-sweet-sky, TEST_SPREADSHEET_ID). Returned `title: "mcp-gee-sweet-qa-fixtures"` and 4 sheets (`Sales`, `Notes & Misc`, `BrandNew`, `Empty`) matching the fixture's actual tabs — no AttributeError.
 
 ---
 
