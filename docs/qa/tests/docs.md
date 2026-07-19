@@ -2,7 +2,7 @@
 
 Source: `src/mcp_gee_sweet/tools/docs/` (package: `__init__.py`, `ast.py`, `html_parser.py`, `emitter.py`)
 
-Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute `{DOC_ID}` from `fixtures.local.md`.
+Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute `{DOC_ID}` (and, for `insert_local_images`, `{FOLDER_ID}`) from `fixtures.local.md`.
 
 These tools operate on document body indices. Use `get_doc_structure` first in any session to obtain current indices before calling insert/delete/style operations.
 
@@ -2017,3 +2017,124 @@ Returned `{"error": "Invalid regex: missing ), unterminated subpattern at positi
 
 **Result (2026-07-18) ✅ PASS**
 1 match returned, `start_index` (11) equal to the cell's `paragraphStartIndex` (11).
+
+---
+
+## `insert_softbreak_paragraph` (#332)
+
+Not tagged `⚠️ requires-oauth` — like `insert_doc_text`/`style_doc_range`, the tool itself is auth-agnostic; only the fixture doc happens to live in personal Drive.
+
+### TC-DOC116: Two lines join into a single soft-break paragraph with an explicit style ⚠️ destructive
+**Setup:** create a doc with a placeholder paragraph via `write_doc_content`; note the placeholder paragraph's `startIndex`
+
+**Prompt**
+**Playwright: required**
+> "Insert a soft-break paragraph at index {N} in doc {DOC_ID} with lines [{text: 'Document ID: KH-OPS-001', bold: true}, {text: 'Category: AWS / Database'}], named_style_type HEADING_2"
+
+**Checks**
+- Response has no `error`; `start_index`/`end_index`/`line_ranges` are present, and each `line_ranges` entry's span matches its line's text length
+- `get_doc_structure` shows **one** paragraph element spanning the inserted block (not two) — confirms the `\v` separator did not create a paragraph break
+- That paragraph's `namedStyleType` is `HEADING_2`
+- 🔍 Visual check in Google Docs: the two lines render as one tight paragraph (no blank-line gap between them) with a visible line break; only the first line is bold
+
+**Cleanup:** delete the created doc
+
+**Result (2026-07-19) ✅ PASS**
+Structural checks confirmed (single paragraph, HEADING_2, correct line_ranges). Playwright screenshot confirmed one tight paragraph with a visible soft line break, only "Document ID: KH-OPS-001" bold.
+
+---
+
+### TC-DOC117: Invalid named_style_type rejected without mutating the doc
+**Setup:** create a doc via `write_doc_content` with any content
+
+**Prompt**
+> "Insert a soft-break paragraph at index 1 in doc {DOC_ID} with lines [{text: 'x'}], named_style_type 'NOT_A_STYLE'"
+
+**Checks**
+- Returns `{"error": "..."}` naming the invalid value — does not raise an exception
+- `get_doc_structure` shows the doc unchanged (no insertion occurred)
+
+**Cleanup:** delete the created doc
+
+**Result (2026-07-19) ✅ PASS**
+Returned `{"error": "invalid named_style_type 'NOT_A_STYLE'; must be one of: ..."}}`; doc structure confirmed unchanged.
+
+---
+
+## `insert_local_images` (#332)
+
+**Fixture:** `docs/qa/fixtures/qa-fixture-pixel.png` — a 1×1 pixel PNG, small enough to commit directly; only used to confirm placement/replacement mechanics, not visual image quality.
+
+Tagged `⚠️ requires-oauth` on every case that reaches the upload step — the tool calls the same local-file-upload path as `upload_local_file`, which cannot write to personal Drive under a service account (see its docstring). Error-path cases that return before any upload (marker not found/not unique, missing local file) are not tagged, matching the convention for `insert_inline_image`'s own error-path tests.
+
+### TC-DOC118: Single marker is replaced by an uploaded image ⚠️ requires-oauth ⚠️ destructive
+**Setup:** create a doc via `write_doc_content` with content `<p>before</p><p>IMGMARKERONE</p><p>after</p>`
+
+**Prompt**
+**Playwright: required**
+> "In doc {DOC_ID}, insert local images: marker 'IMGMARKERONE', local_path '<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png', into folder {FOLDER_ID}"
+
+**Checks**
+- `results` has exactly one entry with no `error`, a `fileId`, and an `index` equal to the "IMGMARKERONE" paragraph's `startIndex` (from a prior `get_doc_structure`)
+- `get_doc_structure` afterward: the marker text is gone, the "before"/"after" paragraphs are unaffected, and the middle paragraph's `endIndex - startIndex` is now 2 (one image "character" + the paragraph's trailing `\n`)
+- The uploaded file (`results[0].fileId`) is shared `anyone`/`reader` (`list_permissions`)
+- 🔍 Visual check in Google Docs: an image renders where the marker used to be, and the literal marker text is gone
+
+**Cleanup:** delete the created doc; delete the uploaded image file
+
+**Result (2026-07-19) ✅ PASS**
+`results` had one entry, `fileId` present, `index` 8 matched the marker paragraph's `startIndex`. Middle paragraph's span was exactly 2 (image + `\n`); before/after paragraphs unaffected. `list_permissions` confirmed `anyone`/`reader`.
+
+---
+
+### TC-DOC119: Two markers are placed in one call, higher index first
+**Setup:** create a doc via `write_doc_content` with content `<p>MARKERONE</p><p>MARKERTWO</p>`
+
+**Prompt**
+**Playwright: required**
+> "In doc {DOC_ID}, insert local images: marker 'MARKERONE' and marker 'MARKERTWO', both using local_path '<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png', into folder {FOLDER_ID}"
+
+**Checks**
+- `results` has two entries, both with no `error` and distinct `fileId`s
+- `get_doc_structure` afterward: both marker texts are gone and both paragraphs now contain only an image
+- 🔍 Visual check: both paragraphs show an image, in the original top-to-bottom order
+
+**Cleanup:** delete the created doc; delete both uploaded image files
+
+**Result (2026-07-19) ✅ PASS**
+Both entries succeeded with distinct fileIds, returned in input order (MARKERONE, MARKERTWO) despite MARKERTWO sitting at the higher document index — confirms the results-ordering fix live. Both paragraphs reduced to image-only spans afterward.
+
+---
+
+### TC-DOC120: Marker not found / not unique / local file missing all fail per-image without mutating the doc
+**Setup:** create a doc via `write_doc_content` with content `<p>DUPMARKER</p><p>DUPMARKER</p>`
+
+**Prompt**
+> "In doc {DOC_ID}, insert local images: marker 'NOPE' with local_path '<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png'; marker 'DUPMARKER' with the same local_path; marker 'ANY' with local_path '/nonexistent/missing.png' — all into folder {FOLDER_ID}"
+
+**Checks**
+- `results` has three entries, each with an `error` and no `fileId`: "not found" for NOPE, "must be unique" for DUPMARKER (occurs twice), a missing-file message for ANY
+- `get_doc_structure` shows the doc completely unchanged — no image, no marker text removed (the tool uploads/shares before touching the document, and none of these three ever reached that step)
+
+**Cleanup:** delete the created doc
+
+**Result (2026-07-19) ✅ PASS**
+All three error messages matched exactly (not found / occurs 2 times / no file found); no `fileId` on any entry; doc structure confirmed unchanged.
+
+---
+
+### TC-DOC121: A marker that's a substring of unrelated document text is not falsely matched
+**Setup:** create a doc via `write_doc_content` with content `<p>Reference build IMG10 in the changelog.</p>` — note there is no standalone "IMG1" token anywhere, only "IMG1" as the first four characters of "IMG10"
+
+**Prompt**
+> "In doc {DOC_ID}, insert local images: marker 'IMG1', local_path '<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png', into folder {FOLDER_ID}"
+
+**Checks**
+- `results` has one entry with an `error` containing "not found" — plain substring search would incorrectly match "IMG1" inside "IMG10" and report success
+- `get_doc_structure` shows the doc completely unchanged (no upload happened, since the marker never resolved)
+- No file was uploaded to Drive (nothing to clean up)
+
+**Cleanup:** delete the created doc
+
+**Result (2026-07-19) ✅ PASS**
+Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the substring-collision fix live; the prior implementation would have falsely matched inside "IMG10".

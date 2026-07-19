@@ -39,6 +39,78 @@ _SYSTEM_FILES = {".DS_Store", "Thumbs.db", "desktop.ini", ".localized"}
 _SYNC_MTIME_TOLERANCE = 5  # seconds — absorbs clock skew and upload-time drift
 
 
+async def _upload_local_file(
+    drive_service,
+    local_path: str,
+    parent_folder_id: str,
+    name: str | None = None,
+    skip_if_exists: bool = True,
+) -> dict[str, Any]:
+    """Upload a local file to a Drive folder. Shared core behind the upload_local_file
+    tool and docs/content.py's insert_local_images (imported cross-package the same
+    way docs/content.py imports _SA_QUOTA_ERROR from tools/drive/__init__.py)."""
+    path = Path(local_path)
+    if not path.is_file():
+        raise ValueError(f"No file found at {local_path!r}")
+
+    file_name = name or path.name
+
+    if skip_if_exists:
+        safe_name = file_name.replace("\\", "\\\\").replace("'", "\\'")
+        existing = await execute_in_thread(
+            drive_service.files()
+            .list(
+                q=f"name='{safe_name}' and '{parent_folder_id}' in parents and trashed=false",
+                spaces="drive",
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                fields="files(id, name, webViewLink)",
+                pageSize=1,
+            )
+            .execute,
+            drive_service,
+        )
+        hits = existing.get("files", [])
+        if hits:
+            logger.debug("Skipping upload — %s already exists as %s", file_name, hits[0]["id"])
+            return {
+                "fileId": hits[0]["id"],
+                "name": hits[0]["name"],
+                "web_link": hits[0].get("webViewLink"),
+                "skipped": True,
+            }
+
+    mime, _ = mimetypes.guess_type(local_path)
+    mime = mime or "application/octet-stream"
+
+    metadata: dict[str, Any] = {"name": file_name, "parents": [parent_folder_id]}
+    media = MediaFileUpload(local_path, mimetype=mime, resumable=True)
+    try:
+        result = await execute_in_thread(
+            drive_service.files()
+            .create(
+                body=metadata,
+                media_body=media,
+                supportsAllDrives=True,
+                fields="id, name, webViewLink",
+            )
+            .execute,
+            drive_service,
+        )
+    except HttpError as e:
+        if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+            return {"error": _SA_QUOTA_ERROR}
+        raise
+
+    logger.debug("Uploaded %s → %s (%s)", local_path, result.get("id"), mime)
+    return {
+        "fileId": result.get("id"),
+        "name": result.get("name", file_name),
+        "web_link": result.get("webViewLink"),
+        "skipped": False,
+    }
+
+
 async def _list_drive_children(drive_service, folder_id: str) -> tuple[list[dict], list[dict]]:
     """Return (files, folders) among the direct children of a Drive folder."""
     results = await execute_in_thread(
@@ -814,67 +886,12 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        path = Path(local_path)
-        if not path.is_file():
-            raise ValueError(f"No file found at {local_path!r}")
-
-        file_name = name or path.name
-
-        if skip_if_exists:
-            safe_name = file_name.replace("\\", "\\\\").replace("'", "\\'")
-            existing = await execute_in_thread(
-                drive_service.files()
-                .list(
-                    q=f"name='{safe_name}' and '{parent_folder_id}' in parents and trashed=false",
-                    spaces="drive",
-                    includeItemsFromAllDrives=True,
-                    supportsAllDrives=True,
-                    fields="files(id, name, webViewLink)",
-                    pageSize=1,
-                )
-                .execute,
-                drive_service,
-            )
-            hits = existing.get("files", [])
-            if hits:
-                logger.debug("Skipping upload — %s already exists as %s", file_name, hits[0]["id"])
-                return {
-                    "fileId": hits[0]["id"],
-                    "name": hits[0]["name"],
-                    "web_link": hits[0].get("webViewLink"),
-                    "skipped": True,
-                }
-
-        mime, _ = mimetypes.guess_type(local_path)
-        mime = mime or "application/octet-stream"
-
-        metadata: dict[str, Any] = {"name": file_name, "parents": [parent_folder_id]}
-        media = MediaFileUpload(local_path, mimetype=mime, resumable=True)
-        try:
-            result = await execute_in_thread(
-                drive_service.files()
-                .create(
-                    body=metadata,
-                    media_body=media,
-                    supportsAllDrives=True,
-                    fields="id, name, webViewLink",
-                )
-                .execute,
-                drive_service,
-            )
-        except HttpError as e:
-            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
-                return {"error": _SA_QUOTA_ERROR}
-            raise
-
-        lc.drive_folder_cache.mark_dirty(parent_folder_id)
-        logger.debug("Uploaded %s → %s (%s)", local_path, result.get("id"), mime)
-        return {
-            "fileId": result.get("id"),
-            "name": result.get("name", file_name),
-            "web_link": result.get("webViewLink"),
-            "skipped": False,
-        }
+        result = await _upload_local_file(
+            drive_service, local_path, parent_folder_id, name, skip_if_exists
+        )
+        if "error" not in result and not result.get("skipped"):
+            lc.drive_folder_cache.mark_dirty(parent_folder_id)
+        return result
 
     @tool(annotations=ToolAnnotations(title="Upload Local Folder", destructiveHint=True))
     async def upload_local_folder(

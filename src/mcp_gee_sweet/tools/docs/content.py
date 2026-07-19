@@ -1,3 +1,4 @@
+import asyncio
 import html as html_module
 import logging
 import re
@@ -17,10 +18,12 @@ from mcp.types import ToolAnnotations
 from ...auth import execute_in_thread
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME
 from ..drive import _SA_QUOTA_ERROR
+from ..drive.transfer import _upload_local_file
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .ast import Table
 from .emitter import ast_to_requests, fill_tables
 from .html_parser import html_to_ast
+from .style import _NAMED_STYLE_TYPES, _text_style_and_fields
 
 logger = logging.getLogger(__name__)
 
@@ -925,6 +928,17 @@ def register(tool):
 
         Returns:
             Confirmation with docId and count of deletions applied.
+
+        Note:
+            Including a paragraph's trailing paragraph mark in the deleted range
+            merges that paragraph into the next one, and the merged result inherits
+            the *next* paragraph's style (e.g. deleting through a NORMAL_TEXT
+            paragraph's newline when the following paragraph is HEADING_1 leaves the
+            surviving content styled as HEADING_1). Text inserted afterward at that
+            position silently picks up the same inherited style. Follow a
+            paragraph-mark-inclusive delete with an explicit updateParagraphStyle
+            (style_doc_range's named_style_type, or insert_softbreak_paragraph's
+            named_style_type) rather than assuming the original style survived.
         """
         lc = ctx.request_context.lifespan_context
         if not deletions:
@@ -1078,8 +1092,12 @@ def register(tool):
             doc_id: The Google Doc file ID.
             index: Document body index where the image should be inserted.
             uri: A publicly accessible image URI (HTTPS). Mutually exclusive with drive_file_id.
-            drive_file_id: A Google Drive file ID for an image stored in Drive.
-                The file must be accessible by the authenticated user.
+            drive_file_id: A Google Drive file ID for an image stored in Drive. The
+                Docs backend fetches the image over HTTP as an anonymous request, so
+                the file must be shared as anyone-with-link (e.g. via share_file with
+                {"type": "anyone", "role": "reader"}) — being accessible to the
+                authenticated user alone is not sufficient and fails with "There was
+                a problem retrieving the image" (confirmed live 2026-07-18).
                 Mutually exclusive with uri.
             width: Optional image width in points.
             height: Optional image height in points.
@@ -1172,3 +1190,402 @@ def register(tool):
         lc.doc_cache.mark_dirty(doc_id)
         logger.debug("insert_page_break: at index %d in doc %s", index, doc_id)
         return {"docId": doc_id, "index": index}
+
+    @tool(annotations=ToolAnnotations(title="Insert Soft-Break Paragraph", destructiveHint=True))
+    async def insert_softbreak_paragraph(
+        doc_id: str,
+        index: int,
+        lines: list[dict],
+        named_style_type: str = "NORMAL_TEXT",
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Insert a single paragraph built from multiple lines joined by soft line
+        breaks (Shift+Enter in the Docs UI), with the paragraph's style set
+        explicitly rather than inherited from whatever is at `index`.
+
+        Use this for metadata/header-style blocks that must render as one tight
+        paragraph with no blank line between rows — e.g. a document header block:
+            Document ID: KH-OPS-001   (bold)
+            Category: AWS / Database
+            Source: ...
+        insert_doc_text with "\\n" between lines creates separate paragraphs with a
+        blank line between them instead. This also sidesteps delete_doc_range's
+        paragraph-merge style-inheritance gotcha (see its docstring) by setting
+        namedStyleType explicitly on the whole paragraph the block lands in, rather
+        than leaving it to whichever neighboring paragraph it happened to merge into.
+
+        To replace existing content with a soft-break block: delete it first with
+        delete_doc_range, then call this tool at the same index.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            index: Document position to insert at. Use get_doc_structure to find it.
+            lines: List of line dicts, each with:
+                text (str): the line's text (required, non-empty).
+                Optional per-line text style, applied only to that line's own span
+                (same vocabulary as style_doc_range's text-style fields):
+                  bold, italic, underline, strikethrough (bool)
+                  font_size (float): size in points
+                  foreground_color (dict): {"red": 0-1, "green": 0-1, "blue": 0-1}
+                  link_url (str): set a hyperlink
+            named_style_type: Paragraph style applied to the whole paragraph the
+                inserted block ends up in (per Docs API updateParagraphStyle
+                semantics, this covers the entire paragraph touched by the insert,
+                not just the newly-inserted span). NORMAL_TEXT (default),
+                HEADING_1 … HEADING_6, TITLE, SUBTITLE.
+
+        Returns:
+            Confirmation with docId, start_index, end_index (the inserted block's
+            span), and line_ranges — a parallel list of {start_index, end_index}
+            per line, usable directly with style_doc_range for any styling beyond
+            what this call already applied.
+        """
+        lc = ctx.request_context.lifespan_context
+
+        if not lines:
+            return {"error": "lines list is empty"}
+        for line in lines:
+            if not line.get("text"):
+                return {"error": "every line must have non-empty 'text'"}
+        if named_style_type not in _NAMED_STYLE_TYPES:
+            return {
+                "error": f"invalid named_style_type {named_style_type!r}; must be one of: "
+                f"{', '.join(sorted(_NAMED_STYLE_TYPES))}"
+            }
+
+        joined_text = "\v".join(line["text"] for line in lines)
+        end_index = index + sum(_utf16_units(ch) for ch in joined_text)
+
+        requests: list[dict[str, Any]] = [
+            {"insertText": {"location": {"index": index}, "text": joined_text}},
+            {
+                "updateParagraphStyle": {
+                    "range": {"startIndex": index, "endIndex": end_index},
+                    "paragraphStyle": {"namedStyleType": named_style_type},
+                    "fields": "namedStyleType",
+                }
+            },
+        ]
+
+        line_ranges: list[dict[str, int]] = []
+        cursor = index
+        for i, line in enumerate(lines):
+            line_start = cursor
+            line_end = line_start + sum(_utf16_units(ch) for ch in line["text"])
+            line_ranges.append({"start_index": line_start, "end_index": line_end})
+
+            text_style, fields = _text_style_and_fields(line)
+            if text_style:
+                requests.append(
+                    {
+                        "updateTextStyle": {
+                            "range": {"startIndex": line_start, "endIndex": line_end},
+                            "textStyle": text_style,
+                            "fields": ",".join(fields),
+                        }
+                    }
+                )
+
+            cursor = line_end + (1 if i < len(lines) - 1 else 0)  # +1 for the "\v" separator
+
+        try:
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                lc.docs_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug(
+            "insert_softbreak_paragraph: %d lines at index %d in doc %s",
+            len(lines),
+            index,
+            doc_id,
+        )
+        return {
+            "docId": doc_id,
+            "start_index": index,
+            "end_index": end_index,
+            "line_ranges": line_ranges,
+        }
+
+    @tool(annotations=ToolAnnotations(title="Insert Local Images by Marker", destructiveHint=True))
+    async def insert_local_images(
+        doc_id: str,
+        images: list[dict],
+        folder_id: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Upload local image files to Drive and swap each into a Google Doc at a
+        plain-text marker, in one call.
+
+        Typical flow: write doc content with a unique plain-text placeholder per
+        image (e.g. "IMGMARKERONE") via create_doc/write_doc_content/insert_doc_text,
+        then call this tool once with the marker → local file mapping. Collapses the
+        N manual upload/find/insert/delete round trips a multi-image doc would
+        otherwise need into a single call.
+
+        For each image: uploads the local file to Drive, shares it as
+        anyone-with-link/reader (required — the Docs backend fetches inline images
+        as an anonymous HTTP request, so a private file fails with "There was a
+        problem retrieving the image"; confirmed live 2026-07-18), locates its
+        marker's current position, inserts the image immediately before the marker
+        text, then deletes the marker text.
+
+        All markers are located in a single pass over the document's current text
+        before any edits are applied — markers are matched longest-first at each
+        position, so one marker that's a substring of another (e.g. "IMG1" vs
+        "IMG10") can't produce a false match or a false "occurs twice" collision.
+        Uploads and shares run in parallel; the document edit is one batchUpdate
+        applied highest-index-first so replacing one marker never invalidates
+        another marker's already-computed position — same convention as
+        insert_doc_text/delete_doc_range. Uploading and sharing happen before any
+        document edit, so a failed upload never leaves the doc partially edited.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            images: List of image dicts, each with:
+                marker (str): exact literal text already present in the doc body,
+                    marking where this image goes. Matched as a whole token — not
+                    immediately preceded or followed by another letter, digit, or
+                    underscore — so a marker like "IMG1" can't falsely match inside
+                    unrelated text like "IMG10". Must occur exactly once in the
+                    document (searched case-sensitively) — an ambiguous or missing
+                    marker fails just that image, not the whole call.
+                local_path: absolute path to the local image file.
+                width, height (float, optional): image size in points.
+            folder_id: Drive folder to upload images into. Defaults to the server's
+                configured default folder.
+
+        Returns:
+            Dictionary with docId and results — a list of per-image outcomes in the
+            same order as the `images` argument, each echoing marker and local_path
+            plus either fileId + index on success, or error on failure (marker not
+            found, marker not unique, local file missing, upload failure, sharing
+            failure, or — rare, since uploads happen first — a failed document edit;
+            that last case never carries a fileId even though the upload itself
+            succeeded, since the image was never actually placed).
+
+        Note:
+            Uploaded images end up shared anyone-with-link/reader — remove that
+            permission afterward (remove_permission) if the file must not stay
+            publicly readable once embedded.
+        """
+        lc = ctx.request_context.lifespan_context
+        docs_service = lc.docs_service
+        drive_service = lc.drive_service
+        target_folder_id = folder_id or lc.folder_id
+
+        if not images:
+            return {"error": "images list is empty"}
+        if not target_folder_id:
+            return {"error": "folder_id is required (no server default folder configured)"}
+
+        try:
+            doc = await execute_in_thread(
+                docs_service.documents().get(documentId=doc_id).execute,
+                docs_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        paragraphs = list(_collect_doc_paragraphs(doc.get("body", {}).get("content", [])))
+
+        # Locate every requested marker in a single pass over the document. Two
+        # measures guard against one marker being a substring of another piece of
+        # text: (1) each match must be a whole token — not immediately preceded or
+        # followed by another letter/digit/underscore — so a marker "IMG1" can't
+        # match inside unrelated document text "IMG10"; (2) alternatives are tried
+        # longest-first, so if two *requested* markers legitimately overlap at the
+        # same position (e.g. both "IMG1" and "IMG10" are real, distinct markers
+        # present in the doc), the longer one wins there rather than the shorter
+        # one swallowing part of it.
+        marker_texts = {img.get("marker") for img in images if img.get("marker")}
+        located: dict[str, list[int]] = {m: [] for m in marker_texts}
+        if marker_texts:
+            alternation = "|".join(
+                re.escape(m) for m in sorted(marker_texts, key=len, reverse=True)
+            )
+            combined = re.compile(rf"(?<![A-Za-z0-9_])(?:{alternation})(?![A-Za-z0-9_])")
+            for para_text, para_indices in paragraphs:
+                for m in combined.finditer(para_text):
+                    located[m.group(0)].append(para_indices[m.start()])
+
+        # outcomes is index-aligned with `images` throughout, so the returned
+        # `results` list always matches caller input order regardless of the
+        # order placements finish uploading or get written to the doc.
+        outcomes: list[dict[str, Any] | None] = [None] * len(images)
+        placements: list[dict[str, Any]] = []  # located + validated, ready to upload+place
+
+        for i, image in enumerate(images):
+            marker = image.get("marker")
+            local_path = image.get("local_path")
+            entry: dict[str, Any] = {"marker": marker, "local_path": local_path}
+
+            if not marker:
+                entry["error"] = "missing 'marker'"
+                outcomes[i] = entry
+                continue
+            if not local_path:
+                entry["error"] = "missing 'local_path'"
+                outcomes[i] = entry
+                continue
+            if not Path(local_path).is_file():
+                entry["error"] = f"No file found at {local_path!r}"
+                outcomes[i] = entry
+                continue
+
+            matches = located.get(marker, [])
+            if not matches:
+                entry["error"] = f"marker {marker!r} not found in document"
+                outcomes[i] = entry
+                continue
+            if len(matches) > 1:
+                entry["error"] = f"marker {marker!r} occurs {len(matches)} times; must be unique"
+                outcomes[i] = entry
+                continue
+
+            placements.append(
+                {
+                    "index": i,
+                    "entry": entry,
+                    "marker_start": matches[0],
+                    "marker_len": sum(_utf16_units(ch) for ch in marker),
+                    "local_path": local_path,
+                    "width": image.get("width"),
+                    "height": image.get("height"),
+                }
+            )
+
+        async def _upload_and_share(placement: dict[str, Any]) -> None:
+            entry = placement["entry"]
+            try:
+                upload = await _upload_local_file(
+                    drive_service, placement["local_path"], target_folder_id, skip_if_exists=False
+                )
+                if "error" in upload:
+                    entry["error"] = upload["error"]
+                    placement["failed"] = True
+                    return
+
+                file_id = upload["fileId"]
+                await execute_in_thread(
+                    drive_service.permissions()
+                    .create(
+                        fileId=file_id,
+                        body={"type": "anyone", "role": "reader"},
+                        supportsAllDrives=True,
+                        fields="id",
+                    )
+                    .execute,
+                    drive_service,
+                )
+                metadata = await execute_in_thread(
+                    drive_service.files()
+                    .get(fileId=file_id, fields="webContentLink", supportsAllDrives=True)
+                    .execute,
+                    drive_service,
+                )
+            except Exception as e:
+                entry["error"] = f"upload/share failed: {e}"
+                placement["failed"] = True
+                return
+
+            uri = metadata.get("webContentLink")
+            if not uri:
+                entry["error"] = (
+                    f"uploaded and shared as {file_id} but Drive returned no webContentLink"
+                )
+                placement["failed"] = True
+                return
+
+            placement["file_id"] = file_id
+            placement["uri"] = uri
+            entry["fileId"] = file_id
+
+        if placements:
+            # return_exceptions=True: _upload_and_share already catches its own
+            # errors, but this also guards against anything unexpected escaping it
+            # without one failed image's exception aborting every other upload.
+            gather_results = await asyncio.gather(
+                *(_upload_and_share(p) for p in placements), return_exceptions=True
+            )
+            for placement, result in zip(placements, gather_results):
+                if isinstance(result, BaseException):
+                    placement["failed"] = True
+                    placement["entry"]["error"] = f"upload/share failed: {result}"
+
+        if any("file_id" in p for p in placements):
+            lc.drive_folder_cache.mark_dirty(target_folder_id)
+
+        for placement in placements:
+            if placement.get("failed"):
+                outcomes[placement["index"]] = placement["entry"]
+
+        ready = [p for p in placements if not p.get("failed")]
+        if not ready:
+            return {"docId": doc_id, "results": outcomes}
+
+        # Highest marker_start first, so an earlier (lower-index) marker's position
+        # is never shifted by a later edit — same convention as insert_doc_text.
+        requests: list[dict[str, Any]] = []
+        for placement in sorted(ready, key=lambda p: p["marker_start"], reverse=True):
+            marker_start = placement["marker_start"]
+            image_request: dict[str, Any] = {
+                "insertInlineImage": {
+                    "location": {"index": marker_start},
+                    "uri": placement["uri"],
+                }
+            }
+            width, height = placement.get("width"), placement.get("height")
+            if width is not None or height is not None:
+                object_size: dict[str, Any] = {}
+                if width is not None:
+                    object_size["width"] = {"magnitude": width, "unit": "PT"}
+                if height is not None:
+                    object_size["height"] = {"magnitude": height, "unit": "PT"}
+                image_request["insertInlineImage"]["objectSize"] = object_size
+            requests.append(image_request)
+            requests.append(
+                {
+                    "deleteContentRange": {
+                        "range": {
+                            "startIndex": marker_start + 1,
+                            "endIndex": marker_start + 1 + placement["marker_len"],
+                        }
+                    }
+                }
+            )
+
+        try:
+            await execute_in_thread(
+                docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                docs_service,
+            )
+        except Exception as e:
+            for placement in ready:
+                entry = placement["entry"]
+                entry.pop("fileId", None)
+                entry["error"] = f"doc edit failed: {e}"
+                outcomes[placement["index"]] = entry
+            return {"docId": doc_id, "results": outcomes}
+
+        for placement in ready:
+            placement["entry"]["index"] = placement["marker_start"]
+            outcomes[placement["index"]] = placement["entry"]
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug(
+            "insert_local_images: %d/%d images placed in doc %s",
+            len(ready),
+            len(images),
+            doc_id,
+        )
+        return {"docId": doc_id, "results": outcomes}

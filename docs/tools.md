@@ -134,6 +134,8 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | `create_bookmark` | Create a lightweight, named anchor point at a single position in a Google Doc. | `doc_id`, `name`, `index` |
 | `insert_inline_image` | Insert an inline image at a specific index in a Google Doc. | `doc_id`, `index`, `uri?`, `drive_file_id?`, `width?`, `height?` |
 | `insert_page_break` | Insert an explicit page break at a specific index in a Google Doc. | `doc_id`, `index` |
+| `insert_softbreak_paragraph` | Insert a single paragraph built from multiple lines joined by soft line breaks (Shift+Enter in the Docs UI), with the paragraph's style set explicitly rather than inherited from whatever is at `index`. | `doc_id`, `index`, `lines`, `named_style_type?` |
+| `insert_local_images` | Upload local image files to Drive and swap each into a Google Doc at a plain-text marker, in one call. | `doc_id`, `images`, `folder_id?` |
 | `insert_doc_table` | Insert an empty table at a specific position in a Google Doc. | `doc_id`, `index`, `rows`, `columns` |
 | `insert_table_row` | Insert a row into an existing table in a Google Doc. | `doc_id`, `table_start_index`, `row_index`, `insert_below?` |
 | `delete_table_row` | Delete a row from an existing table in a Google Doc. | `doc_id`, `table_start_index`, `row_index` |

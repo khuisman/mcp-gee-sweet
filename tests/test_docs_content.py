@@ -1386,3 +1386,503 @@ class TestFindInDoc:
         assert result["match_count"] == 3
         written = json.loads(dest.read_text())
         assert len(written) == 3
+
+
+# ---------------------------------------------------------------------------
+# insert_softbreak_paragraph (#332)
+# ---------------------------------------------------------------------------
+
+
+class TestInsertSoftbreakParagraph:
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    async def test_lines_joined_with_soft_break(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=10,
+            lines=[{"text": "Line one"}, {"text": "Line two"}],
+            ctx=ctx,
+        )
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        insert_req = body["requests"][0]["insertText"]
+        assert insert_req["location"]["index"] == 10
+        assert insert_req["text"] == "Line one\vLine two"
+
+    async def test_paragraph_style_set_explicitly_over_whole_span(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc)
+        result = await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=10,
+            lines=[{"text": "abc"}, {"text": "de"}],
+            named_style_type="HEADING_2",
+            ctx=ctx,
+        )
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        style_req = body["requests"][1]["updateParagraphStyle"]
+        assert style_req["paragraphStyle"]["namedStyleType"] == "HEADING_2"
+        assert style_req["fields"] == "namedStyleType"
+        # "abc" (3) + soft break (1) + "de" (2) = 6 units
+        assert style_req["range"] == {"startIndex": 10, "endIndex": 16}
+        assert result["start_index"] == 10
+        assert result["end_index"] == 16
+
+    async def test_line_ranges_and_per_line_bold_style(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc)
+        result = await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=1,
+            lines=[{"text": "Document ID: X", "bold": True}, {"text": "Category: Y"}],
+            ctx=ctx,
+        )
+        # Line 0: [1, 15); soft break at 15; line 1: [16, 27)
+        assert result["line_ranges"] == [
+            {"start_index": 1, "end_index": 15},
+            {"start_index": 16, "end_index": 27},
+        ]
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        style_requests = [r["updateTextStyle"] for r in body["requests"] if "updateTextStyle" in r]
+        assert len(style_requests) == 1
+        assert style_requests[0]["range"] == {"startIndex": 1, "endIndex": 15}
+        assert style_requests[0]["textStyle"] == {"bold": True}
+        assert style_requests[0]["fields"] == "bold"
+
+    async def test_astral_character_advances_offset_by_two_utf16_units(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc)
+        result = await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=1,
+            lines=[{"text": "hi 😀"}, {"text": "next"}],
+            ctx=ctx,
+        )
+        # "hi 😀" is 4 Python chars but 5 UTF-16 units (the emoji is a surrogate
+        # pair) -> line 0 spans [1, 6), soft break at 6, line 1 starts at 7.
+        assert result["line_ranges"][0] == {"start_index": 1, "end_index": 6}
+        assert result["line_ranges"][1]["start_index"] == 7
+
+    async def test_empty_lines_returns_error(self):
+        ctx = self._ctx()
+        result = await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1", index=1, lines=[], ctx=ctx
+        )
+        assert "error" in result
+
+    async def test_line_missing_text_returns_error(self):
+        ctx = self._ctx()
+        result = await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1", index=1, lines=[{"bold": True}], ctx=ctx
+        )
+        assert "error" in result
+
+    async def test_invalid_named_style_type_returns_error(self):
+        ctx = self._ctx()
+        result = await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=1,
+            lines=[{"text": "x"}],
+            named_style_type="NOT_A_STYLE",
+            ctx=ctx,
+        )
+        assert "error" in result
+
+    async def test_marks_doc_cache_dirty(self):
+        docs_svc = MagicMock()
+        doc_cache = MagicMock()
+        ctx = self._ctx(docs_svc)
+        ctx.request_context.lifespan_context.doc_cache = doc_cache
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1", index=1, lines=[{"text": "x"}], ctx=ctx
+        )
+        doc_cache.mark_dirty.assert_called_once_with("doc1")
+
+    async def test_api_error_returns_error(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "API error"
+        )
+        ctx = self._ctx(docs_svc)
+        result = await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1", index=1, lines=[{"text": "x"}], ctx=ctx
+        )
+        assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# insert_local_images (#332)
+# ---------------------------------------------------------------------------
+
+
+class TestInsertLocalImages:
+    def _ctx(self, docs_svc=None, drive_svc=None, folder_id=None):
+        return _make_ctx(
+            docs_service=docs_svc or MagicMock(),
+            drive_service=drive_svc or MagicMock(),
+            doc_cache=MagicMock(),
+            drive_folder_cache=MagicMock(),
+            folder_id=folder_id,
+        )
+
+    def _docs_svc(self, doc):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = doc
+        return docs_svc
+
+    def _drive_svc(self, file_id="img1", web_content_link="https://drive.google.com/uc?id=img1"):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": file_id,
+            "name": "pic.png",
+            "webViewLink": "https://drive.google.com/file/d/x/view",
+        }
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "anyoneWithLink"
+        }
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "webContentLink": web_content_link
+        }
+        return drive_svc
+
+    async def test_empty_images_returns_error(self):
+        ctx = self._ctx(folder_id="folder1")
+        result = await _docs_tools["insert_local_images"](doc_id="doc1", images=[], ctx=ctx)
+        assert "error" in result
+
+    async def test_no_folder_id_returns_error(self):
+        ctx = self._ctx()  # no folder_id param, no lc.folder_id default
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1", images=[{"marker": "M", "local_path": "/x.png"}], ctx=ctx
+        )
+        assert "error" in result
+
+    async def test_missing_local_file_reports_per_image_error(self, tmp_path):
+        doc, _ = _build_doc_body([["before\n"], ["MARKER\n"], ["after\n"]])
+        docs_svc = self._docs_svc(doc)
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(tmp_path / "missing.png")}],
+            ctx=ctx,
+        )
+
+        assert len(result["results"]) == 1
+        assert "error" in result["results"][0]
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_marker_not_found_reports_per_image_error(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["before\n"], ["after\n"]])
+        docs_svc = self._docs_svc(doc)
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "NOPE", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        assert "error" in result["results"][0]
+        assert "not found" in result["results"][0]["error"]
+
+    async def test_marker_not_unique_reports_per_image_error(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["MARKER here\n"], ["MARKER there\n"]])
+        docs_svc = self._docs_svc(doc)
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        assert "error" in result["results"][0]
+        assert "unique" in result["results"][0]["error"]
+
+    async def test_successful_single_image_places_and_deletes_marker(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        # paragraphs: "before\n" [1,8), "MARKER\n" [8,15), "after\n" [15,21)
+        doc, paragraphs = _build_doc_body([["before\n"], ["MARKER\n"], ["after\n"]])
+        docs_svc = self._docs_svc(doc)
+        drive_svc = self._drive_svc(file_id="img1")
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+        marker_start = paragraphs[1][0]  # start index of the "MARKER\n" paragraph
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img), "width": 100.0}],
+            ctx=ctx,
+        )
+
+        assert result["results"] == [
+            {
+                "marker": "MARKER",
+                "local_path": str(img),
+                "fileId": "img1",
+                "index": marker_start,
+            }
+        ]
+
+        drive_svc.permissions.return_value.create.assert_called_once_with(
+            fileId="img1",
+            body={"type": "anyone", "role": "reader"},
+            supportsAllDrives=True,
+            fields="id",
+        )
+
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        image_req = body["requests"][0]["insertInlineImage"]
+        assert image_req["location"]["index"] == marker_start
+        assert image_req["uri"] == "https://drive.google.com/uc?id=img1"
+        assert image_req["objectSize"]["width"] == {"magnitude": 100.0, "unit": "PT"}
+        delete_req = body["requests"][1]["deleteContentRange"]
+        assert delete_req["range"] == {
+            "startIndex": marker_start + 1,
+            "endIndex": marker_start + 1 + len("MARKER"),
+        }
+
+    async def test_multiple_images_processed_highest_marker_first(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, paragraphs = _build_doc_body([["ONE\n"], ["TWO\n"]])
+        docs_svc = self._docs_svc(doc)
+        drive_svc = self._drive_svc()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+
+        await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[
+                {"marker": "ONE", "local_path": str(img)},
+                {"marker": "TWO", "local_path": str(img)},
+            ],
+            ctx=ctx,
+        )
+
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        indices = [
+            r["insertInlineImage"]["location"]["index"]
+            for r in body["requests"]
+            if "insertInlineImage" in r
+        ]
+        assert indices == sorted(indices, reverse=True)
+
+    async def test_upload_failure_reports_per_image_error_and_skips_doc_edit(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        drive_svc = self._drive_svc()
+        drive_svc.files.return_value.create.return_value.execute.side_effect = _quota_http_error()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        assert "error" in result["results"][0]
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_sharing_failure_reports_per_image_error_and_skips_doc_edit(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        drive_svc = self._drive_svc()
+        drive_svc.permissions.return_value.create.return_value.execute.side_effect = Exception(
+            "share failed"
+        )
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        assert "error" in result["results"][0]
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_marks_caches_dirty_on_success(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        drive_svc = self._drive_svc()
+        doc_cache = MagicMock()
+        drive_folder_cache = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+        ctx.request_context.lifespan_context.doc_cache = doc_cache
+        ctx.request_context.lifespan_context.drive_folder_cache = drive_folder_cache
+
+        await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        doc_cache.mark_dirty.assert_called_once_with("doc1")
+        drive_folder_cache.mark_dirty.assert_called_once_with("folder1")
+
+    async def test_docs_get_error_returns_top_level_error(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.side_effect = Exception(
+            "not found"
+        )
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": "/x.png"}],
+            ctx=ctx,
+        )
+
+        assert "error" in result
+
+    async def test_substring_marker_not_present_is_not_falsely_matched(self, tmp_path):
+        # Regression: plain substring search would match "IMG1" inside "IMG10"
+        # even though "IMG1" never appears as its own marker in the document.
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["IMG10\n"]])
+        docs_svc = self._docs_svc(doc)
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "IMG1", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        assert "error" in result["results"][0]
+        assert "not found" in result["results"][0]["error"]
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_substring_markers_both_present_resolve_to_correct_positions(self, tmp_path):
+        # Regression: requesting both "IMG1" and "IMG10" where each appears exactly
+        # once (in separate paragraphs) must not report a false "occurs twice" for
+        # either — longest-first matching must not let "IMG10" ever get counted as
+        # an extra occurrence of "IMG1".
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, paragraphs = _build_doc_body([["IMG1 here\n"], ["IMG10 there\n"]])
+        docs_svc = self._docs_svc(doc)
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[
+                {"marker": "IMG1", "local_path": str(img)},
+                {"marker": "IMG10", "local_path": str(img)},
+            ],
+            ctx=ctx,
+        )
+
+        assert all("error" not in r for r in result["results"])
+        assert result["results"][0]["index"] == paragraphs[0][0]
+        assert result["results"][1]["index"] == paragraphs[1][0]
+
+    async def test_marker_with_astral_character_deletes_correct_utf16_span(self, tmp_path):
+        # Regression: marker_len must be counted in UTF-16 units, not Python code
+        # points — "😀" is 1 Python char but 2 UTF-16 units, so a naive len(marker)
+        # would leave the deleteContentRange one unit short, stranding a character.
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, paragraphs = _build_doc_body([["before 😀MARK after\n"]])
+        docs_svc = self._docs_svc(doc)
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+        para_start, para_text = paragraphs[0]
+        marker = "😀MARK"
+        marker_start = para_start + para_text.index(marker)
+        # "😀" costs 2 UTF-16 units + "MARK" costs 4 -> 6 total, not len(marker) == 5.
+        expected_end = marker_start + 1 + 6
+
+        await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": marker, "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        delete_req = next(
+            r["deleteContentRange"] for r in body["requests"] if "deleteContentRange" in r
+        )
+        assert delete_req["range"]["endIndex"] == expected_end
+
+    async def test_failed_batchupdate_entry_has_error_but_no_fileid(self, tmp_path):
+        # Regression: the doc-edit-failure handler used to reuse the same entry
+        # dict that already carried "fileId" from a successful upload, leaving
+        # both fileId and error set — contradicting the documented either/or contract.
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "batchUpdate failed"
+        )
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        entry = result["results"][0]
+        assert "error" in entry
+        assert "fileId" not in entry
+
+    async def test_results_order_matches_images_input_order_not_doc_position_order(self, tmp_path):
+        # Regression: successes used to be appended in descending-document-position
+        # order (used internally for batchUpdate construction) while failures were
+        # appended in input order, so results didn't line up with the images argument
+        # whenever a caller listed markers in an order different from their document
+        # position. Here "TWO" (input index 0) sits *after* "ONE" (input index 1) in
+        # the document, so document-position order would put ONE first — but the
+        # correct output order is input order: TWO's outcome, then ONE's.
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["ONE\n"], ["TWO\n"]])
+        docs_svc = self._docs_svc(doc)
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[
+                {"marker": "TWO", "local_path": str(img)},
+                {"marker": "ONE", "local_path": str(img)},
+            ],
+            ctx=ctx,
+        )
+
+        assert [r["marker"] for r in result["results"]] == ["TWO", "ONE"]
+
+    async def test_results_order_preserved_with_mixed_success_and_early_failure(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["ONE\n"]])
+        docs_svc = self._docs_svc(doc)
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[
+                {"marker": "MISSING", "local_path": str(img)},
+                {"marker": "ONE", "local_path": str(img)},
+            ],
+            ctx=ctx,
+        )
+
+        assert [r["marker"] for r in result["results"]] == ["MISSING", "ONE"]
+        assert "error" in result["results"][0]
+        assert "error" not in result["results"][1]
