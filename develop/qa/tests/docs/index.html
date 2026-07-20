@@ -2870,6 +2870,122 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#nested-list-interrupted-li-parent-text-handling-write_doc_content-issue-335" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nested list / interrupted &lt;li&gt; parent-text handling — write_doc_content (issue #335)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Nested list / interrupted &lt;li&gt; parent-text handling — write_doc_content (issue #335)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc122-parent-li-text-survives-alongside-a-nested-list-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC122: Parent &lt;li&gt; text survives alongside a nested list ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc123-three-level-nested-list-preserves-every-parents-own-text-in-document-order-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC123: Three-level nested list preserves every parent's own text, in document order ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc124-nested-list-via-markdown-also-preserves-the-parent-lines-text-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC124: Nested list via Markdown also preserves the parent line's text ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc125-a-pre-block-opening-inside-an-open-li-doesnt-drop-the-lis-own-text-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC125: A &lt;pre&gt; block opening inside an open &lt;li&gt; doesn't drop the &lt;li&gt;'s own text ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc126-a-table-opening-inside-an-open-li-doesnt-drop-the-lis-own-text-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC126: A &lt;table&gt; opening inside an open &lt;li&gt; doesn't drop the &lt;li&gt;'s own text ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc127-trailing-text-after-a-nested-list-before-the-real-li-is-not-dropped-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC127: Trailing text after a nested list, before the real &lt;/li&gt;, is not dropped ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc128-an-unclosed-b-inside-a-li-doesnt-leak-bold-formatting-into-the-rest-of-the-document-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC128: An unclosed &lt;b&gt; inside a &lt;li&gt; doesn't leak bold formatting into the rest of the document ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc129-a-headings-own-text-survives-a-nested-table-interrupting-it-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC129: A heading's own text survives a nested table interrupting it ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc130-malformed-html-an-unclosed-p-inside-a-li-degrades-locally-without-corrupting-later-well-formed-content-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC130: Malformed HTML (an unclosed &lt;p&gt; inside a &lt;li&gt;) degrades locally without corrupting later, well-formed content ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4780,6 +4896,119 @@ All three error messages matched exactly (not found / occurs 2 times / no file f
 <p><strong>Cleanup:</strong> delete the created doc</p>
 <p><strong>Result (2026-07-19) ✅ PASS</strong>
 Returned <code>{"error": "marker 'IMG1' not found in document"}}</code> — confirms the substring-collision fix live; the prior implementation would have falsely matched inside "IMG10".</p>
+<hr />
+<h2 id="nested-list-interrupted-li-parent-text-handling-write_doc_content-issue-335">Nested list / interrupted <code>&lt;li&gt;</code> parent-text handling — <code>write_doc_content</code> (issue #335)<a class="headerlink" href="#nested-list-interrupted-li-parent-text-handling-write_doc_content-issue-335" title="Permanent link">&para;</a></h2>
+<p><strong>Note:</strong> nested-list <em>indentation</em> is a separate, not-yet-fixed issue (#336) — <code>BulletItem.depth</code> is computed correctly but the Docs writer doesn't yet turn it into visual indentation, so all bullets below may render at the same flat list level for now. These test cases cover #335: that an open <code>&lt;li&gt;</code>'s own text is no longer silently dropped when something block-level opens inside it (a nested <code>&lt;ul&gt;</code>/<code>&lt;ol&gt;</code>, but also <code>&lt;pre&gt;</code>, <code>&lt;table&gt;</code>, <code>&lt;p&gt;</code>, headings), that text appears before its children in document order, that text trailing a nested construct (before the real <code>&lt;/li&gt;</code>) isn't dropped either, and that formatting state doesn't leak forward when an inline tag is left unclosed across the boundary. None are tagged <code>Playwright: required</code> since indentation (the only visual signature not yet checkable) isn't verifiable until #336 lands — <code>get_doc_structure</code> text/order/style checks are sufficient here.</p>
+<h3 id="tc-doc122-parent-li-text-survives-alongside-a-nested-list-destructive">TC-DOC122: Parent <code>&lt;li&gt;</code> text survives alongside a nested list ⚠️ destructive<a class="headerlink" href="#tc-doc122-parent-li-text-survives-alongside-a-nested-list-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;ul&gt;&lt;li&gt;Item text&lt;ul&gt;&lt;li&gt;sub a&lt;/li&gt;&lt;li&gt;sub b&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;/ul&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows <strong>three</strong> bulleted paragraphs in order: "Item text", "sub a", "sub b" — previously the parent's "Item text" paragraph was dropped entirely, leaving only the two children</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-19) ✅ PASS</strong>
+<code>get_doc_structure</code> returned three paragraphs in order: "Item text", "sub a", "sub b". Fixture restored.</p>
+<hr />
+<h3 id="tc-doc123-three-level-nested-list-preserves-every-parents-own-text-in-document-order-destructive">TC-DOC123: Three-level nested list preserves every parent's own text, in document order ⚠️ destructive<a class="headerlink" href="#tc-doc123-three-level-nested-list-preserves-every-parents-own-text-in-document-order-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;ul&gt;&lt;li&gt;Parent A has text&lt;ul&gt;&lt;li&gt;Child A1 has text&lt;ul&gt;&lt;li&gt;Grandchild A2a&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;/ul&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows three bulleted paragraphs in order: "Parent A has text", "Child A1 has text", "Grandchild A2a" — all three levels' own text present, none clobbered by the nested <code>&lt;li&gt;</code> below it
+- Order matches source order (each parent before its own children) — a fix that only restores the buffer at the outer <code>&lt;/li&gt;</code> close would emit children before their parent instead</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-19) ✅ PASS</strong>
+<code>get_doc_structure</code> returned three paragraphs in order: "Parent A has text", "Child A1 has text", "Grandchild A2a". Fixture restored.</p>
+<hr />
+<h3 id="tc-doc124-nested-list-via-markdown-also-preserves-the-parent-lines-text-destructive">TC-DOC124: Nested list via Markdown also preserves the parent line's text ⚠️ destructive<a class="headerlink" href="#tc-doc124-nested-list-via-markdown-also-preserves-the-parent-lines-text-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this Markdown to doc {DOC_ID} with content_format='markdown': <code>- Item text:\n    - sub a\n    - sub b</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows three bulleted paragraphs: "Item text:", "sub a", "sub b" — confirms the fix applies through the Markdown→HTML pipeline too, not just raw HTML
+- Note: 4-space indentation is used deliberately — 2-space indentation doesn't clear the <code>sane_lists</code> nesting threshold and produces a flat, unnested list instead (a separate, already-tracked issue, #334)</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-19) ✅ PASS</strong>
+<code>get_doc_structure</code> returned three paragraphs in order: "Item text:", "sub a", "sub b" — confirms the fix applies through the Markdown pipeline too. Fixture restored.</p>
+<hr />
+<h3 id="tc-doc125-a-pre-block-opening-inside-an-open-li-doesnt-drop-the-lis-own-text-destructive">TC-DOC125: A <code>&lt;pre&gt;</code> block opening inside an open <code>&lt;li&gt;</code> doesn't drop the <code>&lt;li&gt;</code>'s own text ⚠️ destructive<a class="headerlink" href="#tc-doc125-a-pre-block-opening-inside-an-open-li-doesnt-drop-the-lis-own-text-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Note:</strong> covers the review-round finding that #335's original fix only guarded <code>&lt;ul&gt;</code>/<code>&lt;ol&gt;</code> — any block-level construct interrupting an open <code>&lt;li&gt;</code> had the same data-loss bug.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;ul&gt;&lt;li&gt;Note:&lt;pre&gt;code&lt;/pre&gt;&lt;/li&gt;&lt;/ul&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows a bulleted paragraph "Note:" followed by a separate (non-bulleted) paragraph "code" — previously "Note:" was dropped entirely and no bullet was emitted for this <code>&lt;li&gt;</code> at all</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-19) ✅ PASS</strong>
+<code>get_doc_structure</code> returned bulleted paragraph "Note:" followed by non-bulleted paragraph "code". Fixture restored.</p>
+<hr />
+<h3 id="tc-doc126-a-table-opening-inside-an-open-li-doesnt-drop-the-lis-own-text-destructive">TC-DOC126: A <code>&lt;table&gt;</code> opening inside an open <code>&lt;li&gt;</code> doesn't drop the <code>&lt;li&gt;</code>'s own text ⚠️ destructive<a class="headerlink" href="#tc-doc126-a-table-opening-inside-an-open-li-doesnt-drop-the-lis-own-text-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;ul&gt;&lt;li&gt;Before&lt;table&gt;&lt;tr&gt;&lt;td&gt;cell&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/li&gt;&lt;/ul&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows a bulleted paragraph "Before" followed by a 1×1 table whose cell reads "cell"</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-19) ✅ PASS</strong>
+<code>get_doc_structure</code> returned bulleted paragraph "Before" followed by a 1×1 table with cell text "cell". Fixture restored.</p>
+<hr />
+<h3 id="tc-doc127-trailing-text-after-a-nested-list-before-the-real-li-is-not-dropped-destructive">TC-DOC127: Trailing text after a nested list, before the real <code>&lt;/li&gt;</code>, is not dropped ⚠️ destructive<a class="headerlink" href="#tc-doc127-trailing-text-after-a-nested-list-before-the-real-li-is-not-dropped-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;ul&gt;&lt;li&gt;Parent&lt;ul&gt;&lt;li&gt;Child&lt;/li&gt;&lt;/ul&gt;trailing text&lt;/li&gt;&lt;/ul&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows three bulleted paragraphs in order: "Parent" (depth 0), "Child" (nested), "trailing text" (depth 0) — previously "trailing text" was silently dropped since the parent <code>&lt;li&gt;</code>'s block context was never reopened after its nested list closed</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-19) ✅ PASS</strong>
+<code>get_doc_structure</code> returned three paragraphs in order: "Parent", "Child", "trailing text". Fixture restored.</p>
+<hr />
+<h3 id="tc-doc128-an-unclosed-b-inside-a-li-doesnt-leak-bold-formatting-into-the-rest-of-the-document-destructive">TC-DOC128: An unclosed <code>&lt;b&gt;</code> inside a <code>&lt;li&gt;</code> doesn't leak bold formatting into the rest of the document ⚠️ destructive<a class="headerlink" href="#tc-doc128-an-unclosed-b-inside-a-li-doesnt-leak-bold-formatting-into-the-rest-of-the-document-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;ul&gt;&lt;li&gt;Item &lt;b&gt;bold text&lt;ul&gt;&lt;li&gt;sub&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;After the list&lt;/p&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows "Item " unbolded and "bold text" bolded within the first bullet (as authored)
+- The "sub" bullet and the "After the list" paragraph are <strong>not</strong> bolded — previously the never-closed <code>&lt;b&gt;</code> left bold formatting active for every subsequent node in the document</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-19) ✅ PASS</strong>
+<code>get_doc_structure</code> returned "Item " unbolded and "bold text" bolded within the first bullet; "sub" and "After the list" both unbolded. Fixture restored.</p>
+<hr />
+<h3 id="tc-doc129-a-headings-own-text-survives-a-nested-table-interrupting-it-destructive">TC-DOC129: A heading's own text survives a nested table interrupting it ⚠️ destructive<a class="headerlink" href="#tc-doc129-a-headings-own-text-survives-a-nested-table-interrupting-it-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Note:</strong> review round 2 found the prior fix was still gated on the interrupted block being specifically <code>&lt;li&gt;</code> — any open block (headings, plain paragraphs) had the same text-loss bug, and in this specific shape the loss was worse than a drop: the heading's text was spliced directly into the table's own cell content.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;h2&gt;Heading text&lt;table&gt;&lt;tr&gt;&lt;td&gt;cell&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/h2&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows a level-2 heading reading exactly "Heading text", followed by a 1×1 table whose cell reads exactly "cell" — not "Heading textcell" or any other splice/merge of the two</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<hr />
+<h3 id="tc-doc130-malformed-html-an-unclosed-p-inside-a-li-degrades-locally-without-corrupting-later-well-formed-content-destructive">TC-DOC130: Malformed HTML (an unclosed <code>&lt;p&gt;</code> inside a <code>&lt;li&gt;</code>) degrades locally without corrupting later, well-formed content ⚠️ destructive<a class="headerlink" href="#tc-doc130-malformed-html-an-unclosed-p-inside-a-li-degrades-locally-without-corrupting-later-well-formed-content-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Note:</strong> covers a live-confirmed corruption mode from review round 2 — an interruption stack that pops on any close tag (rather than verifying it owns the frame) let a stray close tag later in the document consume the wrong frame, causing unrelated plain text to be spuriously wrapped as a bulleted list item.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;ul&gt;&lt;li&gt;text&lt;p&gt;unclosed&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;Later unrelated paragraph&lt;/p&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows a bulleted paragraph "text" (the <code>&lt;li&gt;</code>'s own text, preserved despite the unclosed <code>&lt;p&gt;</code> inside it)
+- <code>get_doc_structure</code> shows "Later unrelated paragraph" as a plain, non-bulleted paragraph — not wrapped into a list item and not merged with any other text</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
 
 
 
