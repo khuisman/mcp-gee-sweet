@@ -2240,3 +2240,32 @@ Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the su
 - The "sub" bullet and the "After the list" paragraph are **not** bolded — previously the never-closed `<b>` left bold formatting active for every subsequent node in the document
 
 **Cleanup:** write fixture content back
+
+---
+
+### TC-DOC129: A heading's own text survives a nested table interrupting it ⚠️ destructive
+**Note:** review round 2 found the prior fix was still gated on the interrupted block being specifically `<li>` — any open block (headings, plain paragraphs) had the same text-loss bug, and in this specific shape the loss was worse than a drop: the heading's text was spliced directly into the table's own cell content.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<h2>Heading text<table><tr><td>cell</td></tr></table></h2>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows a level-2 heading reading exactly "Heading text", followed by a 1×1 table whose cell reads exactly "cell" — not "Heading textcell" or any other splice/merge of the two
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-DOC130: Malformed HTML (an unclosed `<p>` inside a `<li>`) degrades locally without corrupting later, well-formed content ⚠️ destructive
+**Note:** covers a live-confirmed corruption mode from review round 2 — an interruption stack that pops on any close tag (rather than verifying it owns the frame) let a stray close tag later in the document consume the wrong frame, causing unrelated plain text to be spuriously wrapped as a bulleted list item.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<ul><li>text<p>unclosed</li></ul><p>Later unrelated paragraph</p>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows a bulleted paragraph "text" (the `<li>`'s own text, preserved despite the unclosed `<p>` inside it)
+- `get_doc_structure` shows "Later unrelated paragraph" as a plain, non-bulleted paragraph — not wrapped into a list item and not merged with any other text
+
+**Cleanup:** write fixture content back

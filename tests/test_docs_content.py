@@ -384,6 +384,60 @@ class TestLiInterruptedByOtherBlocks:
         assert isinstance(nodes[2], Table)
 
 
+class TestBlockInterruptionGeneralizedBeyondLi:
+    """Round 2 of #335's review: any open block — not just <li> — must survive
+    a nested construct interrupting it, and malformed HTML must degrade
+    locally rather than corrupting unrelated, well-formed content later in
+    the document.
+    """
+
+    async def test_heading_interrupted_by_table_preserves_heading_text(self):
+        nodes = html_to_ast("<h2>Heading text<table><tr><td>cell</td></tr></table></h2>")
+        assert isinstance(nodes[0], Heading)
+        assert "".join(r.text for r in nodes[0].runs) == "Heading text"
+        assert isinstance(nodes[1], Table)
+
+    async def test_paragraph_interrupted_by_table_does_not_splice_into_cell(self):
+        # Regression guard for the specific corruption QA found: the outer
+        # block's text must not end up concatenated into the nested
+        # construct's own content (e.g. a table cell).
+        nodes = html_to_ast("<p>Before<table><tr><td>cell</td></tr></table></p>")
+        assert isinstance(nodes[0], Paragraph)
+        assert "".join(r.text for r in nodes[0].runs) == "Before"
+        table = nodes[1]
+        assert isinstance(table, Table)
+        cell_text = "".join(r.text for r in table.rows[0].cells[0].children if hasattr(r, "text"))
+        assert cell_text == "cell"
+
+    async def test_unclosed_p_inside_li_does_not_corrupt_later_content(self):
+        # Malformed: <p> opened inside <li> is never explicitly closed. The
+        # <li>'s own text must still survive, and — critically — a later,
+        # well-formed paragraph elsewhere in the document must not be
+        # corrupted by the stuck interruption frame this leaves behind.
+        html = "<ul><li>text<p>unclosed</li></ul><p>Later unrelated paragraph</p>"
+        nodes = html_to_ast(html)
+        bullets = [n for n in nodes if isinstance(n, BulletItem)]
+        assert len(bullets) == 1
+        assert "".join(r.text for r in bullets[0].runs) == "text"
+        paragraphs = [n for n in nodes if isinstance(n, Paragraph)]
+        texts = ["".join(r.text for r in p.runs) for p in paragraphs]
+        assert "Later unrelated paragraph" in texts
+
+    async def test_mismatched_ol_closed_by_ul_does_not_corrupt_later_content(self):
+        # Malformed: an <ol> is closed with </ul>. _list_ordered itself stays
+        # desynced (a separate, pre-existing issue), but the block-interruption
+        # stack must not let this leak into misclassifying later content.
+        html = "<ol><li>Parent<ul><li>Child</li></ol></li></ul><p>Later text</p>"
+        nodes = html_to_ast(html)
+        paragraphs = [n for n in nodes if isinstance(n, Paragraph)]
+        texts = ["".join(r.text for r in p.runs) for p in paragraphs]
+        assert "Later text" in texts
+        # The stray "Later text" must be a plain Paragraph, not spuriously
+        # wrapped as a BulletItem by a leaked/misapplied reopen.
+        later_node = next(n for n in nodes if "Later text" in "".join(r.text for r in n.runs))
+        assert isinstance(later_node, Paragraph)
+
+
 # ---------------------------------------------------------------------------
 # Markdown pipeline — _md_to_html and _to_doc_requests
 # ---------------------------------------------------------------------------
