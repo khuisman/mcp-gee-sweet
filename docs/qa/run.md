@@ -70,6 +70,14 @@ Workaround for a *scratch* fixture sheet (never do this to a sheet with real dat
 
 ---
 
+## Missing `docs/qa/.env` in a role worktree
+
+`docs/qa/.env` is gitignored, so it doesn't exist by default in a freshly-provisioned `.claude/worktrees/<name>` slot — confirmed empty/absent across every role worktree and the main checkout, 2026-07-19, while doing a scoped QA pass from Kit's own role process (`.claude/team-roles/qa.md` step 4), not the full conductor-prompt flow this file otherwise documents. That flow's own fixture-check step (below) would just stop and ask the user to run `setup.md`, but a scoped single-PR QA pass doesn't need the whole `.env` — only the one fixture ID relevant to the PR under review.
+
+Workaround: the fixture files have fixed, documented names (`setup.md`'s seed prompt: "Rename the doc to `mcp-gee-sweet-qa-fixtures-doc`" / "Rename the spreadsheet to `mcp-gee-sweet-qa-fixtures`"). Find the ID directly instead of blocking: `search_files(query="mcp-gee-sweet-qa-fixtures-doc", mime_type="application/vnd.google-apps.document")` (swap the doc mime type/name for the spreadsheet as needed). Only reach for this fallback in a scoped pass that needs one or two fixture IDs — a full multi-category run still needs the real `.env` for `TEST_FOLDER_ID`/`TEST_CALENDAR_ID`/etc., which don't have as fixed a name to search by.
+
+---
+
 ## Conductor prompt
 
 ```
