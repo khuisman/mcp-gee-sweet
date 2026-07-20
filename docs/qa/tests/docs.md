@@ -2204,6 +2204,9 @@ Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the su
 
 **Cleanup:** write fixture content back
 
+**Result (2026-07-19) ✅ PASS**
+`get_doc_structure` returned bulleted paragraph "Note:" followed by non-bulleted paragraph "code". Fixture restored.
+
 ---
 
 ### TC-DOC126: A `<table>` opening inside an open `<li>` doesn't drop the `<li>`'s own text ⚠️ destructive
@@ -2215,6 +2218,9 @@ Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the su
 - `get_doc_structure` shows a bulleted paragraph "Before" followed by a 1×1 table whose cell reads "cell"
 
 **Cleanup:** write fixture content back
+
+**Result (2026-07-19) ✅ PASS**
+`get_doc_structure` returned bulleted paragraph "Before" followed by a 1×1 table with cell text "cell". Fixture restored.
 
 ---
 
@@ -2228,6 +2234,9 @@ Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the su
 
 **Cleanup:** write fixture content back
 
+**Result (2026-07-19) ✅ PASS**
+`get_doc_structure` returned three paragraphs in order: "Parent", "Child", "trailing text". Fixture restored.
+
 ---
 
 ### TC-DOC128: An unclosed `<b>` inside a `<li>` doesn't leak bold formatting into the rest of the document ⚠️ destructive
@@ -2240,3 +2249,6 @@ Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the su
 - The "sub" bullet and the "After the list" paragraph are **not** bolded — previously the never-closed `<b>` left bold formatting active for every subsequent node in the document
 
 **Cleanup:** write fixture content back
+
+**Result (2026-07-19) ✅ PASS**
+`get_doc_structure` returned "Item " unbolded and "bold text" bolded within the first bullet; "sub" and "After the list" both unbolded. Fixture restored.
