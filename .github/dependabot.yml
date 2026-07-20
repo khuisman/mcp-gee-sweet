@@ -14,6 +14,10 @@ updates:
       # mcp 2.x is a breaking alpha — hold at <2.0.0 until stable
       - dependency-name: "mcp"
         versions: [">=2.0.0"]
+    # Malicious/hijacked releases are almost always caught and pulled within days;
+    # holding new versions for a week filters out that window before a PR even opens.
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -21,3 +25,5 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
