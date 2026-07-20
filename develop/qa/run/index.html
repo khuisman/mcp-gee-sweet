@@ -1125,6 +1125,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#missing-docsqaenv-in-a-role-worktree" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Missing docs/qa/.env in a role worktree
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#conductor-prompt" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1568,6 +1579,10 @@
 <h2 id="clearing-sheet-level-state-with-no-direct-tool-eg-data-validation">Clearing sheet-level state with no direct tool (e.g. data validation)<a class="headerlink" href="#clearing-sheet-level-state-with-no-direct-tool-eg-data-validation" title="Permanent link">&para;</a></h2>
 <p>Some sheet-level state has a tool to <em>set</em> it but none to <em>clear</em> it, and no tool exposes a sheet's numeric <code>sheetId</code> by name to fall back to the raw <code>batch_update</code> escape hatch (<code>list_sheets</code> returns names only; the <code>spreadsheet://{id}/info</code> resource that's supposed to cover this was broken until <a href="https://github.com/khuisman/mcp-gee-sweet/issues/363">#363</a> fixed it — reading it now works, but it's still no substitute for a tool that returns <code>sheetId</code> by name, tracked as a product gap in <a href="https://github.com/khuisman/mcp-gee-sweet/issues/365">#365</a>). Hit live testing <code>add_data_validation</code>/<code>get_data_validation</code> (PR #361, 2026-07-18): no way to clear a validation rule from the fixture's <code>Empty</code> sheet between test cases.</p>
 <p>Workaround for a <em>scratch</em> fixture sheet (never do this to a sheet with real data — it destroys everything on the tab, not just the state you're trying to clear): <code>delete_sheet(sheet="Empty")</code> then <code>create_sheet(title="Empty")</code>. Fully resets the tab to blank, including any validation/formatting/merges, and is safe here because every QA tool call references the sheet by name, never by the ID that changes on recreate.</p>
+<hr />
+<h2 id="missing-docsqaenv-in-a-role-worktree">Missing <code>docs/qa/.env</code> in a role worktree<a class="headerlink" href="#missing-docsqaenv-in-a-role-worktree" title="Permanent link">&para;</a></h2>
+<p><code>docs/qa/.env</code> is gitignored, so it doesn't exist by default in a freshly-provisioned <code>.claude/worktrees/&lt;name&gt;</code> slot — confirmed empty/absent across every role worktree and the main checkout, 2026-07-19, while doing a scoped QA pass from Kit's own role process (<code>.claude/team-roles/qa.md</code> step 4), not the full conductor-prompt flow this file otherwise documents. That flow's own fixture-check step (below) would just stop and ask the user to run <code>setup.md</code>, but a scoped single-PR QA pass doesn't need the whole <code>.env</code> — only the one fixture ID relevant to the PR under review.</p>
+<p>Workaround: the fixture files have fixed, documented names (<code>setup.md</code>'s seed prompt: "Rename the doc to <code>mcp-gee-sweet-qa-fixtures-doc</code>" / "Rename the spreadsheet to <code>mcp-gee-sweet-qa-fixtures</code>"). Find the ID directly instead of blocking: <code>search_files(query="mcp-gee-sweet-qa-fixtures-doc", mime_type="application/vnd.google-apps.document")</code> (swap the doc mime type/name for the spreadsheet as needed). Only reach for this fallback in a scoped pass that needs one or two fixture IDs — a full multi-category run still needs the real <code>.env</code> for <code>TEST_FOLDER_ID</code>/<code>TEST_CALENDAR_ID</code>/etc., which don't have as fixed a name to search by.</p>
 <hr />
 <h2 id="conductor-prompt">Conductor prompt<a class="headerlink" href="#conductor-prompt" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>You are the QA conductor for mcp-gee-sweet. Your job is to execute the full test suite against the live MCP server, record outcomes, and save a results report.
