@@ -2138,3 +2138,146 @@ All three error messages matched exactly (not found / occurs 2 times / no file f
 
 **Result (2026-07-19) ✅ PASS**
 Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the substring-collision fix live; the prior implementation would have falsely matched inside "IMG10".
+
+---
+
+## Nested list / interrupted `<li>` parent-text handling — `write_doc_content` (issue #335)
+
+**Note:** nested-list *indentation* is a separate, not-yet-fixed issue (#336) — `BulletItem.depth` is computed correctly but the Docs writer doesn't yet turn it into visual indentation, so all bullets below may render at the same flat list level for now. These test cases cover #335: that an open `<li>`'s own text is no longer silently dropped when something block-level opens inside it (a nested `<ul>`/`<ol>`, but also `<pre>`, `<table>`, `<p>`, headings), that text appears before its children in document order, that text trailing a nested construct (before the real `</li>`) isn't dropped either, and that formatting state doesn't leak forward when an inline tag is left unclosed across the boundary. None are tagged `Playwright: required` since indentation (the only visual signature not yet checkable) isn't verifiable until #336 lands — `get_doc_structure` text/order/style checks are sufficient here.
+
+### TC-DOC122: Parent `<li>` text survives alongside a nested list ⚠️ destructive
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<ul><li>Item text<ul><li>sub a</li><li>sub b</li></ul></li></ul>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows **three** bulleted paragraphs in order: "Item text", "sub a", "sub b" — previously the parent's "Item text" paragraph was dropped entirely, leaving only the two children
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-19) ✅ PASS**
+`get_doc_structure` returned three paragraphs in order: "Item text", "sub a", "sub b". Fixture restored.
+
+---
+
+### TC-DOC123: Three-level nested list preserves every parent's own text, in document order ⚠️ destructive
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<ul><li>Parent A has text<ul><li>Child A1 has text<ul><li>Grandchild A2a</li></ul></li></ul></li></ul>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows three bulleted paragraphs in order: "Parent A has text", "Child A1 has text", "Grandchild A2a" — all three levels' own text present, none clobbered by the nested `<li>` below it
+- Order matches source order (each parent before its own children) — a fix that only restores the buffer at the outer `</li>` close would emit children before their parent instead
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-19) ✅ PASS**
+`get_doc_structure` returned three paragraphs in order: "Parent A has text", "Child A1 has text", "Grandchild A2a". Fixture restored.
+
+---
+
+### TC-DOC124: Nested list via Markdown also preserves the parent line's text ⚠️ destructive
+**Prompt**
+> "Write this Markdown to doc {DOC_ID} with content_format='markdown': `- Item text:\n    - sub a\n    - sub b`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows three bulleted paragraphs: "Item text:", "sub a", "sub b" — confirms the fix applies through the Markdown→HTML pipeline too, not just raw HTML
+- Note: 4-space indentation is used deliberately — 2-space indentation doesn't clear the `sane_lists` nesting threshold and produces a flat, unnested list instead (a separate, already-tracked issue, #334)
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-19) ✅ PASS**
+`get_doc_structure` returned three paragraphs in order: "Item text:", "sub a", "sub b" — confirms the fix applies through the Markdown pipeline too. Fixture restored.
+
+---
+
+### TC-DOC125: A `<pre>` block opening inside an open `<li>` doesn't drop the `<li>`'s own text ⚠️ destructive
+**Note:** covers the review-round finding that #335's original fix only guarded `<ul>`/`<ol>` — any block-level construct interrupting an open `<li>` had the same data-loss bug.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<ul><li>Note:<pre>code</pre></li></ul>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows a bulleted paragraph "Note:" followed by a separate (non-bulleted) paragraph "code" — previously "Note:" was dropped entirely and no bullet was emitted for this `<li>` at all
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-19) ✅ PASS**
+`get_doc_structure` returned bulleted paragraph "Note:" followed by non-bulleted paragraph "code". Fixture restored.
+
+---
+
+### TC-DOC126: A `<table>` opening inside an open `<li>` doesn't drop the `<li>`'s own text ⚠️ destructive
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<ul><li>Before<table><tr><td>cell</td></tr></table></li></ul>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows a bulleted paragraph "Before" followed by a 1×1 table whose cell reads "cell"
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-19) ✅ PASS**
+`get_doc_structure` returned bulleted paragraph "Before" followed by a 1×1 table with cell text "cell". Fixture restored.
+
+---
+
+### TC-DOC127: Trailing text after a nested list, before the real `</li>`, is not dropped ⚠️ destructive
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<ul><li>Parent<ul><li>Child</li></ul>trailing text</li></ul>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows three bulleted paragraphs in order: "Parent" (depth 0), "Child" (nested), "trailing text" (depth 0) — previously "trailing text" was silently dropped since the parent `<li>`'s block context was never reopened after its nested list closed
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-19) ✅ PASS**
+`get_doc_structure` returned three paragraphs in order: "Parent", "Child", "trailing text". Fixture restored.
+
+---
+
+### TC-DOC128: An unclosed `<b>` inside a `<li>` doesn't leak bold formatting into the rest of the document ⚠️ destructive
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<ul><li>Item <b>bold text<ul><li>sub</li></ul></li></ul><p>After the list</p>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows "Item " unbolded and "bold text" bolded within the first bullet (as authored)
+- The "sub" bullet and the "After the list" paragraph are **not** bolded — previously the never-closed `<b>` left bold formatting active for every subsequent node in the document
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-19) ✅ PASS**
+`get_doc_structure` returned "Item " unbolded and "bold text" bolded within the first bullet; "sub" and "After the list" both unbolded. Fixture restored.
+
+---
+
+### TC-DOC129: A heading's own text survives a nested table interrupting it ⚠️ destructive
+**Note:** review round 2 found the prior fix was still gated on the interrupted block being specifically `<li>` — any open block (headings, plain paragraphs) had the same text-loss bug, and in this specific shape the loss was worse than a drop: the heading's text was spliced directly into the table's own cell content.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<h2>Heading text<table><tr><td>cell</td></tr></table></h2>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows a level-2 heading reading exactly "Heading text", followed by a 1×1 table whose cell reads exactly "cell" — not "Heading textcell" or any other splice/merge of the two
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-DOC130: Malformed HTML (an unclosed `<p>` inside a `<li>`) degrades locally without corrupting later, well-formed content ⚠️ destructive
+**Note:** covers a live-confirmed corruption mode from review round 2 — an interruption stack that pops on any close tag (rather than verifying it owns the frame) let a stray close tag later in the document consume the wrong frame, causing unrelated plain text to be spuriously wrapped as a bulleted list item.
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<ul><li>text<p>unclosed</li></ul><p>Later unrelated paragraph</p>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows a bulleted paragraph "text" (the `<li>`'s own text, preserved despite the unclosed `<p>` inside it)
+- `get_doc_structure` shows "Later unrelated paragraph" as a plain, non-bulleted paragraph — not wrapped into a list item and not merged with any other text
+
+**Cleanup:** write fixture content back

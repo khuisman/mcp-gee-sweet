@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html as html_module
+from dataclasses import dataclass
 from html.parser import HTMLParser
 
 from .ast import BulletItem, Cell, DocNode, Heading, NamedBlock, Paragraph, Row, Run, Table
@@ -14,6 +15,13 @@ _INLINE_BOLD = {"b", "strong"}
 _INLINE_ITALIC = {"i", "em"}
 _INLINE_UNDERLINE = {"u"}
 _INLINE_STRIKE = {"s", "strike"}
+
+
+@dataclass
+class _BlockFrame:
+    outer_tag: str  # the interrupted block's own tag (li, p, h1-6)
+    interrupted_by: str  # the tag whose matching close should restore this frame
+    named_style: str | None  # the interrupted block's _block_named_style, if any
 
 
 def _px_to_pt(value: str) -> float | None:
@@ -54,6 +62,17 @@ class _AstParser(HTMLParser):
         # --- named block style (data-style on <p>) ---
         self._block_named_style: str | None = None
 
+        # --- block-interruption stack ---
+        # One entry per open block (of any kind — li, p, h1-6, pre) that a
+        # nested construct (ul/ol, the outermost table, pre, another
+        # _BLOCK_TAGS tag) interrupted mid-buffer. See _interrupt_open_block /
+        # _resume_interrupted_block. Each entry records which tag would
+        # legitimately end the interruption, so a close tag only ever pops
+        # the frame it actually owns — malformed/mismatched HTML degrades
+        # locally instead of a later, unrelated close tag popping (and
+        # corrupting) a frame that isn't its own.
+        self._block_stack: list[_BlockFrame] = []
+
     # ------------------------------------------------------------------
     # helpers
     # ------------------------------------------------------------------
@@ -80,6 +99,111 @@ class _AstParser(HTMLParser):
         runs, self._pending_runs = self._pending_runs, []
         return runs
 
+    def _make_bullet_item(self, runs: list[Run]) -> BulletItem:
+        ordered = self._list_ordered[-1] if self._list_ordered else False
+        depth = len(self._list_ordered) - 1
+        # Detect task list markers written as literal [x] / [ ] by the markdown library
+        checked = None
+        if runs:
+            first_text = runs[0].text
+            if first_text.startswith(("[x] ", "[X] ")):
+                checked = True
+                runs[0].text = first_text[4:]
+                if not runs[0].text:
+                    runs.pop(0)
+            elif first_text.startswith("[ ] "):
+                checked = False
+                runs[0].text = first_text[4:]
+                if not runs[0].text:
+                    runs.pop(0)
+        return BulletItem(runs=runs, depth=depth, ordered=ordered, checked=checked)
+
+    def _close_dangling_inline_formatting(self):
+        """A block boundary is starting while inline formatting tags may still
+        be open (e.g. an unclosed <b> before a nested list/table/pre/etc). Real
+        HTML doesn't allow block content inside a true inline element — a
+        browser would auto-close it here — so treat the boundary as an implicit
+        close for all inline state. Otherwise formatting silently leaks into
+        every node for the rest of the document, since the tag that would have
+        decremented these depths never arrives.
+        """
+        self._bold_depth = 0
+        self._italic_depth = 0
+        self._underline_depth = 0
+        self._strike_depth = 0
+        self._code_depth = 0
+        self._link_url = []
+
+    def _emit_block_node(self, tag: str, runs: list[Run]):
+        """Turn a closed block's buffered runs into the node type its own tag
+        implies (Heading / BulletItem / NamedBlock / Paragraph) — shared by
+        the normal close-tag path and by _interrupt_open_block, so both stay
+        in sync with exactly one dispatch rule.
+        """
+        text = "".join(r.text for r in runs).strip()
+        if not text:
+            return
+        if tag in _HEADING_TAGS:
+            level = int(tag[1])
+            self._nodes.append(Heading(level=level, runs=runs))
+        elif tag == "li":
+            self._nodes.append(self._make_bullet_item(runs))
+        elif tag == "p" and self._block_named_style:
+            self._nodes.append(NamedBlock(style_type=self._block_named_style, runs=runs))
+        else:
+            self._nodes.append(Paragraph(runs=runs))
+
+    def _interrupt_open_block(self, new_construct_tag: str):
+        """A block-ish construct (new_construct_tag: 'ul', 'ol', 'table',
+        'pre', or a _BLOCK_TAGS tag) is opening. If a block is currently
+        open — of *any* kind, not just <li> — its buffered text must be
+        flushed and emitted using its own real node type *now*, before
+        descending into the nested construct. Waiting until the outer
+        block's own close tag would both let the nested construct's start
+        tag clobber the shared buffer (#335, and — one level up — headings/
+        paragraphs interrupted the same way) and emit the outer block after
+        its children, since a streaming parser closes children before their
+        parent.
+
+        Pushes a frame recording exactly which tag closing would legitimately
+        end this interruption, so _resume_interrupted_block can restore it —
+        recovering trailing text after the nested construct instead of
+        dropping it. No-ops (pushes nothing) if nothing was open.
+        """
+        if self._block_tag is None:
+            return
+        outer_tag = self._block_tag
+        outer_named_style = self._block_named_style
+        runs = self._flush_pending_runs()
+        self._emit_block_node(outer_tag, runs)
+        self._block_stack.append(
+            _BlockFrame(
+                outer_tag=outer_tag,
+                interrupted_by=new_construct_tag,
+                named_style=outer_named_style,
+            )
+        )
+        self._block_tag = None
+        self._block_named_style = None
+        self._close_dangling_inline_formatting()
+
+    def _resume_interrupted_block(self, closing_tag: str):
+        """The matching close for a construct that may have interrupted an
+        open block (see _interrupt_open_block) has been reached. Only
+        restores a block if the top of the stack was genuinely interrupted
+        *by this exact tag* — an unrelated or mismatched close tag leaves the
+        stack untouched rather than popping a frame it doesn't own, so
+        malformed HTML degrades locally instead of a stray close corrupting
+        unrelated later content with the wrong reopened block.
+        """
+        if not self._block_stack or self._block_stack[-1].interrupted_by != closing_tag:
+            return
+        frame = self._block_stack.pop()
+        self._block_tag = frame.outer_tag
+        self._run_buf = []
+        self._pending_runs = []
+        self._block_named_style = frame.named_style
+
     # ------------------------------------------------------------------
     # HTMLParser callbacks
     # ------------------------------------------------------------------
@@ -89,7 +213,9 @@ class _AstParser(HTMLParser):
 
         # --- table structure ---
         if tag == "table":
-            if self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell:
+            if self._table_depth == 0:
+                self._interrupt_open_block("table")
+            elif self._table_stack and self._table_stack[-1].in_cell:
                 # A nested table is opening inside an already-open cell. The run
                 # buffer is shared across nesting levels, so any text typed before
                 # this point must be flushed now and attached to the outer cell —
@@ -131,14 +257,17 @@ class _AstParser(HTMLParser):
 
         # --- list context ---
         if tag == "ol":
+            self._interrupt_open_block("ol")
             self._list_ordered.append(True)
             return
         if tag == "ul":
+            self._interrupt_open_block("ul")
             self._list_ordered.append(False)
             return
 
         # --- pre / code block ---
         if tag == "pre" and self._table_depth == 0:
+            self._interrupt_open_block("pre")
             self._block_tag = "pre"
             self._in_pre = True
             self._run_buf = []
@@ -147,6 +276,7 @@ class _AstParser(HTMLParser):
 
         # --- block elements ---
         if tag in _BLOCK_TAGS and self._table_depth == 0:
+            self._interrupt_open_block(tag)
             self._block_tag = tag
             self._run_buf = []
             self._pending_runs = []
@@ -191,6 +321,8 @@ class _AstParser(HTMLParser):
                     elif self._table_stack:
                         self._table_stack[-1].append_nested_table(node)
             self._table_depth -= 1
+            if self._table_depth == 0:
+                self._resume_interrupted_block("table")
             return
 
         if self._table_depth >= 1 and self._table_stack:
@@ -207,12 +339,18 @@ class _AstParser(HTMLParser):
                 return
 
         # --- list context ---
-        if tag == "ol" and self._list_ordered:
-            if self._list_ordered[-1]:
+        # _resume_interrupted_block is called unconditionally (independent of
+        # _list_ordered) so a mismatched open/close pair (<ol> closed by
+        # </ul>) can't desync this mechanism even though — separately — it
+        # leaves _list_ordered itself unpopped in that case.
+        if tag == "ol":
+            self._resume_interrupted_block("ol")
+            if self._list_ordered and self._list_ordered[-1]:
                 self._list_ordered.pop()
             return
-        if tag == "ul" and self._list_ordered:
-            if not self._list_ordered[-1]:
+        if tag == "ul":
+            self._resume_interrupted_block("ul")
+            if self._list_ordered and not self._list_ordered[-1]:
                 self._list_ordered.pop()
             return
 
@@ -228,42 +366,16 @@ class _AstParser(HTMLParser):
                 self._nodes.append(Paragraph(runs=runs))
             self._block_tag = None
             self._in_pre = False
+            self._resume_interrupted_block("pre")
             return
 
         # --- block elements ---
         if tag in _BLOCK_TAGS and self._table_depth == 0 and self._block_tag == tag:
             runs = self._flush_pending_runs()
-            text = "".join(r.text for r in runs).strip()
-            if text:
-                if tag in _HEADING_TAGS:
-                    level = int(tag[1])
-                    self._nodes.append(Heading(level=level, runs=runs))
-                elif tag == "li":
-                    ordered = self._list_ordered[-1] if self._list_ordered else False
-                    depth = len(self._list_ordered) - 1
-                    # Detect task list markers written as literal [x] / [ ] by the markdown library
-                    checked = None
-                    if runs:
-                        first_text = runs[0].text
-                        if first_text.startswith(("[x] ", "[X] ")):
-                            checked = True
-                            runs[0].text = first_text[4:]
-                            if not runs[0].text:
-                                runs.pop(0)
-                        elif first_text.startswith("[ ] "):
-                            checked = False
-                            runs[0].text = first_text[4:]
-                            if not runs[0].text:
-                                runs.pop(0)
-                    self._nodes.append(
-                        BulletItem(runs=runs, depth=depth, ordered=ordered, checked=checked)
-                    )
-                elif tag == "p" and self._block_named_style:
-                    self._nodes.append(NamedBlock(style_type=self._block_named_style, runs=runs))
-                else:
-                    self._nodes.append(Paragraph(runs=runs))
+            self._emit_block_node(tag, runs)
             self._block_named_style = None
             self._block_tag = None
+            self._resume_interrupted_block(tag)
             return
 
         # --- inline elements ---
