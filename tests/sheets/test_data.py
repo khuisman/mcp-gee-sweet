@@ -448,6 +448,124 @@ class TestBatchUpdate:
         mock_data_cache.mark_dirty.assert_called_once_with("abc123")
 
 
+class TestUpdateCells:
+    """Rich-text cells (issue #89): a cell value that's a list of
+    {"text", "hyperlink"} run dicts builds a textFormatRuns updateCells request
+    instead of a plain values().update() write."""
+
+    def _service(self, sheet_id=0, batch_replies=None):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.values.return_value.update.return_value.execute.return_value = {
+            "updatedRange": "Sheet1!A1:A1",
+            "updatedCells": 1,
+        }
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = (
+            batch_replies or {"replies": [{}]}
+        )
+        return mock
+
+    async def test_plain_values_use_values_update_unchanged(self):
+        svc = self._service()
+        ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
+        result = await _data_tools["update_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1:B1", data=[["a", "b"]], ctx=ctx
+        )
+        svc.spreadsheets.return_value.values.return_value.update.assert_called_once()
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+        assert result == {"updatedRange": "Sheet1!A1:A1", "updatedCells": 1}
+
+    async def test_rich_text_cell_builds_text_format_runs(self):
+        svc = self._service(sheet_id=42)
+        ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
+        runs = [{"text": "See "}, {"text": "docs", "hyperlink": "https://example.com"}]
+        await _data_tools["update_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", data=[[runs]], ctx=ctx
+        )
+        # Pure rich-text write — no plain values().update() call needed.
+        svc.spreadsheets.return_value.values.return_value.update.assert_not_called()
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        request = body["requests"][0]["updateCells"]
+        assert request["range"] == {
+            "sheetId": 42,
+            "startRowIndex": 0,
+            "endRowIndex": 1,
+            "startColumnIndex": 0,
+            "endColumnIndex": 1,
+        }
+        cell = request["rows"][0]["values"][0]
+        assert cell["userEnteredValue"] == {"stringValue": "See docs"}
+        assert cell["userEnteredFormat"] == {"hyperlinkDisplayType": "LINKED"}
+        assert cell["textFormatRuns"] == [
+            {"format": {}},
+            {"startIndex": 4, "format": {"link": {"uri": "https://example.com"}}},
+        ]
+
+    async def test_astral_character_run_offset_uses_utf16_units(self):
+        # An astral-plane emoji is 1 Python char but 2 UTF-16 units — the second
+        # run's startIndex must account for that surrogate pair, not len().
+        svc = self._service()
+        ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
+        runs = [{"text": "🚀"}, {"text": "link", "hyperlink": "https://example.com"}]
+        await _data_tools["update_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", data=[[runs]], ctx=ctx
+        )
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        cell = body["requests"][0]["updateCells"]["rows"][0]["values"][0]
+        assert cell["textFormatRuns"][1]["startIndex"] == 2
+
+    async def test_mixed_plain_and_rich_text_cells_writes_both(self):
+        svc = self._service()
+        ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
+        runs = [{"text": "link", "hyperlink": "https://example.com"}]
+        await _data_tools["update_cells"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:B1",
+            data=[["plain", runs]],
+            ctx=ctx,
+        )
+        svc.spreadsheets.return_value.values.return_value.update.assert_called_once()
+        plain_body = svc.spreadsheets.return_value.values.return_value.update.call_args.kwargs[
+            "body"
+        ]
+        assert plain_body["values"] == [["plain", ""]]
+        svc.spreadsheets.return_value.batchUpdate.assert_called_once()
+        req_range = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]["requests"][
+            0
+        ]["updateCells"]["range"]
+        assert req_range["startColumnIndex"] == 1
+
+    async def test_malformed_run_missing_text_key_returns_error(self):
+        svc = self._service()
+        ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
+        result = await _data_tools["update_cells"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            data=[[[{"hyperlink": "https://example.com"}]]],
+            ctx=ctx,
+        )
+        assert "error" in result
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+        svc.spreadsheets.return_value.values.return_value.update.assert_not_called()
+
+    async def test_sheet_not_found_returns_error(self):
+        svc = self._service()
+        svc.spreadsheets.return_value.get.return_value.execute.return_value = {"sheets": []}
+        ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
+        result = await _data_tools["update_cells"](
+            spreadsheet_id="ss1",
+            sheet="Missing",
+            range="A1",
+            data=[[[{"text": "x"}]]],
+            ctx=ctx,
+        )
+        assert result == {"error": "Sheet 'Missing' not found"}
+
+
 class TestClearValues:
     def _sheets_service(self):
         mock = MagicMock()

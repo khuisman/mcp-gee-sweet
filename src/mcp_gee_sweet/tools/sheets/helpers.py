@@ -35,6 +35,15 @@ def _letter_to_column_index(letter: str) -> int:
     return result - 1
 
 
+def _utf16_len(text: str) -> int:
+    """UTF-16 code units a string occupies. Sheets API TextFormatRun.startIndex
+    counts UTF-16 code units, not Python code points — an astral-plane character
+    (most emoji, some CJK/math symbols) is one Python str character but a 2-unit
+    surrogate pair, the same accounting the Docs API tools use for their own
+    startIndex/endIndex fields (see _utf16_units in tools/docs/content.py)."""
+    return sum(2 if ord(ch) > 0xFFFF else 1 for ch in text)
+
+
 def _parse_a1_notation(range_str: str) -> dict[str, int]:
     """
     Parse A1 notation range to row/column indices.

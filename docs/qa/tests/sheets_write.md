@@ -67,6 +67,59 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 
 ---
 
+### TC-W33: Partial (rich-text) hyperlink in a single cell ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "In the Sales sheet of {SPREADSHEET_ID}, write cell F2 using `update_cells` so it reads 'See the docs' where only the 'the docs' part is a hyperlink to https://example.com — pass F2's value as a two-run list: {\"text\": \"See \"} then {\"text\": \"the docs\", \"hyperlink\": \"https://example.com\"}"
+
+**Checks**
+- `get_sheet_data` with `include_grid_data=True` on F2 shows `userEnteredValue.stringValue` = "See the docs"
+- `textFormatRuns` has two entries: first with no `startIndex` (implicit 0) and an empty `format`, second with `startIndex: 4` and `format.link.uri` = "https://example.com"
+- `userEnteredFormat.hyperlinkDisplayType` = "LINKED"
+- 🔍 Visual check: only "the docs" renders underlined/blue and is clickable; "See " renders as plain text
+
+---
+
+### TC-W34: Mixed plain and rich-text cells in the same call ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "In the Sales sheet of {SPREADSHEET_ID}, use `update_cells` on range F3:G3 to write 'PlainValue' into F3 and, into G3, a hyperlinked cell reading 'Link' that links to https://example.com/g3"
+
+**Checks**
+- F3 = "PlainValue" (written via the normal USER_ENTERED path)
+- G3 shows "Link" with `userEnteredFormat.hyperlinkDisplayType` = "LINKED" and a `textFormatRuns` entry linking to https://example.com/g3
+- Both cells are correct in a single tool call — confirms the plain-cell `values.update` pass and the rich-text `batchUpdate` pass compose correctly over the same range
+- 🔍 Visual check: G3 renders underlined/blue and clickable; F3 renders as plain text
+
+---
+
+### TC-W35: Rich-text run missing "text" key returns an error
+
+**Prompt**
+> "Call `update_cells` on {SPREADSHEET_ID}'s Sales sheet, range F4, with a malformed rich-text cell: a run list containing only `{\"hyperlink\": \"https://example.com\"}` with no `text` key"
+
+**Checks**
+- Returns `{"error": ...}` naming the missing `text` key
+- No write occurs — F4 is unchanged (neither the plain-value pass nor the batchUpdate pass fires)
+
+---
+
+### TC-W36: Rich-text run offsets after an astral-plane character (emoji) ⚠️ destructive
+
+**Background:** Sheets API `TextFormatRun.startIndex` counts UTF-16 code units, not Python characters — an emoji outside the Basic Multilingual Plane is 2 units. A run offset computed with plain `len()` would land the hyperlink one character early.
+
+**Prompt**
+**Playwright: required**
+> "In the Sales sheet of {SPREADSHEET_ID}, write cell F5 using `update_cells` with a two-run rich-text cell: first run text is a single 🚀 emoji with no hyperlink, second run text is 'link' hyperlinked to https://example.com"
+
+**Checks**
+- `textFormatRuns`'s second entry has `startIndex: 2` (the emoji occupies 2 UTF-16 units), not `1`
+- 🔍 Visual check: the hyperlink underline/color starts exactly at "link", not one character into the emoji
+
+---
+
 ## `batch_update_cells`
 
 ### TC-W06: Multiple ranges in one call

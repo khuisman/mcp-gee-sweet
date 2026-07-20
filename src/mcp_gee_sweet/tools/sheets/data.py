@@ -8,7 +8,13 @@ from mcp.types import ToolAnnotations
 from ...auth import execute_in_thread
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME, SheetInfo, fetch_sheets, get_modified_time
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
-from .helpers import _column_index_to_letter, _quote_sheet_name
+from .helpers import (
+    _column_index_to_letter,
+    _get_sheet_id,
+    _parse_a1_notation,
+    _quote_sheet_name,
+    _utf16_len,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +29,35 @@ logger = logging.getLogger(__name__)
 # an estimate beforehand. See docs/decisions/decision-grid-data-size-cap.md and
 # docs/decisions/decision-response-size-cap-generalization.md for the full live-tested
 # numbers behind the shared MAX_TOOL_RESPONSE_CHARS cap (response_limits.py).
+
+
+def _build_rich_text_cell(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build a Sheets API CellData dict from a list of {"text", "hyperlink"} runs.
+
+    startIndex is UTF-16 code units per the Sheets API spec (confirmed via the
+    API reference), not Python string length — see _utf16_len.
+    """
+    full_text = "".join(run.get("text", "") for run in runs)
+    text_format_runs = []
+    offset = 0
+    for run in runs:
+        run_format: dict[str, Any] = {}
+        hyperlink = run.get("hyperlink")
+        if hyperlink:
+            run_format["link"] = {"uri": hyperlink}
+        entry: dict[str, Any] = {"format": run_format}
+        if offset > 0:
+            entry["startIndex"] = offset
+        text_format_runs.append(entry)
+        offset += _utf16_len(run.get("text", ""))
+
+    cell: dict[str, Any] = {
+        "userEnteredValue": {"stringValue": full_text},
+        "textFormatRuns": text_format_runs,
+    }
+    if any(run.get("hyperlink") for run in runs):
+        cell["userEnteredFormat"] = {"hyperlinkDisplayType": "LINKED"}
+    return cell
 
 
 def register(tool):
@@ -565,7 +600,15 @@ def register(tool):
             spreadsheet_id: The ID of the spreadsheet (found in the URL)
             sheet: The name of the sheet
             range: Cell range in A1 notation (e.g., 'A1:C10')
-            data: 2D array of values to update
+            data: 2D array of values to update. Each cell is normally a plain
+                scalar (str/int/float/bool), parsed the same way as typing it
+                into the Sheets UI (USER_ENTERED — formulas, dates, etc. are
+                recognized). For a partial (rich-text) hyperlink or mixed-format
+                run within a single cell, pass a list of run dicts instead, e.g.
+                [{"text": "See "}, {"text": "docs", "hyperlink": "https://..."}]
+                — each run's "text" is concatenated into the cell's literal
+                string value (not USER_ENTERED-parsed) and an optional
+                "hyperlink" links just that run.
 
         Returns:
             Result of the update operation
@@ -573,20 +616,76 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        result = await execute_in_thread(
-            sheets_service.spreadsheets()
-            .values()
-            .update(
-                spreadsheetId=spreadsheet_id,
-                range=f"{_quote_sheet_name(sheet)}!{range}",
-                valueInputOption="USER_ENTERED",
-                body={"values": data},
-            )
-            .execute,
-            sheets_service,
-        )
+        rich_text_cells: list[tuple[int, int, list[dict[str, Any]]]] = []
+        for row_idx, row in enumerate(data):
+            for col_idx, cell in enumerate(row):
+                if isinstance(cell, list):
+                    for run in cell:
+                        if not isinstance(run, dict) or "text" not in run:
+                            return {
+                                "error": "Rich-text cell runs must be dicts with a 'text' "
+                                "key, e.g. {'text': ..., 'hyperlink': ...}"
+                            }
+                    rich_text_cells.append((row_idx, col_idx, cell))
 
-        lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+        has_plain_cells = any(not isinstance(cell, list) for row in data for cell in row)
+
+        result: dict[str, Any] = {}
+        if has_plain_cells:
+            plain_data = [["" if isinstance(cell, list) else cell for cell in row] for row in data]
+            result = await execute_in_thread(
+                sheets_service.spreadsheets()
+                .values()
+                .update(
+                    spreadsheetId=spreadsheet_id,
+                    range=f"{_quote_sheet_name(sheet)}!{range}",
+                    valueInputOption="USER_ENTERED",
+                    body={"values": plain_data},
+                )
+                .execute,
+                sheets_service,
+            )
+            lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+
+        if rich_text_cells:
+            sheet_id = await _get_sheet_id(
+                sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+            )
+            if sheet_id is None:
+                return {"error": f"Sheet '{sheet}' not found"}
+
+            indices = _parse_a1_notation(range)
+            start_row = indices.get("startRowIndex", 0)
+            start_col = indices.get("startColumnIndex", 0)
+
+            requests = [
+                {
+                    "updateCells": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": start_row + row_idx,
+                            "endRowIndex": start_row + row_idx + 1,
+                            "startColumnIndex": start_col + col_idx,
+                            "endColumnIndex": start_col + col_idx + 1,
+                        },
+                        "rows": [{"values": [_build_rich_text_cell(runs)]}],
+                        "fields": "userEnteredValue,userEnteredFormat.hyperlinkDisplayType,"
+                        "textFormatRuns",
+                    }
+                }
+                for row_idx, col_idx, runs in rich_text_cells
+            ]
+
+            batch_result = await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
+                .execute,
+                sheets_service,
+            )
+            lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+            if not has_plain_cells:
+                result = batch_result
+
         return result
 
     @tool(annotations=ToolAnnotations(title="Batch Update Cells", destructiveHint=True))
