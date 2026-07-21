@@ -2257,6 +2257,84 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#restore_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        restore_file
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="restore_file">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-d202-restore-a-trashed-file-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D202: Restore a trashed file ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d203-restore-a-non-existent-file-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D203: Restore a non-existent file ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#empty_trash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        empty_trash
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="empty_trash">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-d204-empty-trash-default-my-drive-only-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D204: Empty trash (default) — My Drive only ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d205-empty-trash-scoped-to-a-specific-shared-drive-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D205: Empty trash scoped to a specific Shared Drive ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#search_files" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4844,6 +4922,60 @@
 <p><strong>Checks</strong>
 - API error propagates — not a crash
 - No cache mutation occurs for a non-existent file</p>
+<hr />
+<h2 id="restore_file"><code>restore_file</code><a class="headerlink" href="#restore_file" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d202-restore-a-trashed-file-destructive">TC-D202: Restore a trashed file ⚠️ destructive<a class="headerlink" href="#tc-d202-restore-a-trashed-file-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> Create a throwaway spreadsheet in {FOLDER_ID}, then trash it (<code>delete_file</code> with <code>permanent=False</code>).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Restore file 'QA-Restore-Test' back from the trash"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response: <code>{"fileId": ..., "action": "restored"}</code>
+- File reappears in <code>list_files</code> for {FOLDER_ID} (no longer trashed)
+- Parent folder cache invalidated</p>
+<p><strong>Result (2026-07-21) ✅</strong> — Created "QA-Restore-Test" in {FOLDER_ID}, trashed it, then <code>restore_file</code> returned <code>{"fileId": "12GPwkr-...", "action": "restored"}</code>. Follow-up <code>list_files</code> on {FOLDER_ID} showed the file present with no manual <code>refresh_cache</code> needed, confirming the parent-folder cache was invalidated by the tool itself. Cleaned up (permanently deleted) after the test.</p>
+<hr />
+<h3 id="tc-d203-restore-a-non-existent-file-id">TC-D203: Restore a non-existent file ID<a class="headerlink" href="#tc-d203-restore-a-non-existent-file-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Restore file 'invalidid123xyz'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns an API error (404 "File not found") — not a crash, and not a silent no-op
+- No cache mutation occurs for a non-existent file</p>
+<p><strong>Result (2026-07-21) ✅ (behavior) / ⚠️ docstring gap</strong> — Returned <code>HttpError 404: "File not found: invalidid123xyz."</code> — propagates cleanly, no crash. This also live-confirms a code-review finding: the tool's own docstring says it "has no effect on a file that was permanently deleted," which reads as a silent no-op, but the actual behavior for any non-existent file_id (including a permanently-deleted one) is this same 404 error, not a no-op. See PR comment.</p>
+<p><strong>Update (2026-07-21, post-fix):</strong> docstring corrected (123884a) to state the API-error behavior explicitly instead of "has no effect." Behavior itself was already correct pre-fix (this was a documentation-only gap) — no re-run needed.</p>
+<hr />
+<h2 id="empty_trash"><code>empty_trash</code><a class="headerlink" href="#empty_trash" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d204-empty-trash-default-my-drive-only-destructive">TC-D204: Empty trash (default) — My Drive only ⚠️ destructive<a class="headerlink" href="#tc-d204-empty-trash-default-my-drive-only-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>⚠️ This empties every file in the caller's My Drive trash, not just files created by this QA run.</strong> Before running live, confirm with the operator that nothing else in My Drive's trash needs to survive. Shared Drive trash is untouched by a default call (no <code>drive_id</code>) — see TC-D205 for the Shared-Drive-scoped case.</p>
+<p><strong>Setup:</strong> Create a throwaway spreadsheet in {FOLDER_ID} and trash it (<code>delete_file</code> with <code>permanent=False</code>).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Empty the Drive trash"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response: <code>{"action": "trash_emptied", "drive_id": None}</code>
+- The throwaway spreadsheet from Setup is now permanently gone — <code>restore_file</code> on it returns an API error, not a success
+- Any other file already in My Drive's trash before this test ran is also now permanently gone (confirm this is expected before running)
+- A file that was, at the time of this call, sitting in a Shared Drive's trash (if one exists) is unaffected</p>
+<p><strong>Note (2026-07-21):</strong> the original single <code>empty_trash</code> test case was held, not run, during code review — <code>empty_trash</code> omitted Shared Drive scoping (<code>driveId</code>) entirely, so QA held off live-testing an implementation expected to be redesigned rather than exercise it against the account's real trash (see PR comment). That gap is what led to this case being split into TC-D204 (My Drive, now the explicit default) and TC-D205 (Shared Drive, new). Neither has a live pass yet against the fixed implementation.</p>
+<p><strong>Result (2026-07-21) skipped, by operator decision</strong> — unit tests (<code>test_empty_trash_defaults_to_my_drive_no_drive_id</code>, <code>test_empty_trash_api_error_propagates</code>) confirm the code path via mocks; operator chose to verify the real destructive My-Drive-wide effect through a different means rather than live here.</p>
+<hr />
+<h3 id="tc-d205-empty-trash-scoped-to-a-specific-shared-drive-destructive">TC-D205: Empty trash scoped to a specific Shared Drive ⚠️ destructive<a class="headerlink" href="#tc-d205-empty-trash-scoped-to-a-specific-shared-drive-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Requires a Shared Drive fixture the QA account has access to</strong> — get its ID via <code>list_drives</code>. If no Shared Drive is available in the current QA environment, skip this case and note it as such rather than fabricating a result.</p>
+<p><strong>⚠️ This empties every file in the <em>named Shared Drive's</em> trash</strong>, not just files created by this QA run, and does not touch My Drive's trash.</p>
+<p><strong>Setup:</strong> In the target Shared Drive, create a throwaway file and trash it.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Empty the trash for Shared Drive {SHARED_DRIVE_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response: <code>{"action": "trash_emptied", "drive_id": "{SHARED_DRIVE_ID}"}</code>
+- The throwaway file from Setup is now permanently gone from that Shared Drive
+- My Drive's own trash (if it has unrelated trashed files) is unaffected</p>
+<p><strong>Result (2026-07-21) skipped</strong> — <code>list_drives</code> returned no Shared Drives accessible to this QA account. Unit test <code>test_empty_trash_with_drive_id_scopes_to_shared_drive</code> confirms the <code>driveId</code> passthrough via mock; no live Shared Drive fixture currently exists to verify end-to-end.</p>
 <hr />
 <h2 id="search_files"><code>search_files</code><a class="headerlink" href="#search_files" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d75-search-by-name-across-all-mime-types">TC-D75: Search by name across all MIME types<a class="headerlink" href="#tc-d75-search-by-name-across-all-mime-types" title="Permanent link">&para;</a></h3>
