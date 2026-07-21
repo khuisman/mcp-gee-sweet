@@ -137,6 +137,40 @@ class TestFileMutations:
         await _drive_tools["delete_file"](file_id="fid1", permanent=True, ctx=ctx)
         folder_cache.mark_dirty.assert_called_once_with("par1")
 
+    async def test_restore_file_marks_parent_dirty(self):
+        mock = MagicMock()
+        mock.files.return_value.update.return_value.execute.return_value = {
+            "id": "fid1",
+            "parents": ["par1"],
+        }
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
+        result = await _drive_tools["restore_file"](file_id="fid1", ctx=ctx)
+        mock.files.return_value.update.assert_called_once_with(
+            fileId="fid1",
+            body={"trashed": False},
+            supportsAllDrives=True,
+            fields="id,parents",
+        )
+        folder_cache.mark_dirty.assert_called_once_with("par1")
+        assert result == {"fileId": "fid1", "action": "restored"}
+
+    async def test_restore_file_no_parents_no_dirty_call(self):
+        mock = MagicMock()
+        mock.files.return_value.update.return_value.execute.return_value = {"id": "fid1"}
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
+        await _drive_tools["restore_file"](file_id="fid1", ctx=ctx)
+        folder_cache.mark_dirty.assert_not_called()
+
+    async def test_empty_trash_calls_empty_trash_endpoint(self):
+        mock = MagicMock()
+        mock.files.return_value.emptyTrash.return_value.execute.return_value = {}
+        ctx = _make_ctx(drive_service=mock)
+        result = await _drive_tools["empty_trash"](ctx=ctx)
+        mock.files.return_value.emptyTrash.assert_called_once_with()
+        assert result == {"action": "trash_emptied"}
+
 
 def _quota_http_error():
     """Build a 403 storageQuotaExceeded HttpError as returned by the Drive API."""

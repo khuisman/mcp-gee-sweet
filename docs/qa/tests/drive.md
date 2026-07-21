@@ -882,6 +882,51 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
+## `restore_file`
+
+### TC-D202: Restore a trashed file ⚠️ destructive
+
+**Setup:** Create a throwaway spreadsheet in {FOLDER_ID}, then trash it (`delete_file` with `permanent=False`).
+
+**Prompt**
+> "Restore file 'QA-Restore-Test' back from the trash"
+
+**Checks**
+- Response: `{"fileId": ..., "action": "restored"}`
+- File reappears in `list_files` for {FOLDER_ID} (no longer trashed)
+- Parent folder cache invalidated
+
+---
+
+### TC-D203: Restore a non-existent file ID
+
+**Prompt**
+> "Restore file 'invalidid123xyz'"
+
+**Checks**
+- API error propagates — not a crash
+- No cache mutation occurs for a non-existent file
+
+---
+
+## `empty_trash`
+
+### TC-D204: Empty trash permanently deletes trashed files ⚠️ destructive
+
+**⚠️ This empties the *entire account's* Drive trash, not just files created by this QA run.** Before running live, confirm with the operator that nothing else in the account's trash needs to survive — unlike every other `⚠️ destructive` test in this file, the blast radius isn't scoped to the QA fixture folder.
+
+**Setup:** Create a throwaway spreadsheet in {FOLDER_ID} and trash it (`delete_file` with `permanent=False`).
+
+**Prompt**
+> "Empty the Drive trash"
+
+**Checks**
+- Response: `{"action": "trash_emptied"}`
+- The throwaway spreadsheet from Setup is now permanently gone — `restore_file` on it returns an API error, not a success
+- Any other file already in the account's trash before this test ran is also now permanently gone (confirm this is expected before running)
+
+---
+
 ## `search_files`
 
 ### TC-D75: Search by name across all MIME types
