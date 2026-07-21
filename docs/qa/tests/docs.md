@@ -1882,7 +1882,7 @@ The Docs API has no dedicated bookmark-creation endpoint — `create_bookmark` i
 **Cleanup:** delete the created doc
 
 **Result (2026-07-17) ✅ PASS**
-`create_named_range(doc_id, name="section-a", start_index=1, end_index=64)` against a doc with one paragraph of real text returned `{"docId": ..., "namedRangeId": "kix.kmeha3539w3s", "name": "section-a", "startIndex": 1, "endIndex": 64}` — all fields present and correct. Note: `create_doc`'s `content` param and a plain-text (no wrapping tag) call to `write_doc_content` both silently produced an empty document body (confirmed live via Playwright screenshot) — wrapping the same text in `<p>...</p>` via `write_doc_content` worked. This is unrelated to `create_named_range`/`create_bookmark` (not touched by this PR) but is a real, reproducible bug in the existing HTML content pipeline; flagging separately, not blocking this PR.
+`create_named_range(doc_id, name="section-a", start_index=1, end_index=64)` against a doc with one paragraph of real text returned `{"docId": ..., "namedRangeId": "kix.kmeha3539w3s", "name": "section-a", "startIndex": 1, "endIndex": 64}` — all fields present and correct. Note: `create_doc`'s `content` param and a plain-text (no wrapping tag) call to `write_doc_content` both silently produced an empty document body (confirmed live via Playwright screenshot) — wrapping the same text in `<p>...</p>` via `write_doc_content` worked. This is unrelated to `create_named_range`/`create_bookmark` (not touched by this PR) but is a real, reproducible bug in the existing HTML content pipeline; flagging separately, not blocking this PR. Filed as issue #343; fixed — see TC-DOC131/TC-DOC132 below.
 
 ---
 
@@ -2279,5 +2279,33 @@ Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the su
 - Call succeeds with no API error
 - `get_doc_structure` shows a bulleted paragraph "text" (the `<li>`'s own text, preserved despite the unclosed `<p>` inside it)
 - `get_doc_structure` shows "Later unrelated paragraph" as a plain, non-bulleted paragraph — not wrapped into a list item and not merged with any other text
+
+**Cleanup:** write fixture content back
+
+---
+
+## Bare top-level text no longer silently dropped — `write_doc_content` (issue #343)
+
+**Background:** surfaced by Kit while building fixtures for TC-DOC107/PR #337 (unrelated to that PR's diff, flagged separately). `content`/HTML with no wrapping block tag (e.g. `hello world` instead of `<p>hello world</p>`) fell into `html_to_ast`'s inline-only code path — `handle_data` only buffers text inside an open block (`<p>`, `<li>`, a heading, or a table cell), so text with no block ancestor at all was silently dropped, producing an empty document body. The fix adds a generic open-tag depth counter so `handle_data` can tell genuinely bare text (depth 0) apart from text merely wrapped in a non-block tag with no block ancestor at all (e.g. `<span>no blocks</span>`, depth 1) — the latter stays an intentional no-op (see `test_inline_only_html_skips_batchupdate`), the former now gets an implicit paragraph wrap.
+
+### TC-DOC131: Bare text with no wrapping tag at all is no longer dropped ⚠️ destructive
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `hello world`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows a single plain paragraph reading exactly "hello world" — previously this call silently produced an empty document body
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-DOC132: An inline tag with no block ancestor still produces no content (regression guard) ⚠️ destructive
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<span>no blocks</span>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows the document body empty/unchanged — this is the deliberate existing behavior for inline-only tags with no block ancestor and the #343 fix must not alter it
 
 **Cleanup:** write fixture content back

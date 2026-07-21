@@ -119,6 +119,15 @@ class TestCreateDoc:
         await _docs_tools["create_doc"](title="Doc", content="<span>no blocks</span>", ctx=ctx)
         assert not docs_svc.documents.return_value.batchUpdate.called
 
+    async def test_bare_text_with_no_wrapping_tag_still_writes_content(self):
+        """#343: plain text with no wrapping tag must not silently produce an
+        empty doc body — batchUpdate should fire just as it would for the
+        equivalent "<p>hello world</p>"."""
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        await _docs_tools["create_doc"](title="Doc", content="hello world", ctx=ctx)
+        assert docs_svc.documents.return_value.batchUpdate.called
+
     async def test_quota_exceeded_returns_error_dict(self):
         """create_doc must return {"error": ...} on storageQuotaExceeded, not raise."""
         drive_svc = MagicMock()
@@ -436,6 +445,57 @@ class TestBlockInterruptionGeneralizedBeyondLi:
         # wrapped as a BulletItem by a leaked/misapplied reopen.
         later_node = next(n for n in nodes if "Later text" in "".join(r.text for r in n.runs))
         assert isinstance(later_node, Paragraph)
+
+
+class TestBareTopLevelText:
+    """#343: text with no wrapping block tag at all must not be silently
+    dropped, while text merely wrapped in a non-block tag (e.g. <span>) with
+    no block ancestor keeps its existing intentional drop behavior — see
+    test_inline_only_html_skips_batchupdate."""
+
+    async def test_bare_text_gets_implicit_paragraph(self):
+        nodes = html_to_ast("hello world")
+        assert len(nodes) == 1
+        assert isinstance(nodes[0], Paragraph)
+        assert "".join(r.text for r in nodes[0].runs) == "hello world"
+
+    async def test_span_wrapped_text_still_dropped(self):
+        # Regression guard: an inline tag with no block ancestor is a
+        # deliberate choice by the caller and stays dropped, unlike
+        # genuinely bare text.
+        assert html_to_ast("<span>no blocks</span>") == []
+
+    async def test_bare_text_with_inline_formatting_preserves_it(self):
+        nodes = html_to_ast("hello <b>world</b> foo")
+        assert len(nodes) == 1
+        assert isinstance(nodes[0], Paragraph)
+        runs = nodes[0].runs
+        assert [(r.text, r.bold) for r in runs] == [
+            ("hello ", None),
+            ("world", True),
+            (" foo", None),
+        ]
+
+    async def test_whitespace_only_top_level_text_produces_nothing(self):
+        assert html_to_ast("  \n\n  ") == []
+
+    async def test_bare_text_before_and_after_explicit_block_both_survive(self):
+        nodes = html_to_ast("plain<p>tagged</p>trailing")
+        texts = ["".join(r.text for r in n.runs) for n in nodes]
+        assert texts == ["plain", "tagged", "trailing"]
+
+    async def test_bare_text_after_unclosed_void_tag_still_wrapped(self):
+        # Regression guard (found in PR #385's own review round): a void
+        # element written without a self-closing slash (e.g. "<img src=...>",
+        # not "<img src=... />") never gets a matching close tag from
+        # HTMLParser. An implementation that excludes only "br" from
+        # _tag_depth would leave the counter stuck above 0 here, silently
+        # re-dropping the trailing bare text — the exact #343 failure mode.
+        for html in ('<img src="x.png">hello world', "<hr>hello world"):
+            nodes = html_to_ast(html)
+            assert len(nodes) == 1, html
+            assert isinstance(nodes[0], Paragraph)
+            assert "".join(r.text for r in nodes[0].runs) == "hello world"
 
 
 # ---------------------------------------------------------------------------
