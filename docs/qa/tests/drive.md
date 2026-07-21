@@ -882,6 +882,82 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
+## `restore_file`
+
+### TC-D202: Restore a trashed file ⚠️ destructive
+
+**Setup:** Create a throwaway spreadsheet in {FOLDER_ID}, then trash it (`delete_file` with `permanent=False`).
+
+**Prompt**
+> "Restore file 'QA-Restore-Test' back from the trash"
+
+**Checks**
+- Response: `{"fileId": ..., "action": "restored"}`
+- File reappears in `list_files` for {FOLDER_ID} (no longer trashed)
+- Parent folder cache invalidated
+
+**Result (2026-07-21) ✅** — Created "QA-Restore-Test" in {FOLDER_ID}, trashed it, then `restore_file` returned `{"fileId": "12GPwkr-...", "action": "restored"}`. Follow-up `list_files` on {FOLDER_ID} showed the file present with no manual `refresh_cache` needed, confirming the parent-folder cache was invalidated by the tool itself. Cleaned up (permanently deleted) after the test.
+
+---
+
+### TC-D203: Restore a non-existent file ID
+
+**Prompt**
+> "Restore file 'invalidid123xyz'"
+
+**Checks**
+- Returns an API error (404 "File not found") — not a crash, and not a silent no-op
+- No cache mutation occurs for a non-existent file
+
+**Result (2026-07-21) ✅ (behavior) / ⚠️ docstring gap** — Returned `HttpError 404: "File not found: invalidid123xyz."` — propagates cleanly, no crash. This also live-confirms a code-review finding: the tool's own docstring says it "has no effect on a file that was permanently deleted," which reads as a silent no-op, but the actual behavior for any non-existent file_id (including a permanently-deleted one) is this same 404 error, not a no-op. See PR comment.
+
+**Update (2026-07-21, post-fix):** docstring corrected (123884a) to state the API-error behavior explicitly instead of "has no effect." Behavior itself was already correct pre-fix (this was a documentation-only gap) — no re-run needed.
+
+---
+
+## `empty_trash`
+
+### TC-D204: Empty trash (default) — My Drive only ⚠️ destructive
+
+**⚠️ This empties every file in the caller's My Drive trash, not just files created by this QA run.** Before running live, confirm with the operator that nothing else in My Drive's trash needs to survive. Shared Drive trash is untouched by a default call (no `drive_id`) — see TC-D205 for the Shared-Drive-scoped case.
+
+**Setup:** Create a throwaway spreadsheet in {FOLDER_ID} and trash it (`delete_file` with `permanent=False`).
+
+**Prompt**
+> "Empty the Drive trash"
+
+**Checks**
+- Response: `{"action": "trash_emptied", "drive_id": None}`
+- The throwaway spreadsheet from Setup is now permanently gone — `restore_file` on it returns an API error, not a success
+- Any other file already in My Drive's trash before this test ran is also now permanently gone (confirm this is expected before running)
+- A file that was, at the time of this call, sitting in a Shared Drive's trash (if one exists) is unaffected
+
+**Note (2026-07-21):** the original single `empty_trash` test case was held, not run, during code review — `empty_trash` omitted Shared Drive scoping (`driveId`) entirely, so QA held off live-testing an implementation expected to be redesigned rather than exercise it against the account's real trash (see PR comment). That gap is what led to this case being split into TC-D204 (My Drive, now the explicit default) and TC-D205 (Shared Drive, new). Neither has a live pass yet against the fixed implementation.
+
+**Result (2026-07-21) skipped, by operator decision** — unit tests (`test_empty_trash_defaults_to_my_drive_no_drive_id`, `test_empty_trash_api_error_propagates`) confirm the code path via mocks; operator chose to verify the real destructive My-Drive-wide effect through a different means rather than live here.
+
+---
+
+### TC-D205: Empty trash scoped to a specific Shared Drive ⚠️ destructive
+
+**Requires a Shared Drive fixture the QA account has access to** — get its ID via `list_drives`. If no Shared Drive is available in the current QA environment, skip this case and note it as such rather than fabricating a result.
+
+**⚠️ This empties every file in the *named Shared Drive's* trash**, not just files created by this QA run, and does not touch My Drive's trash.
+
+**Setup:** In the target Shared Drive, create a throwaway file and trash it.
+
+**Prompt**
+> "Empty the trash for Shared Drive {SHARED_DRIVE_ID}"
+
+**Checks**
+- Response: `{"action": "trash_emptied", "drive_id": "{SHARED_DRIVE_ID}"}`
+- The throwaway file from Setup is now permanently gone from that Shared Drive
+- My Drive's own trash (if it has unrelated trashed files) is unaffected
+
+**Result (2026-07-21) skipped** — `list_drives` returned no Shared Drives accessible to this QA account. Unit test `test_empty_trash_with_drive_id_scopes_to_shared_drive` confirms the `driveId` passthrough via mock; no live Shared Drive fixture currently exists to verify end-to-end.
+
+---
+
 ## `search_files`
 
 ### TC-D75: Search by name across all MIME types
