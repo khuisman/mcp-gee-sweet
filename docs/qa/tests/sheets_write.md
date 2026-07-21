@@ -98,6 +98,8 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 
 **Result (2026-07-19) ✅ (write) / ⚠️ tool-response gap** — `get_sheet_data(include_grid_data=True)` on F3:G3 confirmed both cells correct: F3 `userEnteredValue.stringValue` = "PlainValue" (`hyperlinkDisplayType: PLAIN_TEXT`); G3 `userEnteredValue.stringValue` = "Link", `hyperlinkDisplayType: LINKED`, `textFormatRuns[0].format.link.uri` = "https://example.com/g3" — the two passes do compose correctly on the sheet. However the tool's own return value was `{"updatedRange":"Sales!F3:G3","updatedRows":1,"updatedColumns":2,"updatedCells":2}` — only the plain `values().update()` response; the `batchUpdate` reply for G3's rich-text write is silently dropped from what the caller sees, even though the write itself succeeded. Matches code-review finding (data.py:687, `result = batch_result` only fires `if not has_plain_cells`) — real, live-confirmed, not just a code-reading inference. 🔍 Visual check blocked by the same chart-pollution limitation as TC-W33.
 
+**Note (2026-07-20):** the tool-response gap above was addressed post-review — mixed writes now return `{"values_update": ..., "rich_text_update": ...}` (both results present) instead of only the plain-cell response, and the plain-cell write is now a per-cell `values().batchUpdate()` rather than a whole-range `values().update()`. The Result entry above reflects pre-fix behavior and is left as-is for history; needs a fresh live pass to confirm the fixed return shape.
+
 ---
 
 ### TC-W35: Rich-text run missing "text" key returns an error
