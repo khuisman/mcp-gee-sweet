@@ -15,6 +15,29 @@ _INLINE_BOLD = {"b", "strong"}
 _INLINE_ITALIC = {"i", "em"}
 _INLINE_UNDERLINE = {"u"}
 _INLINE_STRIKE = {"s", "strike"}
+# HTML void elements: never get a matching close tag from Python's stdlib
+# HTMLParser unless the source text itself self-closes them ("<img ... />"),
+# since HTMLParser has no built-in HTML5 void-element awareness. Excluded from
+# _tag_depth tracking below — otherwise one of these written without a
+# trailing slash (e.g. "<img src=\"x\">", plain "<hr>") would increment the
+# depth counter with nothing to ever decrement it, permanently breaking the
+# depth-0 "genuinely bare text" check in handle_data for the rest of the
+# document (#343 follow-up).
+_VOID_TAGS = {
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "source",
+    "track",
+    "wbr",
+}
 
 
 @dataclass
@@ -49,8 +72,8 @@ class _AstParser(HTMLParser):
         # "hello world" with no wrapping tag at all — #343) apart from text
         # that's merely wrapped in an inline tag with no block ancestor (e.g.
         # "<span>no blocks</span>", depth 1) — the latter is intentionally
-        # dropped (see test_inline_only_html_skips_batchupdate). "br" is
-        # excluded since it's void and never gets a matching close tag.
+        # dropped (see test_inline_only_html_skips_batchupdate). _VOID_TAGS
+        # are excluded since they never get a matching close tag.
         self._tag_depth = 0
 
         # --- inline formatting stacks ---
@@ -298,7 +321,7 @@ class _AstParser(HTMLParser):
             return
 
         # --- inline elements / unrecognized tags ---
-        if tag != "br":
+        if tag not in _VOID_TAGS:
             self._tag_depth += 1
         if self._block_tag or (
             self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
@@ -391,7 +414,7 @@ class _AstParser(HTMLParser):
             return
 
         # --- inline elements / unrecognized tags ---
-        if tag != "br" and self._tag_depth > 0:
+        if tag not in _VOID_TAGS and self._tag_depth > 0:
             self._tag_depth -= 1
         if self._block_tag or (
             self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell

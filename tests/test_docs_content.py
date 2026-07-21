@@ -484,6 +484,19 @@ class TestBareTopLevelText:
         texts = ["".join(r.text for r in n.runs) for n in nodes]
         assert texts == ["plain", "tagged", "trailing"]
 
+    async def test_bare_text_after_unclosed_void_tag_still_wrapped(self):
+        # Regression guard (found in PR #385's own review round): a void
+        # element written without a self-closing slash (e.g. "<img src=...>",
+        # not "<img src=... />") never gets a matching close tag from
+        # HTMLParser. An implementation that excludes only "br" from
+        # _tag_depth would leave the counter stuck above 0 here, silently
+        # re-dropping the trailing bare text — the exact #343 failure mode.
+        for html in ('<img src="x.png">hello world', "<hr>hello world"):
+            nodes = html_to_ast(html)
+            assert len(nodes) == 1, html
+            assert isinstance(nodes[0], Paragraph)
+            assert "".join(r.text for r in nodes[0].runs) == "hello world"
+
 
 # ---------------------------------------------------------------------------
 # Markdown pipeline — _md_to_html and _to_doc_requests
