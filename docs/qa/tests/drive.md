@@ -786,6 +786,35 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
+## `star_file` / `unstar_file` (issue #139)
+
+**Note:** neither `get_file_metadata` nor `list_files` currently exposes a `starred` field, so verification is round-trip only — the tool's own response is the only readable signal for these checks.
+
+### TC-D202: `star_file` marks an existing file as starred
+**Prompt**
+> "Star the spreadsheet {SPREADSHEET_ID}"
+
+**Checks**
+- Response has no `error`
+- Response `starred` is `true`
+- Response `fileId` matches `{SPREADSHEET_ID}` and `name` matches the fixture's actual name
+
+**Cleanup:** unstar {SPREADSHEET_ID} to restore fixture state
+
+---
+
+### TC-D203: `unstar_file` removes the starred marker
+**Setup:** star {SPREADSHEET_ID} first (so this test starts from a known `starred=true` state rather than assuming one)
+
+**Prompt**
+> "Unstar the spreadsheet {SPREADSHEET_ID}"
+
+**Checks**
+- Response has no `error`
+- Response `starred` is `false`
+
+---
+
 ## `copy_file`
 
 ### TC-D67: Copy with auto-assigned name ⚠️ requires-oauth

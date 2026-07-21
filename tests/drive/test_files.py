@@ -138,6 +138,44 @@ class TestFileMutations:
         folder_cache.mark_dirty.assert_called_once_with("par1")
 
 
+class TestStarFile:
+    """star_file/unstar_file (#139) set starred via files().update, no folder-cache impact."""
+
+    async def test_star_file_sets_starred_true(self):
+        mock = MagicMock()
+        mock.files.return_value.update.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "file.txt",
+            "starred": True,
+        }
+        ctx = _make_ctx(drive_service=mock)
+        result = await _drive_tools["star_file"](file_id="fid1", ctx=ctx)
+        mock.files.return_value.update.assert_called_once_with(
+            fileId="fid1",
+            body={"starred": True},
+            supportsAllDrives=True,
+            fields="id, name, starred",
+        )
+        assert result == {"fileId": "fid1", "name": "file.txt", "starred": True}
+
+    async def test_unstar_file_sets_starred_false(self):
+        mock = MagicMock()
+        mock.files.return_value.update.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "file.txt",
+            "starred": False,
+        }
+        ctx = _make_ctx(drive_service=mock)
+        result = await _drive_tools["unstar_file"](file_id="fid1", ctx=ctx)
+        mock.files.return_value.update.assert_called_once_with(
+            fileId="fid1",
+            body={"starred": False},
+            supportsAllDrives=True,
+            fields="id, name, starred",
+        )
+        assert result == {"fileId": "fid1", "name": "file.txt", "starred": False}
+
+
 def _quota_http_error():
     """Build a 403 storageQuotaExceeded HttpError as returned by the Drive API."""
     resp = MagicMock()
