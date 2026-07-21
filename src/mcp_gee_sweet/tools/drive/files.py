@@ -1068,8 +1068,10 @@ def register(tool):
     async def restore_file(file_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Restore a trashed file or folder back to its original location — undoes
-        `delete_file` when it was called without `permanent=True`. Has no effect
-        on a file that was permanently deleted (that can't be recovered).
+        `delete_file` when it was called without `permanent=True`. Raises an
+        API error (does not silently no-op) if the file was permanently
+        deleted or otherwise no longer exists — permanent deletion can't be
+        recovered from.
 
         Args:
             file_id: The ID of the trashed file or folder to restore.
@@ -1098,21 +1100,33 @@ def register(tool):
         return {"fileId": file_id, "action": "restored"}
 
     @tool(annotations=ToolAnnotations(title="Empty Trash", destructiveHint=True))
-    async def empty_trash(ctx: Context = None) -> dict[str, Any]:
+    async def empty_trash(drive_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """
-        Permanently delete every file currently in the trash. This cannot be
-        undone — unlike `delete_file`'s default (recoverable) trash behavior,
-        there is no restoring a file after this.
+        Permanently delete every trashed file in a single trash. This cannot
+        be undone — unlike `delete_file`'s default (recoverable) trash
+        behavior, there is no restoring a file after this.
+
+        Args:
+            drive_id: If omitted (default), empties the caller's own My Drive
+                trash only. If set to a Shared Drive's ID (see `list_drives`),
+                empties that Shared Drive's trash instead. A single call only
+                ever targets one trash — to empty several Shared Drives' trash,
+                call this once per `drive_id`.
 
         Returns:
-            Confirmation that the trash was emptied.
+            Confirmation that the trash was emptied, echoing which drive
+            (drive_id, or None for My Drive) was targeted.
         """
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
+        kwargs: dict[str, Any] = {}
+        if drive_id:
+            kwargs["driveId"] = drive_id
+
         await execute_in_thread(
-            drive_service.files().emptyTrash().execute,
+            drive_service.files().emptyTrash(**kwargs).execute,
             drive_service,
         )
-        logger.debug("Emptied trash")
-        return {"action": "trash_emptied"}
+        logger.debug("Emptied trash (drive_id=%s)", drive_id)
+        return {"action": "trash_emptied", "drive_id": drive_id}

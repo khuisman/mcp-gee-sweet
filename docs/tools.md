@@ -81,8 +81,8 @@
 | `list_recent_files` | List recently modified files in Drive, newest first. | `max_results?`, `days?`, `mime_type?` |
 | `get_storage_quota` | Get Drive storage usage and limits for the authenticated account. | — |
 | `delete_file` | Move a file to the trash or permanently delete it. | `file_id`, `permanent?` |
-| `restore_file` | Restore a trashed file or folder back to its original location — undoes `delete_file` when it was called without `permanent=True`. Has no effect on a file that was permanently deleted (that can't be recovered). | `file_id` |
-| `empty_trash` | Permanently delete every file currently in the trash. This cannot be undone — unlike `delete_file`'s default (recoverable) trash behavior, there is no restoring a file after this. | — |
+| `restore_file` | Restore a trashed file or folder back to its original location — undoes `delete_file` when it was called without `permanent=True`. Raises an API error (does not silently no-op) if the file was permanently deleted or otherwise no longer exists — permanent deletion can't be recovered from. | `file_id` |
+| `empty_trash` | Permanently delete every trashed file in a single trash. This cannot be undone — unlike `delete_file`'s default (recoverable) trash behavior, there is no restoring a file after this. | `drive_id?` |
 
 ## Drive — transfer
 

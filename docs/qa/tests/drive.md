@@ -904,16 +904,16 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 > "Restore file 'invalidid123xyz'"
 
 **Checks**
-- API error propagates — not a crash
+- Returns an API error (404 "File not found") — not a crash, and not a silent no-op
 - No cache mutation occurs for a non-existent file
 
 ---
 
 ## `empty_trash`
 
-### TC-D204: Empty trash permanently deletes trashed files ⚠️ destructive
+### TC-D204: Empty trash (default) — My Drive only ⚠️ destructive
 
-**⚠️ This empties the *entire account's* Drive trash, not just files created by this QA run.** Before running live, confirm with the operator that nothing else in the account's trash needs to survive — unlike every other `⚠️ destructive` test in this file, the blast radius isn't scoped to the QA fixture folder.
+**⚠️ This empties every file in the caller's My Drive trash, not just files created by this QA run.** Before running live, confirm with the operator that nothing else in My Drive's trash needs to survive. Shared Drive trash is untouched by a default call (no `drive_id`) — see TC-D205 for the Shared-Drive-scoped case.
 
 **Setup:** Create a throwaway spreadsheet in {FOLDER_ID} and trash it (`delete_file` with `permanent=False`).
 
@@ -921,9 +921,28 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 > "Empty the Drive trash"
 
 **Checks**
-- Response: `{"action": "trash_emptied"}`
+- Response: `{"action": "trash_emptied", "drive_id": None}`
 - The throwaway spreadsheet from Setup is now permanently gone — `restore_file` on it returns an API error, not a success
-- Any other file already in the account's trash before this test ran is also now permanently gone (confirm this is expected before running)
+- Any other file already in My Drive's trash before this test ran is also now permanently gone (confirm this is expected before running)
+- A file that was, at the time of this call, sitting in a Shared Drive's trash (if one exists) is unaffected
+
+---
+
+### TC-D205: Empty trash scoped to a specific Shared Drive ⚠️ destructive
+
+**Requires a Shared Drive fixture the QA account has access to** — get its ID via `list_drives`. If no Shared Drive is available in the current QA environment, skip this case and note it as such rather than fabricating a result.
+
+**⚠️ This empties every file in the *named Shared Drive's* trash**, not just files created by this QA run, and does not touch My Drive's trash.
+
+**Setup:** In the target Shared Drive, create a throwaway file and trash it.
+
+**Prompt**
+> "Empty the trash for Shared Drive {SHARED_DRIVE_ID}"
+
+**Checks**
+- Response: `{"action": "trash_emptied", "drive_id": "{SHARED_DRIVE_ID}"}`
+- The throwaway file from Setup is now permanently gone from that Shared Drive
+- My Drive's own trash (if it has unrelated trashed files) is unaffected
 
 ---
 
