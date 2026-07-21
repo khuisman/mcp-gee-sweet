@@ -451,14 +451,20 @@ class TestBatchUpdate:
 class TestUpdateCells:
     """Rich-text cells (issue #89): a cell value that's a list of
     {"text", "hyperlink"} run dicts builds a textFormatRuns updateCells request
-    instead of a plain values().update() write."""
+    instead of a plain values().update() write. Mixed calls (plain cells
+    alongside rich-text cells) write the plain cells via a values().batchUpdate()
+    scoped to just those cell positions rather than the whole rectangle, so the
+    rich-text cells are never blanked out and relied on to be overwritten back."""
 
-    def _service(self, sheet_id=0, batch_replies=None):
+    def _service(self, sheet_id=0, batch_replies=None, values_batch_result=None):
         mock = MagicMock()
         mock.spreadsheets.return_value.values.return_value.update.return_value.execute.return_value = {
             "updatedRange": "Sheet1!A1:A1",
             "updatedCells": 1,
         }
+        mock.spreadsheets.return_value.values.return_value.batchUpdate.return_value.execute.return_value = (
+            values_batch_result or {"totalUpdatedCells": 1}
+        )
         mock.spreadsheets.return_value.get.return_value.execute.return_value = {
             "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
         }
@@ -520,23 +526,32 @@ class TestUpdateCells:
         svc = self._service()
         ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
         runs = [{"text": "link", "hyperlink": "https://example.com"}]
-        await _data_tools["update_cells"](
+        result = await _data_tools["update_cells"](
             spreadsheet_id="ss1",
             sheet="Sheet1",
             range="A1:B1",
             data=[["plain", runs]],
             ctx=ctx,
         )
-        svc.spreadsheets.return_value.values.return_value.update.assert_called_once()
-        plain_body = svc.spreadsheets.return_value.values.return_value.update.call_args.kwargs[
+        # Whole-rectangle values().update() is never used for a mixed call — it would
+        # need to blank the rich-text cell to "" first and rely on the batchUpdate
+        # below to overwrite it back.
+        svc.spreadsheets.return_value.values.return_value.update.assert_not_called()
+        svc.spreadsheets.return_value.values.return_value.batchUpdate.assert_called_once()
+        plain_body = svc.spreadsheets.return_value.values.return_value.batchUpdate.call_args.kwargs[
             "body"
         ]
-        assert plain_body["values"] == [["plain", ""]]
+        assert plain_body["data"] == [{"range": "Sheet1!A1", "values": [["plain"]]}]
         svc.spreadsheets.return_value.batchUpdate.assert_called_once()
         req_range = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]["requests"][
             0
         ]["updateCells"]["range"]
         assert req_range["startColumnIndex"] == 1
+        # Neither call's result is silently dropped.
+        assert result == {
+            "values_update": {"totalUpdatedCells": 1},
+            "rich_text_update": {"replies": [{}]},
+        }
 
     async def test_malformed_run_missing_text_key_returns_error(self):
         svc = self._service()
@@ -551,6 +566,42 @@ class TestUpdateCells:
         assert "error" in result
         svc.spreadsheets.return_value.batchUpdate.assert_not_called()
         svc.spreadsheets.return_value.values.return_value.update.assert_not_called()
+
+    async def test_run_with_non_string_text_returns_error(self):
+        # A wrong-typed "text" value (e.g. None) used to reach _build_rich_text_cell
+        # and crash with an unhandled TypeError instead of a clean error response.
+        svc = self._service()
+        ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
+        result = await _data_tools["update_cells"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            data=[[[{"text": None}]]],
+            ctx=ctx,
+        )
+        assert "error" in result
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
+    async def test_empty_run_list_returns_error(self):
+        # [] used to pass validation (nothing to iterate) and silently clear the
+        # cell instead of erroring.
+        svc = self._service()
+        ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
+        result = await _data_tools["update_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", data=[[[]]], ctx=ctx
+        )
+        assert "error" in result
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
+    async def test_empty_data_returns_error(self):
+        svc = self._service()
+        ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
+        result = await _data_tools["update_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", data=[], ctx=ctx
+        )
+        assert result == {"error": "data cannot be empty"}
+        svc.spreadsheets.return_value.values.return_value.update.assert_not_called()
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
 
     async def test_sheet_not_found_returns_error(self):
         svc = self._service()

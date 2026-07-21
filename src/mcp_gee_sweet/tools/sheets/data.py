@@ -37,25 +37,29 @@ def _build_rich_text_cell(runs: list[dict[str, Any]]) -> dict[str, Any]:
     startIndex is UTF-16 code units per the Sheets API spec (confirmed via the
     API reference), not Python string length — see _utf16_len.
     """
-    full_text = "".join(run.get("text", "") for run in runs)
+    text_parts = []
     text_format_runs = []
     offset = 0
+    has_hyperlink = False
     for run in runs:
+        text = run.get("text", "")
+        text_parts.append(text)
         run_format: dict[str, Any] = {}
         hyperlink = run.get("hyperlink")
         if hyperlink:
             run_format["link"] = {"uri": hyperlink}
+            has_hyperlink = True
         entry: dict[str, Any] = {"format": run_format}
         if offset > 0:
             entry["startIndex"] = offset
         text_format_runs.append(entry)
-        offset += _utf16_len(run.get("text", ""))
+        offset += _utf16_len(text)
 
     cell: dict[str, Any] = {
-        "userEnteredValue": {"stringValue": full_text},
+        "userEnteredValue": {"stringValue": "".join(text_parts)},
         "textFormatRuns": text_format_runs,
     }
-    if any(run.get("hyperlink") for run in runs):
+    if has_hyperlink:
         cell["userEnteredFormat"] = {"hyperlinkDisplayType": "LINKED"}
     return cell
 
@@ -611,36 +615,80 @@ def register(tool):
                 "hyperlink" links just that run.
 
         Returns:
-            Result of the update operation
+            Result of the update operation. If `data` contains only plain cells
+            or only rich-text cells, this is that single API call's raw response.
+            If it mixes both kinds, this is
+            {"values_update": <plain-cell response>, "rich_text_update": <rich-text response>}
+            since the two are separate API calls and neither result should be
+            silently dropped.
         """
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
         rich_text_cells: list[tuple[int, int, list[dict[str, Any]]]] = []
+        plain_cells: list[tuple[int, int, Any]] = []
         for row_idx, row in enumerate(data):
             for col_idx, cell in enumerate(row):
                 if isinstance(cell, list):
+                    if not cell:
+                        return {"error": "Rich-text cell runs list cannot be empty"}
                     for run in cell:
-                        if not isinstance(run, dict) or "text" not in run:
+                        if not isinstance(run, dict) or not isinstance(run.get("text"), str):
                             return {
-                                "error": "Rich-text cell runs must be dicts with a 'text' "
-                                "key, e.g. {'text': ..., 'hyperlink': ...}"
+                                "error": "Rich-text cell runs must be dicts with a string "
+                                "'text' key, e.g. {'text': ..., 'hyperlink': ...}"
                             }
                     rich_text_cells.append((row_idx, col_idx, cell))
+                else:
+                    plain_cells.append((row_idx, col_idx, cell))
 
-        has_plain_cells = any(not isinstance(cell, list) for row in data for cell in row)
+        if not rich_text_cells and not plain_cells:
+            return {"error": "data cannot be empty"}
 
         result: dict[str, Any] = {}
-        if has_plain_cells:
-            plain_data = [["" if isinstance(cell, list) else cell for cell in row] for row in data]
-            result = await execute_in_thread(
+
+        if plain_cells and not rich_text_cells:
+            # Plain-only: write the whole rectangle in one call, same as before
+            # rich-text cells existed.
+            result["values_update"] = await execute_in_thread(
                 sheets_service.spreadsheets()
                 .values()
                 .update(
                     spreadsheetId=spreadsheet_id,
                     range=f"{_quote_sheet_name(sheet)}!{range}",
                     valueInputOption="USER_ENTERED",
-                    body={"values": plain_data},
+                    body={"values": data},
+                )
+                .execute,
+                sheets_service,
+            )
+            lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+        elif plain_cells:
+            # Mixed call: write only the actual plain-cell positions, addressed
+            # individually, rather than the whole rectangle. Writing the whole
+            # rectangle would require blanking the rich-text cell positions to ""
+            # first and relying on the rich-text batchUpdate below to overwrite
+            # them back — if that second call then failed, the blank was never
+            # restored and the rich-text cells' prior content was lost for good.
+            # Per-cell targeting means the two calls never touch each other's
+            # cells, so either one failing can't corrupt the other's data.
+            indices = _parse_a1_notation(range)
+            start_row = indices.get("startRowIndex", 0)
+            start_col = indices.get("startColumnIndex", 0)
+            plain_data = [
+                {
+                    "range": f"{_quote_sheet_name(sheet)}!"
+                    f"{_column_index_to_letter(start_col + col_idx)}{start_row + row_idx + 1}",
+                    "values": [[cell]],
+                }
+                for row_idx, col_idx, cell in plain_cells
+            ]
+            result["values_update"] = await execute_in_thread(
+                sheets_service.spreadsheets()
+                .values()
+                .batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={"valueInputOption": "USER_ENTERED", "data": plain_data},
                 )
                 .execute,
                 sheets_service,
@@ -676,16 +724,16 @@ def register(tool):
                 for row_idx, col_idx, runs in rich_text_cells
             ]
 
-            batch_result = await execute_in_thread(
+            result["rich_text_update"] = await execute_in_thread(
                 sheets_service.spreadsheets()
                 .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
                 .execute,
                 sheets_service,
             )
             lc.sheet_data_cache.mark_dirty(spreadsheet_id)
-            if not has_plain_cells:
-                result = batch_result
 
+        if len(result) == 1:
+            return next(iter(result.values()))
         return result
 
     @tool(annotations=ToolAnnotations(title="Batch Update Cells", destructiveHint=True))

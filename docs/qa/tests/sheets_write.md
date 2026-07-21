@@ -88,9 +88,10 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 > "In the Sales sheet of {SPREADSHEET_ID}, use `update_cells` on range F3:G3 to write 'PlainValue' into F3 and, into G3, a hyperlinked cell reading 'Link' that links to https://example.com/g3"
 
 **Checks**
-- F3 = "PlainValue" (written via the normal USER_ENTERED path)
+- F3 = "PlainValue" (written via a per-cell `values.batchUpdate` scoped to just F3, not a whole-range `values.update` — the whole-range write was retired because it required blanking G3 to "" first and relying on the rich-text pass to overwrite it back, losing G3's content for good if that second call failed)
 - G3 shows "Link" with `userEnteredFormat.hyperlinkDisplayType` = "LINKED" and a `textFormatRuns` entry linking to https://example.com/g3
-- Both cells are correct in a single tool call — confirms the plain-cell `values.update` pass and the rich-text `batchUpdate` pass compose correctly over the same range
+- Both cells are correct in a single tool call — confirms the plain-cell pass and the rich-text `batchUpdate` pass compose correctly over the same range
+- The tool's own return value is `{"values_update": {...}, "rich_text_update": {...}}` — both results present, not just the plain-cell one (previously the rich-text result was silently dropped whenever plain cells were also present in the same call)
 - 🔍 Visual check: G3 renders underlined/blue and clickable; F3 renders as plain text
 
 ---
@@ -117,6 +118,39 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 **Checks**
 - `textFormatRuns`'s second entry has `startIndex: 2` (the emoji occupies 2 UTF-16 units), not `1`
 - 🔍 Visual check: the hyperlink underline/color starts exactly at "link", not one character into the emoji
+
+---
+
+### TC-W37: Rich-text run with a wrong-typed "text" value returns an error, not a crash
+
+**Prompt**
+> "Call `update_cells` on {SPREADSHEET_ID}'s Sales sheet, range F6, with a malformed rich-text cell: a run list containing `{\"text\": null, \"hyperlink\": \"https://example.com\"}`"
+
+**Checks**
+- Returns `{"error": ...}` — does not raise/crash (a prior version only checked `"text"` was present, not that it was a string, and crashed with an unhandled `TypeError` on a non-string value)
+- No write occurs — F6 is unchanged
+
+---
+
+### TC-W38: Empty rich-text run list returns an error, not a silent blank
+
+**Prompt**
+> "Call `update_cells` on {SPREADSHEET_ID}'s Sales sheet, range F7, passing `[]` (an empty list) as F7's cell value"
+
+**Checks**
+- Returns `{"error": ...}` — an empty run list is rejected up front
+- No write occurs — F7 is unchanged (a prior version treated `[]` as a valid zero-run rich-text cell and silently blanked it)
+
+---
+
+### TC-W39: Empty `data` returns an error, not a silent no-op
+
+**Prompt**
+> "Call `update_cells` on {SPREADSHEET_ID}'s Sales sheet, range F8, with `data` set to an empty list `[]`"
+
+**Checks**
+- Returns `{"error": "data cannot be empty"}`
+- No API call is made and the spreadsheet is unchanged
 
 ---
 
