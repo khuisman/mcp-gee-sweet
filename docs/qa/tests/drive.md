@@ -896,6 +896,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - File reappears in `list_files` for {FOLDER_ID} (no longer trashed)
 - Parent folder cache invalidated
 
+**Result (2026-07-21) ✅** — Created "QA-Restore-Test" in {FOLDER_ID}, trashed it, then `restore_file` returned `{"fileId": "12GPwkr-...", "action": "restored"}`. Follow-up `list_files` on {FOLDER_ID} showed the file present with no manual `refresh_cache` needed, confirming the parent-folder cache was invalidated by the tool itself. Cleaned up (permanently deleted) after the test.
+
 ---
 
 ### TC-D203: Restore a non-existent file ID
@@ -906,6 +908,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Checks**
 - Returns an API error (404 "File not found") — not a crash, and not a silent no-op
 - No cache mutation occurs for a non-existent file
+
+**Result (2026-07-21) ✅ (behavior) / ⚠️ docstring gap** — Returned `HttpError 404: "File not found: invalidid123xyz."` — propagates cleanly, no crash. This also live-confirms a code-review finding: the tool's own docstring says it "has no effect on a file that was permanently deleted," which reads as a silent no-op, but the actual behavior for any non-existent file_id (including a permanently-deleted one) is this same 404 error, not a no-op. See PR comment.
 
 ---
 
@@ -943,6 +947,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Response: `{"action": "trash_emptied", "drive_id": "{SHARED_DRIVE_ID}"}`
 - The throwaway file from Setup is now permanently gone from that Shared Drive
 - My Drive's own trash (if it has unrelated trashed files) is unaffected
+
+**Result (2026-07-21) held, not run** — Code review found `empty_trash` omits Shared Drive scoping (`driveId`), meaning it currently only empties the caller's My Drive trash rather than "every file currently in the trash" as documented — see PR comment. Since this behavior is likely to change once that's addressed, holding off on live-testing the current implementation against the account's real trash rather than exercising code expected to be redesigned.
 
 ---
 
