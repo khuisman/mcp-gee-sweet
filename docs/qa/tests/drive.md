@@ -911,6 +911,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 **Result (2026-07-21) ✅ (behavior) / ⚠️ docstring gap** — Returned `HttpError 404: "File not found: invalidid123xyz."` — propagates cleanly, no crash. This also live-confirms a code-review finding: the tool's own docstring says it "has no effect on a file that was permanently deleted," which reads as a silent no-op, but the actual behavior for any non-existent file_id (including a permanently-deleted one) is this same 404 error, not a no-op. See PR comment.
 
+**Update (2026-07-21, post-fix):** docstring corrected (123884a) to state the API-error behavior explicitly instead of "has no effect." Behavior itself was already correct pre-fix (this was a documentation-only gap) — no re-run needed.
+
 ---
 
 ## `empty_trash`
@@ -932,6 +934,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 **Note (2026-07-21):** the original single `empty_trash` test case was held, not run, during code review — `empty_trash` omitted Shared Drive scoping (`driveId`) entirely, so QA held off live-testing an implementation expected to be redesigned rather than exercise it against the account's real trash (see PR comment). That gap is what led to this case being split into TC-D204 (My Drive, now the explicit default) and TC-D205 (Shared Drive, new). Neither has a live pass yet against the fixed implementation.
 
+**Result (2026-07-21) skipped, by operator decision** — unit tests (`test_empty_trash_defaults_to_my_drive_no_drive_id`, `test_empty_trash_api_error_propagates`) confirm the code path via mocks; operator chose to verify the real destructive My-Drive-wide effect through a different means rather than live here.
+
 ---
 
 ### TC-D205: Empty trash scoped to a specific Shared Drive ⚠️ destructive
@@ -949,6 +953,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Response: `{"action": "trash_emptied", "drive_id": "{SHARED_DRIVE_ID}"}`
 - The throwaway file from Setup is now permanently gone from that Shared Drive
 - My Drive's own trash (if it has unrelated trashed files) is unaffected
+
+**Result (2026-07-21) skipped** — `list_drives` returned no Shared Drives accessible to this QA account. Unit test `test_empty_trash_with_drive_id_scopes_to_shared_drive` confirms the `driveId` passthrough via mock; no live Shared Drive fixture currently exists to verify end-to-end.
 
 ---
 
