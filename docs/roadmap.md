@@ -143,7 +143,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [ ] Split remaining `content.py` responsibilities into `editing.py` (range-mutation tools) and `images.py` (image insertion), relocate the shared `_collect_doc_paragraphs`/`_utf16_units` offset helpers into `ast.py`, drop dead `_html_to_text` — sequenced after #360 merges, since that PR touches the exact helpers being relocated ([#372](https://github.com/khuisman/mcp-gee-sweet/issues/372))
 
 **Drive**
-- [ ] `restore_file` / `empty_trash` — undelete or permanently purge trashed files — queued for lane-a ([#138](https://github.com/khuisman/mcp-gee-sweet/issues/138))
+- [x] `restore_file` / `empty_trash` — undelete or permanently purge trashed files (PR #386) ([#138](https://github.com/khuisman/mcp-gee-sweet/issues/138))
 - [ ] `star_file` / `unstar_file` — mark files with a star for easy retrieval _(on deck — `ready-for-development`, open for outside contribution)_ ([#139](https://github.com/khuisman/mcp-gee-sweet/issues/139))
 - [ ] `transfer_ownership` — transfer a file to another user _(on deck — `ready-for-development`, open for outside contribution)_ ([#140](https://github.com/khuisman/mcp-gee-sweet/issues/140))
 - [ ] `create_shortcut` — create a Drive shortcut to a file _(on deck — `ready-for-development`, open for outside contribution)_ ([#141](https://github.com/khuisman/mcp-gee-sweet/issues/141))
