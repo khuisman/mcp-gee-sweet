@@ -117,7 +117,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [x] `add_data_validation` / `get_data_validation` — dropdowns, checkboxes, value constraints ([#125](https://github.com/khuisman/mcp-gee-sweet/issues/125)) _(freema/mcp-gsheets)_ (PR #361)
 - [x] `update_sheet_properties` — tab color, hide/show gridlines (PR #301) ([#126](https://github.com/khuisman/mcp-gee-sweet/issues/126)) _(freema/mcp-gsheets)_
 - [x] `duplicate_sheet` — copy a sheet within the same spreadsheet (PR #286) ([#127](https://github.com/khuisman/mcp-gee-sweet/issues/127))
-- [ ] Partial (rich-text) hyperlinks in `update_cells` _(on deck — `ready-for-development`, open for outside contribution)_ ([#89](https://github.com/khuisman/mcp-gee-sweet/issues/89))
+- [x] Partial (rich-text) hyperlinks in `update_cells` (PR #380) ([#89](https://github.com/khuisman/mcp-gee-sweet/issues/89))
 - [x] `import_csv_to_sheet` — populate a spreadsheet from a local CSV file (PR #272) ([#187](https://github.com/khuisman/mcp-gee-sweet/issues/187))
 
 **Calendar**
