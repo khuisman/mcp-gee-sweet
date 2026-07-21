@@ -45,7 +45,7 @@ Logic is split across `src/mcp_gee_sweet/`: `server.py` (MCP setup, tool decorat
   - `docs/layout.py` — tools (`create_header`, `create_footer`)
   - `docs/comments.py` — tools (`list_doc_comments`, `add_doc_comment`, `resolve_doc_comment`) via the Drive `comments`/`replies` resource, not the Docs API
   - `docs/ast.py` — dataclass schema
-  - `docs/html_parser.py` — HTML→AST
+  - `docs/html_parser.py` — HTML→AST. `_AstParser.handle_data` only buffers text while a block context is open (`<p>`/`<li>`/heading/table cell) — text with no wrapping block tag was silently dropped (#343). Fixed via a generic `_tag_depth` counter tracking open non-block tags: bare top-level text (depth 0, e.g. `"hello world"` with zero surrounding tags) now gets an implicit paragraph wrap, while text merely wrapped in an inline tag with no block ancestor (e.g. `<span>no blocks</span>`, depth 1) stays an intentional no-op, matching `test_inline_only_html_skips_batchupdate`. `_finalize()` (called once after `parser.feed()` in `html_to_ast`) flushes whatever block is still open at end-of-input, since the implicit paragraph never gets a real closing tag.
   - `docs/emitter.py` — AST→Docs API requests + multi-phase table fill including nested table and cell styling support
 - `tools/cache.py` — `refresh_cache`, `set_cache_ttl`/`get_cache_ttl` (runtime TTL change, no restart needed)
 - `tools/calendar.py` — Calendar API tools

@@ -43,6 +43,16 @@ class _AstParser(HTMLParser):
         self._list_ordered: list[bool] = []  # stack: True=ol, False=ul
         self._in_pre = False  # inside <pre>; text is literal, runs get font_family
 
+        # Depth of open non-block tags (span, b, a, unrecognized tags, ...)
+        # that reach the generic inline-element fallthrough below. Lets
+        # handle_data tell genuinely bare top-level text (depth 0, e.g. plain
+        # "hello world" with no wrapping tag at all — #343) apart from text
+        # that's merely wrapped in an inline tag with no block ancestor (e.g.
+        # "<span>no blocks</span>", depth 1) — the latter is intentionally
+        # dropped (see test_inline_only_html_skips_batchupdate). "br" is
+        # excluded since it's void and never gets a matching close tag.
+        self._tag_depth = 0
+
         # --- inline formatting stacks ---
         self._bold_depth = 0
         self._italic_depth = 0
@@ -287,7 +297,9 @@ class _AstParser(HTMLParser):
                 self._block_named_style = None
             return
 
-        # --- inline elements ---
+        # --- inline elements / unrecognized tags ---
+        if tag != "br":
+            self._tag_depth += 1
         if self._block_tag or (
             self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
         ):
@@ -378,7 +390,9 @@ class _AstParser(HTMLParser):
             self._resume_interrupted_block(tag)
             return
 
-        # --- inline elements ---
+        # --- inline elements / unrecognized tags ---
+        if tag != "br" and self._tag_depth > 0:
+            self._tag_depth -= 1
         if self._block_tag or (
             self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell
         ):
@@ -401,6 +415,14 @@ class _AstParser(HTMLParser):
             self._run_buf.append(data)
         elif self._block_tag:
             self._run_buf.append(data)
+        elif self._table_depth == 0 and self._tag_depth == 0 and data.strip():
+            # Genuinely bare text — no wrapping block tag, no enclosing tag of
+            # any kind (#343). Implicitly open a paragraph so it isn't
+            # silently dropped the way inline-only content
+            # (e.g. "<span>no blocks</span>") intentionally is.
+            self._block_tag = "p"
+            self._block_named_style = None
+            self._run_buf.append(data)
 
     def handle_entityref(self, name):
         text = html_module.unescape(f"&{name};")
@@ -409,6 +431,17 @@ class _AstParser(HTMLParser):
     def handle_charref(self, name):
         text = html_module.unescape(f"&#{name};")
         self.handle_data(text)
+
+    def _finalize(self):
+        """Flush a block left open at end-of-input — the implicit paragraph
+        opened for bare top-level text (no closing tag ever arrives for it),
+        or malformed HTML missing a final close tag — so trailing content
+        isn't silently dropped."""
+        if self._block_tag is not None:
+            runs = self._flush_pending_runs()
+            self._emit_block_node(self._block_tag, runs)
+            self._block_tag = None
+            self._block_named_style = None
 
 
 class _TableBuilder:
@@ -479,4 +512,5 @@ def html_to_ast(html: str) -> list[DocNode]:
     """Parse an HTML string into a list of DocNode objects."""
     parser = _AstParser()
     parser.feed(html)
+    parser._finalize()
     return parser._nodes
