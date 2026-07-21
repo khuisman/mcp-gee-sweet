@@ -100,6 +100,8 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 
 **Note (2026-07-20):** the tool-response gap above was addressed post-review — mixed writes now return `{"values_update": ..., "rich_text_update": ...}` (both results present) instead of only the plain-cell response, and the plain-cell write is now a per-cell `values().batchUpdate()` rather than a whole-range `values().update()`. The Result entry above reflects pre-fix behavior and is left as-is for history; needs a fresh live pass to confirm the fixed return shape.
 
+**Result (2026-07-20, post-fix re-verification) ✅** — Re-ran against c368ce1. Return value was `{"values_update": {"spreadsheetId":"...","totalUpdatedRows":1,"totalUpdatedColumns":1,"totalUpdatedCells":1,"totalUpdatedSheets":1,"responses":[{"updatedRange":"Sales!F3",...}]}, "rich_text_update": {"spreadsheetId":"...","replies":[{}]}}` — both results now present, confirming the fix. `get_sheet_data(include_grid_data=True)` on F3:G3 confirmed F3 `userEnteredValue.stringValue` = "PlainValue" and G3 `userEnteredValue.stringValue` = "Link" with `hyperlinkDisplayType: LINKED` and `hyperlink` = "https://example.com/g3" — both cells still correct with the new per-cell `values.batchUpdate` write path. 🔍 Visual check still blocked by the chart-pollution limitation.
+
 ---
 
 ### TC-W35: Rich-text run missing "text" key returns an error
@@ -140,6 +142,8 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 - Returns `{"error": ...}` — does not raise/crash (a prior version only checked `"text"` was present, not that it was a string, and crashed with an unhandled `TypeError` on a non-string value)
 - No write occurs — F6 is unchanged
 
+**Result (2026-07-20) ✅** — Returned `{"error": "Rich-text cell runs must be dicts with a string 'text' key, e.g. {'text': ..., 'hyperlink': ...}"}`, no crash. Follow-up `get_sheet_data` on F6 confirmed no write occurred (absent from the response entirely, same as an untouched row).
+
 ---
 
 ### TC-W38: Empty rich-text run list returns an error, not a silent blank
@@ -151,6 +155,8 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 - Returns `{"error": ...}` — an empty run list is rejected up front
 - No write occurs — F7 is unchanged (a prior version treated `[]` as a valid zero-run rich-text cell and silently blanked it)
 
+**Result (2026-07-20) ✅** — Returned `{"error": "Rich-text cell runs list cannot be empty"}`. Follow-up `get_sheet_data` on F7 confirmed no write occurred.
+
 ---
 
 ### TC-W39: Empty `data` returns an error, not a silent no-op
@@ -161,6 +167,8 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 **Checks**
 - Returns `{"error": "data cannot be empty"}`
 - No API call is made and the spreadsheet is unchanged
+
+**Result (2026-07-20) ✅** — Returned `{"error": "data cannot be empty"}`. Follow-up `get_sheet_data` on F8 confirmed no write occurred.
 
 ---
 
