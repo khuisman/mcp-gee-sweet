@@ -79,6 +79,8 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 - `userEnteredFormat.hyperlinkDisplayType` = "LINKED"
 - 🔍 Visual check: only "the docs" renders underlined/blue and is clickable; "See " renders as plain text
 
+**Result (2026-07-19) ✅** — `get_sheet_data(include_grid_data=True)` on F2 confirmed `userEnteredValue.stringValue` = "See the docs", `textFormatRuns` = `[{"format":{}}, {"startIndex":4,"format":{"link":{"uri":"https://example.com"},...}}]`, `userEnteredFormat.hyperlinkDisplayType` = "LINKED". 🔍 Visual check blocked by the documented "Chart-covered grid (Sales sheet)" limitation (`docs/qa/run.md`) — a floating chart from earlier `add_chart` runs covers rows 1–22 including F2; API response used as the confirmation source per that doc's guidance instead.
+
 ---
 
 ### TC-W34: Mixed plain and rich-text cells in the same call ⚠️ destructive
@@ -94,6 +96,8 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 - The tool's own return value is `{"values_update": {...}, "rich_text_update": {...}}` — both results present, not just the plain-cell one (previously the rich-text result was silently dropped whenever plain cells were also present in the same call)
 - 🔍 Visual check: G3 renders underlined/blue and clickable; F3 renders as plain text
 
+**Result (2026-07-19) ✅ (write) / ⚠️ tool-response gap** — `get_sheet_data(include_grid_data=True)` on F3:G3 confirmed both cells correct: F3 `userEnteredValue.stringValue` = "PlainValue" (`hyperlinkDisplayType: PLAIN_TEXT`); G3 `userEnteredValue.stringValue` = "Link", `hyperlinkDisplayType: LINKED`, `textFormatRuns[0].format.link.uri` = "https://example.com/g3" — the two passes do compose correctly on the sheet. However the tool's own return value was `{"updatedRange":"Sales!F3:G3","updatedRows":1,"updatedColumns":2,"updatedCells":2}` — only the plain `values().update()` response; the `batchUpdate` reply for G3's rich-text write is silently dropped from what the caller sees, even though the write itself succeeded. Matches code-review finding (data.py:687, `result = batch_result` only fires `if not has_plain_cells`) — real, live-confirmed, not just a code-reading inference. 🔍 Visual check blocked by the same chart-pollution limitation as TC-W33.
+
 ---
 
 ### TC-W35: Rich-text run missing "text" key returns an error
@@ -104,6 +108,8 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 **Checks**
 - Returns `{"error": ...}` naming the missing `text` key
 - No write occurs — F4 is unchanged (neither the plain-value pass nor the batchUpdate pass fires)
+
+**Result (2026-07-19) ✅** — Returned `{"error": "Rich-text cell runs must be dicts with a 'text' key, e.g. {'text': ..., 'hyperlink': ...}"}`. Follow-up `get_sheet_data` on F4 confirmed no write occurred (empty). Note: this test only covers a *missing* `text` key — it does not cover a *present-but-wrong-type* `text` value (e.g. `{"text": None, ...}` or `{"text": 123, ...}`), which code review found crashes with an unhandled `TypeError` instead of returning this same graceful error (see PR comment).
 
 ---
 
@@ -118,6 +124,8 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 **Checks**
 - `textFormatRuns`'s second entry has `startIndex: 2` (the emoji occupies 2 UTF-16 units), not `1`
 - 🔍 Visual check: the hyperlink underline/color starts exactly at "link", not one character into the emoji
+
+**Result (2026-07-19) ✅** — `get_sheet_data(include_grid_data=True)` on F5 confirmed `userEnteredValue.stringValue` = "🚀link", `textFormatRuns[1].startIndex` = 2 (not 1) with `format.link.uri` = "https://example.com". `_utf16_len` correctly accounts for the emoji's UTF-16 surrogate pair. 🔍 Visual check blocked by the same chart-pollution limitation as TC-W33.
 
 ---
 
