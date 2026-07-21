@@ -2986,6 +2986,45 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#bare-top-level-text-no-longer-silently-dropped-write_doc_content-issue-343" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bare top-level text no longer silently dropped — write_doc_content (issue #343)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Bare top-level text no longer silently dropped — write_doc_content (issue #343)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc131-bare-text-with-no-wrapping-tag-at-all-is-no-longer-dropped-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC131: Bare text with no wrapping tag at all is no longer dropped ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc132-an-inline-tag-with-no-block-ancestor-still-produces-no-content-regression-guard-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC132: An inline tag with no block ancestor still produces no content (regression guard) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4699,7 +4738,7 @@ Doc lacked the literal text "QA anchor target", so it was inserted via <code>ins
 - Response contains <code>docId</code>, a non-empty string <code>namedRangeId</code>, <code>name: "section-a"</code>, <code>startIndex: N</code>, <code>endIndex: M</code></p>
 <p><strong>Cleanup:</strong> delete the created doc</p>
 <p><strong>Result (2026-07-17) ✅ PASS</strong>
-<code>create_named_range(doc_id, name="section-a", start_index=1, end_index=64)</code> against a doc with one paragraph of real text returned <code>{"docId": ..., "namedRangeId": "kix.kmeha3539w3s", "name": "section-a", "startIndex": 1, "endIndex": 64}</code> — all fields present and correct. Note: <code>create_doc</code>'s <code>content</code> param and a plain-text (no wrapping tag) call to <code>write_doc_content</code> both silently produced an empty document body (confirmed live via Playwright screenshot) — wrapping the same text in <code>&lt;p&gt;...&lt;/p&gt;</code> via <code>write_doc_content</code> worked. This is unrelated to <code>create_named_range</code>/<code>create_bookmark</code> (not touched by this PR) but is a real, reproducible bug in the existing HTML content pipeline; flagging separately, not blocking this PR.</p>
+<code>create_named_range(doc_id, name="section-a", start_index=1, end_index=64)</code> against a doc with one paragraph of real text returned <code>{"docId": ..., "namedRangeId": "kix.kmeha3539w3s", "name": "section-a", "startIndex": 1, "endIndex": 64}</code> — all fields present and correct. Note: <code>create_doc</code>'s <code>content</code> param and a plain-text (no wrapping tag) call to <code>write_doc_content</code> both silently produced an empty document body (confirmed live via Playwright screenshot) — wrapping the same text in <code>&lt;p&gt;...&lt;/p&gt;</code> via <code>write_doc_content</code> worked. This is unrelated to <code>create_named_range</code>/<code>create_bookmark</code> (not touched by this PR) but is a real, reproducible bug in the existing HTML content pipeline; flagging separately, not blocking this PR. Filed as issue #343; fixed — see TC-DOC131/TC-DOC132 below.</p>
 <hr />
 <h3 id="tc-doc108-create_named_range-api-error-returned-gracefully-end_index-beyond-document-end">TC-DOC108: <code>create_named_range</code> — API error returned gracefully (end_index beyond document end)<a class="headerlink" href="#tc-doc108-create_named_range-api-error-returned-gracefully-end_index-beyond-document-end" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -5008,6 +5047,28 @@ Returned <code>{"error": "marker 'IMG1' not found in document"}}</code> — conf
 - Call succeeds with no API error
 - <code>get_doc_structure</code> shows a bulleted paragraph "text" (the <code>&lt;li&gt;</code>'s own text, preserved despite the unclosed <code>&lt;p&gt;</code> inside it)
 - <code>get_doc_structure</code> shows "Later unrelated paragraph" as a plain, non-bulleted paragraph — not wrapped into a list item and not merged with any other text</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<hr />
+<h2 id="bare-top-level-text-no-longer-silently-dropped-write_doc_content-issue-343">Bare top-level text no longer silently dropped — <code>write_doc_content</code> (issue #343)<a class="headerlink" href="#bare-top-level-text-no-longer-silently-dropped-write_doc_content-issue-343" title="Permanent link">&para;</a></h2>
+<p><strong>Background:</strong> surfaced by Kit while building fixtures for TC-DOC107/PR #337 (unrelated to that PR's diff, flagged separately). <code>content</code>/HTML with no wrapping block tag (e.g. <code>hello world</code> instead of <code>&lt;p&gt;hello world&lt;/p&gt;</code>) fell into <code>html_to_ast</code>'s inline-only code path — <code>handle_data</code> only buffers text inside an open block (<code>&lt;p&gt;</code>, <code>&lt;li&gt;</code>, a heading, or a table cell), so text with no block ancestor at all was silently dropped, producing an empty document body. The fix adds a generic open-tag depth counter so <code>handle_data</code> can tell genuinely bare text (depth 0) apart from text merely wrapped in a non-block tag with no block ancestor at all (e.g. <code>&lt;span&gt;no blocks&lt;/span&gt;</code>, depth 1) — the latter stays an intentional no-op (see <code>test_inline_only_html_skips_batchupdate</code>), the former now gets an implicit paragraph wrap.</p>
+<h3 id="tc-doc131-bare-text-with-no-wrapping-tag-at-all-is-no-longer-dropped-destructive">TC-DOC131: Bare text with no wrapping tag at all is no longer dropped ⚠️ destructive<a class="headerlink" href="#tc-doc131-bare-text-with-no-wrapping-tag-at-all-is-no-longer-dropped-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>hello world</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows a single plain paragraph reading exactly "hello world" — previously this call silently produced an empty document body</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<hr />
+<h3 id="tc-doc132-an-inline-tag-with-no-block-ancestor-still-produces-no-content-regression-guard-destructive">TC-DOC132: An inline tag with no block ancestor still produces no content (regression guard) ⚠️ destructive<a class="headerlink" href="#tc-doc132-an-inline-tag-with-no-block-ancestor-still-produces-no-content-regression-guard-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;span&gt;no blocks&lt;/span&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows the document body empty/unchanged — this is the deliberate existing behavior for inline-only tags with no block ancestor and the #343 fix must not alter it</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
 
 
