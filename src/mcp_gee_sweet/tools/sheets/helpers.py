@@ -2,6 +2,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from ...auth import execute_in_thread
+from ..docs.content import _utf16_units
 
 if TYPE_CHECKING:
     from ...cache import SheetStructureCache
@@ -33,6 +34,16 @@ def _letter_to_column_index(letter: str) -> int:
     for char in letter.upper():
         result = result * 26 + (ord(char) - ord("A") + 1)
     return result - 1
+
+
+def _utf16_len(text: str) -> int:
+    """UTF-16 code units a string occupies. Sheets API TextFormatRun.startIndex
+    counts UTF-16 code units, not Python code points — an astral-plane character
+    (most emoji, some CJK/math symbols) is one Python str character but a 2-unit
+    surrogate pair, the same accounting the Docs API tools use for their own
+    startIndex/endIndex fields — delegates to _utf16_units (tools/docs/content.py)
+    rather than duplicating its per-character logic."""
+    return sum(_utf16_units(ch) for ch in text)
 
 
 def _parse_a1_notation(range_str: str) -> dict[str, int]:

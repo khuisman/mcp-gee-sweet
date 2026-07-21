@@ -67,6 +67,111 @@ Many write tests mutate the fixture spreadsheet. Tests marked **⚠️ destructi
 
 ---
 
+### TC-W33: Partial (rich-text) hyperlink in a single cell ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "In the Sales sheet of {SPREADSHEET_ID}, write cell F2 using `update_cells` so it reads 'See the docs' where only the 'the docs' part is a hyperlink to https://example.com — pass F2's value as a two-run list: {\"text\": \"See \"} then {\"text\": \"the docs\", \"hyperlink\": \"https://example.com\"}"
+
+**Checks**
+- `get_sheet_data` with `include_grid_data=True` on F2 shows `userEnteredValue.stringValue` = "See the docs"
+- `textFormatRuns` has two entries: first with no `startIndex` (implicit 0) and an empty `format`, second with `startIndex: 4` and `format.link.uri` = "https://example.com"
+- `userEnteredFormat.hyperlinkDisplayType` = "LINKED"
+- 🔍 Visual check: only "the docs" renders underlined/blue and is clickable; "See " renders as plain text
+
+**Result (2026-07-19) ✅** — `get_sheet_data(include_grid_data=True)` on F2 confirmed `userEnteredValue.stringValue` = "See the docs", `textFormatRuns` = `[{"format":{}}, {"startIndex":4,"format":{"link":{"uri":"https://example.com"},...}}]`, `userEnteredFormat.hyperlinkDisplayType` = "LINKED". 🔍 Visual check blocked by the documented "Chart-covered grid (Sales sheet)" limitation (`docs/qa/run.md`) — a floating chart from earlier `add_chart` runs covers rows 1–22 including F2; API response used as the confirmation source per that doc's guidance instead.
+
+---
+
+### TC-W34: Mixed plain and rich-text cells in the same call ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "In the Sales sheet of {SPREADSHEET_ID}, use `update_cells` on range F3:G3 to write 'PlainValue' into F3 and, into G3, a hyperlinked cell reading 'Link' that links to https://example.com/g3"
+
+**Checks**
+- F3 = "PlainValue" (written via a per-cell `values.batchUpdate` scoped to just F3, not a whole-range `values.update` — the whole-range write was retired because it required blanking G3 to "" first and relying on the rich-text pass to overwrite it back, losing G3's content for good if that second call failed)
+- G3 shows "Link" with `userEnteredFormat.hyperlinkDisplayType` = "LINKED" and a `textFormatRuns` entry linking to https://example.com/g3
+- Both cells are correct in a single tool call — confirms the plain-cell pass and the rich-text `batchUpdate` pass compose correctly over the same range
+- The tool's own return value is `{"values_update": {...}, "rich_text_update": {...}}` — both results present, not just the plain-cell one (previously the rich-text result was silently dropped whenever plain cells were also present in the same call)
+- 🔍 Visual check: G3 renders underlined/blue and clickable; F3 renders as plain text
+
+**Result (2026-07-19) ✅ (write) / ⚠️ tool-response gap** — `get_sheet_data(include_grid_data=True)` on F3:G3 confirmed both cells correct: F3 `userEnteredValue.stringValue` = "PlainValue" (`hyperlinkDisplayType: PLAIN_TEXT`); G3 `userEnteredValue.stringValue` = "Link", `hyperlinkDisplayType: LINKED`, `textFormatRuns[0].format.link.uri` = "https://example.com/g3" — the two passes do compose correctly on the sheet. However the tool's own return value was `{"updatedRange":"Sales!F3:G3","updatedRows":1,"updatedColumns":2,"updatedCells":2}` — only the plain `values().update()` response; the `batchUpdate` reply for G3's rich-text write is silently dropped from what the caller sees, even though the write itself succeeded. Matches code-review finding (data.py:687, `result = batch_result` only fires `if not has_plain_cells`) — real, live-confirmed, not just a code-reading inference. 🔍 Visual check blocked by the same chart-pollution limitation as TC-W33.
+
+**Note (2026-07-20):** the tool-response gap above was addressed post-review — mixed writes now return `{"values_update": ..., "rich_text_update": ...}` (both results present) instead of only the plain-cell response, and the plain-cell write is now a per-cell `values().batchUpdate()` rather than a whole-range `values().update()`. The Result entry above reflects pre-fix behavior and is left as-is for history; needs a fresh live pass to confirm the fixed return shape.
+
+**Result (2026-07-20, post-fix re-verification) ✅** — Re-ran against c368ce1. Return value was `{"values_update": {"spreadsheetId":"...","totalUpdatedRows":1,"totalUpdatedColumns":1,"totalUpdatedCells":1,"totalUpdatedSheets":1,"responses":[{"updatedRange":"Sales!F3",...}]}, "rich_text_update": {"spreadsheetId":"...","replies":[{}]}}` — both results now present, confirming the fix. `get_sheet_data(include_grid_data=True)` on F3:G3 confirmed F3 `userEnteredValue.stringValue` = "PlainValue" and G3 `userEnteredValue.stringValue` = "Link" with `hyperlinkDisplayType: LINKED` and `hyperlink` = "https://example.com/g3" — both cells still correct with the new per-cell `values.batchUpdate` write path. 🔍 Visual check still blocked by the chart-pollution limitation.
+
+---
+
+### TC-W35: Rich-text run missing "text" key returns an error
+
+**Prompt**
+> "Call `update_cells` on {SPREADSHEET_ID}'s Sales sheet, range F4, with a malformed rich-text cell: a run list containing only `{\"hyperlink\": \"https://example.com\"}` with no `text` key"
+
+**Checks**
+- Returns `{"error": ...}` naming the missing `text` key
+- No write occurs — F4 is unchanged (neither the plain-value pass nor the batchUpdate pass fires)
+
+**Result (2026-07-19) ✅** — Returned `{"error": "Rich-text cell runs must be dicts with a 'text' key, e.g. {'text': ..., 'hyperlink': ...}"}`. Follow-up `get_sheet_data` on F4 confirmed no write occurred (empty). Note: this test only covers a *missing* `text` key — it does not cover a *present-but-wrong-type* `text` value (e.g. `{"text": None, ...}` or `{"text": 123, ...}`), which code review found crashes with an unhandled `TypeError` instead of returning this same graceful error (see PR comment).
+
+---
+
+### TC-W36: Rich-text run offsets after an astral-plane character (emoji) ⚠️ destructive
+
+**Background:** Sheets API `TextFormatRun.startIndex` counts UTF-16 code units, not Python characters — an emoji outside the Basic Multilingual Plane is 2 units. A run offset computed with plain `len()` would land the hyperlink one character early.
+
+**Prompt**
+**Playwright: required**
+> "In the Sales sheet of {SPREADSHEET_ID}, write cell F5 using `update_cells` with a two-run rich-text cell: first run text is a single 🚀 emoji with no hyperlink, second run text is 'link' hyperlinked to https://example.com"
+
+**Checks**
+- `textFormatRuns`'s second entry has `startIndex: 2` (the emoji occupies 2 UTF-16 units), not `1`
+- 🔍 Visual check: the hyperlink underline/color starts exactly at "link", not one character into the emoji
+
+**Result (2026-07-19) ✅** — `get_sheet_data(include_grid_data=True)` on F5 confirmed `userEnteredValue.stringValue` = "🚀link", `textFormatRuns[1].startIndex` = 2 (not 1) with `format.link.uri` = "https://example.com". `_utf16_len` correctly accounts for the emoji's UTF-16 surrogate pair. 🔍 Visual check blocked by the same chart-pollution limitation as TC-W33.
+
+---
+
+### TC-W37: Rich-text run with a wrong-typed "text" value returns an error, not a crash
+
+**Prompt**
+> "Call `update_cells` on {SPREADSHEET_ID}'s Sales sheet, range F6, with a malformed rich-text cell: a run list containing `{\"text\": null, \"hyperlink\": \"https://example.com\"}`"
+
+**Checks**
+- Returns `{"error": ...}` — does not raise/crash (a prior version only checked `"text"` was present, not that it was a string, and crashed with an unhandled `TypeError` on a non-string value)
+- No write occurs — F6 is unchanged
+
+**Result (2026-07-20) ✅** — Returned `{"error": "Rich-text cell runs must be dicts with a string 'text' key, e.g. {'text': ..., 'hyperlink': ...}"}`, no crash. Follow-up `get_sheet_data` on F6 confirmed no write occurred (absent from the response entirely, same as an untouched row).
+
+---
+
+### TC-W38: Empty rich-text run list returns an error, not a silent blank
+
+**Prompt**
+> "Call `update_cells` on {SPREADSHEET_ID}'s Sales sheet, range F7, passing `[]` (an empty list) as F7's cell value"
+
+**Checks**
+- Returns `{"error": ...}` — an empty run list is rejected up front
+- No write occurs — F7 is unchanged (a prior version treated `[]` as a valid zero-run rich-text cell and silently blanked it)
+
+**Result (2026-07-20) ✅** — Returned `{"error": "Rich-text cell runs list cannot be empty"}`. Follow-up `get_sheet_data` on F7 confirmed no write occurred.
+
+---
+
+### TC-W39: Empty `data` returns an error, not a silent no-op
+
+**Prompt**
+> "Call `update_cells` on {SPREADSHEET_ID}'s Sales sheet, range F8, with `data` set to an empty list `[]`"
+
+**Checks**
+- Returns `{"error": "data cannot be empty"}`
+- No API call is made and the spreadsheet is unchanged
+
+**Result (2026-07-20) ✅** — Returned `{"error": "data cannot be empty"}`. Follow-up `get_sheet_data` on F8 confirmed no write occurred.
+
+---
+
 ## `batch_update_cells`
 
 ### TC-W06: Multiple ranges in one call
