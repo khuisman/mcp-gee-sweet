@@ -930,6 +930,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Any other file already in My Drive's trash before this test ran is also now permanently gone (confirm this is expected before running)
 - A file that was, at the time of this call, sitting in a Shared Drive's trash (if one exists) is unaffected
 
+**Note (2026-07-21):** the original single `empty_trash` test case was held, not run, during code review — `empty_trash` omitted Shared Drive scoping (`driveId`) entirely, so QA held off live-testing an implementation expected to be redesigned rather than exercise it against the account's real trash (see PR comment). That gap is what led to this case being split into TC-D204 (My Drive, now the explicit default) and TC-D205 (Shared Drive, new). Neither has a live pass yet against the fixed implementation.
+
 ---
 
 ### TC-D205: Empty trash scoped to a specific Shared Drive ⚠️ destructive
@@ -947,8 +949,6 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Response: `{"action": "trash_emptied", "drive_id": "{SHARED_DRIVE_ID}"}`
 - The throwaway file from Setup is now permanently gone from that Shared Drive
 - My Drive's own trash (if it has unrelated trashed files) is unaffected
-
-**Result (2026-07-21) held, not run** — Code review found `empty_trash` omits Shared Drive scoping (`driveId`), meaning it currently only empties the caller's My Drive trash rather than "every file currently in the trash" as documented — see PR comment. Since this behavior is likely to change once that's addressed, holding off on live-testing the current implementation against the account's real trash rather than exercising code expected to be redesigned.
 
 ---
 
