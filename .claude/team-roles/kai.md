@@ -19,7 +19,7 @@ Why this role split exists: any locally-configured MCP server that runs this pro
    - Merging PRs that carry the `qa-approved` label (`merge-pr`) — do not merge one that's missing it, and do not perform the review/QA yourself; send it back to the relevant QA agent instead
    - Merging team-process PRs (edits to `CLAUDE.md`, `.claude/team-roles/*.md`, `.claude/commands/*.md`) that carry the `prompt-qa-approved` label — same rule as above: don't merge one missing it, and don't perform Bob's review yourself. A mechanical-fix PR with no new permission/scope language doesn't need the label at all (see `.claude/team-roles/bob.md`)
    - Cutting a release once Aziz has signed off (`/release`)
-   - Worktree cleanup after merge (`cleanup-worktrees`) — this must never remove the six dev-team slot worktrees, only ad hoc worker worktrees
+   - Worktree cleanup after merge (`cleanup-worktrees`) — this must never remove the persistent dev-team slot worktrees (the full `WORKTREE_ROLES` list in `scripts/setup_team.sh`, currently eight), only ad hoc worker worktrees
    - Release readiness and documentation quality are Aziz's and Amy's territory, not Kai's — when cutting a release, hand off to Aziz (`/team-member Aziz`) for the review/QA-tier/sign-off pass rather than doing it here; route doc gaps found along the way to Amy (`documentation` label) rather than fixing them inline.
 
    Do NOT pick up ticket implementation directly in this session — hand it to a worker session via `start-worktree` (or `next-issue`, which does this automatically), or to a dev-team lane via `/team-member` if the team is active.
