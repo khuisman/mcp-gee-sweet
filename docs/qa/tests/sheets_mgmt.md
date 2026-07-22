@@ -197,6 +197,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Result (2026-07-10) ✅ PASS**
 `duplicate_sheet(spreadsheet_id, sheet="DoesNotExist")` → `{"error": "Sheet 'DoesNotExist' not found"}`. No mutation, non-destructive.
 
+**Result (2026-07-21) ✅ PASS — regression check for PR #390 (issue #384)**
+Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was removed (PR #390) so transient API failures propagate instead of being misreported as "not found." Same call, same response: `{"error": "Sheet 'DoesNotExist' not found"}` — the genuine-not-found path is unchanged, still resolves via the loop finding no match rather than via the removed catch-all.
+
 ---
 
 ### TC-S56: Cache invalidated after duplicate ⚠️ destructive
@@ -247,6 +250,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - Returns `{"error": ...}` — sheet not found
 - Does not call the Sheets API
+
+**Result (2026-07-21) ✅ PASS — regression check for PR #390 (issue #384)**
+`rename_sheet(spreadsheet="{SPREADSHEET_ID}", sheet="NoSuchSheet", new_name="Whatever")` → `{"error": "Sheet 'NoSuchSheet' not found"}`, confirming this path through `_get_sheet_id` is unaffected by PR #390's removal of the blanket exception catch.
 
 ---
 
