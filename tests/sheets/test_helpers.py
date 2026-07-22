@@ -1,7 +1,11 @@
+from types import SimpleNamespace
+
 import pytest
 
+from mcp_gee_sweet.cache import SheetInfo, SheetStructureCache
 from mcp_gee_sweet.tools.sheets.helpers import (
     _column_index_to_letter,
+    _get_sheet_id,
     _letter_to_column_index,
     _parse_a1_notation,
 )
@@ -99,3 +103,70 @@ class TestParseA1Notation:
     def test_invalid_garbage_raises(self):
         with pytest.raises(ValueError):
             _parse_a1_notation("??!!")
+
+
+class _RaisingSheetsService:
+    """Simulates a transient API failure (rate limit, timeout, auth hiccup)."""
+
+    _http = SimpleNamespace(credentials=None)
+
+    class _Spreadsheets:
+        class _Request:
+            def execute(self, **kwargs):
+                raise TimeoutError("simulated transient API failure")
+
+        def get(self, spreadsheetId, fields):
+            return self._Request()
+
+    def spreadsheets(self):
+        return self._Spreadsheets()
+
+
+class _EmptySheetsService:
+    """A real API response where the sheet genuinely doesn't exist."""
+
+    _http = SimpleNamespace(credentials=None)
+
+    class _Spreadsheets:
+        class _Request:
+            def execute(self, **kwargs):
+                return {"sheets": [{"properties": {"title": "Other", "sheetId": 0}}]}
+
+        def get(self, spreadsheetId, fields):
+            return self._Request()
+
+    def spreadsheets(self):
+        return self._Spreadsheets()
+
+
+class TestGetSheetIdExceptionPropagation:
+    """Regression test for issue #384: _get_sheet_id used to catch every
+    exception and return None, the same value returned for a genuine
+    "sheet not found" — so callers misreported transient API failures as
+    a missing sheet. It should now let those exceptions propagate."""
+
+    async def test_no_cache_transient_api_error_propagates(self):
+        with pytest.raises(TimeoutError):
+            await _get_sheet_id(_RaisingSheetsService(), "sid", "Sheet1")
+
+    async def test_no_cache_genuine_missing_sheet_still_returns_none(self):
+        sheet_id = await _get_sheet_id(_EmptySheetsService(), "sid", "Sheet1")
+        assert sheet_id is None
+
+    async def test_with_cache_transient_api_error_propagates(self):
+        cache = SheetStructureCache(db_path=":memory:", ttl=1000)
+        with pytest.raises(TimeoutError):
+            await _get_sheet_id(_RaisingSheetsService(), "sid", "Sheet1", cache)
+
+    async def test_with_cache_stale_fallback_still_returns_none_for_missing_sheet(self):
+        # A stale cache entry exists but doesn't contain "Missing" — the API
+        # refetch fails, fetch_sheets() falls back to serving the stale
+        # entry (its own documented behavior), and the sheet genuinely isn't
+        # in it, so _get_sheet_id should still resolve to None, not raise.
+        cache = SheetStructureCache(db_path=":memory:", ttl=1000)
+        cache.store("sid", [SheetInfo(title="Other", sheet_id=0)])
+        cache.mark_dirty("sid")  # force a refetch attempt that will fail
+
+        sheet_id = await _get_sheet_id(_RaisingSheetsService(), "sid", "Missing", cache)
+
+        assert sheet_id is None
