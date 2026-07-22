@@ -14,7 +14,7 @@ Before filing, triage defect vs. hardening honestly: has a failure actually been
 
 **Command decision** — operational knowledge that should change how the *next* session in this same seat behaves: a process gap, a doc gap, a technique that worked (or didn't), a fixture gotcha, a missing step in a skill file. This isn't roadmap-worthy scope, so skip the ticket — edit the relevant process/skill doc directly, right now, and say what you changed. Examples already in this repo: `docs/qa/run.md`'s Playwright limitations list, `docs/qa/retro-v0.8.0.md`'s action items, a role file's own process fixes.
 
-If the edit grants, widens, or restates permission/scope language (a new "you may do X without asking," a loosened boundary on existing standing permission) rather than a mechanical fix, it doesn't land straight on `develop` — commit it on its own short branch (`docs/<role>/retro-<date>`), open a PR, and get `prompt-qa-approved` from Bob before it merges. See `.claude/team-roles/bob.md` for why and the full flow. A mechanical fix (typo, stale reference, renumbering) skips this gate.
+If the edit grants, widens, or restates permission/scope language (a new "you may do X without asking," a loosened boundary on existing standing permission) rather than a mechanical fix, it doesn't land straight on `develop` — commit it on its own short branch (`doc/<role>/retro-<date>`), open a PR, and get `prompt-qa-approved` from Bob before it merges. See `.claude/team-roles/bob.md` for why and the full flow. A mechanical fix (typo, stale reference, renumbering) skips this gate.
 
 ## Your role's details
 
