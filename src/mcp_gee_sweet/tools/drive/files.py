@@ -874,6 +874,72 @@ def register(tool):
             "parent": parents[0] if parents else "root",
         }
 
+    @tool(annotations=ToolAnnotations(title="Star File"))
+    async def star_file(file_id: str, ctx: Context = None) -> dict[str, Any]:
+        """
+        Mark a file or folder as starred in Google Drive, for easy retrieval later.
+
+        Args:
+            file_id: The ID of the file or folder to star.
+
+        Returns:
+            fileId, name, and the resulting starred state.
+        """
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+
+        updated = await execute_in_thread(
+            drive_service.files()
+            .update(
+                fileId=file_id,
+                body={"starred": True},
+                supportsAllDrives=True,
+                fields="id, name, starred",
+            )
+            .execute,
+            drive_service,
+        )
+
+        logger.debug("Starred file %s", file_id)
+        return {
+            "fileId": updated.get("id"),
+            "name": updated.get("name"),
+            "starred": updated.get("starred", False),
+        }
+
+    @tool(annotations=ToolAnnotations(title="Unstar File"))
+    async def unstar_file(file_id: str, ctx: Context = None) -> dict[str, Any]:
+        """
+        Remove a file or folder's starred marker in Google Drive.
+
+        Args:
+            file_id: The ID of the file or folder to unstar.
+
+        Returns:
+            fileId, name, and the resulting starred state.
+        """
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+
+        updated = await execute_in_thread(
+            drive_service.files()
+            .update(
+                fileId=file_id,
+                body={"starred": False},
+                supportsAllDrives=True,
+                fields="id, name, starred",
+            )
+            .execute,
+            drive_service,
+        )
+
+        logger.debug("Unstarred file %s", file_id)
+        return {
+            "fileId": updated.get("id"),
+            "name": updated.get("name"),
+            "starred": updated.get("starred", False),
+        }
+
     @tool(annotations=ToolAnnotations(title="List Shared With Me", readOnlyHint=True))
     async def list_shared_with_me(
         mime_type: str | None = None,
