@@ -33,6 +33,12 @@ GitHub/git actor fields (`labeled ... by khuisman`, commit authorship) can't dis
 
 Mitigation: applying `prompt-qa-approved` or `qa-approved` now requires a PR comment naming what was actually checked (see `bob.md` step 3, `qa.md` step 8) — a bare label with no accompanying comment is itself a reason to distrust it, not evidence review occurred.
 
+## Addendum (2026-07-21): Bob owns merge authority for team-process PRs, not Kai
+
+Per direct user instruction, the same night as the original decision: the merge split described in Decision 2 above (Kai merges once `prompt-qa-approved` is set, without re-doing Bob's review) is retired. Team-process/prompt-file changes and agent/product-code changes are now two fully separate tracks. Bob reviews, labels, *and* merges team-process PRs himself — `CLAUDE.md`, `.claude/team-roles/*.md`, `.claude/commands/*.md`, and the other files already in his review scope — using the same `/merge-pr` mechanics documented for product PRs (nothing in that skill is Kai-specific; its worktree-cleanup step already handles Bob's own persistent slot by name). Kai's merge authority narrows to `qa-approved` agent/product-code PRs only, which is the track that actually needs the main checkout's live MCP testing access Kai's whole role split was originally built around (see `kai.md`'s own opening paragraph) — team-process files never needed that, so there was never a structural reason to route their merge through Kai either.
+
+This surfaced through a near-miss worth recording alongside the decision itself: earlier the same night, Bob merged #394–#396 directly by one-off explicit instruction, and that was *initially* written up in `bob.md`'s Retro as an exception, not a standing rule — corrected minutes later when the user clarified the intent was permanent. A "this was a one-off" characterization is itself a claim that can be wrong, same as an over-broad permission grant; the actual fix was writing the boundary down explicitly rather than leaving it as a per-instance ask.
+
 ## When to Re-evaluate
 
 - If `prompt-qa-approved` PRs pile up unreviewed for long stretches because no session bootstraps as Bob often enough, the "ad hoc, Kai-set cadence" review trigger isn't working — consider having Kai sweep for open `doc/*/retro-*` PRs as a standing step in its own orchestration pass (parallel to how Aziz sweeps merged PRs at release time), rather than relying on someone remembering to invoke Bob.
