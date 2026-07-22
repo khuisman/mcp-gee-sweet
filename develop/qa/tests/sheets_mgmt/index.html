@@ -3018,6 +3018,8 @@
 - Error references the missing sheet name</p>
 <p><strong>Result (2026-07-10) ✅ PASS</strong>
 <code>duplicate_sheet(spreadsheet_id, sheet="DoesNotExist")</code> → <code>{"error": "Sheet 'DoesNotExist' not found"}</code>. No mutation, non-destructive.</p>
+<p><strong>Result (2026-07-21) ✅ PASS — regression check for PR #390 (issue #384)</strong>
+Re-ran after <code>_get_sheet_id</code>'s blanket <code>except Exception: return None</code> was removed (PR #390) so transient API failures propagate instead of being misreported as "not found." Same call, same response: <code>{"error": "Sheet 'DoesNotExist' not found"}</code> — the genuine-not-found path is unchanged, still resolves via the loop finding no match rather than via the removed catch-all.</p>
 <hr />
 <h3 id="tc-s56-cache-invalidated-after-duplicate-destructive">TC-S56: Cache invalidated after duplicate ⚠️ destructive<a class="headerlink" href="#tc-s56-cache-invalidated-after-duplicate-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3059,6 +3061,8 @@
 <p><strong>Checks</strong>
 - Returns <code>{"error": ...}</code> — sheet not found
 - Does not call the Sheets API</p>
+<p><strong>Result (2026-07-21) ✅ PASS — regression check for PR #390 (issue #384)</strong>
+<code>rename_sheet(spreadsheet="{SPREADSHEET_ID}", sheet="NoSuchSheet", new_name="Whatever")</code> → <code>{"error": "Sheet 'NoSuchSheet' not found"}</code>, confirming this path through <code>_get_sheet_id</code> is unaffected by PR #390's removal of the blanket exception catch.</p>
 <hr />
 <h3 id="tc-s14-cache-invalidated-after-rename">TC-S14: Cache invalidated after rename<a class="headerlink" href="#tc-s14-cache-invalidated-after-rename" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
