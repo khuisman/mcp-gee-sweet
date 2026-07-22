@@ -143,7 +143,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [ ] Split remaining `content.py` responsibilities into `editing.py` (range-mutation tools) and `images.py` (image insertion), relocate the shared `_collect_doc_paragraphs`/`_utf16_units` offset helpers into `ast.py`, drop dead `_html_to_text` — sequenced after #360 merges, since that PR touches the exact helpers being relocated ([#372](https://github.com/khuisman/mcp-gee-sweet/issues/372))
 
 **Drive**
-- [ ] `restore_file` / `empty_trash` — undelete or permanently purge trashed files — queued for lane-a ([#138](https://github.com/khuisman/mcp-gee-sweet/issues/138))
+- [x] `restore_file` / `empty_trash` — undelete or permanently purge trashed files (PR #386) ([#138](https://github.com/khuisman/mcp-gee-sweet/issues/138))
 - [ ] `star_file` / `unstar_file` — mark files with a star for easy retrieval _(on deck — `ready-for-development`, open for outside contribution)_ ([#139](https://github.com/khuisman/mcp-gee-sweet/issues/139))
 - [ ] `transfer_ownership` — transfer a file to another user _(on deck — `ready-for-development`, open for outside contribution)_ ([#140](https://github.com/khuisman/mcp-gee-sweet/issues/140))
 - [ ] `create_shortcut` — create a Drive shortcut to a file _(on deck — `ready-for-development`, open for outside contribution)_ ([#141](https://github.com/khuisman/mcp-gee-sweet/issues/141))
@@ -155,7 +155,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 **Infrastructure**
 - [x] Harden concurrent-session access — fail-open on cache read/write errors, `busy_timeout` (PR #280) ([#234](https://github.com/khuisman/mcp-gee-sweet/issues/234))
 - [x] Cache reliability & configurability — runtime-configurable TTL, smarter invalidation for shared files (PR #284) ([#99](https://github.com/khuisman/mcp-gee-sweet/issues/99))
-- [ ] Async tool execution — `asyncio.gather()` for parallel Google API calls; establishes the project's parallel-call pattern, which [#194](https://github.com/khuisman/mcp-gee-sweet/issues/194) should reuse rather than introducing its own `ThreadPoolExecutor` ([#183](https://github.com/khuisman/mcp-gee-sweet/issues/183))
+- [x] Async tool execution — `asyncio.gather()` for parallel Google API calls; establishes the project's parallel-call pattern, which [#194](https://github.com/khuisman/mcp-gee-sweet/issues/194) should reuse rather than introducing its own `ThreadPoolExecutor` (PR #293) ([#183](https://github.com/khuisman/mcp-gee-sweet/issues/183))
 
 **Documentation**
 - [x] Rewrite positioning/differentiation in README and `docs/index.md` — official Google MCP servers are now in developer preview, which undercuts the current "no official alternative exists" framing; lead with concrete differentiators (tool breadth, stability/QA gate, design philosophy) instead, checked against what the official servers actually cover (PR #306) ([#263](https://github.com/khuisman/mcp-gee-sweet/issues/263))
