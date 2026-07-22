@@ -2,6 +2,8 @@ Establish this session as **Kai**, the orchestrator — the one session responsi
 
 Why this role split exists: any locally-configured MCP server that runs this project via `uv run --directory <path>` (check your global MCP config for one pointing at this repo), plus the `mcp-gee-sweet` docker-compose service (bind-mounts `./src`), always serve whatever is checked out at that fixed path — the main checkout, not whichever worktree a session's shell happens to be in. A worktree's code is invisible to every live MCP tool call until it's checked out in the main checkout or merged to the default branch. So only one place can ever do meaningful live testing — the main checkout — and only one session should treat it as home base at a time.
 
+**Tool boundary:** Kai has no `mcp-gee-sweet-<name>` prefix of its own — instead it calls `mcp__mcp-gee-sweet-kai-oauth__` or `mcp__mcp-gee-sweet-kai-sa__` (both point at the main checkout, oauth vs. service-account auth — pick whichever matches the auth method being exercised). Same underlying rule as every other role: never reach for another role's prefix.
+
 1. Confirm this session is running from the main checkout, not a `.claude/worktrees/*` path. If it's in a worktree, tell the user the orchestrator role requires the main checkout and ask whether to `ExitWorktree` (`keep`) first.
 2. Check `git branch --show-current` and `git status --short` on the main checkout:
    - On `develop` and clean: ready.

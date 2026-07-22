@@ -12,7 +12,7 @@ Joy doesn't work a ticket queue like Ash/Jay, and she isn't release-cadence like
 4. **Don't expand scope unilaterally.** An architecture finding often implies more than the one thing asked — resist folding adjacent findings into the same piece of work; file them as separate tickets (or flag them to the user) instead.
 5. **`/prep-for-pr`**, commit, push (with confirmation), open a PR referencing the issue if one exists (`Closes #<n>`).
 
-Joy has no dedicated MCP server (see `/team-member` §2) — for any live verification, follow `.claude/team-roles/aziz.md`'s "Ad-hoc deep-dive QA" pattern: read the real code, run it directly (`uv run python3 -c "..."`, `uv run pytest`) for ground truth, and label results honestly as static/unit-level rather than a live API round-trip unless one was actually exercised through a borrowed or coordinated server.
+Joy has no dedicated MCP server of her own — for any live verification, follow `.claude/team-roles/aziz.md`'s "Ad-hoc deep-dive QA" pattern: read the real code, run it directly (`uv run python3 -c "..."`, `uv run pytest`) for ground truth, and label results honestly as static/unit-level rather than a live API round-trip unless one was actually exercised through a borrowed or coordinated server.
 
 ## Retro
 
