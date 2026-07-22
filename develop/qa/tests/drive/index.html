@@ -2135,6 +2135,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#star_file-unstar_file-issue-139" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        star_file / unstar_file (issue #139)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="star_file / unstar_file (issue #139)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-d202-star_file-marks-an-existing-file-as-starred" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D202: star_file marks an existing file as starred
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d203-unstar_file-removes-the-starred-marker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D203: unstar_file removes the starred marker
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#copy_file" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4842,6 +4881,31 @@
 </blockquote>
 <p><strong>Checks</strong>
 - API error propagates — not a crash or silent failure</p>
+<hr />
+<h2 id="star_file-unstar_file-issue-139"><code>star_file</code> / <code>unstar_file</code> (issue #139)<a class="headerlink" href="#star_file-unstar_file-issue-139" title="Permanent link">&para;</a></h2>
+<p><strong>Note:</strong> neither <code>get_file_metadata</code> nor <code>list_files</code> currently exposes a <code>starred</code> field, so verification is round-trip only — the tool's own response is the only readable signal for these checks.</p>
+<h3 id="tc-d202-star_file-marks-an-existing-file-as-starred">TC-D202: <code>star_file</code> marks an existing file as starred<a class="headerlink" href="#tc-d202-star_file-marks-an-existing-file-as-starred" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Star the spreadsheet {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response has no <code>error</code>
+- Response <code>starred</code> is <code>true</code>
+- Response <code>fileId</code> matches <code>{SPREADSHEET_ID}</code> and <code>name</code> matches the fixture's actual name</p>
+<p><strong>Cleanup:</strong> unstar {SPREADSHEET_ID} to restore fixture state</p>
+<p><strong>Result:</strong> PASS (2026-07-21) — <code>star_file</code> on the fixture spreadsheet returned <code>{"fileId": "&lt;matches&gt;", "name": "mcp-gee-sweet-qa-fixtures", "starred": true}</code>, no error.</p>
+<hr />
+<h3 id="tc-d203-unstar_file-removes-the-starred-marker">TC-D203: <code>unstar_file</code> removes the starred marker<a class="headerlink" href="#tc-d203-unstar_file-removes-the-starred-marker" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> star {SPREADSHEET_ID} first (so this test starts from a known <code>starred=true</code> state rather than assuming one)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Unstar the spreadsheet {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response has no <code>error</code>
+- Response <code>starred</code> is <code>false</code></p>
+<p><strong>Result:</strong> PASS (2026-07-21) — <code>unstar_file</code> on the same fixture spreadsheet (already starred from TC-D202) returned <code>{"fileId": "&lt;matches&gt;", "name": "mcp-gee-sweet-qa-fixtures", "starred": false}</code>, no error. Fixture left in its normal unstarred state.</p>
 <hr />
 <h2 id="copy_file"><code>copy_file</code><a class="headerlink" href="#copy_file" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d67-copy-with-auto-assigned-name-requires-oauth">TC-D67: Copy with auto-assigned name ⚠️ requires-oauth<a class="headerlink" href="#tc-d67-copy-with-auto-assigned-name-requires-oauth" title="Permanent link">&para;</a></h3>
