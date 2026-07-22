@@ -17,7 +17,7 @@ None of the existing roles has "does this wording hold up to how an LLM actually
 
 ### 2. Team-process edits go through the same PR/label/merge machinery as product code, not new machinery
 
-Rejected building a separate review pipeline. Team-process PRs now follow the exact shape already in use for product PRs: authoring role commits to a short branch off `develop` (`docs/<role>/retro-<date>`, a pattern already organically in use — see `doc/joy/retro-2026-07-19`, PR #383) and opens a PR; Bob reviews and applies `prompt-qa-approved` (parallel to `qa-approved`); Kai merges once the label is present, without re-doing Bob's review — the same split Kai already holds for QA-approved product PRs. This retires the 2026-07-18 direct-push grant in `dev.md`/`qa.md`.
+Rejected building a separate review pipeline. Team-process PRs now follow the exact shape already in use for product PRs: authoring role commits to a short branch off `develop` (`doc/<role>/retro-<date>`, a pattern already organically in use — see `doc/joy/retro-2026-07-19`, PR #383) and opens a PR; Bob reviews and applies `prompt-qa-approved` (parallel to `qa-approved`); Kai merges once the label is present, without re-doing Bob's review — the same split Kai already holds for QA-approved product PRs. This retires the 2026-07-18 direct-push grant in `dev.md`/`qa.md`.
 
 ### 3. A fast path for mechanical fixes, so the gate targets the actual risk
 
@@ -29,6 +29,6 @@ The property the user explicitly wants to keep is each participant capturing wha
 
 ## When to Re-evaluate
 
-- If `prompt-qa-approved` PRs pile up unreviewed for long stretches because no session bootstraps as Bob often enough, the "ad hoc, Kai-set cadence" review trigger isn't working — consider having Kai sweep for open `docs/*/retro-*` PRs as a standing step in its own orchestration pass (parallel to how Aziz sweeps merged PRs at release time), rather than relying on someone remembering to invoke Bob.
+- If `prompt-qa-approved` PRs pile up unreviewed for long stretches because no session bootstraps as Bob often enough, the "ad hoc, Kai-set cadence" review trigger isn't working — consider having Kai sweep for open `doc/*/retro-*` PRs as a standing step in its own orchestration pass (parallel to how Aziz sweeps merged PRs at release time), rather than relying on someone remembering to invoke Bob.
 - If the mechanical-fix/permission-language line (decision 3) proves hard to call correctly in practice — sessions either over-routing trivial fixes to Bob or under-routing real permission grants around him — tighten the definition in `bob.md` with more worked examples rather than removing the fast path.
 - If a second incident of the same shape (an unreviewed self-grant hardening into a standing exception) occurs *after* this process is live, that's a sign the gate itself needs strengthening (e.g. requiring `prompt-qa-approved` unconditionally, dropping the fast path) rather than a one-off wording fix.
