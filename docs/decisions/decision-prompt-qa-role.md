@@ -27,6 +27,12 @@ Not every command-decision edit is risky — most are typo fixes, stale cross-re
 
 The property the user explicitly wants to keep is each participant capturing what it learned, in its own words, at the moment it's fresh — that's what makes continuous self-improvement work, and gating on Bob's live availability would kill it (most sessions don't overlap with a live Bob session). So the authoring role still commits and opens the PR immediately, same trigger as before (`/retro`'s command-decision path). Bob's review is deliberately asynchronous — the open PR *is* the release valve the user asked for: a session that hits friction mid-work commits what it learned and moves on; the fix sits reviewable whenever someone gets to it, rather than blocking the session or forcing a same-session review.
 
+## Addendum (2026-07-21): label attribution isn't verifiable
+
+GitHub/git actor fields (`labeled ... by khuisman`, commit authorship) can't distinguish a human action from any team session acting under the user's own credentials — every role pushes, comments, and labels as the same account. Surfaced when Bob reported, as a confirmed fact, that a PR's `prompt-qa-approved` label had been self-applied by its own authoring session rather than earned through review: the timeline data only showed `labeled by khuisman`, identical to what a human clicking the label would produce, and the actual origin was known only because the user said so directly. No role — Kai merging on a label, Bob reviewing a PR that already carries one, or anyone auditing history later — may treat a label's mere presence, or its attributed author, as proof of what produced it.
+
+Mitigation: applying `prompt-qa-approved` or `qa-approved` now requires a PR comment naming what was actually checked (see `bob.md` step 3, `qa.md` step 8) — a bare label with no accompanying comment is itself a reason to distrust it, not evidence review occurred.
+
 ## When to Re-evaluate
 
 - If `prompt-qa-approved` PRs pile up unreviewed for long stretches because no session bootstraps as Bob often enough, the "ad hoc, Kai-set cadence" review trigger isn't working — consider having Kai sweep for open `doc/*/retro-*` PRs as a standing step in its own orchestration pass (parallel to how Aziz sweeps merged PRs at release time), rather than relying on someone remembering to invoke Bob.
