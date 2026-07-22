@@ -13,7 +13,7 @@ Find the partner Dev's open PR by matching the branch's second `/`-separated seg
   5. Record `**Result**` entries for every case actually run.
   6. Before pushing (either outcome below): `git fetch origin <headRefName>`. If it moved since step 1 (the Dev pushed again while this QA pass was running — a real, observed race, not just theoretical), `git rebase origin/<headRefName>` first; only if that has real conflicts (not just "the tip moved") stop and ask the user how to reconcile. Never force-push over the Dev's new commits.
   7. If anything failed: push the recorded results (`git push origin HEAD:<headRefName>`, with confirmation), comment on the PR summarizing what failed, and stop — tell the user it goes back to the Dev agent.
-  8. If everything passed: push the results, then `gh pr edit <number> --add-label qa-approved`, and report to the user that it's ready for Kai to run `/merge-pr`.
+  8. If everything passed: push the results, then comment on the PR naming which test cases were run and passed, `gh pr edit <number> --add-label qa-approved`, and report to the user that it's ready for Kai to run `/merge-pr`. A bare label with no accompanying comment is itself a signal to distrust, not evidence of review — GitHub attribution can't prove who applied it (see `decision-prompt-qa-role.md`'s label-attribution addendum).
 
 ## Retro
 
