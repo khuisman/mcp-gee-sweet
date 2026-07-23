@@ -73,7 +73,7 @@ setup-team: ## Idempotently provision/refresh dev-team worktree slots and MCP co
 	scripts/setup_team.sh
 
 .PHONY: claude-team
-claude-team: setup-team ## Launch Claude Code with all dev-team MCP servers connected (Kai/Ash/Sky/Jay/Kit/Aziz/Amy/Joy) for Agent View.
+claude-team: setup-team ## Launch Claude Code with all dev-team MCP servers connected (Kai/Ash/Sky/Jay/Kit/Aziz/Amy/Joy/Bob) for Agent View.
 	claude --mcp-config .claude/mcp-configs/team.mcp.json --strict-mcp-config
 
 .PHONY: test

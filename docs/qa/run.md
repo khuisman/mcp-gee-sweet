@@ -64,9 +64,17 @@ This matters for any test that syncs, lists, or downloads the whole folder (`syn
 
 ## Clearing sheet-level state with no direct tool (e.g. data validation)
 
-Some sheet-level state has a tool to *set* it but none to *clear* it, and no tool exposes a sheet's numeric `sheetId` by name to fall back to the raw `batch_update` escape hatch (`list_sheets` returns names only; the `spreadsheet://{id}/info` resource that's supposed to cover this is currently broken — [#363](https://github.com/khuisman/mcp-gee-sweet/issues/363); tracked as a product gap in [#365](https://github.com/khuisman/mcp-gee-sweet/issues/365)). Hit live testing `add_data_validation`/`get_data_validation` (PR #361, 2026-07-18): no way to clear a validation rule from the fixture's `Empty` sheet between test cases.
+Some sheet-level state has a tool to *set* it but none to *clear* it, and no tool exposes a sheet's numeric `sheetId` by name to fall back to the raw `batch_update` escape hatch (`list_sheets` returns names only; the `spreadsheet://{id}/info` resource that's supposed to cover this was broken until [#363](https://github.com/khuisman/mcp-gee-sweet/issues/363) fixed it — reading it now works, but it's still no substitute for a tool that returns `sheetId` by name, tracked as a product gap in [#365](https://github.com/khuisman/mcp-gee-sweet/issues/365)). Hit live testing `add_data_validation`/`get_data_validation` (PR #361, 2026-07-18): no way to clear a validation rule from the fixture's `Empty` sheet between test cases.
 
 Workaround for a *scratch* fixture sheet (never do this to a sheet with real data — it destroys everything on the tab, not just the state you're trying to clear): `delete_sheet(sheet="Empty")` then `create_sheet(title="Empty")`. Fully resets the tab to blank, including any validation/formatting/merges, and is safe here because every QA tool call references the sheet by name, never by the ID that changes on recreate.
+
+---
+
+## Missing `docs/qa/.env` in a role worktree
+
+`docs/qa/.env` is gitignored, so it doesn't exist by default in a freshly-provisioned `.claude/worktrees/<name>` slot — confirmed empty/absent across every role worktree and the main checkout, 2026-07-19, while doing a scoped QA pass from Kit's own role process (`.claude/team-roles/qa.md` step 4), not the full conductor-prompt flow this file otherwise documents. That flow's own fixture-check step (below) would just stop and ask the user to run `setup.md`, but a scoped single-PR QA pass doesn't need the whole `.env` — only the one fixture ID relevant to the PR under review.
+
+Workaround: the fixture files have fixed, documented names (`setup.md`'s seed prompt: "Rename the doc to `mcp-gee-sweet-qa-fixtures-doc`" / "Rename the spreadsheet to `mcp-gee-sweet-qa-fixtures`"). Find the ID directly instead of blocking: `search_files(query="mcp-gee-sweet-qa-fixtures-doc", mime_type="application/vnd.google-apps.document")` (swap the doc mime type/name for the spreadsheet as needed). Only reach for this fallback in a scoped pass that needs one or two fixture IDs — a full multi-category run still needs the real `.env` for `TEST_FOLDER_ID`/`TEST_CALENDAR_ID`/etc., which don't have as fixed a name to search by.
 
 ---
 

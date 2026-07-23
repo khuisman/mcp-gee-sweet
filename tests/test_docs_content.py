@@ -11,7 +11,9 @@ from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.docs import content as content_module
 from mcp_gee_sweet.tools.docs.ast import (
     BulletItem,
+    Heading,
     Paragraph,
+    Table,
 )
 from mcp_gee_sweet.tools.docs.content import (
     _collect_doc_paragraphs,
@@ -116,6 +118,15 @@ class TestCreateDoc:
         ctx = self._ctx(drive_svc, docs_svc)
         await _docs_tools["create_doc"](title="Doc", content="<span>no blocks</span>", ctx=ctx)
         assert not docs_svc.documents.return_value.batchUpdate.called
+
+    async def test_bare_text_with_no_wrapping_tag_still_writes_content(self):
+        """#343: plain text with no wrapping tag must not silently produce an
+        empty doc body — batchUpdate should fire just as it would for the
+        equivalent "<p>hello world</p>"."""
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        await _docs_tools["create_doc"](title="Doc", content="hello world", ctx=ctx)
+        assert docs_svc.documents.return_value.batchUpdate.called
 
     async def test_quota_exceeded_returns_error_dict(self):
         """create_doc must return {"error": ...} on storageQuotaExceeded, not raise."""
@@ -250,6 +261,241 @@ class TestTaskList:
         assert bullets[0].checked is True
         assert bullets[1].checked is False
         assert bullets[2].checked is None
+
+
+class TestNestedLists:
+    """A nested <ul>/<ol> inside an <li> that also has its own text (#335, #336)."""
+
+    def _bullets(self, html):
+        return [n for n in html_to_ast(html) if isinstance(n, BulletItem)]
+
+    def _texts_depths(self, html):
+        return [("".join(r.text for r in b.runs), b.depth) for b in self._bullets(html)]
+
+    async def test_parent_text_survives_alongside_nested_list(self):
+        html = "<ul><li>Item text<ul><li>sub a</li><li>sub b</li></ul></li></ul>"
+        assert self._texts_depths(html) == [
+            ("Item text", 0),
+            ("sub a", 1),
+            ("sub b", 1),
+        ]
+
+    async def test_parent_bullet_precedes_its_children_in_document_order(self):
+        # The AST is a flat, ordered list — a parent emitted after its children
+        # would render in the wrong position regardless of its depth value.
+        html = "<ul><li>Item text<ul><li>sub a</li></ul></li></ul>"
+        bullets = self._bullets(html)
+        assert [b.depth for b in bullets] == [0, 1]
+
+    async def test_three_level_nesting_preserves_every_parent_text(self):
+        html = (
+            "<ul><li>Parent A has text"
+            "<ul><li>Child A1 has text<ul><li>Grandchild A2a</li></ul></li></ul>"
+            "</li></ul>"
+        )
+        assert self._texts_depths(html) == [
+            ("Parent A has text", 0),
+            ("Child A1 has text", 1),
+            ("Grandchild A2a", 2),
+        ]
+
+    async def test_ordered_sibling_after_unordered_parent_text(self):
+        html = "<ul><li>Parent B has text<ol><li>Child B1</li><li>Child B2</li></ol></li></ul>"
+        bullets = self._bullets(html)
+        assert [b.ordered for b in bullets] == [False, True, True]
+
+    async def test_parent_with_no_own_text_unaffected(self):
+        # Control case: an <li> that is just a wrapper around a nested list,
+        # with no text of its own — nothing should be emitted for it, and
+        # both children must still come through.
+        html = "<ul><li><ul><li>Child A1</li><li>Child A2</li></ul></li></ul>"
+        assert self._texts_depths(html) == [("Child A1", 1), ("Child A2", 1)]
+
+    async def test_bold_run_in_parent_text_survives(self):
+        html = "<ul><li>Item <b>text</b><ul><li>sub</li></ul></li></ul>"
+        bullets = self._bullets(html)
+        parent = bullets[0]
+        bold_run = next((r for r in parent.runs if r.bold), None)
+        assert bold_run is not None
+        assert bold_run.text == "text"
+
+    async def test_nested_list_via_markdown_preserves_parent_text(self):
+        md = "- Item text:\n    - sub a\n    - sub b"
+        html = _md_to_html(md)
+        assert self._texts_depths(html) == [
+            ("Item text:", 0),
+            ("sub a", 1),
+            ("sub b", 1),
+        ]
+
+
+class TestLiInterruptedByOtherBlocks:
+    """A block tag other than <ul>/<ol> — <pre>, <table>, <p>, <h1-h6> — opening
+    inside an open <li> that has its own text (#335 review round). The
+    interrupting construct must not drop the <li>'s text, must not lose text
+    after it closes but before the real </li>, and must not leak inline
+    formatting state (e.g. an unclosed <b>) into everything that follows.
+    """
+
+    async def test_pre_inside_li_preserves_parent_text(self):
+        nodes = html_to_ast("<ul><li>Note:<pre>code</pre></li></ul>")
+        assert isinstance(nodes[0], BulletItem)
+        assert "".join(r.text for r in nodes[0].runs) == "Note:"
+        assert isinstance(nodes[1], Paragraph)
+        assert "".join(r.text for r in nodes[1].runs) == "code"
+
+    async def test_table_inside_li_preserves_parent_text(self):
+        nodes = html_to_ast("<ul><li>Before<table><tr><td>cell</td></tr></table></li></ul>")
+        assert isinstance(nodes[0], BulletItem)
+        assert "".join(r.text for r in nodes[0].runs) == "Before"
+        assert isinstance(nodes[1], Table)
+
+    async def test_paragraph_inside_li_preserves_parent_text(self):
+        nodes = html_to_ast("<ul><li>Before<p>Middle</p></li></ul>")
+        assert isinstance(nodes[0], BulletItem)
+        assert "".join(r.text for r in nodes[0].runs) == "Before"
+        assert isinstance(nodes[1], Paragraph)
+        assert "".join(r.text for r in nodes[1].runs) == "Middle"
+
+    async def test_heading_inside_li_preserves_parent_text(self):
+        nodes = html_to_ast("<ul><li>Before<h2>Middle</h2></li></ul>")
+        assert isinstance(nodes[0], BulletItem)
+        assert "".join(r.text for r in nodes[0].runs) == "Before"
+        assert isinstance(nodes[1], Heading)
+        assert "".join(r.text for r in nodes[1].runs) == "Middle"
+
+    async def test_trailing_text_after_nested_list_is_not_dropped(self):
+        html = "<ul><li>Parent<ul><li>Child</li></ul>trailing text</li></ul>"
+        bullets = [n for n in html_to_ast(html) if isinstance(n, BulletItem)]
+        texts_depths = [("".join(r.text for r in b.runs), b.depth) for b in bullets]
+        assert texts_depths == [
+            ("Parent", 0),
+            ("Child", 1),
+            ("trailing text", 0),
+        ]
+
+    async def test_unclosed_bold_does_not_leak_past_nested_list(self):
+        html = "<ul><li>Item <b>bold text<ul><li>sub</li></ul></li></ul><p>After the list</p>"
+        nodes = html_to_ast(html)
+        bullets = [n for n in nodes if isinstance(n, BulletItem)]
+        sub_run = next(r for r in bullets[1].runs if r.text == "sub")
+        assert sub_run.bold is None
+        paragraph = next(n for n in nodes if isinstance(n, Paragraph))
+        after_run = next(r for r in paragraph.runs if r.text == "After the list")
+        assert after_run.bold is None
+
+    async def test_no_interruption_no_reopen_is_a_no_op(self):
+        # Sanity check that ordinary (non-<li>) block boundaries are unaffected
+        # by the new reopen bookkeeping.
+        nodes = html_to_ast("<p>One</p><pre>two</pre><table><tr><td>three</td></tr></table>")
+        assert isinstance(nodes[0], Paragraph)
+        assert isinstance(nodes[1], Paragraph)
+        assert isinstance(nodes[2], Table)
+
+
+class TestBlockInterruptionGeneralizedBeyondLi:
+    """Round 2 of #335's review: any open block — not just <li> — must survive
+    a nested construct interrupting it, and malformed HTML must degrade
+    locally rather than corrupting unrelated, well-formed content later in
+    the document.
+    """
+
+    async def test_heading_interrupted_by_table_preserves_heading_text(self):
+        nodes = html_to_ast("<h2>Heading text<table><tr><td>cell</td></tr></table></h2>")
+        assert isinstance(nodes[0], Heading)
+        assert "".join(r.text for r in nodes[0].runs) == "Heading text"
+        assert isinstance(nodes[1], Table)
+
+    async def test_paragraph_interrupted_by_table_does_not_splice_into_cell(self):
+        # Regression guard for the specific corruption QA found: the outer
+        # block's text must not end up concatenated into the nested
+        # construct's own content (e.g. a table cell).
+        nodes = html_to_ast("<p>Before<table><tr><td>cell</td></tr></table></p>")
+        assert isinstance(nodes[0], Paragraph)
+        assert "".join(r.text for r in nodes[0].runs) == "Before"
+        table = nodes[1]
+        assert isinstance(table, Table)
+        cell_text = "".join(r.text for r in table.rows[0].cells[0].children if hasattr(r, "text"))
+        assert cell_text == "cell"
+
+    async def test_unclosed_p_inside_li_does_not_corrupt_later_content(self):
+        # Malformed: <p> opened inside <li> is never explicitly closed. The
+        # <li>'s own text must still survive, and — critically — a later,
+        # well-formed paragraph elsewhere in the document must not be
+        # corrupted by the stuck interruption frame this leaves behind.
+        html = "<ul><li>text<p>unclosed</li></ul><p>Later unrelated paragraph</p>"
+        nodes = html_to_ast(html)
+        bullets = [n for n in nodes if isinstance(n, BulletItem)]
+        assert len(bullets) == 1
+        assert "".join(r.text for r in bullets[0].runs) == "text"
+        paragraphs = [n for n in nodes if isinstance(n, Paragraph)]
+        texts = ["".join(r.text for r in p.runs) for p in paragraphs]
+        assert "Later unrelated paragraph" in texts
+
+    async def test_mismatched_ol_closed_by_ul_does_not_corrupt_later_content(self):
+        # Malformed: an <ol> is closed with </ul>. _list_ordered itself stays
+        # desynced (a separate, pre-existing issue), but the block-interruption
+        # stack must not let this leak into misclassifying later content.
+        html = "<ol><li>Parent<ul><li>Child</li></ol></li></ul><p>Later text</p>"
+        nodes = html_to_ast(html)
+        paragraphs = [n for n in nodes if isinstance(n, Paragraph)]
+        texts = ["".join(r.text for r in p.runs) for p in paragraphs]
+        assert "Later text" in texts
+        # The stray "Later text" must be a plain Paragraph, not spuriously
+        # wrapped as a BulletItem by a leaked/misapplied reopen.
+        later_node = next(n for n in nodes if "Later text" in "".join(r.text for r in n.runs))
+        assert isinstance(later_node, Paragraph)
+
+
+class TestBareTopLevelText:
+    """#343: text with no wrapping block tag at all must not be silently
+    dropped, while text merely wrapped in a non-block tag (e.g. <span>) with
+    no block ancestor keeps its existing intentional drop behavior — see
+    test_inline_only_html_skips_batchupdate."""
+
+    async def test_bare_text_gets_implicit_paragraph(self):
+        nodes = html_to_ast("hello world")
+        assert len(nodes) == 1
+        assert isinstance(nodes[0], Paragraph)
+        assert "".join(r.text for r in nodes[0].runs) == "hello world"
+
+    async def test_span_wrapped_text_still_dropped(self):
+        # Regression guard: an inline tag with no block ancestor is a
+        # deliberate choice by the caller and stays dropped, unlike
+        # genuinely bare text.
+        assert html_to_ast("<span>no blocks</span>") == []
+
+    async def test_bare_text_with_inline_formatting_preserves_it(self):
+        nodes = html_to_ast("hello <b>world</b> foo")
+        assert len(nodes) == 1
+        assert isinstance(nodes[0], Paragraph)
+        runs = nodes[0].runs
+        assert [(r.text, r.bold) for r in runs] == [
+            ("hello ", None),
+            ("world", True),
+            (" foo", None),
+        ]
+
+    async def test_whitespace_only_top_level_text_produces_nothing(self):
+        assert html_to_ast("  \n\n  ") == []
+
+    async def test_bare_text_before_and_after_explicit_block_both_survive(self):
+        nodes = html_to_ast("plain<p>tagged</p>trailing")
+        texts = ["".join(r.text for r in n.runs) for n in nodes]
+        assert texts == ["plain", "tagged", "trailing"]
+
+    async def test_bare_text_after_unclosed_void_tag_still_wrapped(self):
+        # Regression guard (found in PR #385's own review round): a void
+        # element written without a self-closing slash (e.g. "<img src=...>",
+        # not "<img src=... />") never gets a matching close tag from
+        # HTMLParser. An implementation that excludes only "br" from
+        # _tag_depth would leave the counter stuck above 0 here, silently
+        # re-dropping the trailing bare text — the exact #343 failure mode.
+        for html in ('<img src="x.png">hello world', "<hr>hello world"):
+            nodes = html_to_ast(html)
+            assert len(nodes) == 1, html
+            assert isinstance(nodes[0], Paragraph)
+            assert "".join(r.text for r in nodes[0].runs) == "hello world"
 
 
 # ---------------------------------------------------------------------------

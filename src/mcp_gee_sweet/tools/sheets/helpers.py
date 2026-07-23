@@ -2,6 +2,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from ...auth import execute_in_thread
+from ..docs.content import _utf16_units
 
 if TYPE_CHECKING:
     from ...cache import SheetStructureCache
@@ -33,6 +34,16 @@ def _letter_to_column_index(letter: str) -> int:
     for char in letter.upper():
         result = result * 26 + (ord(char) - ord("A") + 1)
     return result - 1
+
+
+def _utf16_len(text: str) -> int:
+    """UTF-16 code units a string occupies. Sheets API TextFormatRun.startIndex
+    counts UTF-16 code units, not Python code points — an astral-plane character
+    (most emoji, some CJK/math symbols) is one Python str character but a 2-unit
+    surrogate pair, the same accounting the Docs API tools use for their own
+    startIndex/endIndex fields — delegates to _utf16_units (tools/docs/content.py)
+    rather than duplicating its per-character logic."""
+    return sum(_utf16_units(ch) for ch in text)
 
 
 def _parse_a1_notation(range_str: str) -> dict[str, int]:
@@ -81,34 +92,34 @@ async def _get_sheet_id(
     cache: "SheetStructureCache | None" = None,
     drive_service: Any = None,
 ) -> int | None:
-    """Return the numeric sheet ID for sheet_name, or None if not found."""
+    """Return the numeric sheet ID for sheet_name, or None if not found.
+
+    None means the sheet genuinely doesn't exist among the spreadsheet's
+    sheets. A transient API failure (rate limit, timeout, auth hiccup)
+    propagates as an exception instead of being swallowed into None, so
+    callers don't misreport it as "Sheet not found" (issue #384).
+    """
     if cache is not None:
         from ...cache import fetch_sheets
 
-        try:
-            sheets = await fetch_sheets(sheets_service, spreadsheet_id, cache, drive_service)
-            for s in sheets:
-                if s.title == sheet_name:
-                    return s.sheet_id
-            # Sheet not in cache — mark dirty in case structure changed
-            cache.mark_dirty(spreadsheet_id)
-            return None
-        except Exception:
-            return None
+        sheets = await fetch_sheets(sheets_service, spreadsheet_id, cache, drive_service)
+        for s in sheets:
+            if s.title == sheet_name:
+                return s.sheet_id
+        # Sheet not in cache — mark dirty in case structure changed
+        cache.mark_dirty(spreadsheet_id)
+        return None
 
-    try:
-        spreadsheet = await execute_in_thread(
-            sheets_service.spreadsheets()
-            .get(spreadsheetId=spreadsheet_id, fields="sheets(properties(title,sheetId))")
-            .execute,
-            sheets_service,
-        )
-        for sheet in spreadsheet.get("sheets", []):
-            if sheet["properties"]["title"] == sheet_name:
-                return sheet["properties"]["sheetId"]
-        return None
-    except Exception:
-        return None
+    spreadsheet = await execute_in_thread(
+        sheets_service.spreadsheets()
+        .get(spreadsheetId=spreadsheet_id, fields="sheets(properties(title,sheetId))")
+        .execute,
+        sheets_service,
+    )
+    for sheet in spreadsheet.get("sheets", []):
+        if sheet["properties"]["title"] == sheet_name:
+            return sheet["properties"]["sheetId"]
+    return None
 
 
 async def _get_sheet_index(sheets_service: Any, spreadsheet_id: str, sheet_id: int) -> int | None:

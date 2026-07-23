@@ -55,3 +55,4 @@ docker run --rm -p 8000:8000 \
 - [Configuration](configuration.md) — env vars, tool filtering, caching
 - [Client Setup](client-setup.md) — Claude Desktop and Claude Code config examples
 - [Known Limitations](known-limitations.md) — API constraints and workarounds
+- [Style Guide](style-guide.md) — module size, test structure, linting conventions
