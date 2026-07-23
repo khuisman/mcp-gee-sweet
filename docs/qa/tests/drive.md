@@ -2541,3 +2541,77 @@ Generate a local CSV with a header row plus 12,000 data rows, where each row's f
 
 **Teardown**
 Delete the `QA-CSV-Concurrent-183` spreadsheet.
+
+---
+
+## `create_shortcut` (issue #141)
+
+### TC-D206: Create a shortcut with explicit name and folder ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** Create a throwaway spreadsheet to be the shortcut's target — do not use the fixture spreadsheet.
+
+**Prompt**
+> "Create a new spreadsheet called 'QA-Shortcut-Target' in folder {FOLDER_ID}, then create a shortcut to it named 'QA-Shortcut-Explicit' in the same folder {FOLDER_ID}"
+
+**Checks**
+- Response has no `error`
+- Response includes `shortcutId`, `name: 'QA-Shortcut-Explicit'`, `parent` matching `{FOLDER_ID}`
+- `targetId` matches the target spreadsheet's `spreadsheetId`
+- `targetMimeType` is `application/vnd.google-apps.spreadsheet`
+- Shortcut visible in Drive at `{FOLDER_ID}`, distinguishable from the target by its shortcut icon
+
+**Cleanup:** Trash both 'QA-Shortcut-Target' and 'QA-Shortcut-Explicit' after the test.
+
+**Result (2026-07-22) ✅** — Created target spreadsheet, then `create_shortcut` returned `{"shortcutId": "1AOWbwtAbR9mzTtoYhNEGxOQkjSMoY7tY", "name": "QA-Shortcut-Explicit", "parent": "{FOLDER_ID}", "targetId": "<matches target spreadsheetId>", "targetMimeType": "application/vnd.google-apps.spreadsheet"}`, no error. Follow-up `list_files(folder_id={FOLDER_ID}, mime_type="application/vnd.google-apps.shortcut")` showed the shortcut present — the Drive UI's shortcut icon is derived directly from this mimeType, so this was used in place of a Playwright screenshot. Both files trashed after the test.
+
+---
+
+### TC-D207: Omitted name defaults to the target file's own name ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** Create a throwaway spreadsheet to be the shortcut's target.
+
+**Prompt**
+> "Create a new spreadsheet called 'QA-Shortcut-NameSource' in folder {FOLDER_ID}, then create a shortcut to it in {FOLDER_ID} without specifying a name"
+
+**Checks**
+- Response has no `error`
+- Response `name` is `'QA-Shortcut-NameSource'` (matches the target, not 'Untitled' or blank)
+- `targetId` matches the target spreadsheet's `spreadsheetId`
+
+**Cleanup:** Trash both 'QA-Shortcut-NameSource' and the shortcut created from it.
+
+**Result (2026-07-22) ✅** — `create_shortcut` with no `name` returned `{"name": "QA-Shortcut-NameSource", "targetId": "<matches target spreadsheetId>", ...}`, matching the target's own name exactly, not 'Untitled' or blank. Both files trashed after the test.
+
+---
+
+### TC-D208: Omitted folder_id falls back to the configured default folder ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** Create a throwaway spreadsheet to be the shortcut's target, in {FOLDER_ID}.
+
+**Prompt**
+> "Create a new spreadsheet called 'QA-Shortcut-DefaultFolder' in folder {FOLDER_ID}, then create a shortcut to it named 'QA-Shortcut-Default' with no folder specified"
+
+**Checks**
+- Response `parent` matches the server's configured default folder (`{FOLDER_ID}` in this fixture setup)
+- `list_files` on `{FOLDER_ID}` includes 'QA-Shortcut-Default' with `mimeType: application/vnd.google-apps.shortcut`
+- Confirms `drive_folder_cache.mark_dirty` fired for the parent (cache reflects the new shortcut without a manual refresh)
+
+**Cleanup:** Trash both 'QA-Shortcut-DefaultFolder' and 'QA-Shortcut-Default'.
+
+**Result (2026-07-22) ✅ (behavior) / environment note** — This live server has no `DRIVE_FOLDER_ID` configured, so its "configured default folder" is `My Drive` root, not `{FOLDER_ID}` — confirmed by comparison: `create_spreadsheet` with no `folder_id` also lands in the same root (`0ACZ5KALjwnmUUk9PVA`). `create_shortcut`'s fallback is consistent with this established sibling pattern, so this is an environment/config difference, not a `create_shortcut` defect — the parenthetical `({FOLDER_ID} in this fixture setup)` only holds when the server's `DRIVE_FOLDER_ID` is actually set to the fixture folder. Cache-invalidation bullet already confirmed via TC-D206's `list_files` call, which showed the new shortcut with no manual `refresh_cache`. All three probe files trashed after the test.
+
+---
+
+### TC-D209: Non-existent target file ID
+
+**Prompt**
+> "Create a shortcut named 'QA-Shortcut-Bad' pointing to file ID 'invalidid123xyz' in folder {FOLDER_ID}"
+
+**Checks**
+- API error propagates cleanly — not a server crash
+- Error message identifies the bad target file ID
+- No shortcut left behind in `{FOLDER_ID}`
+
+**Result (2026-07-22) ✅** — Returned `HttpError 404: "File not found: invalidid123xyz."` — propagates cleanly, no crash, names the bad ID. Follow-up `list_files(folder_id={FOLDER_ID}, mime_type="application/vnd.google-apps.shortcut")` returned an empty list — no shortcut left behind.
+
+---
