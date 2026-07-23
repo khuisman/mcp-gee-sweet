@@ -2309,3 +2309,44 @@ Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the su
 - `get_doc_structure` shows the document body empty/unchanged — this is the deliberate existing behavior for inline-only tags with no block ancestor and the #343 fix must not alter it
 
 **Cleanup:** write fixture content back
+
+---
+
+## UTF-16 code-unit offset correctness in write paths (issue #358)
+
+**Background:** Docs API `startIndex`/`endIndex` count UTF-16 code units, not Python code points — an astral-plane character (most emoji, some CJK/math symbols) is one Python `str` character but a 2-unit surrogate pair. `emitter.py`'s `ast_to_requests` derived every downstream offset (table positions, paragraph-style ranges, inline run-style ranges) from plain `len()`, so any content containing an astral-plane character before other content in the same batch silently desynced every subsequent computed offset. Fixed by introducing a shared `utf16_len` helper (`docs/indices.py`) and routing `emitter.py` and `content.py` through it; `sheets/helpers.py`'s `_utf16_len` now delegates to the same helper instead of duplicating the accounting. The identical pattern was already fixed in `find_in_doc`'s `_collect_doc_paragraphs` (#262); this closes the matching gap in the write path.
+
+### TC-DOC133: `write_doc_content` — table position lands correctly after an astral-plane (emoji) paragraph ⚠️ destructive
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<p>😀 Hello</p><table><tr><td>Marker</td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows a paragraph reading exactly "😀 Hello" immediately followed by a 1×1 table whose cell reads exactly "Marker" — not truncated, spliced, or overlapping. Pre-fix, `table_positions` was computed from `len("😀 Hello\n")` (8) instead of the correct UTF-16 length (9), landing the table one unit early — inside the paragraph's trailing newline.
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-22) ✅ PASS**
+Run against a live sandbox scoped to only `create_doc,create_doc_from_file,write_doc_content,find_in_doc,insert_softbreak_paragraph,insert_local_images,update_cells` (`get_doc_structure` not enabled) — verified via `find_in_doc` instead: "Hello" matched at `[4,9]` (paragraph text, UTF-16-correct given 😀 occupies units 1-2), "Marker" matched intact at `[14,20]` with clean cell-only context, no splice/corruption between paragraph and table content. Geometry consistent with the fixed `table_positions` (10) rather than the pre-fix value (9). A future run with `get_doc_structure` available should confirm the exact table/cell start index directly rather than inferring it from `find_in_doc` matches.
+
+---
+
+### TC-DOC134: `insert_softbreak_paragraph` — `line_ranges` correct across an astral-plane (emoji) character ⚠️ destructive
+**Setup:** fresh/empty doc (index 1 is always a valid insertion point in a new Google Doc)
+
+**Prompt**
+> "Insert a soft-break paragraph at index 1 in doc {DOC_ID} with lines [{text: '😀X'}, {text: 'Y'}]"
+
+**Checks**
+- Response has no `error`; `end_index` is 6 and `line_ranges` is `[{start_index: 1, end_index: 4}, {start_index: 5, end_index: 6}]` — UTF-16-correct (😀 = 2 units, X/\v/Y = 1 unit each, total 5 units from index 1). Pre-fix (`len()`-based) would have given `end_index: 5` and `line_ranges: [{1,3},{4,5}]`.
+- `get_doc_structure` confirms the paragraph text reads exactly "😀X\vY" with no dropped or shifted characters
+
+**Cleanup:** delete the created doc
+
+**Result (2026-07-22) ✅ PASS**
+`insert_softbreak_paragraph` returned `end_index: 6`, `line_ranges: [{start_index:1,end_index:4},{start_index:5,end_index:6}]` — exact match for the UTF-16-correct values, not the pre-fix `len()`-based ones. Independently confirmed via `find_in_doc`: "Y" matched at `[5,6]` with context `"😀XY"`.
+
+---
+
+### TC-W36 regression spot-check — not run
+`sheets/helpers.py`'s `_utf16_len` now delegates to the same shared `utf16_len` helper (behavior-preserving, no logic change) rather than duplicating it. A regression spot-check of TC-W36 (`docs/qa/tests/sheets_write.md`) was skipped this round: the live sandbox's `ENABLED_TOOLS` included `update_cells` but not `get_sheet_data`, so a rich-text write couldn't be read back to confirm `textFormatRuns[1].startIndex`. Worth a real spot-check next time a sandbox with read-back access is available; low risk given the change is a pure delegation.
