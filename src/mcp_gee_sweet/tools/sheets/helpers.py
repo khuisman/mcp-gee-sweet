@@ -2,7 +2,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from ...auth import execute_in_thread
-from ..docs.content import _utf16_units
+from ..docs.indices import utf16_len
 
 if TYPE_CHECKING:
     from ...cache import SheetStructureCache
@@ -41,9 +41,9 @@ def _utf16_len(text: str) -> int:
     counts UTF-16 code units, not Python code points — an astral-plane character
     (most emoji, some CJK/math symbols) is one Python str character but a 2-unit
     surrogate pair, the same accounting the Docs API tools use for their own
-    startIndex/endIndex fields — delegates to _utf16_units (tools/docs/content.py)
+    startIndex/endIndex fields — delegates to utf16_len (tools/docs/indices.py)
     rather than duplicating its per-character logic."""
-    return sum(_utf16_units(ch) for ch in text)
+    return utf16_len(text)
 
 
 def _parse_a1_notation(range_str: str) -> dict[str, int]:
