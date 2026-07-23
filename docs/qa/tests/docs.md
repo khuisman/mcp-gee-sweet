@@ -2330,4 +2330,6 @@ Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the su
 
 **Cleanup:** delete the created doc
 
+**Result:** PASS (2026-07-22, live via `mcp-gee-sweet-kit`, doc `1wUsmzHLHn4v4DRFvedfcy7qqBVuVnIcjk3gnUjtJTQU`, deleted after). `get_doc_structure` returned exactly the expected sequence: empty paragraph (dropped-image boundary), HEADING_1 "Kindly Human", HEADING_1 "Auditing and Accountability Policy", empty paragraph (`---`), HEADING_2 "PURPOSE", body paragraph, empty paragraph (`___`), HEADING_2 "SCOPE", body paragraph — each empty paragraph its own 1-unit-wide element between real neighbors, none fused. Separately reproduced live (scratch doc `1xa-iLbjHbqSJlyQ2IN_mFggCTd9gb_WsenMKolehQio`, deleted after) that `_interrupt_open_block` (`html_parser.py:236`) still drops the entire outer node when a block whose only content is an unsupported construct is interrupted by a nested block (e.g. `- ![img](x.png)\n    - nested`) — the outer bullet vanishes completely, not just its image, unlike the direct-close case this test covers. This gap is outside TC-DOC133's own scope but confirms the code-review finding on the same PR; see PR comment for detail. Not itself a fail for this test case, but blocks `qa-approved` for the PR as a whole.
+
 ---
