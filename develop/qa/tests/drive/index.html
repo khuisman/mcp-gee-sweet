@@ -4023,6 +4023,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#create_shortcut-issue-141" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_shortcut (issue #141)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="create_shortcut (issue #141)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-d206-create-a-shortcut-with-explicit-name-and-folder-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D206: Create a shortcut with explicit name and folder ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d207-omitted-name-defaults-to-the-target-files-own-name-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D207: Omitted name defaults to the target file's own name ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d208-omitted-folder_id-falls-back-to-the-configured-default-folder-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D208: Omitted folder_id falls back to the configured default folder ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d209-non-existent-target-file-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D209: Non-existent target file ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -6274,6 +6335,60 @@ Generate a local CSV with a header row plus 12,000 data rows, where each row's f
 - No gaps: every row from 1 to 12,000 is present exactly once</p>
 <p><strong>Teardown</strong>
 Delete the <code>QA-CSV-Concurrent-183</code> spreadsheet.</p>
+<hr />
+<h2 id="create_shortcut-issue-141"><code>create_shortcut</code> (issue #141)<a class="headerlink" href="#create_shortcut-issue-141" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d206-create-a-shortcut-with-explicit-name-and-folder-requires-oauth-destructive">TC-D206: Create a shortcut with explicit name and folder ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d206-create-a-shortcut-with-explicit-name-and-folder-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> Create a throwaway spreadsheet to be the shortcut's target — do not use the fixture spreadsheet.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a new spreadsheet called 'QA-Shortcut-Target' in folder {FOLDER_ID}, then create a shortcut to it named 'QA-Shortcut-Explicit' in the same folder {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response has no <code>error</code>
+- Response includes <code>shortcutId</code>, <code>name: 'QA-Shortcut-Explicit'</code>, <code>parent</code> matching <code>{FOLDER_ID}</code>
+- <code>targetId</code> matches the target spreadsheet's <code>spreadsheetId</code>
+- <code>targetMimeType</code> is <code>application/vnd.google-apps.spreadsheet</code>
+- Shortcut visible in Drive at <code>{FOLDER_ID}</code>, distinguishable from the target by its shortcut icon</p>
+<p><strong>Cleanup:</strong> Trash both 'QA-Shortcut-Target' and 'QA-Shortcut-Explicit' after the test.</p>
+<p><strong>Result (2026-07-22) ✅</strong> — Created target spreadsheet, then <code>create_shortcut</code> returned <code>{"shortcutId": "1AOWbwtAbR9mzTtoYhNEGxOQkjSMoY7tY", "name": "QA-Shortcut-Explicit", "parent": "{FOLDER_ID}", "targetId": "&lt;matches target spreadsheetId&gt;", "targetMimeType": "application/vnd.google-apps.spreadsheet"}</code>, no error. Follow-up <code>list_files(folder_id={FOLDER_ID}, mime_type="application/vnd.google-apps.shortcut")</code> showed the shortcut present — the Drive UI's shortcut icon is derived directly from this mimeType, so this was used in place of a Playwright screenshot. Both files trashed after the test.</p>
+<hr />
+<h3 id="tc-d207-omitted-name-defaults-to-the-target-files-own-name-requires-oauth-destructive">TC-D207: Omitted name defaults to the target file's own name ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d207-omitted-name-defaults-to-the-target-files-own-name-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> Create a throwaway spreadsheet to be the shortcut's target.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a new spreadsheet called 'QA-Shortcut-NameSource' in folder {FOLDER_ID}, then create a shortcut to it in {FOLDER_ID} without specifying a name"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response has no <code>error</code>
+- Response <code>name</code> is <code>'QA-Shortcut-NameSource'</code> (matches the target, not 'Untitled' or blank)
+- <code>targetId</code> matches the target spreadsheet's <code>spreadsheetId</code></p>
+<p><strong>Cleanup:</strong> Trash both 'QA-Shortcut-NameSource' and the shortcut created from it.</p>
+<p><strong>Result (2026-07-22) ✅</strong> — <code>create_shortcut</code> with no <code>name</code> returned <code>{"name": "QA-Shortcut-NameSource", "targetId": "&lt;matches target spreadsheetId&gt;", ...}</code>, matching the target's own name exactly, not 'Untitled' or blank. Both files trashed after the test.</p>
+<hr />
+<h3 id="tc-d208-omitted-folder_id-falls-back-to-the-configured-default-folder-requires-oauth-destructive">TC-D208: Omitted folder_id falls back to the configured default folder ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d208-omitted-folder_id-falls-back-to-the-configured-default-folder-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> Create a throwaway spreadsheet to be the shortcut's target, in {FOLDER_ID}.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a new spreadsheet called 'QA-Shortcut-DefaultFolder' in folder {FOLDER_ID}, then create a shortcut to it named 'QA-Shortcut-Default' with no folder specified"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response <code>parent</code> matches the server's configured default folder (<code>{FOLDER_ID}</code> in this fixture setup)
+- <code>list_files</code> on <code>{FOLDER_ID}</code> includes 'QA-Shortcut-Default' with <code>mimeType: application/vnd.google-apps.shortcut</code>
+- Confirms <code>drive_folder_cache.mark_dirty</code> fired for the parent (cache reflects the new shortcut without a manual refresh)</p>
+<p><strong>Cleanup:</strong> Trash both 'QA-Shortcut-DefaultFolder' and 'QA-Shortcut-Default'.</p>
+<p><strong>Result (2026-07-22) ✅ (behavior) / environment note</strong> — This live server has no <code>DRIVE_FOLDER_ID</code> configured, so its "configured default folder" is <code>My Drive</code> root, not <code>{FOLDER_ID}</code> — confirmed by comparison: <code>create_spreadsheet</code> with no <code>folder_id</code> also lands in the same root (<code>0ACZ5KALjwnmUUk9PVA</code>). <code>create_shortcut</code>'s fallback is consistent with this established sibling pattern, so this is an environment/config difference, not a <code>create_shortcut</code> defect — the parenthetical <code>({FOLDER_ID} in this fixture setup)</code> only holds when the server's <code>DRIVE_FOLDER_ID</code> is actually set to the fixture folder. Cache-invalidation bullet already confirmed via TC-D206's <code>list_files</code> call, which showed the new shortcut with no manual <code>refresh_cache</code>. All three probe files trashed after the test.</p>
+<hr />
+<h3 id="tc-d209-non-existent-target-file-id">TC-D209: Non-existent target file ID<a class="headerlink" href="#tc-d209-non-existent-target-file-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a shortcut named 'QA-Shortcut-Bad' pointing to file ID 'invalidid123xyz' in folder {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- API error propagates cleanly — not a server crash
+- Error message identifies the bad target file ID
+- No shortcut left behind in <code>{FOLDER_ID}</code></p>
+<p><strong>Result (2026-07-22) ✅</strong> — Returned <code>HttpError 404: "File not found: invalidid123xyz."</code> — propagates cleanly, no crash, names the bad ID. Follow-up <code>list_files(folder_id={FOLDER_ID}, mime_type="application/vnd.google-apps.shortcut")</code> returned an empty list — no shortcut left behind.</p>
+<hr />
 
 
 
