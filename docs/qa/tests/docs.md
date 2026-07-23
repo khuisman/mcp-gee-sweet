@@ -2309,3 +2309,25 @@ Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the su
 - `get_doc_structure` shows the document body empty/unchanged — this is the deliberate existing behavior for inline-only tags with no block ancestor and the #343 fix must not alter it
 
 **Cleanup:** write fixture content back
+
+---
+
+## Unsupported markdown constructs preserve paragraph boundaries (issue #401)
+
+**Background:** #332/#333 established that an unsupported construct like `<img>` (markdown images convert to `<img>` before reaching the shared HTML→AST parser) gets dropped from the document. #401 is a step further: the construct's entire *paragraph* was also being deleted, not just the construct itself — `_emit_block_node` (`html_parser.py`) returned early without appending anything whenever a closed block's buffered runs came back empty (e.g. its only child was an unsupported `<img>`), and a bare `<hr>` (python-markdown's rendering of both `---` and `___` thematic breaks — confirmed via the issue's own follow-up comment) never opened a block at all, so it left zero trace. Either way, the two blocks on either side ended up directly adjacent (one's `endIndex` == the next one's `startIndex`), unlike how any standard markdown viewer degrades (the construct's own line/block boundary survives even when the construct itself can't render). The fix keeps an empty node (`runs=[]`) in the AST for both cases instead of dropping it — `emitter.py`'s `ast_to_requests` was updated to match, since its own `if not text.strip(): continue` guard would otherwise have skipped the now-empty node's contribution to `full_text` and lost the boundary anyway.
+
+### TC-DOC133: Dropped image and thematic breaks each keep their own paragraph instead of fusing adjacent headings together ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** use `docs/qa/fixtures/tc-doc133-paragraph-boundary.md` — an unsupported image, two headings, a `---` thematic break, a `##` heading + paragraph, a `___` thematic break, and a final `##` heading + paragraph, mirroring the issue's own repro (`![Kindly Human](kh-logo.png)` immediately followed by two headings) plus the underscore-variant break called out in the issue's follow-up comment.
+
+**Prompt**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc133-paragraph-boundary.md, then show me its structure."
+
+**Checks**
+- Tool completes without error
+- `get_doc_structure` lists, in order: an empty (non-heading, non-bulleted) paragraph — the dropped image's boundary — then HEADING_1 "Kindly Human", HEADING_1 "Auditing and Accountability Policy", another empty paragraph (the `---` break), HEADING_2 "PURPOSE", a plain paragraph "Body text after the thematic break.", another empty paragraph (the `___` break), HEADING_2 "SCOPE", and a plain paragraph "Body text after the underscore break."
+- Confirm each empty paragraph is a real, distinct structural element (own `startIndex`/`endIndex`, one index unit wide) sitting *between* the two real elements around it — not the two real elements landing with one's `endIndex` equal to the next one's `startIndex` with nothing between them
+
+**Cleanup:** delete the created doc
+
+---

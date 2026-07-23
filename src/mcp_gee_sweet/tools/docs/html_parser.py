@@ -63,6 +63,15 @@ class _AstParser(HTMLParser):
 
         # --- block context ---
         self._block_tag: str | None = None  # current block tag (h1–h6, p, li, pre)
+        # True once the current self._block_tag was restored by
+        # _resume_interrupted_block rather than freshly opened. A resumed
+        # block's own close is only meant to capture optional *trailing* text
+        # after the nested construct that interrupted it — an empty result
+        # there means "nothing more to add" (the block's real content, if
+        # any, was already emitted at interrupt time), not "this tag was
+        # empty" (#401's preserve-empty-node case, which only applies to a
+        # block's first and only close).
+        self._block_resumed = False
         self._list_ordered: list[bool] = []  # stack: True=ol, False=ul
         self._in_pre = False  # inside <pre>; text is literal, runs get font_family
 
@@ -167,14 +176,30 @@ class _AstParser(HTMLParser):
         self._code_depth = 0
         self._link_url = []
 
-    def _emit_block_node(self, tag: str, runs: list[Run]):
+    def _emit_block_node(self, tag: str, runs: list[Run], *, preserve_if_empty: bool = False):
         """Turn a closed block's buffered runs into the node type its own tag
         implies (Heading / BulletItem / NamedBlock / Paragraph) — shared by
         the normal close-tag path and by _interrupt_open_block, so both stay
         in sync with exactly one dispatch rule.
+
+        preserve_if_empty=True (only passed by a block's own first/only
+        close — see self._block_resumed) additionally keeps a node whose
+        runs came back completely empty (e.g. its only child was an
+        unsupported void element like <img>, or it was a genuinely empty
+        tag), emitting it as an empty node (runs=[]) so its paragraph
+        boundary survives (#401), instead of vanishing outright. Whitespace-
+        only text (runs non-empty but strips to nothing) is always dropped
+        regardless of the flag — that's #402's separate domain. Callers that
+        may be closing a *resumed* frame (interrupt/resume — see
+        _interrupt_open_block) leave this False, since an empty result there
+        just means "no trailing content after the nested construct," not
+        "this tag was empty" — the block's real content, if any, was already
+        emitted at interrupt time. Emitter.py's ast_to_requests() makes the
+        matching runs-empty-vs-whitespace distinction when turning nodes into
+        an insertText.
         """
         text = "".join(r.text for r in runs).strip()
-        if not text:
+        if not text and (runs or not preserve_if_empty):
             return
         if tag in _HEADING_TAGS:
             level = int(tag[1])
@@ -233,6 +258,7 @@ class _AstParser(HTMLParser):
             return
         frame = self._block_stack.pop()
         self._block_tag = frame.outer_tag
+        self._block_resumed = True
         self._run_buf = []
         self._pending_runs = []
         self._block_named_style = frame.named_style
@@ -302,6 +328,7 @@ class _AstParser(HTMLParser):
         if tag == "pre" and self._table_depth == 0:
             self._interrupt_open_block("pre")
             self._block_tag = "pre"
+            self._block_resumed = False
             self._in_pre = True
             self._run_buf = []
             self._pending_runs = []
@@ -311,6 +338,7 @@ class _AstParser(HTMLParser):
         if tag in _BLOCK_TAGS and self._table_depth == 0:
             self._interrupt_open_block(tag)
             self._block_tag = tag
+            self._block_resumed = False
             self._run_buf = []
             self._pending_runs = []
             if tag == "p":
@@ -318,6 +346,19 @@ class _AstParser(HTMLParser):
                 self._block_named_style = _NAMED_BLOCK_STYLES.get(style)
             else:
                 self._block_named_style = None
+            return
+
+        # --- thematic break (<hr>) with no open block ---
+        # Unlike <img>, which markdown always wraps in a <p> (so an unsupported
+        # image already reaches _emit_block_node's runs=[] handling above),
+        # python-markdown emits "---"/"___" thematic breaks as a bare <hr />
+        # sibling with no wrapping tag at all — it never opens a block, so it
+        # would otherwise vanish with zero trace, collapsing the paragraph
+        # boundary between the surrounding content (#401). Scoped to <hr>
+        # specifically rather than every void tag: it's the only one that's a
+        # genuine block-level CommonMark construct in its own right.
+        if tag == "hr" and self._block_tag is None and self._table_depth == 0:
+            self._nodes.append(Paragraph(runs=[]))
             return
 
         # --- inline elements / unrecognized tags ---
@@ -407,7 +448,7 @@ class _AstParser(HTMLParser):
         # --- block elements ---
         if tag in _BLOCK_TAGS and self._table_depth == 0 and self._block_tag == tag:
             runs = self._flush_pending_runs()
-            self._emit_block_node(tag, runs)
+            self._emit_block_node(tag, runs, preserve_if_empty=not self._block_resumed)
             self._block_named_style = None
             self._block_tag = None
             self._resume_interrupted_block(tag)
@@ -462,7 +503,7 @@ class _AstParser(HTMLParser):
         isn't silently dropped."""
         if self._block_tag is not None:
             runs = self._flush_pending_runs()
-            self._emit_block_node(self._block_tag, runs)
+            self._emit_block_node(self._block_tag, runs, preserve_if_empty=not self._block_resumed)
             self._block_tag = None
             self._block_named_style = None
 

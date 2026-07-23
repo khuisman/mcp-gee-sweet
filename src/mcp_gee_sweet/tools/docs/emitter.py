@@ -46,7 +46,12 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
             if isinstance(node, BulletItem) and node.checked is not None:
                 prefix = "☑ " if node.checked else "☐ "
             text = prefix + "".join(r.text for r in node.runs)
-            if not text.strip():
+            # A node with runs=[] (an unsupported construct like <img>/<hr> that
+            # html_parser.py now preserves as an empty node rather than dropping
+            # its whole paragraph, #401) must still reserve its blank line here —
+            # only whitespace-only *non-empty* runs stay skipped (#402's domain,
+            # unchanged).
+            if not text.strip() and node.runs:
                 continue
             full_text += text + "\n"
             doc_end = start_index + len(full_text)

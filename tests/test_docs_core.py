@@ -147,6 +147,14 @@ class TestHtmlToDocRequests:
         assert "Real content" in insert["insertText"]["text"]
         assert insert["insertText"]["text"].strip() == "Real content"
 
+    def test_img_and_hr_preserve_paragraph_boundary(self):
+        # #401: an unsupported construct (<img>, <hr>) must not fuse its
+        # neighbors together — each still gets its own blank line in the
+        # final insertText rather than A's endIndex landing on B's startIndex.
+        requests, _ = _html_to_doc_requests('<p>A</p><p><img src="x.png"></p><hr><p>B</p>')
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "A\n\n\nB\n"
+
     def test_table_produces_insert_table_request(self):
         requests, tables = _html_to_doc_requests(
             "<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>"
@@ -376,6 +384,44 @@ class TestHtmlToAst:
         nodes = html_to_ast('<p data-style="TITLE">T</p>')
         assert isinstance(nodes[0], NamedBlock)
         assert nodes[0].style_type == "TITLE"
+
+
+class TestUnsupportedConstructPreservesParagraphBoundary:
+    """#401: a construct the converter can't represent (<img>, <hr>) must
+    leave behind an empty block rather than deleting the paragraph boundary
+    itself, so adjacent content doesn't fuse together."""
+
+    def test_img_wrapped_in_paragraph_leaves_empty_paragraph(self):
+        nodes = html_to_ast('<p>A</p><p><img src="x.png"></p><p>B</p>')
+        assert len(nodes) == 3
+        assert [isinstance(n, Paragraph) for n in nodes] == [True, True, True]
+        assert nodes[0].runs[0].text == "A"
+        assert nodes[1].runs == []
+        assert nodes[2].runs[0].text == "B"
+
+    def test_bare_hr_between_paragraphs_leaves_empty_paragraph(self):
+        nodes = html_to_ast("<p>A</p><hr><p>B</p>")
+        assert len(nodes) == 3
+        assert [isinstance(n, Paragraph) for n in nodes] == [True, True, True]
+        assert nodes[0].runs[0].text == "A"
+        assert nodes[1].runs == []
+        assert nodes[2].runs[0].text == "B"
+
+    def test_underscore_hr_between_paragraphs_leaves_empty_paragraph(self):
+        # python-markdown renders both "---" and "___" thematic breaks the
+        # same way (<hr />) — confirmed in issue #401's own follow-up comment.
+        nodes = html_to_ast("<p>A</p><hr /><p>B</p>")
+        assert len(nodes) == 3
+        assert nodes[1].runs == []
+
+    def test_whitespace_only_paragraph_still_dropped(self):
+        # Regression guard: the runs=[] vs. runs-non-empty-but-whitespace
+        # split must not accidentally start fixing #402 (a separate issue) —
+        # a paragraph with actual (whitespace) runs stays dropped.
+        nodes = html_to_ast("<p>A</p><p>   </p><p>B</p>")
+        assert len(nodes) == 2
+        assert nodes[0].runs[0].text == "A"
+        assert nodes[1].runs[0].text == "B"
 
 
 class TestNamedBlockEmitter:
