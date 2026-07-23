@@ -724,6 +724,75 @@ def register(tool):
             "parent": parents[0] if parents else "root",
         }
 
+    @tool(annotations=ToolAnnotations(title="Create Shortcut", destructiveHint=True))
+    async def create_shortcut(
+        target_file_id: str,
+        folder_id: str | None = None,
+        name: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Create a Drive shortcut pointing to an existing file.
+
+        Args:
+            target_file_id: The ID of the file the shortcut should point to.
+            folder_id: Destination folder ID for the shortcut. If not provided, uses
+                      the configured default folder or creates in root.
+            name: Name for the shortcut. Defaults to the target file's own name.
+
+        Returns:
+            shortcutId, name, parent, targetId, and targetMimeType of the new shortcut.
+        """
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+        target_parent_id = folder_id or lc.folder_id
+
+        shortcut_name = name
+        if not shortcut_name:
+            target = await execute_in_thread(
+                drive_service.files()
+                .get(fileId=target_file_id, fields="name", supportsAllDrives=True)
+                .execute,
+                drive_service,
+            )
+            shortcut_name = target["name"]
+
+        file_body: dict[str, Any] = {
+            "name": shortcut_name,
+            "mimeType": "application/vnd.google-apps.shortcut",
+            "shortcutDetails": {"targetId": target_file_id},
+        }
+        if target_parent_id:
+            file_body["parents"] = [target_parent_id]
+
+        shortcut = await execute_in_thread(
+            drive_service.files()
+            .create(
+                supportsAllDrives=True,
+                body=file_body,
+                fields="id, name, parents, shortcutDetails",
+            )
+            .execute,
+            drive_service,
+        )
+
+        parents = shortcut.get("parents")
+        logger.debug(
+            "Shortcut created with ID: %s -> target %s", shortcut.get("id"), target_file_id
+        )
+
+        if target_parent_id:
+            lc.drive_folder_cache.mark_dirty(target_parent_id)
+
+        details = shortcut.get("shortcutDetails", {})
+        return {
+            "shortcutId": shortcut.get("id"),
+            "name": shortcut.get("name", shortcut_name),
+            "parent": parents[0] if parents else "root",
+            "targetId": details.get("targetId", target_file_id),
+            "targetMimeType": details.get("targetMimeType"),
+        }
+
     @tool(annotations=ToolAnnotations(title="Copy File", destructiveHint=True))
     async def copy_file(
         file_id: str,

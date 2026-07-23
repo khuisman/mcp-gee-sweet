@@ -2541,3 +2541,69 @@ Generate a local CSV with a header row plus 12,000 data rows, where each row's f
 
 **Teardown**
 Delete the `QA-CSV-Concurrent-183` spreadsheet.
+
+---
+
+## `create_shortcut` (issue #141)
+
+### TC-D206: Create a shortcut with explicit name and folder ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** Create a throwaway spreadsheet to be the shortcut's target — do not use the fixture spreadsheet.
+
+**Prompt**
+> "Create a new spreadsheet called 'QA-Shortcut-Target' in folder {FOLDER_ID}, then create a shortcut to it named 'QA-Shortcut-Explicit' in the same folder {FOLDER_ID}"
+
+**Checks**
+- Response has no `error`
+- Response includes `shortcutId`, `name: 'QA-Shortcut-Explicit'`, `parent` matching `{FOLDER_ID}`
+- `targetId` matches the target spreadsheet's `spreadsheetId`
+- `targetMimeType` is `application/vnd.google-apps.spreadsheet`
+- Shortcut visible in Drive at `{FOLDER_ID}`, distinguishable from the target by its shortcut icon
+
+**Cleanup:** Trash both 'QA-Shortcut-Target' and 'QA-Shortcut-Explicit' after the test.
+
+---
+
+### TC-D207: Omitted name defaults to the target file's own name ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** Create a throwaway spreadsheet to be the shortcut's target.
+
+**Prompt**
+> "Create a new spreadsheet called 'QA-Shortcut-NameSource' in folder {FOLDER_ID}, then create a shortcut to it in {FOLDER_ID} without specifying a name"
+
+**Checks**
+- Response has no `error`
+- Response `name` is `'QA-Shortcut-NameSource'` (matches the target, not 'Untitled' or blank)
+- `targetId` matches the target spreadsheet's `spreadsheetId`
+
+**Cleanup:** Trash both 'QA-Shortcut-NameSource' and the shortcut created from it.
+
+---
+
+### TC-D208: Omitted folder_id falls back to the configured default folder ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** Create a throwaway spreadsheet to be the shortcut's target, in {FOLDER_ID}.
+
+**Prompt**
+> "Create a new spreadsheet called 'QA-Shortcut-DefaultFolder' in folder {FOLDER_ID}, then create a shortcut to it named 'QA-Shortcut-Default' with no folder specified"
+
+**Checks**
+- Response `parent` matches the server's configured default folder (`{FOLDER_ID}` in this fixture setup)
+- `list_files` on `{FOLDER_ID}` includes 'QA-Shortcut-Default' with `mimeType: application/vnd.google-apps.shortcut`
+- Confirms `drive_folder_cache.mark_dirty` fired for the parent (cache reflects the new shortcut without a manual refresh)
+
+**Cleanup:** Trash both 'QA-Shortcut-DefaultFolder' and 'QA-Shortcut-Default'.
+
+---
+
+### TC-D209: Non-existent target file ID
+
+**Prompt**
+> "Create a shortcut named 'QA-Shortcut-Bad' pointing to file ID 'invalidid123xyz' in folder {FOLDER_ID}"
+
+**Checks**
+- API error propagates cleanly — not a server crash
+- Error message identifies the bad target file ID
+- No shortcut left behind in `{FOLDER_ID}`
+
+---
