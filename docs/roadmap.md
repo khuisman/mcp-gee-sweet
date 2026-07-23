@@ -152,7 +152,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [x] `restore_file` / `empty_trash` — undelete or permanently purge trashed files (PR #386) ([#138](https://github.com/khuisman/mcp-gee-sweet/issues/138))
 - [x] `star_file` / `unstar_file` — mark files with a star for easy retrieval (PR #387) ([#139](https://github.com/khuisman/mcp-gee-sweet/issues/139))
 - [ ] `transfer_ownership` — transfer a file to another user _(on deck — `ready-for-development`, open for outside contribution)_ ([#140](https://github.com/khuisman/mcp-gee-sweet/issues/140))
-- [ ] `create_shortcut` — create a Drive shortcut to a file _(on deck — `ready-for-development`, open for outside contribution)_ ([#141](https://github.com/khuisman/mcp-gee-sweet/issues/141))
+- [x] `create_shortcut` — create a Drive shortcut to a file (PR #405) ([#141](https://github.com/khuisman/mcp-gee-sweet/issues/141))
 - [ ] `sync_folder` — option to convert markdown files to Google Docs on upload ([#211](https://github.com/khuisman/mcp-gee-sweet/issues/211))
 - [ ] `upload_local_file` with Drive format conversion (CSV→Sheets, MD→Docs) ([#188](https://github.com/khuisman/mcp-gee-sweet/issues/188))
 - [ ] Expose `md5Checksum` in `list_files`/`get_file_metadata` for real content-diffing, and let `sync_folder` diff by checksum instead of/in addition to `modifiedTime` — mtime is unreliable across in-place overwrites, `upload_local_file`'s "now" stamp, and content-preserving regenerations; related to #239 ([#274](https://github.com/khuisman/mcp-gee-sweet/issues/274))

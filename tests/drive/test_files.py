@@ -194,6 +194,90 @@ class TestFileMutations:
             await _drive_tools["empty_trash"](ctx=ctx)
 
 
+class TestCreateShortcut:
+    """create_shortcut (#141) creates an application/vnd.google-apps.shortcut file."""
+
+    async def test_explicit_name_and_folder_used_as_is(self):
+        mock = MagicMock()
+        mock.files.return_value.create.return_value.execute.return_value = {
+            "id": "shortcut1",
+            "name": "My Shortcut",
+            "parents": ["par1"],
+            "shortcutDetails": {"targetId": "target1", "targetMimeType": "text/plain"},
+        }
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache, folder_id=None)
+        result = await _drive_tools["create_shortcut"](
+            target_file_id="target1", folder_id="par1", name="My Shortcut", ctx=ctx
+        )
+        mock.files.return_value.get.assert_not_called()
+        body = mock.files.return_value.create.call_args.kwargs["body"]
+        assert body == {
+            "name": "My Shortcut",
+            "mimeType": "application/vnd.google-apps.shortcut",
+            "shortcutDetails": {"targetId": "target1"},
+            "parents": ["par1"],
+        }
+        folder_cache.mark_dirty.assert_called_once_with("par1")
+        assert result == {
+            "shortcutId": "shortcut1",
+            "name": "My Shortcut",
+            "parent": "par1",
+            "targetId": "target1",
+            "targetMimeType": "text/plain",
+        }
+
+    async def test_no_name_defaults_to_target_file_name(self):
+        mock = MagicMock()
+        mock.files.return_value.get.return_value.execute.return_value = {"name": "Original.txt"}
+        mock.files.return_value.create.return_value.execute.return_value = {
+            "id": "shortcut1",
+            "name": "Original.txt",
+            "parents": [],
+            "shortcutDetails": {"targetId": "target1"},
+        }
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=MagicMock(), folder_id=None)
+        await _drive_tools["create_shortcut"](target_file_id="target1", ctx=ctx)
+        mock.files.return_value.get.assert_called_once_with(
+            fileId="target1", fields="name", supportsAllDrives=True
+        )
+        body = mock.files.return_value.create.call_args.kwargs["body"]
+        assert body["name"] == "Original.txt"
+
+    async def test_no_folder_id_falls_back_to_configured_default(self):
+        mock = MagicMock()
+        mock.files.return_value.create.return_value.execute.return_value = {
+            "id": "shortcut1",
+            "name": "Shortcut",
+            "parents": ["default_folder"],
+            "shortcutDetails": {"targetId": "target1"},
+        }
+        folder_cache = MagicMock()
+        ctx = _make_ctx(
+            drive_service=mock, drive_folder_cache=folder_cache, folder_id="default_folder"
+        )
+        await _drive_tools["create_shortcut"](target_file_id="target1", name="Shortcut", ctx=ctx)
+        body = mock.files.return_value.create.call_args.kwargs["body"]
+        assert body["parents"] == ["default_folder"]
+        folder_cache.mark_dirty.assert_called_once_with("default_folder")
+
+    async def test_no_folder_no_default_no_dirty_call(self):
+        mock = MagicMock()
+        mock.files.return_value.create.return_value.execute.return_value = {
+            "id": "shortcut1",
+            "name": "Shortcut",
+            "parents": [],
+            "shortcutDetails": {"targetId": "target1"},
+        }
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache, folder_id=None)
+        result = await _drive_tools["create_shortcut"](
+            target_file_id="target1", name="Shortcut", ctx=ctx
+        )
+        folder_cache.mark_dirty.assert_not_called()
+        assert result["parent"] == "root"
+
+
 class TestStarFile:
     """star_file/unstar_file (#139) set starred via files().update, no folder-cache impact."""
 
