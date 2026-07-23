@@ -3025,6 +3025,56 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#utf-16-code-unit-offset-correctness-in-write-paths-issue-358" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        UTF-16 code-unit offset correctness in write paths (issue #358)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="UTF-16 code-unit offset correctness in write paths (issue #358)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc133-write_doc_content-table-position-lands-correctly-after-an-astral-plane-emoji-paragraph-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC133: write_doc_content — table position lands correctly after an astral-plane (emoji) paragraph ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc134-insert_softbreak_paragraph-line_ranges-correct-across-an-astral-plane-emoji-character-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC134: insert_softbreak_paragraph — line_ranges correct across an astral-plane (emoji) character ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w36-regression-spot-check-not-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W36 regression spot-check — not run
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5070,6 +5120,36 @@ Returned <code>{"error": "marker 'IMG1' not found in document"}}</code> — conf
 - Call succeeds with no API error
 - <code>get_doc_structure</code> shows the document body empty/unchanged — this is the deliberate existing behavior for inline-only tags with no block ancestor and the #343 fix must not alter it</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
+<hr />
+<h2 id="utf-16-code-unit-offset-correctness-in-write-paths-issue-358">UTF-16 code-unit offset correctness in write paths (issue #358)<a class="headerlink" href="#utf-16-code-unit-offset-correctness-in-write-paths-issue-358" title="Permanent link">&para;</a></h2>
+<p><strong>Background:</strong> Docs API <code>startIndex</code>/<code>endIndex</code> count UTF-16 code units, not Python code points — an astral-plane character (most emoji, some CJK/math symbols) is one Python <code>str</code> character but a 2-unit surrogate pair. <code>emitter.py</code>'s <code>ast_to_requests</code> derived every downstream offset (table positions, paragraph-style ranges, inline run-style ranges) from plain <code>len()</code>, so any content containing an astral-plane character before other content in the same batch silently desynced every subsequent computed offset. Fixed by introducing a shared <code>utf16_len</code> helper (<code>docs/indices.py</code>) and routing <code>emitter.py</code> and <code>content.py</code> through it; <code>sheets/helpers.py</code>'s <code>_utf16_len</code> now delegates to the same helper instead of duplicating the accounting. The identical pattern was already fixed in <code>find_in_doc</code>'s <code>_collect_doc_paragraphs</code> (#262); this closes the matching gap in the write path.</p>
+<h3 id="tc-doc133-write_doc_content-table-position-lands-correctly-after-an-astral-plane-emoji-paragraph-destructive">TC-DOC133: <code>write_doc_content</code> — table position lands correctly after an astral-plane (emoji) paragraph ⚠️ destructive<a class="headerlink" href="#tc-doc133-write_doc_content-table-position-lands-correctly-after-an-astral-plane-emoji-paragraph-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;p&gt;😀 Hello&lt;/p&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Marker&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows a paragraph reading exactly "😀 Hello" immediately followed by a 1×1 table whose cell reads exactly "Marker" — not truncated, spliced, or overlapping. Pre-fix, <code>table_positions</code> was computed from <code>len("😀 Hello\n")</code> (8) instead of the correct UTF-16 length (9), landing the table one unit early — inside the paragraph's trailing newline.</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-07-22) ✅ PASS</strong>
+Run against a live sandbox scoped to only <code>create_doc,create_doc_from_file,write_doc_content,find_in_doc,insert_softbreak_paragraph,insert_local_images,update_cells</code> (<code>get_doc_structure</code> not enabled) — verified via <code>find_in_doc</code> instead: "Hello" matched at <code>[4,9]</code> (paragraph text, UTF-16-correct given 😀 occupies units 1-2), "Marker" matched intact at <code>[14,20]</code> with clean cell-only context, no splice/corruption between paragraph and table content. Geometry consistent with the fixed <code>table_positions</code> (10) rather than the pre-fix value (9). A future run with <code>get_doc_structure</code> available should confirm the exact table/cell start index directly rather than inferring it from <code>find_in_doc</code> matches.</p>
+<hr />
+<h3 id="tc-doc134-insert_softbreak_paragraph-line_ranges-correct-across-an-astral-plane-emoji-character-destructive">TC-DOC134: <code>insert_softbreak_paragraph</code> — <code>line_ranges</code> correct across an astral-plane (emoji) character ⚠️ destructive<a class="headerlink" href="#tc-doc134-insert_softbreak_paragraph-line_ranges-correct-across-an-astral-plane-emoji-character-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> fresh/empty doc (index 1 is always a valid insertion point in a new Google Doc)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Insert a soft-break paragraph at index 1 in doc {DOC_ID} with lines [{text: '😀X'}, {text: 'Y'}]"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response has no <code>error</code>; <code>end_index</code> is 6 and <code>line_ranges</code> is <code>[{start_index: 1, end_index: 4}, {start_index: 5, end_index: 6}]</code> — UTF-16-correct (😀 = 2 units, X/\v/Y = 1 unit each, total 5 units from index 1). Pre-fix (<code>len()</code>-based) would have given <code>end_index: 5</code> and <code>line_ranges: [{1,3},{4,5}]</code>.
+- <code>get_doc_structure</code> confirms the paragraph text reads exactly "😀X\vY" with no dropped or shifted characters</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-07-22) ✅ PASS</strong>
+<code>insert_softbreak_paragraph</code> returned <code>end_index: 6</code>, <code>line_ranges: [{start_index:1,end_index:4},{start_index:5,end_index:6}]</code> — exact match for the UTF-16-correct values, not the pre-fix <code>len()</code>-based ones. Independently confirmed via <code>find_in_doc</code>: "Y" matched at <code>[5,6]</code> with context <code>"😀XY"</code>.</p>
+<hr />
+<h3 id="tc-w36-regression-spot-check-not-run">TC-W36 regression spot-check — not run<a class="headerlink" href="#tc-w36-regression-spot-check-not-run" title="Permanent link">&para;</a></h3>
+<p><code>sheets/helpers.py</code>'s <code>_utf16_len</code> now delegates to the same shared <code>utf16_len</code> helper (behavior-preserving, no logic change) rather than duplicating it. A regression spot-check of TC-W36 (<code>docs/qa/tests/sheets_write.md</code>) was skipped this round: the live sandbox's <code>ENABLED_TOOLS</code> included <code>update_cells</code> but not <code>get_sheet_data</code>, so a rich-text write couldn't be read back to confirm <code>textFormatRuns[1].startIndex</code>. Worth a real spot-check next time a sandbox with read-back access is available; low risk given the change is a pure delegation.</p>
 
 
 
