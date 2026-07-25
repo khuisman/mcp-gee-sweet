@@ -95,7 +95,7 @@
 | `list_revisions` | List available revisions for a Google Drive file (Sheets, Docs, or any file). | `file_id` |
 | `export_revision` | Export a historical revision of a Google Sheets file and return its cell data. | `file_id`, `revision_id`, `range?`, `sheet?` |
 | `upload_file` | Upload a text file to Google Drive, optionally converting it to a Google Doc. | `name`, `content`, `source_format?`, `folder_id?`, `convert_to_doc?` |
-| `upload_local_file` | Upload a file from the local filesystem to a Google Drive folder. Handles binary and text files (images, PDFs, DOCX, XLSX, scripts, etc.). | `local_path`, `parent_folder_id`, `name?`, `skip_if_exists?` |
+| `upload_local_file` | Upload a file from the local filesystem to a Google Drive folder. Handles binary and text files (images, PDFs, DOCX, XLSX, scripts, etc.). | `local_path`, `parent_folder_id`, `name?`, `skip_if_exists?`, `convert?` |
 | `upload_local_folder` | Upload all files in a local directory (non-recursive) to a Google Drive folder. | `local_path`, `parent_folder_id`, `skip_if_exists?`, `skip_system_files?` |
 | `download_file` | Download a file from Google Drive to the local filesystem. | `file_id`, `local_path`, `export_format?` |
 | `download_folder` | Download all files in a Google Drive folder (non-recursive) to a local directory. | `folder_id`, `local_path`, `export_format?`, `mime_type_filter?`, `skip_if_exists?` |

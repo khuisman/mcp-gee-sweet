@@ -1260,6 +1260,103 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
+### TC-D210: convert=True — CSV converts to a native Google Sheet (issue #188) ⚠️ local-filesystem
+**Prompt**
+> "Upload the local file `/tmp/qa-convert.csv` to {FOLDER_ID} with convert set to true" *(create `/tmp/qa-convert.csv` with a couple rows of comma-separated data first)*
+
+**Checks**
+- Call `upload_local_file(local_path="/tmp/qa-convert.csv", parent_folder_id="{FOLDER_ID}", convert=true)`
+- Response has no `error` key, `skipped: false`
+- `get_file_metadata` (or `list_files` on `{FOLDER_ID}`) shows the new file's `mimeType` as `application/vnd.google-apps.spreadsheet`, not `text/csv`
+- `get_sheet_data` against the returned `fileId` returns the CSV's rows/columns as real cell data (confirms Drive actually imported the content, not just relabeled the MIME type)
+
+---
+
+### TC-D211: convert=True — Markdown converts to a native Google Doc ⚠️ local-filesystem
+**Prompt**
+> "Upload the local file `/tmp/qa-convert.md` to {FOLDER_ID} with convert set to true" *(create `/tmp/qa-convert.md` with a heading and a paragraph first)*
+
+**Checks**
+- Call `upload_local_file(local_path="/tmp/qa-convert.md", parent_folder_id="{FOLDER_ID}", convert=true)`
+- Response has no `error` key
+- File's `mimeType` is `application/vnd.google-apps.document`, not `text/markdown`
+- `get_doc_content` on the returned `fileId` returns readable text matching the markdown source (heading and paragraph both present)
+
+---
+
+### TC-D212: convert=True — PPTX converts to a native Google Slides file ⚠️ local-filesystem
+**Prompt**
+> "Upload the local file `/tmp/qa-convert.pptx` to {FOLDER_ID} with convert set to true" *(any minimal .pptx works)*
+
+**Checks**
+- Call `upload_local_file(local_path="/tmp/qa-convert.pptx", parent_folder_id="{FOLDER_ID}", convert=true)`
+- Response has no `error` key
+- File's `mimeType` is `application/vnd.google-apps.presentation`, not the OOXML pptx MIME type
+
+---
+
+### TC-D213: convert=True — unsupported extension returns an error, nothing uploaded ⚠️ local-filesystem
+**Prompt**
+> "Upload the local file `/tmp/qa-convert.zip` to {FOLDER_ID} with convert set to true" *(any small file named `.zip` works — content doesn't matter)*
+
+**Checks**
+- Call `upload_local_file(local_path="/tmp/qa-convert.zip", parent_folder_id="{FOLDER_ID}", convert=true)`
+- Response contains `error` mentioning the `.zip` extension is unsupported
+- `list_files` on `{FOLDER_ID}` shows no new file was created
+
+---
+
+### TC-D214: convert omitted (default False) still uploads CSV as-is ⚠️ local-filesystem
+**Prompt**
+> "Upload the local file `/tmp/qa-convert.csv` to {FOLDER_ID}" *(convert not mentioned — confirms the default doesn't change existing behavior)*
+
+**Checks**
+- Call `upload_local_file(local_path="/tmp/qa-convert.csv", parent_folder_id="{FOLDER_ID}")` (no `convert` arg)
+- File's `mimeType` in Drive is `text/csv`, unchanged from pre-#188 behavior
+- No regression versus TC-D93's binary-upload path
+
+---
+
+### TC-D215: skip_if_exists does not treat an unconverted duplicate as a match when convert=True (PR #410 review) ⚠️ local-filesystem
+**Background:** the existence check used for `skip_if_exists` matched by filename only, regardless of the existing file's `mimeType`. Uploading `a.csv` once with `convert=False` (raw), then again with `convert=True` and default `skip_if_exists=True`, silently returned the raw file with `skipped: true` and no `mimeType` in the response — conversion never ran and nothing signaled that. Fixed by also comparing the existing file's `mimeType` against the intended conversion target before treating it as skip-worthy.
+
+**Prompt**
+> Step 1: "Upload the local file `/tmp/qa-convert-215.csv` to {FOLDER_ID}" *(no convert — creates a raw text/csv file named qa-convert-215.csv)*
+> Step 2: "Upload the local file `/tmp/qa-convert-215.csv` to {FOLDER_ID} with convert set to true"
+
+**Checks**
+- Step 2's response has `skipped: false` (not true) — a second, converted file is created rather than returning the raw one
+- Step 2's created file has `mimeType: application/vnd.google-apps.spreadsheet`
+- `list_files` on `{FOLDER_ID}` shows both files with distinct fileIds: the original raw `text/csv` one from step 1 named `qa-convert-215.csv`, and the new converted spreadsheet from step 2 — Drive's own import-conversion behavior strips the `.csv` extension from the converted copy's name, so it appears as `qa-convert-215`, not `qa-convert-215.csv`
+
+**Teardown**
+Delete both files (raw `qa-convert-215.csv` and converted `qa-convert-215`) from `{FOLDER_ID}`. Remove `/tmp/qa-convert-215.csv`.
+
+**Result (2026-07-24) ✅ PASS** — Verified via `mcp-gee-sweet-sky` against fixture folder `{FOLDER_ID}`. Step 2 returned `skipped: false` with a distinct `fileId` from step 1, `mimeType: application/vnd.google-apps.spreadsheet` confirmed via `get_file_metadata`, and `list_files` showed both the raw and converted files coexisting (converted copy named `qa-convert-215`, extension stripped by Drive itself — check text above corrected to reflect this).
+
+---
+
+### TC-D216: convert=True extension is derived from the effective name, not local_path (PR #410 review) ⚠️ local-filesystem
+**Background:** the extension used to look up the conversion target was read from `local_path`'s suffix even when a `name` override changed the effective destination filename, so a no-extension local scratch file with a `.csv` name override incorrectly errored as an unsupported extension. Fixed by deriving the extension from the effective destination name.
+
+**Prompt**
+> "Upload the local file `/tmp/qa-scratch-216` to {FOLDER_ID}, naming it `qa-convert-216.csv`, with convert set to true" *(create `/tmp/qa-scratch-216` with no extension, containing a couple rows of comma-separated data)*
+
+**Checks**
+- Call `upload_local_file(local_path="/tmp/qa-scratch-216", parent_folder_id="{FOLDER_ID}", name="qa-convert-216.csv", convert=true)`
+- Response has no `error` key
+- Created file's `mimeType` is `application/vnd.google-apps.spreadsheet`
+
+**Teardown**
+Delete `qa-convert-216.csv` from `{FOLDER_ID}`. Remove `/tmp/qa-scratch-216`.
+
+**Result (2026-07-24) ✅ PASS** — Verified via `mcp-gee-sweet-sky` against fixture folder `{FOLDER_ID}`. Response had no `error` key and `mimeType: application/vnd.google-apps.spreadsheet`, confirming the extension used for conversion came from the `name` override rather than the extension-less `local_path`.
+
+**Teardown (TC-D210–TC-D214)**
+Delete all `qa-convert.*` files and their converted Drive counterparts from `{FOLDER_ID}`. Remove the local `/tmp/qa-convert.*` scratch files.
+
+---
+
 ## `upload_local_folder`
 
 ### TC-D98: Bulk upload of a mixed directory ⚠️ destructive ⚠️ local-filesystem
