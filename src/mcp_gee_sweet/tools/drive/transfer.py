@@ -86,12 +86,15 @@ async def _upload_local_file(
 
     convert_mime: tuple[str, str] | None = None
     if convert:
-        convert_mime = _CONVERT_MIME.get(path.suffix.lower())
+        # Derived from the effective destination name, not local_path's suffix —
+        # a name= override changes what conversion applies (#188 QA review, PR #410).
+        dest_suffix = Path(file_name).suffix.lower()
+        convert_mime = _CONVERT_MIME.get(dest_suffix)
         if convert_mime is None:
             supported = ", ".join(sorted(_CONVERT_MIME))
             return {
                 "error": (
-                    f"Conversion not supported for extension {path.suffix!r}. "
+                    f"Conversion not supported for extension {dest_suffix!r}. "
                     f"Supported extensions: {supported}"
                 )
             }
@@ -105,14 +108,19 @@ async def _upload_local_file(
                 spaces="drive",
                 includeItemsFromAllDrives=True,
                 supportsAllDrives=True,
-                fields="files(id, name, webViewLink)",
+                fields="files(id, name, webViewLink, mimeType)",
                 pageSize=1,
             )
             .execute,
             drive_service,
         )
         hits = existing.get("files", [])
-        if hits:
+        # When converting, a name-only match isn't good enough — an existing file
+        # with the same name but the *raw* (unconverted) mimeType isn't actually
+        # the converted duplicate skip_if_exists is meant to detect (#188 QA review,
+        # PR #410). Only skip if it's already in the target Workspace format;
+        # otherwise fall through and upload/convert normally.
+        if hits and (convert_mime is None or hits[0].get("mimeType") == convert_mime[1]):
             logger.debug("Skipping upload — %s already exists as %s", file_name, hits[0]["id"])
             return {
                 "fileId": hits[0]["id"],

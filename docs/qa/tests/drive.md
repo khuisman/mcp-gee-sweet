@@ -1315,6 +1315,39 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - File's `mimeType` in Drive is `text/csv`, unchanged from pre-#188 behavior
 - No regression versus TC-D93's binary-upload path
 
+---
+
+### TC-D215: skip_if_exists does not treat an unconverted duplicate as a match when convert=True (PR #410 review) ⚠️ local-filesystem
+**Background:** the existence check used for `skip_if_exists` matched by filename only, regardless of the existing file's `mimeType`. Uploading `a.csv` once with `convert=False` (raw), then again with `convert=True` and default `skip_if_exists=True`, silently returned the raw file with `skipped: true` and no `mimeType` in the response — conversion never ran and nothing signaled that. Fixed by also comparing the existing file's `mimeType` against the intended conversion target before treating it as skip-worthy.
+
+**Prompt**
+> Step 1: "Upload the local file `/tmp/qa-convert-215.csv` to {FOLDER_ID}" *(no convert — creates a raw text/csv file named qa-convert-215.csv)*
+> Step 2: "Upload the local file `/tmp/qa-convert-215.csv` to {FOLDER_ID} with convert set to true"
+
+**Checks**
+- Step 2's response has `skipped: false` (not true) — a second, converted file is created rather than returning the raw one
+- Step 2's created file has `mimeType: application/vnd.google-apps.spreadsheet`
+- `list_files` on `{FOLDER_ID}` shows two `qa-convert-215.csv`-named files: the original raw `text/csv` one from step 1 and the new converted one from step 2
+
+**Teardown**
+Delete both `qa-convert-215.csv` files (raw and converted) from `{FOLDER_ID}`. Remove `/tmp/qa-convert-215.csv`.
+
+---
+
+### TC-D216: convert=True extension is derived from the effective name, not local_path (PR #410 review) ⚠️ local-filesystem
+**Background:** the extension used to look up the conversion target was read from `local_path`'s suffix even when a `name` override changed the effective destination filename, so a no-extension local scratch file with a `.csv` name override incorrectly errored as an unsupported extension. Fixed by deriving the extension from the effective destination name.
+
+**Prompt**
+> "Upload the local file `/tmp/qa-scratch-216` to {FOLDER_ID}, naming it `qa-convert-216.csv`, with convert set to true" *(create `/tmp/qa-scratch-216` with no extension, containing a couple rows of comma-separated data)*
+
+**Checks**
+- Call `upload_local_file(local_path="/tmp/qa-scratch-216", parent_folder_id="{FOLDER_ID}", name="qa-convert-216.csv", convert=true)`
+- Response has no `error` key
+- Created file's `mimeType` is `application/vnd.google-apps.spreadsheet`
+
+**Teardown**
+Delete `qa-convert-216.csv` from `{FOLDER_ID}`. Remove `/tmp/qa-scratch-216`.
+
 **Teardown (TC-D210–TC-D214)**
 Delete all `qa-convert.*` files and their converted Drive counterparts from `{FOLDER_ID}`. Remove the local `/tmp/qa-convert.*` scratch files.
 

@@ -253,6 +253,113 @@ class TestUploadLocalFileConvert:
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
         assert "mimeType" not in create_kwargs["body"]
 
+    async def test_convert_extension_comes_from_name_override_not_local_path(self, tmp_path):
+        """A no-extension local_path with a .csv name= override should still convert
+        (PR #410 QA review: the lookup used local_path's suffix, not the effective
+        destination name, so this previously errored as "unsupported extension")."""
+        local_file = tmp_path / "scratch_tmpfile"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "report.csv",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await _upload_local_file(
+            drive_svc,
+            str(local_file),
+            "folder1",
+            name="report.csv",
+            skip_if_exists=False,
+            convert=True,
+        )
+
+        assert "error" not in result
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["body"]["mimeType"] == "application/vnd.google-apps.spreadsheet"
+
+    async def test_convert_extension_mismatch_between_local_path_and_name_override_errors(
+        self, tmp_path
+    ):
+        """Inverse of the above: a .csv local_path with a name= override that has no
+        supported extension should error on the destination extension, not silently
+        succeed using local_path's .csv (PR #410 QA review)."""
+        local_file = tmp_path / "upload.csv"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+
+        result = await _upload_local_file(
+            drive_svc,
+            str(local_file),
+            "folder1",
+            name="archive.zip",
+            skip_if_exists=False,
+            convert=True,
+        )
+
+        assert "error" in result
+        assert ".zip" in result["error"]
+        drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_skip_if_exists_does_not_skip_when_existing_file_is_unconverted(self, tmp_path):
+        """skip_if_exists must not treat a same-named raw (unconverted) file as the
+        skip-worthy duplicate when convert=True — a name-only match previously
+        returned the raw file with no conversion and no error (PR #410 QA review)."""
+        local_file = tmp_path / "a.csv"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "existing-raw",
+                    "name": "a.csv",
+                    "webViewLink": "https://x/existing",
+                    "mimeType": "text/csv",
+                }
+            ]
+        }
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid-converted",
+            "name": "a.csv",
+            "webViewLink": "https://example.com/converted",
+        }
+
+        result = await _upload_local_file(drive_svc, str(local_file), "folder1", convert=True)
+
+        assert result["skipped"] is False
+        assert result["fileId"] == "fid-converted"
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["body"]["mimeType"] == "application/vnd.google-apps.spreadsheet"
+
+    async def test_skip_if_exists_still_skips_when_existing_file_already_converted(self, tmp_path):
+        """The converted case that skip_if_exists is actually meant to catch: an
+        existing file already in the target Workspace mimeType should still skip."""
+        local_file = tmp_path / "a.csv"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "existing-converted",
+                    "name": "a.csv",
+                    "webViewLink": "https://x/existing",
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                }
+            ]
+        }
+
+        result = await _upload_local_file(drive_svc, str(local_file), "folder1", convert=True)
+
+        assert result == {
+            "fileId": "existing-converted",
+            "name": "a.csv",
+            "web_link": "https://x/existing",
+            "skipped": True,
+        }
+        drive_svc.files.return_value.create.assert_not_called()
+
 
 class TestXlsxRangeValues:
     async def test_no_range_returns_all_rows(self):
