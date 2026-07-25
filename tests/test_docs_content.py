@@ -491,11 +491,23 @@ class TestBareTopLevelText:
         # HTMLParser. An implementation that excludes only "br" from
         # _tag_depth would leave the counter stuck above 0 here, silently
         # re-dropping the trailing bare text — the exact #343 failure mode.
-        for html in ('<img src="x.png">hello world', "<hr>hello world"):
-            nodes = html_to_ast(html)
-            assert len(nodes) == 1, html
-            assert isinstance(nodes[0], Paragraph)
-            assert "".join(r.text for r in nodes[0].runs) == "hello world"
+        nodes = html_to_ast('<img src="x.png">hello world')
+        assert len(nodes) == 1
+        assert isinstance(nodes[0], Paragraph)
+        assert "".join(r.text for r in nodes[0].runs) == "hello world"
+
+    async def test_bare_hr_before_trailing_text_preserves_boundary_and_tag_depth(self):
+        # Same #343 tag_depth regression guard as above, but for bare <hr>: since
+        # #401, a bare top-level <hr> now also emits its own empty Paragraph node
+        # (preserving the thematic break's block boundary) rather than being a
+        # pure no-op — so the trailing text becomes a *second* node, not folded
+        # into the same one.
+        nodes = html_to_ast("<hr>hello world")
+        assert len(nodes) == 2
+        assert isinstance(nodes[0], Paragraph)
+        assert nodes[0].runs == []
+        assert isinstance(nodes[1], Paragraph)
+        assert "".join(r.text for r in nodes[1].runs) == "hello world"
 
 
 # ---------------------------------------------------------------------------
@@ -701,6 +713,15 @@ class TestToDocRequestsMarkdown:
             if "updateTextStyle" in r and "weightedFontFamily" in r["updateTextStyle"]["textStyle"]
         ]
         assert len(font_reqs) >= 1
+
+    async def test_markdown_image_and_thematic_break_preserve_paragraph_boundary(self):
+        # #401 end-to-end repro: an unsupported image followed by a thematic
+        # break, followed by real headings, must not fuse into one run of
+        # touching text — each unsupported construct keeps its own blank line.
+        md = "![Kindly Human](kh-logo.png)\n\n# Kindly Human\n\n---\n\n## PURPOSE\n"
+        requests, _ = _to_doc_requests(md, "markdown")
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "\nKindly Human\n\nPURPOSE\n"
 
     async def test_html_format_still_works(self):
         requests, _ = _to_doc_requests("<h2>Sub</h2>", "html")

@@ -63,6 +63,28 @@ class _AstParser(HTMLParser):
 
         # --- block context ---
         self._block_tag: str | None = None  # current block tag (h1–h6, p, li, pre)
+        # True once the current self._block_tag was restored by
+        # _resume_interrupted_block rather than freshly opened. A resumed
+        # block's own flush is only meant to capture optional *trailing*
+        # content after the nested construct that interrupted it — the
+        # block's real content, if any, was already emitted at interrupt
+        # time. See self._block_had_unsupported_content for how an empty
+        # flush's preserve-or-drop decision (#401) is actually made.
+        self._block_resumed = False
+        # True once some construct inside the current block's current segment
+        # (since it was last freshly opened or resumed) was silently dropped
+        # instead of contributing a run — an unsupported void element like
+        # <img>, a bare <hr>, or any other unrecognized tag with no text of
+        # its own (see the generic inline-element fallthrough below). Reset
+        # every time a new segment begins (fresh open or resume) so it always
+        # reflects only the segment about to be flushed. This is the signal
+        # _emit_block_node's preserve_if_empty is keyed on: an empty flush is
+        # worth preserving (#401) exactly when something was actually dropped
+        # to produce it, not merely because the segment never had any content
+        # to begin with — e.g. an <li> that wraps only a nested <ul> with no
+        # text of its own is empty for a completely unrelated, common reason
+        # and must NOT be preserved as a spurious empty bullet.
+        self._block_had_unsupported_content = False
         self._list_ordered: list[bool] = []  # stack: True=ol, False=ul
         self._in_pre = False  # inside <pre>; text is literal, runs get font_family
 
@@ -167,14 +189,30 @@ class _AstParser(HTMLParser):
         self._code_depth = 0
         self._link_url = []
 
-    def _emit_block_node(self, tag: str, runs: list[Run]):
+    def _emit_block_node(self, tag: str, runs: list[Run], *, preserve_if_empty: bool = False):
         """Turn a closed block's buffered runs into the node type its own tag
         implies (Heading / BulletItem / NamedBlock / Paragraph) — shared by
         the normal close-tag path and by _interrupt_open_block, so both stay
         in sync with exactly one dispatch rule.
+
+        preserve_if_empty=True (both callers pass
+        self._block_had_unsupported_content) additionally keeps a node whose
+        runs came back completely empty because something inside this
+        segment was silently dropped (e.g. its only child was an unsupported
+        void element like <img>, or a bare <hr>), emitting it as an empty
+        node (runs=[]) so its paragraph boundary survives (#401), instead of
+        vanishing outright. An empty result that *isn't* due to dropped
+        content — e.g. an <li> that wraps only a nested <ul> with no text of
+        its own — leaves this False and emits nothing, since there's no
+        boundary to lose: that segment was never going to have its own node
+        either way. Whitespace-only text (runs non-empty but strips to
+        nothing) is always dropped regardless of the flag — that's #402's
+        separate domain. Emitter.py's ast_to_requests() makes the matching
+        runs-empty-vs-whitespace distinction when turning nodes into an
+        insertText.
         """
         text = "".join(r.text for r in runs).strip()
-        if not text:
+        if not text and (runs or not preserve_if_empty):
             return
         if tag in _HEADING_TAGS:
             level = int(tag[1])
@@ -208,7 +246,9 @@ class _AstParser(HTMLParser):
         outer_tag = self._block_tag
         outer_named_style = self._block_named_style
         runs = self._flush_pending_runs()
-        self._emit_block_node(outer_tag, runs)
+        self._emit_block_node(
+            outer_tag, runs, preserve_if_empty=self._block_had_unsupported_content
+        )
         self._block_stack.append(
             _BlockFrame(
                 outer_tag=outer_tag,
@@ -233,6 +273,8 @@ class _AstParser(HTMLParser):
             return
         frame = self._block_stack.pop()
         self._block_tag = frame.outer_tag
+        self._block_resumed = True
+        self._block_had_unsupported_content = False
         self._run_buf = []
         self._pending_runs = []
         self._block_named_style = frame.named_style
@@ -302,6 +344,8 @@ class _AstParser(HTMLParser):
         if tag == "pre" and self._table_depth == 0:
             self._interrupt_open_block("pre")
             self._block_tag = "pre"
+            self._block_resumed = False
+            self._block_had_unsupported_content = False
             self._in_pre = True
             self._run_buf = []
             self._pending_runs = []
@@ -311,6 +355,8 @@ class _AstParser(HTMLParser):
         if tag in _BLOCK_TAGS and self._table_depth == 0:
             self._interrupt_open_block(tag)
             self._block_tag = tag
+            self._block_resumed = False
+            self._block_had_unsupported_content = False
             self._run_buf = []
             self._pending_runs = []
             if tag == "p":
@@ -318,6 +364,30 @@ class _AstParser(HTMLParser):
                 self._block_named_style = _NAMED_BLOCK_STYLES.get(style)
             else:
                 self._block_named_style = None
+            return
+
+        # --- thematic break (<hr>) with no open block ---
+        # Unlike <img>, which markdown always wraps in a <p> (so an unsupported
+        # image already reaches _emit_block_node's runs=[] handling above),
+        # python-markdown emits "---"/"___" thematic breaks as a bare <hr />
+        # sibling with no wrapping tag at all — it never opens a block, so it
+        # would otherwise vanish with zero trace, collapsing the paragraph
+        # boundary between the surrounding content (#401). Scoped to <hr>
+        # specifically rather than every void tag: it's the only one that's a
+        # genuine block-level CommonMark construct in its own right. Also
+        # requires _tag_depth == 0, matching handle_data's sibling bare-text
+        # check below (#343): an <hr> wrapped only in an inline tag with no
+        # block ancestor (e.g. "<span><hr></span>") is inline-only content
+        # with no block ancestor, same as bare text in that position, and
+        # must stay a no-op rather than injecting a spurious paragraph
+        # boundary — see test_span_wrapped_text_still_dropped.
+        if (
+            tag == "hr"
+            and self._block_tag is None
+            and self._table_depth == 0
+            and self._tag_depth == 0
+        ):
+            self._nodes.append(Paragraph(runs=[]))
             return
 
         # --- inline elements / unrecognized tags ---
@@ -343,6 +413,13 @@ class _AstParser(HTMLParser):
                 self._code_depth += 1
             elif tag == "br":
                 self._run_buf.append("\n")
+            elif self._block_tag:
+                # Anything else reaching this fallthrough (an unsupported
+                # void element like <img>, a bare <hr> inside a block, or any
+                # other tag this parser doesn't specially recognize) is
+                # silently dropped rather than contributing a run — see
+                # self._block_had_unsupported_content.
+                self._block_had_unsupported_content = True
 
     def handle_endtag(self, tag):
         # --- table structure ---
@@ -407,7 +484,7 @@ class _AstParser(HTMLParser):
         # --- block elements ---
         if tag in _BLOCK_TAGS and self._table_depth == 0 and self._block_tag == tag:
             runs = self._flush_pending_runs()
-            self._emit_block_node(tag, runs)
+            self._emit_block_node(tag, runs, preserve_if_empty=self._block_had_unsupported_content)
             self._block_named_style = None
             self._block_tag = None
             self._resume_interrupted_block(tag)
@@ -462,7 +539,9 @@ class _AstParser(HTMLParser):
         isn't silently dropped."""
         if self._block_tag is not None:
             runs = self._flush_pending_runs()
-            self._emit_block_node(self._block_tag, runs)
+            self._emit_block_node(
+                self._block_tag, runs, preserve_if_empty=self._block_had_unsupported_content
+            )
             self._block_tag = None
             self._block_named_style = None
 
