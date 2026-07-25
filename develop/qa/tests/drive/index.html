@@ -2706,6 +2706,83 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-d210-converttrue-csv-converts-to-a-native-google-sheet-issue-188-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D210: convert=True — CSV converts to a native Google Sheet (issue #188) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d211-converttrue-markdown-converts-to-a-native-google-doc-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D211: convert=True — Markdown converts to a native Google Doc ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d212-converttrue-pptx-converts-to-a-native-google-slides-file-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D212: convert=True — PPTX converts to a native Google Slides file ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d213-converttrue-unsupported-extension-returns-an-error-nothing-uploaded-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D213: convert=True — unsupported extension returns an error, nothing uploaded ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d214-convert-omitted-default-false-still-uploads-csv-as-is-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D214: convert omitted (default False) still uploads CSV as-is ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d215-skip_if_exists-does-not-treat-an-unconverted-duplicate-as-a-match-when-converttrue-pr-410-review-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D215: skip_if_exists does not treat an unconverted duplicate as a match when convert=True (PR #410 review) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d216-converttrue-extension-is-derived-from-the-effective-name-not-local_path-pr-410-review-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D216: convert=True extension is derived from the effective name, not local_path (PR #410 review) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5328,6 +5405,89 @@
 <p><strong>Checks</strong>
 - File in Drive is named <code>renamed-in-drive.png</code>, not <code>qa-test.png</code>
 - Local file unchanged</p>
+<hr />
+<h3 id="tc-d210-converttrue-csv-converts-to-a-native-google-sheet-issue-188-local-filesystem">TC-D210: convert=True — CSV converts to a native Google Sheet (issue #188) ⚠️ local-filesystem<a class="headerlink" href="#tc-d210-converttrue-csv-converts-to-a-native-google-sheet-issue-188-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Upload the local file <code>/tmp/qa-convert.csv</code> to {FOLDER_ID} with convert set to true" <em>(create <code>/tmp/qa-convert.csv</code> with a couple rows of comma-separated data first)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>upload_local_file(local_path="/tmp/qa-convert.csv", parent_folder_id="{FOLDER_ID}", convert=true)</code>
+- Response has no <code>error</code> key, <code>skipped: false</code>
+- <code>get_file_metadata</code> (or <code>list_files</code> on <code>{FOLDER_ID}</code>) shows the new file's <code>mimeType</code> as <code>application/vnd.google-apps.spreadsheet</code>, not <code>text/csv</code>
+- <code>get_sheet_data</code> against the returned <code>fileId</code> returns the CSV's rows/columns as real cell data (confirms Drive actually imported the content, not just relabeled the MIME type)</p>
+<hr />
+<h3 id="tc-d211-converttrue-markdown-converts-to-a-native-google-doc-local-filesystem">TC-D211: convert=True — Markdown converts to a native Google Doc ⚠️ local-filesystem<a class="headerlink" href="#tc-d211-converttrue-markdown-converts-to-a-native-google-doc-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Upload the local file <code>/tmp/qa-convert.md</code> to {FOLDER_ID} with convert set to true" <em>(create <code>/tmp/qa-convert.md</code> with a heading and a paragraph first)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>upload_local_file(local_path="/tmp/qa-convert.md", parent_folder_id="{FOLDER_ID}", convert=true)</code>
+- Response has no <code>error</code> key
+- File's <code>mimeType</code> is <code>application/vnd.google-apps.document</code>, not <code>text/markdown</code>
+- <code>get_doc_content</code> on the returned <code>fileId</code> returns readable text matching the markdown source (heading and paragraph both present)</p>
+<hr />
+<h3 id="tc-d212-converttrue-pptx-converts-to-a-native-google-slides-file-local-filesystem">TC-D212: convert=True — PPTX converts to a native Google Slides file ⚠️ local-filesystem<a class="headerlink" href="#tc-d212-converttrue-pptx-converts-to-a-native-google-slides-file-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Upload the local file <code>/tmp/qa-convert.pptx</code> to {FOLDER_ID} with convert set to true" <em>(any minimal .pptx works)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>upload_local_file(local_path="/tmp/qa-convert.pptx", parent_folder_id="{FOLDER_ID}", convert=true)</code>
+- Response has no <code>error</code> key
+- File's <code>mimeType</code> is <code>application/vnd.google-apps.presentation</code>, not the OOXML pptx MIME type</p>
+<hr />
+<h3 id="tc-d213-converttrue-unsupported-extension-returns-an-error-nothing-uploaded-local-filesystem">TC-D213: convert=True — unsupported extension returns an error, nothing uploaded ⚠️ local-filesystem<a class="headerlink" href="#tc-d213-converttrue-unsupported-extension-returns-an-error-nothing-uploaded-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Upload the local file <code>/tmp/qa-convert.zip</code> to {FOLDER_ID} with convert set to true" <em>(any small file named <code>.zip</code> works — content doesn't matter)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>upload_local_file(local_path="/tmp/qa-convert.zip", parent_folder_id="{FOLDER_ID}", convert=true)</code>
+- Response contains <code>error</code> mentioning the <code>.zip</code> extension is unsupported
+- <code>list_files</code> on <code>{FOLDER_ID}</code> shows no new file was created</p>
+<hr />
+<h3 id="tc-d214-convert-omitted-default-false-still-uploads-csv-as-is-local-filesystem">TC-D214: convert omitted (default False) still uploads CSV as-is ⚠️ local-filesystem<a class="headerlink" href="#tc-d214-convert-omitted-default-false-still-uploads-csv-as-is-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Upload the local file <code>/tmp/qa-convert.csv</code> to {FOLDER_ID}" <em>(convert not mentioned — confirms the default doesn't change existing behavior)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>upload_local_file(local_path="/tmp/qa-convert.csv", parent_folder_id="{FOLDER_ID}")</code> (no <code>convert</code> arg)
+- File's <code>mimeType</code> in Drive is <code>text/csv</code>, unchanged from pre-#188 behavior
+- No regression versus TC-D93's binary-upload path</p>
+<hr />
+<h3 id="tc-d215-skip_if_exists-does-not-treat-an-unconverted-duplicate-as-a-match-when-converttrue-pr-410-review-local-filesystem">TC-D215: skip_if_exists does not treat an unconverted duplicate as a match when convert=True (PR #410 review) ⚠️ local-filesystem<a class="headerlink" href="#tc-d215-skip_if_exists-does-not-treat-an-unconverted-duplicate-as-a-match-when-converttrue-pr-410-review-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> the existence check used for <code>skip_if_exists</code> matched by filename only, regardless of the existing file's <code>mimeType</code>. Uploading <code>a.csv</code> once with <code>convert=False</code> (raw), then again with <code>convert=True</code> and default <code>skip_if_exists=True</code>, silently returned the raw file with <code>skipped: true</code> and no <code>mimeType</code> in the response — conversion never ran and nothing signaled that. Fixed by also comparing the existing file's <code>mimeType</code> against the intended conversion target before treating it as skip-worthy.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Step 1: "Upload the local file <code>/tmp/qa-convert-215.csv</code> to {FOLDER_ID}" <em>(no convert — creates a raw text/csv file named qa-convert-215.csv)</em>
+Step 2: "Upload the local file <code>/tmp/qa-convert-215.csv</code> to {FOLDER_ID} with convert set to true"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Step 2's response has <code>skipped: false</code> (not true) — a second, converted file is created rather than returning the raw one
+- Step 2's created file has <code>mimeType: application/vnd.google-apps.spreadsheet</code>
+- <code>list_files</code> on <code>{FOLDER_ID}</code> shows both files with distinct fileIds: the original raw <code>text/csv</code> one from step 1 named <code>qa-convert-215.csv</code>, and the new converted spreadsheet from step 2 — Drive's own import-conversion behavior strips the <code>.csv</code> extension from the converted copy's name, so it appears as <code>qa-convert-215</code>, not <code>qa-convert-215.csv</code></p>
+<p><strong>Teardown</strong>
+Delete both files (raw <code>qa-convert-215.csv</code> and converted <code>qa-convert-215</code>) from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-convert-215.csv</code>.</p>
+<p><strong>Result (2026-07-24) ✅ PASS</strong> — Verified via <code>mcp-gee-sweet-sky</code> against fixture folder <code>{FOLDER_ID}</code>. Step 2 returned <code>skipped: false</code> with a distinct <code>fileId</code> from step 1, <code>mimeType: application/vnd.google-apps.spreadsheet</code> confirmed via <code>get_file_metadata</code>, and <code>list_files</code> showed both the raw and converted files coexisting (converted copy named <code>qa-convert-215</code>, extension stripped by Drive itself — check text above corrected to reflect this).</p>
+<hr />
+<h3 id="tc-d216-converttrue-extension-is-derived-from-the-effective-name-not-local_path-pr-410-review-local-filesystem">TC-D216: convert=True extension is derived from the effective name, not local_path (PR #410 review) ⚠️ local-filesystem<a class="headerlink" href="#tc-d216-converttrue-extension-is-derived-from-the-effective-name-not-local_path-pr-410-review-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> the extension used to look up the conversion target was read from <code>local_path</code>'s suffix even when a <code>name</code> override changed the effective destination filename, so a no-extension local scratch file with a <code>.csv</code> name override incorrectly errored as an unsupported extension. Fixed by deriving the extension from the effective destination name.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Upload the local file <code>/tmp/qa-scratch-216</code> to {FOLDER_ID}, naming it <code>qa-convert-216.csv</code>, with convert set to true" <em>(create <code>/tmp/qa-scratch-216</code> with no extension, containing a couple rows of comma-separated data)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>upload_local_file(local_path="/tmp/qa-scratch-216", parent_folder_id="{FOLDER_ID}", name="qa-convert-216.csv", convert=true)</code>
+- Response has no <code>error</code> key
+- Created file's <code>mimeType</code> is <code>application/vnd.google-apps.spreadsheet</code></p>
+<p><strong>Teardown</strong>
+Delete <code>qa-convert-216.csv</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-scratch-216</code>.</p>
+<p><strong>Result (2026-07-24) ✅ PASS</strong> — Verified via <code>mcp-gee-sweet-sky</code> against fixture folder <code>{FOLDER_ID}</code>. Response had no <code>error</code> key and <code>mimeType: application/vnd.google-apps.spreadsheet</code>, confirming the extension used for conversion came from the <code>name</code> override rather than the extension-less <code>local_path</code>.</p>
+<p><strong>Teardown (TC-D210–TC-D214)</strong>
+Delete all <code>qa-convert.*</code> files and their converted Drive counterparts from <code>{FOLDER_ID}</code>. Remove the local <code>/tmp/qa-convert.*</code> scratch files.</p>
 <hr />
 <h2 id="upload_local_folder"><code>upload_local_folder</code><a class="headerlink" href="#upload_local_folder" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d98-bulk-upload-of-a-mixed-directory-destructive-local-filesystem">TC-D98: Bulk upload of a mixed directory ⚠️ destructive ⚠️ local-filesystem<a class="headerlink" href="#tc-d98-bulk-upload-of-a-mixed-directory-destructive-local-filesystem" title="Permanent link">&para;</a></h3>
