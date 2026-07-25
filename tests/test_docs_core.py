@@ -149,6 +149,14 @@ class TestHtmlToDocRequests:
         assert "Real content" in insert["insertText"]["text"]
         assert insert["insertText"]["text"].strip() == "Real content"
 
+    def test_img_and_hr_preserve_paragraph_boundary(self):
+        # #401: an unsupported construct (<img>, <hr>) must not fuse its
+        # neighbors together — each still gets its own blank line in the
+        # final insertText rather than A's endIndex landing on B's startIndex.
+        requests, _ = _html_to_doc_requests('<p>A</p><p><img src="x.png"></p><hr><p>B</p>')
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "A\n\n\nB\n"
+
     def test_table_produces_insert_table_request(self):
         requests, tables = _html_to_doc_requests(
             "<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>"
@@ -402,6 +410,80 @@ class TestHtmlToAst:
         nodes = html_to_ast('<p data-style="TITLE">T</p>')
         assert isinstance(nodes[0], NamedBlock)
         assert nodes[0].style_type == "TITLE"
+
+
+class TestUnsupportedConstructPreservesParagraphBoundary:
+    """#401: a construct the converter can't represent (<img>, <hr>) must
+    leave behind an empty block rather than deleting the paragraph boundary
+    itself, so adjacent content doesn't fuse together."""
+
+    def test_img_wrapped_in_paragraph_leaves_empty_paragraph(self):
+        nodes = html_to_ast('<p>A</p><p><img src="x.png"></p><p>B</p>')
+        assert len(nodes) == 3
+        assert [isinstance(n, Paragraph) for n in nodes] == [True, True, True]
+        assert nodes[0].runs[0].text == "A"
+        assert nodes[1].runs == []
+        assert nodes[2].runs[0].text == "B"
+
+    def test_bare_hr_between_paragraphs_leaves_empty_paragraph(self):
+        nodes = html_to_ast("<p>A</p><hr><p>B</p>")
+        assert len(nodes) == 3
+        assert [isinstance(n, Paragraph) for n in nodes] == [True, True, True]
+        assert nodes[0].runs[0].text == "A"
+        assert nodes[1].runs == []
+        assert nodes[2].runs[0].text == "B"
+
+    def test_underscore_hr_between_paragraphs_leaves_empty_paragraph(self):
+        # python-markdown renders both "---" and "___" thematic breaks the
+        # same way (<hr />) — confirmed in issue #401's own follow-up comment.
+        nodes = html_to_ast("<p>A</p><hr /><p>B</p>")
+        assert len(nodes) == 3
+        assert nodes[1].runs == []
+
+    def test_hr_wrapped_in_inline_tag_with_no_block_ancestor_still_dropped(self):
+        # PR #406 QA pass 2: the bare-<hr> check omitted the _tag_depth == 0
+        # condition that handle_data's sibling bare-text check uses (#343),
+        # so an <hr> wrapped only in an inline tag with no block ancestor
+        # (e.g. "<span><hr></span>") spuriously injected a paragraph
+        # boundary — contradicting the existing, tested policy that
+        # inline-only content with no block ancestor is a deliberate no-op
+        # (see test_span_wrapped_text_still_dropped in test_docs_content.py).
+        assert html_to_ast("<span><hr></span>") == []
+
+    def test_whitespace_only_paragraph_still_dropped(self):
+        # Regression guard: the runs=[] vs. runs-non-empty-but-whitespace
+        # split must not accidentally start fixing #402 (a separate issue) —
+        # a paragraph with actual (whitespace) runs stays dropped.
+        nodes = html_to_ast("<p>A</p><p>   </p><p>B</p>")
+        assert len(nodes) == 2
+        assert nodes[0].runs[0].text == "A"
+        assert nodes[1].runs[0].text == "B"
+
+    def test_dropped_construct_survives_interruption_by_nested_list(self):
+        # #401 follow-up (PR #406, TC-DOC136): _interrupt_open_block flushed
+        # the currently-open block before descending into a nested construct
+        # with preserve_if_empty always False, so a bullet whose only content
+        # was an unsupported <img> vanished entirely — not just the image —
+        # whenever it was interrupted by its own nested list instead of
+        # closing directly. TC-DOC135's own review round live-reproduced
+        # this exact gap.
+        html = '<ul><li><img src="x.png"><ul><li>nested</li></ul></li></ul>'
+        nodes = html_to_ast(html)
+        assert [isinstance(n, BulletItem) for n in nodes] == [True, True]
+        assert nodes[0].runs == []
+        assert nodes[1].runs[0].text == "nested"
+
+    def test_parent_with_no_own_text_still_unaffected_by_the_fix(self):
+        # Companion control case for the fix above: an <li> that wraps only
+        # a nested list, with no text and no dropped construct of its own,
+        # must still emit nothing for itself — the naive fix of always
+        # preserving an interrupt-time empty flush regresses exactly this
+        # (see TestNestedLists.test_parent_with_no_own_text_unaffected for
+        # the end-to-end version of this same guard).
+        html = "<ul><li><ul><li>child</li></ul></li></ul>"
+        nodes = html_to_ast(html)
+        assert [isinstance(n, BulletItem) for n in nodes] == [True]
+        assert nodes[0].runs[0].text == "child"
 
 
 class TestNamedBlockEmitter:

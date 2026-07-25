@@ -2350,3 +2350,67 @@ Run against a live sandbox scoped to only `create_doc,create_doc_from_file,write
 
 ### TC-W36 regression spot-check — not run
 `sheets/helpers.py`'s `_utf16_len` now delegates to the same shared `utf16_len` helper (behavior-preserving, no logic change) rather than duplicating it. A regression spot-check of TC-W36 (`docs/qa/tests/sheets_write.md`) was skipped this round: the live sandbox's `ENABLED_TOOLS` included `update_cells` but not `get_sheet_data`, so a rich-text write couldn't be read back to confirm `textFormatRuns[1].startIndex`. Worth a real spot-check next time a sandbox with read-back access is available; low risk given the change is a pure delegation.
+
+---
+
+## Unsupported markdown constructs preserve paragraph boundaries (issue #401)
+
+**Background:** #332/#333 established that an unsupported construct like `<img>` (markdown images convert to `<img>` before reaching the shared HTML→AST parser) gets dropped from the document. #401 is a step further: the construct's entire *paragraph* was also being deleted, not just the construct itself — `_emit_block_node` (`html_parser.py`) returned early without appending anything whenever a closed block's buffered runs came back empty (e.g. its only child was an unsupported `<img>`), and a bare `<hr>` (python-markdown's rendering of both `---` and `___` thematic breaks — confirmed via the issue's own follow-up comment) never opened a block at all, so it left zero trace. Either way, the two blocks on either side ended up directly adjacent (one's `endIndex` == the next one's `startIndex`), unlike how any standard markdown viewer degrades (the construct's own line/block boundary survives even when the construct itself can't render). The fix keeps an empty node (`runs=[]`) in the AST for both cases instead of dropping it — `emitter.py`'s `ast_to_requests` was updated to match, since its own `if not text.strip(): continue` guard would otherwise have skipped the now-empty node's contribution to `full_text` and lost the boundary anyway.
+
+### TC-DOC135: Dropped image and thematic breaks each keep their own paragraph instead of fusing adjacent headings together ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** use `docs/qa/fixtures/tc-doc135-paragraph-boundary.md` — an unsupported image, two headings, a `---` thematic break, a `##` heading + paragraph, a `___` thematic break, and a final `##` heading + paragraph, mirroring the issue's own repro (`![Kindly Human](kh-logo.png)` immediately followed by two headings) plus the underscore-variant break called out in the issue's follow-up comment.
+
+**Prompt**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc135-paragraph-boundary.md, then show me its structure."
+
+**Checks**
+- Tool completes without error
+- `get_doc_structure` lists, in order: an empty (non-heading, non-bulleted) paragraph — the dropped image's boundary — then HEADING_1 "Kindly Human", HEADING_1 "Auditing and Accountability Policy", another empty paragraph (the `---` break), HEADING_2 "PURPOSE", a plain paragraph "Body text after the thematic break.", another empty paragraph (the `___` break), HEADING_2 "SCOPE", and a plain paragraph "Body text after the underscore break."
+- Confirm each empty paragraph is a real, distinct structural element (own `startIndex`/`endIndex`, one index unit wide) sitting *between* the two real elements around it — not the two real elements landing with one's `endIndex` equal to the next one's `startIndex` with nothing between them
+
+**Cleanup:** delete the created doc
+
+**Result:** PASS (2026-07-22, live via `mcp-gee-sweet-kit`, doc `1wUsmzHLHn4v4DRFvedfcy7qqBVuVnIcjk3gnUjtJTQU`, deleted after). `get_doc_structure` returned exactly the expected sequence: empty paragraph (dropped-image boundary), HEADING_1 "Kindly Human", HEADING_1 "Auditing and Accountability Policy", empty paragraph (`---`), HEADING_2 "PURPOSE", body paragraph, empty paragraph (`___`), HEADING_2 "SCOPE", body paragraph — each empty paragraph its own 1-unit-wide element between real neighbors, none fused. Separately reproduced live (scratch doc `1xa-iLbjHbqSJlyQ2IN_mFggCTd9gb_WsenMKolehQio`, deleted after) that `_interrupt_open_block` (`html_parser.py:236`) still drops the entire outer node when a block whose only content is an unsupported construct is interrupted by a nested block (e.g. `- ![img](x.png)\n    - nested`) — the outer bullet vanishes completely, not just its image, unlike the direct-close case this test covers. This gap is outside TC-DOC135's own scope but confirms the code-review finding on the same PR; see PR comment for detail. Not itself a fail for this test case, but blocks `qa-approved` for the PR as a whole.
+
+**Re-verified after fix (2026-07-24, live via `mcp-gee-sweet-kit`, doc `1gWzAqpRvwT8n7IfJ70dkKRHyErTJyJLLjY4w3GaEqh4`, deleted after):** direct-close path unaffected by the interrupt-path fix (`preserve_if_empty` now keyed on `_block_had_unsupported_content` rather than `not self._block_resumed`) — `get_doc_structure` returned the identical expected sequence, no regression.
+
+---
+
+**Background:** TC-DOC135's own review round found a same-bug-class gap: `_interrupt_open_block` (`html_parser.py`) flushed the currently-open block *before* descending into a nested construct with `preserve_if_empty=False` unconditionally, so a block whose only content was an unsupported construct (e.g. an `<img>`) vanished entirely — not just the image — whenever it was itself interrupted by a nested list/table/pre/block instead of closing directly. The fix replaces the old `not self._block_resumed` proxy (used at every `_emit_block_node` call site) with a new `self._block_had_unsupported_content` flag that tracks, per open-block segment, whether something was actually silently dropped (an unsupported void element or unrecognized tag) since the segment last began — set in `handle_starttag`'s generic inline-element fallthrough, reset on both fresh block open and on `_resume_interrupted_block`. This is a deliberately different signal than "is this the block's first segment," because the interrupt call site's old proxy is wrong exactly when a block is empty for a completely unrelated, common reason: an `<li>` that wraps *only* a nested list with no text of its own (ordinary nested-list markdown) is empty on its first flush too, and must NOT gain a spurious empty bullet — a regression the naive `not self._block_resumed` fix would have introduced, caught by the existing unit test `TestNestedLists::test_parent_with_no_own_text_unaffected`.
+
+### TC-DOC136: A block whose only content is a dropped construct survives when interrupted by a nested list, while a block with no content of its own still emits nothing ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** use `docs/qa/fixtures/tc-doc136-interrupted-block-boundary.md` — an H1 "Bug case" followed by a bullet whose only content is an unsupported `<img>`, immediately interrupted by its own nested one-item list (no direct-close ever happens for the outer bullet); then an H1 "Control case" followed by a bullet with real text of its own before an interrupting nested two-item list.
+
+**Prompt**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc136-interrupted-block-boundary.md, then show me its structure."
+
+**Checks**
+- Tool completes without error
+- `get_doc_structure` lists, in order: HEADING_1 "Bug case", an empty (non-heading) bullet item — the dropped image's boundary, surviving the interruption instead of the whole outer bullet vanishing — a nested bullet item "nested one", HEADING_1 "Control case", a bullet item "text", and two nested bullet items "control child a" / "control child b"
+- Exactly one bullet item appears for the "Bug case" list before "nested one" (the preserved empty outer bullet) — not zero (the pre-fix vanish) and not two (a duplicate)
+- No spurious empty bullet item appears anywhere under "Control case" — the outer "text" bullet's own real content is the only node before its two children
+
+**Cleanup:** delete the created doc
+
+**Result:** PASS (2026-07-24, live via `mcp-gee-sweet-kit`, doc `16Cp78j9qXCqXXcA3PcYI_-bPUsRx9PwB9a-wn0zFIWU`, deleted after). `get_doc_structure` returned exactly the expected sequence: HEADING_1 "Bug case", one empty paragraph (the preserved outer-bullet boundary), "nested one", HEADING_1 "Control case", "text", "control child a", "control child b" — exactly one empty node for the bug case (neither vanished nor duplicated), and no spurious empty node anywhere under the control case. Confirms the send-back finding from PR #406's prior QA round (interrupt path dropping a block whose only content was an unsupported construct) is fixed without regressing the ordinary nested-list-with-no-own-text case.
+
+---
+
+**Background:** TC-DOC136's own review round (QA pass 2) found a second, unrelated gap in the *original* #401 fix (not introduced by TC-DOC136's own change): the bare-`<hr>`-with-no-open-block check (`html_parser.py`, added by #401) tested `self._block_tag is None and self._table_depth == 0` but omitted `self._tag_depth == 0` — the condition `handle_data`'s sibling bare-text check uses (#343) to distinguish genuinely bare top-level content from content that's merely wrapped in an inline tag with no block ancestor. An `<hr>` wrapped only in an inline tag (e.g. `<span><hr></span>`) was therefore treated as a bare top-level thematic break and injected a spurious empty-paragraph boundary — contradicting the existing, tested policy (`test_span_wrapped_text_still_dropped`, TC-DOC132) that inline-only content with no block ancestor is a deliberate no-op. Only reachable via hand-authored HTML through `create_doc_from_file`'s `.html` path — python-markdown never emits `<hr>` wrapped in an inline tag, only as a bare top-level sibling.
+
+### TC-DOC137: An `<hr>` wrapped only in an inline tag with no block ancestor stays a no-op, matching the existing bare-text policy ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** use `docs/qa/fixtures/tc-doc137-inline-hr-no-block-ancestor.html` — a paragraph, a `<span>` wrapping only an `<hr>` with no block ancestor, and another paragraph.
+
+**Prompt**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc137-inline-hr-no-block-ancestor.html, then show me its structure."
+
+**Checks**
+- Tool completes without error
+- `get_doc_structure` shows exactly two body elements: a paragraph "Before" immediately followed by a paragraph "After" — no empty paragraph or other structural element between them (the pre-fix bug would show three elements, with a spurious empty paragraph from the inline-wrapped `<hr>`)
+
+**Cleanup:** delete the created doc
+
+**Result:** PASS (2026-07-24, live via `mcp-gee-sweet-kit`, doc `11kfAgxg8pfiSfEGgvu9AvLtYlaWjf4B0KsBJPwntnSI`, deleted after). `get_doc_structure` returned exactly "Before" immediately followed by "After" — no spurious empty paragraph from the inline-wrapped `<hr>`, confirming the send-back finding from PR #406's QA pass 2 is fixed. Full unit suite: 898 passed.
