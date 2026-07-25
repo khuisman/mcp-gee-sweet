@@ -3075,6 +3075,56 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#unsupported-markdown-constructs-preserve-paragraph-boundaries-issue-401" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unsupported markdown constructs preserve paragraph boundaries (issue #401)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Unsupported markdown constructs preserve paragraph boundaries (issue #401)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc135-dropped-image-and-thematic-breaks-each-keep-their-own-paragraph-instead-of-fusing-adjacent-headings-together-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC135: Dropped image and thematic breaks each keep their own paragraph instead of fusing adjacent headings together ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc136-a-block-whose-only-content-is-a-dropped-construct-survives-when-interrupted-by-a-nested-list-while-a-block-with-no-content-of-its-own-still-emits-nothing-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC136: A block whose only content is a dropped construct survives when interrupted by a nested list, while a block with no content of its own still emits nothing ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc137-an-hr-wrapped-only-in-an-inline-tag-with-no-block-ancestor-stays-a-no-op-matching-the-existing-bare-text-policy-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC137: An &lt;hr&gt; wrapped only in an inline tag with no block ancestor stays a no-op, matching the existing bare-text policy ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5150,6 +5200,50 @@ Run against a live sandbox scoped to only <code>create_doc,create_doc_from_file,
 <hr />
 <h3 id="tc-w36-regression-spot-check-not-run">TC-W36 regression spot-check — not run<a class="headerlink" href="#tc-w36-regression-spot-check-not-run" title="Permanent link">&para;</a></h3>
 <p><code>sheets/helpers.py</code>'s <code>_utf16_len</code> now delegates to the same shared <code>utf16_len</code> helper (behavior-preserving, no logic change) rather than duplicating it. A regression spot-check of TC-W36 (<code>docs/qa/tests/sheets_write.md</code>) was skipped this round: the live sandbox's <code>ENABLED_TOOLS</code> included <code>update_cells</code> but not <code>get_sheet_data</code>, so a rich-text write couldn't be read back to confirm <code>textFormatRuns[1].startIndex</code>. Worth a real spot-check next time a sandbox with read-back access is available; low risk given the change is a pure delegation.</p>
+<hr />
+<h2 id="unsupported-markdown-constructs-preserve-paragraph-boundaries-issue-401">Unsupported markdown constructs preserve paragraph boundaries (issue #401)<a class="headerlink" href="#unsupported-markdown-constructs-preserve-paragraph-boundaries-issue-401" title="Permanent link">&para;</a></h2>
+<p><strong>Background:</strong> #332/#333 established that an unsupported construct like <code>&lt;img&gt;</code> (markdown images convert to <code>&lt;img&gt;</code> before reaching the shared HTML→AST parser) gets dropped from the document. #401 is a step further: the construct's entire <em>paragraph</em> was also being deleted, not just the construct itself — <code>_emit_block_node</code> (<code>html_parser.py</code>) returned early without appending anything whenever a closed block's buffered runs came back empty (e.g. its only child was an unsupported <code>&lt;img&gt;</code>), and a bare <code>&lt;hr&gt;</code> (python-markdown's rendering of both <code>---</code> and <code>___</code> thematic breaks — confirmed via the issue's own follow-up comment) never opened a block at all, so it left zero trace. Either way, the two blocks on either side ended up directly adjacent (one's <code>endIndex</code> == the next one's <code>startIndex</code>), unlike how any standard markdown viewer degrades (the construct's own line/block boundary survives even when the construct itself can't render). The fix keeps an empty node (<code>runs=[]</code>) in the AST for both cases instead of dropping it — <code>emitter.py</code>'s <code>ast_to_requests</code> was updated to match, since its own <code>if not text.strip(): continue</code> guard would otherwise have skipped the now-empty node's contribution to <code>full_text</code> and lost the boundary anyway.</p>
+<h3 id="tc-doc135-dropped-image-and-thematic-breaks-each-keep-their-own-paragraph-instead-of-fusing-adjacent-headings-together-requires-oauth-destructive">TC-DOC135: Dropped image and thematic breaks each keep their own paragraph instead of fusing adjacent headings together ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc135-dropped-image-and-thematic-breaks-each-keep-their-own-paragraph-instead-of-fusing-adjacent-headings-together-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-doc135-paragraph-boundary.md</code> — an unsupported image, two headings, a <code>---</code> thematic break, a <code>##</code> heading + paragraph, a <code>___</code> thematic break, and a final <code>##</code> heading + paragraph, mirroring the issue's own repro (<code>![Kindly Human](kh-logo.png)</code> immediately followed by two headings) plus the underscore-variant break called out in the issue's follow-up comment.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc135-paragraph-boundary.md, then show me its structure."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Tool completes without error
+- <code>get_doc_structure</code> lists, in order: an empty (non-heading, non-bulleted) paragraph — the dropped image's boundary — then HEADING_1 "Kindly Human", HEADING_1 "Auditing and Accountability Policy", another empty paragraph (the <code>---</code> break), HEADING_2 "PURPOSE", a plain paragraph "Body text after the thematic break.", another empty paragraph (the <code>___</code> break), HEADING_2 "SCOPE", and a plain paragraph "Body text after the underscore break."
+- Confirm each empty paragraph is a real, distinct structural element (own <code>startIndex</code>/<code>endIndex</code>, one index unit wide) sitting <em>between</em> the two real elements around it — not the two real elements landing with one's <code>endIndex</code> equal to the next one's <code>startIndex</code> with nothing between them</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result:</strong> PASS (2026-07-22, live via <code>mcp-gee-sweet-kit</code>, doc <code>1wUsmzHLHn4v4DRFvedfcy7qqBVuVnIcjk3gnUjtJTQU</code>, deleted after). <code>get_doc_structure</code> returned exactly the expected sequence: empty paragraph (dropped-image boundary), HEADING_1 "Kindly Human", HEADING_1 "Auditing and Accountability Policy", empty paragraph (<code>---</code>), HEADING_2 "PURPOSE", body paragraph, empty paragraph (<code>___</code>), HEADING_2 "SCOPE", body paragraph — each empty paragraph its own 1-unit-wide element between real neighbors, none fused. Separately reproduced live (scratch doc <code>1xa-iLbjHbqSJlyQ2IN_mFggCTd9gb_WsenMKolehQio</code>, deleted after) that <code>_interrupt_open_block</code> (<code>html_parser.py:236</code>) still drops the entire outer node when a block whose only content is an unsupported construct is interrupted by a nested block (e.g. <code>- ![img](x.png)\n    - nested</code>) — the outer bullet vanishes completely, not just its image, unlike the direct-close case this test covers. This gap is outside TC-DOC135's own scope but confirms the code-review finding on the same PR; see PR comment for detail. Not itself a fail for this test case, but blocks <code>qa-approved</code> for the PR as a whole.</p>
+<p><strong>Re-verified after fix (2026-07-24, live via <code>mcp-gee-sweet-kit</code>, doc <code>1gWzAqpRvwT8n7IfJ70dkKRHyErTJyJLLjY4w3GaEqh4</code>, deleted after):</strong> direct-close path unaffected by the interrupt-path fix (<code>preserve_if_empty</code> now keyed on <code>_block_had_unsupported_content</code> rather than <code>not self._block_resumed</code>) — <code>get_doc_structure</code> returned the identical expected sequence, no regression.</p>
+<hr />
+<p><strong>Background:</strong> TC-DOC135's own review round found a same-bug-class gap: <code>_interrupt_open_block</code> (<code>html_parser.py</code>) flushed the currently-open block <em>before</em> descending into a nested construct with <code>preserve_if_empty=False</code> unconditionally, so a block whose only content was an unsupported construct (e.g. an <code>&lt;img&gt;</code>) vanished entirely — not just the image — whenever it was itself interrupted by a nested list/table/pre/block instead of closing directly. The fix replaces the old <code>not self._block_resumed</code> proxy (used at every <code>_emit_block_node</code> call site) with a new <code>self._block_had_unsupported_content</code> flag that tracks, per open-block segment, whether something was actually silently dropped (an unsupported void element or unrecognized tag) since the segment last began — set in <code>handle_starttag</code>'s generic inline-element fallthrough, reset on both fresh block open and on <code>_resume_interrupted_block</code>. This is a deliberately different signal than "is this the block's first segment," because the interrupt call site's old proxy is wrong exactly when a block is empty for a completely unrelated, common reason: an <code>&lt;li&gt;</code> that wraps <em>only</em> a nested list with no text of its own (ordinary nested-list markdown) is empty on its first flush too, and must NOT gain a spurious empty bullet — a regression the naive <code>not self._block_resumed</code> fix would have introduced, caught by the existing unit test <code>TestNestedLists::test_parent_with_no_own_text_unaffected</code>.</p>
+<h3 id="tc-doc136-a-block-whose-only-content-is-a-dropped-construct-survives-when-interrupted-by-a-nested-list-while-a-block-with-no-content-of-its-own-still-emits-nothing-requires-oauth-destructive">TC-DOC136: A block whose only content is a dropped construct survives when interrupted by a nested list, while a block with no content of its own still emits nothing ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc136-a-block-whose-only-content-is-a-dropped-construct-survives-when-interrupted-by-a-nested-list-while-a-block-with-no-content-of-its-own-still-emits-nothing-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-doc136-interrupted-block-boundary.md</code> — an H1 "Bug case" followed by a bullet whose only content is an unsupported <code>&lt;img&gt;</code>, immediately interrupted by its own nested one-item list (no direct-close ever happens for the outer bullet); then an H1 "Control case" followed by a bullet with real text of its own before an interrupting nested two-item list.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc136-interrupted-block-boundary.md, then show me its structure."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Tool completes without error
+- <code>get_doc_structure</code> lists, in order: HEADING_1 "Bug case", an empty (non-heading) bullet item — the dropped image's boundary, surviving the interruption instead of the whole outer bullet vanishing — a nested bullet item "nested one", HEADING_1 "Control case", a bullet item "text", and two nested bullet items "control child a" / "control child b"
+- Exactly one bullet item appears for the "Bug case" list before "nested one" (the preserved empty outer bullet) — not zero (the pre-fix vanish) and not two (a duplicate)
+- No spurious empty bullet item appears anywhere under "Control case" — the outer "text" bullet's own real content is the only node before its two children</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result:</strong> PASS (2026-07-24, live via <code>mcp-gee-sweet-kit</code>, doc <code>16Cp78j9qXCqXXcA3PcYI_-bPUsRx9PwB9a-wn0zFIWU</code>, deleted after). <code>get_doc_structure</code> returned exactly the expected sequence: HEADING_1 "Bug case", one empty paragraph (the preserved outer-bullet boundary), "nested one", HEADING_1 "Control case", "text", "control child a", "control child b" — exactly one empty node for the bug case (neither vanished nor duplicated), and no spurious empty node anywhere under the control case. Confirms the send-back finding from PR #406's prior QA round (interrupt path dropping a block whose only content was an unsupported construct) is fixed without regressing the ordinary nested-list-with-no-own-text case.</p>
+<hr />
+<p><strong>Background:</strong> TC-DOC136's own review round (QA pass 2) found a second, unrelated gap in the <em>original</em> #401 fix (not introduced by TC-DOC136's own change): the bare-<code>&lt;hr&gt;</code>-with-no-open-block check (<code>html_parser.py</code>, added by #401) tested <code>self._block_tag is None and self._table_depth == 0</code> but omitted <code>self._tag_depth == 0</code> — the condition <code>handle_data</code>'s sibling bare-text check uses (#343) to distinguish genuinely bare top-level content from content that's merely wrapped in an inline tag with no block ancestor. An <code>&lt;hr&gt;</code> wrapped only in an inline tag (e.g. <code>&lt;span&gt;&lt;hr&gt;&lt;/span&gt;</code>) was therefore treated as a bare top-level thematic break and injected a spurious empty-paragraph boundary — contradicting the existing, tested policy (<code>test_span_wrapped_text_still_dropped</code>, TC-DOC132) that inline-only content with no block ancestor is a deliberate no-op. Only reachable via hand-authored HTML through <code>create_doc_from_file</code>'s <code>.html</code> path — python-markdown never emits <code>&lt;hr&gt;</code> wrapped in an inline tag, only as a bare top-level sibling.</p>
+<h3 id="tc-doc137-an-hr-wrapped-only-in-an-inline-tag-with-no-block-ancestor-stays-a-no-op-matching-the-existing-bare-text-policy-requires-oauth-destructive">TC-DOC137: An <code>&lt;hr&gt;</code> wrapped only in an inline tag with no block ancestor stays a no-op, matching the existing bare-text policy ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc137-an-hr-wrapped-only-in-an-inline-tag-with-no-block-ancestor-stays-a-no-op-matching-the-existing-bare-text-policy-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-doc137-inline-hr-no-block-ancestor.html</code> — a paragraph, a <code>&lt;span&gt;</code> wrapping only an <code>&lt;hr&gt;</code> with no block ancestor, and another paragraph.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc137-inline-hr-no-block-ancestor.html, then show me its structure."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Tool completes without error
+- <code>get_doc_structure</code> shows exactly two body elements: a paragraph "Before" immediately followed by a paragraph "After" — no empty paragraph or other structural element between them (the pre-fix bug would show three elements, with a spurious empty paragraph from the inline-wrapped <code>&lt;hr&gt;</code>)</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result:</strong> PASS (2026-07-24, live via <code>mcp-gee-sweet-kit</code>, doc <code>11kfAgxg8pfiSfEGgvu9AvLtYlaWjf4B0KsBJPwntnSI</code>, deleted after). <code>get_doc_structure</code> returned exactly "Before" immediately followed by "After" — no spurious empty paragraph from the inline-wrapped <code>&lt;hr&gt;</code>, confirming the send-back finding from PR #406's QA pass 2 is fixed. Full unit suite: 898 passed.</p>
 
 
 
