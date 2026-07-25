@@ -1260,6 +1260,66 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
+### TC-D210: convert=True — CSV converts to a native Google Sheet (issue #188) ⚠️ local-filesystem
+**Prompt**
+> "Upload the local file `/tmp/qa-convert.csv` to {FOLDER_ID} with convert set to true" *(create `/tmp/qa-convert.csv` with a couple rows of comma-separated data first)*
+
+**Checks**
+- Call `upload_local_file(local_path="/tmp/qa-convert.csv", parent_folder_id="{FOLDER_ID}", convert=true)`
+- Response has no `error` key, `skipped: false`
+- `get_file_metadata` (or `list_files` on `{FOLDER_ID}`) shows the new file's `mimeType` as `application/vnd.google-apps.spreadsheet`, not `text/csv`
+- `get_sheet_data` against the returned `fileId` returns the CSV's rows/columns as real cell data (confirms Drive actually imported the content, not just relabeled the MIME type)
+
+---
+
+### TC-D211: convert=True — Markdown converts to a native Google Doc ⚠️ local-filesystem
+**Prompt**
+> "Upload the local file `/tmp/qa-convert.md` to {FOLDER_ID} with convert set to true" *(create `/tmp/qa-convert.md` with a heading and a paragraph first)*
+
+**Checks**
+- Call `upload_local_file(local_path="/tmp/qa-convert.md", parent_folder_id="{FOLDER_ID}", convert=true)`
+- Response has no `error` key
+- File's `mimeType` is `application/vnd.google-apps.document`, not `text/markdown`
+- `get_doc_content` on the returned `fileId` returns readable text matching the markdown source (heading and paragraph both present)
+
+---
+
+### TC-D212: convert=True — PPTX converts to a native Google Slides file ⚠️ local-filesystem
+**Prompt**
+> "Upload the local file `/tmp/qa-convert.pptx` to {FOLDER_ID} with convert set to true" *(any minimal .pptx works)*
+
+**Checks**
+- Call `upload_local_file(local_path="/tmp/qa-convert.pptx", parent_folder_id="{FOLDER_ID}", convert=true)`
+- Response has no `error` key
+- File's `mimeType` is `application/vnd.google-apps.presentation`, not the OOXML pptx MIME type
+
+---
+
+### TC-D213: convert=True — unsupported extension returns an error, nothing uploaded ⚠️ local-filesystem
+**Prompt**
+> "Upload the local file `/tmp/qa-convert.zip` to {FOLDER_ID} with convert set to true" *(any small file named `.zip` works — content doesn't matter)*
+
+**Checks**
+- Call `upload_local_file(local_path="/tmp/qa-convert.zip", parent_folder_id="{FOLDER_ID}", convert=true)`
+- Response contains `error` mentioning the `.zip` extension is unsupported
+- `list_files` on `{FOLDER_ID}` shows no new file was created
+
+---
+
+### TC-D214: convert omitted (default False) still uploads CSV as-is ⚠️ local-filesystem
+**Prompt**
+> "Upload the local file `/tmp/qa-convert.csv` to {FOLDER_ID}" *(convert not mentioned — confirms the default doesn't change existing behavior)*
+
+**Checks**
+- Call `upload_local_file(local_path="/tmp/qa-convert.csv", parent_folder_id="{FOLDER_ID}")` (no `convert` arg)
+- File's `mimeType` in Drive is `text/csv`, unchanged from pre-#188 behavior
+- No regression versus TC-D93's binary-upload path
+
+**Teardown (TC-D210–TC-D214)**
+Delete all `qa-convert.*` files and their converted Drive counterparts from `{FOLDER_ID}`. Remove the local `/tmp/qa-convert.*` scratch files.
+
+---
+
 ## `upload_local_folder`
 
 ### TC-D98: Bulk upload of a mixed directory ⚠️ destructive ⚠️ local-filesystem

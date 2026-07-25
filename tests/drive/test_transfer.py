@@ -187,6 +187,73 @@ class TestUploadLocalFileCore:
         assert create_kwargs["body"]["name"] == "renamed.png"
 
 
+class TestUploadLocalFileConvert:
+    """convert=True requests Drive's native import conversion (issue #188)."""
+
+    @pytest.mark.parametrize(
+        "filename,expected_target_mime",
+        [
+            ("data.csv", "application/vnd.google-apps.spreadsheet"),
+            ("data.xlsx", "application/vnd.google-apps.spreadsheet"),
+            ("doc.docx", "application/vnd.google-apps.document"),
+            ("notes.md", "application/vnd.google-apps.document"),
+            ("page.html", "application/vnd.google-apps.document"),
+            ("page.htm", "application/vnd.google-apps.document"),
+            ("deck.pptx", "application/vnd.google-apps.presentation"),
+        ],
+    )
+    async def test_convert_sets_target_mimetype_for_supported_extensions(
+        self, tmp_path, filename, expected_target_mime
+    ):
+        local_file = tmp_path / filename
+        local_file.write_text("content")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": filename,
+            "webViewLink": "https://example.com",
+        }
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["body"]["mimeType"] == expected_target_mime
+
+    async def test_convert_unsupported_extension_returns_error_without_uploading(self, tmp_path):
+        local_file = tmp_path / "archive.zip"
+        local_file.write_bytes(b"fake-bytes")
+        drive_svc = MagicMock()
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" in result
+        assert ".zip" in result["error"]
+        drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_convert_false_default_does_not_set_target_mimetype(self, tmp_path):
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "data.csv",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await _upload_local_file(drive_svc, str(local_file), "folder1")
+
+        assert "error" not in result
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert "mimeType" not in create_kwargs["body"]
+
+
 class TestXlsxRangeValues:
     async def test_no_range_returns_all_rows(self):
         wb = _roundtrip(_make_wb([["A", "B"], ["C", "D"]]))
