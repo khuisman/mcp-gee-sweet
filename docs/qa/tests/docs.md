@@ -2312,16 +2312,57 @@ Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the su
 
 ---
 
+## UTF-16 code-unit offset correctness in write paths (issue #358)
+
+**Background:** Docs API `startIndex`/`endIndex` count UTF-16 code units, not Python code points — an astral-plane character (most emoji, some CJK/math symbols) is one Python `str` character but a 2-unit surrogate pair. `emitter.py`'s `ast_to_requests` derived every downstream offset (table positions, paragraph-style ranges, inline run-style ranges) from plain `len()`, so any content containing an astral-plane character before other content in the same batch silently desynced every subsequent computed offset. Fixed by introducing a shared `utf16_len` helper (`docs/indices.py`) and routing `emitter.py` and `content.py` through it; `sheets/helpers.py`'s `_utf16_len` now delegates to the same helper instead of duplicating the accounting. The identical pattern was already fixed in `find_in_doc`'s `_collect_doc_paragraphs` (#262); this closes the matching gap in the write path.
+
+### TC-DOC133: `write_doc_content` — table position lands correctly after an astral-plane (emoji) paragraph ⚠️ destructive
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<p>😀 Hello</p><table><tr><td>Marker</td></tr></table>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows a paragraph reading exactly "😀 Hello" immediately followed by a 1×1 table whose cell reads exactly "Marker" — not truncated, spliced, or overlapping. Pre-fix, `table_positions` was computed from `len("😀 Hello\n")` (8) instead of the correct UTF-16 length (9), landing the table one unit early — inside the paragraph's trailing newline.
+
+**Cleanup:** write fixture content back
+
+**Result (2026-07-22) ✅ PASS**
+Run against a live sandbox scoped to only `create_doc,create_doc_from_file,write_doc_content,find_in_doc,insert_softbreak_paragraph,insert_local_images,update_cells` (`get_doc_structure` not enabled) — verified via `find_in_doc` instead: "Hello" matched at `[4,9]` (paragraph text, UTF-16-correct given 😀 occupies units 1-2), "Marker" matched intact at `[14,20]` with clean cell-only context, no splice/corruption between paragraph and table content. Geometry consistent with the fixed `table_positions` (10) rather than the pre-fix value (9). A future run with `get_doc_structure` available should confirm the exact table/cell start index directly rather than inferring it from `find_in_doc` matches.
+
+---
+
+### TC-DOC134: `insert_softbreak_paragraph` — `line_ranges` correct across an astral-plane (emoji) character ⚠️ destructive
+**Setup:** fresh/empty doc (index 1 is always a valid insertion point in a new Google Doc)
+
+**Prompt**
+> "Insert a soft-break paragraph at index 1 in doc {DOC_ID} with lines [{text: '😀X'}, {text: 'Y'}]"
+
+**Checks**
+- Response has no `error`; `end_index` is 6 and `line_ranges` is `[{start_index: 1, end_index: 4}, {start_index: 5, end_index: 6}]` — UTF-16-correct (😀 = 2 units, X/\v/Y = 1 unit each, total 5 units from index 1). Pre-fix (`len()`-based) would have given `end_index: 5` and `line_ranges: [{1,3},{4,5}]`.
+- `get_doc_structure` confirms the paragraph text reads exactly "😀X\vY" with no dropped or shifted characters
+
+**Cleanup:** delete the created doc
+
+**Result (2026-07-22) ✅ PASS**
+`insert_softbreak_paragraph` returned `end_index: 6`, `line_ranges: [{start_index:1,end_index:4},{start_index:5,end_index:6}]` — exact match for the UTF-16-correct values, not the pre-fix `len()`-based ones. Independently confirmed via `find_in_doc`: "Y" matched at `[5,6]` with context `"😀XY"`.
+
+---
+
+### TC-W36 regression spot-check — not run
+`sheets/helpers.py`'s `_utf16_len` now delegates to the same shared `utf16_len` helper (behavior-preserving, no logic change) rather than duplicating it. A regression spot-check of TC-W36 (`docs/qa/tests/sheets_write.md`) was skipped this round: the live sandbox's `ENABLED_TOOLS` included `update_cells` but not `get_sheet_data`, so a rich-text write couldn't be read back to confirm `textFormatRuns[1].startIndex`. Worth a real spot-check next time a sandbox with read-back access is available; low risk given the change is a pure delegation.
+
+---
+
 ## Unsupported markdown constructs preserve paragraph boundaries (issue #401)
 
 **Background:** #332/#333 established that an unsupported construct like `<img>` (markdown images convert to `<img>` before reaching the shared HTML→AST parser) gets dropped from the document. #401 is a step further: the construct's entire *paragraph* was also being deleted, not just the construct itself — `_emit_block_node` (`html_parser.py`) returned early without appending anything whenever a closed block's buffered runs came back empty (e.g. its only child was an unsupported `<img>`), and a bare `<hr>` (python-markdown's rendering of both `---` and `___` thematic breaks — confirmed via the issue's own follow-up comment) never opened a block at all, so it left zero trace. Either way, the two blocks on either side ended up directly adjacent (one's `endIndex` == the next one's `startIndex`), unlike how any standard markdown viewer degrades (the construct's own line/block boundary survives even when the construct itself can't render). The fix keeps an empty node (`runs=[]`) in the AST for both cases instead of dropping it — `emitter.py`'s `ast_to_requests` was updated to match, since its own `if not text.strip(): continue` guard would otherwise have skipped the now-empty node's contribution to `full_text` and lost the boundary anyway.
 
-### TC-DOC133: Dropped image and thematic breaks each keep their own paragraph instead of fusing adjacent headings together ⚠️ requires-oauth ⚠️ destructive
+### TC-DOC135: Dropped image and thematic breaks each keep their own paragraph instead of fusing adjacent headings together ⚠️ requires-oauth ⚠️ destructive
 
-**Setup:** use `docs/qa/fixtures/tc-doc133-paragraph-boundary.md` — an unsupported image, two headings, a `---` thematic break, a `##` heading + paragraph, a `___` thematic break, and a final `##` heading + paragraph, mirroring the issue's own repro (`![Kindly Human](kh-logo.png)` immediately followed by two headings) plus the underscore-variant break called out in the issue's follow-up comment.
+**Setup:** use `docs/qa/fixtures/tc-doc135-paragraph-boundary.md` — an unsupported image, two headings, a `---` thematic break, a `##` heading + paragraph, a `___` thematic break, and a final `##` heading + paragraph, mirroring the issue's own repro (`![Kindly Human](kh-logo.png)` immediately followed by two headings) plus the underscore-variant break called out in the issue's follow-up comment.
 
 **Prompt**
-> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc133-paragraph-boundary.md, then show me its structure."
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc135-paragraph-boundary.md, then show me its structure."
 
 **Checks**
 - Tool completes without error
@@ -2330,18 +2371,18 @@ Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the su
 
 **Cleanup:** delete the created doc
 
-**Result:** PASS (2026-07-22, live via `mcp-gee-sweet-kit`, doc `1wUsmzHLHn4v4DRFvedfcy7qqBVuVnIcjk3gnUjtJTQU`, deleted after). `get_doc_structure` returned exactly the expected sequence: empty paragraph (dropped-image boundary), HEADING_1 "Kindly Human", HEADING_1 "Auditing and Accountability Policy", empty paragraph (`---`), HEADING_2 "PURPOSE", body paragraph, empty paragraph (`___`), HEADING_2 "SCOPE", body paragraph — each empty paragraph its own 1-unit-wide element between real neighbors, none fused. Separately reproduced live (scratch doc `1xa-iLbjHbqSJlyQ2IN_mFggCTd9gb_WsenMKolehQio`, deleted after) that `_interrupt_open_block` (`html_parser.py:236`) still drops the entire outer node when a block whose only content is an unsupported construct is interrupted by a nested block (e.g. `- ![img](x.png)\n    - nested`) — the outer bullet vanishes completely, not just its image, unlike the direct-close case this test covers. This gap is outside TC-DOC133's own scope but confirms the code-review finding on the same PR; see PR comment for detail. Not itself a fail for this test case, but blocks `qa-approved` for the PR as a whole.
+**Result:** PASS (2026-07-22, live via `mcp-gee-sweet-kit`, doc `1wUsmzHLHn4v4DRFvedfcy7qqBVuVnIcjk3gnUjtJTQU`, deleted after). `get_doc_structure` returned exactly the expected sequence: empty paragraph (dropped-image boundary), HEADING_1 "Kindly Human", HEADING_1 "Auditing and Accountability Policy", empty paragraph (`---`), HEADING_2 "PURPOSE", body paragraph, empty paragraph (`___`), HEADING_2 "SCOPE", body paragraph — each empty paragraph its own 1-unit-wide element between real neighbors, none fused. Separately reproduced live (scratch doc `1xa-iLbjHbqSJlyQ2IN_mFggCTd9gb_WsenMKolehQio`, deleted after) that `_interrupt_open_block` (`html_parser.py:236`) still drops the entire outer node when a block whose only content is an unsupported construct is interrupted by a nested block (e.g. `- ![img](x.png)\n    - nested`) — the outer bullet vanishes completely, not just its image, unlike the direct-close case this test covers. This gap is outside TC-DOC135's own scope but confirms the code-review finding on the same PR; see PR comment for detail. Not itself a fail for this test case, but blocks `qa-approved` for the PR as a whole.
 
 ---
 
-**Background:** TC-DOC133's own review round found a same-bug-class gap: `_interrupt_open_block` (`html_parser.py`) flushed the currently-open block *before* descending into a nested construct with `preserve_if_empty=False` unconditionally, so a block whose only content was an unsupported construct (e.g. an `<img>`) vanished entirely — not just the image — whenever it was itself interrupted by a nested list/table/pre/block instead of closing directly. The fix replaces the old `not self._block_resumed` proxy (used at every `_emit_block_node` call site) with a new `self._block_had_unsupported_content` flag that tracks, per open-block segment, whether something was actually silently dropped (an unsupported void element or unrecognized tag) since the segment last began — set in `handle_starttag`'s generic inline-element fallthrough, reset on both fresh block open and on `_resume_interrupted_block`. This is a deliberately different signal than "is this the block's first segment," because the interrupt call site's old proxy is wrong exactly when a block is empty for a completely unrelated, common reason: an `<li>` that wraps *only* a nested list with no text of its own (ordinary nested-list markdown) is empty on its first flush too, and must NOT gain a spurious empty bullet — a regression the naive `not self._block_resumed` fix would have introduced, caught by the existing unit test `TestNestedLists::test_parent_with_no_own_text_unaffected`.
+**Background:** TC-DOC135's own review round found a same-bug-class gap: `_interrupt_open_block` (`html_parser.py`) flushed the currently-open block *before* descending into a nested construct with `preserve_if_empty=False` unconditionally, so a block whose only content was an unsupported construct (e.g. an `<img>`) vanished entirely — not just the image — whenever it was itself interrupted by a nested list/table/pre/block instead of closing directly. The fix replaces the old `not self._block_resumed` proxy (used at every `_emit_block_node` call site) with a new `self._block_had_unsupported_content` flag that tracks, per open-block segment, whether something was actually silently dropped (an unsupported void element or unrecognized tag) since the segment last began — set in `handle_starttag`'s generic inline-element fallthrough, reset on both fresh block open and on `_resume_interrupted_block`. This is a deliberately different signal than "is this the block's first segment," because the interrupt call site's old proxy is wrong exactly when a block is empty for a completely unrelated, common reason: an `<li>` that wraps *only* a nested list with no text of its own (ordinary nested-list markdown) is empty on its first flush too, and must NOT gain a spurious empty bullet — a regression the naive `not self._block_resumed` fix would have introduced, caught by the existing unit test `TestNestedLists::test_parent_with_no_own_text_unaffected`.
 
-### TC-DOC135: A block whose only content is a dropped construct survives when interrupted by a nested list, while a block with no content of its own still emits nothing ⚠️ requires-oauth ⚠️ destructive
+### TC-DOC136: A block whose only content is a dropped construct survives when interrupted by a nested list, while a block with no content of its own still emits nothing ⚠️ requires-oauth ⚠️ destructive
 
-**Setup:** use `docs/qa/fixtures/tc-doc135-interrupted-block-boundary.md` — an H1 "Bug case" followed by a bullet whose only content is an unsupported `<img>`, immediately interrupted by its own nested one-item list (no direct-close ever happens for the outer bullet); then an H1 "Control case" followed by a bullet with real text of its own before an interrupting nested two-item list.
+**Setup:** use `docs/qa/fixtures/tc-doc136-interrupted-block-boundary.md` — an H1 "Bug case" followed by a bullet whose only content is an unsupported `<img>`, immediately interrupted by its own nested one-item list (no direct-close ever happens for the outer bullet); then an H1 "Control case" followed by a bullet with real text of its own before an interrupting nested two-item list.
 
 **Prompt**
-> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc135-interrupted-block-boundary.md, then show me its structure."
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc136-interrupted-block-boundary.md, then show me its structure."
 
 **Checks**
 - Tool completes without error
@@ -2350,5 +2391,3 @@ Returned `{"error": "marker 'IMG1' not found in document"}}` — confirms the su
 - No spurious empty bullet item appears anywhere under "Control case" — the outer "text" bullet's own real content is the only node before its two children
 
 **Cleanup:** delete the created doc
-
----
