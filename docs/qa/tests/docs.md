@@ -2391,3 +2391,20 @@ Run against a live sandbox scoped to only `create_doc,create_doc_from_file,write
 - No spurious empty bullet item appears anywhere under "Control case" — the outer "text" bullet's own real content is the only node before its two children
 
 **Cleanup:** delete the created doc
+
+---
+
+**Background:** TC-DOC136's own review round (QA pass 2) found a second, unrelated gap in the *original* #401 fix (not introduced by TC-DOC136's own change): the bare-`<hr>`-with-no-open-block check (`html_parser.py`, added by #401) tested `self._block_tag is None and self._table_depth == 0` but omitted `self._tag_depth == 0` — the condition `handle_data`'s sibling bare-text check uses (#343) to distinguish genuinely bare top-level content from content that's merely wrapped in an inline tag with no block ancestor. An `<hr>` wrapped only in an inline tag (e.g. `<span><hr></span>`) was therefore treated as a bare top-level thematic break and injected a spurious empty-paragraph boundary — contradicting the existing, tested policy (`test_span_wrapped_text_still_dropped`, TC-DOC132) that inline-only content with no block ancestor is a deliberate no-op. Only reachable via hand-authored HTML through `create_doc_from_file`'s `.html` path — python-markdown never emits `<hr>` wrapped in an inline tag, only as a bare top-level sibling.
+
+### TC-DOC137: An `<hr>` wrapped only in an inline tag with no block ancestor stays a no-op, matching the existing bare-text policy ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** use `docs/qa/fixtures/tc-doc137-inline-hr-no-block-ancestor.html` — a paragraph, a `<span>` wrapping only an `<hr>` with no block ancestor, and another paragraph.
+
+**Prompt**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc137-inline-hr-no-block-ancestor.html, then show me its structure."
+
+**Checks**
+- Tool completes without error
+- `get_doc_structure` shows exactly two body elements: a paragraph "Before" immediately followed by a paragraph "After" — no empty paragraph or other structural element between them (the pre-fix bug would show three elements, with a spurious empty paragraph from the inline-wrapped `<hr>`)
+
+**Cleanup:** delete the created doc

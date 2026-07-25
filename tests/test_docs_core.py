@@ -440,6 +440,16 @@ class TestUnsupportedConstructPreservesParagraphBoundary:
         assert len(nodes) == 3
         assert nodes[1].runs == []
 
+    def test_hr_wrapped_in_inline_tag_with_no_block_ancestor_still_dropped(self):
+        # PR #406 QA pass 2: the bare-<hr> check omitted the _tag_depth == 0
+        # condition that handle_data's sibling bare-text check uses (#343),
+        # so an <hr> wrapped only in an inline tag with no block ancestor
+        # (e.g. "<span><hr></span>") spuriously injected a paragraph
+        # boundary — contradicting the existing, tested policy that
+        # inline-only content with no block ancestor is a deliberate no-op
+        # (see test_span_wrapped_text_still_dropped in test_docs_content.py).
+        assert html_to_ast("<span><hr></span>") == []
+
     def test_whitespace_only_paragraph_still_dropped(self):
         # Regression guard: the runs=[] vs. runs-non-empty-but-whitespace
         # split must not accidentally start fixing #402 (a separate issue) —

@@ -374,8 +374,19 @@ class _AstParser(HTMLParser):
         # would otherwise vanish with zero trace, collapsing the paragraph
         # boundary between the surrounding content (#401). Scoped to <hr>
         # specifically rather than every void tag: it's the only one that's a
-        # genuine block-level CommonMark construct in its own right.
-        if tag == "hr" and self._block_tag is None and self._table_depth == 0:
+        # genuine block-level CommonMark construct in its own right. Also
+        # requires _tag_depth == 0, matching handle_data's sibling bare-text
+        # check below (#343): an <hr> wrapped only in an inline tag with no
+        # block ancestor (e.g. "<span><hr></span>") is inline-only content
+        # with no block ancestor, same as bare text in that position, and
+        # must stay a no-op rather than injecting a spurious paragraph
+        # boundary — see test_span_wrapped_text_still_dropped.
+        if (
+            tag == "hr"
+            and self._block_tag is None
+            and self._table_depth == 0
+            and self._tag_depth == 0
+        ):
             self._nodes.append(Paragraph(runs=[]))
             return
 
