@@ -1652,20 +1652,80 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-211b/`.
 
 ---
 
-### TC-D221: convert_markdown — Drive-only converted-named Doc with no export_format reports a clean failure, not a crash (PR review) ⚠️ local-filesystem
-**Background:** a `.md`-named Google Doc with no local counterpart yet ('drive only') is matched into the sync plan without requiring `export_format` (so TC-D218's resync works) — this reopens a path that used to always be excluded, so it needs its own guard against a raw `KeyError` when no `export_format` is set.
+### TC-D221: convert_markdown — Drive-only converted Doc with no export_format reports a clean conflict, not a crash or a doomed download (round 2 review, #414) ⚠️ local-filesystem
+**Background:** a converted Doc with no local counterpart yet ('drive only') is matched into the sync plan without requiring `export_format` (so TC-D218's resync works) — this reopens a path that used to always be excluded, so it needs its own guard against a raw `KeyError` when no `export_format` is set. Round 1 of this test case predates a fix (round 2, PR #414) that scopes converted-Doc matching to a Drive `properties` marker this tool sets on create — see TC-D222 for why. Because that marker can't be set through any public tool, this fixture reuses TC-D217's own conversion call to produce a genuinely-marked Doc, then removes only the local twin to make it drive-only.
 
 **Prompt**
-> "Sync {FOLDER_ID} with `/tmp/qa-sync-221/` using direction='bidirectional' and convert_markdown set to true" *(in `{FOLDER_ID}`, first create a Google Doc named `orphan.md` — e.g. via `create_doc(title="orphan.md")` — with nothing matching locally; `/tmp/qa-sync-221/` should not contain `orphan.md`)*
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-221/` using direction='upload' and convert_markdown set to true" *(create `/tmp/qa-sync-221/notes.md` locally first, with any content, nothing matching in Drive yet — same shape as TC-D217, distinct fixture dir)*
+>
+> Then delete the local file only: remove `/tmp/qa-sync-221/notes.md` (leave the Drive-side Doc it just created untouched).
+>
+> Then: "Sync {FOLDER_ID} with `/tmp/qa-sync-221/` using direction='bidirectional' and convert_markdown set to true"
 
 **Checks**
-- Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-221/", direction="bidirectional", convert_markdown=true)`
-- No exception raised
-- `orphan.md` appears in `failed` with an error message mentioning `export_format`
-- `orphan.md` does not appear in `downloaded`
+- The first (upload) call succeeds; `notes.md` appears in `uploaded`
+- After deleting the local file, the second (bidirectional) call: no exception raised
+- `notes.md` appears in `conflicts`, not `failed`, not `downloaded`
+- `list_files` on `{FOLDER_ID}` still shows exactly one `notes.md` Doc (untouched, not deleted or modified)
 
 **Teardown**
-Delete the `orphan.md` Doc from `{FOLDER_ID}`. Remove `/tmp/qa-sync-221/`.
+Delete the `notes.md` Doc from `{FOLDER_ID}`. Remove `/tmp/qa-sync-221/`.
+
+---
+
+### TC-D222: convert_markdown — a pre-existing unrelated Doc with a colliding name is never treated as this tool's converted twin (#414 QA review, finding #2) ⚠️ local-filesystem
+**Background:** matching a Drive Doc back to its local `.md` file used to rely only on name + mimeType, so any human-created Doc that happened to be named `notes.md` would be silently treated as if this tool had created it — letting a same-named local file overwrite that Doc's real content via `files().update()`. The fix scopes matching to a Drive `properties` marker this tool sets on its own conversions, which a pre-existing unrelated Doc never has.
+
+**Prompt**
+> In `{FOLDER_ID}`, create a Google Doc titled `notes.md` via `create_doc(title="notes.md")` and write some distinct placeholder content into it with `write_doc_content`. Then create `/tmp/qa-sync-222/notes.md` locally with different content, and:
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-222/` using direction='bidirectional' and convert_markdown set to true"
+
+**Checks**
+- Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-222/", direction="bidirectional", convert_markdown=true)`
+- `notes.md` appears in `uploaded` (the local file is treated as local-only and converted into a *new* Doc — it does not match the pre-existing unrelated one)
+- `list_files` on `{FOLDER_ID}` now shows **two** files named `notes.md` (the original unrelated Doc, untouched, plus the newly-created converted one)
+- `get_doc_content` on the original Doc's ID still returns the original placeholder content — confirming it was never overwritten
+
+**Teardown**
+Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-222/`.
+
+---
+
+### TC-D223: convert_markdown cannot promote a file previously synced with convert_markdown=False (#414 QA review, finding #3) ⚠️ local-filesystem
+**Background:** Drive's API has no supported way to convert an existing file's type via `files().update()` — only `files().create()` honors native import conversion. A `.md` file first synced as a plain file and later re-synced with `convert_markdown=True` used to silently re-upload markdown text into the still-plain file rather than promoting it to a Doc. The fix detects the mismatch and fails cleanly instead.
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-223/` using direction='upload'" *(convert_markdown omitted; create `/tmp/qa-sync-223/notes.md` locally first, nothing matching in Drive yet)*
+>
+> Then edit `/tmp/qa-sync-223/notes.md` locally (add a paragraph, so it's newer than the plain Drive file), and:
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-223/` using direction='upload' and convert_markdown set to true"
+
+**Checks**
+- First call: `notes.md` appears in `uploaded`; `list_files` shows its `mimeType` as `text/plain`/`text/markdown`, not a Google Doc
+- Second call: no exception raised
+- `notes.md` appears in `failed`, not `uploaded`, with an error message mentioning it's a plain file and can't be promoted
+- `list_files` on `{FOLDER_ID}` still shows the same file, still not a Google Doc, with its original (first-upload) content — the second call's markdown text was never written into it
+
+**Teardown**
+Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-223/`.
+
+---
+
+### TC-D224: convert_markdown + export_format together never exports a converted Doc's binary content into a `.md`-named file (#414 QA review, finding #1) ⚠️ local-filesystem
+**Background:** a converted Doc has no reverse conversion. Before the fix, if `export_format` was *also* supplied alongside `convert_markdown=True`, a drive-only converted Doc would skip the "no `export_format`" guard and fall through to a real export call — writing e.g. binary PDF bytes into a file still named `.md`.
+
+**Prompt**
+> Reuse TC-D221's setup: convert-upload `/tmp/qa-sync-224/notes.md` (direction='upload', convert_markdown=true), then delete the local file only, leaving the Drive-side converted Doc. Then:
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-224/` using direction='bidirectional', convert_markdown set to true, and export_format set to 'pdf'"
+
+**Checks**
+- Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-224/", direction="bidirectional", convert_markdown=true, export_format="pdf")`
+- No exception raised
+- `notes.md` appears in `conflicts`, not `downloaded`, not `failed`
+- `/tmp/qa-sync-224/notes.md` is **not created on disk** — confirms no binary export content was written into a `.md`-named file
+
+**Teardown**
+Delete the `notes.md` Doc from `{FOLDER_ID}`. Remove `/tmp/qa-sync-224/`.
 
 ---
 

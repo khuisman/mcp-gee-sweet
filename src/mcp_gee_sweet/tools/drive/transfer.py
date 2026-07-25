@@ -38,6 +38,16 @@ _SYSTEM_FILES = {".DS_Store", "Thumbs.db", "desktop.ini", ".localized"}
 
 _SYNC_MTIME_TOLERANCE = 5  # seconds — absorbs clock skew and upload-time drift
 
+# Custom Drive file property set on a Google Doc created via convert_markdown's
+# native import conversion, recording the exact local filename it was created
+# from. Matching converted-md Docs back to their local file by this property
+# (rather than by current Drive display name + mimeType alone) means an
+# unrelated pre-existing Doc a human happened to name "notes.md" never matches
+# (it lacks the property), and a later Drive-side rename/case-change of the Doc
+# doesn't desync the match either, since the stored source name never changes
+# (#414 QA review, findings #2 and #7).
+_CONVERT_MARKDOWN_SOURCE_PROP = "geeSweetConvertMarkdownSource"
+
 # extension -> (source mimeType to upload as, target Google Workspace mimeType to
 # request via Drive's native import conversion). Distinct from _EXPORT_MIME above,
 # which maps the other direction (Google type -> downloadable export format).
@@ -172,7 +182,7 @@ async def _list_drive_children(drive_service, folder_id: str) -> tuple[list[dict
             spaces="drive",
             includeItemsFromAllDrives=True,
             supportsAllDrives=True,
-            fields="files(id, name, mimeType, modifiedTime)",
+            fields="files(id, name, mimeType, modifiedTime, properties)",
             pageSize=1000,
         )
         .execute,
@@ -236,21 +246,29 @@ async def _sync_level(
     drive_map: dict[str, dict] = {}
     for f in drive_files:
         is_workspace = f["mimeType"].startswith("application/vnd.google-apps.")
+        is_converted_md = False
         if is_workspace:
+            convert_source = (f.get("properties") or {}).get(_CONVERT_MARKDOWN_SOURCE_PROP)
             is_converted_md = (
                 convert_markdown
-                and f["mimeType"] == "application/vnd.google-apps.document"
-                and f["name"].lower().endswith(".md")
+                and f["mimeType"] == _CONVERT_MIME[".md"][1]
+                and convert_source is not None
             )
             if is_converted_md:
-                local_name = f["name"]  # matches the local .md file directly
+                # The stored source name, not f["name"] — see _CONVERT_MARKDOWN_SOURCE_PROP.
+                assert convert_source is not None
+                local_name = convert_source
             elif not export_format:
                 continue  # excluded without an export format
             else:
                 local_name = f["name"] + _EXPORT_MIME[export_format][1]
         else:
             local_name = f["name"]
-        drive_map[local_name] = f
+        # _is_converted_md travels with the entry so the plan-building and download
+        # logic below can gate on it without re-deriving convert_source (#414 QA
+        # review, finding #1: this Doc must never be downloaded via export_format,
+        # regardless of whether export_format is set).
+        drive_map[local_name] = {**f, "_is_converted_md": is_converted_md}
 
     local_map: dict[str, Path] = {}
     if dest_dir.is_dir():
@@ -273,7 +291,24 @@ async def _sync_level(
         in_local = name in local_map
 
         if in_drive and not in_local:
-            if direction in ("download", "bidirectional"):
+            if drive_map[name]["_is_converted_md"]:
+                # A convert_markdown Doc has no reverse conversion — queuing this as
+                # a "download" here (as the pre-#414 code did) would either crash on
+                # the runtime guard below or, worse, write export_format's binary
+                # export content into a file still named .md if export_format was
+                # also set (#414 QA review, findings #1 and #4). Report it plainly
+                # up front instead, in both dry_run and a real run.
+                plan.append(
+                    {
+                        "name": name,
+                        "action": "conflict",
+                        "reason": (
+                            "drive-only convert_markdown Doc has no reverse conversion — "
+                            "add a matching local .md or remove it in Drive"
+                        ),
+                    }
+                )
+            elif direction in ("download", "bidirectional"):
                 plan.append({"name": name, "action": "download", "reason": "drive only"})
             else:
                 plan.append(
@@ -308,6 +343,22 @@ async def _sync_level(
                             "reason": f"local newer by {diff:.0f}s but direction is download",
                         }
                     )
+            elif drive_map[name]["_is_converted_md"]:
+                # Same reasoning as the drive-only case above: this Doc can't be
+                # downloaded regardless of direction. In steady state the create()-
+                # time modifiedTime fix below keeps this from firing, but it's
+                # possible in principle (e.g. residual clock skew), and reporting
+                # it as a clean conflict beats a runtime download_fail.
+                plan.append(
+                    {
+                        "name": name,
+                        "action": "conflict",
+                        "reason": (
+                            f"drive newer by {-diff:.0f}s but convert_markdown Docs have no "
+                            "reverse conversion — re-upload the local file to update Drive"
+                        ),
+                    }
+                )
             else:
                 if direction in ("download", "bidirectional"):
                     plan.append(
@@ -354,8 +405,9 @@ async def _sync_level(
             if action == "upload":
                 p = local_map[name]
                 convert_this = convert_markdown and p.suffix.lower() == ".md"
+                convert_mime, convert_target_mime = _CONVERT_MIME[".md"]
                 if convert_this:
-                    mime = "text/markdown"
+                    mime = convert_mime
                 else:
                     mime, _ = mimetypes.guess_type(str(p))
                     mime = mime or "application/octet-stream"
@@ -366,7 +418,27 @@ async def _sync_level(
                 try:
                     media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
                     if name in drive_map:
-                        fid = drive_map[name]["id"]
+                        existing = drive_map[name]
+                        fid = existing["id"]
+                        if convert_this and existing["mimeType"] != convert_target_mime:
+                            # This .md was previously synced with convert_markdown=False
+                            # and landed as a plain Drive file. Drive's API has no
+                            # supported way to convert an existing file's type via
+                            # update() — only create() honors import conversion — so
+                            # silently re-uploading here would just overwrite the plain
+                            # file's raw content without ever promoting it to a Doc
+                            # (#414 QA review, finding #3). Surface this explicitly
+                            # instead of doing something that looks like it worked.
+                            return {
+                                "kind": "upload_fail",
+                                "name": name,
+                                "error": (
+                                    f"'{name}' already exists in Drive as a plain file, "
+                                    "not a converted Doc — convert_markdown cannot promote "
+                                    "an existing file's type; delete it in Drive and "
+                                    "re-sync to convert"
+                                ),
+                            }
                         # No mimeType here: the existing file is already the
                         # Google Doc convert_this implies, re-uploading text/markdown
                         # content re-imports it in place without changing its type.
@@ -390,8 +462,9 @@ async def _sync_level(
                             "modifiedTime": lmtime_str,
                         }
                         if convert_this:
-                            body["mimeType"] = "application/vnd.google-apps.document"
-                        await execute_in_thread(
+                            body["mimeType"] = convert_target_mime
+                            body["properties"] = {_CONVERT_MARKDOWN_SOURCE_PROP: name}
+                        created = await execute_in_thread(
                             drive_service.files()
                             .create(
                                 body=body,
@@ -402,6 +475,27 @@ async def _sync_level(
                             .execute,
                             drive_service,
                         )
+                        if convert_this:
+                            # Drive's native import-conversion on create() overwrites
+                            # the modifiedTime we just requested with its own "now"
+                            # once the conversion finishes (observed ~14.7s later) —
+                            # update() doesn't have this problem, so a metadata-only
+                            # follow-up call re-stamps it correctly. Without this, a
+                            # bidirectional resync with no local changes reads Drive
+                            # as newer, tries to download the (unconvertible) Doc, and
+                            # the file gets stuck 'failed' forever (#414 QA review,
+                            # TC-D218).
+                            await execute_in_thread(
+                                drive_service.files()
+                                .update(
+                                    fileId=created["id"],
+                                    body={"modifiedTime": lmtime_str},
+                                    supportsAllDrives=True,
+                                    fields="id",
+                                )
+                                .execute,
+                                drive_service,
+                            )
                         logger.debug("Synced (create) %s%s → Drive", rel_prefix, name)
                     return {"kind": "upload_ok", "name": name}
                 except Exception as e:
@@ -411,12 +505,30 @@ async def _sync_level(
             entry = drive_map[name]
             fid = entry["id"]
             is_workspace = entry["mimeType"].startswith("application/vnd.google-apps.")
+            if is_workspace and entry["_is_converted_md"]:
+                # No reverse conversion exists (Google Doc -> markdown), regardless of
+                # export_format — exporting one of these via export_format would write
+                # e.g. binary PDF/DOCX export content into a file still named '.md'
+                # instead of failing cleanly (#414 QA review, finding #1). The plan-
+                # building loop above already keeps this action from being reached in
+                # the normal case (queues 'conflict' instead of 'download'); this is a
+                # defense-in-depth guard for the same invariant.
+                return {
+                    "kind": "download_fail",
+                    "name": name,
+                    "error": (
+                        "Cannot download a convert_markdown Doc: no reverse conversion "
+                        "exists — edit the local .md file and re-sync to update Drive"
+                    ),
+                }
             if is_workspace and not export_format:
-                # Only reachable for a convert_markdown twin matched into drive_map
-                # without export_format set (matching bypasses the export_format
-                # gate for these — see the drive_map build loop above). There's no
-                # markdown-export path back out of a Google Doc, so surface this
-                # plainly instead of the KeyError _EXPORT_MIME[None] would raise.
+                # Unreachable in practice: a plain Workspace file with no
+                # export_format never enters drive_map (see the build loop above),
+                # and a convert_markdown twin is already handled above regardless of
+                # export_format. Kept as a defensive fallback rather than relying on
+                # that invariant never changing — surfaces a clean error instead of
+                # the KeyError _EXPORT_MIME[None] would raise if it ever became
+                # reachable.
                 return {
                     "kind": "download_fail",
                     "name": name,
@@ -1455,9 +1567,16 @@ def register(tool):
                            is matched back to its local .md file directly on later
                            syncs (independent of export_format), so edits round-trip
                            normally instead of re-uploading a duplicate every run.
-                           There is no reverse conversion: if the Doc is edited in
-                           Drive and becomes newer than the local file, that one
-                           entry is reported under 'failed' instead of downloaded.
+                           Matching only applies to Docs this call itself created (via
+                           an internal Drive property) — a pre-existing Doc a human
+                           happened to name '<name>.md' is never mistaken for one and
+                           never has its content overwritten. There is no reverse
+                           conversion: if the Doc is edited in Drive, or has no local
+                           counterpart at all, that entry is reported under 'conflicts'
+                           instead of downloaded. A .md previously synced with
+                           convert_markdown=False can't be promoted to a Doc in place —
+                           that entry is reported under 'failed' with an explanatory
+                           message; delete it in Drive and re-sync to convert it.
             skip_system_files: Skip .DS_Store and similar OS metadata files (default True).
             dry_run: If True, plan the sync but transfer nothing.
             recursive: If True, also sync matching subfolders at any depth (see above).
