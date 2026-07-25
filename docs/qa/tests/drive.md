@@ -1624,7 +1624,9 @@ Delete all `qa-convert.*` files and their converted Drive counterparts from `{FO
 - `notes.md` appears in `skipped` ("in sync"), not `uploaded`
 - `list_files` on `{FOLDER_ID}` still shows only one `notes.md` (no duplicate from a repeat upload)
 
-**Result (2026-07-25) ❌ FAIL** No duplicate was created (`list_files` still showed exactly one `notes.md`), but the resync did **not** skip — it landed in `failed` with `"Cannot download native Google Doc without export_format (convert_markdown has no reverse conversion)"`, and stayed stuck there on a second identical resync attempt (never converges to skip on its own). Root cause: Drive's native import-conversion on `create()` overwrites the `modifiedTime` we request in the request body with its own "now" — confirmed via `get_file_metadata`, local mtime `15:02:32.000Z` vs. Drive's actual `modified_time` `15:02:46.724Z`, a ~14.7s gap driven by conversion latency, comfortably outside the 5s sync tolerance. `diff = local − drive` is therefore negative ("drive newer"), so `bidirectional` picks `download`, which then hits the new no-`export_format` guard and fails. This is a live-only defect the code review's static pass didn't catch (it requires observing Drive's actual post-conversion `modifiedTime`, not just reading the source) and it breaks the PR's own stated purpose — "re-syncs settle into 'in sync'... instead of re-uploading a duplicate every run" does not hold for `direction='bidirectional'`, the mode most users would actually run repeatedly. `direction='upload'` sidesteps this (see TC-D219) because it never reaches the download branch.
+**Result, round 1 (2026-07-25) ❌ FAIL** No duplicate was created (`list_files` still showed exactly one `notes.md`), but the resync did **not** skip — it landed in `failed` with `"Cannot download native Google Doc without export_format (convert_markdown has no reverse conversion)"`, and stayed stuck there on a second identical resync attempt (never converges to skip on its own). Root cause: Drive's native import-conversion on `create()` overwrites the `modifiedTime` we request in the request body with its own "now" — confirmed via `get_file_metadata`, local mtime `15:02:32.000Z` vs. Drive's actual `modified_time` `15:02:46.724Z`, a ~14.7s gap driven by conversion latency, comfortably outside the 5s sync tolerance. `diff = local − drive` is therefore negative ("drive newer"), so `bidirectional` picks `download`, which then hits the new no-`export_format` guard and fails. This is a live-only defect the code review's static pass didn't catch (it requires observing Drive's actual post-conversion `modifiedTime`, not just reading the source) and it breaks the PR's own stated purpose — "re-syncs settle into 'in sync'... instead of re-uploading a duplicate every run" does not hold for `direction='bidirectional'`, the mode most users would actually run repeatedly. `direction='upload'` sidesteps this (see TC-D219) because it never reaches the download branch.
+
+**Result, round 2 (2026-07-25) ✅ PASS** After the fix's metadata-only `files().update()` re-stamp following `create()`: `notes.md` landed in `skipped`, not `failed`, on the immediate resync. `get_file_metadata` confirmed Drive's `modified_time` (`15:47:12.000Z`) now matches the local mtime exactly, byte-for-byte on the seconds field — no drift. Ran a second identical resync immediately after to confirm it's not a one-off race; stayed `skipped` both times.
 
 ---
 
@@ -1637,7 +1639,9 @@ Delete all `qa-convert.*` files and their converted Drive counterparts from `{FO
 - `list_files` on `{FOLDER_ID}` still shows only one `notes.md` file (same `fileId` as TC-D217/218 — updated, not recreated)
 - `get_doc_content` on that file shows the new paragraph
 
-**Result (2026-07-25) ✅ PASS** `uploaded: ["notes.md"]`; same file ID as TC-D217/218 (updated via `files().update()`, not recreated); `get_doc_content` showed both the original and new paragraph. Note: on this `update()` path Drive respected the `modifiedTime` we set exactly (`15:03:53.000Z`, no conversion-latency drift) — unlike the `create()` path in TC-D217/218, which is the asymmetry behind that failure.
+**Result, round 1 (2026-07-25) ✅ PASS** `uploaded: ["notes.md"]`; same file ID as TC-D217/218 (updated via `files().update()`, not recreated); `get_doc_content` showed both the original and new paragraph. Note: on this `update()` path Drive respected the `modifiedTime` we set exactly (`15:03:53.000Z`, no conversion-latency drift) — unlike the `create()` path in TC-D217/218, which is the asymmetry behind that failure.
+
+**Result, round 2 (2026-07-25) ✅ PASS** Re-verified after the fix (the upload branch gained a mismatch check for finding #3): re-edited the same converted Doc and re-uploaded with `direction='upload'`. Same file ID reused (`files().update()`, not recreated); `get_doc_content` showed all three paragraphs (original + TC-D218 fixture text + this round's new paragraph). No regression from the added mismatch-check logic.
 
 **Teardown (TC-D217–TC-D219)**
 Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-211/`.
@@ -1676,7 +1680,9 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-211b/`.
 - `notes.md` appears in `conflicts`, not `failed`, not `downloaded`
 - `list_files` on `{FOLDER_ID}` still shows exactly one `notes.md` Doc (untouched, not deleted or modified)
 
-**Result, round 1 (2026-07-25) ✅ PASS, against the pre-fix Prompt/Checks above** — this result predates round 2's rewrite of this test case's Prompt/Checks (see Background) and doesn't map onto them; it's kept for the record rather than deleted. Original fixture used an `orphan.md` Doc created directly via `create_doc` (no local counterpart, no `properties` marker — round 1's matching was still name+mimeType only). No exception; `failed: [{"name": "orphan.md", "error": "Cannot download native Google Doc without export_format (convert_markdown has no reverse conversion)"}]`; not present in `downloaded`. Same failure-shape as TC-D218's (unintended) failure, confirming the guard itself worked correctly in round 1 — the problem was that TC-D218 reached it on a path that should never have been a failure at all. **Round 2 (rewritten Prompt/Checks above) not yet live-verified.**
+**Result, round 1 (2026-07-25) ✅ PASS, against the pre-fix Prompt/Checks above** — this result predates round 2's rewrite of this test case's Prompt/Checks (see Background) and doesn't map onto them; it's kept for the record rather than deleted. Original fixture used an `orphan.md` Doc created directly via `create_doc` (no local counterpart, no `properties` marker — round 1's matching was still name+mimeType only). No exception; `failed: [{"name": "orphan.md", "error": "Cannot download native Google Doc without export_format (convert_markdown has no reverse conversion)"}]`; not present in `downloaded`. Same failure-shape as TC-D218's (unintended) failure, confirming the guard itself worked correctly in round 1 — the problem was that TC-D218 reached it on a path that should never have been a failure at all.
+
+**Result, round 2 (2026-07-25) ✅ PASS, against the rewritten Prompt/Checks above** — convert-uploaded `notes.md` via TC-D217's own mechanism, then removed only the local twin. Bidirectional resync: no exception; `conflicts: ["notes.md"]`, not present in `failed` or `downloaded`; `list_files` showed exactly one `notes.md` Doc, untouched.
 
 **Teardown**
 Delete the `notes.md` Doc from `{FOLDER_ID}`. Remove `/tmp/qa-sync-221/`.
@@ -1695,6 +1701,8 @@ Delete the `notes.md` Doc from `{FOLDER_ID}`. Remove `/tmp/qa-sync-221/`.
 - `notes.md` appears in `uploaded` (the local file is treated as local-only and converted into a *new* Doc — it does not match the pre-existing unrelated one)
 - `list_files` on `{FOLDER_ID}` now shows **two** files named `notes.md` (the original unrelated Doc, untouched, plus the newly-created converted one)
 - `get_doc_content` on the original Doc's ID still returns the original placeholder content — confirming it was never overwritten
+
+**Result (2026-07-25) ✅ PASS** `uploaded: ["notes.md"]`; `list_files` showed two `notes.md` files after the sync (the pre-existing unrelated Doc plus a newly-created converted one, distinct IDs); `get_doc_content` on the original Doc's ID returned `"ORIGINAL unrelated Doc content — never touched by conversion."` unchanged — confirms the `properties`-marker fix prevents the collision.
 
 **Teardown**
 Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-222/`.
@@ -1716,6 +1724,8 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-222/`.
 - `notes.md` appears in `failed`, not `uploaded`, with an error message mentioning it's a plain file and can't be promoted
 - `list_files` on `{FOLDER_ID}` still shows the same file, still not a Google Doc, with its original (first-upload) content — the second call's markdown text was never written into it
 
+**Result (2026-07-25) ✅ PASS** First call: `uploaded: ["notes.md"]`, `mimeType: text/markdown`. Second call (edited + `convert_markdown=true`): no exception; `failed: [{"name": "notes.md", "error": "'notes.md' already exists in Drive as a plain file, not a converted Doc — convert_markdown cannot promote an existing file's type; delete it in Drive and re-sync to convert"}]`, not in `uploaded`. `list_files` afterward showed `mimeType` still `text/markdown` and `modified_time` unchanged from the first upload, confirming the second call's content was never written.
+
 **Teardown**
 Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-223/`.
 
@@ -1733,6 +1743,8 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-223/`.
 - No exception raised
 - `notes.md` appears in `conflicts`, not `downloaded`, not `failed`
 - `/tmp/qa-sync-224/notes.md` is **not created on disk** — confirms no binary export content was written into a `.md`-named file
+
+**Result (2026-07-25) ✅ PASS** No exception; `conflicts: ["notes.md"]`, not in `downloaded` or `failed`; local directory stayed empty — no binary export content was written to disk. Also spot-checked `dry_run=true` with the same inputs: `actions` reported `{"name": "notes.md", "action": "conflict", "reason": "drive-only convert_markdown Doc has no reverse conversion — add a matching local .md or remove it in Drive"}` — confirms finding #4 (dry_run mislabeling) is also resolved, since the plan-building loop now classifies this case identically for both dry_run and live runs.
 
 **Teardown**
 Delete the `notes.md` Doc from `{FOLDER_ID}`. Remove `/tmp/qa-sync-224/`.
