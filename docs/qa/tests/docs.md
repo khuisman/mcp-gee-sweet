@@ -2412,3 +2412,5 @@ Run against a live sandbox scoped to only `create_doc,create_doc_from_file,write
 - `get_doc_structure` shows exactly two body elements: a paragraph "Before" immediately followed by a paragraph "After" — no empty paragraph or other structural element between them (the pre-fix bug would show three elements, with a spurious empty paragraph from the inline-wrapped `<hr>`)
 
 **Cleanup:** delete the created doc
+
+**Result:** PASS (2026-07-24, live via `mcp-gee-sweet-kit`, doc `11kfAgxg8pfiSfEGgvu9AvLtYlaWjf4B0KsBJPwntnSI`, deleted after). `get_doc_structure` returned exactly "Before" immediately followed by "After" — no spurious empty paragraph from the inline-wrapped `<hr>`, confirming the send-back finding from PR #406's QA pass 2 is fixed. Full unit suite: 898 passed.
