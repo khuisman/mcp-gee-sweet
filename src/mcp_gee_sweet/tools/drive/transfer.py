@@ -38,6 +38,28 @@ _SYSTEM_FILES = {".DS_Store", "Thumbs.db", "desktop.ini", ".localized"}
 
 _SYNC_MTIME_TOLERANCE = 5  # seconds — absorbs clock skew and upload-time drift
 
+# extension -> (source mimeType to upload as, target Google Workspace mimeType to
+# request via Drive's native import conversion). Distinct from _EXPORT_MIME above,
+# which maps the other direction (Google type -> downloadable export format).
+_CONVERT_MIME: dict[str, tuple[str, str]] = {
+    ".csv": ("text/csv", "application/vnd.google-apps.spreadsheet"),
+    ".xlsx": (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.google-apps.spreadsheet",
+    ),
+    ".docx": (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.google-apps.document",
+    ),
+    ".md": ("text/markdown", "application/vnd.google-apps.document"),
+    ".html": ("text/html", "application/vnd.google-apps.document"),
+    ".htm": ("text/html", "application/vnd.google-apps.document"),
+    ".pptx": (
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.google-apps.presentation",
+    ),
+}
+
 
 async def _upload_local_file(
     drive_service,
@@ -45,15 +67,37 @@ async def _upload_local_file(
     parent_folder_id: str,
     name: str | None = None,
     skip_if_exists: bool = True,
+    convert: bool = False,
 ) -> dict[str, Any]:
     """Upload a local file to a Drive folder. Shared core behind the upload_local_file
     tool and docs/content.py's insert_local_images (imported cross-package the same
-    way docs/content.py imports _SA_QUOTA_ERROR from tools/drive/__init__.py)."""
+    way docs/content.py imports _SA_QUOTA_ERROR from tools/drive/__init__.py).
+
+    convert=True requests Drive's native import conversion (CSV/XLSX -> Sheets,
+    DOCX/MD/HTML -> Docs, PPTX -> Slides) by uploading with the source format's
+    mimeType while setting the destination file's mimeType to the target Google
+    Workspace type — this is distinct from create_doc_from_file, which parses the
+    file locally and rebuilds it via Docs API requests instead of Drive's importer."""
     path = Path(local_path)
     if not path.is_file():
         raise ValueError(f"No file found at {local_path!r}")
 
     file_name = name or path.name
+
+    convert_mime: tuple[str, str] | None = None
+    if convert:
+        # Derived from the effective destination name, not local_path's suffix —
+        # a name= override changes what conversion applies (#188 QA review, PR #410).
+        dest_suffix = Path(file_name).suffix.lower()
+        convert_mime = _CONVERT_MIME.get(dest_suffix)
+        if convert_mime is None:
+            supported = ", ".join(sorted(_CONVERT_MIME))
+            return {
+                "error": (
+                    f"Conversion not supported for extension {dest_suffix!r}. "
+                    f"Supported extensions: {supported}"
+                )
+            }
 
     if skip_if_exists:
         safe_name = file_name.replace("\\", "\\\\").replace("'", "\\'")
@@ -64,14 +108,19 @@ async def _upload_local_file(
                 spaces="drive",
                 includeItemsFromAllDrives=True,
                 supportsAllDrives=True,
-                fields="files(id, name, webViewLink)",
+                fields="files(id, name, webViewLink, mimeType)",
                 pageSize=1,
             )
             .execute,
             drive_service,
         )
         hits = existing.get("files", [])
-        if hits:
+        # When converting, a name-only match isn't good enough — an existing file
+        # with the same name but the *raw* (unconverted) mimeType isn't actually
+        # the converted duplicate skip_if_exists is meant to detect (#188 QA review,
+        # PR #410). Only skip if it's already in the target Workspace format;
+        # otherwise fall through and upload/convert normally.
+        if hits and (convert_mime is None or hits[0].get("mimeType") == convert_mime[1]):
             logger.debug("Skipping upload — %s already exists as %s", file_name, hits[0]["id"])
             return {
                 "fileId": hits[0]["id"],
@@ -80,10 +129,13 @@ async def _upload_local_file(
                 "skipped": True,
             }
 
-    mime, _ = mimetypes.guess_type(local_path)
-    mime = mime or "application/octet-stream"
-
     metadata: dict[str, Any] = {"name": file_name, "parents": [parent_folder_id]}
+    if convert_mime is not None:
+        mime, target_mime = convert_mime
+        metadata["mimeType"] = target_mime
+    else:
+        mime, _ = mimetypes.guess_type(local_path)
+        mime = mime or "application/octet-stream"
     media = MediaFileUpload(local_path, mimetype=mime, resumable=True)
     try:
         result = await execute_in_thread(
@@ -861,6 +913,7 @@ def register(tool):
         parent_folder_id: str,
         name: str | None = None,
         skip_if_exists: bool = True,
+        convert: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -874,6 +927,10 @@ def register(tool):
             skip_if_exists: If True (default), skip the upload and return the
                             existing file's metadata if a file with the same name
                             already exists in the destination folder.
+            convert: If True, request Drive's native import conversion instead of
+                     uploading as-is: .csv/.xlsx -> Google Sheets, .docx/.md/.html/.htm
+                     -> Google Docs, .pptx -> Google Slides. Any other extension
+                     returns an error. Default False (upload preserving original format).
 
         Returns:
             fileId, name, webViewLink, and 'skipped' (True if skip_if_exists fired).
@@ -887,7 +944,7 @@ def register(tool):
         drive_service = lc.drive_service
 
         result = await _upload_local_file(
-            drive_service, local_path, parent_folder_id, name, skip_if_exists
+            drive_service, local_path, parent_folder_id, name, skip_if_exists, convert
         )
         if "error" not in result and not result.get("skipped"):
             lc.drive_folder_cache.mark_dirty(parent_folder_id)
