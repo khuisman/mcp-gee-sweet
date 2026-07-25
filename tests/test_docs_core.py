@@ -423,6 +423,32 @@ class TestUnsupportedConstructPreservesParagraphBoundary:
         assert nodes[0].runs[0].text == "A"
         assert nodes[1].runs[0].text == "B"
 
+    def test_dropped_construct_survives_interruption_by_nested_list(self):
+        # #401 follow-up (PR #406, TC-DOC135): _interrupt_open_block flushed
+        # the currently-open block before descending into a nested construct
+        # with preserve_if_empty always False, so a bullet whose only content
+        # was an unsupported <img> vanished entirely — not just the image —
+        # whenever it was interrupted by its own nested list instead of
+        # closing directly. TC-DOC133's own review round live-reproduced
+        # this exact gap.
+        html = '<ul><li><img src="x.png"><ul><li>nested</li></ul></li></ul>'
+        nodes = html_to_ast(html)
+        assert [isinstance(n, BulletItem) for n in nodes] == [True, True]
+        assert nodes[0].runs == []
+        assert nodes[1].runs[0].text == "nested"
+
+    def test_parent_with_no_own_text_still_unaffected_by_the_fix(self):
+        # Companion control case for the fix above: an <li> that wraps only
+        # a nested list, with no text and no dropped construct of its own,
+        # must still emit nothing for itself — the naive fix of always
+        # preserving an interrupt-time empty flush regresses exactly this
+        # (see TestNestedLists.test_parent_with_no_own_text_unaffected for
+        # the end-to-end version of this same guard).
+        html = "<ul><li><ul><li>child</li></ul></li></ul>"
+        nodes = html_to_ast(html)
+        assert [isinstance(n, BulletItem) for n in nodes] == [True]
+        assert nodes[0].runs[0].text == "child"
+
 
 class TestNamedBlockEmitter:
     def test_title_emits_named_style_type(self):
