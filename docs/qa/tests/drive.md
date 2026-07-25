@@ -1676,7 +1676,7 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-211b/`.
 - `notes.md` appears in `conflicts`, not `failed`, not `downloaded`
 - `list_files` on `{FOLDER_ID}` still shows exactly one `notes.md` Doc (untouched, not deleted or modified)
 
-**Result (2026-07-25) ✅ PASS** No exception; `failed: [{"name": "orphan.md", "error": "Cannot download native Google Doc without export_format (convert_markdown has no reverse conversion)"}]`; not present in `downloaded`. Same failure-shape as TC-D218's (unintended) failure, confirming the guard itself works correctly — the problem is that TC-D218 reaches it on a path that should never have been a failure at all.
+**Result, round 1 (2026-07-25) ✅ PASS, against the pre-fix Prompt/Checks above** — this result predates round 2's rewrite of this test case's Prompt/Checks (see Background) and doesn't map onto them; it's kept for the record rather than deleted. Original fixture used an `orphan.md` Doc created directly via `create_doc` (no local counterpart, no `properties` marker — round 1's matching was still name+mimeType only). No exception; `failed: [{"name": "orphan.md", "error": "Cannot download native Google Doc without export_format (convert_markdown has no reverse conversion)"}]`; not present in `downloaded`. Same failure-shape as TC-D218's (unintended) failure, confirming the guard itself worked correctly in round 1 — the problem was that TC-D218 reached it on a path that should never have been a failure at all. **Round 2 (rewritten Prompt/Checks above) not yet live-verified.**
 
 **Teardown**
 Delete the `notes.md` Doc from `{FOLDER_ID}`. Remove `/tmp/qa-sync-221/`.
