@@ -143,6 +143,15 @@ async def _upload_local_file(
     if convert_mime is not None:
         mime, target_mime = convert_mime
         metadata["mimeType"] = target_mime
+        if Path(file_name).suffix.lower() == ".md":
+            # Stamp the same marker sync_folder's own convert_markdown path sets, so
+            # a Doc created here is recognized by sync_folder's matching too — the
+            # docstring calls this "the same mechanism" as sync_folder's
+            # convert_markdown, but before this fix only sync_folder's own create()
+            # call stamped it, leaving upload_local_file's converted Docs invisible
+            # to that matching and silently duplicated on the next sync_folder run
+            # (#414 QA review round 3, finding #2).
+            metadata["properties"] = {_CONVERT_MARKDOWN_SOURCE_PROP: file_name}
     else:
         mime, _ = mimetypes.guess_type(local_path)
         mime = mime or "application/octet-stream"
@@ -249,10 +258,15 @@ async def _sync_level(
         is_converted_md = False
         if is_workspace:
             convert_source = (f.get("properties") or {}).get(_CONVERT_MARKDOWN_SOURCE_PROP)
+            # Deliberately independent of this call's convert_markdown flag: a Doc
+            # already carries the marker property from whenever it was created, and
+            # matching must recognize it on every later sync regardless of whether
+            # that particular call happens to pass convert_markdown=True. Gating this
+            # on the flag (round 2) meant a resync with the flag merely omitted saw
+            # the local .md as "local only" and silently created a second, plain-text
+            # duplicate next to the existing Doc (#414 QA review round 3, finding #1).
             is_converted_md = (
-                convert_markdown
-                and f["mimeType"] == _CONVERT_MIME[".md"][1]
-                and convert_source is not None
+                f["mimeType"] == _CONVERT_MIME[".md"][1] and convert_source is not None
             )
             if is_converted_md:
                 # The stored source name, not f["name"] — see _CONVERT_MARKDOWN_SOURCE_PROP.
@@ -404,8 +418,18 @@ async def _sync_level(
 
             if action == "upload":
                 p = local_map[name]
-                convert_this = convert_markdown and p.suffix.lower() == ".md"
                 convert_mime, convert_target_mime = _CONVERT_MIME[".md"]
+                # Matching (drive_map, above) now recognizes an already-converted Doc
+                # regardless of whether this call passes convert_markdown — so the
+                # reimport mime for an *existing* match must follow the same rule:
+                # once matched to a Doc that's already the converted type, treat this
+                # upload as a conversion reimport even if convert_markdown is False
+                # this call, or a plain-text re-upload would silently re-import into
+                # (or fail against) a file that Drive still considers a Google Doc.
+                is_existing_converted = name in drive_map and drive_map[name]["_is_converted_md"]
+                convert_this = (convert_markdown or is_existing_converted) and (
+                    p.suffix.lower() == ".md"
+                )
                 if convert_this:
                     mime = convert_mime
                 else:
@@ -1086,6 +1110,9 @@ def register(tool):
                      uploading as-is: .csv/.xlsx -> Google Sheets, .docx/.md/.html/.htm
                      -> Google Docs, .pptx -> Google Slides. Any other extension
                      returns an error. Default False (upload preserving original format).
+                     A .md conversion is recognized by sync_folder's convert_markdown
+                     matching too (same underlying mechanism, #211) — a later
+                     sync_folder call on the same folder won't create a duplicate.
 
         Returns:
             fileId, name, webViewLink, and 'skipped' (True if skip_if_exists fired).
@@ -1563,20 +1590,23 @@ def register(tool):
             convert_markdown: If True, local .md files are uploaded via Drive's native
                            import conversion, landing as Google Docs (still named
                            '<name>.md') instead of raw text files — same mechanism as
-                           upload_local_file's convert param (#188). The converted Doc
+                           upload_local_file's convert param (#188), and a Doc created
+                           either way is recognized by this matching. The converted Doc
                            is matched back to its local .md file directly on later
-                           syncs (independent of export_format), so edits round-trip
-                           normally instead of re-uploading a duplicate every run.
-                           Matching only applies to Docs this call itself created (via
-                           an internal Drive property) — a pre-existing Doc a human
-                           happened to name '<name>.md' is never mistaken for one and
-                           never has its content overwritten. There is no reverse
-                           conversion: if the Doc is edited in Drive, or has no local
-                           counterpart at all, that entry is reported under 'conflicts'
-                           instead of downloaded. A .md previously synced with
-                           convert_markdown=False can't be promoted to a Doc in place —
-                           that entry is reported under 'failed' with an explanatory
-                           message; delete it in Drive and re-sync to convert it.
+                           syncs (independent of export_format, and independent of
+                           whether a later sync passes convert_markdown=True again),
+                           so edits round-trip normally instead of re-uploading a
+                           duplicate every run. Matching is scoped to Docs carrying an
+                           internal Drive property this tool sets on conversion — a
+                           pre-existing Doc a human happened to name '<name>.md' is
+                           never mistaken for one and never has its content
+                           overwritten. There is no reverse conversion: if the Doc is
+                           edited in Drive, or has no local counterpart at all, that
+                           entry is reported under 'conflicts' instead of downloaded.
+                           A .md previously synced with convert_markdown=False can't be
+                           promoted to a Doc in place — that entry is reported under
+                           'failed' with an explanatory message; delete it in Drive and
+                           re-sync to convert it.
             skip_system_files: Skip .DS_Store and similar OS metadata files (default True).
             dry_run: If True, plan the sync but transfer nothing.
             recursive: If True, also sync matching subfolders at any depth (see above).

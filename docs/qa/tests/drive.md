@@ -1739,6 +1739,41 @@ Delete the `notes.md` Doc from `{FOLDER_ID}`. Remove `/tmp/qa-sync-224/`.
 
 ---
 
+### TC-D225: convert_markdown resync without the flag still matches — no duplicate (round 3 review, #414) ⚠️ local-filesystem
+**Background:** matching used to be gated on the *current call's* `convert_markdown` flag, not just the Doc's own stamped property. A resync that simply omitted `convert_markdown=True` on a folder containing an already-converted Doc saw the local `.md` as "local only" and silently created a second, plain-text duplicate — no error, no warning.
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-225/` using direction='upload' and convert_markdown set to true" *(create `/tmp/qa-sync-225/notes.md` locally first, nothing matching in Drive yet)*
+>
+> Then, with no local changes: "Sync {FOLDER_ID} with `/tmp/qa-sync-225/` using direction='bidirectional'" *(convert_markdown omitted this time)*
+
+**Checks**
+- First call: `notes.md` appears in `uploaded`
+- Second call (flag omitted): `notes.md` appears in `skipped` ("in sync"), not `uploaded`
+- `list_files` on `{FOLDER_ID}` shows exactly **one** `notes.md` file — no duplicate plain-text copy created
+
+**Teardown**
+Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-225/`.
+
+---
+
+### TC-D226: a Doc converted via upload_local_file(convert=True) is recognized by sync_folder's convert_markdown matching (round 3 review, #414, finding #2) ⚠️ local-filesystem
+**Background:** before the fix, only `sync_folder`'s own `create()` call stamped the marker property matching relies on — `upload_local_file(convert=True)`'s converted Docs were invisible to it despite the docstring calling this "the same mechanism," so a subsequent `sync_folder` run on the same folder silently created a second Doc.
+
+**Prompt**
+> In `{FOLDER_ID}`, call `upload_local_file(local_path="/tmp/qa-sync-226-src/notes.md", convert=true)` *(create that local file first, with any content)*. Then, with `/tmp/qa-sync-226/notes.md` containing identical content and mtime close to now:
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-226/` using direction='bidirectional' and convert_markdown set to true"
+
+**Checks**
+- `upload_local_file` call succeeds; `list_files` shows the new Doc named `notes.md`
+- `sync_folder` call: `notes.md` appears in `skipped` ("in sync"), not `uploaded`
+- `list_files` on `{FOLDER_ID}` still shows exactly **one** `notes.md` file — no second Doc created
+
+**Teardown**
+Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-226-src/` and `/tmp/qa-sync-226/`.
+
+---
+
 ### TC-D119: Invalid direction raises error ⚠️ local-filesystem
 
 **Prompt**
