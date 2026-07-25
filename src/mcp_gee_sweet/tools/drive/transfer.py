@@ -196,6 +196,7 @@ async def _sync_level(
     rel_prefix: str,
     direction: str,
     export_format: str | None,
+    convert_markdown: bool,
     skip_system_files: bool,
     dry_run: bool,
     recursive: bool,
@@ -215,6 +216,15 @@ async def _sync_level(
     folder that doesn't exist yet (used for dry-run planning of a not-yet-created
     upload-direction folder) — no Drive API call is made and drive-side maps stay empty.
 
+    convert_markdown=True (#211) treats a local .md file's upload as a request for
+    Drive's native import conversion (same mechanism as upload_local_file's convert
+    param, #188): uploaded with mimetype='text/markdown', landing as a Google Doc
+    that keeps the original '.md' name. Since the converted file is still named
+    '<name>.md' in Drive, it's matched back to its local counterpart directly (not
+    via the export_format suffix scheme used for other Workspace files) so re-syncs
+    settle into "in sync" via the normal mtime comparison instead of re-uploading
+    a duplicate on every run.
+
     Returns bytes downloaded at this level and below; all other results are appended
     into the shared accumulator lists/dicts passed in from the top-level call.
     """
@@ -227,9 +237,17 @@ async def _sync_level(
     for f in drive_files:
         is_workspace = f["mimeType"].startswith("application/vnd.google-apps.")
         if is_workspace:
-            if not export_format:
+            is_converted_md = (
+                convert_markdown
+                and f["mimeType"] == "application/vnd.google-apps.document"
+                and f["name"].lower().endswith(".md")
+            )
+            if is_converted_md:
+                local_name = f["name"]  # matches the local .md file directly
+            elif not export_format:
                 continue  # excluded without an export format
-            local_name = f["name"] + _EXPORT_MIME[export_format][1]
+            else:
+                local_name = f["name"] + _EXPORT_MIME[export_format][1]
         else:
             local_name = f["name"]
         drive_map[local_name] = f
@@ -335,8 +353,12 @@ async def _sync_level(
 
             if action == "upload":
                 p = local_map[name]
-                mime, _ = mimetypes.guess_type(str(p))
-                mime = mime or "application/octet-stream"
+                convert_this = convert_markdown and p.suffix.lower() == ".md"
+                if convert_this:
+                    mime = "text/markdown"
+                else:
+                    mime, _ = mimetypes.guess_type(str(p))
+                    mime = mime or "application/octet-stream"
                 lmtime_str = datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc).strftime(
                     "%Y-%m-%dT%H:%M:%S.000Z"
                 )
@@ -345,6 +367,9 @@ async def _sync_level(
                     media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
                     if name in drive_map:
                         fid = drive_map[name]["id"]
+                        # No mimeType here: the existing file is already the
+                        # Google Doc convert_this implies, re-uploading text/markdown
+                        # content re-imports it in place without changing its type.
                         await execute_in_thread(
                             drive_service.files()
                             .update(
@@ -359,14 +384,17 @@ async def _sync_level(
                         )
                         logger.debug("Synced (update) %s%s → Drive", rel_prefix, name)
                     else:
+                        body: dict[str, Any] = {
+                            "name": name,
+                            "parents": [drive_folder_id],
+                            "modifiedTime": lmtime_str,
+                        }
+                        if convert_this:
+                            body["mimeType"] = "application/vnd.google-apps.document"
                         await execute_in_thread(
                             drive_service.files()
                             .create(
-                                body={
-                                    "name": name,
-                                    "parents": [drive_folder_id],
-                                    "modifiedTime": lmtime_str,
-                                },
+                                body=body,
                                 media_body=media,
                                 supportsAllDrives=True,
                                 fields="id",
@@ -383,6 +411,20 @@ async def _sync_level(
             entry = drive_map[name]
             fid = entry["id"]
             is_workspace = entry["mimeType"].startswith("application/vnd.google-apps.")
+            if is_workspace and not export_format:
+                # Only reachable for a convert_markdown twin matched into drive_map
+                # without export_format set (matching bypasses the export_format
+                # gate for these — see the drive_map build loop above). There's no
+                # markdown-export path back out of a Google Doc, so surface this
+                # plainly instead of the KeyError _EXPORT_MIME[None] would raise.
+                return {
+                    "kind": "download_fail",
+                    "name": name,
+                    "error": (
+                        "Cannot download native Google Doc without export_format "
+                        "(convert_markdown has no reverse conversion)"
+                    ),
+                }
             dest_file = dest_dir / name
             try:
                 if is_workspace:
@@ -566,6 +608,7 @@ async def _sync_level(
                 child_rel_prefix,
                 direction,
                 export_format,
+                convert_markdown,
                 skip_system_files,
                 dry_run,
                 recursive,
@@ -1327,6 +1370,7 @@ def register(tool):
         local_path: str,
         direction: str = "bidirectional",
         export_format: str | None = None,
+        convert_markdown: bool = False,
         skip_system_files: bool = True,
         dry_run: bool = False,
         recursive: bool = False,
@@ -1340,7 +1384,10 @@ def register(tool):
         Files are matched by name. For Google Workspace files (Docs, Sheets, Slides),
         the export extension is appended to form the local name — e.g. a Doc called
         'Notes' with export_format='docx' matches the local file 'Notes.docx'.
-        Workspace files with no export_format are skipped entirely.
+        Workspace files with no export_format are skipped entirely — except a Doc
+        produced by convert_markdown, which keeps its '.md' name and matches its
+        local .md file directly regardless of export_format (see convert_markdown
+        below).
 
         For each matched name the action is decided as follows:
 
@@ -1401,6 +1448,16 @@ def register(tool):
             direction: 'bidirectional', 'upload', or 'download'.
             export_format: Required to include Workspace files in the sync. They are
                            exported/compared using this format (e.g. 'pdf', 'docx', 'csv').
+            convert_markdown: If True, local .md files are uploaded via Drive's native
+                           import conversion, landing as Google Docs (still named
+                           '<name>.md') instead of raw text files — same mechanism as
+                           upload_local_file's convert param (#188). The converted Doc
+                           is matched back to its local .md file directly on later
+                           syncs (independent of export_format), so edits round-trip
+                           normally instead of re-uploading a duplicate every run.
+                           There is no reverse conversion: if the Doc is edited in
+                           Drive and becomes newer than the local file, that one
+                           entry is reported under 'failed' instead of downloaded.
             skip_system_files: Skip .DS_Store and similar OS metadata files (default True).
             dry_run: If True, plan the sync but transfer nothing.
             recursive: If True, also sync matching subfolders at any depth (see above).
@@ -1444,6 +1501,7 @@ def register(tool):
             "",
             direction,
             export_format,
+            convert_markdown,
             skip_system_files,
             dry_run,
             recursive,

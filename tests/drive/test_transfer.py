@@ -1,6 +1,7 @@
 """Tests for tools/drive/transfer.py (upload_file, _xlsx_range_values, etc.)."""
 
 import io
+import os
 import threading
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
@@ -805,6 +806,158 @@ class TestSyncFolderRecursive:
         names = {a["name"] for a in result["actions"]}
         assert names == {"alpha/a.txt", "beta/b.txt"}
         assert result["failed"] == []
+
+
+class TestSyncFolderConvertMarkdown:
+    """Issue #211: sync_folder's convert_markdown param uploads local .md files via
+    Drive's native import conversion (same mechanism as upload_local_file's convert
+    param, #188), landing as Google Docs that keep their '.md' name so later syncs
+    match them back to their local counterpart instead of re-uploading a duplicate
+    every run."""
+
+    def _ctx(self, fs: _FakeDriveFS):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = fs.svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    async def test_local_only_md_file_converts_to_google_doc(self, tmp_path):
+        (tmp_path / "notes.md").write_text("# Heading\n\nBody text.")
+        fs = _FakeDriveFS({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["uploaded"] == ["notes.md"]
+        assert fs.created_files[0]["name"] == "notes.md"
+        assert fs.created_files[0]["mimeType"] == "application/vnd.google-apps.document"
+        create_kwargs = fs.svc.files.return_value.create.call_args_list[-1].kwargs
+        assert create_kwargs["media_body"].mimetype() == "text/markdown"
+
+    async def test_convert_markdown_false_default_uploads_md_as_plain_text(self, tmp_path):
+        (tmp_path / "notes.md").write_text("# Heading")
+        fs = _FakeDriveFS({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            ctx=self._ctx(fs),
+        )
+
+        assert result["uploaded"] == ["notes.md"]
+        assert "mimeType" not in fs.created_files[0]
+
+    async def test_resync_matches_existing_converted_doc_by_name_not_reuploaded(self, tmp_path):
+        """The converted Doc keeps the '.md' name in Drive, so a resync must match
+        it directly against the local file (bypassing the export_format-suffix
+        scheme used for other Workspace files) — otherwise it looks 'local only'
+        again and gets re-uploaded as a duplicate on every sync."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Heading")
+        drive_mtime = "2024-06-01T12:00:00.000Z"
+        os.utime(
+            local_file,
+            (
+                datetime.fromisoformat(drive_mtime.replace("Z", "+00:00")).timestamp(),
+                datetime.fromisoformat(drive_mtime.replace("Z", "+00:00")).timestamp(),
+            ),
+        )
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime=drive_mtime,
+                        mime="application/vnd.google-apps.document",
+                    )
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["skipped"] == ["notes.md"]
+        assert result["uploaded"] == []
+        assert fs.created_files == []
+
+    async def test_local_edit_after_conversion_updates_in_place_not_recreated(self, tmp_path):
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Updated heading")
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime="2020-01-01T00:00:00.000Z",  # far older than local
+                        mime="application/vnd.google-apps.document",
+                    )
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["uploaded"] == ["notes.md"]
+        assert fs.created_files == []
+        assert len(fs.updated_files) == 1
+        assert fs.updated_files[0]["fileId"] == "fa"
+        assert fs.updated_files[0]["media_body"].mimetype() == "text/markdown"
+
+    async def test_drive_only_converted_doc_without_export_format_reported_as_failed(
+        self, tmp_path
+    ):
+        """No reverse conversion exists (Google Doc -> markdown). A converted-name-
+        pattern Doc with no local counterpart yet ('drive only') would normally
+        trigger a download — matching it into drive_map without requiring
+        export_format (so resyncs of already-converted files work) means this path
+        must be guarded explicitly, or it hits _EXPORT_MIME[None] and raises a raw
+        KeyError instead of a clean 'failed' entry."""
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime="2030-01-01T00:00:00.000Z",
+                        mime="application/vnd.google-apps.document",
+                    )
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["downloaded"] == []
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["name"] == "notes.md"
+        assert "export_format" in result["failed"][0]["error"]
 
 
 class TestSyncFolderDownloadMtimeRoundTrip:

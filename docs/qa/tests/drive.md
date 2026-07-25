@@ -1602,6 +1602,73 @@ Delete all `qa-convert.*` files and their converted Drive counterparts from `{FO
 
 ---
 
+### TC-D217: convert_markdown=True — local .md file uploads as a native Google Doc (issue #211) ⚠️ local-filesystem
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-211/` using direction='upload' and convert_markdown set to true" *(create `/tmp/qa-sync-211/notes.md` locally first, with a heading and a paragraph, nothing matching in Drive yet)*
+
+**Checks**
+- Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-211/", direction="upload", convert_markdown=true)`
+- `uploaded` contains `notes.md`
+- `list_files` on `{FOLDER_ID}` shows the new file's `mimeType` as `application/vnd.google-apps.document`, still named `notes.md` (not renamed, not `.gdoc`)
+- `get_doc_content` on the new file's ID returns readable text matching the markdown source
+
+---
+
+### TC-D218: convert_markdown resync matches the converted Doc — no duplicate created ⚠️ local-filesystem
+**Prompt** (immediately after TC-D217, same fixture, no local changes)
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-211/` using direction='bidirectional' and convert_markdown set to true"
+
+**Checks**
+- `notes.md` appears in `skipped` ("in sync"), not `uploaded`
+- `list_files` on `{FOLDER_ID}` still shows only one `notes.md` (no duplicate from a repeat upload)
+
+---
+
+### TC-D219: convert_markdown — local edit re-converts in place, not a new file ⚠️ local-filesystem
+**Prompt** (after TC-D218; edit `/tmp/qa-sync-211/notes.md` locally, add a new paragraph)
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-211/` using direction='upload' and convert_markdown set to true"
+
+**Checks**
+- `notes.md` appears in `uploaded`
+- `list_files` on `{FOLDER_ID}` still shows only one `notes.md` file (same `fileId` as TC-D217/218 — updated, not recreated)
+- `get_doc_content` on that file shows the new paragraph
+
+**Teardown (TC-D217–TC-D219)**
+Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-211/`.
+
+---
+
+### TC-D220: convert_markdown omitted (default False) — .md still uploads as plain text ⚠️ local-filesystem
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-211b/` using direction='upload'" *(convert_markdown not mentioned; create `/tmp/qa-sync-211b/notes.md` locally first)*
+
+**Checks**
+- Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-211b/", direction="upload")` (no `convert_markdown` arg)
+- `uploaded` contains `notes.md`
+- File's `mimeType` in Drive is `text/plain` (or `text/markdown`, per local mimetypes config), not `application/vnd.google-apps.document` — unchanged from pre-#211 behavior
+
+**Teardown**
+Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-211b/`.
+
+---
+
+### TC-D221: convert_markdown — Drive-only converted-named Doc with no export_format reports a clean failure, not a crash (PR review) ⚠️ local-filesystem
+**Background:** a `.md`-named Google Doc with no local counterpart yet ('drive only') is matched into the sync plan without requiring `export_format` (so TC-D218's resync works) — this reopens a path that used to always be excluded, so it needs its own guard against a raw `KeyError` when no `export_format` is set.
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-221/` using direction='bidirectional' and convert_markdown set to true" *(in `{FOLDER_ID}`, first create a Google Doc named `orphan.md` — e.g. via `create_doc(title="orphan.md")` — with nothing matching locally; `/tmp/qa-sync-221/` should not contain `orphan.md`)*
+
+**Checks**
+- Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-221/", direction="bidirectional", convert_markdown=true)`
+- No exception raised
+- `orphan.md` appears in `failed` with an error message mentioning `export_format`
+- `orphan.md` does not appear in `downloaded`
+
+**Teardown**
+Delete the `orphan.md` Doc from `{FOLDER_ID}`. Remove `/tmp/qa-sync-221/`.
+
+---
+
 ### TC-D119: Invalid direction raises error ⚠️ local-filesystem
 
 **Prompt**
