@@ -1327,10 +1327,12 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Checks**
 - Step 2's response has `skipped: false` (not true) — a second, converted file is created rather than returning the raw one
 - Step 2's created file has `mimeType: application/vnd.google-apps.spreadsheet`
-- `list_files` on `{FOLDER_ID}` shows two `qa-convert-215.csv`-named files: the original raw `text/csv` one from step 1 and the new converted one from step 2
+- `list_files` on `{FOLDER_ID}` shows both files with distinct fileIds: the original raw `text/csv` one from step 1 named `qa-convert-215.csv`, and the new converted spreadsheet from step 2 — Drive's own import-conversion behavior strips the `.csv` extension from the converted copy's name, so it appears as `qa-convert-215`, not `qa-convert-215.csv`
 
 **Teardown**
-Delete both `qa-convert-215.csv` files (raw and converted) from `{FOLDER_ID}`. Remove `/tmp/qa-convert-215.csv`.
+Delete both files (raw `qa-convert-215.csv` and converted `qa-convert-215`) from `{FOLDER_ID}`. Remove `/tmp/qa-convert-215.csv`.
+
+**Result (2026-07-24) ✅ PASS** — Verified via `mcp-gee-sweet-sky` against fixture folder `{FOLDER_ID}`. Step 2 returned `skipped: false` with a distinct `fileId` from step 1, `mimeType: application/vnd.google-apps.spreadsheet` confirmed via `get_file_metadata`, and `list_files` showed both the raw and converted files coexisting (converted copy named `qa-convert-215`, extension stripped by Drive itself — check text above corrected to reflect this).
 
 ---
 
@@ -1347,6 +1349,8 @@ Delete both `qa-convert-215.csv` files (raw and converted) from `{FOLDER_ID}`. R
 
 **Teardown**
 Delete `qa-convert-216.csv` from `{FOLDER_ID}`. Remove `/tmp/qa-scratch-216`.
+
+**Result (2026-07-24) ✅ PASS** — Verified via `mcp-gee-sweet-sky` against fixture folder `{FOLDER_ID}`. Response had no `error` key and `mimeType: application/vnd.google-apps.spreadsheet`, confirming the extension used for conversion came from the `name` override rather than the extension-less `local_path`.
 
 **Teardown (TC-D210–TC-D214)**
 Delete all `qa-convert.*` files and their converted Drive counterparts from `{FOLDER_ID}`. Remove the local `/tmp/qa-convert.*` scratch files.
