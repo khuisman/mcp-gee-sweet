@@ -1764,6 +1764,10 @@ Delete the `notes.md` Doc from `{FOLDER_ID}`. Remove `/tmp/qa-sync-224/`.
 - Second call (flag omitted): `notes.md` appears in `skipped` ("in sync"), not `uploaded`
 - `list_files` on `{FOLDER_ID}` shows exactly **one** `notes.md` file — no duplicate plain-text copy created
 
+**Result (2026-07-25) ✅ PASS** First call: `uploaded: ["notes.md"]`. Second call (flag omitted): `skipped: ["notes.md"]`, `uploaded: []`; `list_files` showed exactly one `notes.md`, still `application/vnd.google-apps.document`. Also checked the companion scenario (local edit + flag omitted, matching the new `test_local_edit_without_flag_reimports_in_place_not_duplicated` unit test): edited the local file and re-synced with `direction='upload'`, `convert_markdown` omitted — `uploaded: ["notes.md"]`, same file ID reused (not recreated), `get_doc_content` showed the edited text correctly reimported, no duplicate.
+
+**Additional round-3 code-review finding checked and refuted:** the review theorized Drive's import-conversion might complete *asynchronously after* our metadata-only `modifiedTime` re-stamp (the TC-D218 fix), silently undoing it and reproducing the original bug in softened form (permanent `conflict` instead of permanent `failed`). Tested directly: converted a fresh file, confirmed `modified_time` matched the local mtime exactly immediately after upload, then re-checked via `get_file_metadata` after several minutes of real elapsed time (doing other QA work in between, not a sleep) — `modified_time` was unchanged, and a `sync_folder` resync at that point still returned `skipped`. No drift observed; the conversion is synchronous within the `create()` call, not a background job that continues after it returns.
+
 **Teardown**
 Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-225/`.
 
@@ -1780,6 +1784,8 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-225/`.
 - `upload_local_file` call succeeds; `list_files` shows the new Doc named `notes.md`
 - `sync_folder` call: `notes.md` appears in `skipped` ("in sync"), not `uploaded`
 - `list_files` on `{FOLDER_ID}` still shows exactly **one** `notes.md` file — no second Doc created
+
+**Result (2026-07-25) ✅ PASS (core fix), with a follow-up finding** `upload_local_file(convert=true)` succeeded; `list_files` showed the new Doc. First `sync_folder` attempt landed in `conflicts` rather than `skipped` — correctly matched the existing Doc (no duplicate; `list_files` showed exactly one `notes.md` throughout, confirming the core fix works), but not the "in sync" outcome this case's Checks describe. Root cause, confirmed via code: `_upload_local_file` (`transfer.py` ~line 138-148) never sets `modifiedTime` on the Doc it creates, unlike `_sync_level`'s own upload path which explicitly stamps the local file's mtime — so a Doc from `upload_local_file(convert=True)` always carries Drive's own creation timestamp instead. This isn't a one-off timing fluke from test-fixture setup delay (my first guess); it's structural, and will produce a spurious `conflict` on very close to every first `sync_folder` call after an `upload_local_file(convert=True)`, not just an occasional one — confirmed by re-running with the local mtime deliberately set to match Drive's `modified_time`, which *did* land `skipped` as this case describes, but only because I forced that match by hand. Flagged to Dev as a follow-up finding (#3 in the round-3 code review) rather than blocking this round on it — the outcome is a safe, non-destructive `conflict`, not data loss or a duplicate. Also re-verified TC-D222 (unrelated pre-existing `.md` Doc) still holds after this round's matching change: two distinct `notes.md` files resulted, original's content untouched — no regression.
 
 **Teardown**
 Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-226-src/` and `/tmp/qa-sync-226/`.
