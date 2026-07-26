@@ -251,6 +251,43 @@ class TestUploadLocalFileConvert:
             transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"
         }
 
+    async def test_convert_stamps_modified_time_from_local_mtime_and_restamps_after_create(
+        self, tmp_path
+    ):
+        """#422 finding #2: _upload_local_file never set modifiedTime on a converted
+        Doc, so it got Drive's own creation timestamp instead of the local file's
+        mtime — landing in sync_folder's 'conflicts' rather than 'skipped' on
+        nearly every first sync_folder call afterward, since nothing tied the two
+        timestamps together. A metadata-only follow-up update() re-stamps it after
+        Drive's native import overwrites the create() request, the same way
+        _sync_level's own convert_markdown upload path already does (TC-D218)."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Heading")
+        expected_mtime = datetime.fromtimestamp(
+            local_file.stat().st_mtime, tz=timezone.utc
+        ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "notes.md",
+            "webViewLink": "https://example.com",
+        }
+        drive_svc.files.return_value.update.return_value.execute.return_value = {"id": "fid1"}
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["body"]["modifiedTime"] == expected_mtime
+
+        update_kwargs = drive_svc.files.return_value.update.call_args.kwargs
+        assert update_kwargs["fileId"] == "fid1"
+        assert update_kwargs["body"] == {"modifiedTime": expected_mtime}
+        assert "media_body" not in update_kwargs
+
     async def test_convert_non_md_extension_does_not_stamp_source_property(self, tmp_path):
         local_file = tmp_path / "data.csv"
         local_file.write_text("a,b\n1,2")
@@ -299,6 +336,8 @@ class TestUploadLocalFileConvert:
         assert "error" not in result
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
         assert "mimeType" not in create_kwargs["body"]
+        assert "modifiedTime" not in create_kwargs["body"]
+        drive_svc.files.return_value.update.assert_not_called()
 
     async def test_convert_extension_comes_from_name_override_not_local_path(self, tmp_path):
         """A no-extension local_path with a .csv name= override should still convert
@@ -1020,6 +1059,79 @@ class TestSyncFolderConvertMarkdown:
         assert result["downloaded"] == []
         assert result["failed"] == []
         assert result["conflicts"] == ["notes.md"]
+
+    async def test_plain_file_and_converted_doc_sharing_name_reported_as_failed(self, tmp_path):
+        """#422 finding #1: Drive allows a plain file and a convert_markdown Doc to
+        share the same display name, and both compute the same drive_map key —
+        whichever was enumerated last used to silently win the slot, making the
+        other completely invisible to sync (never uploaded, downloaded, or
+        reported anywhere). Now reported as a clean failure instead, with neither
+        entry touched."""
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file("notes.md", "plain-id", mime="text/markdown"),
+                    _drive_file(
+                        "notes.md",
+                        "doc-id",
+                        mime="application/vnd.google-apps.document",
+                        properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+                    ),
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["name"] == "notes.md"
+        assert "notes.md" in result["failed"][0]["error"]
+        assert result["uploaded"] == []
+        assert result["downloaded"] == []
+        assert result["skipped"] == []
+        assert result["conflicts"] == []
+        assert fs.created_files == []
+        assert fs.updated_files == []
+
+    async def test_drive_only_converted_doc_skipped_not_conflict_under_upload_direction(
+        self, tmp_path
+    ):
+        """#422 finding #3: the drive-only branch checked _is_converted_md before
+        checking direction, so a convert_markdown Doc with no local counterpart
+        always reported 'conflict' even under direction='upload' — where an
+        ordinary (non-converted) drive-only file correctly reports a plain 'skip',
+        since an upload-only caller doesn't care about drive-only content at all."""
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mime="application/vnd.google-apps.document",
+                        properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+                    )
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["skipped"] == ["notes.md"]
+        assert result["conflicts"] == []
+        assert result["downloaded"] == []
+        assert result["failed"] == []
 
     async def test_unrelated_doc_with_matching_md_name_is_not_treated_as_converted(self, tmp_path):
         """#414 QA review (finding #2): a human-created Google Doc that happens to

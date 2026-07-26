@@ -1792,6 +1792,60 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-226-src/` and `/tmp/q
 
 ---
 
+### TC-D227: convert_markdown — a plain file and a converted Doc sharing the same name are reported as a clean failure, not silently overwritten (issue #422, finding #1) ⚠️ local-filesystem
+
+**Background:** Drive allows a plain file and a `convert_markdown`-produced Doc to share the same display name — both compute the same `drive_map` key during plan-building. Before the fix, whichever was enumerated last silently won the slot; the other became completely invisible to that sync (never uploaded, downloaded, or reported anywhere).
+
+**Prompt**
+> In `{FOLDER_ID}`, call `upload_file(name="notes.md", content="plain text version")` to create a plain file named `notes.md`. Then call `upload_local_file(local_path="/tmp/qa-sync-227-src/notes.md", parent_folder_id="{FOLDER_ID}", convert=true)` *(create that local source file first, with any content)* — Drive now has two files both named `notes.md`: one plain, one a converted Google Doc. With `/tmp/qa-sync-227/` created but empty (no local file):
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-227/` using direction='bidirectional' and convert_markdown set to true"
+
+**Checks**
+- Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-227/", direction="bidirectional", convert_markdown=true)`
+- `failed` contains exactly one entry for `notes.md`, with an error mentioning both a plain file and a convert_markdown Doc sharing the name
+- `notes.md` does not appear in `uploaded`, `downloaded`, `skipped`, or `conflicts`
+- `list_files` on `{FOLDER_ID}` afterward still shows both original `notes.md` files untouched (two distinct file IDs, unchanged content)
+
+**Teardown**
+Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-227-src/` and `/tmp/qa-sync-227/`.
+
+---
+
+### TC-D228: upload_local_file(convert=True) stamps modifiedTime from the local file's mtime, so a follow-up sync_folder lands in skipped, not conflicts (issue #422, finding #2 — follow-up to TC-D226) ⚠️ local-filesystem
+
+**Background:** TC-D226 flagged a follow-up finding: `_upload_local_file` never set `modifiedTime` on a converted Doc, unlike `_sync_level`'s own upload path which stamps the local file's mtime — so the Doc always carried Drive's own creation timestamp instead, landing a subsequent `sync_folder(convert_markdown=true)` in `conflicts` rather than `skipped` on very close to every first run. The fix stamps `modifiedTime` on `create()` and re-stamps it via a metadata-only `update()` afterward, since Drive's native import-conversion overwrites the `create()`-time value once conversion finishes (the same drift `_sync_level`'s own path already works around, per TC-D218).
+
+**Prompt**
+> In `{FOLDER_ID}`, call `upload_local_file(local_path="/tmp/qa-sync-228-src/notes.md", parent_folder_id="{FOLDER_ID}", convert=true)` *(create that local file first, with any content)*. Then, with `/tmp/qa-sync-228/notes.md` containing identical content copied immediately after (same mtime, no manual adjustment):
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-228/` using direction='bidirectional' and convert_markdown set to true"
+
+**Checks**
+- `upload_local_file` call succeeds; `get_file_metadata` on the returned `fileId` shows `modifiedTime` close to the local source file's mtime, not a later Drive-assigned creation time
+- Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-228/", direction="bidirectional", convert_markdown=true)`: `notes.md` appears in `skipped` ("in sync"), not `conflicts` — this is the exact scenario TC-D226 flagged as a follow-up finding, now fixed
+- `list_files` on `{FOLDER_ID}` still shows exactly one `notes.md` file
+
+**Teardown**
+Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-228-src/` and `/tmp/qa-sync-228/`.
+
+---
+
+### TC-D229: convert_markdown — a drive-only converted Doc reports skip under direction='upload', conflict only when a download would otherwise be attempted (issue #422, finding #3) ⚠️ local-filesystem
+
+**Background:** the drive-only branch of the plan-building loop checked `_is_converted_md` before checking `direction`, so a convert_markdown Doc with no local counterpart always reported `conflict` — even under `direction='upload'`, where an ordinary (non-converted) drive-only file correctly reports a plain `skip`, since an upload-only caller doesn't care about drive-only content at all. The fix routes the convert_markdown case through the same direction check as the ordinary case.
+
+**Prompt**
+> In `{FOLDER_ID}`, call `upload_local_file(local_path="/tmp/qa-sync-229-src/notes.md", parent_folder_id="{FOLDER_ID}", convert=true)` *(create that local file first, with any content — this Doc will be drive-only from `/tmp/qa-sync-229/`'s perspective, since nothing exists there)*. With `/tmp/qa-sync-229/` created but empty:
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-229/` using direction='upload' and convert_markdown set to true"
+
+**Checks**
+- Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-229/", direction="upload", convert_markdown=true)`: `notes.md` appears in `skipped` ("drive only, upload direction"), not `conflicts`; `failed` and `downloaded` are both empty
+- Repeat with `direction='bidirectional'` against the same fixture (still no local file): `notes.md` now appears in `conflicts` (unchanged behavior — a convert_markdown Doc still can't be downloaded, so a direction that would otherwise attempt one must still report conflict, not skip)
+
+**Teardown**
+Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-229-src/` and `/tmp/qa-sync-229/`.
+
+---
+
 ### TC-D119: Invalid direction raises error ⚠️ local-filesystem
 
 **Prompt**

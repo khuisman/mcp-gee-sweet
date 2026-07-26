@@ -140,9 +140,20 @@ async def _upload_local_file(
             }
 
     metadata: dict[str, Any] = {"name": file_name, "parents": [parent_folder_id]}
+    lmtime_str: str | None = None
     if convert_mime is not None:
         mime, target_mime = convert_mime
         metadata["mimeType"] = target_mime
+        # Unlike _sync_level's own upload path, this never stamped modifiedTime on a
+        # converted Doc — it got Drive's own creation timestamp instead, which is
+        # very close to never within sync_folder's 5s tolerance of the local file's
+        # actual mtime, so a subsequent sync_folder(convert_markdown=True) landed the
+        # correctly-matched Doc in 'conflicts' rather than 'skipped' on nearly every
+        # first sync (#422, finding #2).
+        lmtime_str = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%S.000Z"
+        )
+        metadata["modifiedTime"] = lmtime_str
         if Path(file_name).suffix.lower() == ".md":
             # Stamp the same marker sync_folder's own convert_markdown path sets, so
             # a Doc created here is recognized by sync_folder's matching too — the
@@ -168,6 +179,23 @@ async def _upload_local_file(
             .execute,
             drive_service,
         )
+        if lmtime_str is not None:
+            # Drive's native import-conversion overwrites the modifiedTime just
+            # requested with its own "now" once the conversion finishes — the same
+            # drift _sync_level's own convert_markdown upload path already works
+            # around (see its create() branch). A metadata-only follow-up update()
+            # doesn't trigger reconversion and re-stamps it correctly.
+            await execute_in_thread(
+                drive_service.files()
+                .update(
+                    fileId=result["id"],
+                    body={"modifiedTime": lmtime_str},
+                    supportsAllDrives=True,
+                    fields="id",
+                )
+                .execute,
+                drive_service,
+            )
     except HttpError as e:
         if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
             return {"error": _SA_QUOTA_ERROR}
@@ -253,6 +281,7 @@ async def _sync_level(
         drive_files, drive_folders = await _list_drive_children(drive_service, drive_folder_id)
 
     drive_map: dict[str, dict] = {}
+    collision_names: set[str] = set()
     for f in drive_files:
         is_workspace = f["mimeType"].startswith("application/vnd.google-apps.")
         is_converted_md = False
@@ -278,6 +307,31 @@ async def _sync_level(
                 local_name = f["name"] + _EXPORT_MIME[export_format][1]
         else:
             local_name = f["name"]
+
+        if local_name in collision_names:
+            continue
+        if local_name in drive_map and drive_map[local_name]["_is_converted_md"] != is_converted_md:
+            # Drive allows a plain file and a convert_markdown Doc to share the same
+            # display name — both compute this same local_name, and whichever was
+            # enumerated last used to silently win the slot, making the other
+            # completely invisible to this sync (never uploaded, downloaded, or
+            # reported anywhere) (#422). Fail loudly instead: report it once and
+            # exclude this name from the plan entirely rather than guess which one
+            # the local file is meant to match.
+            failed.append(
+                {
+                    "name": f"{rel_prefix}{local_name}",
+                    "error": (
+                        f"both a plain file and a convert_markdown Doc are named "
+                        f"'{local_name}' in this Drive folder — sync can't tell "
+                        "which one the local file matches; rename or remove one of "
+                        "them in Drive"
+                    ),
+                }
+            )
+            collision_names.add(local_name)
+            del drive_map[local_name]
+            continue
         # _is_converted_md travels with the entry so the plan-building and download
         # logic below can gate on it without re-deriving convert_source (#414 QA
         # review, finding #1: this Doc must never be downloaded via export_format,
@@ -301,11 +355,22 @@ async def _sync_level(
 
     plan: list[dict[str, str]] = []
     for name in sorted(drive_map.keys() | local_map.keys()):
+        if name in collision_names:
+            continue
         in_drive = name in drive_map
         in_local = name in local_map
 
         if in_drive and not in_local:
-            if drive_map[name]["_is_converted_md"]:
+            if direction not in ("download", "bidirectional"):
+                # Upload-only callers don't care about drive-only content, whether
+                # or not it's a convert_markdown Doc — checking _is_converted_md
+                # first (as the pre-#422 code did) reported "conflict" even under
+                # direction='upload', where an ordinary drive-only file would have
+                # reported a plain "skip" (#422, finding #3).
+                plan.append(
+                    {"name": name, "action": "skip", "reason": "drive only, upload direction"}
+                )
+            elif drive_map[name]["_is_converted_md"]:
                 # A convert_markdown Doc has no reverse conversion — queuing this as
                 # a "download" here (as the pre-#414 code did) would either crash on
                 # the runtime guard below or, worse, write export_format's binary
@@ -322,12 +387,8 @@ async def _sync_level(
                         ),
                     }
                 )
-            elif direction in ("download", "bidirectional"):
-                plan.append({"name": name, "action": "download", "reason": "drive only"})
             else:
-                plan.append(
-                    {"name": name, "action": "skip", "reason": "drive only, upload direction"}
-                )
+                plan.append({"name": name, "action": "download", "reason": "drive only"})
 
         elif in_local and not in_drive:
             if direction in ("upload", "bidirectional"):
