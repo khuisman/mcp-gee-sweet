@@ -25,6 +25,7 @@ from mcp_gee_sweet.tools.docs.emitter import (
     _physical_to_ast_indices,
     _run_group_fill_requests,
     _text_offset_since_last_table,
+    ast_to_requests,
 )
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 
@@ -824,6 +825,139 @@ class TestTaskListEmitter:
         bold_start = bold_reqs[0]["updateTextStyle"]["range"]["startIndex"]
         # glyph "☑ " is 2 chars; bold run must start at least 2 chars after insert_idx
         assert bold_start >= insert_idx + 2
+
+
+class TestNestedBulletDepthEmitsIndentation:
+    """#336: BulletItem.depth must reach the live doc as nesting level via leading tabs —
+    the only mechanism createParagraphBullets exposes for setting it (it infers and
+    consumes leading tab characters from each paragraph's text)."""
+
+    def _bullet_ranges(self, requests):
+        return [
+            r["createParagraphBullets"]["range"] for r in requests if "createParagraphBullets" in r
+        ]
+
+    def test_depth_zero_item_gets_no_leading_tabs(self):
+        nodes = [BulletItem(runs=[Run("Item")], depth=0)]
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "Item\n"
+
+    def test_nested_item_gets_leading_tabs_matching_depth(self):
+        nodes = [
+            BulletItem(runs=[Run("Parent")], depth=0),
+            BulletItem(runs=[Run("Child")], depth=1),
+            BulletItem(runs=[Run("Grandchild")], depth=2),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "Parent\n\tChild\n\t\tGrandchild\n"
+
+    def test_nested_bullet_range_includes_leading_tabs(self):
+        # The range passed to createParagraphBullets must start before the tabs, not
+        # after them — otherwise the API has no leading tabs to count/consume.
+        nodes = [
+            BulletItem(runs=[Run("Parent")], depth=0),
+            BulletItem(runs=[Run("Child")], depth=1),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        ranges = self._bullet_ranges(requests)
+        # "Parent\n" is 7 chars, so Child's segment (tab + text) starts at index 8
+        child_range = next(r for r in ranges if r["startIndex"] == 8)
+        assert child_range["endIndex"] == 8 + len("\tChild\n")
+
+    def test_run_style_offset_skips_leading_tabs(self):
+        # A styled run inside a nested item must not have the leading tab(s) folded
+        # into its style range.
+        requests, _ = ast_to_requests([BulletItem(runs=[Run("bold", bold=True)], depth=2)])
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "\t\tbold\n"
+        bold_req = next(
+            r
+            for r in requests
+            if "updateTextStyle" in r and r["updateTextStyle"]["textStyle"].get("bold") is True
+        )
+        rng = bold_req["updateTextStyle"]["range"]
+        assert rng == {"startIndex": 3, "endIndex": 7}  # skips the 2 leading tabs
+
+    def test_nested_bullet_requests_applied_after_sibling_requests(self):
+        # Nested-bullet createParagraphBullets calls consume characters (shifting
+        # everything after them), so they must be ordered after every other request
+        # that assumes positions haven't shifted yet — including a later heading's own
+        # style request, which must appear earlier in the array.
+        nodes = [
+            BulletItem(runs=[Run("Parent")], depth=0),
+            BulletItem(runs=[Run("Child")], depth=1),
+            Heading(level=1, runs=[Run("Next")]),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        heading_idx = next(i for i, r in enumerate(requests) if "updateParagraphStyle" in r)
+        nested_bullet_idx = next(
+            i
+            for i, r in enumerate(requests)
+            if "createParagraphBullets" in r
+            and r["createParagraphBullets"]["range"]["startIndex"] == 8
+        )
+        assert heading_idx < nested_bullet_idx
+
+    def test_multiple_nested_bullets_applied_latest_position_first(self):
+        # Processing must go latest-in-document-first so an earlier, not-yet-processed
+        # nested bullet's precomputed range is never invalidated by a later one's own
+        # tab consumption.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=1),
+            BulletItem(runs=[Run("B")], depth=1),
+            BulletItem(runs=[Run("C")], depth=1),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        ranges = self._bullet_ranges(requests)
+        starts = [r["startIndex"] for r in ranges]
+        assert starts == sorted(starts, reverse=True)
+
+    def test_table_position_adjusted_for_preceding_nested_bullet_tabs(self):
+        # A table positioned after a nested bullet must have its insertTable index
+        # adjusted for the tab character(s) that bullet's own createParagraphBullets
+        # call removes ahead of it.
+        nodes = [
+            BulletItem(runs=[Run("Parent")], depth=0),
+            BulletItem(runs=[Run("Child")], depth=1),
+            Table(rows=[Row(cells=[Cell(children=[Run("X")])])]),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        table_req = next(r for r in requests if "insertTable" in r)
+        # As-inserted text is "Parent\n\tChild\n" (14 chars); table's raw position would
+        # be 1 + 14 = 15, but the 1 leading tab gets consumed ahead of it, so the real
+        # position is 14.
+        assert insert["insertText"]["text"] == "Parent\n\tChild\n"
+        assert table_req["insertTable"]["location"]["index"] == 14
+
+    def test_table_before_nested_bullet_unaffected(self):
+        # No nested-bullet tabs precede this table, so its position needs no adjustment.
+        nodes = [
+            Table(rows=[Row(cells=[Cell(children=[Run("X")])])]),
+            BulletItem(runs=[Run("Parent")], depth=0),
+            BulletItem(runs=[Run("Child")], depth=1),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        table_req = next(r for r in requests if "insertTable" in r)
+        assert table_req["insertTable"]["location"]["index"] == 1
+
+    def test_ordered_nested_list_uses_numbered_preset(self):
+        nodes = [BulletItem(runs=[Run("Item")], depth=1, ordered=True)]
+        requests, _ = ast_to_requests(nodes)
+        bullet_req = next(r for r in requests if "createParagraphBullets" in r)
+        assert (
+            bullet_req["createParagraphBullets"]["bulletPreset"] == "NUMBERED_DECIMAL_ALPHA_ROMAN"
+        )
+
+    def test_end_to_end_html_nested_list_produces_leading_tabs(self):
+        # Integration check through the real HTML parser, matching the shape of the
+        # live #336 repro (a parent item followed by a nested sub-list).
+        html = "<ul><li>Parent<ul><li>Child</li></ul></li></ul>"
+        requests, _ = _to_doc_requests(html)
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "Parent\n\tChild\n"
 
 
 class TestBuildBlankParaBeforeTableCollapses:
