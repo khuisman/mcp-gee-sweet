@@ -3083,6 +3083,116 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#tc-d217-convert_markdowntrue-local-md-file-uploads-as-a-native-google-doc-issue-211-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D217: convert_markdown=True — local .md file uploads as a native Google Doc (issue #211) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d218-convert_markdown-resync-matches-the-converted-doc-no-duplicate-created-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D218: convert_markdown resync matches the converted Doc — no duplicate created ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d219-convert_markdown-local-edit-re-converts-in-place-not-a-new-file-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D219: convert_markdown — local edit re-converts in place, not a new file ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d220-convert_markdown-omitted-default-false-md-still-uploads-as-plain-text-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D220: convert_markdown omitted (default False) — .md still uploads as plain text ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d221-convert_markdown-drive-only-converted-doc-with-no-export_format-reports-a-clean-conflict-not-a-crash-or-a-doomed-download-round-2-review-414-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D221: convert_markdown — Drive-only converted Doc with no export_format reports a clean conflict, not a crash or a doomed download (round 2 review, #414) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d222-convert_markdown-a-pre-existing-unrelated-doc-with-a-colliding-name-is-never-treated-as-this-tools-converted-twin-414-qa-review-finding-2-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D222: convert_markdown — a pre-existing unrelated Doc with a colliding name is never treated as this tool's converted twin (#414 QA review, finding #2) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d223-convert_markdown-cannot-promote-a-file-previously-synced-with-convert_markdownfalse-414-qa-review-finding-3-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D223: convert_markdown cannot promote a file previously synced with convert_markdown=False (#414 QA review, finding #3) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d224-convert_markdown-export_format-together-never-exports-a-converted-docs-binary-content-into-a-md-named-file-414-qa-review-finding-1-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D224: convert_markdown + export_format together never exports a converted Doc's binary content into a .md-named file (#414 QA review, finding #1) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d225-convert_markdown-resync-without-the-flag-still-matches-no-duplicate-round-3-review-414-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D225: convert_markdown resync without the flag still matches — no duplicate (round 3 review, #414) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d226-a-doc-converted-via-upload_local_fileconverttrue-is-recognized-by-sync_folders-convert_markdown-matching-round-3-review-414-finding-2-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D226: a Doc converted via upload_local_file(convert=True) is recognized by sync_folder's convert_markdown matching (round 3 review, #414, finding #2) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tc-d119-invalid-direction-raises-error-local-filesystem" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5693,6 +5803,154 @@ Delete all <code>qa-convert.*</code> files and their converted Drive counterpart
 <p><strong>Checks</strong>
 - Google Doc does not appear in <code>downloaded</code>, <code>uploaded</code>, or <code>conflicts</code>
 - 🔍 <strong>Note:</strong> Workspace files are silently excluded unless <code>export_format</code> is set — document this for users</p>
+<hr />
+<h3 id="tc-d217-convert_markdowntrue-local-md-file-uploads-as-a-native-google-doc-issue-211-local-filesystem">TC-D217: convert_markdown=True — local .md file uploads as a native Google Doc (issue #211) ⚠️ local-filesystem<a class="headerlink" href="#tc-d217-convert_markdowntrue-local-md-file-uploads-as-a-native-google-doc-issue-211-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync-211/</code> using direction='upload' and convert_markdown set to true" <em>(create <code>/tmp/qa-sync-211/notes.md</code> locally first, with a heading and a paragraph, nothing matching in Drive yet)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-211/", direction="upload", convert_markdown=true)</code>
+- <code>uploaded</code> contains <code>notes.md</code>
+- <code>list_files</code> on <code>{FOLDER_ID}</code> shows the new file's <code>mimeType</code> as <code>application/vnd.google-apps.document</code>, still named <code>notes.md</code> (not renamed, not <code>.gdoc</code>)
+- <code>get_doc_content</code> on the new file's ID returns readable text matching the markdown source</p>
+<p><strong>Result (2026-07-25) ✅ PASS</strong> Ran against a throwaway scratch subfolder of <code>{FOLDER_ID}</code> (not the shared top level, per <code>run.md</code>'s pollution guidance). <code>uploaded: ["notes.md"]</code>; <code>list_files</code> showed <code>mimeType: application/vnd.google-apps.document</code>, name still <code>notes.md</code>; <code>get_doc_content</code> returned the markdown source as readable text.</p>
+<hr />
+<h3 id="tc-d218-convert_markdown-resync-matches-the-converted-doc-no-duplicate-created-local-filesystem">TC-D218: convert_markdown resync matches the converted Doc — no duplicate created ⚠️ local-filesystem<a class="headerlink" href="#tc-d218-convert_markdown-resync-matches-the-converted-doc-no-duplicate-created-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong> (immediately after TC-D217, same fixture, no local changes)</p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync-211/</code> using direction='bidirectional' and convert_markdown set to true"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>notes.md</code> appears in <code>skipped</code> ("in sync"), not <code>uploaded</code>
+- <code>list_files</code> on <code>{FOLDER_ID}</code> still shows only one <code>notes.md</code> (no duplicate from a repeat upload)</p>
+<p><strong>Result, round 1 (2026-07-25) ❌ FAIL</strong> No duplicate was created (<code>list_files</code> still showed exactly one <code>notes.md</code>), but the resync did <strong>not</strong> skip — it landed in <code>failed</code> with <code>"Cannot download native Google Doc without export_format (convert_markdown has no reverse conversion)"</code>, and stayed stuck there on a second identical resync attempt (never converges to skip on its own). Root cause: Drive's native import-conversion on <code>create()</code> overwrites the <code>modifiedTime</code> we request in the request body with its own "now" — confirmed via <code>get_file_metadata</code>, local mtime <code>15:02:32.000Z</code> vs. Drive's actual <code>modified_time</code> <code>15:02:46.724Z</code>, a ~14.7s gap driven by conversion latency, comfortably outside the 5s sync tolerance. <code>diff = local − drive</code> is therefore negative ("drive newer"), so <code>bidirectional</code> picks <code>download</code>, which then hits the new no-<code>export_format</code> guard and fails. This is a live-only defect the code review's static pass didn't catch (it requires observing Drive's actual post-conversion <code>modifiedTime</code>, not just reading the source) and it breaks the PR's own stated purpose — "re-syncs settle into 'in sync'... instead of re-uploading a duplicate every run" does not hold for <code>direction='bidirectional'</code>, the mode most users would actually run repeatedly. <code>direction='upload'</code> sidesteps this (see TC-D219) because it never reaches the download branch.</p>
+<p><strong>Result, round 2 (2026-07-25) ✅ PASS</strong> After the fix's metadata-only <code>files().update()</code> re-stamp following <code>create()</code>: <code>notes.md</code> landed in <code>skipped</code>, not <code>failed</code>, on the immediate resync. <code>get_file_metadata</code> confirmed Drive's <code>modified_time</code> (<code>15:47:12.000Z</code>) now matches the local mtime exactly, byte-for-byte on the seconds field — no drift. Ran a second identical resync immediately after to confirm it's not a one-off race; stayed <code>skipped</code> both times.</p>
+<hr />
+<h3 id="tc-d219-convert_markdown-local-edit-re-converts-in-place-not-a-new-file-local-filesystem">TC-D219: convert_markdown — local edit re-converts in place, not a new file ⚠️ local-filesystem<a class="headerlink" href="#tc-d219-convert_markdown-local-edit-re-converts-in-place-not-a-new-file-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong> (after TC-D218; edit <code>/tmp/qa-sync-211/notes.md</code> locally, add a new paragraph)</p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync-211/</code> using direction='upload' and convert_markdown set to true"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>notes.md</code> appears in <code>uploaded</code>
+- <code>list_files</code> on <code>{FOLDER_ID}</code> still shows only one <code>notes.md</code> file (same <code>fileId</code> as TC-D217/218 — updated, not recreated)
+- <code>get_doc_content</code> on that file shows the new paragraph</p>
+<p><strong>Result, round 1 (2026-07-25) ✅ PASS</strong> <code>uploaded: ["notes.md"]</code>; same file ID as TC-D217/218 (updated via <code>files().update()</code>, not recreated); <code>get_doc_content</code> showed both the original and new paragraph. Note: on this <code>update()</code> path Drive respected the <code>modifiedTime</code> we set exactly (<code>15:03:53.000Z</code>, no conversion-latency drift) — unlike the <code>create()</code> path in TC-D217/218, which is the asymmetry behind that failure.</p>
+<p><strong>Result, round 2 (2026-07-25) ✅ PASS</strong> Re-verified after the fix (the upload branch gained a mismatch check for finding #3): re-edited the same converted Doc and re-uploaded with <code>direction='upload'</code>. Same file ID reused (<code>files().update()</code>, not recreated); <code>get_doc_content</code> showed all three paragraphs (original + TC-D218 fixture text + this round's new paragraph). No regression from the added mismatch-check logic.</p>
+<p><strong>Teardown (TC-D217–TC-D219)</strong>
+Delete <code>notes.md</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-211/</code>.</p>
+<hr />
+<h3 id="tc-d220-convert_markdown-omitted-default-false-md-still-uploads-as-plain-text-local-filesystem">TC-D220: convert_markdown omitted (default False) — .md still uploads as plain text ⚠️ local-filesystem<a class="headerlink" href="#tc-d220-convert_markdown-omitted-default-false-md-still-uploads-as-plain-text-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync-211b/</code> using direction='upload'" <em>(convert_markdown not mentioned; create <code>/tmp/qa-sync-211b/notes.md</code> locally first)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-211b/", direction="upload")</code> (no <code>convert_markdown</code> arg)
+- <code>uploaded</code> contains <code>notes.md</code>
+- File's <code>mimeType</code> in Drive is <code>text/plain</code> (or <code>text/markdown</code>, per local mimetypes config), not <code>application/vnd.google-apps.document</code> — unchanged from pre-#211 behavior</p>
+<p><strong>Result (2026-07-25) ✅ PASS</strong> <code>uploaded: ["notes.md"]</code>; <code>list_files</code> showed <code>mimeType: text/markdown</code>, confirming default (unset) <code>convert_markdown</code> behavior is unchanged from pre-#211.</p>
+<p><strong>Teardown</strong>
+Delete <code>notes.md</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-211b/</code>.</p>
+<hr />
+<h3 id="tc-d221-convert_markdown-drive-only-converted-doc-with-no-export_format-reports-a-clean-conflict-not-a-crash-or-a-doomed-download-round-2-review-414-local-filesystem">TC-D221: convert_markdown — Drive-only converted Doc with no export_format reports a clean conflict, not a crash or a doomed download (round 2 review, #414) ⚠️ local-filesystem<a class="headerlink" href="#tc-d221-convert_markdown-drive-only-converted-doc-with-no-export_format-reports-a-clean-conflict-not-a-crash-or-a-doomed-download-round-2-review-414-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> a converted Doc with no local counterpart yet ('drive only') is matched into the sync plan without requiring <code>export_format</code> (so TC-D218's resync works) — this reopens a path that used to always be excluded, so it needs its own guard against a raw <code>KeyError</code> when no <code>export_format</code> is set. Round 1 of this test case predates a fix (round 2, PR #414) that scopes converted-Doc matching to a Drive <code>properties</code> marker this tool sets on create — see TC-D222 for why. Because that marker can't be set through any public tool, this fixture reuses TC-D217's own conversion call to produce a genuinely-marked Doc, then removes only the local twin to make it drive-only.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync-221/</code> using direction='upload' and convert_markdown set to true" <em>(create <code>/tmp/qa-sync-221/notes.md</code> locally first, with any content, nothing matching in Drive yet — same shape as TC-D217, distinct fixture dir)</em></p>
+<p>Then delete the local file only: remove <code>/tmp/qa-sync-221/notes.md</code> (leave the Drive-side Doc it just created untouched).</p>
+<p>Then: "Sync {FOLDER_ID} with <code>/tmp/qa-sync-221/</code> using direction='bidirectional' and convert_markdown set to true"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The first (upload) call succeeds; <code>notes.md</code> appears in <code>uploaded</code>
+- After deleting the local file, the second (bidirectional) call: no exception raised
+- <code>notes.md</code> appears in <code>conflicts</code>, not <code>failed</code>, not <code>downloaded</code>
+- <code>list_files</code> on <code>{FOLDER_ID}</code> still shows exactly one <code>notes.md</code> Doc (untouched, not deleted or modified)</p>
+<p><strong>Result, round 1 (2026-07-25) ✅ PASS, against the pre-fix Prompt/Checks above</strong> — this result predates round 2's rewrite of this test case's Prompt/Checks (see Background) and doesn't map onto them; it's kept for the record rather than deleted. Original fixture used an <code>orphan.md</code> Doc created directly via <code>create_doc</code> (no local counterpart, no <code>properties</code> marker — round 1's matching was still name+mimeType only). No exception; <code>failed: [{"name": "orphan.md", "error": "Cannot download native Google Doc without export_format (convert_markdown has no reverse conversion)"}]</code>; not present in <code>downloaded</code>. Same failure-shape as TC-D218's (unintended) failure, confirming the guard itself worked correctly in round 1 — the problem was that TC-D218 reached it on a path that should never have been a failure at all.</p>
+<p><strong>Result, round 2 (2026-07-25) ✅ PASS, against the rewritten Prompt/Checks above</strong> — convert-uploaded <code>notes.md</code> via TC-D217's own mechanism, then removed only the local twin. Bidirectional resync: no exception; <code>conflicts: ["notes.md"]</code>, not present in <code>failed</code> or <code>downloaded</code>; <code>list_files</code> showed exactly one <code>notes.md</code> Doc, untouched.</p>
+<p><strong>Teardown</strong>
+Delete the <code>notes.md</code> Doc from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-221/</code>.</p>
+<hr />
+<h3 id="tc-d222-convert_markdown-a-pre-existing-unrelated-doc-with-a-colliding-name-is-never-treated-as-this-tools-converted-twin-414-qa-review-finding-2-local-filesystem">TC-D222: convert_markdown — a pre-existing unrelated Doc with a colliding name is never treated as this tool's converted twin (#414 QA review, finding #2) ⚠️ local-filesystem<a class="headerlink" href="#tc-d222-convert_markdown-a-pre-existing-unrelated-doc-with-a-colliding-name-is-never-treated-as-this-tools-converted-twin-414-qa-review-finding-2-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> matching a Drive Doc back to its local <code>.md</code> file used to rely only on name + mimeType, so any human-created Doc that happened to be named <code>notes.md</code> would be silently treated as if this tool had created it — letting a same-named local file overwrite that Doc's real content via <code>files().update()</code>. The fix scopes matching to a Drive <code>properties</code> marker this tool sets on its own conversions, which a pre-existing unrelated Doc never has.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>In <code>{FOLDER_ID}</code>, create a Google Doc titled <code>notes.md</code> via <code>create_doc(title="notes.md")</code> and write some distinct placeholder content into it with <code>write_doc_content</code>. Then create <code>/tmp/qa-sync-222/notes.md</code> locally with different content, and:
+"Sync {FOLDER_ID} with <code>/tmp/qa-sync-222/</code> using direction='bidirectional' and convert_markdown set to true"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-222/", direction="bidirectional", convert_markdown=true)</code>
+- <code>notes.md</code> appears in <code>uploaded</code> (the local file is treated as local-only and converted into a <em>new</em> Doc — it does not match the pre-existing unrelated one)
+- <code>list_files</code> on <code>{FOLDER_ID}</code> now shows <strong>two</strong> files named <code>notes.md</code> (the original unrelated Doc, untouched, plus the newly-created converted one)
+- <code>get_doc_content</code> on the original Doc's ID still returns the original placeholder content — confirming it was never overwritten</p>
+<p><strong>Result (2026-07-25) ✅ PASS</strong> <code>uploaded: ["notes.md"]</code>; <code>list_files</code> showed two <code>notes.md</code> files after the sync (the pre-existing unrelated Doc plus a newly-created converted one, distinct IDs); <code>get_doc_content</code> on the original Doc's ID returned <code>"ORIGINAL unrelated Doc content — never touched by conversion."</code> unchanged — confirms the <code>properties</code>-marker fix prevents the collision.</p>
+<p><strong>Teardown</strong>
+Delete both <code>notes.md</code> files from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-222/</code>.</p>
+<hr />
+<h3 id="tc-d223-convert_markdown-cannot-promote-a-file-previously-synced-with-convert_markdownfalse-414-qa-review-finding-3-local-filesystem">TC-D223: convert_markdown cannot promote a file previously synced with convert_markdown=False (#414 QA review, finding #3) ⚠️ local-filesystem<a class="headerlink" href="#tc-d223-convert_markdown-cannot-promote-a-file-previously-synced-with-convert_markdownfalse-414-qa-review-finding-3-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Drive's API has no supported way to convert an existing file's type via <code>files().update()</code> — only <code>files().create()</code> honors native import conversion. A <code>.md</code> file first synced as a plain file and later re-synced with <code>convert_markdown=True</code> used to silently re-upload markdown text into the still-plain file rather than promoting it to a Doc. The fix detects the mismatch and fails cleanly instead.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync-223/</code> using direction='upload'" <em>(convert_markdown omitted; create <code>/tmp/qa-sync-223/notes.md</code> locally first, nothing matching in Drive yet)</em></p>
+<p>Then edit <code>/tmp/qa-sync-223/notes.md</code> locally (add a paragraph, so it's newer than the plain Drive file), and:
+"Sync {FOLDER_ID} with <code>/tmp/qa-sync-223/</code> using direction='upload' and convert_markdown set to true"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- First call: <code>notes.md</code> appears in <code>uploaded</code>; <code>list_files</code> shows its <code>mimeType</code> as <code>text/plain</code>/<code>text/markdown</code>, not a Google Doc
+- Second call: no exception raised
+- <code>notes.md</code> appears in <code>failed</code>, not <code>uploaded</code>, with an error message mentioning it's a plain file and can't be promoted
+- <code>list_files</code> on <code>{FOLDER_ID}</code> still shows the same file, still not a Google Doc, with its original (first-upload) content — the second call's markdown text was never written into it</p>
+<p><strong>Result (2026-07-25) ✅ PASS</strong> First call: <code>uploaded: ["notes.md"]</code>, <code>mimeType: text/markdown</code>. Second call (edited + <code>convert_markdown=true</code>): no exception; <code>failed: [{"name": "notes.md", "error": "'notes.md' already exists in Drive as a plain file, not a converted Doc — convert_markdown cannot promote an existing file's type; delete it in Drive and re-sync to convert"}]</code>, not in <code>uploaded</code>. <code>list_files</code> afterward showed <code>mimeType</code> still <code>text/markdown</code> and <code>modified_time</code> unchanged from the first upload, confirming the second call's content was never written.</p>
+<p><strong>Teardown</strong>
+Delete <code>notes.md</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-223/</code>.</p>
+<hr />
+<h3 id="tc-d224-convert_markdown-export_format-together-never-exports-a-converted-docs-binary-content-into-a-md-named-file-414-qa-review-finding-1-local-filesystem">TC-D224: convert_markdown + export_format together never exports a converted Doc's binary content into a <code>.md</code>-named file (#414 QA review, finding #1) ⚠️ local-filesystem<a class="headerlink" href="#tc-d224-convert_markdown-export_format-together-never-exports-a-converted-docs-binary-content-into-a-md-named-file-414-qa-review-finding-1-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> a converted Doc has no reverse conversion. Before the fix, if <code>export_format</code> was <em>also</em> supplied alongside <code>convert_markdown=True</code>, a drive-only converted Doc would skip the "no <code>export_format</code>" guard and fall through to a real export call — writing e.g. binary PDF bytes into a file still named <code>.md</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Reuse TC-D221's setup: convert-upload <code>/tmp/qa-sync-224/notes.md</code> (direction='upload', convert_markdown=true), then delete the local file only, leaving the Drive-side converted Doc. Then:
+"Sync {FOLDER_ID} with <code>/tmp/qa-sync-224/</code> using direction='bidirectional', convert_markdown set to true, and export_format set to 'pdf'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-224/", direction="bidirectional", convert_markdown=true, export_format="pdf")</code>
+- No exception raised
+- <code>notes.md</code> appears in <code>conflicts</code>, not <code>downloaded</code>, not <code>failed</code>
+- <code>/tmp/qa-sync-224/notes.md</code> is <strong>not created on disk</strong> — confirms no binary export content was written into a <code>.md</code>-named file</p>
+<p><strong>Result (2026-07-25) ✅ PASS</strong> No exception; <code>conflicts: ["notes.md"]</code>, not in <code>downloaded</code> or <code>failed</code>; local directory stayed empty — no binary export content was written to disk. Also spot-checked <code>dry_run=true</code> with the same inputs: <code>actions</code> reported <code>{"name": "notes.md", "action": "conflict", "reason": "drive-only convert_markdown Doc has no reverse conversion — add a matching local .md or remove it in Drive"}</code> — confirms finding #4 (dry_run mislabeling) is also resolved, since the plan-building loop now classifies this case identically for both dry_run and live runs.</p>
+<p><strong>Teardown</strong>
+Delete the <code>notes.md</code> Doc from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-224/</code>.</p>
+<hr />
+<h3 id="tc-d225-convert_markdown-resync-without-the-flag-still-matches-no-duplicate-round-3-review-414-local-filesystem">TC-D225: convert_markdown resync without the flag still matches — no duplicate (round 3 review, #414) ⚠️ local-filesystem<a class="headerlink" href="#tc-d225-convert_markdown-resync-without-the-flag-still-matches-no-duplicate-round-3-review-414-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> matching used to be gated on the <em>current call's</em> <code>convert_markdown</code> flag, not just the Doc's own stamped property. A resync that simply omitted <code>convert_markdown=True</code> on a folder containing an already-converted Doc saw the local <code>.md</code> as "local only" and silently created a second, plain-text duplicate — no error, no warning.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync-225/</code> using direction='upload' and convert_markdown set to true" <em>(create <code>/tmp/qa-sync-225/notes.md</code> locally first, nothing matching in Drive yet)</em></p>
+<p>Then, with no local changes: "Sync {FOLDER_ID} with <code>/tmp/qa-sync-225/</code> using direction='bidirectional'" <em>(convert_markdown omitted this time)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- First call: <code>notes.md</code> appears in <code>uploaded</code>
+- Second call (flag omitted): <code>notes.md</code> appears in <code>skipped</code> ("in sync"), not <code>uploaded</code>
+- <code>list_files</code> on <code>{FOLDER_ID}</code> shows exactly <strong>one</strong> <code>notes.md</code> file — no duplicate plain-text copy created</p>
+<p><strong>Result (2026-07-25) ✅ PASS</strong> First call: <code>uploaded: ["notes.md"]</code>. Second call (flag omitted): <code>skipped: ["notes.md"]</code>, <code>uploaded: []</code>; <code>list_files</code> showed exactly one <code>notes.md</code>, still <code>application/vnd.google-apps.document</code>. Also checked the companion scenario (local edit + flag omitted, matching the new <code>test_local_edit_without_flag_reimports_in_place_not_duplicated</code> unit test): edited the local file and re-synced with <code>direction='upload'</code>, <code>convert_markdown</code> omitted — <code>uploaded: ["notes.md"]</code>, same file ID reused (not recreated), <code>get_doc_content</code> showed the edited text correctly reimported, no duplicate.</p>
+<p><strong>Additional round-3 code-review finding checked and refuted:</strong> the review theorized Drive's import-conversion might complete <em>asynchronously after</em> our metadata-only <code>modifiedTime</code> re-stamp (the TC-D218 fix), silently undoing it and reproducing the original bug in softened form (permanent <code>conflict</code> instead of permanent <code>failed</code>). Tested directly: converted a fresh file, confirmed <code>modified_time</code> matched the local mtime exactly immediately after upload, then re-checked via <code>get_file_metadata</code> after several minutes of real elapsed time (doing other QA work in between, not a sleep) — <code>modified_time</code> was unchanged, and a <code>sync_folder</code> resync at that point still returned <code>skipped</code>. No drift observed; the conversion is synchronous within the <code>create()</code> call, not a background job that continues after it returns.</p>
+<p><strong>Teardown</strong>
+Delete <code>notes.md</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-225/</code>.</p>
+<hr />
+<h3 id="tc-d226-a-doc-converted-via-upload_local_fileconverttrue-is-recognized-by-sync_folders-convert_markdown-matching-round-3-review-414-finding-2-local-filesystem">TC-D226: a Doc converted via upload_local_file(convert=True) is recognized by sync_folder's convert_markdown matching (round 3 review, #414, finding #2) ⚠️ local-filesystem<a class="headerlink" href="#tc-d226-a-doc-converted-via-upload_local_fileconverttrue-is-recognized-by-sync_folders-convert_markdown-matching-round-3-review-414-finding-2-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> before the fix, only <code>sync_folder</code>'s own <code>create()</code> call stamped the marker property matching relies on — <code>upload_local_file(convert=True)</code>'s converted Docs were invisible to it despite the docstring calling this "the same mechanism," so a subsequent <code>sync_folder</code> run on the same folder silently created a second Doc.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>In <code>{FOLDER_ID}</code>, call <code>upload_local_file(local_path="/tmp/qa-sync-226-src/notes.md", convert=true)</code> <em>(create that local file first, with any content)</em>. Then, with <code>/tmp/qa-sync-226/notes.md</code> containing identical content and mtime close to now:
+"Sync {FOLDER_ID} with <code>/tmp/qa-sync-226/</code> using direction='bidirectional' and convert_markdown set to true"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>upload_local_file</code> call succeeds; <code>list_files</code> shows the new Doc named <code>notes.md</code>
+- <code>sync_folder</code> call: <code>notes.md</code> appears in <code>skipped</code> ("in sync"), not <code>uploaded</code>
+- <code>list_files</code> on <code>{FOLDER_ID}</code> still shows exactly <strong>one</strong> <code>notes.md</code> file — no second Doc created</p>
+<p><strong>Result (2026-07-25) ✅ PASS (core fix), with a follow-up finding</strong> <code>upload_local_file(convert=true)</code> succeeded; <code>list_files</code> showed the new Doc. First <code>sync_folder</code> attempt landed in <code>conflicts</code> rather than <code>skipped</code> — correctly matched the existing Doc (no duplicate; <code>list_files</code> showed exactly one <code>notes.md</code> throughout, confirming the core fix works), but not the "in sync" outcome this case's Checks describe. Root cause, confirmed via code: <code>_upload_local_file</code> (<code>transfer.py</code> ~line 138-148) never sets <code>modifiedTime</code> on the Doc it creates, unlike <code>_sync_level</code>'s own upload path which explicitly stamps the local file's mtime — so a Doc from <code>upload_local_file(convert=True)</code> always carries Drive's own creation timestamp instead. This isn't a one-off timing fluke from test-fixture setup delay (my first guess); it's structural, and will produce a spurious <code>conflict</code> on very close to every first <code>sync_folder</code> call after an <code>upload_local_file(convert=True)</code>, not just an occasional one — confirmed by re-running with the local mtime deliberately set to match Drive's <code>modified_time</code>, which <em>did</em> land <code>skipped</code> as this case describes, but only because I forced that match by hand. Flagged to Dev as a follow-up finding (#3 in the round-3 code review) rather than blocking this round on it — the outcome is a safe, non-destructive <code>conflict</code>, not data loss or a duplicate. Also re-verified TC-D222 (unrelated pre-existing <code>.md</code> Doc) still holds after this round's matching change: two distinct <code>notes.md</code> files resulted, original's content untouched — no regression.</p>
+<p><strong>Teardown</strong>
+Delete <code>notes.md</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-226-src/</code> and <code>/tmp/qa-sync-226/</code>.</p>
 <hr />
 <h3 id="tc-d119-invalid-direction-raises-error-local-filesystem">TC-D119: Invalid direction raises error ⚠️ local-filesystem<a class="headerlink" href="#tc-d119-invalid-direction-raises-error-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
