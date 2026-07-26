@@ -1,6 +1,7 @@
 """Tests for tools/drive/transfer.py (upload_file, _xlsx_range_values, etc.)."""
 
 import io
+import os
 import threading
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
@@ -222,6 +223,52 @@ class TestUploadLocalFileConvert:
         assert "error" not in result
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
         assert create_kwargs["body"]["mimeType"] == expected_target_mime
+
+    async def test_convert_md_stamps_source_property_for_sync_folder_matching(self, tmp_path):
+        """#414 QA review round 3, finding #2: upload_local_file(convert=True) never
+        stamped the marker sync_folder's own convert_markdown matching relies on,
+        so a Doc created here was invisible to that matching and got silently
+        duplicated on the next sync_folder run. Only .md needs this — it's the only
+        extension sync_folder's convert_markdown has an equivalent matching path
+        for."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Heading")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "notes.md",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["body"]["properties"] == {
+            transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"
+        }
+
+    async def test_convert_non_md_extension_does_not_stamp_source_property(self, tmp_path):
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "data.csv",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert "properties" not in create_kwargs["body"]
 
     async def test_convert_unsupported_extension_returns_error_without_uploading(self, tmp_path):
         local_file = tmp_path / "archive.zip"
@@ -488,8 +535,13 @@ class _FakeDriveFS:
         return resp
 
 
-def _drive_file(name, file_id, mtime="2024-01-01T00:00:00.000Z", mime="text/plain"):
-    return {"id": file_id, "name": name, "mimeType": mime, "modifiedTime": mtime}
+def _drive_file(
+    name, file_id, mtime="2024-01-01T00:00:00.000Z", mime="text/plain", properties=None
+):
+    f = {"id": file_id, "name": name, "mimeType": mime, "modifiedTime": mtime}
+    if properties is not None:
+        f["properties"] = properties
+    return f
 
 
 def _drive_folder(name, folder_id):
@@ -805,6 +857,411 @@ class TestSyncFolderRecursive:
         names = {a["name"] for a in result["actions"]}
         assert names == {"alpha/a.txt", "beta/b.txt"}
         assert result["failed"] == []
+
+
+class TestSyncFolderConvertMarkdown:
+    """Issue #211: sync_folder's convert_markdown param uploads local .md files via
+    Drive's native import conversion (same mechanism as upload_local_file's convert
+    param, #188), landing as Google Docs that keep their '.md' name so later syncs
+    match them back to their local counterpart instead of re-uploading a duplicate
+    every run."""
+
+    def _ctx(self, fs: _FakeDriveFS):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = fs.svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    async def test_local_only_md_file_converts_to_google_doc(self, tmp_path):
+        (tmp_path / "notes.md").write_text("# Heading\n\nBody text.")
+        fs = _FakeDriveFS({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["uploaded"] == ["notes.md"]
+        assert fs.created_files[0]["name"] == "notes.md"
+        assert fs.created_files[0]["mimeType"] == "application/vnd.google-apps.document"
+        assert fs.created_files[0]["properties"] == {
+            transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"
+        }
+        create_kwargs = fs.svc.files.return_value.create.call_args_list[-1].kwargs
+        assert create_kwargs["media_body"].mimetype() == "text/markdown"
+        # TC-D218 root cause: Drive's native import-conversion overwrites the
+        # modifiedTime requested on create() with its own "now" — a metadata-only
+        # follow-up update() re-stamps it correctly.
+        assert len(fs.updated_files) == 1
+        assert fs.updated_files[0]["fileId"] == "new-file-1"
+        assert "modifiedTime" in fs.updated_files[0]["body"]
+        assert "media_body" not in fs.updated_files[0]
+
+    async def test_convert_markdown_false_default_uploads_md_as_plain_text(self, tmp_path):
+        (tmp_path / "notes.md").write_text("# Heading")
+        fs = _FakeDriveFS({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            ctx=self._ctx(fs),
+        )
+
+        assert result["uploaded"] == ["notes.md"]
+        assert "mimeType" not in fs.created_files[0]
+
+    async def test_resync_matches_existing_converted_doc_by_name_not_reuploaded(self, tmp_path):
+        """The converted Doc keeps the '.md' name in Drive, so a resync must match
+        it directly against the local file (bypassing the export_format-suffix
+        scheme used for other Workspace files) — otherwise it looks 'local only'
+        again and gets re-uploaded as a duplicate on every sync."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Heading")
+        drive_mtime = "2024-06-01T12:00:00.000Z"
+        os.utime(
+            local_file,
+            (
+                datetime.fromisoformat(drive_mtime.replace("Z", "+00:00")).timestamp(),
+                datetime.fromisoformat(drive_mtime.replace("Z", "+00:00")).timestamp(),
+            ),
+        )
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime=drive_mtime,
+                        mime="application/vnd.google-apps.document",
+                        properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+                    )
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["skipped"] == ["notes.md"]
+        assert result["uploaded"] == []
+        assert fs.created_files == []
+
+    async def test_local_edit_after_conversion_updates_in_place_not_recreated(self, tmp_path):
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Updated heading")
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime="2020-01-01T00:00:00.000Z",  # far older than local
+                        mime="application/vnd.google-apps.document",
+                        properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+                    )
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["uploaded"] == ["notes.md"]
+        assert fs.created_files == []
+        assert len(fs.updated_files) == 1
+        assert fs.updated_files[0]["fileId"] == "fa"
+        assert fs.updated_files[0]["media_body"].mimetype() == "text/markdown"
+
+    async def test_drive_only_converted_doc_reported_as_conflict_not_downloaded(self, tmp_path):
+        """No reverse conversion exists (Google Doc -> markdown). A converted Doc
+        with no local counterpart yet ('drive only') would normally trigger a
+        download — matching it into drive_map without requiring export_format (so
+        resyncs of already-converted files work) means this path must be guarded
+        explicitly. #414 QA review (finding #4): this must be caught at plan-
+        building time and reported as a clean 'conflict', not queued as a doomed
+        'download' that only fails at runtime."""
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime="2030-01-01T00:00:00.000Z",
+                        mime="application/vnd.google-apps.document",
+                        properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+                    )
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["downloaded"] == []
+        assert result["failed"] == []
+        assert result["conflicts"] == ["notes.md"]
+
+    async def test_unrelated_doc_with_matching_md_name_is_not_treated_as_converted(self, tmp_path):
+        """#414 QA review (finding #2): a human-created Google Doc that happens to
+        be named 'notes.md' but wasn't produced by convert_markdown (no source-name
+        property) must not be matched as this tool's converted twin — that would
+        let a same-named newer local file silently overwrite its real content."""
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime="2020-01-01T00:00:00.000Z",
+                        mime="application/vnd.google-apps.document",
+                        # No properties — an unrelated pre-existing Doc, not one
+                        # this tool created.
+                    )
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            convert_markdown=True,
+            dry_run=True,
+            ctx=self._ctx(fs),
+        )
+
+        # No export_format and not a recognized converted twin -> excluded from the
+        # plan entirely, same as any other Workspace file with no export_format.
+        assert result["actions"] == []
+
+    async def test_promoting_a_previously_plain_upload_fails_cleanly(self, tmp_path):
+        """#414 QA review (finding #3): a .md file previously synced with
+        convert_markdown=False landed as a plain Drive file (not a Doc). Drive's
+        API has no supported way to convert an existing file's type via update() —
+        only create() honors import conversion — so flipping convert_markdown=True
+        later must not silently leave it unpromoted; it should fail with an
+        actionable message instead."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Updated heading")
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime="2020-01-01T00:00:00.000Z",  # far older than local
+                        mime="text/markdown",  # plain file, never converted
+                    )
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["uploaded"] == []
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["name"] == "notes.md"
+        assert "plain file" in result["failed"][0]["error"]
+        assert fs.updated_files == []
+
+    async def test_bidirectional_resync_after_initial_convert_stays_in_sync(self, tmp_path):
+        """TC-D218 (#414 QA review): Drive's native import-conversion on create()
+        overwrites the modifiedTime we request with its own 'now' once conversion
+        finishes, unlike update() which honors it correctly. Without a follow-up
+        metadata-only update() re-stamping the correct modifiedTime after create(),
+        a bidirectional resync with no local changes reads Drive as newer, tries to
+        download the (unconvertible) Doc, and the file gets stuck 'failed' forever."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Heading")
+        local_mtime_str = datetime.fromtimestamp(
+            local_file.stat().st_mtime, tz=timezone.utc
+        ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        fs = _FakeDriveFS({"root": []})
+        ctx = self._ctx(fs)
+
+        first = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            convert_markdown=True,
+            ctx=ctx,
+        )
+        assert first["uploaded"] == ["notes.md"]
+
+        # The create() call requested the local mtime, but Drive's conversion
+        # would normally overwrite it with its own "now" — simulate that by NOT
+        # trusting fs.created_files[0]["modifiedTime"] and instead asserting the
+        # follow-up update() call is what actually carries the correct value.
+        assert len(fs.updated_files) == 1
+        assert fs.updated_files[0]["fileId"] == "new-file-1"
+        assert fs.updated_files[0]["body"] == {"modifiedTime": local_mtime_str}
+
+        # Simulate Drive's real behavior: the created entry now shows Drive's own
+        # (later) modifiedTime rather than what create() was asked to set, exactly
+        # as if the metadata-only update() above had never landed — proving the
+        # resync only stays clean because that follow-up call fixed it.
+        fs.children["root"] = [
+            _drive_file(
+                "notes.md",
+                "new-file-1",
+                mtime=local_mtime_str,
+                mime="application/vnd.google-apps.document",
+                properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+            )
+        ]
+
+        second = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            convert_markdown=True,
+            ctx=ctx,
+        )
+        assert second["skipped"] == ["notes.md"]
+        assert second["downloaded"] == []
+        assert second["failed"] == []
+        assert second["conflicts"] == []
+
+    async def test_resync_without_flag_still_matches_and_does_not_duplicate(self, tmp_path):
+        """#414 QA review round 3, finding #1: matching used to be gated on this
+        call's own convert_markdown flag, not just the Doc's stamped property. A
+        resync that simply omitted convert_markdown=True on a folder containing an
+        already-converted Doc saw the local .md as 'local only' and silently
+        created a second, plain-text duplicate. Matching must recognize the Doc by
+        its property regardless of this call's flag."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Heading")
+        drive_mtime_str = datetime.fromtimestamp(
+            local_file.stat().st_mtime, tz=timezone.utc
+        ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime=drive_mtime_str,
+                        mime="application/vnd.google-apps.document",
+                        properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+                    )
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            # convert_markdown intentionally omitted (defaults False) — the Doc was
+            # converted on a prior call, this one just forgot the flag.
+            ctx=self._ctx(fs),
+        )
+
+        assert result["skipped"] == ["notes.md"]
+        assert result["uploaded"] == []
+        assert fs.created_files == []
+
+    async def test_local_edit_without_flag_reimports_in_place_not_duplicated(self, tmp_path):
+        """Companion to the above: a local edit to an already-converted Doc must
+        still update() in place (correct reimport mimetype) even when this call
+        omits convert_markdown, rather than either duplicating or corrupting the
+        Doc with a plain-text/octet-stream re-upload."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Updated heading")
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime="2020-01-01T00:00:00.000Z",  # far older than local
+                        mime="application/vnd.google-apps.document",
+                        properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+                    )
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            ctx=self._ctx(fs),
+        )
+
+        assert result["uploaded"] == ["notes.md"]
+        assert fs.created_files == []
+        assert len(fs.updated_files) == 1
+        assert fs.updated_files[0]["fileId"] == "fa"
+        assert fs.updated_files[0]["media_body"].mimetype() == "text/markdown"
+
+    async def test_upload_local_file_conversion_recognized_by_sync_folder(self, tmp_path):
+        """#414 QA review round 3, finding #2: a Doc converted via
+        upload_local_file(convert=True) must be recognized by sync_folder's
+        convert_markdown matching too — before the fix, only sync_folder's own
+        create() call stamped the marker property, so upload_local_file's converted
+        Docs were invisible to it and got silently duplicated on the next
+        sync_folder run."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Heading")
+        drive_mtime_str = datetime.fromtimestamp(
+            local_file.stat().st_mtime, tz=timezone.utc
+        ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        # Simulates the Doc upload_local_file(convert=True) would have created —
+        # same marker property, same mechanism, different call site.
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime=drive_mtime_str,
+                        mime="application/vnd.google-apps.document",
+                        properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+                    )
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        # Recognized as an in-sync match, not a "local only" file to be uploaded as
+        # a second, unconverted duplicate.
+        assert result["skipped"] == ["notes.md"]
+        assert result["uploaded"] == []
+        assert fs.created_files == []
 
 
 class TestSyncFolderDownloadMtimeRoundTrip:
