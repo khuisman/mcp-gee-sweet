@@ -25,9 +25,15 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
     """
     text_parts: list[str] = []
     utf16_offset = 0
-    segment_meta: list[tuple] = []  # (node, doc_start, doc_end)
+    segment_meta: list[tuple] = []  # (node, doc_start, doc_end, skip_len)
     tables: list[Table] = []
     table_positions: list[int] = []  # doc index for each table
+    # Nested-bullet leading tabs (see below) are consumed/removed by their own
+    # createParagraphBullets call, shifting everything after them backward — including
+    # any table positioned later in the doc. Track, for each table, how many such tabs
+    # will have been consumed ahead of it by the time insertTable actually runs.
+    table_tab_offsets: list[int] = []
+    cumulative_tabs = 0
 
     for node in nodes:
         if isinstance(node, Table):
@@ -41,8 +47,14 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
                 continue
             tables.append(node)
             table_positions.append(start_index + utf16_offset)
+            table_tab_offsets.append(cumulative_tabs)
         else:
             doc_start = start_index + utf16_offset
+            # Leading tab characters encode a bullet's nesting depth for
+            # createParagraphBullets, which infers (and removes) nesting level from
+            # leading tabs in each paragraph — the only mechanism the Docs API exposes
+            # for setting it (#336). Consumed later by the nested-bullet pass below.
+            tabs = "\t" * node.depth if isinstance(node, BulletItem) else ""
             # Checkbox glyph prefix for task list items
             prefix = ""
             if isinstance(node, BulletItem) and node.checked is not None:
@@ -55,19 +67,26 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
             # unchanged).
             if not text.strip() and node.runs:
                 continue
-            appended_text = text + "\n"
+            appended_text = tabs + text + "\n"
             text_parts.append(appended_text)
             utf16_offset += utf16_len(appended_text)
             doc_end = start_index + utf16_offset
-            segment_meta.append((node, doc_start, doc_end, utf16_len(prefix)))
+            segment_meta.append((node, doc_start, doc_end, utf16_len(tabs) + utf16_len(prefix)))
+            if tabs:
+                cumulative_tabs += utf16_len(tabs)
 
     requests: list[dict] = []
     full_text = "".join(text_parts)
+    # createParagraphBullets calls are deferred: they must run after every other request
+    # below (which all assume no positions have shifted yet) but before insertTable
+    # further down (see table_tab_offsets) — see the loop after segment_meta for why
+    # they're applied in descending document order.
+    bullet_run_requests: list[tuple[int, dict]] = []
 
     if full_text:
         requests.append({"insertText": {"location": {"index": start_index}, "text": full_text}})
 
-        for node, doc_start, doc_end, prefix_len in segment_meta:
+        for node, doc_start, doc_end, skip_len in segment_meta:
             rng = {"startIndex": doc_start, "endIndex": doc_end}
 
             if isinstance(node, Heading):
@@ -83,18 +102,6 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
                 requests.append({"deleteParagraphBullets": {"range": rng}})
             elif isinstance(node, Paragraph):
                 requests.append({"deleteParagraphBullets": {"range": rng}})
-            elif isinstance(node, BulletItem):
-                preset = (
-                    "NUMBERED_DECIMAL_ALPHA_ROMAN" if node.ordered else "BULLET_DISC_CIRCLE_SQUARE"
-                )
-                requests.append(
-                    {
-                        "createParagraphBullets": {
-                            "range": rng,
-                            "bulletPreset": preset,
-                        }
-                    }
-                )
             elif isinstance(node, NamedBlock):
                 requests.append(
                     {
@@ -106,10 +113,13 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
                     }
                 )
                 requests.append({"deleteParagraphBullets": {"range": rng}})
+            # BulletItem's own createParagraphBullets request is handled by the grouping
+            # pass below, not here.
 
             # Inline run styles for non-table content (bold, italic, links, font_family, etc.)
-            # prefix_len skips past any checkbox glyph so run offsets stay accurate
-            offset = prefix_len
+            # skip_len skips past any leading nesting tabs and checkbox glyph so run
+            # offsets stay accurate
+            offset = skip_len
             for run in node.runs:
                 run_len = utf16_len(run.text)
                 if run_len > 0:
@@ -119,7 +129,59 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
                     requests.extend(style_reqs)
                 offset += run_len
 
-    # insertTable requests in REVERSE order so earlier positions aren't shifted
+        # Group maximal contiguous runs of same-preset BulletItems into ONE
+        # createParagraphBullets call per run, rather than one call per paragraph.
+        # createParagraphBullets infers nesting level from each paragraph's own leading
+        # tab count, but only reliably does so *relative to the other paragraphs covered
+        # by the same call* — issuing one call per paragraph let call order/adjacency to
+        # an already-bulleted neighbor override the tab-encoded depth, producing visibly
+        # inconsistent nesting live even though each call's own leading-tab count and
+        # range boundaries were individually correct (confirmed live, PR #432 QA round 1:
+        # same-depth siblings landed at different indentation levels, and ordered lists
+        # lost continuous numbering). One atomic call spanning the whole contiguous block
+        # is the pattern Google's own Docs API samples use for building nested lists.
+        i = 0
+        while i < len(segment_meta):
+            node, run_start, run_end, _ = segment_meta[i]
+            if not isinstance(node, BulletItem):
+                i += 1
+                continue
+            ordered = node.ordered
+            j = i
+            while (
+                j < len(segment_meta)
+                and isinstance(segment_meta[j][0], BulletItem)
+                and segment_meta[j][0].ordered == ordered
+            ):
+                run_end = segment_meta[j][2]
+                j += 1
+            preset = "NUMBERED_DECIMAL_ALPHA_ROMAN" if ordered else "BULLET_DISC_CIRCLE_SQUARE"
+            bullet_run_requests.append(
+                (
+                    run_start,
+                    {
+                        "createParagraphBullets": {
+                            "range": {"startIndex": run_start, "endIndex": run_end},
+                            "bulletPreset": preset,
+                        }
+                    },
+                )
+            )
+            i = j
+
+        # Applied latest-in-document-first: each call's own range is still valid at the
+        # point it runs (nothing before it in the doc has shifted yet), and processing
+        # this way means an earlier, not-yet-processed run's range is never invalidated
+        # by a later run's own tab consumption.
+        for _, bullets_request in sorted(
+            bullet_run_requests, key=lambda item: item[0], reverse=True
+        ):
+            requests.append(bullets_request)
+
+    # insertTable requests in REVERSE order so earlier positions aren't shifted. Each
+    # position is adjusted for any nested-bullet leading tabs already consumed ahead of
+    # it above (those requests precede these in the array, so by the time these run, that
+    # many characters have already been removed from in front of this table).
     for i in range(len(tables) - 1, -1, -1):
         table = tables[i]
         num_rows = len(table.rows)
@@ -129,7 +191,7 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
                 "insertTable": {
                     "rows": num_rows,
                     "columns": num_cols,
-                    "location": {"index": table_positions[i]},
+                    "location": {"index": table_positions[i] - table_tab_offsets[i]},
                 }
             }
         )
