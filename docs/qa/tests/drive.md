@@ -1809,6 +1809,8 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-226-src/` and `/tmp/q
 **Teardown**
 Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-227-src/` and `/tmp/qa-sync-227/`.
 
+**Result (2026-07-26) ✅ PASS** — Created a plain `notes.md` via `upload_file` and a converted `notes.md` Doc via `upload_local_file(convert=true)`, then `sync_folder(direction="bidirectional", convert_markdown=true)` returned `failed: [{"name": "notes.md", "error": "both a plain file and a convert_markdown Doc are named 'notes.md' in this Drive folder — sync can't tell which one the local file matches; rename or remove one of them in Drive"}]` — exactly one entry, absent from `uploaded`/`downloaded`/`skipped`/`conflicts`. Follow-up `list_files` confirmed both original file IDs untouched with unchanged `modifiedTime`. Both files trashed after the test.
+
 ---
 
 ### TC-D228: upload_local_file(convert=True) stamps modifiedTime from the local file's mtime, so a follow-up sync_folder lands in skipped, not conflicts (issue #422, finding #2 — follow-up to TC-D226) ⚠️ local-filesystem
@@ -1827,6 +1829,8 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-227-src/` 
 **Teardown**
 Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-228-src/` and `/tmp/qa-sync-228/`.
 
+**Result (2026-07-26) ✅ PASS** — `upload_local_file(convert=true)` returned a Doc whose `get_file_metadata` showed `modifiedTime: "2026-07-27T04:59:26.000Z"`, matching the local source file's mtime exactly, not `createdTime: "2026-07-27T05:00:01.406Z"` (35s later). With the local copy's mtime touched to match the source, `sync_folder(direction="bidirectional", convert_markdown=true)` landed `notes.md` in `skipped` ("in sync"), not `conflicts` — the exact TC-D226 follow-up scenario, now fixed. File trashed after the test.
+
 ---
 
 ### TC-D229: convert_markdown — a drive-only converted Doc reports skip under direction='upload', conflict only when a download would otherwise be attempted (issue #422, finding #3) ⚠️ local-filesystem
@@ -1843,6 +1847,8 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-228-src/` and `/tmp/q
 
 **Teardown**
 Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-229-src/` and `/tmp/qa-sync-229/`.
+
+**Result (2026-07-26) ✅ PASS** — With a drive-only convert_markdown Doc and no local counterpart, `sync_folder(direction="upload", convert_markdown=true)` reported `notes.md` under `skipped` ("drive only, upload direction") with `failed`/`downloaded` both empty. Repeating with `direction="bidirectional"` against the same fixture flipped it to `conflicts`, as expected since a convert_markdown Doc has no reverse conversion. File trashed after the test.
 
 ---
 
