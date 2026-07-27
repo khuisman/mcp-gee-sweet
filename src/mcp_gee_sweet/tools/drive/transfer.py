@@ -140,9 +140,20 @@ async def _upload_local_file(
             }
 
     metadata: dict[str, Any] = {"name": file_name, "parents": [parent_folder_id]}
+    lmtime_str: str | None = None
     if convert_mime is not None:
         mime, target_mime = convert_mime
         metadata["mimeType"] = target_mime
+        # Unlike _sync_level's own upload path, this never stamped modifiedTime on a
+        # converted Doc — it got Drive's own creation timestamp instead, which is
+        # very close to never within sync_folder's 5s tolerance of the local file's
+        # actual mtime, so a subsequent sync_folder(convert_markdown=True) landed the
+        # correctly-matched Doc in 'conflicts' rather than 'skipped' on nearly every
+        # first sync (#422, finding #2).
+        lmtime_str = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%S.000Z"
+        )
+        metadata["modifiedTime"] = lmtime_str
         if Path(file_name).suffix.lower() == ".md":
             # Stamp the same marker sync_folder's own convert_markdown path sets, so
             # a Doc created here is recognized by sync_folder's matching too — the
@@ -168,10 +179,37 @@ async def _upload_local_file(
             .execute,
             drive_service,
         )
+        if lmtime_str is not None:
+            # Drive's native import-conversion overwrites the modifiedTime just
+            # requested with its own "now" once the conversion finishes — the same
+            # drift _sync_level's own convert_markdown upload path already works
+            # around (see its create() branch). A metadata-only follow-up update()
+            # doesn't trigger reconversion and re-stamps it correctly.
+            await execute_in_thread(
+                drive_service.files()
+                .update(
+                    fileId=result["id"],
+                    body={"modifiedTime": lmtime_str},
+                    supportsAllDrives=True,
+                    fields="id",
+                )
+                .execute,
+                drive_service,
+            )
     except HttpError as e:
         if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
             return {"error": _SA_QUOTA_ERROR}
-        raise
+        return {"error": str(e)}
+    except Exception as e:
+        # Mirrors _sync_level._run_one's create()+update() pair (its convert_this
+        # branch), which wraps both calls in one broad except and returns a clean
+        # failure rather than raising. Without this, a failure in the follow-up
+        # modifiedTime restamp above — after create() already succeeded — would
+        # propagate as an uncaught exception with no fileId returned, even though
+        # a Doc now genuinely exists in Drive; the upload_local_file tool (the
+        # caller at line ~1189) has no try/except of its own to catch it (#422 QA
+        # review, finding #1).
+        return {"error": str(e)}
 
     logger.debug("Uploaded %s → %s (%s)", local_path, result.get("id"), mime)
     return {
@@ -253,6 +291,8 @@ async def _sync_level(
         drive_files, drive_folders = await _list_drive_children(drive_service, drive_folder_id)
 
     drive_map: dict[str, dict] = {}
+    collision_names: set[str] = set()
+    collision_reasons: dict[str, str] = {}
     for f in drive_files:
         is_workspace = f["mimeType"].startswith("application/vnd.google-apps.")
         is_converted_md = False
@@ -278,6 +318,38 @@ async def _sync_level(
                 local_name = f["name"] + _EXPORT_MIME[export_format][1]
         else:
             local_name = f["name"]
+
+        if local_name in collision_names:
+            continue
+        if local_name in drive_map:
+            # Drive allows more than one entry to share the same display name —
+            # whichever was enumerated last used to silently win the drive_map
+            # slot, making every other entry with that name completely invisible
+            # to this sync (never uploaded, downloaded, or reported anywhere).
+            # Originally this only fired when _is_converted_md differed between
+            # the two entries (a plain file vs. a convert_markdown Doc, #422's
+            # own reported scenario) — leaving any same-type collision (two plain
+            # files, or two convert_markdown Docs, sharing a name) silently
+            # overwritten just the same (#422 QA review, finding #2). The reason
+            # is recorded here but not written to `failed` yet — that only
+            # happens for a real run (see the plan loop below), so a dry_run
+            # preview shows this as a `conflict` instead of a `failed` entry that
+            # implies something was actually attempted (finding #4).
+            existing_is_converted = drive_map[local_name]["_is_converted_md"]
+            if existing_is_converted != is_converted_md:
+                detail = "a plain file and a convert_markdown Doc"
+            elif is_converted_md:
+                detail = "two convert_markdown Docs"
+            else:
+                detail = "multiple files"
+            collision_reasons[local_name] = (
+                f"{detail} are named '{local_name}' in this Drive folder — sync "
+                "can't tell which one the local file matches; rename or remove "
+                "one of them in Drive"
+            )
+            collision_names.add(local_name)
+            del drive_map[local_name]
+            continue
         # _is_converted_md travels with the entry so the plan-building and download
         # logic below can gate on it without re-deriving convert_source (#414 QA
         # review, finding #1: this Doc must never be downloaded via export_format,
@@ -300,12 +372,32 @@ async def _sync_level(
         return datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc)
 
     plan: list[dict[str, str]] = []
-    for name in sorted(drive_map.keys() | local_map.keys()):
+    for name in sorted(drive_map.keys() | local_map.keys() | collision_names):
+        if name in collision_names:
+            # Route through the normal plan machinery (like every other action)
+            # rather than a bare `continue` — the earlier version silently
+            # dropped this name from every output list whenever a *local* file
+            # also happened to share it, with zero acknowledgment anywhere
+            # (#422 QA review, finding #3). Reported as 'conflict' during
+            # dry_run (a preview, not a failure) and as a real 'failed' entry
+            # once execution is actually attempted — see the collision handling
+            # in the dry_run branch and _run_one below.
+            plan.append({"name": name, "action": "collision", "reason": collision_reasons[name]})
+            continue
         in_drive = name in drive_map
         in_local = name in local_map
 
         if in_drive and not in_local:
-            if drive_map[name]["_is_converted_md"]:
+            if direction not in ("download", "bidirectional"):
+                # Upload-only callers don't care about drive-only content, whether
+                # or not it's a convert_markdown Doc — checking _is_converted_md
+                # first (as the pre-#422 code did) reported "conflict" even under
+                # direction='upload', where an ordinary drive-only file would have
+                # reported a plain "skip" (#422, finding #3).
+                plan.append(
+                    {"name": name, "action": "skip", "reason": "drive only, upload direction"}
+                )
+            elif drive_map[name]["_is_converted_md"]:
                 # A convert_markdown Doc has no reverse conversion — queuing this as
                 # a "download" here (as the pre-#414 code did) would either crash on
                 # the runtime guard below or, worse, write export_format's binary
@@ -322,12 +414,8 @@ async def _sync_level(
                         ),
                     }
                 )
-            elif direction in ("download", "bidirectional"):
-                plan.append({"name": name, "action": "download", "reason": "drive only"})
             else:
-                plan.append(
-                    {"name": name, "action": "skip", "reason": "drive only, upload direction"}
-                )
+                plan.append({"name": name, "action": "download", "reason": "drive only"})
 
         elif in_local and not in_drive:
             if direction in ("upload", "bidirectional"):
@@ -401,7 +489,10 @@ async def _sync_level(
             rel_name = f"{rel_prefix}{step['name']}"
             if step["action"] == "skip":
                 skipped.append(rel_name)
-            elif step["action"] == "conflict":
+            elif step["action"] in ("conflict", "collision"):
+                # A name-collision preview reports as 'conflict', not 'failed' —
+                # nothing was materialized during dry_run, so it shouldn't imply
+                # an attempt was made and failed (#422 QA review, finding #4).
                 conflicts.append(rel_name)
             # upload/download actions aren't materialized during dry_run
     else:
@@ -415,6 +506,14 @@ async def _sync_level(
 
             if action == "conflict":
                 return {"kind": "conflict", "name": name}
+
+            if action == "collision":
+                # No API call was ever attempted for this name — it was excluded
+                # from drive_map entirely once the collision was detected. A real
+                # run reports it as a genuine failure (unlike the dry_run preview
+                # above), since nothing was synced and the ambiguity needs a
+                # human to resolve it.
+                return {"kind": "collision_fail", "name": name, "error": step["reason"]}
 
             if action == "upload":
                 p = local_map[name]
@@ -652,7 +751,7 @@ async def _sync_level(
                 downloaded.append(rel_name)
                 total_bytes += o["bytes"]
                 level_changed = True
-            else:  # upload_fail / download_fail
+            else:  # upload_fail / download_fail / collision_fail
                 failed.append({"name": rel_name, "error": o["error"]})
 
         if level_changed:
