@@ -1846,6 +1846,63 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-229-src/` and `/tmp/q
 
 ---
 
+### TC-D230: two plain files sharing the same name are also reported as a collision failure, not just a plain-file/converted-Doc pair (PR #433 review, finding #2) ⚠️ local-filesystem
+
+**Background:** TC-D227's collision guard originally only fired when one colliding entry was a `convert_markdown` Doc and the other was a plain file (differing `_is_converted_md`). A same-type collision — e.g. two ordinary plain files sharing a display name — was silently overwritten just the same, reproducing issue #422's own bug in a case the original fix didn't close. The fix broadens the guard to any duplicate name in `drive_map`, regardless of type.
+
+**Prompt**
+> In `{FOLDER_ID}`, call `upload_file(name="notes.md", content="version A")`. Then call `upload_file(name="notes.md", content="version B")` — Drive now has two distinct plain files, both named `notes.md`. With `/tmp/qa-sync-230/` created but empty (no local file):
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-230/` using direction='bidirectional'"
+
+**Checks**
+- Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-230/", direction="bidirectional")`
+- `failed` contains exactly one entry for `notes.md`, with an error mentioning multiple Drive entries sharing the name
+- `notes.md` does not appear in `uploaded`, `downloaded`, `skipped`, or `conflicts`
+- `list_files` on `{FOLDER_ID}` afterward still shows both `notes.md` files untouched (two distinct file IDs, unchanged content)
+
+**Teardown**
+Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-230/`.
+
+---
+
+### TC-D231: a local file whose name collides with a Drive-side pair is reported as failed, not silently dropped from every result list (PR #433 review, finding #3) ⚠️ local-filesystem
+
+**Background:** TC-D227's fixture had no local counterpart for the colliding name. When a local file *does* share the colliding name, the plan-building loop's `continue` used to skip it entirely — it never appeared in `uploaded`, `downloaded`, `skipped`, `conflicts`, or `actions`, with zero indication anything was wrong. The fix routes the collision through the normal plan machinery so it's always reported.
+
+**Prompt**
+> In `{FOLDER_ID}`, call `upload_file(name="notes.md", content="plain text version")`. Then call `upload_local_file(local_path="/tmp/qa-sync-231-src/notes.md", parent_folder_id="{FOLDER_ID}", convert=true)` *(create that local source file first, with any content)* — Drive now has both a plain file and a converted Doc named `notes.md`. Now create `/tmp/qa-sync-231/notes.md` locally too (any content), then:
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-231/` using direction='bidirectional' and convert_markdown set to true"
+
+**Checks**
+- Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-231/", direction="bidirectional", convert_markdown=true)`
+- `failed` contains exactly one entry for `notes.md` (same shape as TC-D227, now confirmed to fire even with a local counterpart present)
+- `notes.md` does not appear in `uploaded`, `skipped`, or `conflicts`
+- `list_files` on `{FOLDER_ID}` afterward still shows both original Drive-side `notes.md` files untouched; local `/tmp/qa-sync-231/notes.md` is also untouched (no new upload attempted)
+
+**Teardown**
+Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-231-src/` and `/tmp/qa-sync-231/`.
+
+---
+
+### TC-D232: a name collision under dry_run reports as a conflict preview, not a failed entry (PR #433 review, finding #4) ⚠️ local-filesystem
+
+**Background:** `dry_run=true` never materializes any transfer, so `failed` should only ever contain real execution failures — nothing should land there during a preview. The collision guard's `failed.append()` originally ran unconditionally in the `drive_map`-building loop, before the `dry_run` gate, so a collision showed up in `failed` even during dry_run — inconsistent with the pre-existing folder-collision failure path in the same function, which is explicitly guarded against this. The fix reports it as a `conflict` (in both `conflicts` and `actions`, with `action: "collision"`) during dry_run, and only as a real `failed` entry once execution is actually attempted.
+
+**Prompt**
+> Reuse TC-D227's setup: a plain file and a `convert_markdown`-produced Doc both named `notes.md` in `{FOLDER_ID}`. With `/tmp/qa-sync-232/` created but empty:
+> "Sync {FOLDER_ID} with `/tmp/qa-sync-232/` using direction='bidirectional', convert_markdown set to true, and dry_run set to true"
+
+**Checks**
+- Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-232/", direction="bidirectional", convert_markdown=true, dry_run=true)`
+- `failed` is empty; `notes.md` appears in `conflicts` instead
+- `actions` contains one entry for `notes.md` with `"action": "collision"`
+- Neither Drive-side `notes.md` file was touched (nothing materializes during dry_run)
+
+**Teardown**
+Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-232/`.
+
+---
+
 ### TC-D119: Invalid direction raises error ⚠️ local-filesystem
 
 **Prompt**

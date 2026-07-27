@@ -199,7 +199,17 @@ async def _upload_local_file(
     except HttpError as e:
         if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
             return {"error": _SA_QUOTA_ERROR}
-        raise
+        return {"error": str(e)}
+    except Exception as e:
+        # Mirrors _sync_level._run_one's create()+update() pair (its convert_this
+        # branch), which wraps both calls in one broad except and returns a clean
+        # failure rather than raising. Without this, a failure in the follow-up
+        # modifiedTime restamp above — after create() already succeeded — would
+        # propagate as an uncaught exception with no fileId returned, even though
+        # a Doc now genuinely exists in Drive; the upload_local_file tool (the
+        # caller at line ~1189) has no try/except of its own to catch it (#422 QA
+        # review, finding #1).
+        return {"error": str(e)}
 
     logger.debug("Uploaded %s → %s (%s)", local_path, result.get("id"), mime)
     return {
@@ -282,6 +292,7 @@ async def _sync_level(
 
     drive_map: dict[str, dict] = {}
     collision_names: set[str] = set()
+    collision_reasons: dict[str, str] = {}
     for f in drive_files:
         is_workspace = f["mimeType"].startswith("application/vnd.google-apps.")
         is_converted_md = False
@@ -310,24 +321,31 @@ async def _sync_level(
 
         if local_name in collision_names:
             continue
-        if local_name in drive_map and drive_map[local_name]["_is_converted_md"] != is_converted_md:
-            # Drive allows a plain file and a convert_markdown Doc to share the same
-            # display name — both compute this same local_name, and whichever was
-            # enumerated last used to silently win the slot, making the other
-            # completely invisible to this sync (never uploaded, downloaded, or
-            # reported anywhere) (#422). Fail loudly instead: report it once and
-            # exclude this name from the plan entirely rather than guess which one
-            # the local file is meant to match.
-            failed.append(
-                {
-                    "name": f"{rel_prefix}{local_name}",
-                    "error": (
-                        f"both a plain file and a convert_markdown Doc are named "
-                        f"'{local_name}' in this Drive folder — sync can't tell "
-                        "which one the local file matches; rename or remove one of "
-                        "them in Drive"
-                    ),
-                }
+        if local_name in drive_map:
+            # Drive allows more than one entry to share the same display name —
+            # whichever was enumerated last used to silently win the drive_map
+            # slot, making every other entry with that name completely invisible
+            # to this sync (never uploaded, downloaded, or reported anywhere).
+            # Originally this only fired when _is_converted_md differed between
+            # the two entries (a plain file vs. a convert_markdown Doc, #422's
+            # own reported scenario) — leaving any same-type collision (two plain
+            # files, or two convert_markdown Docs, sharing a name) silently
+            # overwritten just the same (#422 QA review, finding #2). The reason
+            # is recorded here but not written to `failed` yet — that only
+            # happens for a real run (see the plan loop below), so a dry_run
+            # preview shows this as a `conflict` instead of a `failed` entry that
+            # implies something was actually attempted (finding #4).
+            existing_is_converted = drive_map[local_name]["_is_converted_md"]
+            if existing_is_converted != is_converted_md:
+                detail = "a plain file and a convert_markdown Doc"
+            elif is_converted_md:
+                detail = "two convert_markdown Docs"
+            else:
+                detail = "multiple files"
+            collision_reasons[local_name] = (
+                f"{detail} are named '{local_name}' in this Drive folder — sync "
+                "can't tell which one the local file matches; rename or remove "
+                "one of them in Drive"
             )
             collision_names.add(local_name)
             del drive_map[local_name]
@@ -354,8 +372,17 @@ async def _sync_level(
         return datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc)
 
     plan: list[dict[str, str]] = []
-    for name in sorted(drive_map.keys() | local_map.keys()):
+    for name in sorted(drive_map.keys() | local_map.keys() | collision_names):
         if name in collision_names:
+            # Route through the normal plan machinery (like every other action)
+            # rather than a bare `continue` — the earlier version silently
+            # dropped this name from every output list whenever a *local* file
+            # also happened to share it, with zero acknowledgment anywhere
+            # (#422 QA review, finding #3). Reported as 'conflict' during
+            # dry_run (a preview, not a failure) and as a real 'failed' entry
+            # once execution is actually attempted — see the collision handling
+            # in the dry_run branch and _run_one below.
+            plan.append({"name": name, "action": "collision", "reason": collision_reasons[name]})
             continue
         in_drive = name in drive_map
         in_local = name in local_map
@@ -462,7 +489,10 @@ async def _sync_level(
             rel_name = f"{rel_prefix}{step['name']}"
             if step["action"] == "skip":
                 skipped.append(rel_name)
-            elif step["action"] == "conflict":
+            elif step["action"] in ("conflict", "collision"):
+                # A name-collision preview reports as 'conflict', not 'failed' —
+                # nothing was materialized during dry_run, so it shouldn't imply
+                # an attempt was made and failed (#422 QA review, finding #4).
                 conflicts.append(rel_name)
             # upload/download actions aren't materialized during dry_run
     else:
@@ -476,6 +506,14 @@ async def _sync_level(
 
             if action == "conflict":
                 return {"kind": "conflict", "name": name}
+
+            if action == "collision":
+                # No API call was ever attempted for this name — it was excluded
+                # from drive_map entirely once the collision was detected. A real
+                # run reports it as a genuine failure (unlike the dry_run preview
+                # above), since nothing was synced and the ambiguity needs a
+                # human to resolve it.
+                return {"kind": "collision_fail", "name": name, "error": step["reason"]}
 
             if action == "upload":
                 p = local_map[name]
@@ -713,7 +751,7 @@ async def _sync_level(
                 downloaded.append(rel_name)
                 total_bytes += o["bytes"]
                 level_changed = True
-            else:  # upload_fail / download_fail
+            else:  # upload_fail / download_fail / collision_fail
                 failed.append({"name": rel_name, "error": o["error"]})
 
         if level_changed:

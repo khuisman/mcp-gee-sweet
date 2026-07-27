@@ -288,6 +288,37 @@ class TestUploadLocalFileConvert:
         assert update_kwargs["body"] == {"modifiedTime": expected_mtime}
         assert "media_body" not in update_kwargs
 
+    async def test_convert_modified_time_restamp_failure_returns_clean_error_not_raise(
+        self, tmp_path
+    ):
+        """#422 finding #1: a failure in the follow-up modifiedTime-restamp update()
+        call — after create() already succeeded — used to propagate as an
+        uncaught exception, even though a Doc now genuinely exists in Drive. The
+        caller (the upload_local_file tool) has no try/except of its own, so this
+        would otherwise surface as an unhandled tool error with no fileId
+        returned at all. Mirrors _sync_level._run_one's create()+update() pair,
+        which already wraps both calls in one broad except and returns a clean
+        failure rather than letting a partial success propagate raw."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Heading")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "notes.md",
+            "webViewLink": "https://example.com",
+        }
+        drive_svc.files.return_value.update.return_value.execute.side_effect = RuntimeError(
+            "transient network error"
+        )
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" in result
+        assert "transient network error" in result["error"]
+
     async def test_convert_non_md_extension_does_not_stamp_source_property(self, tmp_path):
         local_file = tmp_path / "data.csv"
         local_file.write_text("a,b\n1,2")
@@ -1098,6 +1129,110 @@ class TestSyncFolderConvertMarkdown:
         assert result["conflicts"] == []
         assert fs.created_files == []
         assert fs.updated_files == []
+
+    async def test_two_plain_files_sharing_name_reported_as_failed(self, tmp_path):
+        """#422 finding #2: the collision guard originally only fired when
+        _is_converted_md differed between the two colliding entries (a plain
+        file vs. a convert_markdown Doc) — leaving a same-type collision (e.g.
+        two plain files sharing a display name) silently overwritten, the exact
+        same bug class in a case the original fix didn't close."""
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file("notes.md", "plain-id-1", mime="text/markdown"),
+                    _drive_file("notes.md", "plain-id-2", mime="text/plain"),
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            ctx=self._ctx(fs),
+        )
+
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["name"] == "notes.md"
+        assert "notes.md" in result["failed"][0]["error"]
+        assert result["uploaded"] == []
+        assert result["downloaded"] == []
+        assert result["skipped"] == []
+        assert result["conflicts"] == []
+
+    async def test_collision_with_local_counterpart_reported_not_silently_dropped(self, tmp_path):
+        """#422 finding #3: a *local* file whose name collides with a Drive-side
+        plain-file/converted-Doc pair used to vanish from every output list
+        (uploaded/downloaded/skipped/conflicts/actions) with zero acknowledgment
+        — the plan loop's bare `continue` skipped it entirely whenever a local
+        file happened to share the colliding name. It must now still be reported
+        (as a real 'failed' entry for a non-dry-run call), the same as when
+        there's no local counterpart at all."""
+        (tmp_path / "notes.md").write_text("local content")
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file("notes.md", "plain-id", mime="text/markdown"),
+                    _drive_file(
+                        "notes.md",
+                        "doc-id",
+                        mime="application/vnd.google-apps.document",
+                        properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+                    ),
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["name"] == "notes.md"
+        assert result["uploaded"] == []
+        assert result["skipped"] == []
+        assert result["conflicts"] == []
+        assert fs.created_files == []
+        assert fs.updated_files == []
+
+    async def test_collision_dry_run_reports_conflict_not_failed(self, tmp_path):
+        """#422 finding #4: dry_run must never report a 'failed' entry — only a
+        preview. A name collision used to be written straight to `failed`
+        unconditionally, even during dry_run where nothing is materialized,
+        breaking that expectation (the pre-existing folder-collision failure
+        path in this same function is explicitly guarded against this)."""
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file("notes.md", "plain-id", mime="text/markdown"),
+                    _drive_file(
+                        "notes.md",
+                        "doc-id",
+                        mime="application/vnd.google-apps.document",
+                        properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+                    ),
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            convert_markdown=True,
+            dry_run=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["failed"] == []
+        assert result["conflicts"] == ["notes.md"]
+        assert len(result["actions"]) == 1
+        assert result["actions"][0]["name"] == "notes.md"
+        assert result["actions"][0]["action"] == "collision"
 
     async def test_drive_only_converted_doc_skipped_not_conflict_under_upload_direction(
         self, tmp_path
