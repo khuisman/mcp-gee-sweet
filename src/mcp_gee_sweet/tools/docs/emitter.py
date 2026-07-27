@@ -73,15 +73,15 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
             doc_end = start_index + utf16_offset
             segment_meta.append((node, doc_start, doc_end, utf16_len(tabs) + utf16_len(prefix)))
             if tabs:
-                cumulative_tabs += len(tabs)
+                cumulative_tabs += utf16_len(tabs)
 
     requests: list[dict] = []
     full_text = "".join(text_parts)
-    # Nested bullets' own createParagraphBullets calls are deferred: they must run after
-    # every other request above (which all assume no positions have shifted yet) but
-    # before insertTable below (see table_tab_offsets) — see the loop after segment_meta
-    # for why they're applied in descending document order.
-    nested_bullet_requests: list[tuple[int, dict]] = []
+    # createParagraphBullets calls are deferred: they must run after every other request
+    # below (which all assume no positions have shifted yet) but before insertTable
+    # further down (see table_tab_offsets) — see the loop after segment_meta for why
+    # they're applied in descending document order.
+    bullet_run_requests: list[tuple[int, dict]] = []
 
     if full_text:
         requests.append({"insertText": {"location": {"index": start_index}, "text": full_text}})
@@ -102,20 +102,6 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
                 requests.append({"deleteParagraphBullets": {"range": rng}})
             elif isinstance(node, Paragraph):
                 requests.append({"deleteParagraphBullets": {"range": rng}})
-            elif isinstance(node, BulletItem):
-                preset = (
-                    "NUMBERED_DECIMAL_ALPHA_ROMAN" if node.ordered else "BULLET_DISC_CIRCLE_SQUARE"
-                )
-                bullets_request = {
-                    "createParagraphBullets": {
-                        "range": rng,
-                        "bulletPreset": preset,
-                    }
-                }
-                if node.depth > 0:
-                    nested_bullet_requests.append((doc_start, bullets_request))
-                else:
-                    requests.append(bullets_request)
             elif isinstance(node, NamedBlock):
                 requests.append(
                     {
@@ -127,6 +113,8 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
                     }
                 )
                 requests.append({"deleteParagraphBullets": {"range": rng}})
+            # BulletItem's own createParagraphBullets request is handled by the grouping
+            # pass below, not here.
 
             # Inline run styles for non-table content (bold, italic, links, font_family, etc.)
             # skip_len skips past any leading nesting tabs and checkbox glyph so run
@@ -141,12 +129,52 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
                     requests.extend(style_reqs)
                 offset += run_len
 
+        # Group maximal contiguous runs of same-preset BulletItems into ONE
+        # createParagraphBullets call per run, rather than one call per paragraph.
+        # createParagraphBullets infers nesting level from each paragraph's own leading
+        # tab count, but only reliably does so *relative to the other paragraphs covered
+        # by the same call* — issuing one call per paragraph let call order/adjacency to
+        # an already-bulleted neighbor override the tab-encoded depth, producing visibly
+        # inconsistent nesting live even though each call's own leading-tab count and
+        # range boundaries were individually correct (confirmed live, PR #432 QA round 1:
+        # same-depth siblings landed at different indentation levels, and ordered lists
+        # lost continuous numbering). One atomic call spanning the whole contiguous block
+        # is the pattern Google's own Docs API samples use for building nested lists.
+        i = 0
+        while i < len(segment_meta):
+            node, run_start, run_end, _ = segment_meta[i]
+            if not isinstance(node, BulletItem):
+                i += 1
+                continue
+            ordered = node.ordered
+            j = i
+            while (
+                j < len(segment_meta)
+                and isinstance(segment_meta[j][0], BulletItem)
+                and segment_meta[j][0].ordered == ordered
+            ):
+                run_end = segment_meta[j][2]
+                j += 1
+            preset = "NUMBERED_DECIMAL_ALPHA_ROMAN" if ordered else "BULLET_DISC_CIRCLE_SQUARE"
+            bullet_run_requests.append(
+                (
+                    run_start,
+                    {
+                        "createParagraphBullets": {
+                            "range": {"startIndex": run_start, "endIndex": run_end},
+                            "bulletPreset": preset,
+                        }
+                    },
+                )
+            )
+            i = j
+
         # Applied latest-in-document-first: each call's own range is still valid at the
         # point it runs (nothing before it in the doc has shifted yet), and processing
-        # this way means an earlier, not-yet-processed nested bullet's range is never
-        # invalidated by a later one's tab consumption.
+        # this way means an earlier, not-yet-processed run's range is never invalidated
+        # by a later run's own tab consumption.
         for _, bullets_request in sorted(
-            nested_bullet_requests, key=lambda item: item[0], reverse=True
+            bullet_run_requests, key=lambda item: item[0], reverse=True
         ):
             requests.append(bullets_request)
 

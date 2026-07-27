@@ -140,9 +140,12 @@ class TestHtmlToDocRequests:
         assert full_text == "First\nSecond\n"
 
     def test_list_item_inside_ul(self):
+        # Both items are the same preset and contiguous, so they're grouped into one
+        # createParagraphBullets call spanning both paragraphs (#336) rather than one
+        # call per item.
         requests, _ = _html_to_doc_requests("<ul><li>Item one</li><li>Item two</li></ul>")
         bullets = [r for r in requests if "createParagraphBullets" in r]
-        assert len(bullets) == 2
+        assert len(bullets) == 1
 
     def test_whitespace_only_paragraph_skipped(self):
         requests, _ = _html_to_doc_requests("<p>   </p><p>Real content</p>")
@@ -830,7 +833,12 @@ class TestTaskListEmitter:
 class TestNestedBulletDepthEmitsIndentation:
     """#336: BulletItem.depth must reach the live doc as nesting level via leading tabs —
     the only mechanism createParagraphBullets exposes for setting it (it infers and
-    consumes leading tab characters from each paragraph's text)."""
+    consumes leading tab characters from each paragraph's text). PR #432 QA round 1
+    found that issuing one createParagraphBullets call per paragraph let call
+    order/adjacency to an already-bulleted neighbor override the tab-encoded depth live
+    (same-depth siblings landed at different indentation levels, ordered lists lost
+    continuous numbering) even though each call's own range/tabs were individually
+    correct — so contiguous same-preset BulletItems must be grouped into one call."""
 
     def _bullet_ranges(self, requests):
         return [
@@ -853,18 +861,32 @@ class TestNestedBulletDepthEmitsIndentation:
         insert = next(r for r in requests if "insertText" in r)
         assert insert["insertText"]["text"] == "Parent\n\tChild\n\t\tGrandchild\n"
 
-    def test_nested_bullet_range_includes_leading_tabs(self):
-        # The range passed to createParagraphBullets must start before the tabs, not
-        # after them — otherwise the API has no leading tabs to count/consume.
+    def test_contiguous_same_preset_bullets_grouped_into_one_call(self):
+        # A parent + nested child of the same preset must get exactly ONE
+        # createParagraphBullets call spanning both paragraphs (including the child's
+        # leading tab), not one call per paragraph — see class docstring.
         nodes = [
             BulletItem(runs=[Run("Parent")], depth=0),
             BulletItem(runs=[Run("Child")], depth=1),
         ]
         requests, _ = ast_to_requests(nodes)
         ranges = self._bullet_ranges(requests)
-        # "Parent\n" is 7 chars, so Child's segment (tab + text) starts at index 8
-        child_range = next(r for r in ranges if r["startIndex"] == 8)
-        assert child_range["endIndex"] == 8 + len("\tChild\n")
+        assert len(ranges) == 1
+        # "Parent\n" (7 chars) + "\tChild\n" (7 chars) = one combined range, 1-15
+        assert ranges[0] == {"startIndex": 1, "endIndex": 15}
+
+    def test_three_level_nesting_still_one_call(self):
+        nodes = [
+            BulletItem(runs=[Run("Parent")], depth=0),
+            BulletItem(runs=[Run("Child")], depth=1),
+            BulletItem(runs=[Run("Grandchild")], depth=2),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        ranges = self._bullet_ranges(requests)
+        assert len(ranges) == 1
+        insert = next(r for r in requests if "insertText" in r)
+        full_text = insert["insertText"]["text"]
+        assert ranges[0] == {"startIndex": 1, "endIndex": 1 + len(full_text)}
 
     def test_run_style_offset_skips_leading_tabs(self):
         # A styled run inside a nested item must not have the leading tab(s) folded
@@ -880,11 +902,11 @@ class TestNestedBulletDepthEmitsIndentation:
         rng = bold_req["updateTextStyle"]["range"]
         assert rng == {"startIndex": 3, "endIndex": 7}  # skips the 2 leading tabs
 
-    def test_nested_bullet_requests_applied_after_sibling_requests(self):
-        # Nested-bullet createParagraphBullets calls consume characters (shifting
-        # everything after them), so they must be ordered after every other request
-        # that assumes positions haven't shifted yet — including a later heading's own
-        # style request, which must appear earlier in the array.
+    def test_bullet_run_request_applied_after_sibling_requests(self):
+        # A grouped bullet-run's createParagraphBullets call consumes characters
+        # (shifting everything after it), so it must be ordered after every other
+        # request that assumes positions haven't shifted yet — including a later
+        # heading's own style request, which must appear earlier in the array.
         nodes = [
             BulletItem(runs=[Run("Parent")], depth=0),
             BulletItem(runs=[Run("Child")], depth=1),
@@ -892,27 +914,41 @@ class TestNestedBulletDepthEmitsIndentation:
         ]
         requests, _ = ast_to_requests(nodes)
         heading_idx = next(i for i, r in enumerate(requests) if "updateParagraphStyle" in r)
-        nested_bullet_idx = next(
-            i
-            for i, r in enumerate(requests)
-            if "createParagraphBullets" in r
-            and r["createParagraphBullets"]["range"]["startIndex"] == 8
-        )
-        assert heading_idx < nested_bullet_idx
+        bullet_run_idx = next(i for i, r in enumerate(requests) if "createParagraphBullets" in r)
+        assert heading_idx < bullet_run_idx
 
-    def test_multiple_nested_bullets_applied_latest_position_first(self):
-        # Processing must go latest-in-document-first so an earlier, not-yet-processed
-        # nested bullet's precomputed range is never invalidated by a later one's own
-        # tab consumption.
+    def test_separate_bullet_runs_applied_latest_position_first(self):
+        # Two lists separated by a paragraph are two independent runs, each getting
+        # its own createParagraphBullets call. Processing must go latest-in-document-
+        # first so an earlier, not-yet-processed run's precomputed range is never
+        # invalidated by a later run's own tab consumption.
         nodes = [
             BulletItem(runs=[Run("A")], depth=1),
+            Paragraph(runs=[Run("Interrupter")]),
             BulletItem(runs=[Run("B")], depth=1),
-            BulletItem(runs=[Run("C")], depth=1),
         ]
         requests, _ = ast_to_requests(nodes)
         ranges = self._bullet_ranges(requests)
+        assert len(ranges) == 2
         starts = [r["startIndex"] for r in ranges]
         assert starts == sorted(starts, reverse=True)
+
+    def test_ordered_and_unordered_runs_split_at_preset_boundary(self):
+        # A preset change mid-list must end the current run and start a new one — one
+        # createParagraphBullets call takes exactly one bulletPreset.
+        nodes = [
+            BulletItem(runs=[Run("Bullet A")], depth=0, ordered=False),
+            BulletItem(runs=[Run("Bullet B")], depth=0, ordered=False),
+            BulletItem(runs=[Run("Num 1")], depth=0, ordered=True),
+            BulletItem(runs=[Run("Num 2")], depth=0, ordered=True),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        bullet_reqs = [
+            r["createParagraphBullets"] for r in requests if "createParagraphBullets" in r
+        ]
+        assert len(bullet_reqs) == 2
+        presets = {req["bulletPreset"] for req in bullet_reqs}
+        assert presets == {"BULLET_DISC_CIRCLE_SQUARE", "NUMBERED_DECIMAL_ALPHA_ROMAN"}
 
     def test_table_position_adjusted_for_preceding_nested_bullet_tabs(self):
         # A table positioned after a nested bullet must have its insertTable index
