@@ -1833,6 +1833,14 @@ This is worse than a simple drop in two cases, both verified directly against `h
 
 **Sending back to Dev — this is the PR's own target behavior failing live on the repo's existing QA fixture, not a peripheral or edge-case finding.**
 
+**Result (2026-07-27, round 2) ✅ PASS — re-run live against PR #432 commit 5fa26e7 (Playwright visual check), after Dev's fix.** Root cause was confirmed to be exactly what round 1 suspected: separate per-paragraph `createParagraphBullets` calls let each paragraph land under a different `listId`. The fix groups maximal contiguous same-preset `BulletItem` runs into one call. Live re-verification:
+- Case 1: "Child A1"/"Child A2" (both `depth=1`) now render at the **same** indentation level (circle glyph), "Grandchild A2a" (`depth=2`) renders one level deeper (square glyph) — 3 distinct levels confirmed. "Ordered child B1"/"B2" render with continuous numbering ("1.", "2.").
+- Case 3: "Top ordered 1" → "Nested ordered 1.1"/"1.2" (rendered "a."/"b.", correct decimal→alpha nesting) → "Top ordered 2" — correct nesting and numbering.
+- Case 2: "Bare-nested child C1"/"C2" render visibly more indented than the absent parent (checklist requirement met), though their bullet glyph is a disc rather than the circle used by other `depth=1` items elsewhere in the doc — a narrow, isolated-run edge case (a contiguous bulleted run with no `depth=0` member to anchor nesting level 0 against). Not part of this test case's stated checklist; filed separately as #439, non-blocking.
+- The stray empty-bullet paragraph noted in round 1 is confirmed pre-existing and unrelated to this PR (reproduced identically on TC-DOC106 below, which has no such artifact at all in its markdown source) — out of scope here.
+
+**PASS — bugs 1 and 2 both confirmed fixed live.**
+
 ---
 
 ### TC-DOC105: Markdown nested lists at GFM-standard (2/3-space) indentation ⚠️ requires-oauth ⚠️ destructive
@@ -1870,6 +1878,10 @@ This is worse than a simple drop in two cases, both verified directly against `h
 **Result (2026-07-16) ❌ FAIL — verified via direct code execution (`_md_to_html` → `html_to_ast`), not yet run live.** At 4-space indentation, `_md_to_html` produces properly nested `<ul>`/`<ol>` HTML (confirmed by inspecting the intermediate HTML output), so this fixture reproduces TC-DOC104's HTML-path results exactly: "Parent A has text"/"Parent B has text"/"Top ordered 1" all lost to bug 1, correct `depth` values (1, 2) on the surviving children, Case 2's bare-parent children correctly preserved at `depth=1`. This confirms bugs 1+2 are independent of the markdown-library indentation quirk (bug 3) — fixing `_md_to_html`'s indentation sensitivity alone would not fix nested lists; `html_parser.py` and `emitter.py` both need fixing regardless of indentation width used.
 
 **Result (2026-07-27) ❌ FAIL — run live against PR #432, Playwright visual check.** Bug 1 confirmed fixed (independent of this PR). Bug 2's live-rendering is **not fixed**, and this fixture is the more important data point of the two run this round since it has no interstitial-whitespace paragraphs at all (unlike TC-DOC104's raw-HTML fixture): "Child A1" (AST `depth=1`) still renders flush with "Parent A has text" (`depth=0`) while its own sibling "Child A2" (also `depth=1`) renders one level deeper, and "Ordered child B1"/"B2" both render as "1." instead of continuing the numbering. This isolates the defect to PR #432's `createParagraphBullets`/leading-tab mechanism itself — see TC-DOC104's result above for full detail and root-cause discussion. Sending back to Dev alongside TC-DOC104.
+
+**Result (2026-07-27, round 2) ✅ PASS — re-run live against PR #432 commit 5fa26e7 (Playwright visual check), after Dev's fix.** This fixture is the clean confirmation (no whitespace artifacts to confound the result): Case 1 "Child A1"/"Child A2" both render at the same, correct depth-1 indentation (circle glyph), "Grandchild A2a" one level deeper (square glyph), "Ordered child B1"/"B2" number continuously ("1.", "2."). Case 3 "Top ordered 1" → "Nested ordered 1.1"/"1.2" (alpha-nested, "a."/"b.") → "Top ordered 2" nests and numbers correctly. Confirms the fix, independent of TC-DOC104's unrelated whitespace-artifact noise.
+
+**PASS.**
 
 ---
 
