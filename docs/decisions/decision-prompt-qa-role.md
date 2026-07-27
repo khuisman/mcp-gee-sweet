@@ -45,6 +45,14 @@ Per direct user instruction, the same night as the original decision: the merge 
 
 This surfaced through a near-miss worth recording alongside the decision itself: earlier the same night, Bob merged #394–#396 directly by one-off explicit instruction, and that was *initially* written up in `bob.md`'s Retro as an exception, not a standing rule — corrected minutes later when the user clarified the intent was permanent. A "this was a one-off" characterization is itself a claim that can be wrong, same as an over-broad permission grant; the actual fix was writing the boundary down explicitly rather than leaving it as a per-instance ask.
 
+## Addendum (2026-07-26): scope extended to tool docstrings, via async sweep not a merge gate
+
+Issue #397 asked whether Bob's review should extend to tool docstrings and parameter descriptions in `docs/tools.md` — they're prompts in the same sense as the team-role/command files (text the calling LLM reads to decide how to invoke a tool), and `docs/tools.md` is already a deterministic, pre-commit-enforced snapshot of that text (`scripts/gen_tool_docs.py`), so "did tool-facing prompt text change" is mechanically detectable as a diff to that file.
+
+Decided: yes, in scope, but reviewed by async sweep rather than as a merge gate, and covering any docstring/parameter edit rather than only new tools. The trigger question (blocking vs. sweep) turns on a cost asymmetry decision 2's `prompt-qa-approved` gate didn't have to weigh: team-process files change rarely (ad hoc retro edits), so gating them on Bob's live availability costs little. Tool docstrings change on nearly every Dev PR that touches `tools/`, so a blocking gate there would put Bob in the critical path of core dev velocity — a materially larger cost than the team-process case. Extending the existing async-sweep model (already accepted for `doc/*/retro-*` PRs) avoids inventing a second, blocking review lane for a much higher-volume surface. The scope question (any edit vs. new-tool-only) was decided for consistency with how team-role file review already works — any edit, not just new files — since an existing tool's docstring tweak carries the same calling-model-misreads-it risk as a brand-new one.
+
+Deferred, unchanged from the original issue: a labeling system for Bob-originated fix tickets (parallel to the `joy` label) still doesn't exist and needs its own decision.
+
 ## When to Re-evaluate
 
 - If `prompt-qa-approved` PRs pile up unreviewed for long stretches because no session bootstraps as Bob often enough, the "ad hoc, Kai-set cadence" review trigger isn't working — consider having Kai sweep for open `doc/*/retro-*` PRs as a standing step in its own orchestration pass (parallel to how Aziz sweeps merged PRs at release time), rather than relying on someone remembering to invoke Bob.
