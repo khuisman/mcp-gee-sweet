@@ -3193,6 +3193,72 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#tc-d227-convert_markdown-a-plain-file-and-a-converted-doc-sharing-the-same-name-are-reported-as-a-clean-failure-not-silently-overwritten-issue-422-finding-1-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D227: convert_markdown — a plain file and a converted Doc sharing the same name are reported as a clean failure, not silently overwritten (issue #422, finding #1) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d228-upload_local_fileconverttrue-stamps-modifiedtime-from-the-local-files-mtime-so-a-follow-up-sync_folder-lands-in-skipped-not-conflicts-issue-422-finding-2-follow-up-to-tc-d226-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D228: upload_local_file(convert=True) stamps modifiedTime from the local file's mtime, so a follow-up sync_folder lands in skipped, not conflicts (issue #422, finding #2 — follow-up to TC-D226) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d229-convert_markdown-a-drive-only-converted-doc-reports-skip-under-directionupload-conflict-only-when-a-download-would-otherwise-be-attempted-issue-422-finding-3-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D229: convert_markdown — a drive-only converted Doc reports skip under direction='upload', conflict only when a download would otherwise be attempted (issue #422, finding #3) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d230-two-plain-files-sharing-the-same-name-are-also-reported-as-a-collision-failure-not-just-a-plain-fileconverted-doc-pair-pr-433-review-finding-2-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D230: two plain files sharing the same name are also reported as a collision failure, not just a plain-file/converted-Doc pair (PR #433 review, finding #2) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d231-a-local-file-whose-name-collides-with-a-drive-side-pair-is-reported-as-failed-not-silently-dropped-from-every-result-list-pr-433-review-finding-3-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D231: a local file whose name collides with a Drive-side pair is reported as failed, not silently dropped from every result list (PR #433 review, finding #3) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d232-a-name-collision-under-dry_run-reports-as-a-conflict-preview-not-a-failed-entry-pr-433-review-finding-4-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D232: a name collision under dry_run reports as a conflict preview, not a failed entry (PR #433 review, finding #4) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tc-d119-invalid-direction-raises-error-local-filesystem" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5951,6 +6017,99 @@ Delete <code>notes.md</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa
 <p><strong>Result (2026-07-25) ✅ PASS (core fix), with a follow-up finding</strong> <code>upload_local_file(convert=true)</code> succeeded; <code>list_files</code> showed the new Doc. First <code>sync_folder</code> attempt landed in <code>conflicts</code> rather than <code>skipped</code> — correctly matched the existing Doc (no duplicate; <code>list_files</code> showed exactly one <code>notes.md</code> throughout, confirming the core fix works), but not the "in sync" outcome this case's Checks describe. Root cause, confirmed via code: <code>_upload_local_file</code> (<code>transfer.py</code> ~line 138-148) never sets <code>modifiedTime</code> on the Doc it creates, unlike <code>_sync_level</code>'s own upload path which explicitly stamps the local file's mtime — so a Doc from <code>upload_local_file(convert=True)</code> always carries Drive's own creation timestamp instead. This isn't a one-off timing fluke from test-fixture setup delay (my first guess); it's structural, and will produce a spurious <code>conflict</code> on very close to every first <code>sync_folder</code> call after an <code>upload_local_file(convert=True)</code>, not just an occasional one — confirmed by re-running with the local mtime deliberately set to match Drive's <code>modified_time</code>, which <em>did</em> land <code>skipped</code> as this case describes, but only because I forced that match by hand. Flagged to Dev as a follow-up finding (#3 in the round-3 code review) rather than blocking this round on it — the outcome is a safe, non-destructive <code>conflict</code>, not data loss or a duplicate. Also re-verified TC-D222 (unrelated pre-existing <code>.md</code> Doc) still holds after this round's matching change: two distinct <code>notes.md</code> files resulted, original's content untouched — no regression.</p>
 <p><strong>Teardown</strong>
 Delete <code>notes.md</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-226-src/</code> and <code>/tmp/qa-sync-226/</code>.</p>
+<hr />
+<h3 id="tc-d227-convert_markdown-a-plain-file-and-a-converted-doc-sharing-the-same-name-are-reported-as-a-clean-failure-not-silently-overwritten-issue-422-finding-1-local-filesystem">TC-D227: convert_markdown — a plain file and a converted Doc sharing the same name are reported as a clean failure, not silently overwritten (issue #422, finding #1) ⚠️ local-filesystem<a class="headerlink" href="#tc-d227-convert_markdown-a-plain-file-and-a-converted-doc-sharing-the-same-name-are-reported-as-a-clean-failure-not-silently-overwritten-issue-422-finding-1-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Drive allows a plain file and a <code>convert_markdown</code>-produced Doc to share the same display name — both compute the same <code>drive_map</code> key during plan-building. Before the fix, whichever was enumerated last silently won the slot; the other became completely invisible to that sync (never uploaded, downloaded, or reported anywhere).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>In <code>{FOLDER_ID}</code>, call <code>upload_file(name="notes.md", content="plain text version")</code> to create a plain file named <code>notes.md</code>. Then call <code>upload_local_file(local_path="/tmp/qa-sync-227-src/notes.md", parent_folder_id="{FOLDER_ID}", convert=true)</code> <em>(create that local source file first, with any content)</em> — Drive now has two files both named <code>notes.md</code>: one plain, one a converted Google Doc. With <code>/tmp/qa-sync-227/</code> created but empty (no local file):
+"Sync {FOLDER_ID} with <code>/tmp/qa-sync-227/</code> using direction='bidirectional' and convert_markdown set to true"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-227/", direction="bidirectional", convert_markdown=true)</code>
+- <code>failed</code> contains exactly one entry for <code>notes.md</code>, with an error mentioning both a plain file and a convert_markdown Doc sharing the name
+- <code>notes.md</code> does not appear in <code>uploaded</code>, <code>downloaded</code>, <code>skipped</code>, or <code>conflicts</code>
+- <code>list_files</code> on <code>{FOLDER_ID}</code> afterward still shows both original <code>notes.md</code> files untouched (two distinct file IDs, unchanged content)</p>
+<p><strong>Teardown</strong>
+Delete both <code>notes.md</code> files from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-227-src/</code> and <code>/tmp/qa-sync-227/</code>.</p>
+<p><strong>Result (2026-07-26) ✅ PASS</strong> — Created a plain <code>notes.md</code> via <code>upload_file</code> and a converted <code>notes.md</code> Doc via <code>upload_local_file(convert=true)</code>, then <code>sync_folder(direction="bidirectional", convert_markdown=true)</code> returned <code>failed: [{"name": "notes.md", "error": "both a plain file and a convert_markdown Doc are named 'notes.md' in this Drive folder — sync can't tell which one the local file matches; rename or remove one of them in Drive"}]</code> — exactly one entry, absent from <code>uploaded</code>/<code>downloaded</code>/<code>skipped</code>/<code>conflicts</code>. Follow-up <code>list_files</code> confirmed both original file IDs untouched with unchanged <code>modifiedTime</code>. Both files trashed after the test.</p>
+<hr />
+<h3 id="tc-d228-upload_local_fileconverttrue-stamps-modifiedtime-from-the-local-files-mtime-so-a-follow-up-sync_folder-lands-in-skipped-not-conflicts-issue-422-finding-2-follow-up-to-tc-d226-local-filesystem">TC-D228: upload_local_file(convert=True) stamps modifiedTime from the local file's mtime, so a follow-up sync_folder lands in skipped, not conflicts (issue #422, finding #2 — follow-up to TC-D226) ⚠️ local-filesystem<a class="headerlink" href="#tc-d228-upload_local_fileconverttrue-stamps-modifiedtime-from-the-local-files-mtime-so-a-follow-up-sync_folder-lands-in-skipped-not-conflicts-issue-422-finding-2-follow-up-to-tc-d226-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> TC-D226 flagged a follow-up finding: <code>_upload_local_file</code> never set <code>modifiedTime</code> on a converted Doc, unlike <code>_sync_level</code>'s own upload path which stamps the local file's mtime — so the Doc always carried Drive's own creation timestamp instead, landing a subsequent <code>sync_folder(convert_markdown=true)</code> in <code>conflicts</code> rather than <code>skipped</code> on very close to every first run. The fix stamps <code>modifiedTime</code> on <code>create()</code> and re-stamps it via a metadata-only <code>update()</code> afterward, since Drive's native import-conversion overwrites the <code>create()</code>-time value once conversion finishes (the same drift <code>_sync_level</code>'s own path already works around, per TC-D218).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>In <code>{FOLDER_ID}</code>, call <code>upload_local_file(local_path="/tmp/qa-sync-228-src/notes.md", parent_folder_id="{FOLDER_ID}", convert=true)</code> <em>(create that local file first, with any content)</em>. Then, with <code>/tmp/qa-sync-228/notes.md</code> containing identical content copied immediately after (same mtime, no manual adjustment):
+"Sync {FOLDER_ID} with <code>/tmp/qa-sync-228/</code> using direction='bidirectional' and convert_markdown set to true"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>upload_local_file</code> call succeeds; <code>get_file_metadata</code> on the returned <code>fileId</code> shows <code>modifiedTime</code> close to the local source file's mtime, not a later Drive-assigned creation time
+- Call <code>sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-228/", direction="bidirectional", convert_markdown=true)</code>: <code>notes.md</code> appears in <code>skipped</code> ("in sync"), not <code>conflicts</code> — this is the exact scenario TC-D226 flagged as a follow-up finding, now fixed
+- <code>list_files</code> on <code>{FOLDER_ID}</code> still shows exactly one <code>notes.md</code> file</p>
+<p><strong>Teardown</strong>
+Delete <code>notes.md</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-228-src/</code> and <code>/tmp/qa-sync-228/</code>.</p>
+<p><strong>Result (2026-07-26) ✅ PASS</strong> — <code>upload_local_file(convert=true)</code> returned a Doc whose <code>get_file_metadata</code> showed <code>modifiedTime: "2026-07-27T04:59:26.000Z"</code>, matching the local source file's mtime exactly, not <code>createdTime: "2026-07-27T05:00:01.406Z"</code> (35s later). With the local copy's mtime touched to match the source, <code>sync_folder(direction="bidirectional", convert_markdown=true)</code> landed <code>notes.md</code> in <code>skipped</code> ("in sync"), not <code>conflicts</code> — the exact TC-D226 follow-up scenario, now fixed. File trashed after the test.</p>
+<hr />
+<h3 id="tc-d229-convert_markdown-a-drive-only-converted-doc-reports-skip-under-directionupload-conflict-only-when-a-download-would-otherwise-be-attempted-issue-422-finding-3-local-filesystem">TC-D229: convert_markdown — a drive-only converted Doc reports skip under direction='upload', conflict only when a download would otherwise be attempted (issue #422, finding #3) ⚠️ local-filesystem<a class="headerlink" href="#tc-d229-convert_markdown-a-drive-only-converted-doc-reports-skip-under-directionupload-conflict-only-when-a-download-would-otherwise-be-attempted-issue-422-finding-3-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> the drive-only branch of the plan-building loop checked <code>_is_converted_md</code> before checking <code>direction</code>, so a convert_markdown Doc with no local counterpart always reported <code>conflict</code> — even under <code>direction='upload'</code>, where an ordinary (non-converted) drive-only file correctly reports a plain <code>skip</code>, since an upload-only caller doesn't care about drive-only content at all. The fix routes the convert_markdown case through the same direction check as the ordinary case.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>In <code>{FOLDER_ID}</code>, call <code>upload_local_file(local_path="/tmp/qa-sync-229-src/notes.md", parent_folder_id="{FOLDER_ID}", convert=true)</code> <em>(create that local file first, with any content — this Doc will be drive-only from <code>/tmp/qa-sync-229/</code>'s perspective, since nothing exists there)</em>. With <code>/tmp/qa-sync-229/</code> created but empty:
+"Sync {FOLDER_ID} with <code>/tmp/qa-sync-229/</code> using direction='upload' and convert_markdown set to true"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-229/", direction="upload", convert_markdown=true)</code>: <code>notes.md</code> appears in <code>skipped</code> ("drive only, upload direction"), not <code>conflicts</code>; <code>failed</code> and <code>downloaded</code> are both empty
+- Repeat with <code>direction='bidirectional'</code> against the same fixture (still no local file): <code>notes.md</code> now appears in <code>conflicts</code> (unchanged behavior — a convert_markdown Doc still can't be downloaded, so a direction that would otherwise attempt one must still report conflict, not skip)</p>
+<p><strong>Teardown</strong>
+Delete <code>notes.md</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-229-src/</code> and <code>/tmp/qa-sync-229/</code>.</p>
+<p><strong>Result (2026-07-26) ✅ PASS</strong> — With a drive-only convert_markdown Doc and no local counterpart, <code>sync_folder(direction="upload", convert_markdown=true)</code> reported <code>notes.md</code> under <code>skipped</code> ("drive only, upload direction") with <code>failed</code>/<code>downloaded</code> both empty. Repeating with <code>direction="bidirectional"</code> against the same fixture flipped it to <code>conflicts</code>, as expected since a convert_markdown Doc has no reverse conversion. File trashed after the test.</p>
+<hr />
+<h3 id="tc-d230-two-plain-files-sharing-the-same-name-are-also-reported-as-a-collision-failure-not-just-a-plain-fileconverted-doc-pair-pr-433-review-finding-2-local-filesystem">TC-D230: two plain files sharing the same name are also reported as a collision failure, not just a plain-file/converted-Doc pair (PR #433 review, finding #2) ⚠️ local-filesystem<a class="headerlink" href="#tc-d230-two-plain-files-sharing-the-same-name-are-also-reported-as-a-collision-failure-not-just-a-plain-fileconverted-doc-pair-pr-433-review-finding-2-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> TC-D227's collision guard originally only fired when one colliding entry was a <code>convert_markdown</code> Doc and the other was a plain file (differing <code>_is_converted_md</code>). A same-type collision — e.g. two ordinary plain files sharing a display name — was silently overwritten just the same, reproducing issue #422's own bug in a case the original fix didn't close. The fix broadens the guard to any duplicate name in <code>drive_map</code>, regardless of type.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>In <code>{FOLDER_ID}</code>, call <code>upload_file(name="notes.md", content="version A")</code>. Then call <code>upload_file(name="notes.md", content="version B")</code> — Drive now has two distinct plain files, both named <code>notes.md</code>. With <code>/tmp/qa-sync-230/</code> created but empty (no local file):
+"Sync {FOLDER_ID} with <code>/tmp/qa-sync-230/</code> using direction='bidirectional'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-230/", direction="bidirectional")</code>
+- <code>failed</code> contains exactly one entry for <code>notes.md</code>, with an error mentioning multiple Drive entries sharing the name
+- <code>notes.md</code> does not appear in <code>uploaded</code>, <code>downloaded</code>, <code>skipped</code>, or <code>conflicts</code>
+- <code>list_files</code> on <code>{FOLDER_ID}</code> afterward still shows both <code>notes.md</code> files untouched (two distinct file IDs, unchanged content)</p>
+<p><strong>Teardown</strong>
+Delete both <code>notes.md</code> files from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-230/</code>.</p>
+<p><strong>Result (2026-07-27) ✅ PASS</strong> — Created two distinct plain <code>notes.md</code> files, then <code>sync_folder(direction="bidirectional")</code> returned <code>failed: [{"name": "notes.md", "error": "multiple files are named 'notes.md' in this Drive folder — ..."}]</code>, absent from <code>uploaded</code>/<code>downloaded</code>/<code>skipped</code>/<code>conflicts</code>. <code>get_file_metadata</code> on both file IDs afterward confirmed neither was touched. (The same call also caught two pre-existing same-name collisions already present in the fixture folder — <code>qa-notes.md</code> and <code>qa-upload.txt</code>, each duplicated from earlier QA runs — confirming the broadened guard also catches real fixture drift, not just the synthetic test case; not a new ticket, already covered by #304's Drive pollution tracking.) Both test files trashed after.</p>
+<hr />
+<h3 id="tc-d231-a-local-file-whose-name-collides-with-a-drive-side-pair-is-reported-as-failed-not-silently-dropped-from-every-result-list-pr-433-review-finding-3-local-filesystem">TC-D231: a local file whose name collides with a Drive-side pair is reported as failed, not silently dropped from every result list (PR #433 review, finding #3) ⚠️ local-filesystem<a class="headerlink" href="#tc-d231-a-local-file-whose-name-collides-with-a-drive-side-pair-is-reported-as-failed-not-silently-dropped-from-every-result-list-pr-433-review-finding-3-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> TC-D227's fixture had no local counterpart for the colliding name. When a local file <em>does</em> share the colliding name, the plan-building loop's <code>continue</code> used to skip it entirely — it never appeared in <code>uploaded</code>, <code>downloaded</code>, <code>skipped</code>, <code>conflicts</code>, or <code>actions</code>, with zero indication anything was wrong. The fix routes the collision through the normal plan machinery so it's always reported.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>In <code>{FOLDER_ID}</code>, call <code>upload_file(name="notes.md", content="plain text version")</code>. Then call <code>upload_local_file(local_path="/tmp/qa-sync-231-src/notes.md", parent_folder_id="{FOLDER_ID}", convert=true)</code> <em>(create that local source file first, with any content)</em> — Drive now has both a plain file and a converted Doc named <code>notes.md</code>. Now create <code>/tmp/qa-sync-231/notes.md</code> locally too (any content), then:
+"Sync {FOLDER_ID} with <code>/tmp/qa-sync-231/</code> using direction='bidirectional' and convert_markdown set to true"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-231/", direction="bidirectional", convert_markdown=true)</code>
+- <code>failed</code> contains exactly one entry for <code>notes.md</code> (same shape as TC-D227, now confirmed to fire even with a local counterpart present)
+- <code>notes.md</code> does not appear in <code>uploaded</code>, <code>skipped</code>, or <code>conflicts</code>
+- <code>list_files</code> on <code>{FOLDER_ID}</code> afterward still shows both original Drive-side <code>notes.md</code> files untouched; local <code>/tmp/qa-sync-231/notes.md</code> is also untouched (no new upload attempted)</p>
+<p><strong>Teardown</strong>
+Delete both <code>notes.md</code> files from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-231-src/</code> and <code>/tmp/qa-sync-231/</code>.</p>
+<p><strong>Result (2026-07-27) ✅ PASS</strong> — With a local <code>notes.md</code> present alongside the plain-file/converted-Doc collision, <code>sync_folder(direction="bidirectional", convert_markdown=true)</code> still correctly reported exactly one <code>failed</code> entry for <code>notes.md</code>, not silently dropped as it was pre-fix. Local file content and both Drive-side file IDs' <code>modified_time</code> confirmed untouched afterward. All three files removed after the test.</p>
+<hr />
+<h3 id="tc-d232-a-name-collision-under-dry_run-reports-as-a-conflict-preview-not-a-failed-entry-pr-433-review-finding-4-local-filesystem">TC-D232: a name collision under dry_run reports as a conflict preview, not a failed entry (PR #433 review, finding #4) ⚠️ local-filesystem<a class="headerlink" href="#tc-d232-a-name-collision-under-dry_run-reports-as-a-conflict-preview-not-a-failed-entry-pr-433-review-finding-4-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>dry_run=true</code> never materializes any transfer, so <code>failed</code> should only ever contain real execution failures — nothing should land there during a preview. The collision guard's <code>failed.append()</code> originally ran unconditionally in the <code>drive_map</code>-building loop, before the <code>dry_run</code> gate, so a collision showed up in <code>failed</code> even during dry_run — inconsistent with the pre-existing folder-collision failure path in the same function, which is explicitly guarded against this. The fix reports it as a <code>conflict</code> (in both <code>conflicts</code> and <code>actions</code>, with <code>action: "collision"</code>) during dry_run, and only as a real <code>failed</code> entry once execution is actually attempted.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Reuse TC-D227's setup: a plain file and a <code>convert_markdown</code>-produced Doc both named <code>notes.md</code> in <code>{FOLDER_ID}</code>. With <code>/tmp/qa-sync-232/</code> created but empty:
+"Sync {FOLDER_ID} with <code>/tmp/qa-sync-232/</code> using direction='bidirectional', convert_markdown set to true, and dry_run set to true"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-232/", direction="bidirectional", convert_markdown=true, dry_run=true)</code>
+- <code>failed</code> is empty; <code>notes.md</code> appears in <code>conflicts</code> instead
+- <code>actions</code> contains one entry for <code>notes.md</code> with <code>"action": "collision"</code>
+- Neither Drive-side <code>notes.md</code> file was touched (nothing materializes during dry_run)</p>
+<p><strong>Teardown</strong>
+Delete both <code>notes.md</code> files from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-232/</code>.</p>
+<p><strong>Result (2026-07-27) ✅ PASS</strong> — <code>sync_folder(..., dry_run=true)</code> against the same collision fixture returned <code>failed: []</code>, <code>conflicts: ["notes.md", ...]</code>, and <code>actions</code> containing <code>{"name": "notes.md", "action": "collision", ...}</code> — the dry_run/failed-invariant is now upheld. Both Drive-side files confirmed untouched afterward. Both trashed after the test.</p>
 <hr />
 <h3 id="tc-d119-invalid-direction-raises-error-local-filesystem">TC-D119: Invalid direction raises error ⚠️ local-filesystem<a class="headerlink" href="#tc-d119-invalid-direction-raises-error-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
