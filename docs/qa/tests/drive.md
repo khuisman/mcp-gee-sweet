@@ -1869,6 +1869,8 @@ Delete `notes.md` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-229-src/` and `/tmp/q
 **Teardown**
 Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-230/`.
 
+**Result (2026-07-27) ✅ PASS** — Created two distinct plain `notes.md` files, then `sync_folder(direction="bidirectional")` returned `failed: [{"name": "notes.md", "error": "multiple files are named 'notes.md' in this Drive folder — ..."}]`, absent from `uploaded`/`downloaded`/`skipped`/`conflicts`. `get_file_metadata` on both file IDs afterward confirmed neither was touched. (The same call also caught two pre-existing same-name collisions already present in the fixture folder — `qa-notes.md` and `qa-upload.txt`, each duplicated from earlier QA runs — confirming the broadened guard also catches real fixture drift, not just the synthetic test case; not a new ticket, already covered by #304's Drive pollution tracking.) Both test files trashed after.
+
 ---
 
 ### TC-D231: a local file whose name collides with a Drive-side pair is reported as failed, not silently dropped from every result list (PR #433 review, finding #3) ⚠️ local-filesystem
@@ -1888,6 +1890,8 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-230/`.
 **Teardown**
 Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-231-src/` and `/tmp/qa-sync-231/`.
 
+**Result (2026-07-27) ✅ PASS** — With a local `notes.md` present alongside the plain-file/converted-Doc collision, `sync_folder(direction="bidirectional", convert_markdown=true)` still correctly reported exactly one `failed` entry for `notes.md`, not silently dropped as it was pre-fix. Local file content and both Drive-side file IDs' `modified_time` confirmed untouched afterward. All three files removed after the test.
+
 ---
 
 ### TC-D232: a name collision under dry_run reports as a conflict preview, not a failed entry (PR #433 review, finding #4) ⚠️ local-filesystem
@@ -1906,6 +1910,8 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-231-src/` 
 
 **Teardown**
 Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-232/`.
+
+**Result (2026-07-27) ✅ PASS** — `sync_folder(..., dry_run=true)` against the same collision fixture returned `failed: []`, `conflicts: ["notes.md", ...]`, and `actions` containing `{"name": "notes.md", "action": "collision", ...}` — the dry_run/failed-invariant is now upheld. Both Drive-side files confirmed untouched afterward. Both trashed after the test.
 
 ---
 
