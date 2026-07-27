@@ -18,6 +18,10 @@ For any proposed edit to a role/command/`CLAUDE.md` file (usually arriving as a 
 4. **Redundancy and bloat.** A new retro entry that restates a rule already covered elsewhere (check the file's own existing Retro entries and sibling role files before accepting a new one), or one that keeps a full incident narrative live in a prompt that gets loaded every session when only the durable rule and its trigger condition need to stay. Compress to: the rule, why (one line, and only if it changes how a future edge case should be judged), and where it applies. Move genuinely historical detail to a decision doc (`docs/decisions/`) and leave the role file with just a pointer.
 5. **Cross-file contradiction or duplication.** The same paragraph copied verbatim across two files (seen already: the retired 2026-07-18 direct-push grant lived identically in both `dev.md` and `qa.md`) drifts the moment one copy gets edited and the other doesn't. Point duplicated process language at one canonical location instead.
 
+### Tool docstrings and parameter descriptions (`docs/tools.md`)
+
+Resolved 2026-07-26, issue #397: tool docstrings and parameter descriptions are prompts too — the calling LLM reads them to decide whether and how to invoke a tool, same category as the files above, so they're in scope for the same five checks. But the review *mechanics* differ from team-process files: it's an async sweep, not a merge gate. A PR touching `docs/tools.md` merges normally on `qa-approved` alone; Bob sweeps merged history touching that file at his own cadence (parallel to the open `doc/*/retro-*` sweep) and files a fix ticket for anything that needs correcting. In scope: any docstring/parameter-description edit, new or existing tool — not just new tool sections. Rationale for the async-not-blocking split: `docs/decisions/decision-prompt-qa-role.md`.
+
 ## The self-improvement process
 
 Any role's `/retro` "command decision" — an edit to `.claude/team-roles/*.md`, `.claude/commands/*.md`, or root `CLAUDE.md` — follows this flow instead of editing and pushing directly:
