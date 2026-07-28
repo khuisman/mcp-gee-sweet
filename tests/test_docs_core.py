@@ -476,6 +476,23 @@ class TestUnsupportedConstructPreservesParagraphBoundary:
         assert len(nodes) == 3
         assert nodes[1].runs[0].text == "\xa0"
 
+    def test_nbsp_only_list_item_still_dropped(self):
+        # PR #441's QA round (live-caught): #402's whitespace-preserve fix
+        # is a <p>-specific blank-line-spacer convention (a literal blank
+        # line only collapses between paragraphs) — it must not fire for
+        # <li>, or a real bullet glyph with only invisible content renders
+        # between two genuine list items.
+        nodes = html_to_ast("<ul><li>Real</li><li>&nbsp;</li><li>More</li></ul>")
+        assert len(nodes) == 2
+        assert nodes[0].runs[0].text == "Real"
+        assert nodes[1].runs[0].text == "More"
+
+    def test_nbsp_only_heading_still_dropped(self):
+        nodes = html_to_ast("<h1>Title</h1><h1>&nbsp;</h1><h1>Next</h1>")
+        assert len(nodes) == 2
+        assert nodes[0].runs[0].text == "Title"
+        assert nodes[1].runs[0].text == "Next"
+
     def test_dropped_construct_survives_interruption_by_nested_list(self):
         # #401 follow-up (PR #406, TC-DOC136): _interrupt_open_block flushed
         # the currently-open block before descending into a nested construct
