@@ -2374,6 +2374,9 @@ Delete the test file from `{FOLDER_ID}`. Remove `/tmp/qa-sync-346/`.
 
 **Cleanup:** Log in as `{TEST_PERMISSION_EMAIL}` and transfer ownership back via the Drive UI, or delete the file from that account.
 
+**Result (2026-07-27) ⏭️ SKIP — environmental**
+`docs/qa/.env` doesn't exist in this scoped role-worktree pass (a known gap — see `docs/qa/run.md`), so `TEST_PERMISSION_EMAIL` isn't available. Skipped rather than risk an irreversible transfer with a placeholder address, since this is the one case here with no API path to undo a mistake. Needs a full conductor-prompt run with real fixtures.
+
 ---
 
 ### TC-D234: Service account cannot transfer ownership
@@ -2385,6 +2388,9 @@ Delete the test file from `{FOLDER_ID}`. Remove `/tmp/qa-sync-346/`.
 - Call fails with a Drive API permission/consent error — not a silent success or unhandled crash
 - 🔍 **Known limitation:** service accounts have no personal Drive identity to own files; this documents the failure mode the tool's docstring OAuth requirement refers to
 
+**Result (2026-07-27) ⏭️ SKIP — environmental**
+The `mcp-gee-sweet-sa` server available in this role worktree is a separate long-running process not tracking this PR's branch — `transfer_ownership` isn't registered on it even after `/mcp reconnect`, so the tool doesn't exist to call yet on that connection. Not a product defect; needs re-running once this PR's code reaches wherever that server's process is pointed (e.g. post-merge).
+
 ---
 
 ### TC-D235: Non-existent file ID
@@ -2394,6 +2400,9 @@ Delete the test file from `{FOLDER_ID}`. Remove `/tmp/qa-sync-346/`.
 
 **Checks**
 - Drive API error propagates — not a silent success
+
+**Result (2026-07-27) ✅ PASS**
+`transfer_ownership(file_id="fakefileid999", new_owner_email="qa-nonexistent-placeholder@example.com")` → `HttpError 404: "File not found: fakefileid999."` propagates as a tool error, not a silent success. Non-destructive, no fixture needed.
 
 ---
 
