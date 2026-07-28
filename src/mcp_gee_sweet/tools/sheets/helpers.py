@@ -123,17 +123,20 @@ async def _get_sheet_id(
 
 
 async def _get_sheet_index(sheets_service: Any, spreadsheet_id: str, sheet_id: int) -> int | None:
-    """Return the current 0-based tab position of sheet_id, or None if not found."""
-    try:
-        spreadsheet = await execute_in_thread(
-            sheets_service.spreadsheets()
-            .get(spreadsheetId=spreadsheet_id, fields="sheets.properties(sheetId,index)")
-            .execute,
-            sheets_service,
-        )
-        for sheet in spreadsheet.get("sheets", []):
-            if sheet["properties"]["sheetId"] == sheet_id:
-                return sheet["properties"]["index"]
-        return None
-    except Exception:
-        return None
+    """Return the current 0-based tab position of sheet_id, or None if not found.
+
+    None means the sheet genuinely doesn't exist among the spreadsheet's
+    sheets. A transient API failure (rate limit, timeout, auth hiccup)
+    propagates as an exception instead of being swallowed into None, so
+    callers don't misreport it as "not found" (issue #391, mirroring #384).
+    """
+    spreadsheet = await execute_in_thread(
+        sheets_service.spreadsheets()
+        .get(spreadsheetId=spreadsheet_id, fields="sheets.properties(sheetId,index)")
+        .execute,
+        sheets_service,
+    )
+    for sheet in spreadsheet.get("sheets", []):
+        if sheet["properties"]["sheetId"] == sheet_id:
+            return sheet["properties"]["index"]
+    return None
