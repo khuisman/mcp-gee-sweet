@@ -19,6 +19,7 @@ from mcp_gee_sweet.tools.docs.style import (
     _build_named_style_requests,
     _read_body_styles,
     _read_named_styles,
+    _text_style_and_fields,
 )
 
 
@@ -121,6 +122,29 @@ class TestRunStylesInParagraphs:
             if "updateTextStyle" in r and "link" in r["updateTextStyle"]["textStyle"]
         ]
         assert len(link_reqs) == 1
+
+
+class TestTextStyleAndFieldsLinkClearing:
+    """#408: link_url=None must clear a link, not send an invalid empty Link{}."""
+
+    def test_link_url_set_emits_link_object(self):
+        text_style, fields = _text_style_and_fields({"link_url": "https://x.com"})
+        assert text_style == {"link": {"url": "https://x.com"}}
+        assert fields == ["link"]
+
+    def test_link_url_none_omits_link_key_but_keeps_field_mask(self):
+        # The Docs API rejects an empty Link{} object ("must include at least
+        # one type") — clearing a link means naming "link" in the field mask
+        # while omitting the "link" key from textStyle entirely, so the API
+        # resets it to its default (no link).
+        text_style, fields = _text_style_and_fields({"link_url": None})
+        assert text_style == {}
+        assert fields == ["link"]
+
+    def test_link_url_absent_does_not_touch_link(self):
+        text_style, fields = _text_style_and_fields({"bold": True})
+        assert "link" not in text_style
+        assert "link" not in fields
 
 
 class TestRunStylePhase3:
@@ -424,6 +448,57 @@ class TestThemeHelpers:
         }
         theme = _read_named_styles(doc)
         assert "HEADING_1" not in theme
+
+
+# ---------------------------------------------------------------------------
+# style_doc_range tool
+# ---------------------------------------------------------------------------
+
+
+class TestStyleDocRangeTool:
+    def _setup(self):
+        tool, tools = _make_tool_registry()
+        docs_module.register(tool)
+        return tools
+
+    async def test_link_url_null_clears_link(self):
+        # #408: link_url=None must actually send a clearing request, not get
+        # silently skipped because the resulting textStyle dict is empty.
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 5, "link_url": None}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        call_kwargs = mock_docs.documents().batchUpdate.call_args[1]
+        reqs = call_kwargs["body"]["requests"]
+        link_reqs = [r for r in reqs if "updateTextStyle" in r]
+        assert len(link_reqs) == 1
+        update = link_reqs[0]["updateTextStyle"]
+        assert update["fields"] == "link"
+        assert "link" not in update["textStyle"]
+
+    async def test_link_url_set_sends_link_object(self):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 5, "link_url": "https://x.com"}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        call_kwargs = mock_docs.documents().batchUpdate.call_args[1]
+        reqs = call_kwargs["body"]["requests"]
+        update = next(r["updateTextStyle"] for r in reqs if "updateTextStyle" in r)
+        assert update["textStyle"]["link"] == {"url": "https://x.com"}
 
 
 # ---------------------------------------------------------------------------

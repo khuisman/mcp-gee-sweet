@@ -137,7 +137,14 @@ def _text_style_and_fields(style: dict) -> tuple[dict, list[str]]:
         text_style["foregroundColor"] = {"color": {"rgbColor": style["foreground_color"]}}
         fields.append("foregroundColor")
     if "link_url" in style:
-        text_style["link"] = {"url": style["link_url"]} if style["link_url"] else {}
+        # Clearing a link (link_url falsy) must omit "link" from textStyle
+        # entirely rather than setting it to an empty Link{} object — the API
+        # rejects an empty Link ("must include at least one type") since
+        # that's not a valid Link value, but omitting the key while still
+        # naming "link" in the field mask is the documented way to reset a
+        # nested message field to its default (no link) (#408).
+        if style["link_url"]:
+            text_style["link"] = {"url": style["link_url"]}
         fields.append("link")
     return text_style, fields
 
@@ -252,7 +259,10 @@ def register(tool):
 
             text_style, text_fields = _text_style_and_fields(r)
 
-            if text_style:
+            # A link-clear-only range (link_url=null, #408) legitimately produces
+            # an empty text_style with a non-empty field mask ("link") — the
+            # request must still be sent, so gate on text_fields, not text_style.
+            if text_fields:
                 requests.append(
                     {
                         "updateTextStyle": {
