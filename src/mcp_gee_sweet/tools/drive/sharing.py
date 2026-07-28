@@ -224,6 +224,53 @@ def register(tool):
         logger.debug("Removed permission %s from %s", permission_id, file_id)
         return {"fileId": file_id, "permissionId": permission_id, "action": "removed"}
 
+    @tool(annotations=ToolAnnotations(title="Transfer File Ownership", destructiveHint=True))
+    async def transfer_ownership(
+        file_id: str,
+        new_owner_email: str,
+        send_notification: bool = True,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Transfer ownership of a file or folder to another user.
+
+        Args:
+            file_id: The Google Drive file or folder ID.
+            new_owner_email: Email address of the new owner.
+            send_notification: Whether to send a notification email to the new owner.
+                                Defaults to True.
+
+        Returns:
+            Confirmation with fileId, new_owner, and permissionId.
+
+        Note:
+            Requires OAuth auth — service accounts have no personal Drive identity
+            to transfer ownership to/from, so Drive's API rejects the transfer.
+            Check server://auth-status for your current auth method.
+        """
+        drive_service = ctx.request_context.lifespan_context.drive_service
+
+        result = await execute_in_thread(
+            drive_service.permissions()
+            .create(
+                fileId=file_id,
+                body={"type": "user", "role": "owner", "emailAddress": new_owner_email},
+                transferOwnership=True,
+                sendNotificationEmail=send_notification,
+                supportsAllDrives=True,
+                fields="id",
+            )
+            .execute,
+            drive_service,
+        )
+
+        logger.debug("Transferred ownership of %s to %s", file_id, new_owner_email)
+        return {
+            "fileId": file_id,
+            "new_owner": new_owner_email,
+            "permissionId": result.get("id"),
+        }
+
     @tool(annotations=ToolAnnotations(title="Share File", destructiveHint=True))
     async def share_file(
         file_id: str,
