@@ -2996,6 +2996,8 @@
 - 🔍 <strong>Regression:</strong> the Sheets API's own default for <code>duplicateSheet</code> places the copy at tab position 0 regardless of source position (confirmed via live QA on this tool) — the tool must compute and pass <code>insertSheetIndex</code> explicitly to land the copy after the source, matching Sheets UI's native "Duplicate" behavior</p>
 <p><strong>Result (2026-07-10) ✅ PASS</strong>
 <code>duplicate_sheet(spreadsheet_id, sheet="Sales")</code> → index 1. <code>list_sheets</code> → <code>["Sales","Copy of Sales","Empty","Notes &amp; Misc","BrandNew"]</code> — lands immediately after Sales, confirming the regression fix (<code>_get_sheet_index</code> + explicit <code>insertSheetIndex</code>). Deleted after verification.</p>
+<p><strong>Result (2026-07-27) ✅ PASS — regression check for PR #440 (issue #391)</strong>
+Re-ran after <code>_get_sheet_index</code>'s blanket <code>except Exception: return None</code> was removed (PR #440, mirroring #384's fix to <code>_get_sheet_id</code>) so transient API failures propagate instead of being silently treated as "index unknown." Same call, same result: <code>duplicate_sheet(spreadsheet_id, sheet="Sales")</code> → index 1, <code>list_sheets</code> → <code>["Sales","Copy of Sales","Notes &amp; Misc","BrandNew","Empty"]</code> — copy still lands immediately after Sales, confirming the success path (loop finds the match and returns its index) is unchanged by the removed catch-all. Deleted after verification.</p>
 <hr />
 <h3 id="tc-s54-explicit-insert_index-is-honored-destructive">TC-S54: Explicit insert_index is honored ⚠️ destructive<a class="headerlink" href="#tc-s54-explicit-insert_index-is-honored-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
