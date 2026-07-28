@@ -3125,6 +3125,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#whitespacenbsp-only-paragraphs-preserve-their-blank-line-instead-of-being-silently-dropped-issue-402" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Whitespace/&amp;nbsp;-only paragraphs preserve their blank line instead of being silently dropped (issue #402)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Whitespace/&amp;nbsp;-only paragraphs preserve their blank line instead of being silently dropped (issue #402)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc138-a-standalone-nbsp-line-between-two-paragraphs-keeps-its-own-blank-paragraph-rather-than-fusing-its-neighbors-together-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC138: A standalone &amp;nbsp; line between two paragraphs keeps its own blank paragraph rather than fusing its neighbors together ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5261,6 +5289,22 @@ Run against a live sandbox scoped to only <code>create_doc,create_doc_from_file,
 - <code>get_doc_structure</code> shows exactly two body elements: a paragraph "Before" immediately followed by a paragraph "After" — no empty paragraph or other structural element between them (the pre-fix bug would show three elements, with a spurious empty paragraph from the inline-wrapped <code>&lt;hr&gt;</code>)</p>
 <p><strong>Cleanup:</strong> delete the created doc</p>
 <p><strong>Result:</strong> PASS (2026-07-24, live via <code>mcp-gee-sweet-kit</code>, doc <code>11kfAgxg8pfiSfEGgvu9AvLtYlaWjf4B0KsBJPwntnSI</code>, deleted after). <code>get_doc_structure</code> returned exactly "Before" immediately followed by "After" — no spurious empty paragraph from the inline-wrapped <code>&lt;hr&gt;</code>, confirming the send-back finding from PR #406's QA pass 2 is fixed. Full unit suite: 898 passed.</p>
+<hr />
+<h2 id="whitespacenbsp-only-paragraphs-preserve-their-blank-line-instead-of-being-silently-dropped-issue-402">Whitespace/<code>&amp;nbsp;</code>-only paragraphs preserve their blank line instead of being silently dropped (issue #402)<a class="headerlink" href="#whitespacenbsp-only-paragraphs-preserve-their-blank-line-instead-of-being-silently-dropped-issue-402" title="Permanent link">&para;</a></h2>
+<p><strong>Background:</strong> distinct from #401's <code>runs=[]</code> case (an unsupported construct like <code>&lt;img&gt;</code> leaves a block with <em>no</em> buffered content at all). Here the block's buffered runs are non-empty but strip to nothing — a lone <code>&amp;nbsp;</code> or a run of plain spaces — which markdown authors commonly write as a standalone line to force a visible blank-line spacer, since a literal blank line collapses in markdown. <code>_emit_block_node</code> (<code>html_parser.py</code>) used to drop any block whose text stripped to empty regardless of <em>why</em>, fusing the paragraphs on either side together exactly like #401 did before its fix. The fix distinguishes a <em>freshly</em>-closed block (opened and closed with nothing in between, e.g. <code>&lt;p&gt;&amp;nbsp;&lt;/p&gt;</code>) — always kept now, unconditional on <code>preserve_if_empty</code>, since there's real (if invisible) content to lose — from a <em>resumed</em> block's whitespace-only trailing flush (e.g. the indentation newline between a nested list's <code>&lt;/ul&gt;</code> and the outer <code>&lt;li&gt;</code>'s own <code>&lt;/li&gt;</code>), which is markup-formatting noise, not authored content, and keeps falling back to the same <code>preserve_if_empty</code> gate the <code>runs=[]</code> case already used (confirmed via <code>test_nested_list_via_markdown_preserves_parent_text</code>, which regressed under a first, broader version of this fix that preserved every non-empty-runs whitespace-only block regardless of resumption state). <code>emitter.py</code>'s <code>ast_to_requests</code> no longer special-cases whitespace text either — it emits whatever text a kept node carries.</p>
+<h3 id="tc-doc138-a-standalone-nbsp-line-between-two-paragraphs-keeps-its-own-blank-paragraph-rather-than-fusing-its-neighbors-together-requires-oauth-destructive">TC-DOC138: A standalone <code>&amp;nbsp;</code> line between two paragraphs keeps its own blank paragraph rather than fusing its neighbors together ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc138-a-standalone-nbsp-line-between-two-paragraphs-keeps-its-own-blank-paragraph-rather-than-fusing-its-neighbors-together-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-doc138-nbsp-spacer-paragraph.md</code> — mirrors the issue's own repro (an Employee Handbook acknowledgment/signature block): a paragraph, a standalone <code>&amp;nbsp;</code> line, a row of underscores (renders as <code>&lt;hr /&gt;</code>, exercising #401's case in the same doc), and a final paragraph with several inline <code>&amp;nbsp;</code> runs mixed with real text.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc138-nbsp-spacer-paragraph.md, then show me its structure."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Tool completes without error
+- <code>get_doc_structure</code> lists exactly 4 paragraphs in order: the acknowledgment paragraph, a non-empty paragraph whose <code>text</code> is just the nbsp character (plus the API's own trailing newline) — not merged into either neighbor, own <code>startIndex</code>/<code>endIndex</code> — an empty paragraph (the underscore <code>&lt;hr&gt;</code>, #401's case), and the "Employee Signature ... Date" paragraph
+- The nbsp paragraph's <code>endIndex</code> does <strong>not</strong> equal the acknowledgment paragraph's <code>endIndex</code> (i.e. it isn't zero-width/fused) — it has real width from the nbsp character
+- The final paragraph's inline <code>&amp;nbsp;&amp;nbsp;...</code> run between "Employee Signature" and "Date" survives as literal nbsp characters in its <code>text</code>, not collapsed or stripped</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result:</strong> PASS (2026-07-27, live via <code>mcp-gee-sweet-kit</code>, doc <code>1e9W8zb8gWtOCDb6lJcuFtCZbum7hoXRqGbBaEBd3vD0</code>, deleted after). <code>get_doc_structure</code> returned the expected 4 content paragraphs in order, followed by the doc's own terminal empty paragraph (confirmed via a separate baseline doc with unrelated plain content — this trailing element is a standard Google Docs artifact on every doc, not something this fix introduces, so it doesn't count against "exactly 4"). Verified at the raw codepoint level via a direct Docs API call: the spacer paragraph is literally <code>'\xa0\n'</code> (startIndex 96, endIndex 98) with real width — not fused with the acknowledgment paragraph's endIndex 96; the <code>&lt;hr&gt;</code> paragraph is the expected bare <code>'\n'</code>; the final paragraph's inline gap is <code>'Employee Signature \xa0\xa0\xa0\xa0\xa0\xa0\xa0\xa0 Date\n'</code>, all 8 nbsp characters intact, not collapsed to regular spaces. Full unit suite: 945 passed.</p>
 
 
 
