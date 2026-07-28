@@ -6,6 +6,7 @@ from mcp_gee_sweet.cache import SheetInfo, SheetStructureCache
 from mcp_gee_sweet.tools.sheets.helpers import (
     _column_index_to_letter,
     _get_sheet_id,
+    _get_sheet_index,
     _letter_to_column_index,
     _parse_a1_notation,
 )
@@ -170,3 +171,18 @@ class TestGetSheetIdExceptionPropagation:
         sheet_id = await _get_sheet_id(_RaisingSheetsService(), "sid", "Missing", cache)
 
         assert sheet_id is None
+
+
+class TestGetSheetIndexExceptionPropagation:
+    """Regression test for issue #391: _get_sheet_index had the same
+    catch-and-swallow bug #384 fixed in _get_sheet_id — it caught every
+    exception and returned None, the same value returned for a genuine
+    "sheet not found". It should now let those exceptions propagate."""
+
+    async def test_transient_api_error_propagates(self):
+        with pytest.raises(TimeoutError):
+            await _get_sheet_index(_RaisingSheetsService(), "sid", 0)
+
+    async def test_genuine_missing_sheet_still_returns_none(self):
+        sheet_index = await _get_sheet_index(_EmptySheetsService(), "sid", 999)
+        assert sheet_index is None
