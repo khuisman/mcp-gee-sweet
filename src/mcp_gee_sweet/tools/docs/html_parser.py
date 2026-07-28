@@ -482,16 +482,29 @@ class _AstParser(HTMLParser):
         # --- list context ---
         # _resume_interrupted_block is called unconditionally (independent of
         # _list_ordered) so a mismatched open/close pair (<ol> closed by
-        # </ul>) can't desync this mechanism even though — separately — it
-        # leaves _list_ordered itself unpopped in that case.
+        # </ul>) can't desync this mechanism.
+        #
+        # _list_ordered itself pops unconditionally too (#382) — not gated on
+        # the popped entry's own type matching this closing tag, the way an
+        # earlier version of this code did. That gate meant a mismatched
+        # close (e.g. an <ol> closed by a stray </ul>) silently skipped the
+        # pop instead of performing it, permanently leaving _list_ordered one
+        # level too deep for the rest of the document — every subsequent
+        # BulletItem.depth (len(self._list_ordered) - 1) came out off by one,
+        # confirmed live to bleed into completely unrelated, later, correctly
+        # well-formed lists. A closing </ol> or </ul> always means "one fewer
+        # list is open" regardless of which of the two opened it, so this
+        # pops by count, matching every open tag's own unconditional push
+        # above — the same principle _resume_interrupted_block already
+        # applies to the block-node-type side of this exact scenario.
         if tag == "ol":
             self._resume_interrupted_block("ol")
-            if self._list_ordered and self._list_ordered[-1]:
+            if self._list_ordered:
                 self._list_ordered.pop()
             return
         if tag == "ul":
             self._resume_interrupted_block("ul")
-            if self._list_ordered and not self._list_ordered[-1]:
+            if self._list_ordered:
                 self._list_ordered.pop()
             return
 

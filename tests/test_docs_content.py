@@ -433,9 +433,11 @@ class TestBlockInterruptionGeneralizedBeyondLi:
         assert "Later unrelated paragraph" in texts
 
     async def test_mismatched_ol_closed_by_ul_does_not_corrupt_later_content(self):
-        # Malformed: an <ol> is closed with </ul>. _list_ordered itself stays
-        # desynced (a separate, pre-existing issue), but the block-interruption
-        # stack must not let this leak into misclassifying later content.
+        # Malformed: an <ol> is closed with </ul>. Block-node-type correctness
+        # (this test's own concern) is handled by the block-interruption stack
+        # independently of _list_ordered — #382 (see TestMismatchedListTags
+        # below) covers the separate _list_ordered depth-desync this same
+        # malformed input used to also cause.
         html = "<ol><li>Parent<ul><li>Child</li></ol></li></ul><p>Later text</p>"
         nodes = html_to_ast(html)
         paragraphs = [n for n in nodes if isinstance(n, Paragraph)]
@@ -445,6 +447,44 @@ class TestBlockInterruptionGeneralizedBeyondLi:
         # wrapped as a BulletItem by a leaked/misapplied reopen.
         later_node = next(n for n in nodes if "Later text" in "".join(r.text for r in n.runs))
         assert isinstance(later_node, Paragraph)
+
+
+class TestMismatchedListTags:
+    """#382: a mismatched <ol>/<ul> close tag must not permanently desync
+    _list_ordered — every subsequent BulletItem.depth is computed from
+    len(_list_ordered) - 1, so a stuck extra entry bleeds a bogus depth
+    into completely unrelated, later, well-formed lists."""
+
+    async def test_mismatched_close_does_not_leak_depth_into_later_list(self):
+        html = (
+            "<ol><li>Parent<ul><li>Child</li></ol></li></ul>"
+            "<p>Later text</p>"
+            "<ol><li>Fresh ordered item</li></ol>"
+        )
+        nodes = html_to_ast(html)
+        bullets = [n for n in nodes if isinstance(n, BulletItem)]
+        fresh = next(b for b in bullets if b.runs[0].text == "Fresh ordered item")
+        assert fresh.depth == 0
+        assert fresh.ordered is True
+
+    async def test_mismatched_close_does_not_leak_depth_into_later_ul(self):
+        # Same defect, opposite direction: a <ul> closed by a stray </ol>.
+        html = "<ul><li>Parent<ol><li>Child</li></ul></li></ol><ul><li>Fresh unordered</li></ul>"
+        nodes = html_to_ast(html)
+        bullets = [n for n in nodes if isinstance(n, BulletItem)]
+        fresh = next(b for b in bullets if b.runs[0].text == "Fresh unordered")
+        assert fresh.depth == 0
+        assert fresh.ordered is False
+
+    async def test_well_formed_nesting_unaffected(self):
+        # Regression guard: the fix must not change behavior for correctly
+        # matched tags — only mismatched ones should be affected.
+        html = "<ul><li>a<ol><li>b</li></ol></li></ul><ul><li>Fresh sibling</li></ul>"
+        nodes = html_to_ast(html)
+        bullets = [n for n in nodes if isinstance(n, BulletItem)]
+        fresh = next(b for b in bullets if b.runs[0].text == "Fresh sibling")
+        assert fresh.depth == 0
+        assert fresh.ordered is False
 
 
 class TestBareTopLevelText:
