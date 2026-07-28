@@ -2522,3 +2522,5 @@ Run against a live sandbox scoped to only `create_doc,create_doc_from_file,write
 - 🔍 Visual check: "Fresh ordered item" renders as a **top-level** numbered list item (e.g. "1."), not indented one level in under the malformed list above it — the pre-fix bug would render it nested one level deep despite being its own separate, well-formed `<ol>`
 
 **Cleanup:** delete the created doc
+
+**Result:** PASS (2026-07-27, live via `mcp-gee-sweet-kit`). `create_doc_from_file` on the fixture completed without error. `get_doc_structure` listed the four paragraphs in order — "Parent", "Child", "Unrelated paragraph between the two lists.", "Fresh ordered item" (the tool doesn't surface bullet/nestingLevel fields, so order/text was confirmed this way and depth via the visual check below). Playwright screenshot confirmed "Fresh ordered item" rendered as a top-level "1." — not indented under the malformed list above it, matching the fixed behavior. Test doc trashed per cleanup step.
