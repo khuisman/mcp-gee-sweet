@@ -3618,6 +3618,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#transfer_ownership" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        transfer_ownership
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="transfer_ownership">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-d233-transfer-ownership-to-another-user-destructive-requires-oauth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D233: Transfer ownership to another user ⚠️ destructive ⚠️ requires-oauth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d234-service-account-cannot-transfer-ownership" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D234: Service account cannot transfer ownership
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d235-non-existent-file-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D235: Non-existent file ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#share_file" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -6443,6 +6493,44 @@ Delete the test file from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-34
 </blockquote>
 <p><strong>Checks</strong>
 - Drive API error propagates — not a silent success or server crash</p>
+<hr />
+<h2 id="transfer_ownership"><code>transfer_ownership</code><a class="headerlink" href="#transfer_ownership" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>⚠️ <strong>Fixture requirement:</strong> TC-D233 requires <code>TEST_PERMISSION_EMAIL</code> in <code>.env</code> to be a <strong>real Google account</strong> you control, and that ownership can be transferred back afterward (via the Drive UI, logged in as that second account) to restore the fixture — Drive has no API path to reclaim ownership once transferred. Use a disposable file, not {SPREADSHEET_ID} itself.</p>
+</blockquote>
+<h3 id="tc-d233-transfer-ownership-to-another-user-destructive-requires-oauth">TC-D233: Transfer ownership to another user ⚠️ destructive ⚠️ requires-oauth<a class="headerlink" href="#tc-d233-transfer-ownership-to-another-user-destructive-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>create_spreadsheet(title="TransferOwnershipQA")</code> — a disposable file so ownership loss doesn't disrupt other fixtures.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Transfer ownership of {file_id} to {TEST_PERMISSION_EMAIL}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response: <code>{"fileId": ..., "new_owner": "{TEST_PERMISSION_EMAIL}", "permissionId": ...}</code>
+- <code>list_permissions</code> on the file shows <code>{TEST_PERMISSION_EMAIL}</code> with <code>role: "owner"</code>; the original account's own permission is demoted (typically to <code>writer</code>)</p>
+<p><strong>Cleanup:</strong> Log in as <code>{TEST_PERMISSION_EMAIL}</code> and transfer ownership back via the Drive UI, or delete the file from that account.</p>
+<p><strong>Result (2026-07-27) ⏭️ SKIP — environmental</strong>
+<code>docs/qa/.env</code> doesn't exist in this scoped role-worktree pass (a known gap — see <code>docs/qa/run.md</code>), so <code>TEST_PERMISSION_EMAIL</code> isn't available. Skipped rather than risk an irreversible transfer with a placeholder address, since this is the one case here with no API path to undo a mistake. Needs a full conductor-prompt run with real fixtures.</p>
+<hr />
+<h3 id="tc-d234-service-account-cannot-transfer-ownership">TC-D234: Service account cannot transfer ownership<a class="headerlink" href="#tc-d234-service-account-cannot-transfer-ownership" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong> (run against the <code>mcp-gee-sweet-sa</code> server, per <code>create_spreadsheet</code>'s TC-D04 convention for auth-method-dependent behavior)</p>
+<blockquote>
+<p>"Transfer ownership of {SPREADSHEET_ID} to {TEST_PERMISSION_EMAIL}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call fails with a Drive API permission/consent error — not a silent success or unhandled crash
+- 🔍 <strong>Known limitation:</strong> service accounts have no personal Drive identity to own files; this documents the failure mode the tool's docstring OAuth requirement refers to</p>
+<p><strong>Result (2026-07-27) ⏭️ SKIP — environmental</strong>
+The <code>mcp-gee-sweet-sa</code> server available in this role worktree is a separate long-running process not tracking this PR's branch — <code>transfer_ownership</code> isn't registered on it even after <code>/mcp reconnect</code>, so the tool doesn't exist to call yet on that connection. Not a product defect; needs re-running once this PR's code reaches wherever that server's process is pointed (e.g. post-merge).</p>
+<hr />
+<h3 id="tc-d235-non-existent-file-id">TC-D235: Non-existent file ID<a class="headerlink" href="#tc-d235-non-existent-file-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Transfer ownership of file 'fakefileid999' to {TEST_PERMISSION_EMAIL}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Drive API error propagates — not a silent success</p>
+<p><strong>Result (2026-07-27) ✅ PASS</strong>
+<code>transfer_ownership(file_id="fakefileid999", new_owner_email="qa-nonexistent-placeholder@example.com")</code> → <code>HttpError 404: "File not found: fakefileid999."</code> propagates as a tool error, not a silent success. Non-destructive, no fixture needed.</p>
 <hr />
 <h2 id="share_file"><code>share_file</code><a class="headerlink" href="#share_file" title="Permanent link">&para;</a></h2>
 <blockquote>
