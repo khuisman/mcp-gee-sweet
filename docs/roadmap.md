@@ -156,7 +156,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 **Drive**
 - [x] `restore_file` / `empty_trash` — undelete or permanently purge trashed files (PR #386) ([#138](https://github.com/khuisman/mcp-gee-sweet/issues/138))
 - [x] `star_file` / `unstar_file` — mark files with a star for easy retrieval (PR #387) ([#139](https://github.com/khuisman/mcp-gee-sweet/issues/139))
-- [ ] `transfer_ownership` — transfer a file to another user — sat on-deck since 2026-07-19 with no contributor pickup; promoted to `ready-for-development`/`lane-a` once Ash's lane freed up (#422 shipped), matching Ash's recent `transfer.py` continuity ([#140](https://github.com/khuisman/mcp-gee-sweet/issues/140))
+- [x] `transfer_ownership` — transfer a file to another user (PR #445) ([#140](https://github.com/khuisman/mcp-gee-sweet/issues/140))
 - [x] `create_shortcut` — create a Drive shortcut to a file (PR #405) ([#141](https://github.com/khuisman/mcp-gee-sweet/issues/141))
 - [x] `sync_folder` — option to convert markdown files to Google Docs on upload (PR #414) ([#211](https://github.com/khuisman/mcp-gee-sweet/issues/211))
 - [x] `upload_local_file` with Drive format conversion (CSV→Sheets, MD→Docs) (PR #410) ([#188](https://github.com/khuisman/mcp-gee-sweet/issues/188))
