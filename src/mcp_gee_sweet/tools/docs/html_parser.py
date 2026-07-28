@@ -205,15 +205,44 @@ class _AstParser(HTMLParser):
         content — e.g. an <li> that wraps only a nested <ul> with no text of
         its own — leaves this False and emits nothing, since there's no
         boundary to lose: that segment was never going to have its own node
-        either way. Whitespace-only text (runs non-empty but strips to
-        nothing) is always dropped regardless of the flag — that's #402's
-        separate domain. Emitter.py's ast_to_requests() makes the matching
-        runs-empty-vs-whitespace distinction when turning nodes into an
-        insertText.
+        either way.
+
+        Whitespace-only text (runs non-empty but strips to nothing, e.g. a
+        lone space or `&nbsp;`) is a separate case from the runs=[] one
+        above (#402): markdown authors commonly write a standalone `&nbsp;`
+        line as a deliberate blank-line spacer, since a literal blank line
+        collapses in markdown — but that's specifically a `<p>` convention
+        (blank lines only collapse *between paragraphs*; it doesn't apply to
+        list items or headings the same way). A *freshly*-closed `<p>`
+        (self._block_resumed False — opened and closed with nothing in
+        between, e.g. `<p>&nbsp;</p>`) always keeps that whitespace text,
+        unconditional on preserve_if_empty, since there's real (if
+        invisible) content here to lose, not just a boundary. Every other
+        tag (`<li>`, `<h1>`-`<h6>`) keeps the pre-#402 behavior of always
+        dropping whitespace-only text — PR #441's own QA round live-caught a
+        first version of this fix that wasn't scoped to `<p>` at all,
+        producing a stray bullet glyph / stray heading with only invisible
+        content for `<li>&nbsp;</li>` or `<h1>&nbsp;</h1>` between two real
+        siblings, which isn't the blank-line-spacer convention this fix is
+        for. A *resumed* `<p>`'s whitespace-only trailing flush is a
+        different animal too, and must NOT get the fresh-`<p>` treatment
+        either: it's markup-formatting noise (e.g. the indentation newline
+        between a nested list's `</ul>` and the outer `<li>`'s own `</li>`),
+        not authored content — confirmed live via
+        test_nested_list_via_markdown_preserves_parent_text, where treating
+        it as #402 content injected a spurious extra list item for that
+        stray "\n". Both the non-`<p>` and resumed-`<p>` cases fall back to
+        the same preserve_if_empty gate the runs=[] case already uses (a
+        real drop elsewhere in the same segment still earns a boundary
+        node; an ordinary formatting artifact doesn't). Emitter.py's
+        ast_to_requests() no longer special-cases this text at all — it
+        emits whatever text a kept node carries, whitespace or not.
         """
         text = "".join(r.text for r in runs).strip()
-        if not text and (runs or not preserve_if_empty):
-            return
+        if not text:
+            is_fresh_paragraph_whitespace = tag == "p" and bool(runs) and not self._block_resumed
+            if not is_fresh_paragraph_whitespace and not preserve_if_empty:
+                return
         if tag in _HEADING_TAGS:
             level = int(tag[1])
             self._nodes.append(Heading(level=level, runs=runs))
