@@ -205,15 +205,34 @@ class _AstParser(HTMLParser):
         content — e.g. an <li> that wraps only a nested <ul> with no text of
         its own — leaves this False and emits nothing, since there's no
         boundary to lose: that segment was never going to have its own node
-        either way. Whitespace-only text (runs non-empty but strips to
-        nothing) is always dropped regardless of the flag — that's #402's
-        separate domain. Emitter.py's ast_to_requests() makes the matching
-        runs-empty-vs-whitespace distinction when turning nodes into an
-        insertText.
+        either way.
+
+        Whitespace-only text (runs non-empty but strips to nothing, e.g. a
+        lone space or `&nbsp;`) is a separate case from the runs=[] one
+        above (#402): markdown authors commonly write a standalone `&nbsp;`
+        line as a deliberate blank-line spacer, since a literal blank line
+        collapses in markdown. A *freshly*-closed block (self._block_resumed
+        False — opened and closed with nothing in between, e.g. `<p>&nbsp;
+        </p>`) always keeps that whitespace text, unconditional on
+        preserve_if_empty, since there's real (if invisible) content here to
+        lose, not just a boundary. A *resumed* block's whitespace-only
+        trailing flush is a different animal, though, and must NOT get this
+        same treatment: it's markup-formatting noise (e.g. the indentation
+        newline between a nested list's `</ul>` and the outer `<li>`'s own
+        `</li>`), not authored content — confirmed live via
+        test_nested_list_via_markdown_preserves_parent_text, where treating
+        it as #402 content injected a spurious extra list item for that
+        stray "\n". A resumed block's whitespace-only flush therefore falls
+        back to the same preserve_if_empty gate as the runs=[] case (a real
+        drop elsewhere in the same trailing segment still earns a boundary
+        node; an ordinary formatting artifact doesn't). Emitter.py's
+        ast_to_requests() no longer special-cases this text at all — it
+        emits whatever text a kept node carries, whitespace or not.
         """
         text = "".join(r.text for r in runs).strip()
-        if not text and (runs or not preserve_if_empty):
-            return
+        if not text:
+            if not (runs and not self._block_resumed) and not preserve_if_empty:
+                return
         if tag in _HEADING_TAGS:
             level = int(tag[1])
             self._nodes.append(Heading(level=level, runs=runs))

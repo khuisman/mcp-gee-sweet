@@ -60,13 +60,13 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
             if isinstance(node, BulletItem) and node.checked is not None:
                 prefix = "☑ " if node.checked else "☐ "
             text = prefix + "".join(r.text for r in node.runs)
-            # A node with runs=[] (an unsupported construct like <img>/<hr> that
-            # html_parser.py now preserves as an empty node rather than dropping
-            # its whole paragraph, #401) must still reserve its blank line here —
-            # only whitespace-only *non-empty* runs stay skipped (#402's domain,
-            # unchanged).
-            if not text.strip() and node.runs:
-                continue
+            # Every node reaching this loop is one html_parser.py already decided
+            # is worth a line in the doc — a node with runs=[] (an unsupported
+            # construct like <img>/<hr>, #401) as much as a node whose runs are
+            # non-empty but whitespace-only (e.g. a standalone `&nbsp;` used as a
+            # deliberate blank-line spacer, #402). Emit its text as-is rather than
+            # re-deciding "is this content" here; the empty-string case (runs=[])
+            # still contributes just the trailing "\n" below.
             appended_text = tabs + text + "\n"
             text_parts.append(appended_text)
             utf16_offset += utf16_len(appended_text)

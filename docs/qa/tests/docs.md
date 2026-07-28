@@ -2438,3 +2438,24 @@ Run against a live sandbox scoped to only `create_doc,create_doc_from_file,write
 **Cleanup:** delete the created doc
 
 **Result:** PASS (2026-07-24, live via `mcp-gee-sweet-kit`, doc `11kfAgxg8pfiSfEGgvu9AvLtYlaWjf4B0KsBJPwntnSI`, deleted after). `get_doc_structure` returned exactly "Before" immediately followed by "After" — no spurious empty paragraph from the inline-wrapped `<hr>`, confirming the send-back finding from PR #406's QA pass 2 is fixed. Full unit suite: 898 passed.
+
+---
+
+## Whitespace/`&nbsp;`-only paragraphs preserve their blank line instead of being silently dropped (issue #402)
+
+**Background:** distinct from #401's `runs=[]` case (an unsupported construct like `<img>` leaves a block with *no* buffered content at all). Here the block's buffered runs are non-empty but strip to nothing — a lone `&nbsp;` or a run of plain spaces — which markdown authors commonly write as a standalone line to force a visible blank-line spacer, since a literal blank line collapses in markdown. `_emit_block_node` (`html_parser.py`) used to drop any block whose text stripped to empty regardless of *why*, fusing the paragraphs on either side together exactly like #401 did before its fix. The fix distinguishes a *freshly*-closed block (opened and closed with nothing in between, e.g. `<p>&nbsp;</p>`) — always kept now, unconditional on `preserve_if_empty`, since there's real (if invisible) content to lose — from a *resumed* block's whitespace-only trailing flush (e.g. the indentation newline between a nested list's `</ul>` and the outer `<li>`'s own `</li>`), which is markup-formatting noise, not authored content, and keeps falling back to the same `preserve_if_empty` gate the `runs=[]` case already used (confirmed via `test_nested_list_via_markdown_preserves_parent_text`, which regressed under a first, broader version of this fix that preserved every non-empty-runs whitespace-only block regardless of resumption state). `emitter.py`'s `ast_to_requests` no longer special-cases whitespace text either — it emits whatever text a kept node carries.
+
+### TC-DOC138: A standalone `&nbsp;` line between two paragraphs keeps its own blank paragraph rather than fusing its neighbors together ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** use `docs/qa/fixtures/tc-doc138-nbsp-spacer-paragraph.md` — mirrors the issue's own repro (an Employee Handbook acknowledgment/signature block): a paragraph, a standalone `&nbsp;` line, a row of underscores (renders as `<hr />`, exercising #401's case in the same doc), and a final paragraph with several inline `&nbsp;` runs mixed with real text.
+
+**Prompt**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc138-nbsp-spacer-paragraph.md, then show me its structure."
+
+**Checks**
+- Tool completes without error
+- `get_doc_structure` lists exactly 4 paragraphs in order: the acknowledgment paragraph, a non-empty paragraph whose `text` is just the nbsp character (plus the API's own trailing newline) — not merged into either neighbor, own `startIndex`/`endIndex` — an empty paragraph (the underscore `<hr>`, #401's case), and the "Employee Signature ... Date" paragraph
+- The nbsp paragraph's `endIndex` does **not** equal the acknowledgment paragraph's `endIndex` (i.e. it isn't zero-width/fused) — it has real width from the nbsp character
+- The final paragraph's inline `&nbsp;&nbsp;...` run between "Employee Signature" and "Date" survives as literal nbsp characters in its `text`, not collapsed or stripped
+
+**Cleanup:** delete the created doc

@@ -147,11 +147,18 @@ class TestHtmlToDocRequests:
         bullets = [r for r in requests if "createParagraphBullets" in r]
         assert len(bullets) == 1
 
-    def test_whitespace_only_paragraph_skipped(self):
-        requests, _ = _html_to_doc_requests("<p>   </p><p>Real content</p>")
+    def test_whitespace_only_paragraph_preserves_boundary(self):
+        # #402: a whitespace-only paragraph (e.g. spaces, or a lone &nbsp; used
+        # as a deliberate markdown blank-line spacer) must not be dropped —
+        # dropping it fuses its neighbors together with no gap.
+        requests, _ = _html_to_doc_requests("<p>Real content</p><p>   </p><p>More content</p>")
         insert = next(r for r in requests if "insertText" in r)
-        assert "Real content" in insert["insertText"]["text"]
-        assert insert["insertText"]["text"].strip() == "Real content"
+        assert insert["insertText"]["text"] == "Real content\n   \nMore content\n"
+
+    def test_nbsp_only_paragraph_preserves_boundary(self):
+        requests, _ = _html_to_doc_requests("<p>A</p><p>&nbsp;</p><p>B</p>")
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "A\n\xa0\nB\n"
 
     def test_img_and_hr_preserve_paragraph_boundary(self):
         # #401: an unsupported construct (<img>, <hr>) must not fuse its
@@ -454,14 +461,20 @@ class TestUnsupportedConstructPreservesParagraphBoundary:
         # (see test_span_wrapped_text_still_dropped in test_docs_content.py).
         assert html_to_ast("<span><hr></span>") == []
 
-    def test_whitespace_only_paragraph_still_dropped(self):
-        # Regression guard: the runs=[] vs. runs-non-empty-but-whitespace
-        # split must not accidentally start fixing #402 (a separate issue) —
-        # a paragraph with actual (whitespace) runs stays dropped.
+    def test_whitespace_only_paragraph_preserved(self):
+        # #402: unlike the runs=[] case above (gated on preserve_if_empty),
+        # a paragraph with actual (whitespace) runs is always kept — there's
+        # real, if invisible, content to lose, not just a boundary.
         nodes = html_to_ast("<p>A</p><p>   </p><p>B</p>")
-        assert len(nodes) == 2
+        assert len(nodes) == 3
         assert nodes[0].runs[0].text == "A"
-        assert nodes[1].runs[0].text == "B"
+        assert nodes[1].runs[0].text == "   "
+        assert nodes[2].runs[0].text == "B"
+
+    def test_nbsp_only_paragraph_preserved(self):
+        nodes = html_to_ast("<p>A</p><p>&nbsp;</p><p>B</p>")
+        assert len(nodes) == 3
+        assert nodes[1].runs[0].text == "\xa0"
 
     def test_dropped_construct_survives_interruption_by_nested_list(self):
         # #401 follow-up (PR #406, TC-DOC136): _interrupt_open_block flushed
