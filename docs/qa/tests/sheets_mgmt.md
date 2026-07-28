@@ -169,6 +169,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Result (2026-07-10) ✅ PASS**
 `duplicate_sheet(spreadsheet_id, sheet="Sales")` → index 1. `list_sheets` → `["Sales","Copy of Sales","Empty","Notes & Misc","BrandNew"]` — lands immediately after Sales, confirming the regression fix (`_get_sheet_index` + explicit `insertSheetIndex`). Deleted after verification.
 
+**Result (2026-07-27) ✅ PASS — regression check for PR #440 (issue #391)**
+Re-ran after `_get_sheet_index`'s blanket `except Exception: return None` was removed (PR #440, mirroring #384's fix to `_get_sheet_id`) so transient API failures propagate instead of being silently treated as "index unknown." Same call, same result: `duplicate_sheet(spreadsheet_id, sheet="Sales")` → index 1, `list_sheets` → `["Sales","Copy of Sales","Notes & Misc","BrandNew","Empty"]` — copy still lands immediately after Sales, confirming the success path (loop finds the match and returns its index) is unchanged by the removed catch-all. Deleted after verification.
+
 ---
 
 ### TC-S54: Explicit insert_index is honored ⚠️ destructive
