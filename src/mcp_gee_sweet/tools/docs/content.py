@@ -1220,7 +1220,7 @@ def register(tool):
                   bold, italic, underline, strikethrough (bool)
                   font_size (float): size in points
                   foreground_color (dict): {"red": 0-1, "green": 0-1, "blue": 0-1}
-                  link_url (str): set a hyperlink
+                  link_url (str | null): set a hyperlink (null to clear)
             named_style_type: Paragraph style applied to the whole paragraph the
                 inserted block ends up in (per Docs API updateParagraphStyle
                 semantics, this covers the entire paragraph touched by the insert,
@@ -1268,7 +1268,9 @@ def register(tool):
             line_ranges.append({"start_index": line_start, "end_index": line_end})
 
             text_style, fields = _text_style_and_fields(line)
-            if text_style:
+            # See style_doc_range's identical comment (#408): a link-clear-only
+            # line legitimately produces an empty text_style with fields=["link"].
+            if fields:
                 requests.append(
                     {
                         "updateTextStyle": {

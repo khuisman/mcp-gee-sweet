@@ -1718,6 +1718,24 @@ class TestInsertSoftbreakParagraph:
         assert style_requests[0]["textStyle"] == {"bold": True}
         assert style_requests[0]["fields"] == "bold"
 
+    async def test_link_url_null_clears_link(self):
+        # #408: shares _text_style_and_fields with style_doc_range, so a
+        # link_url=None line must still send its clearing updateTextStyle
+        # request rather than being skipped for having an empty textStyle.
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=1,
+            lines=[{"text": "no longer linked", "link_url": None}],
+            ctx=ctx,
+        )
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        style_requests = [r["updateTextStyle"] for r in body["requests"] if "updateTextStyle" in r]
+        assert len(style_requests) == 1
+        assert style_requests[0]["fields"] == "link"
+        assert "link" not in style_requests[0]["textStyle"]
+
     async def test_astral_character_advances_offset_by_two_utf16_units(self):
         docs_svc = MagicMock()
         ctx = self._ctx(docs_svc)

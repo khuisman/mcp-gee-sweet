@@ -2461,3 +2461,40 @@ Run against a live sandbox scoped to only `create_doc,create_doc_from_file,write
 **Cleanup:** delete the created doc
 
 **Result:** PASS (2026-07-27, live via `mcp-gee-sweet-kit`, doc `1e9W8zb8gWtOCDb6lJcuFtCZbum7hoXRqGbBaEBd3vD0`, deleted after). `get_doc_structure` returned the expected 4 content paragraphs in order, followed by the doc's own terminal empty paragraph (confirmed via a separate baseline doc with unrelated plain content — this trailing element is a standard Google Docs artifact on every doc, not something this fix introduces, so it doesn't count against "exactly 4"). Verified at the raw codepoint level via a direct Docs API call: the spacer paragraph is literally `'\xa0\n'` (startIndex 96, endIndex 98) with real width — not fused with the acknowledgment paragraph's endIndex 96; the `<hr>` paragraph is the expected bare `'\n'`; the final paragraph's inline gap is `'Employee Signature \xa0\xa0\xa0\xa0\xa0\xa0\xa0\xa0 Date\n'`, all 8 nbsp characters intact, not collapsed to regular spaces. Full unit suite: 945 passed.
+
+---
+
+## `style_doc_range`: `link_url: null` now actually clears a link (issue #408)
+
+**Background:** TC-DOC30 above covers *setting* a link. Clearing one (`link_url: null`, documented in the tool's own docstring as the way to do it) always failed with `HttpError 400 ... "Invalid requests[0].updateTextStyle: Links must include at least one type."` instead. `_text_style_and_fields` (`style.py`, shared with `insert_softbreak_paragraph` in `content.py`) built the clearing request as `textStyle.link = {}` — the Docs API rejects an empty `Link` object outright, confirmed live via a direct API call reproducing the exact reported error. Fixed by omitting the `link` key from `textStyle` entirely while still naming `"link"` in the `fields` mask — the correct way to reset a nested message field to its Docs API default (no link) — confirmed live this actually clears an existing link without error. Both call sites' own `if text_style: requests.append(...)` guard also had to change to `if fields:`: a link-clear-only call now legitimately produces an empty `text_style` dict alongside a non-empty `fields` list (`["link"]`), and the old guard would have silently dropped the request rather than sending it.
+
+### TC-DOC139: Clearing a link via `link_url: null` removes it instead of erroring ⚠️ destructive
+
+**Setup:** insert a paragraph "Visit example\n" in `{DOC_ID}`; apply `link_url: "https://example.com"` to the range covering "example" (same setup as TC-DOC30); note that range.
+
+**Prompt**
+> "Clear the hyperlink on range {start}–{end} in doc {DOC_ID} by setting link_url to null."
+
+**Checks**
+- Tool completes without error (no `HttpError 400` / "Links must include at least one type")
+- Response `requests: 1`
+- `get_doc_structure` shows the run over that range now has `link_url: null` (not still `"https://example.com"`)
+- 🔍 Visual check: the text no longer renders as a hyperlink (no blue/underline hyperlink styling — the auto-added `underline: true` from TC-DOC30 is a separate, independent style field and is not expected to be cleared by this call, since `link_url` and `underline` are unrelated fields in the request)
+
+**Cleanup:** delete the test paragraph
+
+---
+
+### TC-DOC140: `insert_softbreak_paragraph`'s `link_url: null` also clears rather than erroring (shared helper)
+
+**Setup:** none — the line is inserted fresh by the call under test.
+
+**Prompt**
+> "Insert a soft-break paragraph at index 1 in doc {DOC_ID} with one line: text 'plain text, no link' and link_url null."
+
+**Checks**
+- Tool completes without error
+- Response includes `line_ranges` with one entry
+- `get_doc_structure` shows the inserted run has `link_url: null`
+
+**Cleanup:** delete the inserted paragraph
