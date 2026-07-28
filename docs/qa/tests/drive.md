@@ -2357,6 +2357,46 @@ Delete the test file from `{FOLDER_ID}`. Remove `/tmp/qa-sync-346/`.
 
 ---
 
+## `transfer_ownership`
+
+> ⚠️ **Fixture requirement:** TC-D233 requires `TEST_PERMISSION_EMAIL` in `.env` to be a **real Google account** you control, and that ownership can be transferred back afterward (via the Drive UI, logged in as that second account) to restore the fixture — Drive has no API path to reclaim ownership once transferred. Use a disposable file, not {SPREADSHEET_ID} itself.
+
+### TC-D233: Transfer ownership to another user ⚠️ destructive ⚠️ requires-oauth
+
+**Setup:** `create_spreadsheet(title="TransferOwnershipQA")` — a disposable file so ownership loss doesn't disrupt other fixtures.
+
+**Prompt**
+> "Transfer ownership of {file_id} to {TEST_PERMISSION_EMAIL}"
+
+**Checks**
+- Response: `{"fileId": ..., "new_owner": "{TEST_PERMISSION_EMAIL}", "permissionId": ...}`
+- `list_permissions` on the file shows `{TEST_PERMISSION_EMAIL}` with `role: "owner"`; the original account's own permission is demoted (typically to `writer`)
+
+**Cleanup:** Log in as `{TEST_PERMISSION_EMAIL}` and transfer ownership back via the Drive UI, or delete the file from that account.
+
+---
+
+### TC-D234: Service account cannot transfer ownership
+
+**Prompt** (run against the `mcp-gee-sweet-sa` server, per `create_spreadsheet`'s TC-D04 convention for auth-method-dependent behavior)
+> "Transfer ownership of {SPREADSHEET_ID} to {TEST_PERMISSION_EMAIL}"
+
+**Checks**
+- Call fails with a Drive API permission/consent error — not a silent success or unhandled crash
+- 🔍 **Known limitation:** service accounts have no personal Drive identity to own files; this documents the failure mode the tool's docstring OAuth requirement refers to
+
+---
+
+### TC-D235: Non-existent file ID
+
+**Prompt**
+> "Transfer ownership of file 'fakefileid999' to {TEST_PERMISSION_EMAIL}"
+
+**Checks**
+- Drive API error propagates — not a silent success
+
+---
+
 ## `share_file`
 
 > ⚠️ **Fixture requirement:** TC-D132, TC-D137, TC-D139 require `TEST_PERMISSION_EMAIL` in `.env` to be a **real Google account** you control (e.g. a secondary Gmail). `example.com` addresses are not valid Google accounts and Drive will reject sharing with them. TC-D135 (domain share) requires a Google Workspace domain — `example.com` will also fail; use your actual GWS domain or skip and note as environmental.

@@ -228,6 +228,56 @@ class TestRemovePermission:
         drive.permissions.return_value.delete.assert_called_once()
 
 
+class TestTransferOwnership:
+    """transfer_ownership calls permissions().create() with transferOwnership=True."""
+
+    async def test_success_returns_confirmation_with_permission_id(self):
+        """Result must contain fileId, new_owner, and the permissionId from the API."""
+        drive = MagicMock()
+        drive.permissions.return_value.create.return_value.execute.return_value = {"id": "perm-42"}
+        ctx = _make_ctx(drive_service=drive)
+        result = await _sharing_tools["transfer_ownership"](
+            file_id="file-1", new_owner_email="new-owner@example.com", ctx=ctx
+        )
+        assert result == {
+            "fileId": "file-1",
+            "new_owner": "new-owner@example.com",
+            "permissionId": "perm-42",
+        }
+
+    async def test_request_body_sets_owner_role_and_transfer_flag(self):
+        """The permissions().create() call must set role='owner', transferOwnership=True,
+        and the type/emailAddress body Drive requires for an ownership transfer."""
+        drive = MagicMock()
+        drive.permissions.return_value.create.return_value.execute.return_value = {"id": "p"}
+        ctx = _make_ctx(drive_service=drive)
+        await _sharing_tools["transfer_ownership"](
+            file_id="file-1", new_owner_email="new-owner@example.com", ctx=ctx
+        )
+        _, kwargs = drive.permissions.return_value.create.call_args
+        assert kwargs["fileId"] == "file-1"
+        assert kwargs["transferOwnership"] is True
+        assert kwargs["body"] == {
+            "type": "user",
+            "role": "owner",
+            "emailAddress": "new-owner@example.com",
+        }
+
+    async def test_send_notification_forwarded_to_api_call(self):
+        """send_notification=False must reach sendNotificationEmail on the API call."""
+        drive = MagicMock()
+        drive.permissions.return_value.create.return_value.execute.return_value = {"id": "p"}
+        ctx = _make_ctx(drive_service=drive)
+        await _sharing_tools["transfer_ownership"](
+            file_id="file-1",
+            new_owner_email="new-owner@example.com",
+            send_notification=False,
+            ctx=ctx,
+        )
+        _, kwargs = drive.permissions.return_value.create.call_args
+        assert kwargs["sendNotificationEmail"] is False
+
+
 class TestShareFile:
     """share_file handles the richer type/domain/anyone permission model."""
 
