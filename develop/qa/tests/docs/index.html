@@ -3153,6 +3153,45 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#style_doc_range-link_url-null-now-actually-clears-a-link-issue-408" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        style_doc_range: link_url: null now actually clears a link (issue #408)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="style_doc_range: link_url: null now actually clears a link (issue #408)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc139-clearing-a-link-via-link_url-null-removes-it-instead-of-erroring-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC139: Clearing a link via link_url: null removes it instead of erroring ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc140-insert_softbreak_paragraphs-link_url-null-also-clears-rather-than-erroring-shared-helper" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC140: insert_softbreak_paragraph's link_url: null also clears rather than erroring (shared helper)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5305,6 +5344,35 @@ Run against a live sandbox scoped to only <code>create_doc,create_doc_from_file,
 - The final paragraph's inline <code>&amp;nbsp;&amp;nbsp;...</code> run between "Employee Signature" and "Date" survives as literal nbsp characters in its <code>text</code>, not collapsed or stripped</p>
 <p><strong>Cleanup:</strong> delete the created doc</p>
 <p><strong>Result:</strong> PASS (2026-07-27, live via <code>mcp-gee-sweet-kit</code>, doc <code>1e9W8zb8gWtOCDb6lJcuFtCZbum7hoXRqGbBaEBd3vD0</code>, deleted after). <code>get_doc_structure</code> returned the expected 4 content paragraphs in order, followed by the doc's own terminal empty paragraph (confirmed via a separate baseline doc with unrelated plain content — this trailing element is a standard Google Docs artifact on every doc, not something this fix introduces, so it doesn't count against "exactly 4"). Verified at the raw codepoint level via a direct Docs API call: the spacer paragraph is literally <code>'\xa0\n'</code> (startIndex 96, endIndex 98) with real width — not fused with the acknowledgment paragraph's endIndex 96; the <code>&lt;hr&gt;</code> paragraph is the expected bare <code>'\n'</code>; the final paragraph's inline gap is <code>'Employee Signature \xa0\xa0\xa0\xa0\xa0\xa0\xa0\xa0 Date\n'</code>, all 8 nbsp characters intact, not collapsed to regular spaces. Full unit suite: 945 passed.</p>
+<hr />
+<h2 id="style_doc_range-link_url-null-now-actually-clears-a-link-issue-408"><code>style_doc_range</code>: <code>link_url: null</code> now actually clears a link (issue #408)<a class="headerlink" href="#style_doc_range-link_url-null-now-actually-clears-a-link-issue-408" title="Permanent link">&para;</a></h2>
+<p><strong>Background:</strong> TC-DOC30 above covers <em>setting</em> a link. Clearing one (<code>link_url: null</code>, documented in the tool's own docstring as the way to do it) always failed with <code>HttpError 400 ... "Invalid requests[0].updateTextStyle: Links must include at least one type."</code> instead. <code>_text_style_and_fields</code> (<code>style.py</code>, shared with <code>insert_softbreak_paragraph</code> in <code>content.py</code>) built the clearing request as <code>textStyle.link = {}</code> — the Docs API rejects an empty <code>Link</code> object outright, confirmed live via a direct API call reproducing the exact reported error. Fixed by omitting the <code>link</code> key from <code>textStyle</code> entirely while still naming <code>"link"</code> in the <code>fields</code> mask — the correct way to reset a nested message field to its Docs API default (no link) — confirmed live this actually clears an existing link without error. Both call sites' own <code>if text_style: requests.append(...)</code> guard also had to change to <code>if fields:</code>: a link-clear-only call now legitimately produces an empty <code>text_style</code> dict alongside a non-empty <code>fields</code> list (<code>["link"]</code>), and the old guard would have silently dropped the request rather than sending it.</p>
+<h3 id="tc-doc139-clearing-a-link-via-link_url-null-removes-it-instead-of-erroring-destructive">TC-DOC139: Clearing a link via <code>link_url: null</code> removes it instead of erroring ⚠️ destructive<a class="headerlink" href="#tc-doc139-clearing-a-link-via-link_url-null-removes-it-instead-of-erroring-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> insert a paragraph "Visit example\n" in <code>{DOC_ID}</code>; apply <code>link_url: "https://example.com"</code> to the range covering "example" (same setup as TC-DOC30); note that range.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Clear the hyperlink on range {start}–{end} in doc {DOC_ID} by setting link_url to null."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Tool completes without error (no <code>HttpError 400</code> / "Links must include at least one type")
+- Response <code>requests: 1</code>
+- <code>get_doc_structure</code> shows the run over that range now has <code>link_url: null</code> (not still <code>"https://example.com"</code>)
+- 🔍 Visual check: the text no longer renders as a hyperlink (no blue/underline hyperlink styling — the auto-added <code>underline: true</code> from TC-DOC30 is a separate, independent style field and is not expected to be cleared by this call, since <code>link_url</code> and <code>underline</code> are unrelated fields in the request)</p>
+<p><strong>Cleanup:</strong> delete the test paragraph</p>
+<p><strong>Result:</strong> PASS (2026-07-27, live via <code>mcp-gee-sweet-kit</code>, <code>mcp-gee-sweet-qa-fixtures-doc</code> <code>1-whiEVwvnSOABaK9qgpzdVaGUOMRvJdQhDmCURqx4fA</code>). Inserted "Visit example\n", linked "example" (indices 94–101) to <code>https://example.com</code>, then cleared it via <code>style_doc_range(..., link_url=null)</code> — no <code>HttpError 400</code>, <code>requests: 1</code>. <code>get_doc_structure</code> confirmed "example" split into its own run with <code>link_url: null</code> (previously carried the link). Visual/Playwright check not performed (no browser session in this pass); cleared status confirmed via the API's own structural response instead. Test paragraph deleted after.</p>
+<hr />
+<h3 id="tc-doc140-insert_softbreak_paragraphs-link_url-null-also-clears-rather-than-erroring-shared-helper">TC-DOC140: <code>insert_softbreak_paragraph</code>'s <code>link_url: null</code> also clears rather than erroring (shared helper)<a class="headerlink" href="#tc-doc140-insert_softbreak_paragraphs-link_url-null-also-clears-rather-than-erroring-shared-helper" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> none — the line is inserted fresh by the call under test.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Insert a soft-break paragraph at index 1 in doc {DOC_ID} with one line: text 'plain text, no link' and link_url null."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Tool completes without error
+- Response includes <code>line_ranges</code> with one entry
+- <code>get_doc_structure</code> shows the inserted run has <code>link_url: null</code></p>
+<p><strong>Cleanup:</strong> delete the inserted paragraph</p>
+<p><strong>Result:</strong> PASS (2026-07-27, live via <code>mcp-gee-sweet-kit</code>, same fixture doc). <code>insert_softbreak_paragraph(index=1, lines=[{"text": "plain text, no link", "link_url": null}])</code> completed without error, returned <code>line_ranges: [{"start_index": 1, "end_index": 20}]</code>. <code>get_doc_structure</code> confirmed the inserted run's <code>link_url: null</code>. Note: since <code>named_style_type</code> wasn't passed, the call's documented "covers the entire paragraph touched by the insert" behavior downgraded the existing "Test Document" HEADING_1 paragraph to NORMAL_TEXT (expected, not a defect) — restored via an explicit <code>style_doc_range</code> call after cleanup, fixture doc left in its original state.</p>
 
 
 
