@@ -1639,13 +1639,20 @@ def register(tool):
         if sort_order is None:
             sort_order = [{"column_index": 0, "order": "ASCENDING"}]
 
-        sort_specs = [
-            {
-                "dimensionIndex": col_start + s["column_index"],
-                "sortOrder": s.get("order", "ASCENDING").upper(),
-            }
-            for s in sort_order
-        ]
+        sort_specs = []
+        for s in sort_order:
+            order = s.get("order", "ASCENDING")
+            if not isinstance(order, str):
+                return {
+                    "error": f"Sort spec for column_index {s.get('column_index')} "
+                    "has a non-string 'order' value"
+                }
+            sort_specs.append(
+                {
+                    "dimensionIndex": col_start + s["column_index"],
+                    "sortOrder": order.upper(),
+                }
+            )
 
         return await execute_in_thread(
             sheets_service.spreadsheets()

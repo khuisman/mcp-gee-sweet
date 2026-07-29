@@ -1376,3 +1376,10 @@ Clear the test rule from the range used.
 - Sheet not found → `{"error": "Sheet 'X' not found"}`
 
 **Result (2026-06-21) ✅** Unit test confirms error.
+
+---
+
+### TC-S103: sort_range — non-string order value returns error, does not crash
+
+**Checks (unit test)**
+- Calling `sort_range` with a `sort_order` entry whose `"order"` value is not a string (e.g. `{"column_index": 0, "order": 5}`) returns `{"error": ...}` instead of raising `AttributeError` on `.upper()`, and no `batchUpdate` call is made.

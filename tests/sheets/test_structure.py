@@ -1681,3 +1681,16 @@ class TestSortRange:
             spreadsheet_id="ss1", sheet="Missing", range="A1:D10", ctx=ctx
         )
         assert "error" in result
+
+    async def test_returns_error_for_non_string_order_instead_of_crashing(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["sort_range"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:D10",
+            sort_order=[{"column_index": 0, "order": 5}],
+            ctx=ctx,
+        )
+        assert "error" in result
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
