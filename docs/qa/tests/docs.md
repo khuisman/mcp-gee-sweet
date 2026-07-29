@@ -2546,6 +2546,8 @@ Tool calls: `write_doc_content(doc_id={DOC_ID}, content="# A Heading\n\nSome tex
 
 **Cleanup:** write fixture content back
 
+**Result:** PASS (2026-07-28, live via `mcp-gee-sweet-kit`). First element was `HEADING_1`/`headingId: "h.sfbe55a8e31j"`; second was `NORMAL_TEXT`/`headingId: null`. Fixture content restored.
+
 ---
 
 ### TC-DOC143: `create_doc_from_file` resolves markdown heading-anchor links to working in-doc jump links, and strips unmatched ones ⚠️ requires-oauth ⚠️ destructive
@@ -2563,5 +2565,9 @@ Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-do
 - The run "Appendix B itself" has `link_url` similarly pointing at the "Appendix B - Something Else" heading's own `headingId`
 - The run "dead link" has `link_url: null` (stripped — not left pointing at the literal `#totally-nonexistent-section` fragment)
 - 🔍 Visual check: clicking "Appendix A" in the rendered Doc jumps to the "Appendix A - Approved Hashing Algorithms" heading; "dead link" renders as plain, non-hyperlinked text
+
+**Cleanup:** delete the created doc
+
+**Result:** PASS as written (2026-07-28, live via `mcp-gee-sweet-kit`) — "Appendix A" and "Appendix B itself" runs resolved to their own headings' `headingId` correctly, "dead link" was stripped to `link_url: null`. Visual jump-link click not separately verified via Playwright since `/code-review high` on this PR independently confirmed, by direct source reading, two higher-severity defects this fixture can't reach: (1) `_resolve_heading_anchors`'s body walk (`content.py`) only inspects top-level `paragraph` elements, never descending into `table` cells, so both the pending-link gate and the resolution scan are blind to any heading-anchor link or heading inside a table; (2) an anchor run whose `pe.get("startIndex")` is `None` (documented elsewhere in this same file as occurring on a document's first body element) is silently dropped rather than carrying the offset forward the way `_collect_doc_paragraphs` already does for the identical quirk. Neither case is exercised by `tc-doc142-heading-anchors.md` (no table, and the anchor links aren't on the doc's first element) — this is a real coverage gap in the fixture, not just an untested edge case. Sending back to Dev per findings below rather than approving.
 
 **Cleanup:** delete the created doc
