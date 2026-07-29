@@ -1379,10 +1379,17 @@ Clear the test rule from the range used.
 
 ---
 
-### TC-S103: sort_range — non-string order value returns error, does not crash
+### TC-S103: sort_range — malformed sort spec fields return a clean error, do not crash
 
 **Checks (unit test)**
-- Calling `sort_range` with a `sort_order` entry whose `"order"` value is not a string (e.g. `{"column_index": 0, "order": 5}`) returns `{"error": ...}` instead of raising `AttributeError` on `.upper()`, and no `batchUpdate` call is made.
+- Non-string `"order"` value (e.g. `{"column_index": 0, "order": 5}`) → `{"error": ...}`, no `AttributeError` on `.upper()`.
+- Missing `"column_index"` key (e.g. `{"order": "ASCENDING"}`) → `{"error": ...}`, no `KeyError`.
+- Non-int `"column_index"` value (e.g. `{"column_index": "0", "order": "ASCENDING"}`) → `{"error": ...}`, no `TypeError` from the `col_start + s["column_index"]` addition.
+- `bool` `"column_index"` value (e.g. `{"column_index": True, ...}`) → `{"error": ...}` — `bool` is a Python `int` subclass, so a bare `isinstance(..., int)` check alone would silently accept it.
+- Invalid `"order"` enum value (e.g. `{"column_index": 0, "order": "banana"}`) → `{"error": ...}` from local validation, not a raw `HttpError` from the Sheets API.
+- In every case, no `batchUpdate` call is made.
+
+Matches `update_borders`'s validation depth (missing-key + isinstance + enum-membership) for the analogous `"style"` field (`structure.py`, `_VALID_BORDER_STYLES`) — this tool now applies the same pattern via `_VALID_SORT_ORDERS` for both `column_index` and `order`.
 
 **Result (2026-07-28) ⚠️ PASS (fix works) but same defect class left open on sibling fields.** Live-verified against `mcp-gee-sweet-qa-fixtures` (`BrandNew` sheet), via `mcp-gee-sweet-sky`:
 - `sort_order=[{"column_index": 0, "order": 5}]` → clean `{"error": "Sort spec for column_index 0 has a non-string 'order' value"}`. This PR's own fix works as intended.

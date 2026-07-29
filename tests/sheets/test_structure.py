@@ -1694,3 +1694,55 @@ class TestSortRange:
         )
         assert "error" in result
         svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
+    async def test_returns_error_for_missing_column_index_instead_of_crashing(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["sort_range"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:D10",
+            sort_order=[{"order": "ASCENDING"}],
+            ctx=ctx,
+        )
+        assert "error" in result
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
+    async def test_returns_error_for_non_int_column_index_instead_of_crashing(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["sort_range"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:D10",
+            sort_order=[{"column_index": "0", "order": "ASCENDING"}],
+            ctx=ctx,
+        )
+        assert "error" in result
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
+    async def test_returns_error_for_bool_column_index(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["sort_range"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:D10",
+            sort_order=[{"column_index": True, "order": "ASCENDING"}],
+            ctx=ctx,
+        )
+        assert "error" in result
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
+    async def test_returns_error_for_invalid_order_enum_value(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["sort_range"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:D10",
+            sort_order=[{"column_index": 0, "order": "banana"}],
+            ctx=ctx,
+        )
+        assert "error" in result
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
