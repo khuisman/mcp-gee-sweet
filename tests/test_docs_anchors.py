@@ -47,7 +47,37 @@ class TestResolveHeadingAnchor:
         headings = ["Appendix A: Approved Hashing Algorithms!"]
         assert resolve_heading_anchor("#appendix-a-approved-hashing-algorithms", headings) == 0
 
-    def test_fuzzy_fallback_strips_trailing_dedup_suffix(self):
+    def test_fuzzy_fallback_does_not_guess_when_requested_occurrence_is_missing(self):
+        # Only one "Notes and Caveats" heading exists, but the anchor's "-2"
+        # suffix claims it's the third duplicate. Resolving to the lone
+        # heading anyway would be a guess, not a confirmed match — the
+        # anchor's own claimed occurrence doesn't exist, so this must decline
+        # rather than silently pick the only candidate.
         headings = ["Notes and Caveats"]
         assert resolve_heading_anchor("#totally-different-notes-and-caveats-2", headings) is None
-        assert resolve_heading_anchor("#notes-and-caveats-2", headings) == 0
+        assert resolve_heading_anchor("#notes-and-caveats-2", headings) is None
+
+    def test_fuzzy_fallback_does_not_strip_digits_that_are_real_heading_content(self):
+        # Regression for a confirmed QA finding: unconditionally treating a
+        # trailing "-<digits>" as a dedup suffix let an anchor whose digits
+        # were genuine heading wording ("Chapter: 2024 Edition") resolve to a
+        # completely different, wrong heading ("Chapter") that only matched
+        # once the (real) "2024" was stripped away.
+        headings = ["Chapter: 2024 Edition", "Chapter"]
+        assert resolve_heading_anchor("#chapter-2024", headings) is None
+
+    def test_fuzzy_fallback_bare_anchor_matches_first_duplicate_occurrence(self):
+        # No known scheme matches (reworded with punctuation), but the
+        # bare (unsuffixed) anchor should resolve to the FIRST duplicate,
+        # matching GitHub/GitLab's own convention that only the second and
+        # later occurrences get a numeric suffix.
+        headings = ["Notes: extra!", "Notes: extra!", "Notes: extra!"]
+        assert resolve_heading_anchor("#notes-extra", headings) == 0
+
+    def test_fuzzy_fallback_suffix_picks_correct_duplicate_occurrence(self):
+        headings = ["Notes: extra!", "Notes: extra!", "Notes: extra!"]
+        assert resolve_heading_anchor("#notes-extra-1", headings) == 1
+        assert resolve_heading_anchor("#notes-extra-2", headings) == 2
+        # Only 3 occurrences exist (indices 0-2) — a claimed 4th must not
+        # fall back to guessing one of the existing three.
+        assert resolve_heading_anchor("#notes-extra-3", headings) is None

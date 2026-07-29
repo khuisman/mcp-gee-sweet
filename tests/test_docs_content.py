@@ -11,8 +11,11 @@ from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.docs import content as content_module
 from mcp_gee_sweet.tools.docs.ast import (
     BulletItem,
+    Cell,
     Heading,
     Paragraph,
+    Row,
+    Run,
     Table,
 )
 from mcp_gee_sweet.tools.docs.content import (
@@ -975,17 +978,44 @@ class TestGetDocStructureHeadingId:
 class TestHasPendingAnchorLinks:
     def test_true_for_hash_link(self):
         requests = [{"updateTextStyle": {"textStyle": {"link": {"url": "#some-slug"}}}}]
-        assert _has_pending_anchor_links(requests) is True
+        assert _has_pending_anchor_links(requests, []) is True
 
     def test_false_for_ordinary_https_link(self):
         requests = [{"updateTextStyle": {"textStyle": {"link": {"url": "https://example.com"}}}}]
-        assert _has_pending_anchor_links(requests) is False
+        assert _has_pending_anchor_links(requests, []) is False
 
     def test_false_when_no_link_requests(self):
-        assert _has_pending_anchor_links([{"insertText": {"text": "hi"}}]) is False
+        assert _has_pending_anchor_links([{"insertText": {"text": "hi"}}], []) is False
 
     def test_false_for_empty_requests(self):
-        assert _has_pending_anchor_links([]) is False
+        assert _has_pending_anchor_links([], []) is False
+
+    def _table_with_link(self, link_url):
+        return Table(
+            rows=[
+                Row(
+                    cells=[
+                        Cell(children=[Run(text="link text", link_url=link_url)]),
+                    ]
+                )
+            ]
+        )
+
+    def test_true_for_table_cell_anchor_link_with_no_top_level_link(self):
+        # Regression: a table-only anchor link (no top-level paragraph link at
+        # all) must still be detected — fill_tables() builds and executes its
+        # own requests separately, invisible to `requests` alone.
+        table = self._table_with_link("#some-slug")
+        assert _has_pending_anchor_links([], [table]) is True
+
+    def test_false_for_table_cell_ordinary_link(self):
+        table = self._table_with_link("https://example.com")
+        assert _has_pending_anchor_links([], [table]) is False
+
+    def test_true_for_anchor_link_in_nested_table(self):
+        inner = self._table_with_link("#nested-slug")
+        outer = Table(rows=[Row(cells=[Cell(children=[inner])])])
+        assert _has_pending_anchor_links([], [outer]) is True
 
 
 class TestResolveHeadingAnchorsHelper:
@@ -1013,13 +1043,13 @@ class TestResolveHeadingAnchorsHelper:
                     },
                     {
                         "startIndex": 20,
-                        "endIndex": 26,
+                        "endIndex": 25,
                         "paragraph": {
                             "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
                             "elements": [
                                 {
                                     "startIndex": 20,
-                                    "endIndex": 26,
+                                    "endIndex": 25,
                                     "textRun": {
                                         "content": "Link\n",
                                         "textStyle": {"link": {"url": anchor_url}},
@@ -1044,7 +1074,11 @@ class TestResolveHeadingAnchorsHelper:
         requests = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]["requests"]
         assert len(requests) == 1
         style = requests[0]["updateTextStyle"]
-        assert style["range"] == {"startIndex": 20, "endIndex": 26}
+        # "Link\n" is 5 UTF-16 units; the range is computed by advancing from
+        # the run's own startIndex (20) through its content, matching
+        # _collect_doc_paragraphs's convention — not read from the mock's
+        # own (unused) endIndex field.
+        assert style["range"] == {"startIndex": 20, "endIndex": 25}
         assert style["fields"] == "link"
         assert style["textStyle"]["link"]["url"] == (
             "https://docs.google.com/document/d/doc1/edit?tab=t.0#heading=h.xyz"
@@ -1076,6 +1110,140 @@ class TestResolveHeadingAnchorsHelper:
         summary = await _resolve_heading_anchors(docs_svc, "doc1")
         assert summary == {"resolved": [], "stripped": []}
         docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_anchor_link_inside_table_cell_is_resolved(self):
+        # Regression: the body walk used to only look at top-level
+        # elem.get("paragraph") and never descended into elem.get("table"),
+        # so a #slug link inside a table cell was invisible.
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentId": "doc1",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 10,
+                        "paragraph": {
+                            "paragraphStyle": {
+                                "namedStyleType": "HEADING_1",
+                                "headingId": "h.xyz",
+                            },
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 10,
+                                    "textRun": {"content": "Overview\n", "textStyle": {}},
+                                }
+                            ],
+                        },
+                    },
+                    {
+                        "startIndex": 20,
+                        "endIndex": 40,
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        {
+                                            "startIndex": 22,
+                                            "endIndex": 35,
+                                            "content": [
+                                                {
+                                                    "startIndex": 23,
+                                                    "endIndex": 30,
+                                                    "paragraph": {
+                                                        "paragraphStyle": {
+                                                            "namedStyleType": "NORMAL_TEXT"
+                                                        },
+                                                        "elements": [
+                                                            {
+                                                                "startIndex": 23,
+                                                                "endIndex": 28,
+                                                                "textRun": {
+                                                                    "content": "Link\n",
+                                                                    "textStyle": {
+                                                                        "link": {"url": "#overview"}
+                                                                    },
+                                                                },
+                                                            }
+                                                        ],
+                                                    },
+                                                }
+                                            ],
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                    },
+                ]
+            },
+        }
+        summary = await _resolve_heading_anchors(docs_svc, "doc1")
+        assert summary["resolved"] == [{"anchor": "#overview", "heading": "Overview"}]
+
+        requests = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]["requests"]
+        style = requests[0]["updateTextStyle"]
+        assert style["range"] == {"startIndex": 23, "endIndex": 28}
+        assert style["textStyle"]["link"]["url"] == (
+            "https://docs.google.com/document/d/doc1/edit?tab=t.0#heading=h.xyz"
+        )
+
+    async def test_anchor_on_doc_first_element_with_no_start_index_is_resolved(self):
+        # Regression: the Docs API omits startIndex on a document's very
+        # first element. The old code required both startIndex and endIndex
+        # on the run itself and silently dropped the anchor when absent.
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentId": "doc1",
+            "body": {
+                "content": [
+                    {
+                        # No startIndex on this element at all (first element).
+                        "endIndex": 6,
+                        "paragraph": {
+                            "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
+                            "elements": [
+                                {
+                                    # No startIndex on the run either.
+                                    "endIndex": 6,
+                                    "textRun": {
+                                        "content": "Link\n",
+                                        "textStyle": {"link": {"url": "#overview"}},
+                                    },
+                                }
+                            ],
+                        },
+                    },
+                    {
+                        "startIndex": 6,
+                        "endIndex": 16,
+                        "paragraph": {
+                            "paragraphStyle": {
+                                "namedStyleType": "HEADING_1",
+                                "headingId": "h.xyz",
+                            },
+                            "elements": [
+                                {
+                                    "startIndex": 6,
+                                    "endIndex": 15,
+                                    "textRun": {"content": "Overview\n", "textStyle": {}},
+                                }
+                            ],
+                        },
+                    },
+                ]
+            },
+        }
+        summary = await _resolve_heading_anchors(docs_svc, "doc1")
+        assert summary["resolved"] == [{"anchor": "#overview", "heading": "Overview"}]
+
+        requests = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]["requests"]
+        style = requests[0]["updateTextStyle"]
+        # Runs from offset 1 (the implicit start of the doc's first element,
+        # same convention as _collect_doc_paragraphs) through the run's own
+        # 5-UTF-16-unit content "Link\n".
+        assert style["range"] == {"startIndex": 1, "endIndex": 6}
 
 
 class TestCreateDocFromFileAnchorResolution:
@@ -1111,13 +1279,13 @@ class TestCreateDocFromFileAnchorResolution:
                     },
                     {
                         "startIndex": 20,
-                        "endIndex": 26,
+                        "endIndex": 25,
                         "paragraph": {
                             "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
                             "elements": [
                                 {
                                     "startIndex": 20,
-                                    "endIndex": 26,
+                                    "endIndex": 25,
                                     "textRun": {
                                         "content": "link\n",
                                         "textStyle": {"link": {"url": "#section"}},

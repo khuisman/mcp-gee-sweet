@@ -2571,3 +2571,39 @@ Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-do
 **Result:** PASS as written (2026-07-28, live via `mcp-gee-sweet-kit`) — "Appendix A" and "Appendix B itself" runs resolved to their own headings' `headingId` correctly, "dead link" was stripped to `link_url: null`. Visual jump-link click not separately verified via Playwright since `/code-review high` on this PR independently confirmed, by direct source reading, two higher-severity defects this fixture can't reach: (1) `_resolve_heading_anchors`'s body walk (`content.py`) only inspects top-level `paragraph` elements, never descending into `table` cells, so both the pending-link gate and the resolution scan are blind to any heading-anchor link or heading inside a table; (2) an anchor run whose `pe.get("startIndex")` is `None` (documented elsewhere in this same file as occurring on a document's first body element) is silently dropped rather than carrying the offset forward the way `_collect_doc_paragraphs` already does for the identical quirk. Neither case is exercised by `tc-doc142-heading-anchors.md` (no table, and the anchor links aren't on the doc's first element) — this is a real coverage gap in the fixture, not just an untested edge case. Sending back to Dev per findings below rather than approving.
 
 **Cleanup:** delete the created doc
+
+---
+
+### TC-DOC144: A heading-anchor link inside a table cell is resolved (regression for the table-blind body walk) ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** use `docs/qa/fixtures/tc-doc144-anchor-in-table-cell.md` — a top-level `# Reference Section` heading, then a table whose first cell contains a markdown link `[Reference Section](#reference-section)`.
+
+**Prompt**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc144-anchor-in-table-cell.md, then show me its structure."
+
+Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-doc144-anchor-in-table-cell.md")`, then `get_doc_structure(doc_id=<returned docId>)`.
+
+**Checks**
+- `get_doc_structure` shows a HEADING_1 "Reference Section" with a non-null `headingId`
+- The table cell's run "Reference Section" has `link_url` equal to `https://docs.google.com/document/d/<docId>/edit?tab=t.0#heading=<headingId>` where `<headingId>` matches the HEADING_1 paragraph's own `headingId` — not left as the literal `#reference-section` fragment
+- 🔍 Visual check: clicking "Reference Section" inside the table cell jumps to the "Reference Section" heading
+
+**Cleanup:** delete the created doc
+
+---
+
+### TC-DOC145: A heading-anchor link that is the document's very first body element is resolved (regression for the startIndex-carry-forward gap) ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** use `docs/qa/fixtures/tc-doc145-anchor-on-first-element.md` — the document's very first line is a markdown link `[Jump to Overview](#overview)`, followed by the `# Overview` heading it references.
+
+**Prompt**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc145-anchor-on-first-element.md, then show me its structure."
+
+Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-doc145-anchor-on-first-element.md")`, then `get_doc_structure(doc_id=<returned docId>)`.
+
+**Checks**
+- `get_doc_structure`'s first element is the paragraph containing "Jump to Overview" (the Docs API omits `startIndex` on a document's very first element — this is the case the fix must not drop)
+- That run's `link_url` is equal to `https://docs.google.com/document/d/<docId>/edit?tab=t.0#heading=<headingId>` where `<headingId>` matches the "Overview" HEADING_1 paragraph's own `headingId` — not left as the literal `#overview` fragment
+- 🔍 Visual check: clicking "Jump to Overview" jumps to the "Overview" heading
+
+**Cleanup:** delete the created doc

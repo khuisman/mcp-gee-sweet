@@ -70,6 +70,59 @@ def _normalize_tokens(text: str) -> tuple[str, ...]:
     return tuple(_WORD_CHARS.findall(text.lower().replace("-", " ")))
 
 
+def _match_tokens_at_occurrence(
+    anchor_text: str, heading_texts: list[str], occurrence: int
+) -> int | None:
+    """Return the index of the `occurrence`-th (0-based, in document order)
+    heading whose normalized word tokens equal `anchor_text`'s, or None if
+    fewer than `occurrence + 1` headings match. Never guesses among ambiguous
+    duplicates by just returning the first — a caller wanting "the first
+    match" passes occurrence=0 explicitly, same as any other occurrence."""
+    anchor_tokens = _normalize_tokens(anchor_text)
+    if not anchor_tokens:
+        return None
+    seen = 0
+    for i, text in enumerate(heading_texts):
+        if _normalize_tokens(text) == anchor_tokens:
+            if seen == occurrence:
+                return i
+            seen += 1
+    return None
+
+
+def _fuzzy_match(anchor: str, heading_texts: list[str]) -> int | None:
+    """Fallback for an anchor that doesn't exactly match either known
+    slugification scheme's output but clearly names a heading by its words.
+
+    Tries the anchor's own tokens as-is first — this deliberately does NOT
+    assume a trailing '-<digits>' is a GitHub/GitLab dedup suffix, since it
+    could just as easily be genuine heading wording (e.g. a heading literally
+    titled "Chapter 2024"); stripping it unconditionally risked matching a
+    different, wrong heading. Matching as-is at occurrence=0 also already
+    covers the common case correctly: GitHub/GitLab give a duplicate
+    heading's *first* occurrence the bare (unsuffixed) slug, so an anchor
+    with no suffix naming a heading that has duplicates should resolve to
+    that first occurrence, not bail out just because duplicates exist.
+
+    Only if that literal match fails, and the anchor does end in
+    '-<digits>', is the suffix treated as a dedup index and stripped — then
+    that number is used to pick the correct occurrence among headings
+    sharing the same normalized tokens, the same way _slugs_with_dedup
+    numbers them for the exact-scheme match. This never falls back to
+    "just return the first" when the requested occurrence isn't present.
+    """
+    match_idx = _match_tokens_at_occurrence(anchor, heading_texts, occurrence=0)
+    if match_idx is not None:
+        return match_idx
+
+    m = _TRAILING_DEDUP_SUFFIX.search(anchor)
+    if not m:
+        return None
+    anchor_base = anchor[: m.start()]
+    occurrence = int(m.group(1))
+    return _match_tokens_at_occurrence(anchor_base, heading_texts, occurrence=occurrence)
+
+
 def resolve_heading_anchor(anchor: str, heading_texts: list[str]) -> int | None:
     """Return the index into heading_texts that `anchor` (a '#slug' fragment,
     leading '#' optional) refers to, or None if no heading matches with
@@ -77,10 +130,9 @@ def resolve_heading_anchor(anchor: str, heading_texts: list[str]) -> int | None:
 
     Tries each known slugification scheme against the full heading list
     (with duplicate-heading disambiguation applied) and accepts the first
-    exact match. Falls back to comparing normalized word tokens — stripping
-    a trailing '-N' disambiguation suffix from the anchor first — for slugs
-    that don't exactly match a known scheme's output but clearly denote the
-    same words.
+    exact match. Falls back to normalized-word-token comparison (see
+    _fuzzy_match) for a slug that doesn't exactly match a known scheme's
+    output but clearly denotes the same heading.
     """
     anchor = anchor.lstrip("#")
     if not anchor or not heading_texts:
@@ -97,11 +149,4 @@ def resolve_heading_anchor(anchor: str, heading_texts: list[str]) -> int | None:
         if anchor in slugs:
             return slugs.index(anchor)
 
-    anchor_base = _TRAILING_DEDUP_SUFFIX.sub("", anchor)
-    anchor_tokens = _normalize_tokens(anchor_base)
-    if not anchor_tokens:
-        return None
-    for i, text in enumerate(heading_texts):
-        if _normalize_tokens(text) == anchor_tokens:
-            return i
-    return None
+    return _fuzzy_match(anchor, heading_texts)

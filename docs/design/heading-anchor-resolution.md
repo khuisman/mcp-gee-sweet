@@ -43,10 +43,14 @@ GitLab-style scheme is delegated to `python-markdown`'s own `toc` extension slug
 project dependency, confirmed live to collapse hyphens the same way); GitHub's non-collapsing
 convention has no known off-the-shelf Python equivalent, so it's hand-rolled.
 
-A normalized word-token comparison (stripping punctuation and a trailing `-N` disambiguation
-suffix) is the last-resort fallback for a slug that doesn't exactly match either scheme but
-clearly names the same heading — e.g. the heading was reworded slightly after the source
-anchors were generated.
+A normalized word-token comparison is the last-resort fallback for a slug that doesn't exactly
+match either scheme but clearly names the same heading — e.g. the heading was reworded slightly
+after the source anchors were generated. It tries the anchor's tokens literally first (a
+trailing `-<digits>` could be genuine heading wording, not a dedup suffix — unconditionally
+stripping it caused PR #453's own QA round to catch a wrong-heading resolution); only if that
+fails, and the anchor does end in digits, is the suffix treated as a duplicate-occurrence index
+and used to pick the matching heading at that specific occurrence — never just "the first
+match" once duplicates are in play, and never a guess when the claimed occurrence doesn't exist.
 
 **Known limitation, flagged inline (`anchors.py`, `TODO(#409 follow-up)`):** this is a
 cascading try-each-scheme-then-fall-back approach — a reasonable first pass, not the most

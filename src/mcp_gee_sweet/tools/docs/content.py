@@ -21,7 +21,7 @@ from ..drive import _SA_QUOTA_ERROR
 from ..drive.transfer import _upload_local_file
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .anchors import resolve_heading_anchor
-from .ast import Table
+from .ast import Run, Table
 from .emitter import ast_to_requests, fill_tables
 from .html_parser import html_to_ast
 from .indices import utf16_len
@@ -246,20 +246,99 @@ async def _create_named_range(
     }
 
 
-def _has_pending_anchor_links(requests: list[dict]) -> bool:
+def _table_has_pending_anchor_link(table: Table) -> bool:
+    """True if any cell in `table` (recursing into nested tables) carries a
+    Run with a same-document '#slug' link_url."""
+    for row in table.rows:
+        for cell in row.cells:
+            for child in cell.children:
+                if isinstance(child, Run):
+                    if child.link_url and child.link_url.startswith("#"):
+                        return True
+                elif isinstance(child, Table) and _table_has_pending_anchor_link(child):
+                    return True
+    return False
+
+
+def _has_pending_anchor_links(requests: list[dict], tables: list[Table]) -> bool:
     """True if any updateTextStyle request in `requests` sets a same-document
-    '#slug' hyperlink — the leftover shape a converted GitHub/GitLab-style
-    heading-anchor link takes before resolution. Used to skip the anchor-
-    resolution pass (an extra documents().get() + batchUpdate) entirely for
-    the common case of content with no such links."""
-    return any(
+    '#slug' hyperlink, or any not-yet-filled table cell carries one — the
+    leftover shape a converted GitHub/GitLab-style heading-anchor link takes
+    before resolution. Used to skip the anchor-resolution pass (an extra
+    documents().get() + batchUpdate) entirely for the common case of content
+    with no such links. `tables` must be checked separately from `requests`:
+    fill_tables() builds and executes its own requests for table cell content
+    after this function is called, so a table-only anchor link is otherwise
+    invisible to this guard."""
+    if any(
         req.get("updateTextStyle", {})
         .get("textStyle", {})
         .get("link", {})
         .get("url", "")
         .startswith("#")
         for req in requests
-    )
+    ):
+        return True
+    return any(_table_has_pending_anchor_link(t) for t in tables)
+
+
+def _walk_headings_and_anchor_runs(
+    content: list[dict[str, Any]],
+) -> tuple[list[tuple[str, str]], list[tuple[str, int, int]]]:
+    """Recursively walk document body content, including table cells,
+    collecting (heading_text, heading_id) pairs and (anchor_url, start, end)
+    runs for any run whose link_url starts with '#'.
+
+    Mirrors _collect_doc_paragraphs's two correctness properties: it recurses
+    into table cells (a heading or an anchor link living inside a table cell
+    is otherwise invisible), and it carries the running offset forward when a
+    ParagraphElement's own startIndex is absent rather than dropping that
+    element — the Docs API omits startIndex on a document's very first
+    element (observed, not merely a defensive guess; see
+    _collect_doc_paragraphs's own docstring for the same note)."""
+    headings: list[tuple[str, str]] = []
+    anchor_runs: list[tuple[str, int, int]] = []
+
+    for elem in content:
+        if "paragraph" in elem:
+            para = elem["paragraph"]
+            pstyle = para.get("paragraphStyle", {})
+            is_heading = pstyle.get("namedStyleType", "NORMAL_TEXT") != "NORMAL_TEXT"
+            heading_id = pstyle.get("headingId")
+
+            offset = elem.get("startIndex", 1)
+            text_parts: list[str] = []
+            for pe in para.get("elements", []):
+                start = pe.get("startIndex")
+                if start is not None:
+                    offset = start
+                run_start = offset
+                tr = pe.get("textRun")
+                if tr and tr.get("content"):
+                    run_text = tr["content"]
+                    text_parts.append(run_text)
+                    for ch in run_text:
+                        offset += utf16_len(ch)
+                    link_url = tr.get("textStyle", {}).get("link", {}).get("url", "")
+                    if link_url.startswith("#"):
+                        anchor_runs.append((link_url, run_start, offset))
+                else:
+                    end = pe.get("endIndex")
+                    if end is not None:
+                        offset = end
+
+            if is_heading and heading_id:
+                headings.append(("".join(text_parts).strip(), heading_id))
+        elif "table" in elem:
+            for row in elem["table"].get("tableRows", []):
+                for cell in row.get("tableCells", []):
+                    sub_headings, sub_anchor_runs = _walk_headings_and_anchor_runs(
+                        cell.get("content", [])
+                    )
+                    headings.extend(sub_headings)
+                    anchor_runs.extend(sub_anchor_runs)
+
+    return headings, anchor_runs
 
 
 async def _resolve_heading_anchors(docs_service, doc_id: str) -> dict[str, Any]:
@@ -280,30 +359,11 @@ async def _resolve_heading_anchors(docs_service, doc_id: str) -> dict[str, Any]:
         docs_service,
     )
 
-    heading_texts: list[str] = []
-    heading_ids: list[str | None] = []
-    anchor_runs: list[tuple[str, int, int]] = []  # (anchor, startIndex, endIndex)
-
-    for elem in doc.get("body", {}).get("content", []):
-        para = elem.get("paragraph")
-        if not para:
-            continue
-        pstyle = para.get("paragraphStyle", {})
-        is_heading = pstyle.get("namedStyleType", "NORMAL_TEXT") != "NORMAL_TEXT"
-        para_text_parts: list[str] = []
-        for pe in para.get("elements", []):
-            tr = pe.get("textRun")
-            if not tr:
-                continue
-            para_text_parts.append(tr.get("content", ""))
-            link_url = tr.get("textStyle", {}).get("link", {}).get("url", "")
-            if link_url.startswith("#"):
-                start, end = pe.get("startIndex"), pe.get("endIndex")
-                if start is not None and end is not None:
-                    anchor_runs.append((link_url, start, end))
-        if is_heading and pstyle.get("headingId"):
-            heading_texts.append("".join(para_text_parts).strip())
-            heading_ids.append(pstyle["headingId"])
+    heading_pairs, anchor_runs = _walk_headings_and_anchor_runs(
+        doc.get("body", {}).get("content", [])
+    )
+    heading_texts = [text for text, _ in heading_pairs]
+    heading_ids = [heading_id for _, heading_id in heading_pairs]
 
     if not anchor_runs:
         return {"resolved": [], "stripped": []}
@@ -441,7 +501,7 @@ def register(tool):
                     docs_service,
                 )
             await fill_tables(docs_service, doc_id, tables)
-            if _has_pending_anchor_links(content_requests):
+            if _has_pending_anchor_links(content_requests, tables):
                 await _resolve_heading_anchors(docs_service, doc_id)
 
         if target_folder_id:
@@ -544,7 +604,7 @@ def register(tool):
                     docs_service,
                 )
             await fill_tables(docs_service, doc_id, tables)
-            if _has_pending_anchor_links(content_requests):
+            if _has_pending_anchor_links(content_requests, tables):
                 await _resolve_heading_anchors(docs_service, doc_id)
 
         if target_folder_id:
@@ -723,7 +783,7 @@ def register(tool):
                 docs_service,
             )
         await fill_tables(docs_service, doc_id, tables)
-        if _has_pending_anchor_links(content_requests):
+        if _has_pending_anchor_links(content_requests, tables):
             await _resolve_heading_anchors(docs_service, doc_id)
 
         metadata = await execute_in_thread(
