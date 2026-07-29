@@ -1398,3 +1398,11 @@ Matches `update_borders`'s validation depth (missing-key + isinstance + enum-mem
 - `sort_order=[{"column_index": 0, "order": "banana"}]` (invalid enum value) → raw `HttpError 400` from the Sheets API leaks instead of a clean local error (pre-existing gap, not a new regression, but the same enum-membership check `update_borders` already has for `style`).
 - `sort_order=[{"column_index": 0, "order": "ASCENDING"}, "banana"]` (non-dict list element) — reviewed as a potential `AttributeError`, but live-tested and actually rejected upstream by MCP's own pydantic schema validation (`sort_order: list[dict]`) before the function body ever runs, so this path is not exploitable through the tool interface. Not a live defect, unlike the three above.
 - Sent back to Dev (see PR #452 comment) rather than approved — the fix is narrower than the established sibling pattern and leaves the identical crash class open on `column_index` and the `order` enum.
+
+**Result (2026-07-28, round 2) ✅ PASS — all findings closed.** Fix commit `5648a91` adds missing-key + isinstance (with explicit `bool` exclusion) + enum-membership checks for both `column_index` and `order`, matching `update_borders`'s depth. Re-verified live against `mcp-gee-sweet-qa-fixtures` (`BrandNew` sheet), via `mcp-gee-sweet-sky`, after `/mcp reconnect`:
+- `sort_order=[{"order": "ASCENDING"}]` → `{"error": "Sort spec at index 0 is missing required 'column_index' key"}` — clean, no `KeyError`.
+- `sort_order=[{"column_index": "0", "order": "ASCENDING"}]` → `{"error": "Sort spec at index 0 has a non-integer 'column_index' value"}` — clean, no `TypeError`.
+- `sort_order=[{"column_index": true, "order": "ASCENDING"}]` → same clean error — `bool` correctly rejected, not silently accepted as an int.
+- `sort_order=[{"column_index": 0, "order": "banana"}]` → `{"error": "Invalid sort order 'banana' for column_index 0. Must be one of: ASCENDING, DESCENDING"}` — clean, no `HttpError` leak.
+- `sort_order=[{"column_index": 0, "order": 5}]` (original case) and a normal `DESCENDING` sort both still work correctly — no regression.
+- `uv run python -m pytest tests/sheets/test_structure.py -k SortRange` → 10/10 passed.
