@@ -2784,6 +2784,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-s103-sort_range-malformed-sort-spec-fields-return-a-clean-error-do-not-crash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S103: sort_range — malformed sort spec fields return a clean error, do not crash
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3905,6 +3916,30 @@ Clear the test rule from the range used.</p>
 <p><strong>Checks (unit test)</strong>
 - Sheet not found → <code>{"error": "Sheet 'X' not found"}</code></p>
 <p><strong>Result (2026-06-21) ✅</strong> Unit test confirms error.</p>
+<hr />
+<h3 id="tc-s103-sort_range-malformed-sort-spec-fields-return-a-clean-error-do-not-crash">TC-S103: sort_range — malformed sort spec fields return a clean error, do not crash<a class="headerlink" href="#tc-s103-sort_range-malformed-sort-spec-fields-return-a-clean-error-do-not-crash" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Non-string <code>"order"</code> value (e.g. <code>{"column_index": 0, "order": 5}</code>) → <code>{"error": ...}</code>, no <code>AttributeError</code> on <code>.upper()</code>.
+- Missing <code>"column_index"</code> key (e.g. <code>{"order": "ASCENDING"}</code>) → <code>{"error": ...}</code>, no <code>KeyError</code>.
+- Non-int <code>"column_index"</code> value (e.g. <code>{"column_index": "0", "order": "ASCENDING"}</code>) → <code>{"error": ...}</code>, no <code>TypeError</code> from the <code>col_start + s["column_index"]</code> addition.
+- <code>bool</code> <code>"column_index"</code> value (e.g. <code>{"column_index": True, ...}</code>) → <code>{"error": ...}</code> — <code>bool</code> is a Python <code>int</code> subclass, so a bare <code>isinstance(..., int)</code> check alone would silently accept it.
+- Invalid <code>"order"</code> enum value (e.g. <code>{"column_index": 0, "order": "banana"}</code>) → <code>{"error": ...}</code> from local validation, not a raw <code>HttpError</code> from the Sheets API.
+- In every case, no <code>batchUpdate</code> call is made.</p>
+<p>Matches <code>update_borders</code>'s validation depth (missing-key + isinstance + enum-membership) for the analogous <code>"style"</code> field (<code>structure.py</code>, <code>_VALID_BORDER_STYLES</code>) — this tool now applies the same pattern via <code>_VALID_SORT_ORDERS</code> for both <code>column_index</code> and <code>order</code>.</p>
+<p><strong>Result (2026-07-28) ⚠️ PASS (fix works) but same defect class left open on sibling fields.</strong> Live-verified against <code>mcp-gee-sweet-qa-fixtures</code> (<code>BrandNew</code> sheet), via <code>mcp-gee-sweet-sky</code>:
+- <code>sort_order=[{"column_index": 0, "order": 5}]</code> → clean <code>{"error": "Sort spec for column_index 0 has a non-string 'order' value"}</code>. This PR's own fix works as intended.
+- <code>sort_order=[{"order": "ASCENDING"}]</code> (column_index omitted) → raw <code>KeyError: 'column_index'</code> leaks as a tool execution error, not <code>{"error": ...}</code> — the same crash class this PR claims to fix, one field over. <code>column_index</code> is accessed via <code>s["column_index"]</code> (structure.py:1652) with no key-existence check, unlike <code>update_borders</code>'s analogous 3-part validation (missing-key + isinstance + enum) at lines 1129–1138 of the same file.
+- <code>sort_order=[{"column_index": "0", "order": "ASCENDING"}]</code> (string column_index) → raw <code>TypeError: unsupported operand type(s) for +: 'int' and 'str'</code> leaks (no type check on <code>column_index</code>).
+- <code>sort_order=[{"column_index": 0, "order": "banana"}]</code> (invalid enum value) → raw <code>HttpError 400</code> from the Sheets API leaks instead of a clean local error (pre-existing gap, not a new regression, but the same enum-membership check <code>update_borders</code> already has for <code>style</code>).
+- <code>sort_order=[{"column_index": 0, "order": "ASCENDING"}, "banana"]</code> (non-dict list element) — reviewed as a potential <code>AttributeError</code>, but live-tested and actually rejected upstream by MCP's own pydantic schema validation (<code>sort_order: list[dict]</code>) before the function body ever runs, so this path is not exploitable through the tool interface. Not a live defect, unlike the three above.
+- Sent back to Dev (see PR #452 comment) rather than approved — the fix is narrower than the established sibling pattern and leaves the identical crash class open on <code>column_index</code> and the <code>order</code> enum.</p>
+<p><strong>Result (2026-07-28, round 2) ✅ PASS — all findings closed.</strong> Fix commit <code>5648a91</code> adds missing-key + isinstance (with explicit <code>bool</code> exclusion) + enum-membership checks for both <code>column_index</code> and <code>order</code>, matching <code>update_borders</code>'s depth. Re-verified live against <code>mcp-gee-sweet-qa-fixtures</code> (<code>BrandNew</code> sheet), via <code>mcp-gee-sweet-sky</code>, after <code>/mcp reconnect</code>:
+- <code>sort_order=[{"order": "ASCENDING"}]</code> → <code>{"error": "Sort spec at index 0 is missing required 'column_index' key"}</code> — clean, no <code>KeyError</code>.
+- <code>sort_order=[{"column_index": "0", "order": "ASCENDING"}]</code> → <code>{"error": "Sort spec at index 0 has a non-integer 'column_index' value"}</code> — clean, no <code>TypeError</code>.
+- <code>sort_order=[{"column_index": true, "order": "ASCENDING"}]</code> → same clean error — <code>bool</code> correctly rejected, not silently accepted as an int.
+- <code>sort_order=[{"column_index": 0, "order": "banana"}]</code> → <code>{"error": "Invalid sort order 'banana' for column_index 0. Must be one of: ASCENDING, DESCENDING"}</code> — clean, no <code>HttpError</code> leak.
+- <code>sort_order=[{"column_index": 0, "order": 5}]</code> (original case) and a normal <code>DESCENDING</code> sort both still work correctly — no regression.
+- <code>uv run python -m pytest tests/sheets/test_structure.py -k SortRange</code> → 10/10 passed.</p>
 
 
 
