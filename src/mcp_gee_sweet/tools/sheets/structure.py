@@ -25,6 +25,8 @@ _VALID_BORDER_STYLES = [
     "NONE",
 ]
 
+_VALID_SORT_ORDERS = ["ASCENDING", "DESCENDING"]
+
 _VALID_CONDITION_TYPES = [
     "BOOLEAN",
     "TEXT_CONTAINS",
@@ -1639,13 +1641,31 @@ def register(tool):
         if sort_order is None:
             sort_order = [{"column_index": 0, "order": "ASCENDING"}]
 
-        sort_specs = [
-            {
-                "dimensionIndex": col_start + s["column_index"],
-                "sortOrder": s.get("order", "ASCENDING").upper(),
-            }
-            for s in sort_order
-        ]
+        sort_specs = []
+        for i, s in enumerate(sort_order):
+            if "column_index" not in s:
+                return {"error": f"Sort spec at index {i} is missing required 'column_index' key"}
+            if not isinstance(s["column_index"], int) or isinstance(s["column_index"], bool):
+                return {"error": f"Sort spec at index {i} has a non-integer 'column_index' value"}
+
+            order = s.get("order", "ASCENDING")
+            if not isinstance(order, str):
+                return {
+                    "error": f"Sort spec for column_index {s['column_index']} "
+                    "has a non-string 'order' value"
+                }
+            if order.upper() not in _VALID_SORT_ORDERS:
+                return {
+                    "error": f"Invalid sort order '{order}' for column_index {s['column_index']}. "
+                    f"Must be one of: {', '.join(_VALID_SORT_ORDERS)}"
+                }
+
+            sort_specs.append(
+                {
+                    "dimensionIndex": col_start + s["column_index"],
+                    "sortOrder": order.upper(),
+                }
+            )
 
         return await execute_in_thread(
             sheets_service.spreadsheets()
