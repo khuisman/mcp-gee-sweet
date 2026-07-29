@@ -2502,3 +2502,25 @@ Run against a live sandbox scoped to only `create_doc,create_doc_from_file,write
 **Cleanup:** delete the inserted paragraph
 
 **Result:** PASS (2026-07-27, live via `mcp-gee-sweet-kit`, same fixture doc). `insert_softbreak_paragraph(index=1, lines=[{"text": "plain text, no link", "link_url": null}])` completed without error, returned `line_ranges: [{"start_index": 1, "end_index": 20}]`. `get_doc_structure` confirmed the inserted run's `link_url: null`. Note: since `named_style_type` wasn't passed, the call's documented "covers the entire paragraph touched by the insert" behavior downgraded the existing "Test Document" HEADING_1 paragraph to NORMAL_TEXT (expected, not a defect) — restored via an explicit `style_doc_range` call after cleanup, fixture doc left in its original state.
+
+---
+
+## A mismatched `<ol>`/`<ul>` close tag no longer permanently desyncs list depth (issue #382)
+
+**Background:** `handle_endtag`'s `<ol>`/`<ul>` close-tag handling (`html_parser.py`) used to pop `_list_ordered` — the stack `BulletItem.depth`/`.ordered` are computed from — only when the closing tag's implied type matched the stack's own top entry. A mismatched pair (e.g. an `<ol>` closed by a stray `</ul>`, a real input surface since `write_doc_content`/`create_doc` accept raw, unvalidated HTML directly) silently skipped the pop instead of performing it, leaving the stack one level too deep for the rest of the document — every subsequent `BulletItem.depth` came out off by one, bleeding into completely unrelated, later, well-formed lists, not just the malformed one. Fixed by popping `_list_ordered` unconditionally on any `<ol>`/`<ul>` close (by count, not gated on matching the popped entry's own type) — mirroring the same unconditional-pop principle `_resume_interrupted_block` already applies to the separate node-*type* correctness concern for this same malformed-tag scenario. Well-formed nesting is unaffected, since the old gate was already true in that case.
+
+### TC-DOC141: A malformed list elsewhere in the doc doesn't bleed a bogus nesting depth into a later, unrelated, well-formed list ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** use `docs/qa/fixtures/tc-doc141-mismatched-list-tags.html` — a malformed `<ol><li>Parent<ul><li>Child</li></ol></li></ul>` (the `<ol>` is closed by a stray `</ul>`), then an unrelated paragraph, then a completely separate, well-formed `<ol><li>Fresh ordered item</li></ol>`.
+
+**Prompt**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc141-mismatched-list-tags.html, then show me its structure."
+
+**Checks**
+- Tool completes without error
+- `get_doc_structure` lists, in order: a bullet "Parent", a nested bullet "Child", a plain paragraph "Unrelated paragraph between the two lists.", and a bullet "Fresh ordered item"
+- 🔍 Visual check: "Fresh ordered item" renders as a **top-level** numbered list item (e.g. "1."), not indented one level in under the malformed list above it — the pre-fix bug would render it nested one level deep despite being its own separate, well-formed `<ol>`
+
+**Cleanup:** delete the created doc
+
+**Result:** PASS (2026-07-27, live via `mcp-gee-sweet-kit`). `create_doc_from_file` on the fixture completed without error. `get_doc_structure` listed the four paragraphs in order — "Parent", "Child", "Unrelated paragraph between the two lists.", "Fresh ordered item" (the tool doesn't surface bullet/nestingLevel fields, so order/text was confirmed this way and depth via the visual check below). Playwright screenshot confirmed "Fresh ordered item" rendered as a top-level "1." — not indented under the malformed list above it, matching the fixed behavior. Test doc trashed per cleanup step.
