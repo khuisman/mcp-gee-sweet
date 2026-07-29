@@ -7,3 +7,4 @@ These are more granular than the [decision records](../decisions/index.md), whic
 | Doc | Date | Scope |
 |---|---|---|
 | [Docs AST Pipeline](docs-ast-pipeline.md) | 2026-06-17 | Phase 2 HTML→AST→Docs API pipeline — AST node design, file layout, emitter algorithm, test plan |
+| [Heading-Anchor Resolution](heading-anchor-resolution.md) | 2026-07-28 | Resolving GitHub/GitLab `#slug` heading-anchor links to working Docs jump links — multi-scheme slugifier, strip-if-unmatched policy, opinionated-layer-over-primitive rationale |

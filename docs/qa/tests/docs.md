@@ -2524,3 +2524,44 @@ Run against a live sandbox scoped to only `create_doc,create_doc_from_file,write
 **Cleanup:** delete the created doc
 
 **Result:** PASS (2026-07-27, live via `mcp-gee-sweet-kit`). `create_doc_from_file` on the fixture completed without error. `get_doc_structure` listed the four paragraphs in order — "Parent", "Child", "Unrelated paragraph between the two lists.", "Fresh ordered item" (the tool doesn't surface bullet/nestingLevel fields, so order/text was confirmed this way and depth via the visual check below). Playwright screenshot confirmed "Fresh ordered item" rendered as a top-level "1." — not indented under the malformed list above it, matching the fixed behavior. Test doc trashed per cleanup step.
+
+---
+
+## GitHub/GitLab-style heading-anchor links resolve to working Docs jump links (issue #409)
+
+**Background:** Markdown converted from GitHub/GitLab Pages-published source keeps internal cross-reference links as literal `#slug` URL fragments — meaningless inside a Google Doc, since Docs has its own heading-jump-link addressing scheme. `get_doc_structure` now surfaces each heading paragraph's `headingId` (`paragraphStyle.headingId`, already present in the API response — no new API capability needed). `create_doc`/`create_doc_from_file`/`write_doc_content` now run an automatic second pass after any conversion that left a `#slug` link behind: it resolves the anchor against the doc's own real headings (trying GitHub's non-collapsing and GitLab's hyphen-collapsing slugification conventions, then a normalized-word-token fallback) and rewrites it to a working `https://docs.google.com/document/d/<docId>/edit?tab=t.0#heading=<headingId>` link — confirmed live 2026-07-24 that this ordinary-URL form works as a real in-doc jump link, no special `Link.headingId` API field needed. An anchor that matches no heading with reasonable confidence gets its link stripped (text kept, plain) rather than left dangling or guessed — a link silently pointing at the wrong section is worse than no link. The pass is skipped entirely (no extra API round trip) when the converted content has no `#`-prefixed link at all — see unit test `test_no_anchor_link_skips_resolution_pass` in `tests/test_docs_content.py`.
+
+### TC-DOC142: `get_doc_structure` surfaces `headingId` for heading paragraphs ⚠️ destructive
+
+**Setup:** none — heading created fresh by the call under test.
+
+**Prompt**
+> "Write this Markdown to doc {DOC_ID}: '# A Heading\n\nSome text.\n', then show me its structure."
+
+Tool calls: `write_doc_content(doc_id={DOC_ID}, content="# A Heading\n\nSome text.\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})`.
+
+**Checks**
+- First element has `namedStyleType: "HEADING_1"` and a non-null `headingId` (e.g. `"h.xxxxxxxxxxx"`)
+- Second element ("Some text.") has `namedStyleType: "NORMAL_TEXT"` and `headingId: null`
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-DOC143: `create_doc_from_file` resolves markdown heading-anchor links to working in-doc jump links, and strips unmatched ones ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** use `docs/qa/fixtures/tc-doc142-heading-anchors.md`.
+
+**Prompt**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc142-heading-anchors.md, then show me its structure."
+
+Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-doc142-heading-anchors.md")`, then `get_doc_structure(doc_id=<returned docId>)`.
+
+**Checks**
+- `get_doc_structure` shows a HEADING_1 "Appendix A - Approved Hashing Algorithms" and a HEADING_2 "Appendix B - Something Else", each with a non-null `headingId`
+- The run "Appendix A" has `link_url` equal to `https://docs.google.com/document/d/<docId>/edit?tab=t.0#heading=<headingId>` where `<headingId>` is the SAME value as the "Appendix A - Approved Hashing Algorithms" heading's own `headingId`
+- The run "Appendix B itself" has `link_url` similarly pointing at the "Appendix B - Something Else" heading's own `headingId`
+- The run "dead link" has `link_url: null` (stripped — not left pointing at the literal `#totally-nonexistent-section` fragment)
+- 🔍 Visual check: clicking "Appendix A" in the rendered Doc jumps to the "Appendix A - Approved Hashing Algorithms" heading; "dead link" renders as plain, non-hyperlinked text
+
+**Cleanup:** delete the created doc

@@ -17,7 +17,9 @@ from mcp_gee_sweet.tools.docs.ast import (
 )
 from mcp_gee_sweet.tools.docs.content import (
     _collect_doc_paragraphs,
+    _has_pending_anchor_links,
     _md_to_html,
+    _resolve_heading_anchors,
     _to_doc_requests,
 )
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
@@ -915,6 +917,252 @@ class TestCreateDocFromFile:
         result = await _docs_tools["create_doc_from_file"](local_path=str(txt_file), ctx=ctx)
         assert "error" in result
         assert ".txt" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# get_doc_structure headingId (#409)
+# ---------------------------------------------------------------------------
+
+
+class TestGetDocStructureHeadingId:
+    def _ctx(self, docs_svc):
+        return _make_ctx(docs_service=docs_svc)
+
+    def _doc(self, named_style, heading_id=None):
+        pstyle = {"namedStyleType": named_style}
+        if heading_id is not None:
+            pstyle["headingId"] = heading_id
+        return {
+            "documentId": "doc1",
+            "title": "Doc",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 10,
+                        "paragraph": {
+                            "paragraphStyle": pstyle,
+                            "elements": [{"textRun": {"content": "Text\n", "textStyle": {}}}],
+                        },
+                    }
+                ]
+            },
+        }
+
+    async def test_heading_paragraph_includes_heading_id(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = self._doc(
+            "HEADING_1", heading_id="h.abc123"
+        )
+        result = await _docs_tools["get_doc_structure"](doc_id="doc1", ctx=self._ctx(docs_svc))
+        assert result["elements"][0]["headingId"] == "h.abc123"
+
+    async def test_normal_paragraph_has_null_heading_id(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = self._doc(
+            "NORMAL_TEXT"
+        )
+        result = await _docs_tools["get_doc_structure"](doc_id="doc1", ctx=self._ctx(docs_svc))
+        assert result["elements"][0]["headingId"] is None
+
+
+# ---------------------------------------------------------------------------
+# Heading-anchor resolution (#409): _has_pending_anchor_links,
+# _resolve_heading_anchors, and end-to-end via create_doc_from_file.
+# ---------------------------------------------------------------------------
+
+
+class TestHasPendingAnchorLinks:
+    def test_true_for_hash_link(self):
+        requests = [{"updateTextStyle": {"textStyle": {"link": {"url": "#some-slug"}}}}]
+        assert _has_pending_anchor_links(requests) is True
+
+    def test_false_for_ordinary_https_link(self):
+        requests = [{"updateTextStyle": {"textStyle": {"link": {"url": "https://example.com"}}}}]
+        assert _has_pending_anchor_links(requests) is False
+
+    def test_false_when_no_link_requests(self):
+        assert _has_pending_anchor_links([{"insertText": {"text": "hi"}}]) is False
+
+    def test_false_for_empty_requests(self):
+        assert _has_pending_anchor_links([]) is False
+
+
+class TestResolveHeadingAnchorsHelper:
+    def _doc_with_anchor(self, anchor_url, heading_text="Overview", heading_id="h.xyz"):
+        return {
+            "documentId": "doc1",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 1 + len(heading_text) + 1,
+                        "paragraph": {
+                            "paragraphStyle": {
+                                "namedStyleType": "HEADING_1",
+                                "headingId": heading_id,
+                            },
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 1 + len(heading_text) + 1,
+                                    "textRun": {"content": heading_text + "\n", "textStyle": {}},
+                                }
+                            ],
+                        },
+                    },
+                    {
+                        "startIndex": 20,
+                        "endIndex": 26,
+                        "paragraph": {
+                            "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
+                            "elements": [
+                                {
+                                    "startIndex": 20,
+                                    "endIndex": 26,
+                                    "textRun": {
+                                        "content": "Link\n",
+                                        "textStyle": {"link": {"url": anchor_url}},
+                                    },
+                                }
+                            ],
+                        },
+                    },
+                ]
+            },
+        }
+
+    async def test_matched_anchor_rewritten_to_heading_url(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = (
+            self._doc_with_anchor("#overview", heading_text="Overview", heading_id="h.xyz")
+        )
+        summary = await _resolve_heading_anchors(docs_svc, "doc1")
+        assert summary["resolved"] == [{"anchor": "#overview", "heading": "Overview"}]
+        assert summary["stripped"] == []
+
+        requests = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]["requests"]
+        assert len(requests) == 1
+        style = requests[0]["updateTextStyle"]
+        assert style["range"] == {"startIndex": 20, "endIndex": 26}
+        assert style["fields"] == "link"
+        assert style["textStyle"]["link"]["url"] == (
+            "https://docs.google.com/document/d/doc1/edit?tab=t.0#heading=h.xyz"
+        )
+
+    async def test_unmatched_anchor_stripped_not_guessed(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = (
+            self._doc_with_anchor("#nonexistent", heading_text="Overview", heading_id="h.xyz")
+        )
+        summary = await _resolve_heading_anchors(docs_svc, "doc1")
+        assert summary["resolved"] == []
+        assert summary["stripped"] == ["#nonexistent"]
+
+        requests = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]["requests"]
+        assert len(requests) == 1
+        style = requests[0]["updateTextStyle"]
+        # Omit the "link" key entirely (while still naming it in the field mask) —
+        # setting textStyle.link = {} is rejected by the Docs API outright (#408).
+        assert style["fields"] == "link"
+        assert style["textStyle"] == {}
+
+    async def test_no_anchor_links_skips_batchupdate(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentId": "doc1",
+            "body": {"content": []},
+        }
+        summary = await _resolve_heading_anchors(docs_svc, "doc1")
+        assert summary == {"resolved": [], "stripped": []}
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+
+class TestCreateDocFromFileAnchorResolution:
+    def _make_services(self, doc_id="doc123"):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": doc_id,
+            "name": "myfile",
+            "parents": ["root"],
+            "webViewLink": "https://example.com",
+        }
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentId": doc_id,
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 10,
+                        "paragraph": {
+                            "paragraphStyle": {
+                                "namedStyleType": "HEADING_1",
+                                "headingId": "h.section",
+                            },
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 10,
+                                    "textRun": {"content": "Section\n", "textStyle": {}},
+                                }
+                            ],
+                        },
+                    },
+                    {
+                        "startIndex": 20,
+                        "endIndex": 26,
+                        "paragraph": {
+                            "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
+                            "elements": [
+                                {
+                                    "startIndex": 20,
+                                    "endIndex": 26,
+                                    "textRun": {
+                                        "content": "link\n",
+                                        "textStyle": {"link": {"url": "#section"}},
+                                    },
+                                }
+                            ],
+                        },
+                    },
+                ]
+            },
+        }
+        return drive_svc, docs_svc
+
+    def _ctx(self, drive_svc, docs_svc):
+        return _make_ctx(
+            drive_service=drive_svc,
+            docs_service=docs_svc,
+            folder_id=None,
+            drive_folder_cache=MagicMock(),
+        )
+
+    async def test_anchor_link_triggers_resolution_pass(self, tmp_path):
+        md_file = tmp_path / "doc.md"
+        md_file.write_text("# Section\n\n[jump](#section)\n")
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        await _docs_tools["create_doc_from_file"](local_path=str(md_file), ctx=ctx)
+
+        calls = docs_svc.documents.return_value.batchUpdate.call_args_list
+        assert len(calls) == 2  # content insert, then anchor resolution
+        resolution_requests = calls[1].kwargs["body"]["requests"]
+        assert resolution_requests[0]["updateTextStyle"]["textStyle"]["link"]["url"] == (
+            "https://docs.google.com/document/d/doc123/edit?tab=t.0#heading=h.section"
+        )
+
+    async def test_no_anchor_link_skips_resolution_pass(self, tmp_path):
+        md_file = tmp_path / "doc.md"
+        md_file.write_text("# Section\n\nJust text, no links.\n")
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        await _docs_tools["create_doc_from_file"](local_path=str(md_file), ctx=ctx)
+
+        calls = docs_svc.documents.return_value.batchUpdate.call_args_list
+        assert len(calls) == 1  # only the content insert
+        docs_svc.documents.return_value.get.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
