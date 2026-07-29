@@ -3192,6 +3192,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#a-mismatched-olul-close-tag-no-longer-permanently-desyncs-list-depth-issue-382" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A mismatched &lt;ol&gt;/&lt;ul&gt; close tag no longer permanently desyncs list depth (issue #382)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="A mismatched &lt;ol&gt;/&lt;ul&gt; close tag no longer permanently desyncs list depth (issue #382)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc141-a-malformed-list-elsewhere-in-the-doc-doesnt-bleed-a-bogus-nesting-depth-into-a-later-unrelated-well-formed-list-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC141: A malformed list elsewhere in the doc doesn't bleed a bogus nesting depth into a later, unrelated, well-formed list ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5373,6 +5401,21 @@ Run against a live sandbox scoped to only <code>create_doc,create_doc_from_file,
 - <code>get_doc_structure</code> shows the inserted run has <code>link_url: null</code></p>
 <p><strong>Cleanup:</strong> delete the inserted paragraph</p>
 <p><strong>Result:</strong> PASS (2026-07-27, live via <code>mcp-gee-sweet-kit</code>, same fixture doc). <code>insert_softbreak_paragraph(index=1, lines=[{"text": "plain text, no link", "link_url": null}])</code> completed without error, returned <code>line_ranges: [{"start_index": 1, "end_index": 20}]</code>. <code>get_doc_structure</code> confirmed the inserted run's <code>link_url: null</code>. Note: since <code>named_style_type</code> wasn't passed, the call's documented "covers the entire paragraph touched by the insert" behavior downgraded the existing "Test Document" HEADING_1 paragraph to NORMAL_TEXT (expected, not a defect) — restored via an explicit <code>style_doc_range</code> call after cleanup, fixture doc left in its original state.</p>
+<hr />
+<h2 id="a-mismatched-olul-close-tag-no-longer-permanently-desyncs-list-depth-issue-382">A mismatched <code>&lt;ol&gt;</code>/<code>&lt;ul&gt;</code> close tag no longer permanently desyncs list depth (issue #382)<a class="headerlink" href="#a-mismatched-olul-close-tag-no-longer-permanently-desyncs-list-depth-issue-382" title="Permanent link">&para;</a></h2>
+<p><strong>Background:</strong> <code>handle_endtag</code>'s <code>&lt;ol&gt;</code>/<code>&lt;ul&gt;</code> close-tag handling (<code>html_parser.py</code>) used to pop <code>_list_ordered</code> — the stack <code>BulletItem.depth</code>/<code>.ordered</code> are computed from — only when the closing tag's implied type matched the stack's own top entry. A mismatched pair (e.g. an <code>&lt;ol&gt;</code> closed by a stray <code>&lt;/ul&gt;</code>, a real input surface since <code>write_doc_content</code>/<code>create_doc</code> accept raw, unvalidated HTML directly) silently skipped the pop instead of performing it, leaving the stack one level too deep for the rest of the document — every subsequent <code>BulletItem.depth</code> came out off by one, bleeding into completely unrelated, later, well-formed lists, not just the malformed one. Fixed by popping <code>_list_ordered</code> unconditionally on any <code>&lt;ol&gt;</code>/<code>&lt;ul&gt;</code> close (by count, not gated on matching the popped entry's own type) — mirroring the same unconditional-pop principle <code>_resume_interrupted_block</code> already applies to the separate node-<em>type</em> correctness concern for this same malformed-tag scenario. Well-formed nesting is unaffected, since the old gate was already true in that case.</p>
+<h3 id="tc-doc141-a-malformed-list-elsewhere-in-the-doc-doesnt-bleed-a-bogus-nesting-depth-into-a-later-unrelated-well-formed-list-requires-oauth-destructive">TC-DOC141: A malformed list elsewhere in the doc doesn't bleed a bogus nesting depth into a later, unrelated, well-formed list ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc141-a-malformed-list-elsewhere-in-the-doc-doesnt-bleed-a-bogus-nesting-depth-into-a-later-unrelated-well-formed-list-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-doc141-mismatched-list-tags.html</code> — a malformed <code>&lt;ol&gt;&lt;li&gt;Parent&lt;ul&gt;&lt;li&gt;Child&lt;/li&gt;&lt;/ol&gt;&lt;/li&gt;&lt;/ul&gt;</code> (the <code>&lt;ol&gt;</code> is closed by a stray <code>&lt;/ul&gt;</code>), then an unrelated paragraph, then a completely separate, well-formed <code>&lt;ol&gt;&lt;li&gt;Fresh ordered item&lt;/li&gt;&lt;/ol&gt;</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc141-mismatched-list-tags.html, then show me its structure."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Tool completes without error
+- <code>get_doc_structure</code> lists, in order: a bullet "Parent", a nested bullet "Child", a plain paragraph "Unrelated paragraph between the two lists.", and a bullet "Fresh ordered item"
+- 🔍 Visual check: "Fresh ordered item" renders as a <strong>top-level</strong> numbered list item (e.g. "1."), not indented one level in under the malformed list above it — the pre-fix bug would render it nested one level deep despite being its own separate, well-formed <code>&lt;ol&gt;</code></p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result:</strong> PASS (2026-07-27, live via <code>mcp-gee-sweet-kit</code>). <code>create_doc_from_file</code> on the fixture completed without error. <code>get_doc_structure</code> listed the four paragraphs in order — "Parent", "Child", "Unrelated paragraph between the two lists.", "Fresh ordered item" (the tool doesn't surface bullet/nestingLevel fields, so order/text was confirmed this way and depth via the visual check below). Playwright screenshot confirmed "Fresh ordered item" rendered as a top-level "1." — not indented under the malformed list above it, matching the fixed behavior. Test doc trashed per cleanup step.</p>
 
 
 
