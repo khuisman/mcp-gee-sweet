@@ -20,7 +20,8 @@ from ...cache import CACHE_VALIDATE_MODIFIED_TIME
 from ..drive import _SA_QUOTA_ERROR
 from ..drive.transfer import _upload_local_file
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
-from .ast import Table
+from .anchors import resolve_heading_anchor
+from .ast import Run, Table
 from .emitter import ast_to_requests, fill_tables
 from .html_parser import html_to_ast
 from .indices import utf16_len
@@ -245,6 +246,174 @@ async def _create_named_range(
     }
 
 
+def _table_has_pending_anchor_link(table: Table) -> bool:
+    """True if any cell in `table` (recursing into nested tables) carries a
+    Run with a same-document '#slug' link_url."""
+    for row in table.rows:
+        for cell in row.cells:
+            for child in cell.children:
+                if isinstance(child, Run):
+                    if child.link_url and child.link_url.startswith("#"):
+                        return True
+                elif isinstance(child, Table) and _table_has_pending_anchor_link(child):
+                    return True
+    return False
+
+
+def _has_pending_anchor_links(requests: list[dict], tables: list[Table]) -> bool:
+    """True if any updateTextStyle request in `requests` sets a same-document
+    '#slug' hyperlink, or any not-yet-filled table cell carries one — the
+    leftover shape a converted GitHub/GitLab-style heading-anchor link takes
+    before resolution. Used to skip the anchor-resolution pass (an extra
+    documents().get() + batchUpdate) entirely for the common case of content
+    with no such links. `tables` must be checked separately from `requests`:
+    fill_tables() builds and executes its own requests for table cell content
+    after this function is called, so a table-only anchor link is otherwise
+    invisible to this guard."""
+    if any(
+        req.get("updateTextStyle", {})
+        .get("textStyle", {})
+        .get("link", {})
+        .get("url", "")
+        .startswith("#")
+        for req in requests
+    ):
+        return True
+    return any(_table_has_pending_anchor_link(t) for t in tables)
+
+
+def _walk_headings_and_anchor_runs(
+    content: list[dict[str, Any]],
+) -> tuple[list[tuple[str, str]], list[tuple[str, int, int]]]:
+    """Recursively walk document body content, including table cells,
+    collecting (heading_text, heading_id) pairs and (anchor_url, start, end)
+    runs for any run whose link_url starts with '#'.
+
+    Mirrors _collect_doc_paragraphs's two correctness properties: it recurses
+    into table cells (a heading or an anchor link living inside a table cell
+    is otherwise invisible), and it carries the running offset forward when a
+    ParagraphElement's own startIndex is absent rather than dropping that
+    element — the Docs API omits startIndex on a document's very first
+    element (observed, not merely a defensive guess; see
+    _collect_doc_paragraphs's own docstring for the same note)."""
+    headings: list[tuple[str, str]] = []
+    anchor_runs: list[tuple[str, int, int]] = []
+
+    for elem in content:
+        if "paragraph" in elem:
+            para = elem["paragraph"]
+            pstyle = para.get("paragraphStyle", {})
+            is_heading = pstyle.get("namedStyleType", "NORMAL_TEXT") != "NORMAL_TEXT"
+            heading_id = pstyle.get("headingId")
+
+            offset = elem.get("startIndex", 1)
+            text_parts: list[str] = []
+            for pe in para.get("elements", []):
+                start = pe.get("startIndex")
+                if start is not None:
+                    offset = start
+                run_start = offset
+                tr = pe.get("textRun")
+                if tr and tr.get("content"):
+                    run_text = tr["content"]
+                    text_parts.append(run_text)
+                    for ch in run_text:
+                        offset += utf16_len(ch)
+                    link_url = tr.get("textStyle", {}).get("link", {}).get("url", "")
+                    if link_url.startswith("#"):
+                        anchor_runs.append((link_url, run_start, offset))
+                else:
+                    end = pe.get("endIndex")
+                    if end is not None:
+                        offset = end
+
+            if is_heading and heading_id:
+                headings.append(("".join(text_parts).strip(), heading_id))
+        elif "table" in elem:
+            for row in elem["table"].get("tableRows", []):
+                for cell in row.get("tableCells", []):
+                    sub_headings, sub_anchor_runs = _walk_headings_and_anchor_runs(
+                        cell.get("content", [])
+                    )
+                    headings.extend(sub_headings)
+                    anchor_runs.extend(sub_anchor_runs)
+
+    return headings, anchor_runs
+
+
+async def _resolve_heading_anchors(docs_service, doc_id: str) -> dict[str, Any]:
+    """Rewrite same-document '#slug' hyperlinks left over from markdown/HTML
+    conversion (GitHub/GitLab-style heading anchors, issue #409) into working
+    Docs heading-jump links, or strip them to plain text when no heading
+    matches with reasonable confidence — a dead-looking link is bad, but a
+    link silently pointing at the wrong section is worse.
+
+    Runs as a second pass after the doc's content already exists: the target
+    heading's headingId is generated server-side and isn't knowable until
+    the heading paragraph has actually been created. Returns a summary dict;
+    callers only need this for QA/debugging, not error handling — matched
+    and unmatched links are both handled here, nothing propagates as an error.
+    """
+    doc = await execute_in_thread(
+        docs_service.documents().get(documentId=doc_id).execute,
+        docs_service,
+    )
+
+    heading_pairs, anchor_runs = _walk_headings_and_anchor_runs(
+        doc.get("body", {}).get("content", [])
+    )
+    heading_texts = [text for text, _ in heading_pairs]
+    heading_ids = [heading_id for _, heading_id in heading_pairs]
+
+    if not anchor_runs:
+        return {"resolved": [], "stripped": []}
+
+    resolved: list[dict[str, str]] = []
+    stripped: list[str] = []
+    requests: list[dict[str, Any]] = []
+    for anchor, start, end in anchor_runs:
+        match_idx = resolve_heading_anchor(anchor, heading_texts)
+        if match_idx is not None:
+            heading_url = (
+                f"https://docs.google.com/document/d/{doc_id}"
+                f"/edit?tab=t.0#heading={heading_ids[match_idx]}"
+            )
+            requests.append(
+                {
+                    "updateTextStyle": {
+                        "range": {"startIndex": start, "endIndex": end},
+                        "textStyle": {"link": {"url": heading_url}},
+                        "fields": "link",
+                    }
+                }
+            )
+            resolved.append({"anchor": anchor, "heading": heading_texts[match_idx]})
+        else:
+            # Omit the "link" key while still naming it in the field mask — the
+            # correct way to reset a nested message field to its default (no
+            # link) per Docs API fields-mask semantics; see style.py's identical
+            # #408 fix for why textStyle.link = {} is rejected outright.
+            requests.append(
+                {
+                    "updateTextStyle": {
+                        "range": {"startIndex": start, "endIndex": end},
+                        "textStyle": {},
+                        "fields": "link",
+                    }
+                }
+            )
+            stripped.append(anchor)
+
+    await execute_in_thread(
+        docs_service.documents()
+        .batchUpdate(documentId=doc_id, body={"requests": requests})
+        .execute,
+        docs_service,
+    )
+
+    return {"resolved": resolved, "stripped": stripped}
+
+
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Create Document", destructiveHint=True))
     async def create_doc(
@@ -332,6 +501,8 @@ def register(tool):
                     docs_service,
                 )
             await fill_tables(docs_service, doc_id, tables)
+            if _has_pending_anchor_links(content_requests, tables):
+                await _resolve_heading_anchors(docs_service, doc_id)
 
         if target_folder_id:
             lc.drive_folder_cache.mark_dirty(target_folder_id)
@@ -433,6 +604,8 @@ def register(tool):
                     docs_service,
                 )
             await fill_tables(docs_service, doc_id, tables)
+            if _has_pending_anchor_links(content_requests, tables):
+                await _resolve_heading_anchors(docs_service, doc_id)
 
         if target_folder_id:
             lc.drive_folder_cache.mark_dirty(target_folder_id)
@@ -610,6 +783,8 @@ def register(tool):
                 docs_service,
             )
         await fill_tables(docs_service, doc_id, tables)
+        if _has_pending_anchor_links(content_requests, tables):
+            await _resolve_heading_anchors(docs_service, doc_id)
 
         metadata = await execute_in_thread(
             drive_service.files()
@@ -638,10 +813,19 @@ def register(tool):
             Dictionary with docId, title, and an elements list. Each element has:
             - type: "paragraph" | "table" | "sectionBreak" | "tableOfContents"
             - startIndex, endIndex
-            Paragraphs also include namedStyleType, text, and a runs list (each run
-            has text, bold, italic, underline, strikethrough, font_size, link_url).
+            Paragraphs also include namedStyleType, text, headingId (Google's internal
+            ID for this heading, present only when namedStyleType is HEADING_1..6 —
+            e.g. "h.abc123"; null otherwise), and a runs list (each run has text,
+            bold, italic, underline, strikethrough, font_size, link_url).
             Tables include rows, columns, and a cells list (each cell has row, col,
             startIndex, endIndex, paragraphStartIndex, text).
+
+        Note:
+            headingId is the piece needed to build a working in-doc jump link: set
+            link_url via style_doc_range to
+            f"https://docs.google.com/document/d/{doc_id}/edit?tab=t.0#heading={heading_id}"
+            — an ordinary URL, no special Link-object field required. Confirmed live
+            2026-07-24 (issue #409).
         """
         lc = ctx.request_context.lifespan_context
         try:
@@ -656,7 +840,12 @@ def register(tool):
         for elem in doc.get("body", {}).get("content", []):
             if "paragraph" in elem:
                 para = elem["paragraph"]
-                named_style = para.get("paragraphStyle", {}).get("namedStyleType", "NORMAL_TEXT")
+                pstyle = para.get("paragraphStyle", {})
+                named_style = pstyle.get("namedStyleType", "NORMAL_TEXT")
+                # The API only ever populates headingId for a paragraph the Docs UI
+                # would offer as a "Headings & bookmarks" link target (HEADING_1..6,
+                # and TITLE/SUBTITLE) — no client-side filtering needed here.
+                heading_id = pstyle.get("headingId")
                 runs = []
                 for pe in para.get("elements", []):
                     tr = pe.get("textRun")
@@ -682,6 +871,7 @@ def register(tool):
                         "startIndex": elem.get("startIndex", 0),
                         "endIndex": elem.get("endIndex", 0),
                         "namedStyleType": named_style,
+                        "headingId": heading_id,
                         "text": "".join(r["text"] for r in runs),
                         "runs": runs,
                     }
