@@ -2611,3 +2611,42 @@ Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-do
 **Cleanup:** delete the created doc
 
 **Result:** PASS (2026-07-29, live via `mcp-gee-sweet-kit`). `get_doc_structure`'s first element was the "Jump to Overview" paragraph; its run's `link_url` was `https://docs.google.com/document/d/<docId>/edit?tab=t.0#heading=h.jmodqzi4drr`, matching the "Overview" heading's own `headingId`. Confirms fix for QA round 1 finding #2 (startIndex-carry-forward). Test doc trashed per cleanup step.
+
+---
+
+### TC-DOC146: `style_doc_table_cells` per-edge border override — signature-line (bottom-only border) ⚠️ destructive
+
+**Purpose:** #403 — `style_doc_table_cells` previously only supported a single uniform border applied to all four cell edges. This confirms the new `border_top`/`border_right`/`border_bottom`/`border_left` per-edge overrides, using the signature-line use case from the issue (bottom border only, no other edges touched).
+
+**Setup:** insert a 2×1 table; record its `tableStartIndex` from the response
+
+**Prompt**
+**Playwright: required**
+> "Style cell [0,0] of the table at index {tableStartIndex} in doc {DOC_ID} with only a bottom border: color black, width 1.0"
+
+Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIndex>, cells=[{"row_index": 0, "column_index": 0, "border_bottom": {"color": {"red": 0, "green": 0, "blue": 0}, "width": 1.0}}])`
+
+**Checks**
+- Response succeeds, no `error` key, `requests: 1`
+- 🔍 Visual check in Google Docs: cell [0,0] shows a black bottom border only — no visible top, left, or right border
+
+**Cleanup:** delete the table
+
+---
+
+### TC-DOC147: `apply_theme` table styling with per-edge border override ⚠️ destructive
+
+**Purpose:** #403 — `apply_theme`'s `table` key had the same uniform-border-only limitation as `style_doc_table_cells`. Confirms `border_top`/`border_right`/`border_bottom`/`border_left` overrides on the theme's table styling, combined with the existing uniform `border_width` for the untouched edges.
+
+**Prerequisite:** doc must contain at least one table (write one with `write_doc_content` first if needed)
+
+**Prompt**
+**Playwright: required**
+> "Apply this theme to doc {DOC_ID}: `{"table": {"border_color": {"red": 0, "green": 0, "blue": 0}, "border_width": 0.5, "border_bottom": {"width": 2.0}}}`"
+
+**Checks**
+- Result contains `docId` and `requests > 0`
+- No `error` key
+- 🔍 Visual check: table cells show a thin (0.5pt) black border on top/right/left, and a visibly thicker (2.0pt) black border on the bottom edge
+
+**Cleanup:** write fixture content back

@@ -501,6 +501,114 @@ class TestStyleDocRangeTool:
         assert update["textStyle"]["link"] == {"url": "https://x.com"}
 
 
+class TestStyleDocTableCellsTool:
+    def _setup(self):
+        tool, tools = _make_tool_registry()
+        docs_module.register(tool)
+        return tools
+
+    async def _call(self, cells):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        result = await tools["style_doc_table_cells"](
+            doc_id="doc123",
+            table_start_index=5,
+            cells=cells,
+            ctx=ctx,
+        )
+        call_kwargs = mock_docs.documents().batchUpdate.call_args[1]
+        reqs = call_kwargs["body"]["requests"]
+        style = reqs[0]["updateTableCellStyle"]["tableCellStyle"]
+        fields = reqs[0]["updateTableCellStyle"]["fields"].split(",")
+        return result, style, fields
+
+    async def test_uniform_border_still_applies_to_all_sides(self):
+        # Backward compatibility: border_color/width/dash_style alone, no per-edge keys.
+        result, style, fields = await self._call(
+            [
+                {
+                    "row_index": 0,
+                    "column_index": 0,
+                    "border_color": {"red": 0, "green": 0, "blue": 0},
+                    "border_width": 0.5,
+                }
+            ]
+        )
+        assert "error" not in result
+        for side in ("borderTop", "borderRight", "borderBottom", "borderLeft"):
+            assert side in fields
+            assert style[side]["color"]["color"]["rgbColor"] == {
+                "red": 0,
+                "green": 0,
+                "blue": 0,
+            }
+            assert style[side]["width"] == {"magnitude": 0.5, "unit": "PT"}
+
+    async def test_border_bottom_only_sets_single_edge(self):
+        # The signature-line use case from #403: only one edge should be touched.
+        result, style, fields = await self._call(
+            [
+                {
+                    "row_index": 0,
+                    "column_index": 0,
+                    "border_bottom": {"color": {"red": 0, "green": 0, "blue": 0}, "width": 1.0},
+                }
+            ]
+        )
+        assert "error" not in result
+        assert fields == ["borderBottom"]
+        assert "borderTop" not in style
+        assert "borderRight" not in style
+        assert "borderLeft" not in style
+        assert style["borderBottom"]["color"]["color"]["rgbColor"] == {
+            "red": 0,
+            "green": 0,
+            "blue": 0,
+        }
+        assert style["borderBottom"]["width"] == {"magnitude": 1.0, "unit": "PT"}
+
+    async def test_per_edge_overrides_uniform_other_edges_keep_uniform(self):
+        result, style, fields = await self._call(
+            [
+                {
+                    "row_index": 0,
+                    "column_index": 0,
+                    "border_color": {"red": 0, "green": 0, "blue": 0},
+                    "border_width": 0.5,
+                    "border_bottom": {
+                        "color": {"red": 1, "green": 0, "blue": 0},
+                        "width": 2.0,
+                    },
+                }
+            ]
+        )
+        assert "error" not in result
+        assert set(fields) == {"borderTop", "borderRight", "borderBottom", "borderLeft"}
+        assert style["borderBottom"]["color"]["color"]["rgbColor"] == {
+            "red": 1,
+            "green": 0,
+            "blue": 0,
+        }
+        assert style["borderBottom"]["width"] == {"magnitude": 2.0, "unit": "PT"}
+        for side in ("borderTop", "borderRight", "borderLeft"):
+            assert style[side]["color"]["color"]["rgbColor"] == {
+                "red": 0,
+                "green": 0,
+                "blue": 0,
+            }
+            assert style[side]["width"] == {"magnitude": 0.5, "unit": "PT"}
+
+    async def test_empty_cells_list_returns_error(self):
+        tools = self._setup()
+        ctx = _make_ctx(docs_service=MagicMock(), doc_cache=MagicMock())
+        result = await tools["style_doc_table_cells"](
+            doc_id="doc123", table_start_index=5, cells=[], ctx=ctx
+        )
+        assert "error" in result
+
+
 # ---------------------------------------------------------------------------
 # apply_theme / get_doc_theme tools
 # ---------------------------------------------------------------------------
@@ -567,6 +675,64 @@ class TestApplyThemeTool:
         )
         mock_docs.documents().get.assert_called_with(documentId="doc123")
         assert result["requests"] > 0
+
+    async def test_apply_theme_table_border_bottom_only(self):
+        # #403: per-edge border override on the table theme's border styling.
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "body": {"content": [{"table": {"rows": 1, "columns": 2}, "startIndex": 5}]}
+        }
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["apply_theme"](
+            doc_id="doc123",
+            theme={
+                "table": {
+                    "border_bottom": {"color": {"red": 0, "green": 0, "blue": 0}, "width": 1.0}
+                }
+            },
+            ctx=ctx,
+        )
+        assert "error" not in result
+        call_kwargs = mock_docs.documents().batchUpdate.call_args[1]
+        reqs = call_kwargs["body"]["requests"]
+        cell_reqs = [r["updateTableCellStyle"] for r in reqs if "updateTableCellStyle" in r]
+        assert len(cell_reqs) == 1
+        style = cell_reqs[0]["tableCellStyle"]
+        fields = cell_reqs[0]["fields"].split(",")
+        assert fields == ["borderBottom"]
+        assert "borderTop" not in style
+        assert style["borderBottom"]["width"] == {"magnitude": 1.0, "unit": "PT"}
+
+    async def test_apply_theme_table_border_per_edge_overrides_uniform(self):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "body": {"content": [{"table": {"rows": 1, "columns": 2}, "startIndex": 5}]}
+        }
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["apply_theme"](
+            doc_id="doc123",
+            theme={
+                "table": {
+                    "border_width": 0.5,
+                    "border_bottom": {"width": 2.0},
+                }
+            },
+            ctx=ctx,
+        )
+        assert "error" not in result
+        call_kwargs = mock_docs.documents().batchUpdate.call_args[1]
+        reqs = call_kwargs["body"]["requests"]
+        style = next(
+            r["updateTableCellStyle"]["tableCellStyle"] for r in reqs if "updateTableCellStyle" in r
+        )
+        assert style["borderBottom"]["width"] == {"magnitude": 2.0, "unit": "PT"}
+        assert style["borderTop"]["width"] == {"magnitude": 0.5, "unit": "PT"}
 
     async def test_apply_theme_default_succeeds_without_matching_paragraphs(self):
         # Default mode (overwrite=False) updates named style definitions regardless of
