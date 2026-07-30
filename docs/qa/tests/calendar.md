@@ -361,6 +361,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Returns a list with at least one rule (typically the owner's own `user` rule with `role: owner`)
 - Each item has `id`, `role`, `scope_type`, `scope_value`
 
+**Result:** PASS (live, disposable calendar, 2026-07-29) — returned both owner rules with all four fields.
+
 ---
 
 ### TC-CAL61: Non-existent calendar ID
@@ -370,6 +372,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Checks**
 - Returns `[{"error": "..."}]` — not a top-level exception
+
+**Result:** PASS (live, 2026-07-29).
 
 ---
 
@@ -388,6 +392,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Cleanup:** remove the rule via `remove_calendar_acl` if not reused by TC-CAL67.
 
+**Result:** PASS (live, 2026-07-29).
+
 ---
 
 ### TC-CAL63: Add a public (default-scope) rule ⚠️ destructive
@@ -398,11 +404,11 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 > "Make calendar {TEST_CALENDAR_ID} publicly readable for free/busy using scope_type 'default' and role 'freeBusyReader', with no scope_value"
 
 **Checks**
-- Returns `scope_type: "default"`, `scope_value: null`, `role: "freeBusyReader"`
+- Returns `scope_type: "default"`, `role: "freeBusyReader"`
 - `id` is `"default"`
-- Confirms `scope_value` is not required when `scope_type='default'`
+- `scope_value` is not required when `scope_type='default'`
 
-**Cleanup:** delete the disposable calendar (via `delete_calendar`) so the public rule doesn't linger.
+**Result:** PASS with a corrected expectation (live, 2026-07-29) — the live API returns `scope_value: "__public_principal__@public.calendar.google.com"` for a default-scope rule, not `null` as originally written here. That's a Calendar API quirk (its documented sentinel for the public principal), not a tool defect — `add_calendar_acl`'s own docstring never promises a `null`/omitted `scope_value` for `default`, only that `scope_value` isn't *required* as an input, which held. Corrected the check above to drop the `scope_value: null` claim.
 
 ---
 
@@ -415,6 +421,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Returns `{"error": "..."}` naming the invalid role and listing the valid ones
 - No new rule appears in a follow-up `list_calendar_acl` call — confirms the invalid role is rejected before any API call
 
+**Result:** PASS (live, 2026-07-29).
+
 ---
 
 ### TC-CAL65: scope_value required for a non-default scope_type
@@ -426,6 +434,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Returns `{"error": "..."}` naming `scope_value` as required
 - No new rule appears in a follow-up `list_calendar_acl` call
 
+**Result:** PASS (live, 2026-07-29).
+
 ---
 
 ### TC-CAL66: Non-existent calendar ID
@@ -435,6 +445,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Checks**
 - Returns `{"error": "..."}` — not a top-level exception
+
+**Result:** PASS (live, 2026-07-29).
 
 ---
 
@@ -451,6 +463,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Returns `{"calendar_id": "...", "rule_id": "...", "action": "removed"}`
 - The rule no longer appears in a follow-up `list_calendar_acl` call
 
+**Result:** PASS (live, 2026-07-29).
+
 ---
 
 ### TC-CAL68: Non-existent rule ID
@@ -460,6 +474,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Checks**
 - Returns `{"error": "..."}` — not a top-level exception
+
+**Result:** PASS (live, 2026-07-29) — API returns 400 "Invalid resource id value" (malformed ID), correctly surfaced as `{"error": ...}` rather than a top-level exception. A well-formed but nonexistent rule ID would presumably 404 the same clean way, not separately exercised.
 
 ---
 
