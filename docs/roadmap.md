@@ -130,7 +130,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 **Calendar**
 - [x] `create_calendar` / `update_calendar` / `delete_calendar` — calendar lifecycle (PR #266) ([#156](https://github.com/khuisman/mcp-gee-sweet/issues/156))
 - [x] `add_calendar_to_list` / `remove_calendar_from_list` — subscribe/unsubscribe (PR #269) ([#157](https://github.com/khuisman/mcp-gee-sweet/issues/157))
-- [ ] Calendar ACL — share a calendar with users or groups _(on deck — `ready-for-development`, open for outside contribution)_ ([#158](https://github.com/khuisman/mcp-gee-sweet/issues/158))
+- [x] Calendar ACL — share a calendar with users or groups (PR #455) ([#158](https://github.com/khuisman/mcp-gee-sweet/issues/158))
 - [ ] `list_all_events` — query all subscribed calendars in parallel _(decision needed — also tracked in Decisions Needed)_ ([#194](https://github.com/khuisman/mcp-gee-sweet/issues/194))
 
 **Docs**
