@@ -1886,7 +1886,7 @@
 - [x] <code>create_calendar</code> / <code>update_calendar</code> / <code>delete_calendar</code> — calendar lifecycle (PR #266) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/156">#156</a>)
 - [x] <code>add_calendar_to_list</code> / <code>remove_calendar_from_list</code> — subscribe/unsubscribe (PR #269) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/157">#157</a>)
 - [x] Calendar ACL — share a calendar with users or groups (PR #455) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/158">#158</a>)
-- [ ] <code>list_all_events</code> — query all subscribed calendars in parallel <em>(decision needed — also tracked in Decisions Needed)</em> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/194">#194</a>)</p>
+- [ ] <code>list_all_events</code> — query all subscribed calendars in parallel, reusing the <code>asyncio.gather</code>/<code>execute_in_thread</code> pattern #183 established and the inline-per-item-error convention already used by <code>get_multiple_sheet_data</code>/<code>share_spreadsheet</code>/<code>share_file</code> (both open questions resolved; no longer decision-blocked) <code>ready-for-development</code>/<code>lane-a</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/194">#194</a>)</p>
 <p><strong>Docs</strong>
 - [x] <code>insert_page_break</code> — explicit page break at an index (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/148">#148</a>) (PR #314)
 - [x] <code>merge_table_cells</code> — merge cells in an existing table (distinct from write-time colspan) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/150">#150</a>) (PR #310)
@@ -1987,7 +1987,6 @@
 <li>[ ] <code>search_spreadsheets</code> empty query — return all or require non-empty input (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/39">#39</a>)</li>
 <li>[ ] <code>get_file_metadata</code> size field for Workspace files — normalize or document (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/40">#40</a>)</li>
 <li>[ ] <code>rows_to_fetch=0</code> — clamp to 1 or return all rows (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/78">#78</a>)</li>
-<li>[ ] <code>list_all_events</code> — how to handle per-calendar failures when querying in parallel (partial results vs fail-fast); also blocked on <a href="https://github.com/khuisman/mcp-gee-sweet/issues/183">#183</a> landing first so it reuses that pattern instead of its own <code>ThreadPoolExecutor</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/194">#194</a>)</li>
 </ul>
 <hr />
 <h2 id="bugs-found-in-phase-1-qa-run-2026-06-02">Bugs found in Phase 1 QA run (2026-06-02)<a class="headerlink" href="#bugs-found-in-phase-1-qa-run-2026-06-02" title="Permanent link">&para;</a></h2>
