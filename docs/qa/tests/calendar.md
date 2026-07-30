@@ -957,3 +957,95 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Result (2026-06-24) ✅** — Patched instance `9lrphvbvegq03163gjh7fu35qo_20260714T150000Z` with `summary: 'QA-Daily-5x (Modified)'`. Jul 15–18 instances still returned `summary: 'QA-Daily-5x'`. `get_event` on master `9lrphvbvegq03163gjh7fu35qo` returned `summary: 'QA-Daily-5x'` and `recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]` unchanged. Instance-level exception confirmed.
 
 ---
+
+## `list_all_events`
+
+### TC-CAL69: Defaults to every subscribed calendar and returns a flat list
+
+**Setup:** `{CALENDAR_ID}` and `{CALENDAR_ID_2}` are both subscribed and each has at least one event in the window below (e.g. TC-CAL20's 'QA-Timed-Test' on 2026-07-01 in `{CALENDAR_ID}`).
+
+**Prompt**
+> Call `list_all_events(time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z")` with no `calendar_ids`.
+
+**Checks**
+- Response is a flat list (`list`), not a dict
+- 'QA-Timed-Test' appears with `calendar_id` equal to `{CALENDAR_ID}` and `calendar_summary` equal to that calendar's actual summary from `list_calendars`
+- Every returned event has both `calendar_id` and `calendar_summary` populated
+- Confirms omitting `calendar_ids` fans out across the full `list_calendars` result, not just one calendar
+
+---
+
+### TC-CAL70: Explicit calendar_ids restricts the fan-out
+
+**Prompt**
+> Call `list_all_events(calendar_ids=["{CALENDAR_ID}"], time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z")`.
+
+**Checks**
+- Every event in the response has `calendar_id: "{CALENDAR_ID}"` — no event from `{CALENDAR_ID_2}` or any other subscribed calendar appears, even if it has events in the same window
+- Confirms `calendar_ids` narrows the query instead of always hitting every subscribed calendar
+
+---
+
+### TC-CAL71: group_by_calendar=True groups by calendar summary
+
+**Setup:** same fixtures as TC-CAL69 — both calendars have at least one event in the window.
+
+**Prompt**
+> Call `list_all_events(calendar_ids=["{CALENDAR_ID}", "{CALENDAR_ID_2}"], time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z", group_by_calendar=true)`.
+
+**Checks**
+- Response is a dict keyed by each calendar's `summary` (from `list_calendars`), not a flat list
+- Each key's value is that calendar's own event list only
+- Events under each key still carry `calendar_id`/`calendar_summary` matching the key they're filed under
+
+---
+
+### TC-CAL72: One invalid calendar_id does not abort the batch (flat list)
+
+**Prompt**
+> Call `list_all_events(calendar_ids=["{CALENDAR_ID}", "invalid-cal@example.com"], time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z")`.
+
+**Checks**
+- The call itself does not raise or return a top-level `{"error": ...}` — it returns a flat list
+- Exactly one entry has `calendar_id: "invalid-cal@example.com"` and an `error` field (Calendar API's not-found/forbidden message); that entry has no `id`/`summary`/event fields
+- `{CALENDAR_ID}`'s real events (e.g. 'QA-Timed-Test') are still present in the same list, unaffected by the other calendar's failure
+- Confirms per-calendar failures are inlined rather than failing the whole call (the `asyncio.gather(..., return_exceptions=True)` fan-out pattern from #183)
+
+---
+
+### TC-CAL73: One invalid calendar_id does not abort the batch (group_by_calendar=True)
+
+**Prompt**
+> Call `list_all_events(calendar_ids=["{CALENDAR_ID}", "invalid-cal@example.com"], time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z", group_by_calendar=true)`.
+
+**Checks**
+- `result["invalid-cal@example.com"]` (falls back to the raw ID as the key since an inaccessible calendar has no known summary) is exactly `{"error": "..."}`
+- The key for `{CALENDAR_ID}`'s real summary still maps to its normal event list, unaffected by the other calendar's failure
+
+---
+
+### TC-CAL74: query is forwarded to every calendar in the fan-out
+
+**Setup:** 'QA-Timed-Test' (TC-CAL20) exists in `{CALENDAR_ID}`; `{CALENDAR_ID_2}` has no event matching the query text.
+
+**Prompt**
+> Call `list_all_events(calendar_ids=["{CALENDAR_ID}", "{CALENDAR_ID_2}"], time_min="2026-01-01T00:00:00Z", time_max="2026-12-31T23:59:59Z", query="QA-Timed-Test")`.
+
+**Checks**
+- 'QA-Timed-Test' is returned from `{CALENDAR_ID}`
+- No events are returned from `{CALENDAR_ID_2}` (confirms `query` was passed as `q` to that calendar's `events().list()` too, not just the first)
+
+---
+
+### TC-CAL75: expand_recurring=False returns master events across every queried calendar
+
+**Setup:** use the recurring event created in TC-CAL36 (in `{CALENDAR_ID}`).
+
+**Prompt**
+> Call `list_all_events(calendar_ids=["{CALENDAR_ID}"], expand_recurring=false, query="QA-")`.
+
+**Checks**
+- 'QA-Weekly-Standup' appears once as its master event (recurrence field populated with RRULE), not expanded into individual instances
+- Confirms `expand_recurring=False` is applied per-calendar in the fan-out, matching `list_events`' own `singleEvents`/`orderBy` behavior
+
+---

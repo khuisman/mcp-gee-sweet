@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -7,6 +8,7 @@ from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
 from ..auth import execute_in_thread
+from .response_limits import enforce_response_size_cap
 
 logger = logging.getLogger(__name__)
 
@@ -854,3 +856,166 @@ def register(tool):
             free_slots.append({"start": cursor, "end": time_max})
 
         return {"busy": busy, "free_slots": free_slots}
+
+    @tool(annotations=ToolAnnotations(title="List All Events", readOnlyHint=True))
+    async def list_all_events(
+        time_min: str | None = None,
+        time_max: str | None = None,
+        query: str | None = None,
+        calendar_ids: list[str] | None = None,
+        max_results_per_calendar: int = 50,
+        expand_recurring: bool = True,
+        group_by_calendar: bool = False,
+        ctx: Context = None,
+    ) -> list[dict[str, Any]] | dict[str, Any]:
+        """
+        List events across multiple calendars in one call, fanning out to each
+        calendar in parallel instead of requiring one list_events call per calendar.
+
+        Args:
+            time_min: Lower bound (inclusive) for event start times, RFC 3339 format,
+                      e.g. '2026-01-01T00:00:00Z'. Defaults to the current UTC time.
+            time_max: Upper bound (exclusive) for event end times, RFC 3339 format.
+            query: Free-text search terms to find events matching summary, description,
+                   location, attendee names/emails.
+            calendar_ids: Calendar IDs to query. Defaults to every calendar in the
+                          authenticated user's calendar list (list_calendars).
+            max_results_per_calendar: Maximum number of events to return per calendar
+                                       (default 50, max 2500).
+            expand_recurring: When True (default), recurring events are expanded into
+                              individual instances. When False, each recurring series is
+                              returned as a single master event.
+            group_by_calendar: When False (default), returns a flat list of events sorted
+                               by calendar. When True, returns a dict keyed by calendar
+                               summary instead.
+
+        Returns:
+            A flat list of events (each including calendar_id and calendar_summary),
+            or if group_by_calendar=True, a dict mapping calendar summary to that
+            calendar's event list. A calendar that fails to query is included inline
+            as {calendar_id, calendar_summary, error} rather than aborting the batch.
+            Raises ValueError if the response exceeds the safety cap (default 40,000
+            characters, set MAX_TOOL_RESPONSE_CHARS to change it) — narrow the time
+            window, pass calendar_ids, or lower max_results_per_calendar.
+        """
+        lc = ctx.request_context.lifespan_context
+        max_results_per_calendar = min(max(1, max_results_per_calendar), 2500)
+
+        cache = lc.calendar_cache
+        all_calendars = cache.get_list()
+        if all_calendars is None:
+            result = await execute_in_thread(
+                lc.calendar_service.calendarList().list().execute,
+                lc.calendar_service,
+            )
+            all_calendars = [
+                {
+                    "id": c["id"],
+                    "summary": c.get("summary", ""),
+                    "time_zone": c.get("timeZone"),
+                    "access_role": c.get("accessRole"),
+                    "primary": c.get("primary", False),
+                }
+                for c in result.get("items", [])
+            ]
+            cache.store_list(all_calendars)
+
+        summary_by_id = {c["id"]: c.get("summary", "") for c in all_calendars}
+        target_ids = calendar_ids if calendar_ids is not None else [c["id"] for c in all_calendars]
+
+        async def _fetch_one(calendar_id: str) -> dict[str, Any]:
+            kwargs: dict[str, Any] = {
+                "calendarId": calendar_id,
+                "maxResults": max_results_per_calendar,
+                "singleEvents": expand_recurring,
+            }
+            if expand_recurring:
+                kwargs["orderBy"] = "startTime"
+            kwargs["timeMin"] = time_min or datetime.now(timezone.utc).isoformat()
+            if time_max:
+                kwargs["timeMax"] = time_max
+            if query:
+                kwargs["q"] = query
+
+            calendar_summary = summary_by_id.get(calendar_id, calendar_id)
+            try:
+                result = await execute_in_thread(
+                    lc.calendar_service.events().list(**kwargs).execute,
+                    lc.calendar_service,
+                )
+            except Exception as e:
+                return {
+                    "calendar_id": calendar_id,
+                    "calendar_summary": calendar_summary,
+                    "error": str(e),
+                }
+
+            events = []
+            for e in result.get("items", []):
+                start = e.get("start", {})
+                end = e.get("end", {})
+                events.append(
+                    {
+                        "id": e["id"],
+                        "summary": e.get("summary", ""),
+                        "start": start.get("dateTime") or start.get("date"),
+                        "end": end.get("dateTime") or end.get("date"),
+                        "location": e.get("location"),
+                        "description": e.get("description"),
+                        "organizer": e.get("organizer", {}).get("email"),
+                        "attendees": [
+                            {"email": a.get("email"), "response": a.get("responseStatus")}
+                            for a in e.get("attendees", [])
+                        ],
+                        "recurrence": e.get("recurrence"),
+                        "html_link": e.get("htmlLink"),
+                        "status": e.get("status"),
+                        "calendar_id": calendar_id,
+                        "calendar_summary": calendar_summary,
+                    }
+                )
+            return {
+                "calendar_id": calendar_id,
+                "calendar_summary": calendar_summary,
+                "events": events,
+            }
+
+        # return_exceptions=True: each _fetch_one already catches its own errors and
+        # returns a tagged dict, but this also lets any genuinely unexpected exception
+        # finish alongside the rest of the batch instead of orphaning in-flight tasks.
+        raw = await asyncio.gather(*(_fetch_one(cid) for cid in target_ids), return_exceptions=True)
+        per_calendar = [
+            r
+            if not isinstance(r, BaseException)
+            else {
+                "calendar_id": cid,
+                "calendar_summary": summary_by_id.get(cid, cid),
+                "error": str(r),
+            }
+            for cid, r in zip(target_ids, raw, strict=True)
+        ]
+
+        if group_by_calendar:
+            grouped: dict[str, Any] = {}
+            for entry in per_calendar:
+                key = entry["calendar_summary"]
+                grouped[key] = {"error": entry["error"]} if "error" in entry else entry["events"]
+            enforce_response_size_cap(
+                grouped, tool_name="list_all_events", local_path_available=False
+            )
+            return grouped
+
+        flat: list[dict[str, Any]] = []
+        for entry in per_calendar:
+            if "error" in entry:
+                flat.append(
+                    {
+                        "calendar_id": entry["calendar_id"],
+                        "calendar_summary": entry["calendar_summary"],
+                        "error": entry["error"],
+                    }
+                )
+            else:
+                flat.extend(entry["events"])
+        enforce_response_size_cap(flat, tool_name="list_all_events", local_path_available=False)
+        return flat
