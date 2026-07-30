@@ -14,6 +14,8 @@ Before filing, triage defect vs. hardening honestly: has a failure actually been
 
 **Command decision** — operational knowledge that should change how the *next* session in this same seat behaves: a process gap, a doc gap, a technique that worked (or didn't), a fixture gotcha, a missing step in a skill file. This isn't roadmap-worthy scope, so skip the ticket — edit the relevant process/skill doc directly, right now, and say what you changed. Examples already in this repo: `docs/qa/run.md`'s Playwright limitations list, `docs/qa/retro-v0.8.0.md`'s action items, a role file's own process fixes.
 
+This same command-vs-memory distinction applies any time feedback lands, not just at a `/retro` pass — see `CLAUDE.md`'s "Procedural feedback" note: a repeatable workflow correction belongs in the command file it's about, not in a memory entry that competes with it.
+
 Every command-decision edit still needs a PR — it never lands straight on `develop`, no matter how small: commit it on its own short branch (`doc/<role>/retro-<date>`), open a PR, and get `prompt-qa-approved` from Bob before it merges. See `.claude/team-roles/bob.md` for why and the full flow.
 
 ## Your role's details
