@@ -537,27 +537,64 @@ class TestAddCalendarAcl:
             "scope_value": "someone@example.com",
         }
 
-    async def test_api_error_returns_error_dict(self):
+    async def test_marks_cache_dirty_with_calendar_id(self):
+        """calendar_cache.mark_dirty must be called so a stale cached access_role isn't served."""
+        cal_svc = MagicMock()
+        cal_svc.acl.return_value.insert.return_value.execute.return_value = {
+            "id": "user:someone@example.com",
+            "role": "writer",
+            "scope": {"type": "user", "value": "someone@example.com"},
+        }
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        await _cal_tools["add_calendar_acl"](
+            calendar_id="cal-1",
+            role="writer",
+            scope_type="user",
+            scope_value="someone@example.com",
+            ctx=ctx,
+        )
+
+        cache.mark_dirty.assert_called_once_with("cal-1")
+
+    async def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
         cal_svc = MagicMock()
         cal_svc.acl.return_value.insert.return_value.execute.side_effect = Exception(
             "Invalid sharee"
         )
-        ctx = _make_ctx(calendar_service=cal_svc)
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
 
         result = await _cal_tools["add_calendar_acl"](
             calendar_id="cal-1", role="reader", scope_value="bad", ctx=ctx
         )
 
         assert "error" in result
+        cache.mark_dirty.assert_not_called()
+
+    async def test_validation_error_does_not_mark_cache_dirty(self):
+        """A rejected role must not reach the API call, and must not dirty the cache either."""
+        cal_svc = MagicMock()
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["add_calendar_acl"](
+            calendar_id="cal-1", role="admin", scope_value="a@example.com", ctx=ctx
+        )
+
+        assert "error" in result
+        cache.mark_dirty.assert_not_called()
 
 
 class TestRemoveCalendarAcl:
     """remove_calendar_acl calls acl().delete() and returns a structured confirmation."""
 
-    async def test_success_returns_confirmation_dict(self):
+    async def test_success_returns_confirmation_dict_and_marks_cache_dirty(self):
         cal_svc = MagicMock()
         cal_svc.acl.return_value.delete.return_value.execute.return_value = None
-        ctx = _make_ctx(calendar_service=cal_svc)
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
 
         result = await _cal_tools["remove_calendar_acl"](
             calendar_id="cal-1", rule_id="user:someone@example.com", ctx=ctx
@@ -571,17 +608,20 @@ class TestRemoveCalendarAcl:
         cal_svc.acl.return_value.delete.assert_called_once_with(
             calendarId="cal-1", ruleId="user:someone@example.com"
         )
+        cache.mark_dirty.assert_called_once_with("cal-1")
 
-    async def test_api_error_returns_error_dict(self):
+    async def test_api_error_returns_error_dict_without_marking_cache_dirty(self):
         cal_svc = MagicMock()
         cal_svc.acl.return_value.delete.return_value.execute.side_effect = Exception("Not Found")
-        ctx = _make_ctx(calendar_service=cal_svc)
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
 
         result = await _cal_tools["remove_calendar_acl"](
             calendar_id="cal-1", rule_id="rule-missing", ctx=ctx
         )
 
         assert "error" in result
+        cache.mark_dirty.assert_not_called()
 
 
 class TestCreateEvent:

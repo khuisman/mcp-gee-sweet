@@ -407,6 +407,7 @@ def register(tool):
         except Exception as e:
             return {"error": str(e)}
 
+        lc.calendar_cache.mark_dirty(calendar_id)
         logger.debug("Added ACL rule %s to calendar %s", r.get("id"), calendar_id)
         result_scope = r.get("scope", {})
         return {
@@ -439,6 +440,7 @@ def register(tool):
         except Exception as e:
             return {"error": str(e)}
 
+        lc.calendar_cache.mark_dirty(calendar_id)
         logger.debug("Removed ACL rule %s from calendar %s", rule_id, calendar_id)
         return {"calendar_id": calendar_id, "rule_id": rule_id, "action": "removed"}
 
