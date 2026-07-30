@@ -16,6 +16,9 @@ _CANNOT_UNSUBSCRIBE_OWNED_ERROR = (
     "permanently delete it."
 )
 
+_CALENDAR_ACL_ROLES = ("reader", "writer", "owner", "freeBusyReader")
+_CALENDAR_ACL_SCOPE_TYPES = ("default", "user", "group", "domain")
+
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="List Calendars", readOnlyHint=True))
@@ -313,6 +316,133 @@ def register(tool):
         lc.calendar_cache.mark_dirty(calendar_id)
         logger.debug("Removed calendar %s from calendar list", calendar_id)
         return {"calendar_id": calendar_id, "action": "removed_from_list"}
+
+    @tool(annotations=ToolAnnotations(title="List Calendar ACL", readOnlyHint=True))
+    async def list_calendar_acl(calendar_id: str, ctx: Context = None) -> list[dict[str, Any]]:
+        """
+        List the access control rules (sharing entries) on a calendar.
+
+        Args:
+            calendar_id: The calendar ID, or 'primary'.
+
+        Returns:
+            List of ACL rules, each with id, role, scope_type, and scope_value.
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            result = await execute_in_thread(
+                lc.calendar_service.acl().list(calendarId=calendar_id).execute,
+                lc.calendar_service,
+            )
+        except Exception as e:
+            return [{"error": str(e)}]
+
+        rules = []
+        for r in result.get("items", []):
+            scope = r.get("scope", {})
+            rules.append(
+                {
+                    "id": r.get("id"),
+                    "role": r.get("role"),
+                    "scope_type": scope.get("type"),
+                    "scope_value": scope.get("value"),
+                }
+            )
+        return rules
+
+    @tool(annotations=ToolAnnotations(title="Add Calendar ACL", destructiveHint=True))
+    async def add_calendar_acl(
+        calendar_id: str,
+        role: str,
+        scope_type: str = "user",
+        scope_value: str | None = None,
+        send_notifications: bool = True,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Grant access to a calendar by adding an access control rule.
+
+        Args:
+            calendar_id: The calendar ID, or 'primary'.
+            role: Access role to grant. One of: 'reader', 'writer', 'owner', 'freeBusyReader'.
+            scope_type: Who the rule applies to. One of: 'user', 'group', 'domain', 'default'
+                        ('default' grants public access to all users and needs no scope_value).
+            scope_value: Email address (for 'user'/'group') or domain name (for 'domain').
+                         Required unless scope_type is 'default'.
+            send_notifications: Whether to send a notification email to the grantee.
+                                 Defaults to True.
+
+        Returns:
+            Created ACL rule: id, role, scope_type, scope_value.
+        """
+        lc = ctx.request_context.lifespan_context
+
+        if role not in _CALENDAR_ACL_ROLES:
+            return {
+                "error": f"Invalid role '{role}'. Must be one of: {', '.join(_CALENDAR_ACL_ROLES)}"
+            }
+        if scope_type not in _CALENDAR_ACL_SCOPE_TYPES:
+            return {
+                "error": f"Invalid scope_type '{scope_type}'. "
+                f"Must be one of: {', '.join(_CALENDAR_ACL_SCOPE_TYPES)}"
+            }
+        if scope_type != "default" and not scope_value:
+            return {"error": f"scope_value is required when scope_type is '{scope_type}'."}
+
+        scope: dict[str, str] = {"type": scope_type}
+        if scope_value:
+            scope["value"] = scope_value
+
+        try:
+            r = await execute_in_thread(
+                lc.calendar_service.acl()
+                .insert(
+                    calendarId=calendar_id,
+                    body={"role": role, "scope": scope},
+                    sendNotifications=send_notifications,
+                )
+                .execute,
+                lc.calendar_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.calendar_cache.mark_dirty(calendar_id)
+        logger.debug("Added ACL rule %s to calendar %s", r.get("id"), calendar_id)
+        result_scope = r.get("scope", {})
+        return {
+            "id": r.get("id"),
+            "role": r.get("role"),
+            "scope_type": result_scope.get("type"),
+            "scope_value": result_scope.get("value"),
+        }
+
+    @tool(annotations=ToolAnnotations(title="Remove Calendar ACL", destructiveHint=True))
+    async def remove_calendar_acl(
+        calendar_id: str, rule_id: str, ctx: Context = None
+    ) -> dict[str, Any]:
+        """
+        Revoke an access control rule from a calendar.
+
+        Args:
+            calendar_id: The calendar ID, or 'primary'.
+            rule_id: The ACL rule ID to remove (from list_calendar_acl).
+
+        Returns:
+            Confirmation with calendar_id, rule_id, and action 'removed'.
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            await execute_in_thread(
+                lc.calendar_service.acl().delete(calendarId=calendar_id, ruleId=rule_id).execute,
+                lc.calendar_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.calendar_cache.mark_dirty(calendar_id)
+        logger.debug("Removed ACL rule %s from calendar %s", rule_id, calendar_id)
+        return {"calendar_id": calendar_id, "rule_id": rule_id, "action": "removed"}
 
     @tool(annotations=ToolAnnotations(title="List Events", readOnlyHint=True))
     async def list_events(
