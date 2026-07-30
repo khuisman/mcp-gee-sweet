@@ -1521,6 +1521,156 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#list_calendar_acl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_calendar_acl
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_calendar_acl">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal60-list-acl-rules-on-a-calendar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL60: List ACL rules on a calendar
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal61-non-existent-calendar-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL61: Non-existent calendar ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#add_calendar_acl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_calendar_acl
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="add_calendar_acl">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal62-add-a-reader-rule-for-a-user-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL62: Add a reader rule for a user ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal63-add-a-public-default-scope-rule-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL63: Add a public (default-scope) rule ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal64-invalid-role-rejected-without-calling-the-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL64: Invalid role rejected without calling the API
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal65-scope_value-required-for-a-non-default-scope_type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL65: scope_value required for a non-default scope_type
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal66-non-existent-calendar-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL66: Non-existent calendar ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remove_calendar_acl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        remove_calendar_acl
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="remove_calendar_acl">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal67-remove-an-acl-rule-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL67: Remove an ACL rule ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal68-non-existent-rule-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL68: Non-existent rule ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#list_events" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2594,6 +2744,101 @@
 - Returns <code>{"error": "..."}</code> — not a top-level exception
 - The error message is actionable and names <code>delete_calendar</code> as the correct tool — <code>remove_calendar_from_list</code> detects the <code>cannotUnsubscribeFromOwnedCalendar</code> reason specifically and substitutes a friendly message instead of passing through the raw <code>HttpError</code> repr</p>
 <p><strong>Result (2026-07-05) ✅</strong> — First pass (before the friendly-message special-case was added) returned the raw passthrough: <code>{"error": "&lt;HttpError 403 ... 'reason': 'cannotUnsubscribeFromOwnedCalendar', 'message': 'The data owner of a calendar cannot remove such a calendar from their calendar list.' ...&gt;"}</code>. After adding the special-case (reviewer feedback on #269), re-ran against a freshly created owned calendar and got <code>{"error": "Google does not allow removing a calendar you own from your own calendar list (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to permanently delete it."}</code> — confirms the friendlier message is live and correctly names the fix.</p>
+<hr />
+<h2 id="list_calendar_acl"><code>list_calendar_acl</code><a class="headerlink" href="#list_calendar_acl" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal60-list-acl-rules-on-a-calendar">TC-CAL60: List ACL rules on a calendar<a class="headerlink" href="#tc-cal60-list-acl-rules-on-a-calendar" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List the access control rules for calendar {CALENDAR_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns a list with at least one rule (typically the owner's own <code>user</code> rule with <code>role: owner</code>)
+- Each item has <code>id</code>, <code>role</code>, <code>scope_type</code>, <code>scope_value</code></p>
+<p><strong>Result:</strong> PASS (live, disposable calendar, 2026-07-29) — returned both owner rules with all four fields.</p>
+<hr />
+<h3 id="tc-cal61-non-existent-calendar-id">TC-CAL61: Non-existent calendar ID<a class="headerlink" href="#tc-cal61-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List the ACL rules for calendar 'totally-invalid-cal-id@example.com'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>[{"error": "..."}]</code> — not a top-level exception</p>
+<p><strong>Result:</strong> PASS (live, 2026-07-29).</p>
+<hr />
+<h2 id="add_calendar_acl"><code>add_calendar_acl</code><a class="headerlink" href="#add_calendar_acl" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal62-add-a-reader-rule-for-a-user-destructive">TC-CAL62: Add a reader rule for a user ⚠️ destructive<a class="headerlink" href="#tc-cal62-add-a-reader-rule-for-a-user-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> a calendar you own (e.g. from <code>create_calendar</code>) and an email address not already on its ACL, e.g. <code>test@example.com</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Grant reader access to test@example.com on calendar {CALENDAR_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>id</code> in the form <code>user:test@example.com</code>, <code>role: "reader"</code>, <code>scope_type: "user"</code>, <code>scope_value: "test@example.com"</code>
+- The rule appears in a follow-up <code>list_calendar_acl</code> call</p>
+<p><strong>Cleanup:</strong> remove the rule via <code>remove_calendar_acl</code> if not reused by TC-CAL67.</p>
+<p><strong>Result:</strong> PASS (live, 2026-07-29).</p>
+<hr />
+<h3 id="tc-cal63-add-a-public-default-scope-rule-destructive">TC-CAL63: Add a public (default-scope) rule ⚠️ destructive<a class="headerlink" href="#tc-cal63-add-a-public-default-scope-rule-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> a disposable test calendar (e.g. from <code>create_calendar</code>) — do not use a real personal calendar, since <code>scope_type='default'</code> makes the calendar's free/busy or event details public on the internet</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Make calendar {TEST_CALENDAR_ID} publicly readable for free/busy using scope_type 'default' and role 'freeBusyReader', with no scope_value"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>scope_type: "default"</code>, <code>role: "freeBusyReader"</code>
+- <code>id</code> is <code>"default"</code>
+- <code>scope_value</code> is not required when <code>scope_type='default'</code></p>
+<p><strong>Result:</strong> PASS with a corrected expectation (live, 2026-07-29) — the live API returns <code>scope_value: "__public_principal__@public.calendar.google.com"</code> for a default-scope rule, not <code>null</code> as originally written here. That's a Calendar API quirk (its documented sentinel for the public principal), not a tool defect — <code>add_calendar_acl</code>'s own docstring never promises a <code>null</code>/omitted <code>scope_value</code> for <code>default</code>, only that <code>scope_value</code> isn't <em>required</em> as an input, which held. Corrected the check above to drop the <code>scope_value: null</code> claim.</p>
+<hr />
+<h3 id="tc-cal64-invalid-role-rejected-without-calling-the-api">TC-CAL64: Invalid role rejected without calling the API<a class="headerlink" href="#tc-cal64-invalid-role-rejected-without-calling-the-api" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add a calendar ACL rule for test@example.com on {CALENDAR_ID} with role 'admin'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> naming the invalid role and listing the valid ones
+- No new rule appears in a follow-up <code>list_calendar_acl</code> call — confirms the invalid role is rejected before any API call</p>
+<p><strong>Result:</strong> PASS (live, 2026-07-29).</p>
+<hr />
+<h3 id="tc-cal65-scope_value-required-for-a-non-default-scope_type">TC-CAL65: scope_value required for a non-default scope_type<a class="headerlink" href="#tc-cal65-scope_value-required-for-a-non-default-scope_type" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add a calendar ACL rule on {CALENDAR_ID} with role 'reader' and scope_type 'user' but no scope_value"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> naming <code>scope_value</code> as required
+- No new rule appears in a follow-up <code>list_calendar_acl</code> call</p>
+<p><strong>Result:</strong> PASS (live, 2026-07-29).</p>
+<hr />
+<h3 id="tc-cal66-non-existent-calendar-id">TC-CAL66: Non-existent calendar ID<a class="headerlink" href="#tc-cal66-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Grant reader access to test@example.com on calendar 'totally-invalid-cal-id@example.com'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception</p>
+<p><strong>Result:</strong> PASS (live, 2026-07-29).</p>
+<hr />
+<h2 id="remove_calendar_acl"><code>remove_calendar_acl</code><a class="headerlink" href="#remove_calendar_acl" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal67-remove-an-acl-rule-destructive">TC-CAL67: Remove an ACL rule ⚠️ destructive<a class="headerlink" href="#tc-cal67-remove-an-acl-rule-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> the rule created in TC-CAL62 (or a fresh <code>add_calendar_acl</code> call if run independently)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Remove the ACL rule 'user:test@example.com' from calendar {CALENDAR_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"calendar_id": "...", "rule_id": "...", "action": "removed"}</code>
+- The rule no longer appears in a follow-up <code>list_calendar_acl</code> call</p>
+<p><strong>Result:</strong> PASS (live, 2026-07-29).</p>
+<hr />
+<h3 id="tc-cal68-non-existent-rule-id">TC-CAL68: Non-existent rule ID<a class="headerlink" href="#tc-cal68-non-existent-rule-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Remove ACL rule 'totally-invalid-rule-id' from calendar {CALENDAR_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception</p>
+<p><strong>Result:</strong> PASS (live, 2026-07-29) — API returns 400 "Invalid resource id value" (malformed ID), correctly surfaced as <code>{"error": ...}</code> rather than a top-level exception. A well-formed but nonexistent rule ID would presumably 404 the same clean way, not separately exercised.</p>
 <hr />
 <h2 id="list_events"><code>list_events</code><a class="headerlink" href="#list_events" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal09-no-time-filters-upcoming-events">TC-CAL09: No time filters — upcoming events<a class="headerlink" href="#tc-cal09-no-time-filters-upcoming-events" title="Permanent link">&para;</a></h3>
