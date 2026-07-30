@@ -3220,6 +3220,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#githubgitlab-style-heading-anchor-links-resolve-to-working-docs-jump-links-issue-409" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GitHub/GitLab-style heading-anchor links resolve to working Docs jump links (issue #409)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="GitHub/GitLab-style heading-anchor links resolve to working Docs jump links (issue #409)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc142-get_doc_structure-surfaces-headingid-for-heading-paragraphs-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC142: get_doc_structure surfaces headingId for heading paragraphs ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc143-create_doc_from_file-resolves-markdown-heading-anchor-links-to-working-in-doc-jump-links-and-strips-unmatched-ones-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC143: create_doc_from_file resolves markdown heading-anchor links to working in-doc jump links, and strips unmatched ones ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc144-a-heading-anchor-link-inside-a-table-cell-is-resolved-regression-for-the-table-blind-body-walk-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC144: A heading-anchor link inside a table cell is resolved (regression for the table-blind body walk) ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc145-a-heading-anchor-link-that-is-the-documents-very-first-body-element-is-resolved-regression-for-the-startindex-carry-forward-gap-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC145: A heading-anchor link that is the document's very first body element is resolved (regression for the startIndex-carry-forward gap) ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5416,6 +5477,66 @@ Run against a live sandbox scoped to only <code>create_doc,create_doc_from_file,
 - 🔍 Visual check: "Fresh ordered item" renders as a <strong>top-level</strong> numbered list item (e.g. "1."), not indented one level in under the malformed list above it — the pre-fix bug would render it nested one level deep despite being its own separate, well-formed <code>&lt;ol&gt;</code></p>
 <p><strong>Cleanup:</strong> delete the created doc</p>
 <p><strong>Result:</strong> PASS (2026-07-27, live via <code>mcp-gee-sweet-kit</code>). <code>create_doc_from_file</code> on the fixture completed without error. <code>get_doc_structure</code> listed the four paragraphs in order — "Parent", "Child", "Unrelated paragraph between the two lists.", "Fresh ordered item" (the tool doesn't surface bullet/nestingLevel fields, so order/text was confirmed this way and depth via the visual check below). Playwright screenshot confirmed "Fresh ordered item" rendered as a top-level "1." — not indented under the malformed list above it, matching the fixed behavior. Test doc trashed per cleanup step.</p>
+<hr />
+<h2 id="githubgitlab-style-heading-anchor-links-resolve-to-working-docs-jump-links-issue-409">GitHub/GitLab-style heading-anchor links resolve to working Docs jump links (issue #409)<a class="headerlink" href="#githubgitlab-style-heading-anchor-links-resolve-to-working-docs-jump-links-issue-409" title="Permanent link">&para;</a></h2>
+<p><strong>Background:</strong> Markdown converted from GitHub/GitLab Pages-published source keeps internal cross-reference links as literal <code>#slug</code> URL fragments — meaningless inside a Google Doc, since Docs has its own heading-jump-link addressing scheme. <code>get_doc_structure</code> now surfaces each heading paragraph's <code>headingId</code> (<code>paragraphStyle.headingId</code>, already present in the API response — no new API capability needed). <code>create_doc</code>/<code>create_doc_from_file</code>/<code>write_doc_content</code> now run an automatic second pass after any conversion that left a <code>#slug</code> link behind: it resolves the anchor against the doc's own real headings (trying GitHub's non-collapsing and GitLab's hyphen-collapsing slugification conventions, then a normalized-word-token fallback) and rewrites it to a working <code>https://docs.google.com/document/d/&lt;docId&gt;/edit?tab=t.0#heading=&lt;headingId&gt;</code> link — confirmed live 2026-07-24 that this ordinary-URL form works as a real in-doc jump link, no special <code>Link.headingId</code> API field needed. An anchor that matches no heading with reasonable confidence gets its link stripped (text kept, plain) rather than left dangling or guessed — a link silently pointing at the wrong section is worse than no link. The pass is skipped entirely (no extra API round trip) when the converted content has no <code>#</code>-prefixed link at all — see unit test <code>test_no_anchor_link_skips_resolution_pass</code> in <code>tests/test_docs_content.py</code>.</p>
+<h3 id="tc-doc142-get_doc_structure-surfaces-headingid-for-heading-paragraphs-destructive">TC-DOC142: <code>get_doc_structure</code> surfaces <code>headingId</code> for heading paragraphs ⚠️ destructive<a class="headerlink" href="#tc-doc142-get_doc_structure-surfaces-headingid-for-heading-paragraphs-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> none — heading created fresh by the call under test.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this Markdown to doc {DOC_ID}: '# A Heading\n\nSome text.\n', then show me its structure."</p>
+</blockquote>
+<p>Tool calls: <code>write_doc_content(doc_id={DOC_ID}, content="# A Heading\n\nSome text.\n", content_format="markdown")</code>, then <code>get_doc_structure(doc_id={DOC_ID})</code>.</p>
+<p><strong>Checks</strong>
+- First element has <code>namedStyleType: "HEADING_1"</code> and a non-null <code>headingId</code> (e.g. <code>"h.xxxxxxxxxxx"</code>)
+- Second element ("Some text.") has <code>namedStyleType: "NORMAL_TEXT"</code> and <code>headingId: null</code></p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result:</strong> PASS (2026-07-28, live via <code>mcp-gee-sweet-kit</code>). First element was <code>HEADING_1</code>/<code>headingId: "h.sfbe55a8e31j"</code>; second was <code>NORMAL_TEXT</code>/<code>headingId: null</code>. Fixture content restored.</p>
+<hr />
+<h3 id="tc-doc143-create_doc_from_file-resolves-markdown-heading-anchor-links-to-working-in-doc-jump-links-and-strips-unmatched-ones-requires-oauth-destructive">TC-DOC143: <code>create_doc_from_file</code> resolves markdown heading-anchor links to working in-doc jump links, and strips unmatched ones ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc143-create_doc_from_file-resolves-markdown-heading-anchor-links-to-working-in-doc-jump-links-and-strips-unmatched-ones-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-doc142-heading-anchors.md</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc142-heading-anchors.md, then show me its structure."</p>
+</blockquote>
+<p>Tool calls: <code>create_doc_from_file(local_path="&lt;repo-root&gt;/docs/qa/fixtures/tc-doc142-heading-anchors.md")</code>, then <code>get_doc_structure(doc_id=&lt;returned docId&gt;)</code>.</p>
+<p><strong>Checks</strong>
+- <code>get_doc_structure</code> shows a HEADING_1 "Appendix A - Approved Hashing Algorithms" and a HEADING_2 "Appendix B - Something Else", each with a non-null <code>headingId</code>
+- The run "Appendix A" has <code>link_url</code> equal to <code>https://docs.google.com/document/d/&lt;docId&gt;/edit?tab=t.0#heading=&lt;headingId&gt;</code> where <code>&lt;headingId&gt;</code> is the SAME value as the "Appendix A - Approved Hashing Algorithms" heading's own <code>headingId</code>
+- The run "Appendix B itself" has <code>link_url</code> similarly pointing at the "Appendix B - Something Else" heading's own <code>headingId</code>
+- The run "dead link" has <code>link_url: null</code> (stripped — not left pointing at the literal <code>#totally-nonexistent-section</code> fragment)
+- 🔍 Visual check: clicking "Appendix A" in the rendered Doc jumps to the "Appendix A - Approved Hashing Algorithms" heading; "dead link" renders as plain, non-hyperlinked text</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result:</strong> PASS as written (2026-07-28, live via <code>mcp-gee-sweet-kit</code>) — "Appendix A" and "Appendix B itself" runs resolved to their own headings' <code>headingId</code> correctly, "dead link" was stripped to <code>link_url: null</code>. Visual jump-link click not separately verified via Playwright since <code>/code-review high</code> on this PR independently confirmed, by direct source reading, two higher-severity defects this fixture can't reach: (1) <code>_resolve_heading_anchors</code>'s body walk (<code>content.py</code>) only inspects top-level <code>paragraph</code> elements, never descending into <code>table</code> cells, so both the pending-link gate and the resolution scan are blind to any heading-anchor link or heading inside a table; (2) an anchor run whose <code>pe.get("startIndex")</code> is <code>None</code> (documented elsewhere in this same file as occurring on a document's first body element) is silently dropped rather than carrying the offset forward the way <code>_collect_doc_paragraphs</code> already does for the identical quirk. Neither case is exercised by <code>tc-doc142-heading-anchors.md</code> (no table, and the anchor links aren't on the doc's first element) — this is a real coverage gap in the fixture, not just an untested edge case. Sending back to Dev per findings below rather than approving.</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<hr />
+<h3 id="tc-doc144-a-heading-anchor-link-inside-a-table-cell-is-resolved-regression-for-the-table-blind-body-walk-requires-oauth-destructive">TC-DOC144: A heading-anchor link inside a table cell is resolved (regression for the table-blind body walk) ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc144-a-heading-anchor-link-inside-a-table-cell-is-resolved-regression-for-the-table-blind-body-walk-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-doc144-anchor-in-table-cell.md</code> — a top-level <code># Reference Section</code> heading, then a table whose first cell contains a markdown link <code>[Reference Section](#reference-section)</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc144-anchor-in-table-cell.md, then show me its structure."</p>
+</blockquote>
+<p>Tool calls: <code>create_doc_from_file(local_path="&lt;repo-root&gt;/docs/qa/fixtures/tc-doc144-anchor-in-table-cell.md")</code>, then <code>get_doc_structure(doc_id=&lt;returned docId&gt;)</code>.</p>
+<p><strong>Checks</strong>
+- <code>get_doc_structure</code> shows a HEADING_1 "Reference Section" with a non-null <code>headingId</code>
+- <code>get_doc_structure</code>'s table cell text reads "See Reference Section for details." (the link text, not the literal <code>#reference-section</code> fragment) — this tool doesn't surface per-run <code>link_url</code> for table cell content (only whole-cell <code>text</code>), so confirming the actual hyperlink requires a raw <code>documents().get()</code> call: the table cell's "Reference Section" <code>textRun</code> should carry <code>textStyle.link.url</code> equal to <code>https://docs.google.com/document/d/&lt;docId&gt;/edit?tab=t.0#heading=&lt;headingId&gt;</code> where <code>&lt;headingId&gt;</code> matches the HEADING_1 paragraph's own <code>headingId</code>
+- 🔍 Visual check: clicking "Reference Section" inside the table cell jumps to the "Reference Section" heading</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result:</strong> PASS (2026-07-29, live via <code>mcp-gee-sweet-kit</code> for <code>create_doc_from_file</code>/<code>get_doc_structure</code>, plus a raw <code>documents().get()</code> script for the table cell's own <code>textRun.textStyle.link</code> since <code>get_doc_structure</code> doesn't expose it). HEADING_1 "Reference Section" had <code>headingId: "h.lgbpfqi86w2d"</code>; the table cell's "Reference Section" run's <code>link.url</code> was <code>https://docs.google.com/document/d/&lt;docId&gt;/edit?tab=t.0#heading=h.lgbpfqi86w2d</code> — matches. Confirms fix for QA round 1 finding #1 (table-cell anchor links). Test doc trashed per cleanup step.</p>
+<hr />
+<h3 id="tc-doc145-a-heading-anchor-link-that-is-the-documents-very-first-body-element-is-resolved-regression-for-the-startindex-carry-forward-gap-requires-oauth-destructive">TC-DOC145: A heading-anchor link that is the document's very first body element is resolved (regression for the startIndex-carry-forward gap) ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc145-a-heading-anchor-link-that-is-the-documents-very-first-body-element-is-resolved-regression-for-the-startindex-carry-forward-gap-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-doc145-anchor-on-first-element.md</code> — the document's very first line is a markdown link <code>[Jump to Overview](#overview)</code>, followed by the <code># Overview</code> heading it references.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc145-anchor-on-first-element.md, then show me its structure."</p>
+</blockquote>
+<p>Tool calls: <code>create_doc_from_file(local_path="&lt;repo-root&gt;/docs/qa/fixtures/tc-doc145-anchor-on-first-element.md")</code>, then <code>get_doc_structure(doc_id=&lt;returned docId&gt;)</code>.</p>
+<p><strong>Checks</strong>
+- <code>get_doc_structure</code>'s first element is the paragraph containing "Jump to Overview" (the Docs API omits <code>startIndex</code> on a document's very first element — this is the case the fix must not drop)
+- That run's <code>link_url</code> is equal to <code>https://docs.google.com/document/d/&lt;docId&gt;/edit?tab=t.0#heading=&lt;headingId&gt;</code> where <code>&lt;headingId&gt;</code> matches the "Overview" HEADING_1 paragraph's own <code>headingId</code> — not left as the literal <code>#overview</code> fragment
+- 🔍 Visual check: clicking "Jump to Overview" jumps to the "Overview" heading</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result:</strong> PASS (2026-07-29, live via <code>mcp-gee-sweet-kit</code>). <code>get_doc_structure</code>'s first element was the "Jump to Overview" paragraph; its run's <code>link_url</code> was <code>https://docs.google.com/document/d/&lt;docId&gt;/edit?tab=t.0#heading=h.jmodqzi4drr</code>, matching the "Overview" heading's own <code>headingId</code>. Confirms fix for QA round 1 finding #2 (startIndex-carry-forward). Test doc trashed per cleanup step.</p>
 
 
 
