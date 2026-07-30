@@ -1376,3 +1376,33 @@ Clear the test rule from the range used.
 - Sheet not found → `{"error": "Sheet 'X' not found"}`
 
 **Result (2026-06-21) ✅** Unit test confirms error.
+
+---
+
+### TC-S103: sort_range — malformed sort spec fields return a clean error, do not crash
+
+**Checks (unit test)**
+- Non-string `"order"` value (e.g. `{"column_index": 0, "order": 5}`) → `{"error": ...}`, no `AttributeError` on `.upper()`.
+- Missing `"column_index"` key (e.g. `{"order": "ASCENDING"}`) → `{"error": ...}`, no `KeyError`.
+- Non-int `"column_index"` value (e.g. `{"column_index": "0", "order": "ASCENDING"}`) → `{"error": ...}`, no `TypeError` from the `col_start + s["column_index"]` addition.
+- `bool` `"column_index"` value (e.g. `{"column_index": True, ...}`) → `{"error": ...}` — `bool` is a Python `int` subclass, so a bare `isinstance(..., int)` check alone would silently accept it.
+- Invalid `"order"` enum value (e.g. `{"column_index": 0, "order": "banana"}`) → `{"error": ...}` from local validation, not a raw `HttpError` from the Sheets API.
+- In every case, no `batchUpdate` call is made.
+
+Matches `update_borders`'s validation depth (missing-key + isinstance + enum-membership) for the analogous `"style"` field (`structure.py`, `_VALID_BORDER_STYLES`) — this tool now applies the same pattern via `_VALID_SORT_ORDERS` for both `column_index` and `order`.
+
+**Result (2026-07-28) ⚠️ PASS (fix works) but same defect class left open on sibling fields.** Live-verified against `mcp-gee-sweet-qa-fixtures` (`BrandNew` sheet), via `mcp-gee-sweet-sky`:
+- `sort_order=[{"column_index": 0, "order": 5}]` → clean `{"error": "Sort spec for column_index 0 has a non-string 'order' value"}`. This PR's own fix works as intended.
+- `sort_order=[{"order": "ASCENDING"}]` (column_index omitted) → raw `KeyError: 'column_index'` leaks as a tool execution error, not `{"error": ...}` — the same crash class this PR claims to fix, one field over. `column_index` is accessed via `s["column_index"]` (structure.py:1652) with no key-existence check, unlike `update_borders`'s analogous 3-part validation (missing-key + isinstance + enum) at lines 1129–1138 of the same file.
+- `sort_order=[{"column_index": "0", "order": "ASCENDING"}]` (string column_index) → raw `TypeError: unsupported operand type(s) for +: 'int' and 'str'` leaks (no type check on `column_index`).
+- `sort_order=[{"column_index": 0, "order": "banana"}]` (invalid enum value) → raw `HttpError 400` from the Sheets API leaks instead of a clean local error (pre-existing gap, not a new regression, but the same enum-membership check `update_borders` already has for `style`).
+- `sort_order=[{"column_index": 0, "order": "ASCENDING"}, "banana"]` (non-dict list element) — reviewed as a potential `AttributeError`, but live-tested and actually rejected upstream by MCP's own pydantic schema validation (`sort_order: list[dict]`) before the function body ever runs, so this path is not exploitable through the tool interface. Not a live defect, unlike the three above.
+- Sent back to Dev (see PR #452 comment) rather than approved — the fix is narrower than the established sibling pattern and leaves the identical crash class open on `column_index` and the `order` enum.
+
+**Result (2026-07-28, round 2) ✅ PASS — all findings closed.** Fix commit `5648a91` adds missing-key + isinstance (with explicit `bool` exclusion) + enum-membership checks for both `column_index` and `order`, matching `update_borders`'s depth. Re-verified live against `mcp-gee-sweet-qa-fixtures` (`BrandNew` sheet), via `mcp-gee-sweet-sky`, after `/mcp reconnect`:
+- `sort_order=[{"order": "ASCENDING"}]` → `{"error": "Sort spec at index 0 is missing required 'column_index' key"}` — clean, no `KeyError`.
+- `sort_order=[{"column_index": "0", "order": "ASCENDING"}]` → `{"error": "Sort spec at index 0 has a non-integer 'column_index' value"}` — clean, no `TypeError`.
+- `sort_order=[{"column_index": true, "order": "ASCENDING"}]` → same clean error — `bool` correctly rejected, not silently accepted as an int.
+- `sort_order=[{"column_index": 0, "order": "banana"}]` → `{"error": "Invalid sort order 'banana' for column_index 0. Must be one of: ASCENDING, DESCENDING"}` — clean, no `HttpError` leak.
+- `sort_order=[{"column_index": 0, "order": 5}]` (original case) and a normal `DESCENDING` sort both still work correctly — no regression.
+- `uv run python -m pytest tests/sheets/test_structure.py -k SortRange` → 10/10 passed.
