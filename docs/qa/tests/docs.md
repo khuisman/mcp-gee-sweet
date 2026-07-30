@@ -2585,10 +2585,12 @@ Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-do
 
 **Checks**
 - `get_doc_structure` shows a HEADING_1 "Reference Section" with a non-null `headingId`
-- The table cell's run "Reference Section" has `link_url` equal to `https://docs.google.com/document/d/<docId>/edit?tab=t.0#heading=<headingId>` where `<headingId>` matches the HEADING_1 paragraph's own `headingId` — not left as the literal `#reference-section` fragment
+- `get_doc_structure`'s table cell text reads "See Reference Section for details." (the link text, not the literal `#reference-section` fragment) — this tool doesn't surface per-run `link_url` for table cell content (only whole-cell `text`), so confirming the actual hyperlink requires a raw `documents().get()` call: the table cell's "Reference Section" `textRun` should carry `textStyle.link.url` equal to `https://docs.google.com/document/d/<docId>/edit?tab=t.0#heading=<headingId>` where `<headingId>` matches the HEADING_1 paragraph's own `headingId`
 - 🔍 Visual check: clicking "Reference Section" inside the table cell jumps to the "Reference Section" heading
 
 **Cleanup:** delete the created doc
+
+**Result:** PASS (2026-07-29, live via `mcp-gee-sweet-kit` for `create_doc_from_file`/`get_doc_structure`, plus a raw `documents().get()` script for the table cell's own `textRun.textStyle.link` since `get_doc_structure` doesn't expose it). HEADING_1 "Reference Section" had `headingId: "h.lgbpfqi86w2d"`; the table cell's "Reference Section" run's `link.url` was `https://docs.google.com/document/d/<docId>/edit?tab=t.0#heading=h.lgbpfqi86w2d` — matches. Confirms fix for QA round 1 finding #1 (table-cell anchor links). Test doc trashed per cleanup step.
 
 ---
 
@@ -2607,3 +2609,5 @@ Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-do
 - 🔍 Visual check: clicking "Jump to Overview" jumps to the "Overview" heading
 
 **Cleanup:** delete the created doc
+
+**Result:** PASS (2026-07-29, live via `mcp-gee-sweet-kit`). `get_doc_structure`'s first element was the "Jump to Overview" paragraph; its run's `link_url` was `https://docs.google.com/document/d/<docId>/edit?tab=t.0#heading=h.jmodqzi4drr`, matching the "Overview" heading's own `headingId`. Confirms fix for QA round 1 finding #2 (startIndex-carry-forward). Test doc trashed per cleanup step.
