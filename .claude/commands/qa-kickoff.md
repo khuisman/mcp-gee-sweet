@@ -1,0 +1,18 @@
+Invoked from `.claude/team-roles/qa.md` step 2, after resetting this worktree to the partner Dev's PR branch. Determine which case applies, then send the user **exactly** the block below as your next message — verbatim, no rewording, no splitting across turns:
+
+**First QA pass on this PR** (no `/code-review` has run against it yet this cycle):
+
+```
+/mcp reconnect
+/code-review high origin/develop...HEAD
+```
+
+**Re-verification round** (Dev pushed a fix for a previously-named finding):
+
+```
+/mcp reconnect
+```
+
+On a re-verification round, do not ask for `/code-review` again. After the reconnect lands, run `git show <fix-sha>` on the Dev's new commit yourself and live-verify against its own new QA test case (see `.claude/team-roles/qa.md` Retro). Fall back to a full `/code-review` only if the fix's diff is structurally larger than the named finding, or unrelated commits landed in between.
+
+Either way, once the reconnect confirmation lands, check it names *this role's own* `mcp-gee-sweet-<name>` server specifically before trusting any live tool result — `/mcp reconnect` with no argument has reconnected the wrong role's server before.
