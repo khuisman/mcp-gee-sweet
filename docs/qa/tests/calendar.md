@@ -350,6 +350,135 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 ---
 
+## `list_calendar_acl`
+
+### TC-CAL60: List ACL rules on a calendar
+
+**Prompt**
+> "List the access control rules for calendar {CALENDAR_ID}"
+
+**Checks**
+- Returns a list with at least one rule (typically the owner's own `user` rule with `role: owner`)
+- Each item has `id`, `role`, `scope_type`, `scope_value`
+
+**Result:** PASS (live, disposable calendar, 2026-07-29) — returned both owner rules with all four fields.
+
+---
+
+### TC-CAL61: Non-existent calendar ID
+
+**Prompt**
+> "List the ACL rules for calendar 'totally-invalid-cal-id@example.com'"
+
+**Checks**
+- Returns `[{"error": "..."}]` — not a top-level exception
+
+**Result:** PASS (live, 2026-07-29).
+
+---
+
+## `add_calendar_acl`
+
+### TC-CAL62: Add a reader rule for a user ⚠️ destructive
+
+**Setup:** a calendar you own (e.g. from `create_calendar`) and an email address not already on its ACL, e.g. `test@example.com`
+
+**Prompt**
+> "Grant reader access to test@example.com on calendar {CALENDAR_ID}"
+
+**Checks**
+- Returns `id` in the form `user:test@example.com`, `role: "reader"`, `scope_type: "user"`, `scope_value: "test@example.com"`
+- The rule appears in a follow-up `list_calendar_acl` call
+
+**Cleanup:** remove the rule via `remove_calendar_acl` if not reused by TC-CAL67.
+
+**Result:** PASS (live, 2026-07-29).
+
+---
+
+### TC-CAL63: Add a public (default-scope) rule ⚠️ destructive
+
+**Setup:** a disposable test calendar (e.g. from `create_calendar`) — do not use a real personal calendar, since `scope_type='default'` makes the calendar's free/busy or event details public on the internet
+
+**Prompt**
+> "Make calendar {TEST_CALENDAR_ID} publicly readable for free/busy using scope_type 'default' and role 'freeBusyReader', with no scope_value"
+
+**Checks**
+- Returns `scope_type: "default"`, `role: "freeBusyReader"`
+- `id` is `"default"`
+- `scope_value` is not required when `scope_type='default'`
+
+**Result:** PASS with a corrected expectation (live, 2026-07-29) — the live API returns `scope_value: "__public_principal__@public.calendar.google.com"` for a default-scope rule, not `null` as originally written here. That's a Calendar API quirk (its documented sentinel for the public principal), not a tool defect — `add_calendar_acl`'s own docstring never promises a `null`/omitted `scope_value` for `default`, only that `scope_value` isn't *required* as an input, which held. Corrected the check above to drop the `scope_value: null` claim.
+
+---
+
+### TC-CAL64: Invalid role rejected without calling the API
+
+**Prompt**
+> "Add a calendar ACL rule for test@example.com on {CALENDAR_ID} with role 'admin'"
+
+**Checks**
+- Returns `{"error": "..."}` naming the invalid role and listing the valid ones
+- No new rule appears in a follow-up `list_calendar_acl` call — confirms the invalid role is rejected before any API call
+
+**Result:** PASS (live, 2026-07-29).
+
+---
+
+### TC-CAL65: scope_value required for a non-default scope_type
+
+**Prompt**
+> "Add a calendar ACL rule on {CALENDAR_ID} with role 'reader' and scope_type 'user' but no scope_value"
+
+**Checks**
+- Returns `{"error": "..."}` naming `scope_value` as required
+- No new rule appears in a follow-up `list_calendar_acl` call
+
+**Result:** PASS (live, 2026-07-29).
+
+---
+
+### TC-CAL66: Non-existent calendar ID
+
+**Prompt**
+> "Grant reader access to test@example.com on calendar 'totally-invalid-cal-id@example.com'"
+
+**Checks**
+- Returns `{"error": "..."}` — not a top-level exception
+
+**Result:** PASS (live, 2026-07-29).
+
+---
+
+## `remove_calendar_acl`
+
+### TC-CAL67: Remove an ACL rule ⚠️ destructive
+
+**Setup:** the rule created in TC-CAL62 (or a fresh `add_calendar_acl` call if run independently)
+
+**Prompt**
+> "Remove the ACL rule 'user:test@example.com' from calendar {CALENDAR_ID}"
+
+**Checks**
+- Returns `{"calendar_id": "...", "rule_id": "...", "action": "removed"}`
+- The rule no longer appears in a follow-up `list_calendar_acl` call
+
+**Result:** PASS (live, 2026-07-29).
+
+---
+
+### TC-CAL68: Non-existent rule ID
+
+**Prompt**
+> "Remove ACL rule 'totally-invalid-rule-id' from calendar {CALENDAR_ID}"
+
+**Checks**
+- Returns `{"error": "..."}` — not a top-level exception
+
+**Result:** PASS (live, 2026-07-29) — API returns 400 "Invalid resource id value" (malformed ID), correctly surfaced as `{"error": ...}` rather than a top-level exception. A well-formed but nonexistent rule ID would presumably 404 the same clean way, not separately exercised.
+
+---
+
 ## `list_events`
 
 ### TC-CAL09: No time filters — upcoming events
