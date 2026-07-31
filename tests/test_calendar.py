@@ -943,6 +943,305 @@ class TestFindFreeSlots:
         assert "error" in result
 
 
+class TestListAllEvents:
+    """list_all_events fans events().list() out across calendars via asyncio.gather."""
+
+    def _events_list_side_effect(self, events_by_calendar, errors_by_calendar=None):
+        errors_by_calendar = errors_by_calendar or {}
+
+        def _list(**kwargs):
+            cal_id = kwargs["calendarId"]
+            resp = MagicMock()
+            if cal_id in errors_by_calendar:
+                resp.execute.side_effect = errors_by_calendar[cal_id]
+            else:
+                resp.execute.return_value = {"items": events_by_calendar.get(cal_id, [])}
+            return resp
+
+        return _list
+
+    def _event(self, event_id, summary):
+        return {
+            "id": event_id,
+            "summary": summary,
+            "start": {"dateTime": "2026-06-15T10:00:00Z"},
+            "end": {"dateTime": "2026-06-15T11:00:00Z"},
+        }
+
+    async def test_defaults_to_every_calendar_in_calendar_list(self):
+        """With no calendar_ids, the calendar list (cache miss) supplies the target IDs."""
+        cal_svc = MagicMock()
+        cal_svc.calendarList.return_value.list.return_value.execute.return_value = {
+            "items": [
+                {"id": "cal-1", "summary": "Work"},
+                {"id": "cal-2", "summary": "Home"},
+            ]
+        }
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect(
+            {"cal-1": [self._event("evt-1", "Standup")], "cal-2": []}
+        )
+        cache = MagicMock()
+        cache.get_list.return_value = None
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["list_all_events"](ctx=ctx)
+
+        called_ids = {
+            c.kwargs["calendarId"] for c in cal_svc.events.return_value.list.call_args_list
+        }
+        assert called_ids == {"cal-1", "cal-2"}
+        assert len(result) == 1
+        assert result[0]["id"] == "evt-1"
+        assert result[0]["calendar_id"] == "cal-1"
+        assert result[0]["calendar_summary"] == "Work"
+
+    async def test_explicit_calendar_ids_restricts_the_fan_out(self):
+        """When calendar_ids is given, only those calendars are queried."""
+        cal_svc = MagicMock()
+        cal_svc.calendarList.return_value.list.return_value.execute.return_value = {
+            "items": [
+                {"id": "cal-1", "summary": "Work"},
+                {"id": "cal-2", "summary": "Home"},
+            ]
+        }
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect(
+            {"cal-1": [self._event("evt-1", "Standup")]}
+        )
+        cache = MagicMock()
+        cache.get_list.return_value = None
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["list_all_events"](calendar_ids=["cal-1"], ctx=ctx)
+
+        called_ids = {
+            c.kwargs["calendarId"] for c in cal_svc.events.return_value.list.call_args_list
+        }
+        assert called_ids == {"cal-1"}
+        assert len(result) == 1
+
+    async def test_flat_result_includes_calendar_id_and_summary_per_event(self):
+        """Every event in the flat list carries its own calendar_id/calendar_summary."""
+        cal_svc = MagicMock()
+        cache = MagicMock()
+        cache.get_list.return_value = [
+            {"id": "cal-1", "summary": "Work"},
+            {"id": "cal-2", "summary": "Home"},
+        ]
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect(
+            {
+                "cal-1": [self._event("evt-1", "Standup")],
+                "cal-2": [self._event("evt-2", "Dentist")],
+            }
+        )
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["list_all_events"](ctx=ctx)
+
+        by_id = {e["id"]: e for e in result}
+        assert by_id["evt-1"]["calendar_id"] == "cal-1"
+        assert by_id["evt-1"]["calendar_summary"] == "Work"
+        assert by_id["evt-2"]["calendar_id"] == "cal-2"
+        assert by_id["evt-2"]["calendar_summary"] == "Home"
+
+    async def test_group_by_calendar_returns_dict_keyed_by_summary(self):
+        """group_by_calendar=True must return {summary: [events]} instead of a flat list."""
+        cal_svc = MagicMock()
+        cache = MagicMock()
+        cache.get_list.return_value = [
+            {"id": "cal-1", "summary": "Work"},
+            {"id": "cal-2", "summary": "Home"},
+        ]
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect(
+            {
+                "cal-1": [self._event("evt-1", "Standup")],
+                "cal-2": [self._event("evt-2", "Dentist")],
+            }
+        )
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["list_all_events"](group_by_calendar=True, ctx=ctx)
+
+        assert set(result.keys()) == {"Work", "Home"}
+        assert result["Work"][0]["id"] == "evt-1"
+        assert result["Home"][0]["id"] == "evt-2"
+
+    async def test_one_calendar_erroring_does_not_abort_the_others(self):
+        """A per-calendar exception is included inline; other calendars still return events."""
+        cal_svc = MagicMock()
+        cache = MagicMock()
+        cache.get_list.return_value = [
+            {"id": "cal-1", "summary": "Work"},
+            {"id": "cal-2", "summary": "Home"},
+        ]
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect(
+            {"cal-1": [self._event("evt-1", "Standup")]},
+            errors_by_calendar={"cal-2": Exception("notFound")},
+        )
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["list_all_events"](ctx=ctx)
+
+        errors = [e for e in result if "error" in e]
+        events = [e for e in result if "error" not in e]
+        assert len(events) == 1
+        assert events[0]["id"] == "evt-1"
+        assert len(errors) == 1
+        assert errors[0] == {
+            "calendar_id": "cal-2",
+            "calendar_summary": "Home",
+            "error": "notFound",
+        }
+
+    async def test_one_calendar_erroring_in_group_by_calendar_mode(self):
+        """group_by_calendar=True must surface a failed calendar as {"error": ...} at its key."""
+        cal_svc = MagicMock()
+        cache = MagicMock()
+        cache.get_list.return_value = [
+            {"id": "cal-1", "summary": "Work"},
+            {"id": "cal-2", "summary": "Home"},
+        ]
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect(
+            {"cal-1": [self._event("evt-1", "Standup")]},
+            errors_by_calendar={"cal-2": Exception("notFound")},
+        )
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["list_all_events"](group_by_calendar=True, ctx=ctx)
+
+        assert result["Work"][0]["id"] == "evt-1"
+        assert result["Home"] == {"error": "notFound", "calendar_id": "cal-2"}
+
+    async def test_group_by_calendar_disambiguates_colliding_summaries(self):
+        """Two calendars sharing a summary must not overwrite each other's events."""
+        cal_svc = MagicMock()
+        cache = MagicMock()
+        cache.get_list.return_value = [
+            {"id": "cal-1", "summary": "Work"},
+            {"id": "cal-2", "summary": "Work"},
+        ]
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect(
+            {
+                "cal-1": [self._event("evt-1", "Standup")],
+                "cal-2": [self._event("evt-2", "Retro")],
+            }
+        )
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["list_all_events"](group_by_calendar=True, ctx=ctx)
+
+        assert set(result.keys()) == {"Work (cal-1)", "Work (cal-2)"}
+        assert result["Work (cal-1)"][0]["id"] == "evt-1"
+        assert result["Work (cal-2)"][0]["id"] == "evt-2"
+
+    async def test_calendar_list_fetch_failure_with_explicit_calendar_ids_does_not_abort(self):
+        """A broken calendarList().list() call must not abort a call that already has explicit IDs."""
+        cal_svc = MagicMock()
+        cal_svc.calendarList.return_value.list.return_value.execute.side_effect = Exception(
+            "rate limited"
+        )
+        cache = MagicMock()
+        cache.get_list.return_value = None
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect(
+            {"cal-1": [self._event("evt-1", "Standup")]}
+        )
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["list_all_events"](calendar_ids=["cal-1"], ctx=ctx)
+
+        assert result[0]["id"] == "evt-1"
+        assert result[0]["calendar_summary"] == "cal-1"
+
+    async def test_calendar_list_fetch_failure_without_calendar_ids_returns_top_level_error(self):
+        """With no calendar_ids given, a broken calendarList().list() call can't be worked around."""
+        cal_svc = MagicMock()
+        cal_svc.calendarList.return_value.list.return_value.execute.side_effect = Exception(
+            "rate limited"
+        )
+        cache = MagicMock()
+        cache.get_list.return_value = None
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["list_all_events"](ctx=ctx)
+
+        assert result == [{"error": "Failed to list calendars: rate limited"}]
+        cal_svc.events.return_value.list.assert_not_called()
+
+    async def test_default_time_min_is_computed_once_for_the_whole_batch(self):
+        """Every concurrent calendar must query against the same 'now' instant, not each its own."""
+        cal_svc = MagicMock()
+        cache = MagicMock()
+        cache.get_list.return_value = [
+            {"id": "cal-1", "summary": "Work"},
+            {"id": "cal-2", "summary": "Home"},
+        ]
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect(
+            {"cal-1": [], "cal-2": []}
+        )
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        await _cal_tools["list_all_events"](ctx=ctx)
+
+        time_mins = {c.kwargs["timeMin"] for c in cal_svc.events.return_value.list.call_args_list}
+        assert len(time_mins) == 1
+
+    async def test_max_results_per_calendar_above_2500_is_clamped(self):
+        """Passing max_results_per_calendar=9999 must clamp maxResults to 2500 per call."""
+        cal_svc = MagicMock()
+        cache = MagicMock()
+        cache.get_list.return_value = [{"id": "cal-1", "summary": "Work"}]
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect({"cal-1": []})
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        await _cal_tools["list_all_events"](max_results_per_calendar=9999, ctx=ctx)
+
+        kwargs = cal_svc.events.return_value.list.call_args.kwargs
+        assert kwargs["maxResults"] == 2500
+
+    async def test_expand_recurring_false_sets_singleevents_false_and_omits_orderby(self):
+        """expand_recurring=False must pass singleEvents=False and omit orderBy for every calendar."""
+        cal_svc = MagicMock()
+        cache = MagicMock()
+        cache.get_list.return_value = [{"id": "cal-1", "summary": "Work"}]
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect({"cal-1": []})
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        await _cal_tools["list_all_events"](expand_recurring=False, ctx=ctx)
+
+        kwargs = cal_svc.events.return_value.list.call_args.kwargs
+        assert kwargs["singleEvents"] is False
+        assert "orderBy" not in kwargs
+
+    async def test_query_is_passed_through_as_q_to_every_calendar(self):
+        """A free-text query must be forwarded as the 'q' kwarg on every events().list() call."""
+        cal_svc = MagicMock()
+        cache = MagicMock()
+        cache.get_list.return_value = [
+            {"id": "cal-1", "summary": "Work"},
+            {"id": "cal-2", "summary": "Home"},
+        ]
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect(
+            {"cal-1": [], "cal-2": []}
+        )
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        await _cal_tools["list_all_events"](query="dentist", ctx=ctx)
+
+        for c in cal_svc.events.return_value.list.call_args_list:
+            assert c.kwargs["q"] == "dentist"
+
+    async def test_cache_hit_skips_calendar_list_api_call(self):
+        """When calendar_cache.get_list() has data, calendarList().list() must not be called."""
+        cal_svc = MagicMock()
+        cache = MagicMock()
+        cache.get_list.return_value = [{"id": "cal-1", "summary": "Work"}]
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect({"cal-1": []})
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        await _cal_tools["list_all_events"](ctx=ctx)
+
+        cal_svc.calendarList.return_value.list.assert_not_called()
+
+
 class TestUpdateEvent:
     """update_event uses patch semantics — only provided fields go in the API body."""
 

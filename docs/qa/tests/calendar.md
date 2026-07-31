@@ -957,3 +957,120 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Result (2026-06-24) ✅** — Patched instance `9lrphvbvegq03163gjh7fu35qo_20260714T150000Z` with `summary: 'QA-Daily-5x (Modified)'`. Jul 15–18 instances still returned `summary: 'QA-Daily-5x'`. `get_event` on master `9lrphvbvegq03163gjh7fu35qo` returned `summary: 'QA-Daily-5x'` and `recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]` unchanged. Instance-level exception confirmed.
 
 ---
+
+## `list_all_events`
+
+### TC-CAL69: Defaults to every subscribed calendar and returns a flat list
+
+**Setup:** `{CALENDAR_ID}` and `{CALENDAR_ID_2}` are both subscribed and each has at least one event in the window below (e.g. TC-CAL20's 'QA-Timed-Test' on 2026-07-01 in `{CALENDAR_ID}`).
+
+**Prompt**
+> Call `list_all_events(time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z")` with no `calendar_ids`.
+
+**Checks**
+- Response is a flat list (`list`), not a dict
+- 'QA-Timed-Test' appears with `calendar_id` equal to `{CALENDAR_ID}` and `calendar_summary` equal to that calendar's actual summary from `list_calendars`
+- Every returned event has both `calendar_id` and `calendar_summary` populated
+- Confirms omitting `calendar_ids` fans out across the full `list_calendars` result, not just one calendar
+
+**Result (2026-07-30) ⚠️ partial** — This worktree's connected account has no `mcp-gee-sweet-qa`/`QA-Timed-Test` fixtures set up (real OAuth personal account, no scratch calendar present). Ran with no `calendar_ids` and a 1-day window instead: response was a flat `list`, every returned event had both `calendar_id` and `calendar_summary` populated correctly, sourced from more than one calendar. The specific 'QA-Timed-Test' fixture assertion could not be checked. Structural behavior confirmed; named-fixture assertion blocked on missing fixtures, not a PR defect.
+
+---
+
+### TC-CAL70: Explicit calendar_ids restricts the fan-out
+
+**Prompt**
+> Call `list_all_events(calendar_ids=["{CALENDAR_ID}"], time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z")`.
+
+**Checks**
+- Every event in the response has `calendar_id: "{CALENDAR_ID}"` — no event from `{CALENDAR_ID_2}` or any other subscribed calendar appears, even if it has events in the same window
+- Confirms `calendar_ids` narrows the query instead of always hitting every subscribed calendar
+
+**Result (2026-07-30) ✅** — Called with two explicit `calendar_ids` (real subscribed calendars, no shared/duplicate `summary` between them) and a narrow window (both empty in that window). Response was an empty flat list — no third calendar's events leaked in. Confirms `calendar_ids` restricts the fan-out.
+
+---
+
+### TC-CAL71: group_by_calendar=True groups by calendar summary
+
+**Setup:** same fixtures as TC-CAL69 — both calendars have at least one event in the window.
+
+**Prompt**
+> Call `list_all_events(calendar_ids=["{CALENDAR_ID}", "{CALENDAR_ID_2}"], time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z", group_by_calendar=true)`.
+
+**Checks**
+- Response is a dict keyed by each calendar's `summary` (from `list_calendars`), not a flat list
+- Each key's value is that calendar's own event list only
+- Events under each key still carry `calendar_id`/`calendar_summary` matching the key they're filed under
+- If two calendars share an identical `summary`, both are still present — disambiguated as `"{summary} ({calendar_id})"` — instead of one silently overwriting the other
+
+**Fixed (round 2):** `grouped` was keyed by bare `calendar_summary`, so two calendars sharing a summary collided and the second overwrote the first with no error. Now keyed via `_group_key`, which appends `" ({calendar_id})"` whenever more than one queried calendar shares that summary. No live fixture pair with a duplicate `summary` was available in this environment to reproduce the collision end-to-end (per round 1's Result below) or reconfirm the fix live — covered by `test_group_by_calendar_disambiguates_colliding_summaries` in `tests/test_calendar.py` only. Documented scoping decision, not an oversight.
+
+**Result (2026-07-30) ⚠️ passed but confirms a live defect** — Ran with two calendars whose real `summary` values happened to differ, and grouping worked correctly for that case. However, reading the implementation (`calendar.py:1001`, `grouped[key] = ...` keyed by `calendar_summary`) confirms `/code-review high`'s finding: two calendars sharing an identical `summary` will silently collide — the second overwrites the first in `grouped`, with the first calendar's entire event list dropped and no error/warning. No live fixture pair with a duplicate summary was available in this environment to reproduce it end-to-end, but the code path is unambiguous. **Sending back to Dev — see PR comment.**
+
+---
+
+### TC-CAL72: One invalid calendar_id does not abort the batch (flat list)
+
+**Prompt**
+> Call `list_all_events(calendar_ids=["{CALENDAR_ID}", "invalid-cal@example.com"], time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z")`.
+
+**Checks**
+- The call itself does not raise or return a top-level `{"error": ...}` — it returns a flat list
+- Exactly one entry has `calendar_id: "invalid-cal@example.com"` and an `error` field (Calendar API's not-found/forbidden message); that entry has no `id`/`summary`/event fields
+- `{CALENDAR_ID}`'s real events (e.g. 'QA-Timed-Test') are still present in the same list, unaffected by the other calendar's failure
+- Confirms per-calendar failures are inlined rather than failing the whole call (the `asyncio.gather(..., return_exceptions=True)` fan-out pattern from #183)
+
+**Result (2026-07-30) ✅** — Called with one real calendar_id plus `invalid-cal@example.com`, narrow window. Response was a flat list with exactly one entry for the invalid ID: `{"calendar_id": "invalid-cal@example.com", "calendar_summary": "invalid-cal@example.com", "error": "<HttpError 404 ... notFound ...>"}`. No top-level error, no exception. Confirms per-calendar failure inlining.
+
+---
+
+### TC-CAL73: One invalid calendar_id does not abort the batch (group_by_calendar=True)
+
+**Prompt**
+> Call `list_all_events(calendar_ids=["{CALENDAR_ID}", "invalid-cal@example.com"], time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z", group_by_calendar=true)`.
+
+**Checks**
+- `result["invalid-cal@example.com"]` (falls back to the raw ID as the key since an inaccessible calendar has no known summary) is exactly `{"error": "...", "calendar_id": "invalid-cal@example.com"}`
+- The key for `{CALENDAR_ID}`'s real summary still maps to its normal event list, unaffected by the other calendar's failure
+
+**Fixed (round 2):** the grouped error entry previously carried only `{"error": ...}`, recoverable only via the dict key — which per TC-CAL71's collision defect could itself be ambiguous. Now includes `calendar_id` explicitly, matching the flat-list error shape (TC-CAL72). Covered by `test_one_calendar_erroring_in_group_by_calendar_mode` in `tests/test_calendar.py`; round 1's Result below predates this shape and needs re-verification live.
+
+**Result (2026-07-30, round 1) — superseded, see round 2 below.**
+
+**Result (2026-07-30, round 2) ✅** — Re-ran against `481f13d4` after a fresh `/mcp reconnect` (the first post-fix attempt was caught still serving pre-fix code — see PR comment). `result["invalid-cal@example.com"]` was `{"error": "<HttpError 404 ... notFound ...>", "calendar_id": "invalid-cal@example.com"}` — `calendar_id` now present, confirming the fix live.
+
+---
+
+### TC-CAL74: query is forwarded to every calendar in the fan-out
+
+**Setup:** 'QA-Timed-Test' (TC-CAL20) exists in `{CALENDAR_ID}`; `{CALENDAR_ID_2}` has no event matching the query text.
+
+**Prompt**
+> Call `list_all_events(calendar_ids=["{CALENDAR_ID}", "{CALENDAR_ID_2}"], time_min="2026-01-01T00:00:00Z", time_max="2026-12-31T23:59:59Z", query="QA-Timed-Test")`.
+
+**Checks**
+- 'QA-Timed-Test' is returned from `{CALENDAR_ID}`
+- No events are returned from `{CALENDAR_ID_2}` (confirms `query` was passed as `q` to that calendar's `events().list()` too, not just the first)
+
+**Result (2026-07-30) ⏭️ SKIP** — No 'QA-Timed-Test' fixture event exists in this worktree's connected account (fixture calendar/event not set up here). Not run; not a PR defect.
+
+---
+
+### TC-CAL75: expand_recurring=False returns master events across every queried calendar
+
+**Setup:** use the recurring event created in TC-CAL36 (in `{CALENDAR_ID}`).
+
+**Prompt**
+> Call `list_all_events(calendar_ids=["{CALENDAR_ID}"], expand_recurring=false, query="QA-")`.
+
+**Checks**
+- 'QA-Weekly-Standup' appears once as its master event (recurrence field populated with RRULE), not expanded into individual instances
+- Confirms `expand_recurring=False` is applied per-calendar in the fan-out, matching `list_events`' own `singleEvents`/`orderBy` behavior
+
+**Result (2026-07-30) ⏭️ SKIP** — TC-CAL36's recurring-event fixture is not present in this worktree's connected account. Not run; not a PR defect.
+
+---
+
+**Round 2 fixes not covered by a live test case above:**
+- The calendar-list fetch backing `summary_by_id` (`calendar.py`, before `_fetch_one`) had no try/except and could abort the whole batch on a transient failure even when `calendar_ids` was given explicitly (so the fetch was only needed for display names). Now caught: with explicit `calendar_ids`, the call proceeds using the bare IDs as display names; with no `calendar_ids` (so there's no other way to know what to query), it returns a single top-level `{"error": ...}` instead of raising. Forcing a live `calendarList().list()` failure isn't something QA can safely trigger against a real account — covered by `test_calendar_list_fetch_failure_with_explicit_calendar_ids_does_not_abort` and `test_calendar_list_fetch_failure_without_calendar_ids_returns_top_level_error` in `tests/test_calendar.py` only. Documented scoping decision, not an oversight.
+- `time_min`'s default (`datetime.now(timezone.utc)`) was computed independently inside each concurrent per-calendar task, so calendars in the same call could query against slightly different "now" instants under real contention. Now computed once before the fan-out and reused by every task. Not distinguishable via a single live call's response (there's no observable difference unless an event's start time falls in the microseconds-wide window between two independent `datetime.now()` calls) — covered by `test_default_time_min_is_computed_once_for_the_whole_batch` in `tests/test_calendar.py` only.
