@@ -317,11 +317,13 @@ def register(tool):
                     "LONG_DASH", "LONG_DASH_DOT" (default SOLID)
                 border_top, border_right, border_bottom, border_left (dict): optional
                     per-edge override, each {"color": {...}, "width": float,
-                    "dash_style": str}. Any field omitted from a per-edge dict is left
-                    unset for that edge (not inherited from border_color/width/
-                    dash_style above). An edge with no border_<side> key falls back to
-                    the uniform border_color/border_width/border_dash_style, if given;
-                    with neither, that edge's border is left untouched.
+                    "dash_style": str}. Any field omitted from a per-edge dict falls
+                    back to the uniform border_color/border_width/border_dash_style
+                    above, if given (the Docs API rejects a border with non-zero width
+                    and no color as "transparent", so a width-only override needs a
+                    color from somewhere). An edge with no border_<side> key falls back
+                    entirely to the uniform border_color/border_width/border_dash_style,
+                    if given; with neither, that edge's border is left untouched.
                 row_span (int): default 1
                 column_span (int): default 1
 
@@ -384,12 +386,30 @@ def register(tool):
                 api_key = f"border{side.capitalize()}"
                 if edge_key in cell:
                     edge_spec = cell[edge_key]
+                    if not isinstance(edge_spec, dict):
+                        return {
+                            "error": f"'{edge_key}' must be a dict with optional "
+                            f"'color'/'width'/'dash_style' keys, got "
+                            f"{type(edge_spec).__name__}"
+                        }
                     border = {}
                     if "color" in edge_spec:
                         border["color"] = {"color": {"rgbColor": edge_spec["color"]}}
+                    elif uniform_border is not None and "color" in uniform_border:
+                        # The Docs API rejects a border with a non-zero width and no
+                        # color as "transparent" — an edge override that only sets
+                        # width must still inherit a color from somewhere.
+                        border["color"] = uniform_border["color"]
                     if "width" in edge_spec:
                         border["width"] = {"magnitude": edge_spec["width"], "unit": "PT"}
-                    border["dashStyle"] = edge_spec.get("dash_style", "SOLID")
+                    elif uniform_border is not None and "width" in uniform_border:
+                        border["width"] = uniform_border["width"]
+                    if "dash_style" in edge_spec:
+                        border["dashStyle"] = edge_spec["dash_style"]
+                    elif uniform_border is not None:
+                        border["dashStyle"] = uniform_border["dashStyle"]
+                    else:
+                        border["dashStyle"] = "SOLID"
                     table_cell_style[api_key] = border
                     fields.append(api_key)
                 elif uniform_border is not None:
@@ -552,8 +572,12 @@ def register(tool):
           border_dash_style (str, default "SOLID"),
           border_top, border_right, border_bottom, border_left (dict): optional
               per-edge override, each {"color": {...}, "width": float, "dash_style": str}.
-              An edge with no border_<side> key falls back to the uniform
-              border_color/border_width/border_dash_style above, if given.
+              Any field omitted from a per-edge dict falls back to the uniform
+              border_color/border_width/border_dash_style above, if given (the Docs API
+              rejects a border with non-zero width and no color as "transparent", so a
+              width-only override needs a color from somewhere). An edge with no
+              border_<side> key falls back entirely to the uniform border_color/
+              border_width/border_dash_style, if given.
           cell_padding (float, points — all four sides),
           header_background (dict) — first row only
 
@@ -674,12 +698,30 @@ def register(tool):
                 edge_key = f"border_{side}"
                 if edge_key in table_style:
                     edge_spec = table_style[edge_key]
+                    if not isinstance(edge_spec, dict):
+                        return {
+                            "error": f"table['{edge_key}'] must be a dict with optional "
+                            f"'color'/'width'/'dash_style' keys, got "
+                            f"{type(edge_spec).__name__}"
+                        }
                     edge_border: dict = {}
                     if "color" in edge_spec:
                         edge_border["color"] = {"color": {"rgbColor": edge_spec["color"]}}
+                    elif uniform_border is not None and "color" in uniform_border:
+                        # The Docs API rejects a border with a non-zero width and no
+                        # color as "transparent" — a width-only override needs a color
+                        # from somewhere.
+                        edge_border["color"] = uniform_border["color"]
                     if "width" in edge_spec:
                         edge_border["width"] = {"magnitude": edge_spec["width"], "unit": "PT"}
-                    edge_border["dashStyle"] = edge_spec.get("dash_style", "SOLID")
+                    elif uniform_border is not None and "width" in uniform_border:
+                        edge_border["width"] = uniform_border["width"]
+                    if "dash_style" in edge_spec:
+                        edge_border["dashStyle"] = edge_spec["dash_style"]
+                    elif uniform_border is not None:
+                        edge_border["dashStyle"] = uniform_border["dashStyle"]
+                    else:
+                        edge_border["dashStyle"] = "SOLID"
                     edge_borders[side] = edge_border
 
             has_borders = has_uniform_border or bool(edge_borders)

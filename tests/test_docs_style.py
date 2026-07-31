@@ -600,11 +600,47 @@ class TestStyleDocTableCellsTool:
             }
             assert style[side]["width"] == {"magnitude": 0.5, "unit": "PT"}
 
+    async def test_edge_override_width_only_inherits_uniform_color(self):
+        # #403 QA follow-up: confirmed live that the Docs API rejects a border
+        # request with non-zero width and no color as "transparent" (400 error).
+        # A width-only per-edge override must inherit color from the uniform spec.
+        result, style, fields = await self._call(
+            [
+                {
+                    "row_index": 0,
+                    "column_index": 0,
+                    "border_color": {"red": 0, "green": 0, "blue": 0},
+                    "border_width": 0.5,
+                    "border_bottom": {"width": 2.0},
+                }
+            ]
+        )
+        assert "error" not in result
+        assert style["borderBottom"]["color"]["color"]["rgbColor"] == {
+            "red": 0,
+            "green": 0,
+            "blue": 0,
+        }
+        assert style["borderBottom"]["width"] == {"magnitude": 2.0, "unit": "PT"}
+
     async def test_empty_cells_list_returns_error(self):
         tools = self._setup()
         ctx = _make_ctx(docs_service=MagicMock(), doc_cache=MagicMock())
         result = await tools["style_doc_table_cells"](
             doc_id="doc123", table_start_index=5, cells=[], ctx=ctx
+        )
+        assert "error" in result
+
+    async def test_non_dict_border_edge_returns_clean_error(self):
+        # #462 QA send-back: a non-dict border_bottom (e.g. None) must not raise
+        # an uncaught TypeError from the "color" in edge_spec membership check.
+        tools = self._setup()
+        ctx = _make_ctx(docs_service=MagicMock(), doc_cache=MagicMock())
+        result = await tools["style_doc_table_cells"](
+            doc_id="doc123",
+            table_start_index=5,
+            cells=[{"row_index": 0, "column_index": 0, "border_bottom": None}],
+            ctx=ctx,
         )
         assert "error" in result
 
@@ -733,6 +769,59 @@ class TestApplyThemeTool:
         )
         assert style["borderBottom"]["width"] == {"magnitude": 2.0, "unit": "PT"}
         assert style["borderTop"]["width"] == {"magnitude": 0.5, "unit": "PT"}
+
+    async def test_apply_theme_table_edge_width_only_inherits_uniform_color(self):
+        # #403 QA follow-up: confirmed live that the Docs API rejects a border
+        # request with non-zero width and no color as "transparent" (400 error).
+        # A width-only per-edge override must inherit color from the uniform spec.
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "body": {"content": [{"table": {"rows": 1, "columns": 2}, "startIndex": 5}]}
+        }
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["apply_theme"](
+            doc_id="doc123",
+            theme={
+                "table": {
+                    "border_color": {"red": 0, "green": 0, "blue": 0},
+                    "border_width": 0.5,
+                    "border_bottom": {"width": 2.0},
+                }
+            },
+            ctx=ctx,
+        )
+        assert "error" not in result
+        call_kwargs = mock_docs.documents().batchUpdate.call_args[1]
+        reqs = call_kwargs["body"]["requests"]
+        style = next(
+            r["updateTableCellStyle"]["tableCellStyle"] for r in reqs if "updateTableCellStyle" in r
+        )
+        assert style["borderBottom"]["color"]["color"]["rgbColor"] == {
+            "red": 0,
+            "green": 0,
+            "blue": 0,
+        }
+        assert style["borderBottom"]["width"] == {"magnitude": 2.0, "unit": "PT"}
+
+    async def test_apply_theme_table_non_dict_border_edge_returns_clean_error(self):
+        # #462 QA send-back: same non-dict-edge gap as style_doc_table_cells, here
+        # in apply_theme's table styling per-edge override.
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "body": {"content": [{"table": {"rows": 1, "columns": 2}, "startIndex": 5}]}
+        }
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["apply_theme"](
+            doc_id="doc123",
+            theme={"table": {"border_bottom": None}},
+            ctx=ctx,
+        )
+        assert "error" in result
 
     async def test_apply_theme_default_succeeds_without_matching_paragraphs(self):
         # Default mode (overwrite=False) updates named style definitions regardless of
