@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import hashlib
 import io
 import logging
 import mimetypes
@@ -220,6 +221,17 @@ async def _upload_local_file(
     }
 
 
+def _local_md5(path: Path) -> str:
+    """Stream-hash a local file — mirrors Drive's md5Checksum so sync_folder's
+    use_checksum path can compare content directly instead of inferring change
+    from modifiedTime alone."""
+    h = hashlib.md5(usedforsecurity=False)
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 async def _list_drive_children(drive_service, folder_id: str) -> tuple[list[dict], list[dict]]:
     """Return (files, folders) among the direct children of a Drive folder."""
     results = await execute_in_thread(
@@ -229,7 +241,7 @@ async def _list_drive_children(drive_service, folder_id: str) -> tuple[list[dict
             spaces="drive",
             includeItemsFromAllDrives=True,
             supportsAllDrives=True,
-            fields="files(id, name, mimeType, modifiedTime, properties)",
+            fields="files(id, name, mimeType, modifiedTime, properties, md5Checksum)",
             pageSize=1000,
         )
         .execute,
@@ -254,6 +266,7 @@ async def _sync_level(
     direction: str,
     export_format: str | None,
     convert_markdown: bool,
+    use_checksum: bool,
     skip_system_files: bool,
     dry_run: bool,
     recursive: bool,
@@ -281,6 +294,18 @@ async def _sync_level(
     via the export_format suffix scheme used for other Workspace files) so re-syncs
     settle into "in sync" via the normal mtime comparison instead of re-uploading
     a duplicate on every run.
+
+    use_checksum=True (#274) adds a content check, ahead of the mtime comparison,
+    for names present on both sides: if the local file's md5 hash matches Drive's
+    own md5Checksum, the pair is treated as in sync regardless of how far apart
+    their modifiedTimes are — this is what actually fixes upload_local_file's
+    non-stamped modifiedTime causing a spurious re-download, not just a same-mtime
+    coincidence. Only applies to non-Workspace files with a real md5Checksum
+    (Docs/Sheets/Slides and convert_markdown Docs have none); those fall back to
+    mtime-only comparison exactly as when use_checksum=False. A checksum mismatch
+    doesn't short-circuit anything — it falls through to the existing mtime-based
+    direction decision below, since content differing doesn't by itself say which
+    side is newer.
 
     Returns bytes downloaded at this level and below; all other results are appended
     into the shared accumulator lists/dicts passed in from the top-level call.
@@ -426,6 +451,22 @@ async def _sync_level(
                 )
 
         else:
+            if use_checksum:
+                entry = drive_map[name]
+                is_workspace = entry["mimeType"].startswith("application/vnd.google-apps.")
+                drive_md5 = entry.get("md5Checksum") if not is_workspace else None
+                if drive_md5 is not None:
+                    local_md5 = await asyncio.to_thread(_local_md5, local_map[name])
+                    if local_md5 == drive_md5:
+                        plan.append(
+                            {
+                                "name": name,
+                                "action": "skip",
+                                "reason": "content identical (checksum match)",
+                            }
+                        )
+                        continue
+
             dmtime = _drive_mtime(drive_map[name])
             lmtime = _local_mtime(local_map[name])
             diff = (lmtime - dmtime).total_seconds()
@@ -844,6 +885,7 @@ async def _sync_level(
                 direction,
                 export_format,
                 convert_markdown,
+                use_checksum,
                 skip_system_files,
                 dry_run,
                 recursive,
@@ -1609,6 +1651,7 @@ def register(tool):
         direction: str = "bidirectional",
         export_format: str | None = None,
         convert_markdown: bool = False,
+        use_checksum: bool = False,
         skip_system_files: bool = True,
         dry_run: bool = False,
         recursive: bool = False,
@@ -1640,6 +1683,20 @@ def register(tool):
 
         Modified times are compared in UTC. When a file is uploaded, its Drive
         modifiedTime is set to the local file's mtime so future syncs stay accurate.
+
+        When use_checksum=True, a name present on both sides is checked for a
+        content match (local md5 vs. Drive's md5Checksum) before the mtime
+        comparison above runs — a match is always treated as in sync regardless of
+        modifiedTime drift. This catches cases mtime alone gets wrong: content
+        uploaded via upload_local_file (which doesn't stamp modifiedTime to match
+        the local file, unlike this tool's own upload path) reading as "Drive
+        newer" and getting needlessly re-downloaded, or a local regeneration that
+        changes mtime without changing bytes reading as "local newer." Only
+        applies to files with a real md5Checksum — Google Workspace files (Docs,
+        Sheets, Slides) and convert_markdown Docs have none and always fall back
+        to the mtime comparison. A checksum mismatch doesn't change anything by
+        itself; it just falls through to the same mtime-based direction decision
+        used when use_checksum=False.
 
         ## direction values
 
@@ -1706,6 +1763,10 @@ def register(tool):
                            promoted to a Doc in place — that entry is reported under
                            'failed' with an explanatory message; delete it in Drive and
                            re-sync to convert it.
+            use_checksum: If True, treat a name present on both sides as in sync
+                           whenever its local md5 hash matches Drive's md5Checksum,
+                           regardless of modifiedTime drift (see above). Default False
+                           (mtime-only comparison, as before this option existed).
             skip_system_files: Skip .DS_Store and similar OS metadata files (default True).
             dry_run: If True, plan the sync but transfer nothing.
             recursive: If True, also sync matching subfolders at any depth (see above).
@@ -1750,6 +1811,7 @@ def register(tool):
             direction,
             export_format,
             convert_markdown,
+            use_checksum,
             skip_system_files,
             dry_run,
             recursive,

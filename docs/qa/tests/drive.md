@@ -504,6 +504,24 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
+### TC-D236: md5_checksum present for a binary file, null for a Google Workspace file (issue #274) ⚠️ local-filesystem
+
+**Background:** `list_files` now surfaces Drive's `md5Checksum` field so callers can diff content directly instead of inferring change from `modifiedTime` alone, which upload paths like `upload_local_file` don't always keep in sync with actual content (see TC-D226's follow-up finding). `{FOLDER_ID}` already contains both `{SPREADSHEET_ID}` and `{DOC_ID}` (per `setup.md`), so no new Workspace fixture needs creating here.
+
+**Prompt**
+> Upload a small local file (e.g. `/tmp/qa-236.txt` containing "hello md5") to `{FOLDER_ID}` via `upload_local_file`. Then:
+> "List files in {FOLDER_ID}"
+
+**Checks**
+- Call `list_files(folder_id="{FOLDER_ID}")`
+- The uploaded `qa-236.txt` entry has a non-null `md5_checksum` — a 32-character hex string
+- The `{DOC_ID}` fixture's entry (Google Doc, `mimeType: application/vnd.google-apps.document`) has `md5_checksum: null`
+
+**Teardown**
+Trash `qa-236.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-236.txt`.
+
+---
+
 ## `get_doc_content`
 
 ### TC-D44: Happy path
@@ -1081,6 +1099,20 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 **Checks**
 - API error propagates — not a silent empty result or crash
+
+---
+
+### TC-D237: md5_checksum present for a binary file, null for a Google Workspace file (issue #274)
+
+**Background:** Mirrors TC-D236 for `get_file_metadata` — same `md5Checksum` field, same Workspace-files-have-none caveat, added alongside `size`'s existing conditional-presence handling.
+
+**Prompt**
+> "Get the metadata for {BINARY_FILE_ID}" *(the PNG from TC-D93)*, then "Get the metadata for {SPREADSHEET_ID}"
+
+**Checks**
+- Call `get_file_metadata(file_id="{BINARY_FILE_ID}")` — `md5_checksum` is present, a 32-character hex string
+- Call `get_file_metadata(file_id="{SPREADSHEET_ID}")` — `md5_checksum` is `null` (Google Workspace file)
+- `{BINARY_FILE_ID}`'s `md5_checksum` matches the value `list_files` reports for the same file (TC-D236) — same field, same source
 
 ---
 
@@ -2203,6 +2235,42 @@ In `{FOLDER_ID}`, ensure at least one Drive-only file exists that isn't already 
 
 **Teardown**
 Delete the test file from `{FOLDER_ID}`. Remove `/tmp/qa-sync-346/`.
+
+---
+
+### TC-D238: `use_checksum=true` skips a file whose content is identical despite a large modifiedTime gap (issue #274) ⚠️ local-filesystem
+
+**Background:** `upload_local_file` doesn't stamp Drive's `modifiedTime` to match the local file's mtime the way `sync_folder`'s own upload path does (same gap TC-D226 flagged for the `convert_markdown` case) — under plain mtime comparison, a file uploaded that way always reads as "Drive newer" on the next `sync_folder`, even when content is byte-identical, and gets needlessly re-downloaded. `use_checksum=true` adds a content check (local md5 vs. Drive's `md5Checksum`) ahead of the mtime comparison: a match is treated as in sync regardless of modifiedTime drift.
+
+**Setup**
+Create `/tmp/qa-238-src/dup.txt` locally with any content. Call `upload_local_file(local_path="/tmp/qa-238-src/dup.txt", parent_folder_id="{FOLDER_ID}")` — this Doc's Drive `modifiedTime` will be Drive's own creation timestamp, not stamped to match the local file. Create `/tmp/qa-238/dup.txt` with **identical** content (copy the source file) — its local mtime will differ from Drive's `modifiedTime` by more than 5s (ordinary tool-call latency is enough; no need to force it further).
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-238/` using direction='bidirectional' and use_checksum=true"
+
+**Checks**
+- Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-238/", direction="bidirectional", use_checksum=true)`
+- `dup.txt` appears in `skipped`, not `downloaded` or `conflicts`
+- Repeat the identical call with `use_checksum` omitted (defaults to `false`) against a **fresh** empty local dir (`/tmp/qa-238b/`) containing the same-content `dup.txt` with the same mtime gap — `dup.txt` should land in `downloaded` or `conflicts` this time (mtime alone can't tell the content is identical), confirming `use_checksum=true` is what changed the outcome, not something else about the fixture
+
+**Teardown**
+Delete `dup.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-238-src/`, `/tmp/qa-238/`, `/tmp/qa-238b/`.
+
+---
+
+### TC-D239: `use_checksum=true` has no effect on Google Workspace files (no md5Checksum to compare) (issue #274) ⚠️ local-filesystem
+
+**Background:** Google Workspace files (Docs, Sheets, Slides) have no fixed byte content, so Drive never returns `md5Checksum` for them — `use_checksum=true` must fall back to the existing mtime comparison for these exactly as if the flag were `false`, not error or misbehave.
+
+**Prompt**
+> "Sync {FOLDER_ID} with `/tmp/qa-239/` using direction='bidirectional', export_format='pdf', and use_checksum=true" *(against the existing {DOC_ID}-style Workspace fixture content already covered by TC-D201/TC-D218)*
+
+**Checks**
+- Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-239/", direction="bidirectional", export_format="pdf", use_checksum=true)`
+- No exception; result shape matches an equivalent `use_checksum=false` call against the same fixture (same file(s) in `downloaded`/`skipped`)
+
+**Teardown**
+Remove `/tmp/qa-239/`.
 
 ---
 
