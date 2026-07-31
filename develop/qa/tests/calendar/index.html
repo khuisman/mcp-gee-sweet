@@ -2208,6 +2208,100 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#list_all_events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_all_events
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_all_events">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal69-defaults-to-every-subscribed-calendar-and-returns-a-flat-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL69: Defaults to every subscribed calendar and returns a flat list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal70-explicit-calendar_ids-restricts-the-fan-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL70: Explicit calendar_ids restricts the fan-out
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal71-group_by_calendartrue-groups-by-calendar-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL71: group_by_calendar=True groups by calendar summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal72-one-invalid-calendar_id-does-not-abort-the-batch-flat-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL72: One invalid calendar_id does not abort the batch (flat list)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal73-one-invalid-calendar_id-does-not-abort-the-batch-group_by_calendartrue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL73: One invalid calendar_id does not abort the batch (group_by_calendar=True)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal74-query-is-forwarded-to-every-calendar-in-the-fan-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL74: query is forwarded to every calendar in the fan-out
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal75-expand_recurringfalse-returns-master-events-across-every-queried-calendar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL75: expand_recurring=False returns master events across every queried calendar
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -3222,6 +3316,93 @@
 - Confirms instance-level patching creates an exception override, not a series update</p>
 <p><strong>Result (2026-06-24) ✅</strong> — Patched instance <code>9lrphvbvegq03163gjh7fu35qo_20260714T150000Z</code> with <code>summary: 'QA-Daily-5x (Modified)'</code>. Jul 15–18 instances still returned <code>summary: 'QA-Daily-5x'</code>. <code>get_event</code> on master <code>9lrphvbvegq03163gjh7fu35qo</code> returned <code>summary: 'QA-Daily-5x'</code> and <code>recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]</code> unchanged. Instance-level exception confirmed.</p>
 <hr />
+<h2 id="list_all_events"><code>list_all_events</code><a class="headerlink" href="#list_all_events" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal69-defaults-to-every-subscribed-calendar-and-returns-a-flat-list">TC-CAL69: Defaults to every subscribed calendar and returns a flat list<a class="headerlink" href="#tc-cal69-defaults-to-every-subscribed-calendar-and-returns-a-flat-list" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>{CALENDAR_ID}</code> and <code>{CALENDAR_ID_2}</code> are both subscribed and each has at least one event in the window below (e.g. TC-CAL20's 'QA-Timed-Test' on 2026-07-01 in <code>{CALENDAR_ID}</code>).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Call <code>list_all_events(time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z")</code> with no <code>calendar_ids</code>.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response is a flat list (<code>list</code>), not a dict
+- 'QA-Timed-Test' appears with <code>calendar_id</code> equal to <code>{CALENDAR_ID}</code> and <code>calendar_summary</code> equal to that calendar's actual summary from <code>list_calendars</code>
+- Every returned event has both <code>calendar_id</code> and <code>calendar_summary</code> populated
+- Confirms omitting <code>calendar_ids</code> fans out across the full <code>list_calendars</code> result, not just one calendar</p>
+<p><strong>Result (2026-07-30) ⚠️ partial</strong> — This worktree's connected account has no <code>mcp-gee-sweet-qa</code>/<code>QA-Timed-Test</code> fixtures set up (real OAuth personal account, no scratch calendar present). Ran with no <code>calendar_ids</code> and a 1-day window instead: response was a flat <code>list</code>, every returned event had both <code>calendar_id</code> and <code>calendar_summary</code> populated correctly, sourced from more than one calendar. The specific 'QA-Timed-Test' fixture assertion could not be checked. Structural behavior confirmed; named-fixture assertion blocked on missing fixtures, not a PR defect.</p>
+<hr />
+<h3 id="tc-cal70-explicit-calendar_ids-restricts-the-fan-out">TC-CAL70: Explicit calendar_ids restricts the fan-out<a class="headerlink" href="#tc-cal70-explicit-calendar_ids-restricts-the-fan-out" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Call <code>list_all_events(calendar_ids=["{CALENDAR_ID}"], time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z")</code>.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Every event in the response has <code>calendar_id: "{CALENDAR_ID}"</code> — no event from <code>{CALENDAR_ID_2}</code> or any other subscribed calendar appears, even if it has events in the same window
+- Confirms <code>calendar_ids</code> narrows the query instead of always hitting every subscribed calendar</p>
+<p><strong>Result (2026-07-30) ✅</strong> — Called with two explicit <code>calendar_ids</code> (real subscribed calendars, no shared/duplicate <code>summary</code> between them) and a narrow window (both empty in that window). Response was an empty flat list — no third calendar's events leaked in. Confirms <code>calendar_ids</code> restricts the fan-out.</p>
+<hr />
+<h3 id="tc-cal71-group_by_calendartrue-groups-by-calendar-summary">TC-CAL71: group_by_calendar=True groups by calendar summary<a class="headerlink" href="#tc-cal71-group_by_calendartrue-groups-by-calendar-summary" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> same fixtures as TC-CAL69 — both calendars have at least one event in the window.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Call <code>list_all_events(calendar_ids=["{CALENDAR_ID}", "{CALENDAR_ID_2}"], time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z", group_by_calendar=true)</code>.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response is a dict keyed by each calendar's <code>summary</code> (from <code>list_calendars</code>), not a flat list
+- Each key's value is that calendar's own event list only
+- Events under each key still carry <code>calendar_id</code>/<code>calendar_summary</code> matching the key they're filed under
+- If two calendars share an identical <code>summary</code>, both are still present — disambiguated as <code>"{summary} ({calendar_id})"</code> — instead of one silently overwriting the other</p>
+<p><strong>Fixed (round 2):</strong> <code>grouped</code> was keyed by bare <code>calendar_summary</code>, so two calendars sharing a summary collided and the second overwrote the first with no error. Now keyed via <code>_group_key</code>, which appends <code>" ({calendar_id})"</code> whenever more than one queried calendar shares that summary. No live fixture pair with a duplicate <code>summary</code> was available in this environment to reproduce the collision end-to-end (per round 1's Result below) or reconfirm the fix live — covered by <code>test_group_by_calendar_disambiguates_colliding_summaries</code> in <code>tests/test_calendar.py</code> only. Documented scoping decision, not an oversight.</p>
+<p><strong>Result (2026-07-30) ⚠️ passed but confirms a live defect</strong> — Ran with two calendars whose real <code>summary</code> values happened to differ, and grouping worked correctly for that case. However, reading the implementation (<code>calendar.py:1001</code>, <code>grouped[key] = ...</code> keyed by <code>calendar_summary</code>) confirms <code>/code-review high</code>'s finding: two calendars sharing an identical <code>summary</code> will silently collide — the second overwrites the first in <code>grouped</code>, with the first calendar's entire event list dropped and no error/warning. No live fixture pair with a duplicate summary was available in this environment to reproduce it end-to-end, but the code path is unambiguous. <strong>Sending back to Dev — see PR comment.</strong></p>
+<hr />
+<h3 id="tc-cal72-one-invalid-calendar_id-does-not-abort-the-batch-flat-list">TC-CAL72: One invalid calendar_id does not abort the batch (flat list)<a class="headerlink" href="#tc-cal72-one-invalid-calendar_id-does-not-abort-the-batch-flat-list" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Call <code>list_all_events(calendar_ids=["{CALENDAR_ID}", "invalid-cal@example.com"], time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z")</code>.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The call itself does not raise or return a top-level <code>{"error": ...}</code> — it returns a flat list
+- Exactly one entry has <code>calendar_id: "invalid-cal@example.com"</code> and an <code>error</code> field (Calendar API's not-found/forbidden message); that entry has no <code>id</code>/<code>summary</code>/event fields
+- <code>{CALENDAR_ID}</code>'s real events (e.g. 'QA-Timed-Test') are still present in the same list, unaffected by the other calendar's failure
+- Confirms per-calendar failures are inlined rather than failing the whole call (the <code>asyncio.gather(..., return_exceptions=True)</code> fan-out pattern from #183)</p>
+<p><strong>Result (2026-07-30) ✅</strong> — Called with one real calendar_id plus <code>invalid-cal@example.com</code>, narrow window. Response was a flat list with exactly one entry for the invalid ID: <code>{"calendar_id": "invalid-cal@example.com", "calendar_summary": "invalid-cal@example.com", "error": "&lt;HttpError 404 ... notFound ...&gt;"}</code>. No top-level error, no exception. Confirms per-calendar failure inlining.</p>
+<hr />
+<h3 id="tc-cal73-one-invalid-calendar_id-does-not-abort-the-batch-group_by_calendartrue">TC-CAL73: One invalid calendar_id does not abort the batch (group_by_calendar=True)<a class="headerlink" href="#tc-cal73-one-invalid-calendar_id-does-not-abort-the-batch-group_by_calendartrue" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Call <code>list_all_events(calendar_ids=["{CALENDAR_ID}", "invalid-cal@example.com"], time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z", group_by_calendar=true)</code>.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>result["invalid-cal@example.com"]</code> (falls back to the raw ID as the key since an inaccessible calendar has no known summary) is exactly <code>{"error": "...", "calendar_id": "invalid-cal@example.com"}</code>
+- The key for <code>{CALENDAR_ID}</code>'s real summary still maps to its normal event list, unaffected by the other calendar's failure</p>
+<p><strong>Fixed (round 2):</strong> the grouped error entry previously carried only <code>{"error": ...}</code>, recoverable only via the dict key — which per TC-CAL71's collision defect could itself be ambiguous. Now includes <code>calendar_id</code> explicitly, matching the flat-list error shape (TC-CAL72). Covered by <code>test_one_calendar_erroring_in_group_by_calendar_mode</code> in <code>tests/test_calendar.py</code>; round 1's Result below predates this shape and needs re-verification live.</p>
+<p><strong>Result (2026-07-30, round 1) — superseded, see round 2 below.</strong></p>
+<p><strong>Result (2026-07-30, round 2) ✅</strong> — Re-ran against <code>481f13d4</code> after a fresh <code>/mcp reconnect</code> (the first post-fix attempt was caught still serving pre-fix code — see PR comment). <code>result["invalid-cal@example.com"]</code> was <code>{"error": "&lt;HttpError 404 ... notFound ...&gt;", "calendar_id": "invalid-cal@example.com"}</code> — <code>calendar_id</code> now present, confirming the fix live.</p>
+<hr />
+<h3 id="tc-cal74-query-is-forwarded-to-every-calendar-in-the-fan-out">TC-CAL74: query is forwarded to every calendar in the fan-out<a class="headerlink" href="#tc-cal74-query-is-forwarded-to-every-calendar-in-the-fan-out" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> 'QA-Timed-Test' (TC-CAL20) exists in <code>{CALENDAR_ID}</code>; <code>{CALENDAR_ID_2}</code> has no event matching the query text.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Call <code>list_all_events(calendar_ids=["{CALENDAR_ID}", "{CALENDAR_ID_2}"], time_min="2026-01-01T00:00:00Z", time_max="2026-12-31T23:59:59Z", query="QA-Timed-Test")</code>.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 'QA-Timed-Test' is returned from <code>{CALENDAR_ID}</code>
+- No events are returned from <code>{CALENDAR_ID_2}</code> (confirms <code>query</code> was passed as <code>q</code> to that calendar's <code>events().list()</code> too, not just the first)</p>
+<p><strong>Result (2026-07-30) ⏭️ SKIP</strong> — No 'QA-Timed-Test' fixture event exists in this worktree's connected account (fixture calendar/event not set up here). Not run; not a PR defect.</p>
+<hr />
+<h3 id="tc-cal75-expand_recurringfalse-returns-master-events-across-every-queried-calendar">TC-CAL75: expand_recurring=False returns master events across every queried calendar<a class="headerlink" href="#tc-cal75-expand_recurringfalse-returns-master-events-across-every-queried-calendar" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the recurring event created in TC-CAL36 (in <code>{CALENDAR_ID}</code>).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Call <code>list_all_events(calendar_ids=["{CALENDAR_ID}"], expand_recurring=false, query="QA-")</code>.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 'QA-Weekly-Standup' appears once as its master event (recurrence field populated with RRULE), not expanded into individual instances
+- Confirms <code>expand_recurring=False</code> is applied per-calendar in the fan-out, matching <code>list_events</code>' own <code>singleEvents</code>/<code>orderBy</code> behavior</p>
+<p><strong>Result (2026-07-30) ⏭️ SKIP</strong> — TC-CAL36's recurring-event fixture is not present in this worktree's connected account. Not run; not a PR defect.</p>
+<hr />
+<p><strong>Round 2 fixes not covered by a live test case above:</strong>
+- The calendar-list fetch backing <code>summary_by_id</code> (<code>calendar.py</code>, before <code>_fetch_one</code>) had no try/except and could abort the whole batch on a transient failure even when <code>calendar_ids</code> was given explicitly (so the fetch was only needed for display names). Now caught: with explicit <code>calendar_ids</code>, the call proceeds using the bare IDs as display names; with no <code>calendar_ids</code> (so there's no other way to know what to query), it returns a single top-level <code>{"error": ...}</code> instead of raising. Forcing a live <code>calendarList().list()</code> failure isn't something QA can safely trigger against a real account — covered by <code>test_calendar_list_fetch_failure_with_explicit_calendar_ids_does_not_abort</code> and <code>test_calendar_list_fetch_failure_without_calendar_ids_returns_top_level_error</code> in <code>tests/test_calendar.py</code> only. Documented scoping decision, not an oversight.
+- <code>time_min</code>'s default (<code>datetime.now(timezone.utc)</code>) was computed independently inside each concurrent per-calendar task, so calendars in the same call could query against slightly different "now" instants under real contention. Now computed once before the fan-out and reused by every task. Not distinguishable via a single live call's response (there's no observable difference unless an event's start time falls in the microseconds-wide window between two independent <code>datetime.now()</code> calls) — covered by <code>test_default_time_min_is_computed_once_for_the_whole_batch</code> in <code>tests/test_calendar.py</code> only.</p>
 
 
 
