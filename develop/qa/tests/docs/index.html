@@ -3276,6 +3276,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-doc146-style_doc_table_cells-per-edge-border-override-signature-line-bottom-only-border-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC146: style_doc_table_cells per-edge border override — signature-line (bottom-only border) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc147-apply_theme-table-styling-with-per-edge-border-override-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC147: apply_theme table styling with per-edge border override ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5537,6 +5559,36 @@ Run against a live sandbox scoped to only <code>create_doc,create_doc_from_file,
 - 🔍 Visual check: clicking "Jump to Overview" jumps to the "Overview" heading</p>
 <p><strong>Cleanup:</strong> delete the created doc</p>
 <p><strong>Result:</strong> PASS (2026-07-29, live via <code>mcp-gee-sweet-kit</code>). <code>get_doc_structure</code>'s first element was the "Jump to Overview" paragraph; its run's <code>link_url</code> was <code>https://docs.google.com/document/d/&lt;docId&gt;/edit?tab=t.0#heading=h.jmodqzi4drr</code>, matching the "Overview" heading's own <code>headingId</code>. Confirms fix for QA round 1 finding #2 (startIndex-carry-forward). Test doc trashed per cleanup step.</p>
+<hr />
+<h3 id="tc-doc146-style_doc_table_cells-per-edge-border-override-signature-line-bottom-only-border-destructive">TC-DOC146: <code>style_doc_table_cells</code> per-edge border override — signature-line (bottom-only border) ⚠️ destructive<a class="headerlink" href="#tc-doc146-style_doc_table_cells-per-edge-border-override-signature-line-bottom-only-border-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> #403 — <code>style_doc_table_cells</code> previously only supported a single uniform border applied to all four cell edges. This confirms the new <code>border_top</code>/<code>border_right</code>/<code>border_bottom</code>/<code>border_left</code> per-edge overrides, using the signature-line use case from the issue (bottom border only, no other edges touched).</p>
+<p><strong>Setup:</strong> insert a 2×1 table; record its <code>tableStartIndex</code> from the response</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Style cell [0,0] of the table at index {tableStartIndex} in doc {DOC_ID} with only a bottom border: color black, width 1.0"</p>
+</blockquote>
+<p>Tool call: <code>style_doc_table_cells(doc_id=DOC_ID, table_start_index=&lt;tableStartIndex&gt;, cells=[{"row_index": 0, "column_index": 0, "border_bottom": {"color": {"red": 0, "green": 0, "blue": 0}, "width": 1.0}}])</code></p>
+<p><strong>Checks</strong>
+- Response succeeds, no <code>error</code> key, <code>requests: 1</code>
+- Docs tables render onto a canvas with no accessible <code>&lt;table&gt;</code> DOM, and a brand-new table already shows default borders on every cell — a screenshot can't distinguish "our applied border" from "the table's own default," so the visual check below is unreliable (see <code>run.md</code>'s "Docs table cell borders" limitation). Verify instead via a raw <code>documents().get()</code> read: cell [0,0]'s <code>tableCellStyle.borderBottom</code> should be present with the requested color/width; <code>borderTop</code>/<code>borderLeft</code>/<code>borderRight</code> should be absent (or default) since they were never targeted</p>
+<p><strong>Result:</strong> PASS (2026-07-30, PR #462 re-verification round). Verified live via raw <code>documents().get()</code> read against the QA fixture doc rather than a screenshot (see note above) — a fresh table's untouched cell showed no <code>tableCellStyle</code> border keys at all; after <code>style_doc_table_cells</code> with only <code>border_bottom</code> set, the cell showed a <code>borderBottom</code> entry with the requested color/width and no <code>borderTop</code>/<code>borderLeft</code>/<code>borderRight</code> keys. Confirmed with two distinct rows/widths for reproducibility.</p>
+<p><strong>Cleanup:</strong> delete the table</p>
+<hr />
+<h3 id="tc-doc147-apply_theme-table-styling-with-per-edge-border-override-destructive">TC-DOC147: <code>apply_theme</code> table styling with per-edge border override ⚠️ destructive<a class="headerlink" href="#tc-doc147-apply_theme-table-styling-with-per-edge-border-override-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> #403 — <code>apply_theme</code>'s <code>table</code> key had the same uniform-border-only limitation as <code>style_doc_table_cells</code>. Confirms <code>border_top</code>/<code>border_right</code>/<code>border_bottom</code>/<code>border_left</code> overrides on the theme's table styling, combined with the existing uniform <code>border_width</code> for the untouched edges.</p>
+<p><strong>Prerequisite:</strong> doc must contain at least one table (write one with <code>write_doc_content</code> first if needed)</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Apply this theme to doc {DOC_ID}: <code>{"table": {"border_color": {"red": 0, "green": 0, "blue": 0}, "border_width": 0.5, "border_bottom": {"width": 2.0}}}</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Result contains <code>docId</code> and <code>requests &gt; 0</code>
+- No <code>error</code> key
+- Same canvas-rendering limitation as TC-DOC146 — screenshot verification is unreliable here. Verify instead via a raw <code>documents().get()</code> read: interior rows' cells should show <code>borderTop</code>/<code>borderRight</code>/<code>borderBottom</code>/<code>borderLeft</code> all at the uniform width/color, and the <em>last</em> row's <code>borderBottom</code> should show the overridden width while still inheriting the uniform color (this is the core #403-follow-up fix: a width-only per-edge override must inherit color from the uniform spec, since the Docs API rejects a non-zero-width border with no color as "transparent")</p>
+<p><strong>Result:</strong> PASS (2026-07-30, PR #462 re-verification round). Verified live via raw <code>documents().get()</code> read: applying <code>{"border_color": &lt;uniform&gt;, "border_width": 0.5, "border_bottom": {"width": &lt;override&gt;}}</code> produced a <code>borderBottom</code> on the outer edge with the overridden width and the <em>uniform</em> color correctly inherited (confirmed unambiguously using a non-default color, since the Docs API omits zero-valued RGB components from its response — a pure-black test color would round-trip as <code>{}</code> and couldn't distinguish "inherited" from "absent"). Also confirmed <code>{"border_bottom": null}</code> returns a clean <code>{"error": ...}</code> instead of raising.</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
 
 
 
