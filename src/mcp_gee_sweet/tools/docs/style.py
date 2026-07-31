@@ -228,6 +228,13 @@ def register(tool):
                 Paragraph style:
                   named_style_type (str): NORMAL_TEXT, HEADING_1 … HEADING_6,
                       TITLE, SUBTITLE
+                  tab_stops (list[dict] | null): explicit tab stop positions, each
+                      {"offset_pt": float, "alignment": "START"|"CENTER"|"END"}
+                      (alignment defaults to "START"). Lets a `\t` in this range land
+                      at a guaranteed absolute horizontal position — set the same
+                      offset_pt on ranges in separate paragraphs to align them without
+                      a table (e.g. signature lines, label/value pairs). Pass an empty
+                      list or null to clear any existing tab stops on the range.
 
                 Text style:
                   bold (bool), italic (bool), underline (bool), strikethrough (bool)
@@ -246,13 +253,48 @@ def register(tool):
         for r in ranges:
             rng = {"startIndex": r["start_index"], "endIndex": r["end_index"]}
 
+            paragraph_style: dict = {}
+            paragraph_fields: list[str] = []
+
             if "named_style_type" in r:
+                paragraph_style["namedStyleType"] = r["named_style_type"]
+                paragraph_fields.append("namedStyleType")
+
+            if "tab_stops" in r:
+                tab_stops = r["tab_stops"]
+                if tab_stops:
+                    if not isinstance(tab_stops, list):
+                        return {
+                            "error": f"'tab_stops' must be a list of dicts, got "
+                            f"{type(tab_stops).__name__}"
+                        }
+                    stops = []
+                    for ts in tab_stops:
+                        if not isinstance(ts, dict) or "offset_pt" not in ts:
+                            return {
+                                "error": "each tab_stops entry must be a dict with "
+                                "an 'offset_pt' key"
+                            }
+                        stops.append(
+                            {
+                                "offset": {"magnitude": ts["offset_pt"], "unit": "PT"},
+                                "alignment": ts.get("alignment", "START"),
+                            }
+                        )
+                    # Omitting "tabStops" from paragraphStyle while still naming it in
+                    # the field mask is a no-op-value clear (empty list / null input) —
+                    # same reset-nested-field pattern as link_url in
+                    # _text_style_and_fields (#408); only a non-empty list sets a value.
+                    paragraph_style["tabStops"] = stops
+                paragraph_fields.append("tabStops")
+
+            if paragraph_fields:
                 requests.append(
                     {
                         "updateParagraphStyle": {
                             "range": rng,
-                            "paragraphStyle": {"namedStyleType": r["named_style_type"]},
-                            "fields": "namedStyleType",
+                            "paragraphStyle": paragraph_style,
+                            "fields": ",".join(paragraph_fields),
                         }
                     }
                 )

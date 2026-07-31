@@ -2654,3 +2654,67 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 **Result:** PASS (2026-07-30, PR #462 re-verification round). Verified live via raw `documents().get()` read: applying `{"border_color": <uniform>, "border_width": 0.5, "border_bottom": {"width": <override>}}` produced a `borderBottom` on the outer edge with the overridden width and the *uniform* color correctly inherited (confirmed unambiguously using a non-default color, since the Docs API omits zero-valued RGB components from its response — a pure-black test color would round-trip as `{}` and couldn't distinguish "inherited" from "absent"). Also confirmed `{"border_bottom": null}` returns a clean `{"error": ...}` instead of raising.
 
 **Cleanup:** write fixture content back
+
+---
+
+## `style_doc_range`: explicit paragraph tab stops (issue #404)
+
+**Background:** No tool exposed the Docs API's `paragraphStyle.tabStops` field, so two independent paragraphs had no way to share a guaranteed common horizontal position for a `\t` character — the only alternatives were relying on Google's undocumented default tab increments or building a full table purely for column alignment (form-style layouts: signature lines, label/value pairs). `style_doc_range` gained a `tab_stops` range field: a list of `{"offset_pt": float, "alignment": "START"|"CENTER"|"END"}` dicts (`alignment` defaults to `"START"`), built into a single `updateParagraphStyle` request per range alongside `named_style_type` when both are given. Passing `tab_stops: null` or `[]` clears any existing tab stops on the range — same reset-nested-field pattern as `link_url: null` (#408): the `"tabStops"` field mask entry is sent while the key itself is omitted from `paragraphStyle`, which is the documented way to reset a nested message field to its API default. `get_doc_structure` does not surface `tabStops`, so verification here reads the raw `documents().get()` response directly, the same approach used for the table-cell-border checks above (TC-DOC146/147).
+
+### TC-DOC148: Setting an explicit tab stop lands a `\t` at the requested offset ⚠️ destructive
+
+**Setup:** insert a paragraph "Label\tValue\n" in `{DOC_ID}` (e.g. via `insert_doc_text`); note its `start_index`/`end_index`.
+
+**Prompt**
+> "Set a tab stop at 100pt on the paragraph range {start}–{end} in doc {DOC_ID}."
+
+Tool call: `style_doc_range(doc_id=DOC_ID, ranges=[{"start_index": start, "end_index": end, "tab_stops": [{"offset_pt": 100.0}]}])`
+
+**Checks**
+- Response succeeds, no `error` key, `requests: 1`
+- Raw `documents().get()` read: the paragraph's `paragraphStyle.tabStops` is `[{"offset": {"magnitude": 100, "unit": "PT"}, "alignment": "START"}]` — the API response fully confirms the applied value, so no Playwright check is required here (unlike the table-cell-border cases above, where canvas rendering leaves no other way to distinguish an applied style from the default)
+
+**Cleanup:** delete the test paragraph
+
+### TC-DOC149: `tab_stops` and `named_style_type` combine into a single `updateParagraphStyle` request ⚠️ destructive
+
+**Setup:** insert a fresh paragraph "Label\tValue\n" in `{DOC_ID}`; note its range.
+
+**Prompt**
+> "On paragraph range {start}–{end} in doc {DOC_ID}, set named_style_type to HEADING_2 and a tab stop at 200pt with alignment END, in one style_doc_range call."
+
+Tool call: `style_doc_range(doc_id=DOC_ID, ranges=[{"start_index": start, "end_index": end, "named_style_type": "HEADING_2", "tab_stops": [{"offset_pt": 200.0, "alignment": "END"}]}])`
+
+**Checks**
+- Response succeeds, `requests: 1` (both fields must land in the same `updateParagraphStyle` call, not two separate ones)
+- Raw `documents().get()` read: the paragraph's `paragraphStyle.namedStyleType` is `"HEADING_2"` and `paragraphStyle.tabStops` is `[{"offset": {"magnitude": 200, "unit": "PT"}, "alignment": "END"}]`
+
+**Cleanup:** delete the test paragraph
+
+### TC-DOC150: `tab_stops: null` clears an existing tab stop instead of erroring ⚠️ destructive
+
+**Setup:** insert a paragraph "Label\tValue\n" in `{DOC_ID}`; apply a tab stop via `style_doc_range(..., tab_stops=[{"offset_pt": 100.0}])` (same setup as TC-DOC148); note the range.
+
+**Prompt**
+> "Clear the tab stops on paragraph range {start}–{end} in doc {DOC_ID} by setting tab_stops to null."
+
+Tool call: `style_doc_range(doc_id=DOC_ID, ranges=[{"start_index": start, "end_index": end, "tab_stops": null}])`
+
+**Checks**
+- Response succeeds, no `error` key, `requests: 1`
+- Raw `documents().get()` read: the paragraph's `paragraphStyle` no longer has a `tabStops` key (reset to the API default, not left at the previous 100pt value)
+
+**Cleanup:** delete the test paragraph
+
+### TC-DOC151: A `tab_stops` entry missing `offset_pt` returns a clean error, no API call made
+
+**Prompt**
+> "Call style_doc_range on doc {DOC_ID} with tab_stops [{\"alignment\": \"START\"}] (no offset_pt) on range 1-5."
+
+Tool call: `style_doc_range(doc_id=DOC_ID, ranges=[{"start_index": 1, "end_index": 5, "tab_stops": [{"alignment": "START"}]}])`
+
+**Checks**
+- Returns `{"error": "each tab_stops entry must be a dict with an 'offset_pt' key"}`
+- No mutation occurs (validation fails before any `batchUpdate` call is made)
+
+**Cleanup:** none — no mutation occurs

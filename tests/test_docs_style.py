@@ -501,6 +501,115 @@ class TestStyleDocRangeTool:
         assert update["textStyle"]["link"] == {"url": "https://x.com"}
 
 
+class TestStyleDocRangeTabStops:
+    """#404: explicit paragraph tab stops for form-style column alignment."""
+
+    def _setup(self):
+        tool, tools = _make_tool_registry()
+        docs_module.register(tool)
+        return tools
+
+    async def _call(self, tab_range: dict):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        result = await tools["style_doc_range"](doc_id="doc123", ranges=[tab_range], ctx=ctx)
+        call_kwargs = mock_docs.documents().batchUpdate.call_args[1]
+        reqs = call_kwargs["body"]["requests"]
+        return result, reqs
+
+    async def test_tab_stops_set_offset_and_default_alignment(self):
+        result, reqs = await self._call(
+            {"start_index": 1, "end_index": 5, "tab_stops": [{"offset_pt": 72.0}]}
+        )
+        assert "error" not in result
+        update = next(r["updateParagraphStyle"] for r in reqs if "updateParagraphStyle" in r)
+        assert update["fields"] == "tabStops"
+        assert update["paragraphStyle"]["tabStops"] == [
+            {"offset": {"magnitude": 72.0, "unit": "PT"}, "alignment": "START"}
+        ]
+
+    async def test_tab_stops_explicit_alignment(self):
+        result, reqs = await self._call(
+            {
+                "start_index": 1,
+                "end_index": 5,
+                "tab_stops": [{"offset_pt": 100.0, "alignment": "END"}],
+            }
+        )
+        assert "error" not in result
+        update = next(r["updateParagraphStyle"] for r in reqs if "updateParagraphStyle" in r)
+        assert update["paragraphStyle"]["tabStops"][0]["alignment"] == "END"
+
+    async def test_tab_stops_multiple_entries(self):
+        result, reqs = await self._call(
+            {
+                "start_index": 1,
+                "end_index": 5,
+                "tab_stops": [
+                    {"offset_pt": 72.0, "alignment": "START"},
+                    {"offset_pt": 216.0, "alignment": "END"},
+                ],
+            }
+        )
+        assert "error" not in result
+        update = next(r["updateParagraphStyle"] for r in reqs if "updateParagraphStyle" in r)
+        assert len(update["paragraphStyle"]["tabStops"]) == 2
+
+    async def test_tab_stops_null_clears_but_keeps_field_mask(self):
+        # Same reset-nested-field pattern as link_url (#408): naming "tabStops" in
+        # the field mask while omitting the key from paragraphStyle clears it.
+        result, reqs = await self._call({"start_index": 1, "end_index": 5, "tab_stops": None})
+        assert "error" not in result
+        update = next(r["updateParagraphStyle"] for r in reqs if "updateParagraphStyle" in r)
+        assert update["fields"] == "tabStops"
+        assert "tabStops" not in update["paragraphStyle"]
+
+    async def test_tab_stops_empty_list_clears_but_keeps_field_mask(self):
+        result, reqs = await self._call({"start_index": 1, "end_index": 5, "tab_stops": []})
+        assert "error" not in result
+        update = next(r["updateParagraphStyle"] for r in reqs if "updateParagraphStyle" in r)
+        assert update["fields"] == "tabStops"
+        assert "tabStops" not in update["paragraphStyle"]
+
+    async def test_tab_stops_combined_with_named_style_type_single_request(self):
+        result, reqs = await self._call(
+            {
+                "start_index": 1,
+                "end_index": 5,
+                "named_style_type": "HEADING_2",
+                "tab_stops": [{"offset_pt": 72.0}],
+            }
+        )
+        assert "error" not in result
+        para_reqs = [r for r in reqs if "updateParagraphStyle" in r]
+        assert len(para_reqs) == 1
+        update = para_reqs[0]["updateParagraphStyle"]
+        assert set(update["fields"].split(",")) == {"namedStyleType", "tabStops"}
+        assert update["paragraphStyle"]["namedStyleType"] == "HEADING_2"
+
+    async def test_tab_stops_not_a_list_returns_error(self):
+        tools = self._setup()
+        ctx = _make_ctx(docs_service=MagicMock(), doc_cache=MagicMock())
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 5, "tab_stops": "72pt"}],
+            ctx=ctx,
+        )
+        assert "error" in result
+
+    async def test_tab_stops_entry_missing_offset_pt_returns_error(self):
+        tools = self._setup()
+        ctx = _make_ctx(docs_service=MagicMock(), doc_cache=MagicMock())
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 5, "tab_stops": [{"alignment": "START"}]}],
+            ctx=ctx,
+        )
+        assert "error" in result
+
+
 class TestStyleDocTableCellsTool:
     def _setup(self):
         tool, tools = _make_tool_registry()
