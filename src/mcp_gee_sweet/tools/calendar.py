@@ -887,51 +887,75 @@ def register(tool):
                               returned as a single master event.
             group_by_calendar: When False (default), returns a flat list of events sorted
                                by calendar. When True, returns a dict keyed by calendar
-                               summary instead.
+                               summary instead (disambiguated with " (calendar_id)" suffix
+                               when two calendars share the same summary).
 
         Returns:
             A flat list of events (each including calendar_id and calendar_summary),
             or if group_by_calendar=True, a dict mapping calendar summary to that
             calendar's event list. A calendar that fails to query is included inline
             as {calendar_id, calendar_summary, error} rather than aborting the batch.
+            If the calendar list itself fails to load and calendar_ids wasn't given
+            (so there's no way to know what to query), returns a single top-level
+            {"error": ...} instead of raising.
             Raises ValueError if the response exceeds the safety cap (default 40,000
             characters, set MAX_TOOL_RESPONSE_CHARS to change it) — narrow the time
             window, pass calendar_ids, or lower max_results_per_calendar.
         """
         lc = ctx.request_context.lifespan_context
         max_results_per_calendar = min(max(1, max_results_per_calendar), 2500)
+        resolved_time_min = time_min or datetime.now(timezone.utc).isoformat()
 
         cache = lc.calendar_cache
-        all_calendars = cache.get_list()
-        if all_calendars is None:
-            result = await execute_in_thread(
-                lc.calendar_service.calendarList().list().execute,
-                lc.calendar_service,
-            )
-            all_calendars = [
-                {
-                    "id": c["id"],
-                    "summary": c.get("summary", ""),
-                    "time_zone": c.get("timeZone"),
-                    "access_role": c.get("accessRole"),
-                    "primary": c.get("primary", False),
-                }
-                for c in result.get("items", [])
-            ]
-            cache.store_list(all_calendars)
+        try:
+            all_calendars = cache.get_list()
+            if all_calendars is None:
+                result = await execute_in_thread(
+                    lc.calendar_service.calendarList().list().execute,
+                    lc.calendar_service,
+                )
+                all_calendars = [
+                    {
+                        "id": c["id"],
+                        "summary": c.get("summary", ""),
+                        "time_zone": c.get("timeZone"),
+                        "access_role": c.get("accessRole"),
+                        "primary": c.get("primary", False),
+                    }
+                    for c in result.get("items", [])
+                ]
+                cache.store_list(all_calendars)
+        except Exception as e:
+            # calendar_ids explicit: this call only needed the list for display
+            # names, so fall back to bare calendar_ids instead of aborting.
+            if calendar_ids is None:
+                error_result: dict[str, Any] = {"error": f"Failed to list calendars: {e!s}"}
+                return error_result if group_by_calendar else [error_result]
+            all_calendars = []
 
         summary_by_id = {c["id"]: c.get("summary", "") for c in all_calendars}
         target_ids = calendar_ids if calendar_ids is not None else [c["id"] for c in all_calendars]
+
+        summary_counts: dict[str, int] = {}
+        for cid in target_ids:
+            summary = summary_by_id.get(cid, cid)
+            summary_counts[summary] = summary_counts.get(summary, 0) + 1
+
+        def _group_key(calendar_id: str) -> str:
+            summary = summary_by_id.get(calendar_id, calendar_id)
+            if summary_counts.get(summary, 0) > 1:
+                return f"{summary} ({calendar_id})"
+            return summary
 
         async def _fetch_one(calendar_id: str) -> dict[str, Any]:
             kwargs: dict[str, Any] = {
                 "calendarId": calendar_id,
                 "maxResults": max_results_per_calendar,
                 "singleEvents": expand_recurring,
+                "timeMin": resolved_time_min,
             }
             if expand_recurring:
                 kwargs["orderBy"] = "startTime"
-            kwargs["timeMin"] = time_min or datetime.now(timezone.utc).isoformat()
             if time_max:
                 kwargs["timeMax"] = time_max
             if query:
@@ -998,8 +1022,12 @@ def register(tool):
         if group_by_calendar:
             grouped: dict[str, Any] = {}
             for entry in per_calendar:
-                key = entry["calendar_summary"]
-                grouped[key] = {"error": entry["error"]} if "error" in entry else entry["events"]
+                key = _group_key(entry["calendar_id"])
+                grouped[key] = (
+                    {"error": entry["error"], "calendar_id": entry["calendar_id"]}
+                    if "error" in entry
+                    else entry["events"]
+                )
             enforce_response_size_cap(
                 grouped, tool_name="list_all_events", local_path_available=False
             )

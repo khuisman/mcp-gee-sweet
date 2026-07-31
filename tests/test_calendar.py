@@ -1109,7 +1109,80 @@ class TestListAllEvents:
         result = await _cal_tools["list_all_events"](group_by_calendar=True, ctx=ctx)
 
         assert result["Work"][0]["id"] == "evt-1"
-        assert result["Home"] == {"error": "notFound"}
+        assert result["Home"] == {"error": "notFound", "calendar_id": "cal-2"}
+
+    async def test_group_by_calendar_disambiguates_colliding_summaries(self):
+        """Two calendars sharing a summary must not overwrite each other's events."""
+        cal_svc = MagicMock()
+        cache = MagicMock()
+        cache.get_list.return_value = [
+            {"id": "cal-1", "summary": "Work"},
+            {"id": "cal-2", "summary": "Work"},
+        ]
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect(
+            {
+                "cal-1": [self._event("evt-1", "Standup")],
+                "cal-2": [self._event("evt-2", "Retro")],
+            }
+        )
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["list_all_events"](group_by_calendar=True, ctx=ctx)
+
+        assert set(result.keys()) == {"Work (cal-1)", "Work (cal-2)"}
+        assert result["Work (cal-1)"][0]["id"] == "evt-1"
+        assert result["Work (cal-2)"][0]["id"] == "evt-2"
+
+    async def test_calendar_list_fetch_failure_with_explicit_calendar_ids_does_not_abort(self):
+        """A broken calendarList().list() call must not abort a call that already has explicit IDs."""
+        cal_svc = MagicMock()
+        cal_svc.calendarList.return_value.list.return_value.execute.side_effect = Exception(
+            "rate limited"
+        )
+        cache = MagicMock()
+        cache.get_list.return_value = None
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect(
+            {"cal-1": [self._event("evt-1", "Standup")]}
+        )
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["list_all_events"](calendar_ids=["cal-1"], ctx=ctx)
+
+        assert result[0]["id"] == "evt-1"
+        assert result[0]["calendar_summary"] == "cal-1"
+
+    async def test_calendar_list_fetch_failure_without_calendar_ids_returns_top_level_error(self):
+        """With no calendar_ids given, a broken calendarList().list() call can't be worked around."""
+        cal_svc = MagicMock()
+        cal_svc.calendarList.return_value.list.return_value.execute.side_effect = Exception(
+            "rate limited"
+        )
+        cache = MagicMock()
+        cache.get_list.return_value = None
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["list_all_events"](ctx=ctx)
+
+        assert result == [{"error": "Failed to list calendars: rate limited"}]
+        cal_svc.events.return_value.list.assert_not_called()
+
+    async def test_default_time_min_is_computed_once_for_the_whole_batch(self):
+        """Every concurrent calendar must query against the same 'now' instant, not each its own."""
+        cal_svc = MagicMock()
+        cache = MagicMock()
+        cache.get_list.return_value = [
+            {"id": "cal-1", "summary": "Work"},
+            {"id": "cal-2", "summary": "Home"},
+        ]
+        cal_svc.events.return_value.list.side_effect = self._events_list_side_effect(
+            {"cal-1": [], "cal-2": []}
+        )
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        await _cal_tools["list_all_events"](ctx=ctx)
+
+        time_mins = {c.kwargs["timeMin"] for c in cal_svc.events.return_value.list.call_args_list}
+        assert len(time_mins) == 1
 
     async def test_max_results_per_calendar_above_2500_is_clamped(self):
         """Passing max_results_per_calendar=9999 must clamp maxResults to 2500 per call."""

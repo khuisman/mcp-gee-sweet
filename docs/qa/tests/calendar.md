@@ -1001,6 +1001,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Response is a dict keyed by each calendar's `summary` (from `list_calendars`), not a flat list
 - Each key's value is that calendar's own event list only
 - Events under each key still carry `calendar_id`/`calendar_summary` matching the key they're filed under
+- If two calendars share an identical `summary`, both are still present — disambiguated as `"{summary} ({calendar_id})"` — instead of one silently overwriting the other
+
+**Fixed (round 2):** `grouped` was keyed by bare `calendar_summary`, so two calendars sharing a summary collided and the second overwrote the first with no error. Now keyed via `_group_key`, which appends `" ({calendar_id})"` whenever more than one queried calendar shares that summary. No live fixture pair with a duplicate `summary` was available in this environment to reproduce the collision end-to-end (per round 1's Result below) or reconfirm the fix live — covered by `test_group_by_calendar_disambiguates_colliding_summaries` in `tests/test_calendar.py` only. Documented scoping decision, not an oversight.
 
 **Result (2026-07-30) ⚠️ passed but confirms a live defect** — Ran with two calendars whose real `summary` values happened to differ, and grouping worked correctly for that case. However, reading the implementation (`calendar.py:1001`, `grouped[key] = ...` keyed by `calendar_summary`) confirms `/code-review high`'s finding: two calendars sharing an identical `summary` will silently collide — the second overwrites the first in `grouped`, with the first calendar's entire event list dropped and no error/warning. No live fixture pair with a duplicate summary was available in this environment to reproduce it end-to-end, but the code path is unambiguous. **Sending back to Dev — see PR comment.**
 
@@ -1027,10 +1030,12 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 > Call `list_all_events(calendar_ids=["{CALENDAR_ID}", "invalid-cal@example.com"], time_min="2026-07-01T00:00:00Z", time_max="2026-07-02T00:00:00Z", group_by_calendar=true)`.
 
 **Checks**
-- `result["invalid-cal@example.com"]` (falls back to the raw ID as the key since an inaccessible calendar has no known summary) is exactly `{"error": "..."}`
+- `result["invalid-cal@example.com"]` (falls back to the raw ID as the key since an inaccessible calendar has no known summary) is exactly `{"error": "...", "calendar_id": "invalid-cal@example.com"}`
 - The key for `{CALENDAR_ID}`'s real summary still maps to its normal event list, unaffected by the other calendar's failure
 
-**Result (2026-07-30) ✅** — Called with one real calendar_id plus `invalid-cal@example.com`, `group_by_calendar=true`. `result["invalid-cal@example.com"]` was exactly `{"error": "<HttpError 404 ... notFound ...>"}`; the real calendar's key mapped to its normal (empty, in this narrow window) event list, unaffected.
+**Fixed (round 2):** the grouped error entry previously carried only `{"error": ...}`, recoverable only via the dict key — which per TC-CAL71's collision defect could itself be ambiguous. Now includes `calendar_id` explicitly, matching the flat-list error shape (TC-CAL72). Covered by `test_one_calendar_erroring_in_group_by_calendar_mode` in `tests/test_calendar.py`; round 1's Result below predates this shape and needs re-verification live.
+
+**Result (2026-07-30) ✅ — predates round-2 fix, needs re-verification** — Called with one real calendar_id plus `invalid-cal@example.com`, `group_by_calendar=true`. `result["invalid-cal@example.com"]` was exactly `{"error": "<HttpError 404 ... notFound ...>"}`; the real calendar's key mapped to its normal (empty, in this narrow window) event list, unaffected. Shape has since changed to also include `calendar_id` — this Result no longer reflects current behavior.
 
 ---
 
@@ -1063,3 +1068,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Result (2026-07-30) ⏭️ SKIP** — TC-CAL36's recurring-event fixture is not present in this worktree's connected account. Not run; not a PR defect.
 
 ---
+
+**Round 2 fixes not covered by a live test case above:**
+- The calendar-list fetch backing `summary_by_id` (`calendar.py`, before `_fetch_one`) had no try/except and could abort the whole batch on a transient failure even when `calendar_ids` was given explicitly (so the fetch was only needed for display names). Now caught: with explicit `calendar_ids`, the call proceeds using the bare IDs as display names; with no `calendar_ids` (so there's no other way to know what to query), it returns a single top-level `{"error": ...}` instead of raising. Forcing a live `calendarList().list()` failure isn't something QA can safely trigger against a real account — covered by `test_calendar_list_fetch_failure_with_explicit_calendar_ids_does_not_abort` and `test_calendar_list_fetch_failure_without_calendar_ids_returns_top_level_error` in `tests/test_calendar.py` only. Documented scoping decision, not an oversight.
+- `time_min`'s default (`datetime.now(timezone.utc)`) was computed independently inside each concurrent per-calendar task, so calendars in the same call could query against slightly different "now" instants under real contention. Now computed once before the fan-out and reused by every task. Not distinguishable via a single live call's response (there's no observable difference unless an event's start time falls in the microseconds-wide window between two independent `datetime.now()` calls) — covered by `test_default_time_min_is_computed_once_for_the_whole_batch` in `tests/test_calendar.py` only.
