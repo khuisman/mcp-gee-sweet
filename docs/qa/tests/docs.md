@@ -2628,7 +2628,9 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 
 **Checks**
 - Response succeeds, no `error` key, `requests: 1`
-- 🔍 Visual check in Google Docs: cell [0,0] shows a black bottom border only — no visible top, left, or right border
+- Docs tables render onto a canvas with no accessible `<table>` DOM, and a brand-new table already shows default borders on every cell — a screenshot can't distinguish "our applied border" from "the table's own default," so the visual check below is unreliable (see `run.md`'s "Docs table cell borders" limitation). Verify instead via a raw `documents().get()` read: cell [0,0]'s `tableCellStyle.borderBottom` should be present with the requested color/width; `borderTop`/`borderLeft`/`borderRight` should be absent (or default) since they were never targeted
+
+**Result:** PASS (2026-07-30, PR #462 re-verification round). Verified live via raw `documents().get()` read against the QA fixture doc rather than a screenshot (see note above) — a fresh table's untouched cell showed no `tableCellStyle` border keys at all; after `style_doc_table_cells` with only `border_bottom` set, the cell showed a `borderBottom` entry with the requested color/width and no `borderTop`/`borderLeft`/`borderRight` keys. Confirmed with two distinct rows/widths for reproducibility.
 
 **Cleanup:** delete the table
 
@@ -2647,6 +2649,8 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 **Checks**
 - Result contains `docId` and `requests > 0`
 - No `error` key
-- 🔍 Visual check: table cells show a thin (0.5pt) black border on top/right/left, and a visibly thicker (2.0pt) black border on the bottom edge
+- Same canvas-rendering limitation as TC-DOC146 — screenshot verification is unreliable here. Verify instead via a raw `documents().get()` read: interior rows' cells should show `borderTop`/`borderRight`/`borderBottom`/`borderLeft` all at the uniform width/color, and the *last* row's `borderBottom` should show the overridden width while still inheriting the uniform color (this is the core #403-follow-up fix: a width-only per-edge override must inherit color from the uniform spec, since the Docs API rejects a non-zero-width border with no color as "transparent")
+
+**Result:** PASS (2026-07-30, PR #462 re-verification round). Verified live via raw `documents().get()` read: applying `{"border_color": <uniform>, "border_width": 0.5, "border_bottom": {"width": <override>}}` produced a `borderBottom` on the outer edge with the overridden width and the *uniform* color correctly inherited (confirmed unambiguously using a non-default color, since the Docs API omits zero-valued RGB components from its response — a pure-black test color would round-trip as `{}` and couldn't distinguish "inherited" from "absent"). Also confirmed `{"border_bottom": null}` returns a clean `{"error": ...}` instead of raising.
 
 **Cleanup:** write fixture content back
