@@ -1035,7 +1035,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Fixed (round 2):** the grouped error entry previously carried only `{"error": ...}`, recoverable only via the dict key — which per TC-CAL71's collision defect could itself be ambiguous. Now includes `calendar_id` explicitly, matching the flat-list error shape (TC-CAL72). Covered by `test_one_calendar_erroring_in_group_by_calendar_mode` in `tests/test_calendar.py`; round 1's Result below predates this shape and needs re-verification live.
 
-**Result (2026-07-30) ✅ — predates round-2 fix, needs re-verification** — Called with one real calendar_id plus `invalid-cal@example.com`, `group_by_calendar=true`. `result["invalid-cal@example.com"]` was exactly `{"error": "<HttpError 404 ... notFound ...>"}`; the real calendar's key mapped to its normal (empty, in this narrow window) event list, unaffected. Shape has since changed to also include `calendar_id` — this Result no longer reflects current behavior.
+**Result (2026-07-30, round 1) — superseded, see round 2 below.**
+
+**Result (2026-07-30, round 2) ✅** — Re-ran against `481f13d4` after a fresh `/mcp reconnect` (the first post-fix attempt was caught still serving pre-fix code — see PR comment). `result["invalid-cal@example.com"]` was `{"error": "<HttpError 404 ... notFound ...>", "calendar_id": "invalid-cal@example.com"}` — `calendar_id` now present, confirming the fix live.
 
 ---
 
