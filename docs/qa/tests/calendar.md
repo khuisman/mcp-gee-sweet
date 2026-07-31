@@ -973,6 +973,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Every returned event has both `calendar_id` and `calendar_summary` populated
 - Confirms omitting `calendar_ids` fans out across the full `list_calendars` result, not just one calendar
 
+**Result (2026-07-30) ⚠️ partial** — This worktree's connected account has no `mcp-gee-sweet-qa`/`QA-Timed-Test` fixtures set up (real OAuth personal account, no scratch calendar present). Ran with no `calendar_ids` and a 1-day window instead: response was a flat `list`, every returned event had both `calendar_id` and `calendar_summary` populated correctly, sourced from more than one calendar. The specific 'QA-Timed-Test' fixture assertion could not be checked. Structural behavior confirmed; named-fixture assertion blocked on missing fixtures, not a PR defect.
+
 ---
 
 ### TC-CAL70: Explicit calendar_ids restricts the fan-out
@@ -983,6 +985,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - Every event in the response has `calendar_id: "{CALENDAR_ID}"` — no event from `{CALENDAR_ID_2}` or any other subscribed calendar appears, even if it has events in the same window
 - Confirms `calendar_ids` narrows the query instead of always hitting every subscribed calendar
+
+**Result (2026-07-30) ✅** — Called with two explicit `calendar_ids` (real subscribed calendars, no shared/duplicate `summary` between them) and a narrow window (both empty in that window). Response was an empty flat list — no third calendar's events leaked in. Confirms `calendar_ids` restricts the fan-out.
 
 ---
 
@@ -998,6 +1002,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Each key's value is that calendar's own event list only
 - Events under each key still carry `calendar_id`/`calendar_summary` matching the key they're filed under
 
+**Result (2026-07-30) ⚠️ passed but confirms a live defect** — Ran with two calendars whose real `summary` values happened to differ, and grouping worked correctly for that case. However, reading the implementation (`calendar.py:1001`, `grouped[key] = ...` keyed by `calendar_summary`) confirms `/code-review high`'s finding: two calendars sharing an identical `summary` will silently collide — the second overwrites the first in `grouped`, with the first calendar's entire event list dropped and no error/warning. No live fixture pair with a duplicate summary was available in this environment to reproduce it end-to-end, but the code path is unambiguous. **Sending back to Dev — see PR comment.**
+
 ---
 
 ### TC-CAL72: One invalid calendar_id does not abort the batch (flat list)
@@ -1011,6 +1017,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `{CALENDAR_ID}`'s real events (e.g. 'QA-Timed-Test') are still present in the same list, unaffected by the other calendar's failure
 - Confirms per-calendar failures are inlined rather than failing the whole call (the `asyncio.gather(..., return_exceptions=True)` fan-out pattern from #183)
 
+**Result (2026-07-30) ✅** — Called with one real calendar_id plus `invalid-cal@example.com`, narrow window. Response was a flat list with exactly one entry for the invalid ID: `{"calendar_id": "invalid-cal@example.com", "calendar_summary": "invalid-cal@example.com", "error": "<HttpError 404 ... notFound ...>"}`. No top-level error, no exception. Confirms per-calendar failure inlining.
+
 ---
 
 ### TC-CAL73: One invalid calendar_id does not abort the batch (group_by_calendar=True)
@@ -1021,6 +1029,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - `result["invalid-cal@example.com"]` (falls back to the raw ID as the key since an inaccessible calendar has no known summary) is exactly `{"error": "..."}`
 - The key for `{CALENDAR_ID}`'s real summary still maps to its normal event list, unaffected by the other calendar's failure
+
+**Result (2026-07-30) ✅** — Called with one real calendar_id plus `invalid-cal@example.com`, `group_by_calendar=true`. `result["invalid-cal@example.com"]` was exactly `{"error": "<HttpError 404 ... notFound ...>"}`; the real calendar's key mapped to its normal (empty, in this narrow window) event list, unaffected.
 
 ---
 
@@ -1035,6 +1045,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - 'QA-Timed-Test' is returned from `{CALENDAR_ID}`
 - No events are returned from `{CALENDAR_ID_2}` (confirms `query` was passed as `q` to that calendar's `events().list()` too, not just the first)
 
+**Result (2026-07-30) ⏭️ SKIP** — No 'QA-Timed-Test' fixture event exists in this worktree's connected account (fixture calendar/event not set up here). Not run; not a PR defect.
+
 ---
 
 ### TC-CAL75: expand_recurring=False returns master events across every queried calendar
@@ -1047,5 +1059,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - 'QA-Weekly-Standup' appears once as its master event (recurrence field populated with RRULE), not expanded into individual instances
 - Confirms `expand_recurring=False` is applied per-calendar in the fan-out, matching `list_events`' own `singleEvents`/`orderBy` behavior
+
+**Result (2026-07-30) ⏭️ SKIP** — TC-CAL36's recurring-event fixture is not present in this worktree's connected account. Not run; not a PR defect.
 
 ---
