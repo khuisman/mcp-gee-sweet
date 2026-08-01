@@ -468,7 +468,13 @@ def register(tool):
             max_results: Maximum number of results to return (default 100, max 1000)
 
         Returns:
-            List of files with their ID, name, MIME type, modified time, and web link.
+            List of files with their ID, name, MIME type, modified time, web link, and
+            md5_checksum. md5_checksum is only present for binary files — Google
+            Workspace files (Docs, Sheets, Slides, etc.) have no fixed byte content and
+            the Drive API omits the field for them, so it's None for those. Use it to
+            detect real content drift (e.g. after sync_folder's upload path, which
+            doesn't stamp modifiedTime the way sync_folder's own upload does) instead
+            of inferring change from modifiedTime alone.
             Results are cached; call refresh_cache(folder_id=folder_id) to invalidate,
             or refresh_cache() to clear all caches.
         """
@@ -493,7 +499,7 @@ def register(tool):
                 spaces="drive",
                 includeItemsFromAllDrives=True,
                 supportsAllDrives=True,
-                fields="files(id, name, mimeType, modifiedTime, webViewLink)",
+                fields="files(id, name, mimeType, modifiedTime, webViewLink, md5Checksum)",
                 orderBy="name",
             )
             .execute,
@@ -507,6 +513,7 @@ def register(tool):
                 "mime_type": f["mimeType"],
                 "modified_time": f.get("modifiedTime"),
                 "web_link": f.get("webViewLink"),
+                "md5_checksum": f.get("md5Checksum"),
             }
             for f in results.get("files", [])
         ]
@@ -646,7 +653,12 @@ def register(tool):
 
         Returns:
             id, name, mimeType, parents, createdTime, modifiedTime, size,
-            owners, webViewLink, and trashed status.
+            owners, webViewLink, trashed status, and md5_checksum. md5_checksum
+            (like size) is only present for binary files — Google Workspace files
+            have no fixed byte content and the Drive API omits it for them. Use it
+            to detect real content drift instead of inferring change from
+            modifiedTime alone (e.g. after upload_local_file, which doesn't stamp
+            modifiedTime to match a local file's mtime the way sync_folder does).
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
@@ -654,7 +666,7 @@ def register(tool):
             drive_service.files()
             .get(
                 fileId=file_id,
-                fields="id, name, mimeType, parents, createdTime, modifiedTime, size, owners, webViewLink, trashed",
+                fields="id, name, mimeType, parents, createdTime, modifiedTime, size, owners, webViewLink, trashed, md5Checksum",
                 supportsAllDrives=True,
             )
             .execute,
@@ -671,6 +683,7 @@ def register(tool):
             "owners": [o.get("emailAddress") for o in f.get("owners", [])],
             "web_link": f.get("webViewLink"),
             "trashed": f.get("trashed", False),
+            "md5_checksum": f.get("md5Checksum"),
         }
         # Workspace files (Docs, Sheets, Slides, etc.) don't consume storage quota;
         # the Drive API returns quotaBytesUsed as "size", which is misleading.

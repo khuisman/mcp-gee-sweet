@@ -136,7 +136,12 @@ class TestUploadLocalFileCore:
             "skipped": False,
         }
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
-        assert create_kwargs["body"] == {"name": "pic.png", "parents": ["folder1"]}
+        body = create_kwargs["body"]
+        assert body["name"] == "pic.png"
+        assert body["parents"] == ["folder1"]
+        # #274 PR #472 review, finding #2: a plain (non-convert) upload now stamps
+        # modifiedTime from the local file's mtime too, not just the convert branch.
+        assert "modifiedTime" in body
 
     async def test_skip_if_exists_returns_existing_file_without_uploading(self, tmp_path):
         local_file = tmp_path / "pic.png"
@@ -367,7 +372,11 @@ class TestUploadLocalFileConvert:
         assert "error" not in result
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
         assert "mimeType" not in create_kwargs["body"]
-        assert "modifiedTime" not in create_kwargs["body"]
+        # modifiedTime is stamped on every upload now, not just the convert branch
+        # (#274 PR #472 review, finding #2) — but only via the create() body itself;
+        # no follow-up restamp is needed (or performed) for a plain upload, since
+        # Drive has no import-conversion here to overwrite the value.
+        assert "modifiedTime" in create_kwargs["body"]
         drive_svc.files.return_value.update.assert_not_called()
 
     async def test_convert_extension_comes_from_name_override_not_local_path(self, tmp_path):
@@ -606,11 +615,18 @@ class _FakeDriveFS:
 
 
 def _drive_file(
-    name, file_id, mtime="2024-01-01T00:00:00.000Z", mime="text/plain", properties=None
+    name,
+    file_id,
+    mtime="2024-01-01T00:00:00.000Z",
+    mime="text/plain",
+    properties=None,
+    md5=None,
 ):
     f = {"id": file_id, "name": name, "mimeType": mime, "modifiedTime": mtime}
     if properties is not None:
         f["properties"] = properties
+    if md5 is not None:
+        f["md5Checksum"] = md5
     return f
 
 
@@ -1583,6 +1599,192 @@ class TestSyncFolderDownloadMtimeRoundTrip:
         assert second["skipped"] == ["a.pdf"]
         assert second["downloaded"] == []
         assert second["uploaded"] == []
+
+
+class TestSyncFolderUseChecksum:
+    """Issue #274: mtime alone can't distinguish real content drift from a
+    non-content-changing mtime bump (or vice versa) — upload_local_file in
+    particular doesn't stamp modifiedTime the way sync_folder's own upload does,
+    so identical content re-downloads forever under mtime-only comparison.
+    use_checksum=True adds a content check ahead of the mtime comparison for
+    names present on both sides."""
+
+    _CONTENT = b"hello world"
+    _MD5 = "5eb63bbbe01eeed093cb22bb8f5acdc3"  # md5(_CONTENT)
+    _OTHER_MD5 = "0949f7eb1f66dad39d488d5d22531166"  # md5 of different content
+
+    def _ctx(self, fs: _FakeDriveFS):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = fs.svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    def _write_local(self, tmp_path, name, content, mtime_str):
+        p = tmp_path / name
+        p.write_bytes(content)
+        dt = datetime.fromisoformat(mtime_str.replace("Z", "+00:00"))
+        os.utime(p, (dt.timestamp(), dt.timestamp()))
+        return p
+
+    async def test_checksum_match_skips_despite_mtime_far_apart(self, tmp_path):
+        # Drive's modifiedTime is far outside the 5s tolerance of the local file's
+        # mtime (mirrors upload_local_file's non-stamped modifiedTime), but the
+        # content is identical.
+        fs = _FakeDriveFS(
+            {"root": [_drive_file("a.txt", "fa", mtime="2024-06-01T00:00:00.000Z", md5=self._MD5)]}
+        )
+        self._write_local(tmp_path, "a.txt", self._CONTENT, "2020-01-01T00:00:00.000Z")
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            use_checksum=True,
+            ctx=self._ctx(fs),
+        )
+        assert result["skipped"] == ["a.txt"]
+        assert result["uploaded"] == []
+        assert result["downloaded"] == []
+        assert result["conflicts"] == []
+
+    async def test_without_use_checksum_same_mtime_gap_is_not_skipped(self, tmp_path):
+        # Control: the exact same mismatched-mtime/matching-content setup as above,
+        # but use_checksum defaults to False — mtime alone can't tell these apart,
+        # so it's treated as a real conflict (drive newer, bidirectional download
+        # would apply but let's use upload direction to force a conflict instead).
+        fs = _FakeDriveFS(
+            {"root": [_drive_file("a.txt", "fa", mtime="2024-06-01T00:00:00.000Z", md5=self._MD5)]}
+        )
+        self._write_local(tmp_path, "a.txt", self._CONTENT, "2020-01-01T00:00:00.000Z")
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            ctx=self._ctx(fs),
+        )
+        assert result["skipped"] == []
+        assert result["conflicts"] == ["a.txt"]
+
+    async def test_checksum_mismatch_falls_back_to_mtime_decision(self, tmp_path):
+        # Content genuinely differs and mtimes disagree beyond tolerance (so the
+        # checksum comparison actually runs — see the gating tests below). A
+        # mismatch doesn't force any outcome by itself — it just falls through to
+        # the same mtime-based decision used when use_checksum=False: local is 20s
+        # newer here, so 'upload' under the default bidirectional direction.
+        fs = _FakeDriveFS(
+            {"root": [_drive_file("a.txt", "fa", mtime="2024-06-01T00:00:00.000Z", md5=self._MD5)]}
+        )
+        self._write_local(tmp_path, "a.txt", b"different content", "2024-06-01T00:00:20.000Z")
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            use_checksum=True,
+            ctx=self._ctx(fs),
+        )
+        assert result["uploaded"] == ["a.txt"]
+        assert result["skipped"] == []
+        assert result["conflicts"] == []
+
+    async def test_checksum_not_computed_when_mtimes_already_within_tolerance(
+        self, tmp_path, monkeypatch
+    ):
+        # #274 PR #472 review, finding #3: a pair already "in sync" by mtime alone
+        # settles there without paying for a hash read that couldn't change the
+        # outcome anyway.
+        spy = MagicMock(side_effect=transfer_module._local_md5)
+        monkeypatch.setattr(transfer_module, "_local_md5", spy)
+        fs = _FakeDriveFS(
+            {"root": [_drive_file("a.txt", "fa", mtime="2024-06-01T00:00:00.000Z", md5=self._MD5)]}
+        )
+        self._write_local(tmp_path, "a.txt", self._CONTENT, "2024-06-01T00:00:02.000Z")
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            use_checksum=True,
+            ctx=self._ctx(fs),
+        )
+        assert result["skipped"] == ["a.txt"]
+        spy.assert_not_called()
+
+    async def test_checksum_not_computed_during_dry_run(self, tmp_path, monkeypatch):
+        # Same finding #3: dry_run is documented as a cheap, no-transfer preview —
+        # it must not read every file's full content to hash it.
+        spy = MagicMock(side_effect=transfer_module._local_md5)
+        monkeypatch.setattr(transfer_module, "_local_md5", spy)
+        fs = _FakeDriveFS(
+            {"root": [_drive_file("a.txt", "fa", mtime="2024-06-01T00:00:00.000Z", md5=self._MD5)]}
+        )
+        self._write_local(tmp_path, "a.txt", self._CONTENT, "2020-01-01T00:00:00.000Z")
+
+        await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            use_checksum=True,
+            dry_run=True,
+            ctx=self._ctx(fs),
+        )
+        spy.assert_not_called()
+
+    async def test_local_read_failure_reported_as_failed_not_raised(self, tmp_path, monkeypatch):
+        # #274 PR #472 review, finding #1: every other per-item operation in
+        # _sync_level degrades to a 'failed' entry instead of raising — a file
+        # that becomes unreadable between the directory scan and the hash read
+        # (deleted, permission-denied, etc.) must behave the same way, not take
+        # down the whole sync_folder call.
+        def _boom(path):
+            raise OSError("permission denied")
+
+        monkeypatch.setattr(transfer_module, "_local_md5", _boom)
+        fs = _FakeDriveFS(
+            {"root": [_drive_file("a.txt", "fa", mtime="2024-06-01T00:00:00.000Z", md5=self._MD5)]}
+        )
+        self._write_local(tmp_path, "a.txt", self._CONTENT, "2020-01-01T00:00:00.000Z")
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            use_checksum=True,
+            ctx=self._ctx(fs),
+        )
+        assert result["failed"] == [{"name": "a.txt", "error": "permission denied"}]
+        assert result["skipped"] == []
+        assert result["uploaded"] == []
+        assert result["downloaded"] == []
+
+    async def test_workspace_file_with_no_checksum_falls_back_to_mtime(self, tmp_path):
+        # Google Workspace files have no md5Checksum — use_checksum=True must not
+        # crash and must behave exactly as use_checksum=False for these.
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "Notes",
+                        "fa",
+                        mtime="2024-06-01T00:00:00.000Z",
+                        mime="application/vnd.google-apps.document",
+                    )
+                ]
+            }
+        )
+        fs.svc.files.return_value.export.return_value.execute.return_value = b"content"
+        self._write_local(tmp_path, "Notes.pdf", b"stale local copy", "2020-01-01T00:00:00.000Z")
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            use_checksum=True,
+            ctx=self._ctx(fs),
+        )
+        assert result["downloaded"] == ["Notes.pdf"]
+
+    async def test_local_md5_matches_known_content_hash(self, tmp_path):
+        p = tmp_path / "a.txt"
+        p.write_bytes(self._CONTENT)
+        assert transfer_module._local_md5(p) == self._MD5
 
 
 class TestDownloadFolder:
