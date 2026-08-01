@@ -1791,6 +1791,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-d236-md5_checksum-present-for-a-binary-file-null-for-a-google-workspace-file-issue-274-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D236: md5_checksum present for a binary file, null for a Google Workspace file (issue #274) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2484,6 +2495,17 @@
     <span class="md-ellipsis">
       
         TC-D82: Non-existent file ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d237-md5_checksum-present-for-a-binary-file-null-for-a-google-workspace-file-issue-274" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D237: md5_checksum present for a binary file, null for a Google Workspace file (issue #274)
       
     </span>
   </a>
@@ -3406,6 +3428,28 @@
     <span class="md-ellipsis">
       
         TC-D201: sync_folder no longer re-uploads a file after downloading it (issue #346) ⚠️ destructive ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d238-use_checksumtrue-skips-a-file-whose-content-is-identical-despite-a-large-modifiedtime-gap-issue-274-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D238: use_checksum=true skips a file whose content is identical despite a large modifiedTime gap (issue #274) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d239-use_checksumtrue-has-no-effect-on-google-workspace-files-no-md5checksum-to-compare-issue-274-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D239: use_checksum=true has no effect on Google Workspace files (no md5Checksum to compare) (issue #274) ⚠️ local-filesystem
       
     </span>
   </a>
@@ -5016,6 +5060,21 @@
 - New spreadsheet appears in <code>list_files</code> results
 - Confirms <code>drive_folder_cache.mark_dirty</code> fires after <code>create_spreadsheet</code></p>
 <hr />
+<h3 id="tc-d236-md5_checksum-present-for-a-binary-file-null-for-a-google-workspace-file-issue-274-local-filesystem">TC-D236: md5_checksum present for a binary file, null for a Google Workspace file (issue #274) ⚠️ local-filesystem<a class="headerlink" href="#tc-d236-md5_checksum-present-for-a-binary-file-null-for-a-google-workspace-file-issue-274-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>list_files</code> now surfaces Drive's <code>md5Checksum</code> field so callers can diff content directly instead of inferring change from <code>modifiedTime</code> alone, which upload paths like <code>upload_local_file</code> don't always keep in sync with actual content (see TC-D226's follow-up finding). <code>{FOLDER_ID}</code> already contains both <code>{SPREADSHEET_ID}</code> and <code>{DOC_ID}</code> (per <code>setup.md</code>), so no new Workspace fixture needs creating here.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Upload a small local file (e.g. <code>/tmp/qa-236.txt</code> containing "hello md5") to <code>{FOLDER_ID}</code> via <code>upload_local_file</code>. Then:
+"List files in {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>list_files(folder_id="{FOLDER_ID}")</code>
+- The uploaded <code>qa-236.txt</code> entry has a non-null <code>md5_checksum</code> — a 32-character hex string
+- The <code>{DOC_ID}</code> fixture's entry (Google Doc, <code>mimeType: application/vnd.google-apps.document</code>) has <code>md5_checksum: null</code></p>
+<p><strong>Teardown</strong>
+Trash <code>qa-236.txt</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-236.txt</code>.</p>
+<p><strong>Result (2026-07-31) ✅ PASS</strong> — uploaded file's <code>md5_checksum</code> was <code>94988405d319a361bd6424b82ab6740d</code> (32-char hex); the Doc fixture's entry had <code>md5_checksum: null</code>.</p>
+<hr />
 <h2 id="get_doc_content"><code>get_doc_content</code><a class="headerlink" href="#get_doc_content" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d44-happy-path">TC-D44: Happy path<a class="headerlink" href="#tc-d44-happy-path" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -5479,6 +5538,18 @@
 </blockquote>
 <p><strong>Checks</strong>
 - API error propagates — not a silent empty result or crash</p>
+<hr />
+<h3 id="tc-d237-md5_checksum-present-for-a-binary-file-null-for-a-google-workspace-file-issue-274">TC-D237: md5_checksum present for a binary file, null for a Google Workspace file (issue #274)<a class="headerlink" href="#tc-d237-md5_checksum-present-for-a-binary-file-null-for-a-google-workspace-file-issue-274" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Mirrors TC-D236 for <code>get_file_metadata</code> — same <code>md5Checksum</code> field, same Workspace-files-have-none caveat, added alongside <code>size</code>'s existing conditional-presence handling.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get the metadata for {BINARY_FILE_ID}" <em>(the PNG from TC-D93)</em>, then "Get the metadata for {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>get_file_metadata(file_id="{BINARY_FILE_ID}")</code> — <code>md5_checksum</code> is present, a 32-character hex string
+- Call <code>get_file_metadata(file_id="{SPREADSHEET_ID}")</code> — <code>md5_checksum</code> is <code>null</code> (Google Workspace file)
+- <code>{BINARY_FILE_ID}</code>'s <code>md5_checksum</code> matches the value <code>list_files</code> reports for the same file (TC-D236) — same field, same source</p>
+<p><strong>Result (2026-07-31) ✅ PASS</strong> — no persistent PNG fixture from TC-D93 currently exists in <code>{FOLDER_ID}</code> (checked live via <code>list_files</code>), so a PNG was uploaded fresh for this run instead and trashed afterward. <code>get_file_metadata</code> returned <code>md5_checksum: "bf2b97d8351aa217100ec405ede9d512"</code> for the PNG (matched <code>list_files</code>'s value for the same file) and <code>md5_checksum: null</code> for <code>{SPREADSHEET_ID}</code>.</p>
 <hr />
 <h2 id="export_file"><code>export_file</code><a class="headerlink" href="#export_file" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d83-export-google-doc-as-plain-text">TC-D83: Export Google Doc as plain text<a class="headerlink" href="#tc-d83-export-google-doc-as-plain-text" title="Permanent link">&para;</a></h3>
@@ -6374,6 +6445,35 @@ In <code>{FOLDER_ID}</code>, ensure at least one Drive-only file exists that isn
 <p><strong>Result (2026-07-17) ✅ PASS</strong> Uploaded <code>qa-mtime-346.txt</code> to <code>{FOLDER_ID}</code>, ran <code>sync_folder(direction="bidirectional")</code> twice against a fresh local dir. First run: <code>downloaded</code> included <code>qa-mtime-346.txt</code>. Second run: <code>qa-mtime-346.txt</code> moved to <code>skipped</code>, with <code>uploaded</code>/<code>conflicts</code> both empty — no re-upload loop. Bonus: the two pre-existing raw (non-Workspace) fixture files (<code>qa-notes.md</code>, <code>qa-upload.txt</code>) also settled into <code>skipped</code> on the second run, confirming the fix holds on the raw-file download branch, not just the Workspace-export branch the unit tests exercise.</p>
 <p><strong>Teardown</strong>
 Delete the test file from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-346/</code>.</p>
+<hr />
+<h3 id="tc-d238-use_checksumtrue-skips-a-file-whose-content-is-identical-despite-a-large-modifiedtime-gap-issue-274-local-filesystem">TC-D238: <code>use_checksum=true</code> skips a file whose content is identical despite a large modifiedTime gap (issue #274) ⚠️ local-filesystem<a class="headerlink" href="#tc-d238-use_checksumtrue-skips-a-file-whose-content-is-identical-despite-a-large-modifiedtime-gap-issue-274-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>upload_local_file</code> doesn't stamp Drive's <code>modifiedTime</code> to match the local file's mtime the way <code>sync_folder</code>'s own upload path does (same gap TC-D226 flagged for the <code>convert_markdown</code> case) — under plain mtime comparison, a file uploaded that way always reads as "Drive newer" on the next <code>sync_folder</code>, even when content is byte-identical, and gets needlessly re-downloaded. <code>use_checksum=true</code> adds a content check (local md5 vs. Drive's <code>md5Checksum</code>) ahead of the mtime comparison: a match is treated as in sync regardless of modifiedTime drift.</p>
+<p><strong>Setup</strong>
+Create <code>/tmp/qa-238-src/dup.txt</code> locally with any content. Call <code>upload_local_file(local_path="/tmp/qa-238-src/dup.txt", parent_folder_id="{FOLDER_ID}")</code> — this Doc's Drive <code>modifiedTime</code> will be Drive's own creation timestamp, not stamped to match the local file. Create <code>/tmp/qa-238/dup.txt</code> with <strong>identical</strong> content (copy the source file) — its local mtime will differ from Drive's <code>modifiedTime</code> by more than 5s (ordinary tool-call latency is enough; no need to force it further).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-238/</code> using direction='bidirectional' and use_checksum=true"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-238/", direction="bidirectional", use_checksum=true)</code>
+- <code>dup.txt</code> appears in <code>skipped</code>, not <code>downloaded</code> or <code>conflicts</code>
+- Repeat the identical call with <code>use_checksum</code> omitted (defaults to <code>false</code>) against a <strong>fresh</strong> empty local dir (<code>/tmp/qa-238b/</code>) containing the same-content <code>dup.txt</code> with the same mtime gap — <code>dup.txt</code> should <strong>not</strong> land in <code>skipped</code> this time (mtime alone can't tell the content is identical), confirming <code>use_checksum=true</code> is what changed the outcome, not something else about the fixture. The exact non-<code>skipped</code> bucket it lands in (<code>uploaded</code>, <code>downloaded</code>, or <code>conflicts</code>) depends on which side's mtime ends up later, which this setup doesn't pin down: the Setup step above uploads to Drive <em>first</em> and creates the local copy <em>after</em>, so the local file's mtime is ordinarily the later of the two — under <code>direction='bidirectional'</code> that reads as "local newer" and routes to <code>uploaded</code>, not <code>downloaded</code>/<code>conflicts</code> as an earlier version of this check assumed. Don't treat a specific bucket name as the pass criterion; treat "did not land in <code>skipped</code>" as the criterion.</p>
+<p><strong>Teardown</strong>
+Delete <code>dup.txt</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-238-src/</code>, <code>/tmp/qa-238/</code>, <code>/tmp/qa-238b/</code>.</p>
+<p><strong>Result (2026-07-31) ✅ PASS</strong> — <code>use_checksum=true</code> call: <code>dup.txt</code> in <code>skipped</code>. Control call (<code>use_checksum</code> omitted): <code>dup.txt</code> in <code>uploaded</code>, not <code>skipped</code> — confirms the flag changed the outcome. Reproduces this PR's own code-review finding: the control call's actual bucket is <code>uploaded</code>, not the doc's originally-stated <code>downloaded</code>/<code>conflicts</code>, because this Setup's upload-then-copy ordering makes local mtime the later one; wording above corrected to describe the mechanism instead of a specific bucket name.</p>
+<hr />
+<h3 id="tc-d239-use_checksumtrue-has-no-effect-on-google-workspace-files-no-md5checksum-to-compare-issue-274-local-filesystem">TC-D239: <code>use_checksum=true</code> has no effect on Google Workspace files (no md5Checksum to compare) (issue #274) ⚠️ local-filesystem<a class="headerlink" href="#tc-d239-use_checksumtrue-has-no-effect-on-google-workspace-files-no-md5checksum-to-compare-issue-274-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Google Workspace files (Docs, Sheets, Slides) have no fixed byte content, so Drive never returns <code>md5Checksum</code> for them — <code>use_checksum=true</code> must fall back to the existing mtime comparison for these exactly as if the flag were <code>false</code>, not error or misbehave.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-239/</code> using direction='bidirectional', export_format='pdf', and use_checksum=true" <em>(against the existing {DOC_ID}-style Workspace fixture content already covered by TC-D201/TC-D218)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-239/", direction="bidirectional", export_format="pdf", use_checksum=true)</code>
+- No exception; result shape matches an equivalent <code>use_checksum=false</code> call against the same fixture (same file(s) in <code>downloaded</code>/<code>skipped</code>)</p>
+<p><strong>Teardown</strong>
+Remove <code>/tmp/qa-239/</code>.</p>
+<p><strong>Result (2026-07-31) ✅ PASS</strong> — no exception; result shape (13 downloaded, 9 pre-existing-duplicate-name <code>failed</code> entries from unrelated fixture pollution, <code>size_bytes: 1768790</code>) was byte-for-byte identical between the <code>use_checksum=true</code> call and a control <code>use_checksum=false</code> call against a fresh empty dir.</p>
 <hr />
 <h2 id="list_drives"><code>list_drives</code><a class="headerlink" href="#list_drives" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d120-list-all-shared-drives">TC-D120: List all shared drives<a class="headerlink" href="#tc-d120-list-all-shared-drives" title="Permanent link">&para;</a></h3>
