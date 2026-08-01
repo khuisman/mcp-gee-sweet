@@ -520,6 +520,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Teardown**
 Trash `qa-236.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-236.txt`.
 
+**Result (2026-07-31) ✅ PASS** — uploaded file's `md5_checksum` was `94988405d319a361bd6424b82ab6740d` (32-char hex); the Doc fixture's entry had `md5_checksum: null`.
+
 ---
 
 ## `get_doc_content`
@@ -1113,6 +1115,8 @@ Trash `qa-236.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-236.txt`.
 - Call `get_file_metadata(file_id="{BINARY_FILE_ID}")` — `md5_checksum` is present, a 32-character hex string
 - Call `get_file_metadata(file_id="{SPREADSHEET_ID}")` — `md5_checksum` is `null` (Google Workspace file)
 - `{BINARY_FILE_ID}`'s `md5_checksum` matches the value `list_files` reports for the same file (TC-D236) — same field, same source
+
+**Result (2026-07-31) ✅ PASS** — no persistent PNG fixture from TC-D93 currently exists in `{FOLDER_ID}` (checked live via `list_files`), so a PNG was uploaded fresh for this run instead and trashed afterward. `get_file_metadata` returned `md5_checksum: "bf2b97d8351aa217100ec405ede9d512"` for the PNG (matched `list_files`'s value for the same file) and `md5_checksum: null` for `{SPREADSHEET_ID}`.
 
 ---
 
@@ -2251,10 +2255,12 @@ Create `/tmp/qa-238-src/dup.txt` locally with any content. Call `upload_local_fi
 **Checks**
 - Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-238/", direction="bidirectional", use_checksum=true)`
 - `dup.txt` appears in `skipped`, not `downloaded` or `conflicts`
-- Repeat the identical call with `use_checksum` omitted (defaults to `false`) against a **fresh** empty local dir (`/tmp/qa-238b/`) containing the same-content `dup.txt` with the same mtime gap — `dup.txt` should land in `downloaded` or `conflicts` this time (mtime alone can't tell the content is identical), confirming `use_checksum=true` is what changed the outcome, not something else about the fixture
+- Repeat the identical call with `use_checksum` omitted (defaults to `false`) against a **fresh** empty local dir (`/tmp/qa-238b/`) containing the same-content `dup.txt` with the same mtime gap — `dup.txt` should **not** land in `skipped` this time (mtime alone can't tell the content is identical), confirming `use_checksum=true` is what changed the outcome, not something else about the fixture. The exact non-`skipped` bucket it lands in (`uploaded`, `downloaded`, or `conflicts`) depends on which side's mtime ends up later, which this setup doesn't pin down: the Setup step above uploads to Drive *first* and creates the local copy *after*, so the local file's mtime is ordinarily the later of the two — under `direction='bidirectional'` that reads as "local newer" and routes to `uploaded`, not `downloaded`/`conflicts` as an earlier version of this check assumed. Don't treat a specific bucket name as the pass criterion; treat "did not land in `skipped`" as the criterion.
 
 **Teardown**
 Delete `dup.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-238-src/`, `/tmp/qa-238/`, `/tmp/qa-238b/`.
+
+**Result (2026-07-31) ✅ PASS** — `use_checksum=true` call: `dup.txt` in `skipped`. Control call (`use_checksum` omitted): `dup.txt` in `uploaded`, not `skipped` — confirms the flag changed the outcome. Reproduces this PR's own code-review finding: the control call's actual bucket is `uploaded`, not the doc's originally-stated `downloaded`/`conflicts`, because this Setup's upload-then-copy ordering makes local mtime the later one; wording above corrected to describe the mechanism instead of a specific bucket name.
 
 ---
 
@@ -2271,6 +2277,8 @@ Delete `dup.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-238-src/`, `/tmp/qa-238/`, 
 
 **Teardown**
 Remove `/tmp/qa-239/`.
+
+**Result (2026-07-31) ✅ PASS** — no exception; result shape (13 downloaded, 9 pre-existing-duplicate-name `failed` entries from unrelated fixture pollution, `size_bytes: 1768790`) was byte-for-byte identical between the `use_checksum=true` call and a control `use_checksum=false` call against a fresh empty dir.
 
 ---
 
