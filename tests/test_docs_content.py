@@ -453,6 +453,22 @@ class TestBlockInterruptionGeneralizedBeyondLi:
         later_node = next(n for n in nodes if "Later text" in "".join(r.text for r in n.runs))
         assert isinstance(later_node, Paragraph)
 
+    async def test_stale_interruption_frame_not_reused_by_later_unrelated_list(self):
+        # #450: a block-interruption frame left behind by a mismatched
+        # <ol>/<ul> close must not be resumed later by a coincidental tag
+        # match from a completely separate, well-formed list. Regression
+        # guard distinct from test_mismatched_ol_closed_by_ul_does_not_
+        # corrupt_later_content above: that html has no *later* list at all,
+        # so it never exercised the stale-frame-reuse path this fix targets.
+        html = "<h1>Start<ol><li>Item</li></ul><ol><li>Later item</li></ol>Trailing bare text"
+        nodes = html_to_ast(html)
+        assert isinstance(nodes[0], Heading)
+        assert "".join(r.text for r in nodes[0].runs) == "Start"
+        bullets = [n for n in nodes if isinstance(n, BulletItem)]
+        assert [b.runs[0].text for b in bullets] == ["Item", "Later item"]
+        trailing = next(n for n in nodes if "Trailing bare text" in "".join(r.text for r in n.runs))
+        assert isinstance(trailing, Paragraph)
+
 
 class TestMismatchedListTags:
     """#382: a mismatched <ol>/<ul> close tag must not permanently desync

@@ -45,6 +45,18 @@ class _BlockFrame:
     outer_tag: str  # the interrupted block's own tag (li, p, h1-6)
     interrupted_by: str  # the tag whose matching close should restore this frame
     named_style: str | None  # the interrupted block's _block_named_style, if any
+    # For a list interruption (interrupted_by in {"ol", "ul"}) only: the
+    # depth of self._list_ordered *before* the interrupting list's own push
+    # — the depth this frame should resume at once the interrupting list
+    # (and anything nested inside it) has closed. ol/ul are the one category
+    # HTML lets mismatch in practice (an <ol> closed by a stray </ul> or vice
+    # versa, both closing the same visual construct), so _resume_interrupted_
+    # block matches list interruptions by returning to this depth rather
+    # than requiring the closing tag to equal interrupted_by exactly (#450).
+    # None for every other interrupted_by category (table/pre/block-tag),
+    # each of which has exactly one possible closing tag and so can't be
+    # mismatched the same way.
+    list_depth: int | None
 
 
 def _px_to_pt(value: str) -> float | None:
@@ -283,6 +295,7 @@ class _AstParser(HTMLParser):
                 outer_tag=outer_tag,
                 interrupted_by=new_construct_tag,
                 named_style=outer_named_style,
+                list_depth=(len(self._list_ordered) if new_construct_tag in ("ol", "ul") else None),
             )
         )
         self._block_tag = None
@@ -291,16 +304,44 @@ class _AstParser(HTMLParser):
 
     def _resume_interrupted_block(self, closing_tag: str):
         """The matching close for a construct that may have interrupted an
-        open block (see _interrupt_open_block) has been reached. Only
-        restores a block if the top of the stack was genuinely interrupted
-        *by this exact tag* — an unrelated or mismatched close tag leaves the
-        stack untouched rather than popping a frame it doesn't own, so
-        malformed HTML degrades locally instead of a stray close corrupting
-        unrelated later content with the wrong reopened block.
+        open block (see _interrupt_open_block) has been reached.
+
+        For every interrupted_by category except lists, only restores a
+        block if the top of the stack was genuinely interrupted *by this
+        exact tag* — an unrelated or mismatched close tag leaves the stack
+        untouched rather than popping a frame it doesn't own, so malformed
+        HTML degrades locally instead of a stray close corrupting unrelated
+        later content with the wrong reopened block.
+
+        Lists are the one category HTML lets mismatch in practice (<ol>
+        closed by </ul> or vice versa — both close the same visual
+        construct). For those, match by returning to the list-nesting depth
+        recorded at interrupt time (frame.list_depth) instead of requiring
+        the closing tag to equal interrupted_by exactly (#450): depth is the
+        real signal that the interrupting list has closed, tag identity
+        isn't. The frame is always popped once that depth is reached, even
+        on a mismatch, so it can never be left stuck for some later,
+        unrelated list to pop by tag-name coincidence — but the outer block
+        is only actually *resumed* (self._block_tag restored) on an exact
+        tag match; a mismatched close proves the interrupting list ended but
+        never proves the outer block's own close tag was seen, so restoring
+        it would be guessing. Requires self._list_ordered to already reflect
+        this closing tag's own pop (see handle_endtag's list-context
+        section) — the depth check needs the post-pop count.
         """
-        if not self._block_stack or self._block_stack[-1].interrupted_by != closing_tag:
+        if not self._block_stack:
             return
-        frame = self._block_stack.pop()
+        frame = self._block_stack[-1]
+        if closing_tag in ("ol", "ul") and frame.interrupted_by in ("ol", "ul"):
+            if len(self._list_ordered) != frame.list_depth:
+                return
+            self._block_stack.pop()
+            if closing_tag != frame.interrupted_by:
+                return
+        else:
+            if frame.interrupted_by != closing_tag:
+                return
+            self._block_stack.pop()
         self._block_tag = frame.outer_tag
         self._block_resumed = True
         self._block_had_unsupported_content = False
@@ -480,32 +521,33 @@ class _AstParser(HTMLParser):
                 return
 
         # --- list context ---
-        # _resume_interrupted_block is called unconditionally (independent of
-        # _list_ordered) so a mismatched open/close pair (<ol> closed by
-        # </ul>) can't desync this mechanism.
-        #
-        # _list_ordered itself pops unconditionally too (#382) — not gated on
-        # the popped entry's own type matching this closing tag, the way an
-        # earlier version of this code did. That gate meant a mismatched
-        # close (e.g. an <ol> closed by a stray </ul>) silently skipped the
-        # pop instead of performing it, permanently leaving _list_ordered one
-        # level too deep for the rest of the document — every subsequent
+        # _list_ordered pops unconditionally (#382) — not gated on the popped
+        # entry's own type matching this closing tag, the way an earlier
+        # version of this code did. That gate meant a mismatched close (e.g.
+        # an <ol> closed by a stray </ul>) silently skipped the pop instead
+        # of performing it, permanently leaving _list_ordered one level too
+        # deep for the rest of the document — every subsequent
         # BulletItem.depth (len(self._list_ordered) - 1) came out off by one,
         # confirmed live to bleed into completely unrelated, later, correctly
         # well-formed lists. A closing </ol> or </ul> always means "one fewer
         # list is open" regardless of which of the two opened it, so this
         # pops by count, matching every open tag's own unconditional push
-        # above — the same principle _resume_interrupted_block already
-        # applies to the block-node-type side of this exact scenario.
+        # above.
+        #
+        # The pop happens *before* _resume_interrupted_block runs (#450):
+        # resuming a list-interrupted block frame is itself matched by depth
+        # now (see _resume_interrupted_block), which needs the already-popped
+        # count to tell whether the interrupting list construct — however its
+        # own open/close tags were paired — has actually closed.
         if tag == "ol":
-            self._resume_interrupted_block("ol")
             if self._list_ordered:
                 self._list_ordered.pop()
+            self._resume_interrupted_block("ol")
             return
         if tag == "ul":
-            self._resume_interrupted_block("ul")
             if self._list_ordered:
                 self._list_ordered.pop()
+            self._resume_interrupted_block("ul")
             return
 
         # --- pre / code block ---

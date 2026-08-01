@@ -2654,3 +2654,20 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 **Result:** PASS (2026-07-30, PR #462 re-verification round). Verified live via raw `documents().get()` read: applying `{"border_color": <uniform>, "border_width": 0.5, "border_bottom": {"width": <override>}}` produced a `borderBottom` on the outer edge with the overridden width and the *uniform* color correctly inherited (confirmed unambiguously using a non-default color, since the Docs API omits zero-valued RGB components from its response — a pure-black test color would round-trip as `{}` and couldn't distinguish "inherited" from "absent"). Also confirmed `{"border_bottom": null}` returns a clean `{"error": ...}` instead of raising.
 
 **Cleanup:** write fixture content back
+
+---
+
+## Stale block-interruption frame from a mismatched list-close no longer resumed by a later, unrelated list (issue #450)
+
+**Background:** Surfaced during PR #449's QA pass (issue #382 — mismatched `<ol>`/`<ul>` close tags), confirmed as a distinct pre-existing bug rather than a regression from that PR. `_resume_interrupted_block` pushes a `_BlockFrame` onto `_block_stack` when a list interrupts an open block (e.g. an `<h1>` interrupted by `<ol>`). If the interrupting list is later closed by a *mismatched* tag (`</ul>` instead of `</ol>`), the old code only matched a frame by comparing its `interrupted_by` tag against the exact closing tag — a mismatch left the frame stuck on the stack. A later, unrelated, well-formed list could then close with a tag that happened to match the stale frame's `interrupted_by` value, incorrectly restoring `self._block_tag` to the original (now long-closed) outer block and mistyping subsequent bare trailing text as that stale block type. Fixed by matching list-category interruptions (`interrupted_by` in `{"ol", "ul"}`) by the list-nesting depth recorded at interrupt time instead of by tag identity — the frame is always resolved (popped) once that depth is reached, even on a mismatch, but the outer block is only actually *resumed* (`self._block_tag` restored) on an exact tag match; a mismatched close ends the interruption without guessing at reopening the outer block.
+
+### TC-DOC148: A stale block-interruption frame from a mismatched list-close is not resumed by a later, unrelated well-formed list ⚠️ destructive
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<h1>Start<ol><li>Item</li></ul><ol><li>Later item</li></ol>Trailing bare text`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` lists, in order: a HEADING_1 "Start", a bullet "Item", a bullet "Later item", and a plain (non-heading) paragraph "Trailing bare text" — the pre-fix bug rendered the last line as a HEADING_1 instead of a plain paragraph, because the mismatched `</ul>` left the `<h1>` interruption frame stuck until the second, unrelated `<ol>`'s well-formed `</ol>` coincidentally popped and resumed it
+
+**Cleanup:** write fixture content back
