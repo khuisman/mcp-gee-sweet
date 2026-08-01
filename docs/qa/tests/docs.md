@@ -2676,6 +2676,8 @@ Tool call: `style_doc_range(doc_id=DOC_ID, ranges=[{"start_index": start, "end_i
 
 **Cleanup:** delete the test paragraph
 
+**Result:** FAIL (2026-07-31, PR #471 first-pass QA). Live call against the fixture doc returns `{"error": "<HttpError 400 ... \"Invalid requests[0].updateParagraphStyle: Unallowed field: tabStops\". Details: \"Invalid requests[0].updateParagraphStyle: Unallowed field: tabStops\">"}` — reproduced twice. The Docs API's `UpdateParagraphStyleRequest` rejects `tabStops` in the field mask outright; this isn't an edge case, the feature's core mechanism does not work against the live API at all. Every new unit test in `tests/test_docs_style.py::TestStyleDocRangeTabStops` mocks `documents().batchUpdate().execute`, so this rejection was never exercised before merge.
+
 ### TC-DOC149: `tab_stops` and `named_style_type` combine into a single `updateParagraphStyle` request ⚠️ destructive
 
 **Setup:** insert a fresh paragraph "Label\tValue\n" in `{DOC_ID}`; note its range.
@@ -2690,6 +2692,8 @@ Tool call: `style_doc_range(doc_id=DOC_ID, ranges=[{"start_index": start, "end_i
 - Raw `documents().get()` read: the paragraph's `paragraphStyle.namedStyleType` is `"HEADING_2"` and `paragraphStyle.tabStops` is `[{"offset": {"magnitude": 200, "unit": "PT"}, "alignment": "END"}]`
 
 **Cleanup:** delete the test paragraph
+
+**Result:** BLOCKED (2026-07-31, PR #471 first-pass QA). Not run directly — the same `tabStops` field-mask rejection confirmed in TC-DOC148 applies to every `updateParagraphStyle` call carrying a non-empty `tabStops` value, this one included. No live call made once the root cause was confirmed.
 
 ### TC-DOC150: `tab_stops: null` clears an existing tab stop instead of erroring ⚠️ destructive
 
@@ -2706,6 +2710,8 @@ Tool call: `style_doc_range(doc_id=DOC_ID, ranges=[{"start_index": start, "end_i
 
 **Cleanup:** delete the test paragraph
 
+**Result:** BLOCKED (2026-07-31, PR #471 first-pass QA). Not run — this case's own setup step requires first applying a tab stop via the same call that fails in TC-DOC148, so there is no "existing tab stop" state to clear.
+
 ### TC-DOC151: A `tab_stops` entry missing `offset_pt` returns a clean error, no API call made
 
 **Prompt**
@@ -2718,3 +2724,5 @@ Tool call: `style_doc_range(doc_id=DOC_ID, ranges=[{"start_index": 1, "end_index
 - No mutation occurs (validation fails before any `batchUpdate` call is made)
 
 **Cleanup:** none — no mutation occurs
+
+**Result:** PASS (2026-07-31, PR #471 first-pass QA). Live call against the fixture doc returned exactly `{"error": "each tab_stops entry must be a dict with an 'offset_pt' key"}`; this validation path returns before any live Docs API call, so it's unaffected by the `tabStops` field-mask rejection found in TC-DOC148.
