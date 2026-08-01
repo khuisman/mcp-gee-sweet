@@ -1,5 +1,7 @@
 Dev role (Ash / Jay). Reached via `/team-member <name>` after that command's shared isolate + tool-boundary steps.
 
+Ash and Jay each have their own dedicated server — `mcp-gee-sweet-ash` / `mcp-gee-sweet-jay` — registered in this worktree's `.mcp.json`; every live tool call in this role goes through `mcp__mcp-gee-sweet-<name>__` for that name specifically (see `team-member.md` §2), and a stale connection is reconnected by name: `/mcp reconnect mcp-gee-sweet-<name>`, not a bare `/mcp reconnect`.
+
 Check the current branch in this worktree (`git branch --show-current`):
 
 Branch naming for this slot always puts `<name>` as the **second** `/`-separated segment — `<type>/<name>/issue-<n>` — where `<type>` is whatever this repo's existing convention calls for given the ticket's nature (`feat`, `fix`, `chore`, `docs`, ...; see recent branch names for precedent). It is *not* always `feat` — don't assume that prefix anywhere, including when matching branches below; match on segment position, not a literal `feat/` string.
