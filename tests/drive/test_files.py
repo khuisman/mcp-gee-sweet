@@ -464,6 +464,97 @@ class TestListRecentFiles:
         assert "application/pdf" in self._list_call_kwargs(svc)["q"]
 
 
+class TestListFiles:
+    def _drive_service(self, files=None):
+        mock = MagicMock()
+        mock.files.return_value.list.return_value.execute.return_value = {"files": files or []}
+        return mock
+
+    def _ctx(self, svc):
+        folder_cache = MagicMock()
+        folder_cache.get.return_value = None
+        return _make_ctx(drive_service=svc, drive_folder_cache=folder_cache)
+
+    async def test_requests_md5checksum_field(self):
+        svc = self._drive_service()
+        ctx = self._ctx(svc)
+        await _drive_tools["list_files"](folder_id="folder1", ctx=ctx)
+        fields_arg = svc.files.return_value.list.call_args.kwargs["fields"]
+        assert "md5Checksum" in fields_arg
+
+    async def test_result_includes_md5_checksum_for_binary_file(self):
+        svc = self._drive_service(
+            files=[
+                {
+                    "id": "fid1",
+                    "name": "report.pdf",
+                    "mimeType": "application/pdf",
+                    "modifiedTime": "2026-06-01T00:00:00Z",
+                    "webViewLink": "https://drive.google.com/fid1",
+                    "md5Checksum": "d41d8cd98f00b204e9800998ecf8427e",
+                }
+            ]
+        )
+        ctx = self._ctx(svc)
+        result = await _drive_tools["list_files"](folder_id="folder1", ctx=ctx)
+        assert result[0]["md5_checksum"] == "d41d8cd98f00b204e9800998ecf8427e"
+
+    async def test_result_md5_checksum_none_for_workspace_file(self):
+        # Drive omits md5Checksum entirely for Google Workspace files (Docs,
+        # Sheets, Slides) since they have no fixed byte content.
+        svc = self._drive_service(
+            files=[
+                {
+                    "id": "fid2",
+                    "name": "Notes",
+                    "mimeType": "application/vnd.google-apps.document",
+                    "modifiedTime": "2026-06-01T00:00:00Z",
+                    "webViewLink": "https://docs.google.com/fid2",
+                }
+            ]
+        )
+        ctx = self._ctx(svc)
+        result = await _drive_tools["list_files"](folder_id="folder1", ctx=ctx)
+        assert result[0]["md5_checksum"] is None
+
+
+class TestGetFileMetadata:
+    def _drive_service(self, file=None):
+        mock = MagicMock()
+        mock.files.return_value.get.return_value.execute.return_value = file or {
+            "id": "fid1",
+            "name": "report.pdf",
+            "mimeType": "application/pdf",
+            "md5Checksum": "d41d8cd98f00b204e9800998ecf8427e",
+        }
+        return mock
+
+    async def test_requests_md5checksum_field(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        await _drive_tools["get_file_metadata"](file_id="fid1", ctx=ctx)
+        fields_arg = svc.files.return_value.get.call_args.kwargs["fields"]
+        assert "md5Checksum" in fields_arg
+
+    async def test_result_includes_md5_checksum_for_binary_file(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        result = await _drive_tools["get_file_metadata"](file_id="fid1", ctx=ctx)
+        assert result["md5_checksum"] == "d41d8cd98f00b204e9800998ecf8427e"
+
+    async def test_result_md5_checksum_none_for_workspace_file(self):
+        svc = self._drive_service(
+            file={
+                "id": "fid2",
+                "name": "Notes",
+                "mimeType": "application/vnd.google-apps.document",
+            }
+        )
+        ctx = _make_ctx(drive_service=svc)
+        result = await _drive_tools["get_file_metadata"](file_id="fid2", ctx=ctx)
+        assert result["md5_checksum"] is None
+
+
 class TestGetStorageQuota:
     def _drive_service(self, quota=None, user=None):
         mock = MagicMock()
