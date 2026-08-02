@@ -2145,7 +2145,7 @@
 </tr>
 </tbody>
 </table>
-<p><code>write_doc_content</code> accepts HTML and converts it to Docs API requests via the HTML→AST→emitter pipeline. See <a href="../design/docs-ast-pipeline/">Docs AST Pipeline</a> for the design.</p>
+<p><code>write_doc_content</code> and <code>create_doc</code> accept either HTML or Markdown (<code>content_format='markdown'</code>) and convert it to Docs API requests via the HTML→AST→emitter pipeline — Markdown is converted to HTML first. See <a href="../design/docs-ast-pipeline/">Docs AST Pipeline</a> for the design and <a href="../design/markdown-support/">Markdown Support</a> for the full Markdown→Docs mapping table.</p>
 <p><code>create_doc</code> cannot create files in a personal Drive when using service account auth — see <a href="../auth/#method-a-service-account-recommended-for-servers">Authentication</a>.</p>
 <h2 id="calendar">Calendar<a class="headerlink" href="#calendar" title="Permanent link">&para;</a></h2>
 <table>

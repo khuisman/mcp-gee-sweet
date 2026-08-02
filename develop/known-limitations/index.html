@@ -1378,6 +1378,15 @@ recursive traversal that is not currently implemented.</p>
 <code>documents.get</code> endpoint (accessible via <code>batch_update</code> passthrough or by reading the raw API
 response). Related: #133.</p>
 <hr />
+<h3 id="nested-tables-not-supported-via-markdown-input">Nested tables not supported via Markdown input<a class="headerlink" href="#nested-tables-not-supported-via-markdown-input" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> Markdown content passed to <code>create_doc</code>/<code>write_doc_content</code> (<code>content_format='markdown'</code>)
+or <code>create_doc_from_file</code> (<code>.md</code> files) cannot produce a nested table — a table inside a table
+cell.</p>
+<p><strong>Why:</strong> The Python <code>markdown</code> library's <code>tables</code> extension has no syntax for a table nested
+inside another table's cell.</p>
+<p><strong>Workaround:</strong> Supply raw HTML instead — the HTML→AST pipeline fully supports nested tables
+(see #109). Related: <code>docs/qa/tests/docs.md</code> TC-DOC51.</p>
+<hr />
 <h2 id="google-drive">Google Drive<a class="headerlink" href="#google-drive" title="Permanent link">&para;</a></h2>
 <h3 id="service-account-cannot-create-files-in-personal-drive">Service account cannot create files in personal Drive<a class="headerlink" href="#service-account-cannot-create-files-in-personal-drive" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> When authenticated as a service account (<code>AUTH_METHOD=service_account</code>), tools that

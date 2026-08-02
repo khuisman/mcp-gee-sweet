@@ -1351,6 +1351,10 @@
 
 
 <h1 id="design-markdown-support-for-google-docs-tools">Design: Markdown Support for Google Docs Tools<a class="headerlink" href="#design-markdown-support-for-google-docs-tools" title="Permanent link">&para;</a></h1>
+<p><strong>Status:</strong> Shipped. <code>content_format='markdown'</code> on <code>create_doc</code>/<code>write_doc_content</code>, plus
+<code>create_doc_from_file</code>, landed via #102/#103/#104 (PR #105); bare-URL autolinking (<code>autolink_urls</code>)
+landed separately via #248 (PR #265). Live-verified: <a href="../../qa/results/2026-06-28/">2026-06-28 QA results</a>,
+<a href="../../qa/results/2026-07-04-docs/">2026-07-04 QA results</a>.</p>
 <h2 id="problem">Problem<a class="headerlink" href="#problem" title="Permanent link">&para;</a></h2>
 <p><code>create_doc</code> and <code>write_doc_content</code> only accept HTML. Users who work primarily with <code>.md</code> files
 have to convert manually before calling these tools. The project already has the <code>markdown</code>
@@ -1375,19 +1379,22 @@ detection, inline formatting stacks, list depth tracking, table parsing) — mor
 edge cases, two things to maintain.</p>
 <p><strong>The one real exception</strong>: constructs that don't survive the HTML round-trip cleanly:</p>
 <ul>
-<li><strong>Code blocks</strong> — <code>&lt;pre&gt;&lt;code&gt;</code> carries no semantic signal that our HTML parser acts on, so
-  they fall through to plain text. A direct parser could emit a <code>CodeBlock</code> AST node. This
-  matters once Phase 3 text styles land (<code>font_family</code> → monospace), but there's nothing to
-  do with such a node until then.</li>
-<li><strong>Task list state</strong> — <code>- [x] item</code> emits <code>&lt;input type="checkbox" checked&gt;</code> in HTML. Our
-  HTML parser ignores <code>&lt;input&gt;</code>, so checked/unchecked state is lost. Google Docs has no native
-  checkbox API for paragraph bullets, so representation needs a decision (Unicode glyphs vs.
-  <code>BULLET_CHECKBOX</code> preset).</li>
+<li><strong>Code blocks</strong> — <code>&lt;pre&gt;&lt;code&gt;</code> carries no semantic signal that our HTML parser acted on until
+  text styles landed, so they used to fall through to plain text.</li>
+<li><strong>Task list state</strong> — <code>- [x] item</code> emits <code>&lt;input type="checkbox" checked&gt;</code> in HTML; the HTML
+  parser ignores raw <code>&lt;input&gt;</code>, so checked/unchecked state had to be captured earlier, at the
+  markdown layer itself.</li>
 </ul>
-<p>Both are tracked as separate issues. The HTML intermediary is right for the base case; those
-two constructs are where targeted extensions will eventually be needed.</p>
+<p><strong>Resolved by #104</strong>: task-list markers are stripped from the item's text and captured on
+<code>BulletItem.checked</code>, and the emitter prepends a <code>☑</code>/<code>☐</code> glyph — not a <code>BULLET_CHECKBOX</code> preset
+list. <strong>Resolved by #103</strong>: <code>&lt;pre&gt;</code>/<code>&lt;code&gt;</code> now set <code>font_family="Courier New"</code> on their runs
+(tracked via <code>html_parser.py</code>'s <code>_in_pre</code>/<code>_code_depth</code>), emitted through <code>weightedFontFamily</code> in
+<code>emitter.py</code> — no separate <code>CodeBlock</code> AST node was needed. The HTML intermediary handled both
+constructs without needing to become a direct MD → AST parser.</p>
 <h2 id="file-changed">File changed<a class="headerlink" href="#file-changed" title="Permanent link">&para;</a></h2>
-<p><strong>Only one file</strong>: <code>src/mcp_gee_sweet/tools/docs/__init__.py</code></p>
+<p><strong>Only one file</strong> at the time this landed: <code>src/mcp_gee_sweet/tools/docs/__init__.py</code>. The
+Docs package was later split by domain (#64); this logic now lives in
+<code>src/mcp_gee_sweet/tools/docs/content.py</code>.</p>
 <hr />
 <h2 id="implementation">Implementation<a class="headerlink" href="#implementation" title="Permanent link">&para;</a></h2>
 <h3 id="1-new-import-helper">1. New import + helper<a class="headerlink" href="#1-new-import-helper" title="Permanent link">&para;</a></h3>
@@ -1513,6 +1520,12 @@ another registered tool), passing <code>content_format</code> through to <code>_
 <td>hyperlink</td>
 </tr>
 <tr>
+<td>bare <code>https://url</code></td>
+<td><code>&lt;a href=...&gt;</code> (autolink extension)</td>
+<td><code>Run(link_url=...)</code></td>
+<td>hyperlink — disable via <code>autolink_urls=False</code></td>
+</tr>
+<tr>
 <td><code>- item</code></td>
 <td><code>&lt;ul&gt;&lt;li&gt;</code></td>
 <td><code>BulletItem(ordered=False)</code></td>
@@ -1525,6 +1538,12 @@ another registered tool), passing <code>content_format</code> through to <code>_
 <td>numbered list</td>
 </tr>
 <tr>
+<td><code>- [x] item</code></td>
+<td><code>&lt;input type="checkbox" checked&gt;</code></td>
+<td><code>BulletItem(checked=True)</code></td>
+<td>bullet with a <code>☑</code>/<code>☐</code> glyph prefix</td>
+</tr>
+<tr>
 <td><code>\| a \| b \|</code></td>
 <td><code>&lt;table&gt;</code></td>
 <td><code>Table</code></td>
@@ -1533,19 +1552,19 @@ another registered tool), passing <code>content_format</code> through to <code>_
 <tr>
 <td><code>`code`</code></td>
 <td><code>&lt;code&gt;</code></td>
-<td>plain <code>Run</code></td>
-<td>plain text (no mono yet)</td>
+<td><code>Run(font_family="Courier New")</code></td>
+<td>monospace text run</td>
 </tr>
 <tr>
 <td><code>```code block```</code></td>
 <td><code>&lt;pre&gt;&lt;code&gt;</code></td>
-<td>plain text</td>
-<td>plain text (no mono yet)</td>
+<td><code>Paragraph</code> (all runs <code>font_family="Courier New"</code>)</td>
+<td>monospace paragraph</td>
 </tr>
 </tbody>
 </table>
-<p>Code blocks render as plain paragraphs — no special styling. A future issue could add
-<code>&lt;pre&gt;</code> / <code>&lt;code&gt;</code> → monospace font handling via Phase 3 text styles (<code>font_family</code>).</p>
+<p>Code blocks and inline code render with <code>font_family="Courier New"</code> on every run (#103) — no
+further code-block-specific styling (background shading, line numbers) is planned.</p>
 <hr />
 <h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>
 <ol>
@@ -1562,7 +1581,9 @@ another registered tool), passing <code>content_format</code> through to <code>_
 <ul>
 <li>Does not change <code>upload_file</code>'s markdown path (that goes through Drive's native importer,
   which is fine for raw uploads)</li>
-<li>Does not add Phase 3 monospace styling for code blocks (separate issue)</li>
+<li>Does not support nested tables (a table inside a table cell) via Markdown — the <code>markdown</code>
+  library's table syntax can't express one; see <code>docs/known-limitations.md</code>'s Google Docs
+  section for the HTML-input workaround</li>
 <li>Does not support <code>.md</code> files with front matter (YAML front matter would show up as a
   <code>&lt;hr&gt;</code> paragraph — acceptable for now)</li>
 </ul>
