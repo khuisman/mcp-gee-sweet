@@ -14,6 +14,7 @@ from mcp_gee_sweet.server import (
     _auth_status_json,
     _parse_enabled_tools,
     _timed,
+    _version_logger,
     get_auth_status,
     get_spreadsheet_info,
     main,
@@ -284,15 +285,35 @@ class TestTimed:
 class TestMainLogsVersion:
     """Issue #356: main() logs the running package version at startup so a
     deployed instance's version can be confirmed from logs alone.
+
+    _version_logger has propagate=False and its own dedicated handler (module
+    load time, unconditional — see server.py), so it never reaches caplog's
+    root-attached handler. Same quirk TestTimed's capture_access_log fixture
+    documents for mcp_gee_sweet.access; worked around the same way here rather
+    than relying on caplog, so this passes regardless of whether DEBUG_LEVEL
+    is set in the environment (the original version of this test only passed
+    when DEBUG_LEVEL was unset — see PR #479's QA round).
     """
 
-    def test_logs_resolved_version(self, monkeypatch, caplog):
+    @pytest.fixture(autouse=True)
+    def capture_version_log(self):
+        self._version_records = []
+
+        class _Capture(logging.Handler):
+            def emit(inner_self, record):
+                self._version_records.append(record)
+
+        capture_handler = _Capture(level=logging.DEBUG)
+        _version_logger.addHandler(capture_handler)
+        yield
+        _version_logger.removeHandler(capture_handler)
+
+    def test_logs_resolved_version(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
         monkeypatch.setattr(mcp, "run", MagicMock())
-        with caplog.at_level(logging.INFO, logger="mcp_gee_sweet.server"):
-            main()
+        main()
 
-        version_records = [r for r in caplog.records if "mcp-gee-sweet version" in r.message]
+        version_records = [r for r in self._version_records if "mcp-gee-sweet version" in r.message]
         assert version_records, "expected a startup log line with the package version"
         assert importlib.metadata.version("mcp-gee-sweet") in version_records[0].message
 
