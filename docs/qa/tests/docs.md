@@ -2685,4 +2685,6 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 - Call succeeds with no API error
 - `get_doc_structure` lists, in order: a HEADING_1 "Start", a bullet "B", a bullet "C", a plain (non-heading) paragraph "D", and a HEADING_1 "E" — the pre-fix bug dropped "D" entirely and rendered "E" as its own new heading instead of "Start"'s resumed content
 
+**Result (2026-08-02) ✅ PASS** — live `write_doc_content` + `get_doc_structure` against the fixture doc returned exactly HEADING_1 "Start", paragraph "B", paragraph "C", paragraph "D", HEADING_1 "E" — "D" is preserved (previously vanished entirely) and no other regression in the sequence.
+
 **Cleanup:** write fixture content back
