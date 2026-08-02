@@ -3303,6 +3303,45 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#stale-block-interruption-frame-from-a-mismatched-list-close-no-longer-resumed-by-a-later-unrelated-list-issue-450" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stale block-interruption frame from a mismatched list-close no longer resumed by a later, unrelated list (issue #450)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stale block-interruption frame from a mismatched list-close no longer resumed by a later, unrelated list (issue #450)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc148-a-stale-block-interruption-frame-from-a-mismatched-list-close-is-not-resumed-by-a-later-unrelated-well-formed-list-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC148: A stale block-interruption frame from a mismatched list-close is not resumed by a later, unrelated well-formed list ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc149-an-implicit-paragraph-opened-by-bare-text-inside-a-still-open-list-is-flushed-not-clobbered-when-an-interrupted-block-resumes-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC149: An implicit paragraph opened by bare text inside a still-open list is flushed, not clobbered, when an interrupted block resumes ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5588,6 +5627,30 @@ Run against a live sandbox scoped to only <code>create_doc,create_doc_from_file,
 - No <code>error</code> key
 - Same canvas-rendering limitation as TC-DOC146 — screenshot verification is unreliable here. Verify instead via a raw <code>documents().get()</code> read: interior rows' cells should show <code>borderTop</code>/<code>borderRight</code>/<code>borderBottom</code>/<code>borderLeft</code> all at the uniform width/color, and the <em>last</em> row's <code>borderBottom</code> should show the overridden width while still inheriting the uniform color (this is the core #403-follow-up fix: a width-only per-edge override must inherit color from the uniform spec, since the Docs API rejects a non-zero-width border with no color as "transparent")</p>
 <p><strong>Result:</strong> PASS (2026-07-30, PR #462 re-verification round). Verified live via raw <code>documents().get()</code> read: applying <code>{"border_color": &lt;uniform&gt;, "border_width": 0.5, "border_bottom": {"width": &lt;override&gt;}}</code> produced a <code>borderBottom</code> on the outer edge with the overridden width and the <em>uniform</em> color correctly inherited (confirmed unambiguously using a non-default color, since the Docs API omits zero-valued RGB components from its response — a pure-black test color would round-trip as <code>{}</code> and couldn't distinguish "inherited" from "absent"). Also confirmed <code>{"border_bottom": null}</code> returns a clean <code>{"error": ...}</code> instead of raising.</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<hr />
+<h2 id="stale-block-interruption-frame-from-a-mismatched-list-close-no-longer-resumed-by-a-later-unrelated-list-issue-450">Stale block-interruption frame from a mismatched list-close no longer resumed by a later, unrelated list (issue #450)<a class="headerlink" href="#stale-block-interruption-frame-from-a-mismatched-list-close-no-longer-resumed-by-a-later-unrelated-list-issue-450" title="Permanent link">&para;</a></h2>
+<p><strong>Background:</strong> Surfaced during PR #449's QA pass (issue #382 — mismatched <code>&lt;ol&gt;</code>/<code>&lt;ul&gt;</code> close tags), confirmed as a distinct pre-existing bug rather than a regression from that PR. <code>_resume_interrupted_block</code> pushes a <code>_BlockFrame</code> onto <code>_block_stack</code> when a list interrupts an open block (e.g. an <code>&lt;h1&gt;</code> interrupted by <code>&lt;ol&gt;</code>). If the interrupting list is later closed by a <em>mismatched</em> tag (<code>&lt;/ul&gt;</code> instead of <code>&lt;/ol&gt;</code>), the old code only matched a frame by comparing its <code>interrupted_by</code> tag against the exact closing tag — a mismatch left the frame stuck on the stack. A later, unrelated, well-formed list could then close with a tag that happened to match the stale frame's <code>interrupted_by</code> value, incorrectly restoring <code>self._block_tag</code> to the original (now long-closed) outer block and mistyping subsequent bare trailing text as that stale block type. Fixed by matching list-category interruptions (<code>interrupted_by</code> in <code>{"ol", "ul"}</code>) by the list-nesting depth recorded at interrupt time instead of by tag identity — the frame is always resolved (popped) once that depth is reached, even on a mismatch, but the outer block is only actually <em>resumed</em> (<code>self._block_tag</code> restored) on an exact tag match; a mismatched close ends the interruption without guessing at reopening the outer block.</p>
+<h3 id="tc-doc148-a-stale-block-interruption-frame-from-a-mismatched-list-close-is-not-resumed-by-a-later-unrelated-well-formed-list-destructive">TC-DOC148: A stale block-interruption frame from a mismatched list-close is not resumed by a later, unrelated well-formed list ⚠️ destructive<a class="headerlink" href="#tc-doc148-a-stale-block-interruption-frame-from-a-mismatched-list-close-is-not-resumed-by-a-later-unrelated-well-formed-list-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;h1&gt;Start&lt;ol&gt;&lt;li&gt;Item&lt;/li&gt;&lt;/ul&gt;&lt;ol&gt;&lt;li&gt;Later item&lt;/li&gt;&lt;/ol&gt;Trailing bare text</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> lists, in order: a HEADING_1 "Start", a bullet "Item", a bullet "Later item", and a plain (non-heading) paragraph "Trailing bare text" — the pre-fix bug rendered the last line as a HEADING_1 instead of a plain paragraph, because the mismatched <code>&lt;/ul&gt;</code> left the <code>&lt;h1&gt;</code> interruption frame stuck until the second, unrelated <code>&lt;ol&gt;</code>'s well-formed <code>&lt;/ol&gt;</code> coincidentally popped and resumed it</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<hr />
+<p><strong>Background (PR #478 review round):</strong> Code review on the fix above caught a second, related bug in the same function, live-reproduced against the branch. Bare top-level text directly inside a still-open <code>&lt;ol&gt;</code>/<code>&lt;ul&gt;</code> (not wrapped in its own <code>&lt;li&gt;</code>) opens an <em>implicit</em> paragraph via <code>handle_data</code>'s bare-text path (#343) without ever going through <code>_interrupt_open_block</code> — so it has no frame of its own on <code>_block_stack</code>. <code>_resume_interrupted_block</code>'s resume path unconditionally overwrote <code>self._block_tag</code> and cleared <code>self._run_buf</code>, silently destroying that implicit paragraph's text instead of flushing it first — reachable via a mismatched inner list close (the discard path TC-DOC148 above exercises) immediately followed by an exact-matching outer list close. Fixed by flushing whatever block is currently open, if any, before actually resuming.</p>
+<h3 id="tc-doc149-an-implicit-paragraph-opened-by-bare-text-inside-a-still-open-list-is-flushed-not-clobbered-when-an-interrupted-block-resumes-destructive">TC-DOC149: An implicit paragraph opened by bare text inside a still-open list is flushed, not clobbered, when an interrupted block resumes ⚠️ destructive<a class="headerlink" href="#tc-doc149-an-implicit-paragraph-opened-by-bare-text-inside-a-still-open-list-is-flushed-not-clobbered-when-an-interrupted-block-resumes-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;h1&gt;Start&lt;ol&gt;&lt;li&gt;B&lt;ul&gt;&lt;li&gt;C&lt;/li&gt;&lt;/ol&gt;D&lt;/ol&gt;E</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> lists, in order: a HEADING_1 "Start", a bullet "B", a bullet "C", a plain (non-heading) paragraph "D", and a HEADING_1 "E" — the pre-fix bug dropped "D" entirely and rendered "E" as its own new heading instead of "Start"'s resumed content</p>
+<p><strong>Result (2026-08-02) ✅ PASS</strong> — live <code>write_doc_content</code> + <code>get_doc_structure</code> against the fixture doc returned exactly HEADING_1 "Start", paragraph "B", paragraph "C", paragraph "D", HEADING_1 "E" — "D" is preserved (previously vanished entirely) and no other regression in the sequence.</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
 
 
