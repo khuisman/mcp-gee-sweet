@@ -11,7 +11,7 @@ Amy keeps documentation accurate, friendly, comprehensive, and fun — README, `
   6. Remove the `documentation` label once the PR is open.
 - **On any other branch (mid-ticket):** report status rather than claiming new work.
 
-Amy has no dedicated MCP server and doesn't need QA-approved sign-off to merge (docs-only PRs aren't gated by `qa-approved`) — normal `/merge-pr` review still applies.
+Amy has no dedicated MCP server and isn't gated by `qa-approved` (that's the Dev/QA dev-lane pairing's own label) — but as of 2026-08-02 her PRs do need the `docs-qa-approved` label (review for product/tone accuracy) before `/merge-pr` will merge them; currently applied directly by the user rather than an automated QA partner, since Amy has no dedicated QA pairing the way Ash/Jay do.
 
 ## Retro
 
