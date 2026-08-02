@@ -328,6 +328,22 @@ class _AstParser(HTMLParser):
         it would be guessing. Requires self._list_ordered to already reflect
         this closing tag's own pop (see handle_endtag's list-context
         section) — the depth check needs the post-pop count.
+
+        Before actually resuming, flushes whatever block is currently open
+        (self._block_tag), if any. Normally nothing is open at this point —
+        every other path that closes a block routes through
+        _interrupt_open_block or a block-tag's own close handler, both of
+        which already flush before touching self._block_tag. But bare
+        top-level text directly inside a still-open <ol>/<ul> (not wrapped in
+        its own <li>) opens an *implicit* paragraph via handle_data's bare-
+        text path (#343) without ever going through _interrupt_open_block, so
+        it has no frame of its own on self._block_stack. Resuming an outer
+        frame while that implicit paragraph was still open used to silently
+        overwrite self._block_tag and clear self._run_buf out from under it,
+        losing its text entirely — caught live against
+        `<h1>Start<ol><li>B<ul><li>C</li></ol>D</ol>E`, where 'D' vanished
+        and 'E' was mistyped as a new heading instead of resuming the
+        paragraph implicitly opened by 'D' (PR #478 review round).
         """
         if not self._block_stack:
             return
@@ -335,13 +351,19 @@ class _AstParser(HTMLParser):
         if closing_tag in ("ol", "ul") and frame.interrupted_by in ("ol", "ul"):
             if len(self._list_ordered) != frame.list_depth:
                 return
-            self._block_stack.pop()
-            if closing_tag != frame.interrupted_by:
-                return
+            resumes = closing_tag == frame.interrupted_by
         else:
             if frame.interrupted_by != closing_tag:
                 return
-            self._block_stack.pop()
+            resumes = True
+        self._block_stack.pop()
+        if not resumes:
+            return
+        if self._block_tag is not None:
+            runs = self._flush_pending_runs()
+            self._emit_block_node(
+                self._block_tag, runs, preserve_if_empty=self._block_had_unsupported_content
+            )
         self._block_tag = frame.outer_tag
         self._block_resumed = True
         self._block_had_unsupported_content = False

@@ -2671,3 +2671,18 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 - `get_doc_structure` lists, in order: a HEADING_1 "Start", a bullet "Item", a bullet "Later item", and a plain (non-heading) paragraph "Trailing bare text" — the pre-fix bug rendered the last line as a HEADING_1 instead of a plain paragraph, because the mismatched `</ul>` left the `<h1>` interruption frame stuck until the second, unrelated `<ol>`'s well-formed `</ol>` coincidentally popped and resumed it
 
 **Cleanup:** write fixture content back
+
+---
+
+**Background (PR #478 review round):** Code review on the fix above caught a second, related bug in the same function, live-reproduced against the branch. Bare top-level text directly inside a still-open `<ol>`/`<ul>` (not wrapped in its own `<li>`) opens an *implicit* paragraph via `handle_data`'s bare-text path (#343) without ever going through `_interrupt_open_block` — so it has no frame of its own on `_block_stack`. `_resume_interrupted_block`'s resume path unconditionally overwrote `self._block_tag` and cleared `self._run_buf`, silently destroying that implicit paragraph's text instead of flushing it first — reachable via a mismatched inner list close (the discard path TC-DOC148 above exercises) immediately followed by an exact-matching outer list close. Fixed by flushing whatever block is currently open, if any, before actually resuming.
+
+### TC-DOC149: An implicit paragraph opened by bare text inside a still-open list is flushed, not clobbered, when an interrupted block resumes ⚠️ destructive
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<h1>Start<ol><li>B<ul><li>C</li></ol>D</ol>E`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` lists, in order: a HEADING_1 "Start", a bullet "B", a bullet "C", a plain (non-heading) paragraph "D", and a HEADING_1 "E" — the pre-fix bug dropped "D" entirely and rendered "E" as its own new heading instead of "Start"'s resumed content
+
+**Cleanup:** write fixture content back

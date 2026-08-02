@@ -469,6 +469,28 @@ class TestBlockInterruptionGeneralizedBeyondLi:
         trailing = next(n for n in nodes if "Trailing bare text" in "".join(r.text for r in n.runs))
         assert isinstance(trailing, Paragraph)
 
+    async def test_resuming_a_frame_flushes_an_implicit_paragraph_open_since_the_interrupt(self):
+        # PR #478 review round: bare top-level text directly inside a still-
+        # open <ol>/<ul> (not wrapped in its own <li>) opens an *implicit*
+        # paragraph via handle_data's bare-text path (#343) without going
+        # through _interrupt_open_block, so it has no frame of its own on
+        # _block_stack. Resuming an outer interrupted block used to
+        # unconditionally overwrite self._block_tag and clear self._run_buf,
+        # silently destroying that implicit paragraph's text instead of
+        # flushing it first — reachable via a mismatched inner list close
+        # (the discard path from the test above) immediately followed by an
+        # exact-matching outer list close.
+        html = "<h1>Start<ol><li>B<ul><li>C</li></ol>D</ol>E"
+        nodes = html_to_ast(html)
+        texts_by_type = [(type(n).__name__, "".join(r.text for r in n.runs)) for n in nodes]
+        assert texts_by_type == [
+            ("Heading", "Start"),
+            ("BulletItem", "B"),
+            ("BulletItem", "C"),
+            ("Paragraph", "D"),
+            ("Heading", "E"),
+        ]
+
 
 class TestMismatchedListTags:
     """#382: a mismatched <ol>/<ul> close tag must not permanently desync
