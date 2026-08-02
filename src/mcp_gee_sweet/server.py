@@ -5,6 +5,7 @@ A Model Context Protocol (MCP) server built with FastMCP for interacting with Go
 """
 
 import functools
+import importlib.metadata
 import json
 import logging
 import os
@@ -19,6 +20,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 logging.getLogger("sse_starlette.sse").setLevel(logging.WARNING)  # suppress keepalive ping noise
+
+# Startup version banner: confirming which build is running is basic operational
+# info, not verbosity-gated debug output, so it gets its own always-on logger
+# with a dedicated handler and propagate=False — independent of DEBUG_LEVEL and
+# the root WARNING default above, which would otherwise silently swallow it
+# (issue #356 QA round: a plain logger.info() call was blocked by root's
+# inherited WARNING level when DEBUG_LEVEL was unset, and re-filtered by the
+# DEBUG_LEVEL block's own handler level when it was set to anything above INFO).
+_version_logger = logging.getLogger(f"{__name__}.version")
+_version_logger.setLevel(logging.INFO)
+_version_logger.propagate = False
+_version_handler = logging.StreamHandler(sys.stderr)
+_version_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+_version_logger.addHandler(_version_handler)
 # DEBUG_LEVEL controls all package and access logging. Accepts standard level names (DEBUG, INFO, WARNING…).
 if _level_name := os.getenv("DEBUG_LEVEL"):
     _level = getattr(logging, _level_name.upper(), logging.DEBUG)
@@ -250,6 +265,8 @@ async def get_spreadsheet_info(spreadsheet_id: str) -> str:
 
 
 def main():
+    _version_logger.info("mcp-gee-sweet version %s", importlib.metadata.version("mcp-gee-sweet"))
+
     if ENABLED_TOOLS is not None:
         logger.debug("Tool filtering enabled. Active tools: %s", ", ".join(sorted(ENABLED_TOOLS)))
     else:
