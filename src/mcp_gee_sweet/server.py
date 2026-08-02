@@ -5,6 +5,7 @@ A Model Context Protocol (MCP) server built with FastMCP for interacting with Go
 """
 
 import functools
+import importlib.metadata
 import json
 import logging
 import os
@@ -250,6 +251,8 @@ async def get_spreadsheet_info(spreadsheet_id: str) -> str:
 
 
 def main():
+    logger.info("mcp-gee-sweet version %s", importlib.metadata.version("mcp-gee-sweet"))
+
     if ENABLED_TOOLS is not None:
         logger.debug("Tool filtering enabled. Active tools: %s", ", ".join(sorted(ENABLED_TOOLS)))
     else:

@@ -1,5 +1,6 @@
 """Tests for server.py (_parse_enabled_tools, _auth_status_json, _timed, tool strict args)."""
 
+import importlib.metadata
 import inspect
 import json
 import logging
@@ -15,6 +16,7 @@ from mcp_gee_sweet.server import (
     _timed,
     get_auth_status,
     get_spreadsheet_info,
+    main,
     mcp,
     tool,
 )
@@ -277,6 +279,22 @@ class TestTimed:
 
         msgs = self._access_messages()
         assert msgs[0].endswith("s")
+
+
+class TestMainLogsVersion:
+    """Issue #356: main() logs the running package version at startup so a
+    deployed instance's version can be confirmed from logs alone.
+    """
+
+    def test_logs_resolved_version(self, monkeypatch, caplog):
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
+        monkeypatch.setattr(mcp, "run", MagicMock())
+        with caplog.at_level(logging.INFO, logger="mcp_gee_sweet.server"):
+            main()
+
+        version_records = [r for r in caplog.records if "mcp-gee-sweet version" in r.message]
+        assert version_records, "expected a startup log line with the package version"
+        assert importlib.metadata.version("mcp-gee-sweet") in version_records[0].message
 
 
 class TestToolStrictArgs:
