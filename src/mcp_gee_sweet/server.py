@@ -265,7 +265,11 @@ async def get_spreadsheet_info(spreadsheet_id: str) -> str:
 
 
 def main():
-    _version_logger.info("mcp-gee-sweet version %s", importlib.metadata.version("mcp-gee-sweet"))
+    try:
+        version = importlib.metadata.version("mcp-gee-sweet")
+    except importlib.metadata.PackageNotFoundError:
+        version = "unknown"
+    _version_logger.info("mcp-gee-sweet version %s", version)
 
     if ENABLED_TOOLS is not None:
         logger.debug("Tool filtering enabled. Active tools: %s", ", ".join(sorted(ENABLED_TOOLS)))
