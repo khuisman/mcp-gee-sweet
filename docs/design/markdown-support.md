@@ -1,5 +1,10 @@
 # Design: Markdown Support for Google Docs Tools
 
+**Status:** Shipped. `content_format='markdown'` on `create_doc`/`write_doc_content`, plus
+`create_doc_from_file`, landed via #102/#103/#104 (PR #105); bare-URL autolinking (`autolink_urls`)
+landed separately via #248 (PR #265). Live-verified: [2026-06-28 QA results](../qa/results/2026-06-28.md),
+[2026-07-04 QA results](../qa/results/2026-07-04-docs.md).
+
 ## Problem
 
 `create_doc` and `write_doc_content` only accept HTML. Users who work primarily with `.md` files
@@ -32,21 +37,24 @@ edge cases, two things to maintain.
 
 **The one real exception**: constructs that don't survive the HTML round-trip cleanly:
 
-- **Code blocks** — `<pre><code>` carries no semantic signal that our HTML parser acts on, so
-  they fall through to plain text. A direct parser could emit a `CodeBlock` AST node. This
-  matters once Phase 3 text styles land (`font_family` → monospace), but there's nothing to
-  do with such a node until then.
-- **Task list state** — `- [x] item` emits `<input type="checkbox" checked>` in HTML. Our
-  HTML parser ignores `<input>`, so checked/unchecked state is lost. Google Docs has no native
-  checkbox API for paragraph bullets, so representation needs a decision (Unicode glyphs vs.
-  `BULLET_CHECKBOX` preset).
+- **Code blocks** — `<pre><code>` carries no semantic signal that our HTML parser acted on until
+  text styles landed, so they used to fall through to plain text.
+- **Task list state** — `- [x] item` emits `<input type="checkbox" checked>` in HTML; the HTML
+  parser ignores raw `<input>`, so checked/unchecked state had to be captured earlier, at the
+  markdown layer itself.
 
-Both are tracked as separate issues. The HTML intermediary is right for the base case; those
-two constructs are where targeted extensions will eventually be needed.
+**Resolved by #104**: task-list markers are stripped from the item's text and captured on
+`BulletItem.checked`, and the emitter prepends a `☑`/`☐` glyph — not a `BULLET_CHECKBOX` preset
+list. **Resolved by #103**: `<pre>`/`<code>` now set `font_family="Courier New"` on their runs
+(tracked via `html_parser.py`'s `_in_pre`/`_code_depth`), emitted through `weightedFontFamily` in
+`emitter.py` — no separate `CodeBlock` AST node was needed. The HTML intermediary handled both
+constructs without needing to become a direct MD → AST parser.
 
 ## File changed
 
-**Only one file**: `src/mcp_gee_sweet/tools/docs/__init__.py`
+**Only one file** at the time this landed: `src/mcp_gee_sweet/tools/docs/__init__.py`. The
+Docs package was later split by domain (#64); this logic now lives in
+`src/mcp_gee_sweet/tools/docs/content.py`.
 
 ---
 
@@ -163,14 +171,16 @@ another registered tool), passing `content_format` through to `_to_doc_requests`
 | `*italic*` | `<em>` | `Run(italic=True)` | italic text run |
 | `~~strikethrough~~` | `<del>` | `Run(strikethrough=True)` | strikethrough |
 | `[text](url)` | `<a href=...>` | `Run(link_url=...)` | hyperlink |
+| bare `https://url` | `<a href=...>` (autolink extension) | `Run(link_url=...)` | hyperlink — disable via `autolink_urls=False` |
 | `- item` | `<ul><li>` | `BulletItem(ordered=False)` | disc bullet list |
 | `1. item` | `<ol><li>` | `BulletItem(ordered=True)` | numbered list |
+| `- [x] item` | `<input type="checkbox" checked>` | `BulletItem(checked=True)` | bullet with a `☑`/`☐` glyph prefix |
 | `\| a \| b \|` | `<table>` | `Table` | table via two-phase fill |
-| `` `code` `` | `<code>` | plain `Run` | plain text (no mono yet) |
-| ` ```code block``` ` | `<pre><code>` | plain text | plain text (no mono yet) |
+| `` `code` `` | `<code>` | `Run(font_family="Courier New")` | monospace text run |
+| ` ```code block``` ` | `<pre><code>` | `Paragraph` (all runs `font_family="Courier New"`) | monospace paragraph |
 
-Code blocks render as plain paragraphs — no special styling. A future issue could add
-`<pre>` / `<code>` → monospace font handling via Phase 3 text styles (`font_family`).
+Code blocks and inline code render with `font_family="Courier New"` on every run (#103) — no
+further code-block-specific styling (background shading, line numbers) is planned.
 
 ---
 
@@ -190,6 +200,8 @@ Code blocks render as plain paragraphs — no special styling. A future issue co
 
 - Does not change `upload_file`'s markdown path (that goes through Drive's native importer,
   which is fine for raw uploads)
-- Does not add Phase 3 monospace styling for code blocks (separate issue)
+- Does not support nested tables (a table inside a table cell) via Markdown — the `markdown`
+  library's table syntax can't express one; see `docs/known-limitations.md`'s Google Docs
+  section for the HTML-input workaround
 - Does not support `.md` files with front matter (YAML front matter would show up as a
   `<hr>` paragraph — acceptable for now)

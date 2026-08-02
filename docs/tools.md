@@ -159,7 +159,7 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | `add_doc_comment` | Add a comment to a Google Doc via the Drive comments resource. | `doc_id`, `content`, `quoted_text?` |
 | `resolve_doc_comment` | Mark a comment on a Google Doc as resolved, by posting a reply with a "resolve" action via the Drive comments resource. | `doc_id`, `comment_id`, `reply_content?` |
 
-`write_doc_content` accepts HTML and converts it to Docs API requests via the HTML→AST→emitter pipeline. See [Docs AST Pipeline](design/docs-ast-pipeline.md) for the design.
+`write_doc_content` and `create_doc` accept either HTML or Markdown (`content_format='markdown'`) and convert it to Docs API requests via the HTML→AST→emitter pipeline — Markdown is converted to HTML first. See [Docs AST Pipeline](design/docs-ast-pipeline.md) for the design and [Markdown Support](design/markdown-support.md) for the full Markdown→Docs mapping table.
 
 `create_doc` cannot create files in a personal Drive when using service account auth — see [Authentication](auth.md#method-a-service-account-recommended-for-servers).
 
