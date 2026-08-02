@@ -453,6 +453,44 @@ class TestBlockInterruptionGeneralizedBeyondLi:
         later_node = next(n for n in nodes if "Later text" in "".join(r.text for r in n.runs))
         assert isinstance(later_node, Paragraph)
 
+    async def test_stale_interruption_frame_not_reused_by_later_unrelated_list(self):
+        # #450: a block-interruption frame left behind by a mismatched
+        # <ol>/<ul> close must not be resumed later by a coincidental tag
+        # match from a completely separate, well-formed list. Regression
+        # guard distinct from test_mismatched_ol_closed_by_ul_does_not_
+        # corrupt_later_content above: that html has no *later* list at all,
+        # so it never exercised the stale-frame-reuse path this fix targets.
+        html = "<h1>Start<ol><li>Item</li></ul><ol><li>Later item</li></ol>Trailing bare text"
+        nodes = html_to_ast(html)
+        assert isinstance(nodes[0], Heading)
+        assert "".join(r.text for r in nodes[0].runs) == "Start"
+        bullets = [n for n in nodes if isinstance(n, BulletItem)]
+        assert [b.runs[0].text for b in bullets] == ["Item", "Later item"]
+        trailing = next(n for n in nodes if "Trailing bare text" in "".join(r.text for r in n.runs))
+        assert isinstance(trailing, Paragraph)
+
+    async def test_resuming_a_frame_flushes_an_implicit_paragraph_open_since_the_interrupt(self):
+        # PR #478 review round: bare top-level text directly inside a still-
+        # open <ol>/<ul> (not wrapped in its own <li>) opens an *implicit*
+        # paragraph via handle_data's bare-text path (#343) without going
+        # through _interrupt_open_block, so it has no frame of its own on
+        # _block_stack. Resuming an outer interrupted block used to
+        # unconditionally overwrite self._block_tag and clear self._run_buf,
+        # silently destroying that implicit paragraph's text instead of
+        # flushing it first — reachable via a mismatched inner list close
+        # (the discard path from the test above) immediately followed by an
+        # exact-matching outer list close.
+        html = "<h1>Start<ol><li>B<ul><li>C</li></ol>D</ol>E"
+        nodes = html_to_ast(html)
+        texts_by_type = [(type(n).__name__, "".join(r.text for r in n.runs)) for n in nodes]
+        assert texts_by_type == [
+            ("Heading", "Start"),
+            ("BulletItem", "B"),
+            ("BulletItem", "C"),
+            ("Paragraph", "D"),
+            ("Heading", "E"),
+        ]
+
 
 class TestMismatchedListTags:
     """#382: a mismatched <ol>/<ul> close tag must not permanently desync
