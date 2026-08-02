@@ -60,6 +60,45 @@ One happy-path case per tool group — fast, no destructive operations where avo
 
 ---
 
+## Pre-approved SKIPs (master list)
+
+Disposition of every SKIP from the v0.8.0 Full Regression run (44 total, `docs/qa/results/2026-06-28.md`), reviewed case-by-case against the actual test suite rather than trusting each case's original SKIP note (issue #227). Each new run-gate file's own "Pre-approved SKIPs" table should be copied forward from this list, trimmed to whatever's actually in scope for that run.
+
+**Categories:**
+- **Pre-approved** — no action; already covered or a documented non-testable limitation
+- **Unit-tested** — verified live against `tests/` to actually cover the case; safe to pre-approve
+- **Environmental** — needs a fixture/account change to un-skip; low-risk by inspection in the meantime
+- **Genuine gap** — verified *not* covered anywhere; tracked as a follow-up issue, still counts as a live-run SKIP until closed
+
+| TC | Reason | Category | Coverage / Action |
+|---|---|---|---|
+| TC-I01, I03 | Cache TTL / `CACHE_DB_PATH` — requires restart | Pre-approved | ✅ `tests/test_cache.py` |
+| TC-I02 | SQLite WAL concurrent reads — requires true concurrency | Pre-approved | Manual only |
+| TC-I04 | Cache persists across restart | Pre-approved | SQLite file persistence, trivially true by design |
+| TC-I13 | stdio transport — requires client config change | Pre-approved | Manual / verify once per environment |
+| TC-I15 | Hot reload with SSE | Pre-approved | Manual — known uvicorn + SSE limitation |
+| TC-D04 | Service account Drive quota-limit message | Unit-tested | ✅ `tests/drive/test_files.py::TestQuotaErrors` |
+| TC-D35 | `search_spreadsheets` forced API error | Genuine gap | No test mocks a failing `.execute()` for this tool's `except Exception → {"error": ...}` path — #490 |
+| TC-D93–D97 | `upload_local_file` (binary, skip_if_exists, duplicate, non-existent, name override) | Unit-tested | ✅ `tests/drive/test_transfer.py::TestUploadLocalFileCore`/`TestUploadLocalFileConvert` |
+| TC-D98–D102 | `upload_local_folder` (basic, skip_if_exists, recursive, ignore patterns, non-existent) | Genuine gap | Zero unit test coverage for this tool at all — #485 |
+| TC-D103–D107 | `download_file` (Doc export, Sheet as xlsx, export_format, binary, non-existent) | Genuine gap | Zero unit test coverage for this tool at all — #486 |
+| TC-D108 | `download_folder` basic | Unit-tested | ✅ `tests/drive/test_transfer.py::TestDownloadFolder` |
+| TC-D109, D110 | `download_folder` `skip_if_exists` / `mime_type_filter` | Genuine gap | Neither param exercised by any test — #487 |
+| TC-D111–D118 | `sync_folder` (dry_run, drive-only, local-only, newer-wins, mtime, direction=upload/download, Workspace excluded) | Unit-tested | ✅ ~38 tests across `TestSyncFolder*` classes |
+| TC-D119 | `sync_folder` invalid `direction` value | Genuine gap | No validation exists in the code for an unrecognized `direction` — silent no-op, not just untested — #488 |
+| TC-D123 | `list_drives` pagination | Genuine gap | Pagination loop has no mocked-multi-page test — #489 |
+| TC-D155 | `list_shared_with_me` single-quote escaping | Unit-tested | ✅ `tests/drive/test_files.py::test_single_quote_is_escaped` |
+| TC-D159 | `list_recent_files` max_results cap | Unit-tested | ✅ `test_max_results_capped_at_200`/`_100` |
+| TC-D161, D162 | `get_storage_quota` SA `limit_bytes=0` / integer types | Unit-tested | ✅ `tests/drive/test_files.py::TestGetStorageQuota` |
+| TC-D166 | `list_file_activity` system actor | Unit-tested | ✅ `tests/drive/test_activity.py::test_system_actor_parsed` |
+| TC-DOC51 | Nested tables not supported in markdown | Pre-approved | Documented limitation — no code path exists to test |
+| TC-CAL04 | `list_calendars` empty subscription list | Environmental | Needs a fresh account with zero subscriptions; trivially correct by code inspection (list comprehension over `[]`) in the meantime |
+| TC-CAL32 | `find_free_slots` multi-calendar merge | Genuine gap | `TestFindFreeSlots`'s mock only ever configures one `cal_id`; no test merges busy periods across calendars — #491 |
+
+**Follow-up issues filed for genuine gaps:** #485 (`upload_local_folder`), #486 (`download_file`), #487 (`download_folder` params), #488 (`sync_folder` invalid direction — also a possible validation gap, `decision-needed`), #489 (`list_drives` pagination), #490 (`search_spreadsheets` error path), #491 (`find_free_slots` multi-calendar).
+
+---
+
 ## Release gate
 
 A completed `docs/qa/runs/vX.Y.Z.md` — with all required suites checked off and a results file linked — is required before tagging a stable release.
