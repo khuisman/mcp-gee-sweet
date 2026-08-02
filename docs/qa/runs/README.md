@@ -72,14 +72,15 @@ Disposition of every SKIP from the v0.8.0 Full Regression run (44 total, `docs/q
 
 | TC | Reason | Category | Coverage / Action |
 |---|---|---|---|
-| TC-I01, I03 | Cache TTL / `CACHE_DB_PATH` — requires restart | Pre-approved | ✅ `tests/test_cache.py` |
+| TC-I01, I03 | Cache TTL / `CACHE_DB_PATH` — requires restart | Unit-tested | ✅ `tests/test_cache.py` |
 | TC-I02 | SQLite WAL concurrent reads — requires true concurrency | Pre-approved | Manual only |
 | TC-I04 | Cache persists across restart | Pre-approved | SQLite file persistence, trivially true by design |
 | TC-I13 | stdio transport — requires client config change | Pre-approved | Manual / verify once per environment |
 | TC-I15 | Hot reload with SSE | Pre-approved | Manual — known uvicorn + SSE limitation |
 | TC-D04 | Service account Drive quota-limit message | Unit-tested | ✅ `tests/drive/test_files.py::TestQuotaErrors` |
 | TC-D35 | `search_spreadsheets` forced API error | Genuine gap | No test mocks a failing `.execute()` for this tool's `except Exception → {"error": ...}` path — #490 |
-| TC-D93–D97 | `upload_local_file` (binary, skip_if_exists, duplicate, non-existent, name override) | Unit-tested | ✅ `tests/drive/test_transfer.py::TestUploadLocalFileCore`/`TestUploadLocalFileConvert` |
+| TC-D93, D94, D96, D97 | `upload_local_file` (binary, skip_if_exists, non-existent, name override) | Unit-tested | ✅ `tests/drive/test_transfer.py::TestUploadLocalFileCore`/`TestUploadLocalFileConvert` |
+| TC-D95 | `upload_local_file` skip_if_exists=False creates duplicate | Genuine gap | Every non-skip test mocks `list → {"files": []}` — no test ever has a colliding file present to actually observe the duplicate-creation behavior — #495 |
 | TC-D98–D102 | `upload_local_folder` (basic, skip_if_exists, recursive, ignore patterns, non-existent) | Genuine gap | Zero unit test coverage for this tool at all — #485 |
 | TC-D103–D107 | `download_file` (Doc export, Sheet as xlsx, export_format, binary, non-existent) | Genuine gap | Zero unit test coverage for this tool at all — #486 |
 | TC-D108 | `download_folder` basic | Unit-tested | ✅ `tests/drive/test_transfer.py::TestDownloadFolder` |
@@ -87,15 +88,15 @@ Disposition of every SKIP from the v0.8.0 Full Regression run (44 total, `docs/q
 | TC-D111–D118 | `sync_folder` (dry_run, drive-only, local-only, newer-wins, mtime, direction=upload/download, Workspace excluded) | Unit-tested | ✅ ~38 tests across `TestSyncFolder*` classes |
 | TC-D119 | `sync_folder` invalid `direction` value | Genuine gap | No validation exists in the code for an unrecognized `direction` — silent no-op, not just untested — #488 |
 | TC-D123 | `list_drives` pagination | Genuine gap | Pagination loop has no mocked-multi-page test — #489 |
-| TC-D155 | `list_shared_with_me` single-quote escaping | Unit-tested | ✅ `tests/drive/test_files.py::test_single_quote_is_escaped` |
+| TC-D155 | `list_shared_with_me` `mime_type` single-quote escaping | Genuine gap | `TestListSharedWithMe` has no quote-escaping test — the table originally miscited `test_single_quote_is_escaped`, which covers an unrelated tool (`search_spreadsheets`'s `query` param) — #494 |
 | TC-D159 | `list_recent_files` max_results cap | Unit-tested | ✅ `test_max_results_capped_at_200`/`_100` |
 | TC-D161, D162 | `get_storage_quota` SA `limit_bytes=0` / integer types | Unit-tested | ✅ `tests/drive/test_files.py::TestGetStorageQuota` |
-| TC-D166 | `list_file_activity` system actor | Unit-tested | ✅ `tests/drive/test_activity.py::test_system_actor_parsed` |
+| TC-D166 | `list_file_activity` invalid file ID returns error | Unit-tested | ✅ `tests/drive/test_activity.py::test_http_error_returns_error_dict` |
 | TC-DOC51 | Nested tables not supported in markdown | Pre-approved | Documented limitation — no code path exists to test |
 | TC-CAL04 | `list_calendars` empty subscription list | Environmental | Needs a fresh account with zero subscriptions; trivially correct by code inspection (list comprehension over `[]`) in the meantime |
 | TC-CAL32 | `find_free_slots` multi-calendar merge | Genuine gap | `TestFindFreeSlots`'s mock only ever configures one `cal_id`; no test merges busy periods across calendars — #491 |
 
-**Follow-up issues filed for genuine gaps:** #485 (`upload_local_folder`), #486 (`download_file`), #487 (`download_folder` params), #488 (`sync_folder` invalid direction — also a possible validation gap, `decision-needed`), #489 (`list_drives` pagination), #490 (`search_spreadsheets` error path), #491 (`find_free_slots` multi-calendar).
+**Follow-up issues filed for genuine gaps:** #485 (`upload_local_folder`), #486 (`download_file`), #487 (`download_folder` params), #488 (`sync_folder` invalid direction — also a possible validation gap, `decision-needed`), #489 (`list_drives` pagination), #490 (`search_spreadsheets` error path), #491 (`find_free_slots` multi-calendar), #494 (`list_shared_with_me` mime_type escaping), #495 (`upload_local_file` no-skip duplicate path).
 
 ---
 
