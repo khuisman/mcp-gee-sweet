@@ -317,6 +317,25 @@ class TestMainLogsVersion:
         assert version_records, "expected a startup log line with the package version"
         assert importlib.metadata.version("mcp-gee-sweet") in version_records[0].message
 
+    def test_falls_back_when_package_metadata_missing(self, monkeypatch):
+        """Issue #481: a broken/repackaged install (or invoking main() without the
+        package installed) makes importlib.metadata.version raise
+        PackageNotFoundError. main() should log a placeholder and keep starting
+        up instead of crashing before tool-filtering/transport setup.
+        """
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
+        monkeypatch.setattr(mcp, "run", MagicMock())
+
+        def _raise(name):
+            raise importlib.metadata.PackageNotFoundError(name)
+
+        monkeypatch.setattr(importlib.metadata, "version", _raise)
+        main()
+
+        version_records = [r for r in self._version_records if "mcp-gee-sweet version" in r.message]
+        assert version_records, "expected a startup log line even when metadata is unresolvable"
+        assert "unknown" in version_records[0].message
+
 
 class TestToolStrictArgs:
     """tool() rejects unrecognized kwargs instead of silently ignoring them (issue #239).
