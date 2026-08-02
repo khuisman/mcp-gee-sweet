@@ -1511,6 +1511,165 @@
 <li>Fill in the run file for this release and check off each suite when it passes.</li>
 </ol>
 <hr />
+<h2 id="pre-approved-skips-master-list">Pre-approved SKIPs (master list)<a class="headerlink" href="#pre-approved-skips-master-list" title="Permanent link">&para;</a></h2>
+<p>Disposition of every SKIP from the v0.8.0 Full Regression run (44 total, <code>docs/qa/results/2026-06-28.md</code>), reviewed case-by-case against the actual test suite rather than trusting each case's original SKIP note (issue #227). Each new run-gate file's own "Pre-approved SKIPs" table should be copied forward from this list, trimmed to whatever's actually in scope for that run.</p>
+<p><strong>Categories:</strong>
+- <strong>Pre-approved</strong> — no action; already covered or a documented non-testable limitation
+- <strong>Unit-tested</strong> — verified live against <code>tests/</code> to actually cover the case; safe to pre-approve
+- <strong>Environmental</strong> — needs a fixture/account change to un-skip; low-risk by inspection in the meantime
+- <strong>Genuine gap</strong> — verified <em>not</em> covered anywhere; tracked as a follow-up issue, still counts as a live-run SKIP until closed</p>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Reason</th>
+<th>Category</th>
+<th>Coverage / Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-I01, I03</td>
+<td>Cache TTL / <code>CACHE_DB_PATH</code> — requires restart</td>
+<td>Unit-tested</td>
+<td>✅ <code>tests/test_cache.py</code></td>
+</tr>
+<tr>
+<td>TC-I02</td>
+<td>SQLite WAL concurrent reads — requires true concurrency</td>
+<td>Pre-approved</td>
+<td>Manual only</td>
+</tr>
+<tr>
+<td>TC-I04</td>
+<td>Cache persists across restart</td>
+<td>Pre-approved</td>
+<td>SQLite file persistence, trivially true by design</td>
+</tr>
+<tr>
+<td>TC-I13</td>
+<td>stdio transport — requires client config change</td>
+<td>Pre-approved</td>
+<td>Manual / verify once per environment</td>
+</tr>
+<tr>
+<td>TC-I15</td>
+<td>Hot reload with SSE</td>
+<td>Pre-approved</td>
+<td>Manual — known uvicorn + SSE limitation</td>
+</tr>
+<tr>
+<td>TC-D04</td>
+<td>Service account Drive quota-limit message</td>
+<td>Unit-tested</td>
+<td>✅ <code>tests/drive/test_files.py::TestQuotaErrors</code></td>
+</tr>
+<tr>
+<td>TC-D35</td>
+<td><code>search_spreadsheets</code> forced API error</td>
+<td>Genuine gap</td>
+<td>No test mocks a failing <code>.execute()</code> for this tool's <code>except Exception → {"error": ...}</code> path — #490</td>
+</tr>
+<tr>
+<td>TC-D93, D94, D96, D97</td>
+<td><code>upload_local_file</code> (binary, skip_if_exists, non-existent, name override)</td>
+<td>Unit-tested</td>
+<td>✅ <code>tests/drive/test_transfer.py::TestUploadLocalFileCore</code>/<code>TestUploadLocalFileConvert</code></td>
+</tr>
+<tr>
+<td>TC-D95</td>
+<td><code>upload_local_file</code> skip_if_exists=False creates duplicate</td>
+<td>Genuine gap</td>
+<td>Every non-skip test mocks <code>list → {"files": []}</code> — no test ever has a colliding file present to actually observe the duplicate-creation behavior — #495</td>
+</tr>
+<tr>
+<td>TC-D98–D102</td>
+<td><code>upload_local_folder</code> (basic, skip_if_exists, recursive, ignore patterns, non-existent)</td>
+<td>Genuine gap</td>
+<td>Zero unit test coverage for this tool at all — #485</td>
+</tr>
+<tr>
+<td>TC-D103–D107</td>
+<td><code>download_file</code> (Doc export, Sheet as xlsx, export_format, binary, non-existent)</td>
+<td>Genuine gap</td>
+<td>Zero unit test coverage for this tool at all — #486</td>
+</tr>
+<tr>
+<td>TC-D108</td>
+<td><code>download_folder</code> basic</td>
+<td>Unit-tested</td>
+<td>✅ <code>tests/drive/test_transfer.py::TestDownloadFolder</code></td>
+</tr>
+<tr>
+<td>TC-D109, D110</td>
+<td><code>download_folder</code> <code>skip_if_exists</code> / <code>mime_type_filter</code></td>
+<td>Genuine gap</td>
+<td>Neither param exercised by any test — #487</td>
+</tr>
+<tr>
+<td>TC-D111–D118</td>
+<td><code>sync_folder</code> (dry_run, drive-only, local-only, newer-wins, mtime, direction=upload/download, Workspace excluded)</td>
+<td>Unit-tested</td>
+<td>✅ ~38 tests across <code>TestSyncFolder*</code> classes</td>
+</tr>
+<tr>
+<td>TC-D119</td>
+<td><code>sync_folder</code> invalid <code>direction</code> value</td>
+<td>Genuine gap</td>
+<td>No validation exists in the code for an unrecognized <code>direction</code> — silent no-op, not just untested — #488</td>
+</tr>
+<tr>
+<td>TC-D123</td>
+<td><code>list_drives</code> pagination</td>
+<td>Genuine gap</td>
+<td>Pagination loop has no mocked-multi-page test — #489</td>
+</tr>
+<tr>
+<td>TC-D155</td>
+<td><code>list_shared_with_me</code> <code>mime_type</code> single-quote escaping</td>
+<td>Genuine gap</td>
+<td><code>TestListSharedWithMe</code> has no quote-escaping test — the table originally miscited <code>test_single_quote_is_escaped</code>, which covers an unrelated tool (<code>search_spreadsheets</code>'s <code>query</code> param) — #494</td>
+</tr>
+<tr>
+<td>TC-D159</td>
+<td><code>list_recent_files</code> max_results cap</td>
+<td>Unit-tested</td>
+<td>✅ <code>test_max_results_capped_at_200</code>/<code>_100</code></td>
+</tr>
+<tr>
+<td>TC-D161, D162</td>
+<td><code>get_storage_quota</code> SA <code>limit_bytes=0</code> / integer types</td>
+<td>Unit-tested</td>
+<td>✅ <code>tests/drive/test_files.py::TestGetStorageQuota</code></td>
+</tr>
+<tr>
+<td>TC-D166</td>
+<td><code>list_file_activity</code> invalid file ID returns error</td>
+<td>Unit-tested</td>
+<td>✅ <code>tests/drive/test_activity.py::test_http_error_returns_error_dict</code></td>
+</tr>
+<tr>
+<td>TC-DOC51</td>
+<td>Nested tables not supported in markdown</td>
+<td>Pre-approved</td>
+<td>Documented limitation — no code path exists to test</td>
+</tr>
+<tr>
+<td>TC-CAL04</td>
+<td><code>list_calendars</code> empty subscription list</td>
+<td>Environmental</td>
+<td>Needs a fresh account with zero subscriptions; trivially correct by code inspection (list comprehension over <code>[]</code>) in the meantime</td>
+</tr>
+<tr>
+<td>TC-CAL32</td>
+<td><code>find_free_slots</code> multi-calendar merge</td>
+<td>Genuine gap</td>
+<td><code>TestFindFreeSlots</code>'s mock only ever configures one <code>cal_id</code>; no test merges busy periods across calendars — #491</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Follow-up issues filed for genuine gaps:</strong> #485 (<code>upload_local_folder</code>), #486 (<code>download_file</code>), #487 (<code>download_folder</code> params), #488 (<code>sync_folder</code> invalid direction — also a possible validation gap, <code>decision-needed</code>), #489 (<code>list_drives</code> pagination), #490 (<code>search_spreadsheets</code> error path), #491 (<code>find_free_slots</code> multi-calendar), #494 (<code>list_shared_with_me</code> mime_type escaping), #495 (<code>upload_local_file</code> no-skip duplicate path).</p>
+<hr />
 <h2 id="release-gate">Release gate<a class="headerlink" href="#release-gate" title="Permanent link">&para;</a></h2>
 <p>A completed <code>docs/qa/runs/vX.Y.Z.md</code> — with all required suites checked off and a results file linked — is required before tagging a stable release.</p>
 <h3 id="scoped-gating">Scoped gating<a class="headerlink" href="#scoped-gating" title="Permanent link">&para;</a></h3>
