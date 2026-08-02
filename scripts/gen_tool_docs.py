@@ -141,9 +141,12 @@ SECTIONS = [
     (
         "Docs",
         lambda f: f.__module__.startswith("mcp_gee_sweet.tools.docs."),
-        "`write_doc_content` accepts HTML and converts it to Docs API requests via "
-        "the HTML→AST→emitter pipeline. See [Docs AST Pipeline]"
-        "(design/docs-ast-pipeline.md) for the design.\n\n"
+        "`write_doc_content` and `create_doc` accept either HTML or Markdown "
+        "(`content_format='markdown'`) and convert it to Docs API requests via the "
+        "HTML→AST→emitter pipeline — Markdown is converted to HTML first. See "
+        "[Docs AST Pipeline](design/docs-ast-pipeline.md) for the design and "
+        "[Markdown Support](design/markdown-support.md) for the full Markdown→Docs "
+        "mapping table.\n\n"
         "`create_doc` cannot create files in a personal Drive when using service "
         "account auth — see [Authentication]"
         "(auth.md#method-a-service-account-recommended-for-servers).",

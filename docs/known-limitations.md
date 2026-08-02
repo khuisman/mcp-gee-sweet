@@ -40,6 +40,20 @@ response). Related: #133.
 
 ---
 
+### Nested tables not supported via Markdown input
+
+**What:** Markdown content passed to `create_doc`/`write_doc_content` (`content_format='markdown'`)
+or `create_doc_from_file` (`.md` files) cannot produce a nested table — a table inside a table
+cell.
+
+**Why:** The Python `markdown` library's `tables` extension has no syntax for a table nested
+inside another table's cell.
+
+**Workaround:** Supply raw HTML instead — the HTML→AST pipeline fully supports nested tables
+(see #109). Related: `docs/qa/tests/docs.md` TC-DOC51.
+
+---
+
 ## Google Drive
 
 ### Service account cannot create files in personal Drive
