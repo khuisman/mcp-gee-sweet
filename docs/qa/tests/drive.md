@@ -1427,6 +1427,52 @@ Delete all `qa-convert.*` files and their converted Drive counterparts from `{FO
 
 ---
 
+### TC-D240: convert=True — each file converts per its own extension (issue #411) ⚠️ local-filesystem
+**Background:** `upload_local_folder` previously had its own independent inline upload path with no `convert` param, so bulk-importing a folder of CSV/DOCX/PPTX files into native Google formats required falling back to per-file `upload_local_file` calls. Fixed by routing each file through the same `_upload_local_file` helper `upload_local_file` uses.
+
+**Prompt**
+> "Upload the directory `/tmp/qa-folder-240/` to {FOLDER_ID} with convert set to true" *(create the directory with `a.csv` and `b.md`, each with a bit of real content)*
+
+**Checks**
+- Call `upload_local_folder(local_path="/tmp/qa-folder-240/", parent_folder_id="{FOLDER_ID}", convert=true)`
+- Both `a.csv` and `b.md` appear in `uploaded`, `failed` is empty
+- `list_files` on `{FOLDER_ID}` shows `a.csv`'s Drive `mimeType` as `application/vnd.google-apps.spreadsheet` and `b.md`'s as `application/vnd.google-apps.document` — not their raw MIME types
+- `get_sheet_data`/`get_doc_content` against the respective returned content confirms Drive actually imported it, not just relabeled the MIME type
+
+**Teardown**
+Delete both converted files from `{FOLDER_ID}`. Remove `/tmp/qa-folder-240/`.
+
+---
+
+### TC-D241: convert=True — a file with an unsupported extension is reported in `failed`, siblings still upload ⚠️ local-filesystem
+**Prompt**
+> "Upload the directory `/tmp/qa-folder-241/` to {FOLDER_ID} with convert set to true" *(create the directory with `a.csv` and `archive.zip`)*
+
+**Checks**
+- Call `upload_local_folder(local_path="/tmp/qa-folder-241/", parent_folder_id="{FOLDER_ID}", convert=true)`
+- `a.csv` appears in `uploaded` and converts normally
+- `archive.zip` appears in `failed` with an error mentioning the `.zip` extension is unsupported, not in `uploaded`
+- `list_files` on `{FOLDER_ID}` shows no file created for `archive.zip`
+
+**Teardown**
+Delete the converted `a.csv` from `{FOLDER_ID}`. Remove `/tmp/qa-folder-241/`.
+
+---
+
+### TC-D242: convert=True — an existing unconverted duplicate is not treated as skip-worthy (mirrors TC-D215 for the bulk path) ⚠️ local-filesystem
+**Prompt**
+> Step 1: "Upload the directory `/tmp/qa-folder-242/` to {FOLDER_ID}" *(no convert — creates a raw `text/csv` file named `a.csv`)*
+> Step 2: "Upload the directory `/tmp/qa-folder-242/` to {FOLDER_ID} with convert set to true"
+
+**Checks**
+- Step 2's `a.csv` appears in `uploaded` (not `skipped`) — a same-named raw file already existing in Drive doesn't count as the converted duplicate
+- `list_files` on `{FOLDER_ID}` shows two distinct files: the original raw `text/csv` one from step 1, and the new converted spreadsheet from step 2 (Drive's own import-conversion strips the `.csv` extension from the converted copy's display name, same as TC-D215)
+
+**Teardown**
+Delete both files from `{FOLDER_ID}`. Remove `/tmp/qa-folder-242/`.
+
+---
+
 ## `download_file`
 
 ### TC-D101: Download a non-Google file ⚠️ local-filesystem

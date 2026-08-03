@@ -1336,6 +1336,7 @@ def register(tool):
         parent_folder_id: str,
         skip_if_exists: bool = True,
         skip_system_files: bool = True,
+        convert: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -1346,6 +1347,13 @@ def register(tool):
             parent_folder_id: ID of the destination Drive folder.
             skip_if_exists: Skip files that already exist in the destination (default True).
             skip_system_files: Skip OS metadata files like .DS_Store (default True).
+            convert: If True, request Drive's native import conversion for every file —
+                     same mapping as upload_local_file's convert param: .csv/.xlsx ->
+                     Google Sheets, .docx/.md/.html/.htm -> Google Docs, .pptx -> Google
+                     Slides. A file whose extension isn't in that mapping is reported in
+                     'failed' rather than uploaded as-is, matching upload_local_file's
+                     own convert=True behavior for an unsupported extension. Default
+                     False (upload every file preserving its original format).
 
         Returns:
             Summary with lists of 'uploaded', 'skipped', and 'failed' filenames.
@@ -1371,6 +1379,10 @@ def register(tool):
         failed: list[dict[str, str]] = []
 
         if skip_if_exists and candidates:
+            # fields includes mimeType (not just name) so the convert=True case below
+            # can tell an already-converted duplicate apart from a same-named file
+            # still in its original format — mirrors _upload_local_file's own
+            # convert-aware skip_if_exists check (issue #411).
             existing_resp = await execute_in_thread(
                 drive_service.files()
                 .list(
@@ -1378,42 +1390,39 @@ def register(tool):
                     spaces="drive",
                     includeItemsFromAllDrives=True,
                     supportsAllDrives=True,
-                    fields="files(name)",
+                    fields="files(name, mimeType)",
                     pageSize=1000,
                 )
                 .execute,
                 drive_service,
             )
-            existing_names = {f["name"] for f in existing_resp.get("files", [])}
+            existing_by_name = {
+                f["name"]: f.get("mimeType") for f in existing_resp.get("files", [])
+            }
         else:
-            existing_names = set()
+            existing_by_name = {}
 
         for p in sorted(candidates):
-            if skip_if_exists and p.name in existing_names:
-                skipped.append(p.name)
-                continue
+            if p.name in existing_by_name:
+                if not convert:
+                    skipped.append(p.name)
+                    continue
+                target_mime = _CONVERT_MIME.get(p.suffix.lower())
+                if target_mime is not None and existing_by_name[p.name] == target_mime[1]:
+                    skipped.append(p.name)
+                    continue
 
-            mime, _ = mimetypes.guess_type(str(p))
-            mime = mime or "application/octet-stream"
-
-            try:
-                metadata: dict[str, Any] = {"name": p.name, "parents": [parent_folder_id]}
-                media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
-                await execute_in_thread(
-                    drive_service.files()
-                    .create(
-                        body=metadata,
-                        media_body=media,
-                        supportsAllDrives=True,
-                        fields="id",
-                    )
-                    .execute,
-                    drive_service,
-                )
+            # skip_if_exists=False here — existence was already decided above from the
+            # single bulk list() call, so _upload_local_file doesn't need its own
+            # per-file check (preserves the one-list-call-per-run contract, TC-D100).
+            result = await _upload_local_file(
+                drive_service, str(p), parent_folder_id, skip_if_exists=False, convert=convert
+            )
+            if "error" in result:
+                failed.append({"name": p.name, "error": result["error"]})
+            else:
                 uploaded.append(p.name)
-                logger.debug("Uploaded %s (%s)", p.name, mime)
-            except Exception as e:
-                failed.append({"name": p.name, "error": str(e)})
+                logger.debug("Uploaded %s", p.name)
 
         if uploaded:
             lc.drive_folder_cache.mark_dirty(parent_folder_id)
