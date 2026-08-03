@@ -113,7 +113,7 @@ See [Client Setup](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, QA workflows, and PR guidelines. All items in [`docs/qa-checklist.md`](docs/qa-checklist.md) must be verified before any PyPI release.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, QA workflows, and PR guidelines. A signed-off [`docs/qa/runs/vX.Y.Z.md`](docs/qa/runs) record is required before any stable PyPI release — see [`docs/qa/README.md`](docs/qa/README.md) for the QA workflow.
 
 ## License
 
