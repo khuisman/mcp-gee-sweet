@@ -112,24 +112,44 @@ class TestAuthStatusResource:
         assert "create_doc" in status["limited_tools"]
         assert "copy_file" in status["limited_tools"]
         assert "upload_file" in status["limited_tools"]
+        assert "transfer_ownership" in status["limited_tools"]
 
-    def test_service_account_includes_reason_and_alternative(self):
+    def test_service_account_storage_quota_limitation(self):
+        """Issue #447: each failure class gets its own reason/alternatives — a tool
+        limited for one reason (no storage quota) shouldn't share text with a tool
+        limited for a different reason (no personal Drive identity)."""
         status = self._get_status("service_account")
-        assert status["reason"] is not None
-        assert "storage quota" in status["reason"].lower()
-        assert status["alternatives"] is not None
+        quota = next(
+            lim for lim in status["limitations"] if lim["category"] == "no_drive_storage_quota"
+        )
+        assert "create_spreadsheet" in quota["tools"]
+        assert "transfer_ownership" not in quota["tools"]
+        assert "storage quota" in quota["reason"].lower()
+        assert quota["alternatives"] is not None
+
+    def test_service_account_transfer_ownership_limitation(self):
+        status = self._get_status("service_account")
+        identity = next(
+            lim for lim in status["limitations"] if lim["category"] == "no_personal_drive_identity"
+        )
+        assert identity["tools"] == ["transfer_ownership"]
+        assert "identity" in identity["reason"].lower()
+        # Alternatives must not claim ADC fixes this — ADC may itself resolve to a
+        # service-account-backed credential with the same limitation (see #506).
+        assert "adc" not in identity["alternatives"].lower()
 
     def test_oauth_can_create_in_personal_drive(self):
         status = self._get_status("oauth")
         assert status["auth_method"] == "oauth"
         assert status["can_create_in_personal_drive"] is True
         assert status["limited_tools"] == []
-        assert status["reason"] is None
+        assert status["limitations"] == []
 
     def test_adc_can_create_in_personal_drive(self):
         status = self._get_status("adc")
         assert status["can_create_in_personal_drive"] is True
         assert status["limited_tools"] == []
+        assert status["limitations"] == []
 
 
 class TestResourcesReadLifespanContextViaGetContext:
