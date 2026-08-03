@@ -1193,6 +1193,52 @@ class TestCreateDocImages:
         )
         assert docs_svc.documents.return_value.batchUpdate.call_count == 2
 
+    async def test_duplicate_image_uri_retry_failure_attributed_to_correct_image(self):
+        # PR #502 review round 1, finding #2: two images resolving to the
+        # *identical* URI (the same picture referenced twice) used to
+        # misattribute a retry failure via a uri-keyed lookup (last
+        # registration wins) — a failure on the first (lowest-position)
+        # occurrence's request could get reported against the second
+        # (successfully embedded) image's outcome entry instead. Fixed via
+        # id(img)-keyed tracking that survives the placeholder-uri swap
+        # ast_to_requests needs internally.
+        drive_svc, docs_svc = self._make_services()
+        same_uri = "https://example.com/same.png"
+        content = f"![First]({same_uri})\n\n![Second]({same_uri})"
+        first_call_requests = []
+
+        def batchupdate_side_effect(documentId, body):
+            nonlocal first_call_requests
+            m = MagicMock()
+            if not first_call_requests:
+                first_call_requests = body["requests"]
+                image_reqs = [r for r in body["requests"] if "insertInlineImage" in r]
+                assert len(image_reqs) == 2
+                # Fail the lowest-position (first-in-document) image request.
+                first_image_req = min(
+                    image_reqs, key=lambda r: r["insertInlineImage"]["location"]["index"]
+                )
+                bad_index = body["requests"].index(first_image_req)
+                m.execute.side_effect = self._insert_image_http_error(bad_index)
+            else:
+                m.execute.return_value = {}
+            return m
+
+        docs_svc.documents.return_value.batchUpdate.side_effect = batchupdate_side_effect
+        ctx = self._ctx(drive_svc, docs_svc)
+
+        result = await _docs_tools["create_doc"](
+            title="Doc", content=content, content_format="markdown", ctx=ctx
+        )
+
+        outcomes = result["images"]
+        assert len(outcomes) == 2
+        # The first (document-order) entry is the one whose request was failed
+        # above — it must carry the error, and the second (genuinely
+        # successful) entry must not, despite sharing the identical src/uri.
+        assert "error" in outcomes[0]
+        assert "error" not in outcomes[1]
+
 
 class TestCreateDocFromFile:
     def _make_services(self, doc_id="doc123"):
@@ -2949,10 +2995,13 @@ class TestInsertLocalImages:
         )
         assert delete_req["range"]["endIndex"] == expected_end
 
-    async def test_failed_batchupdate_entry_has_error_but_no_fileid(self, tmp_path):
-        # Regression: the doc-edit-failure handler used to reuse the same entry
-        # dict that already carried "fileId" from a successful upload, leaving
-        # both fileId and error set — contradicting the documented either/or contract.
+    async def test_failed_batchupdate_entry_keeps_fileid_and_is_revoked(self, tmp_path):
+        # PR #502 review round 1, finding #1: a doc-edit failure used to pop
+        # "fileId" and return immediately, before ever reaching the revoke
+        # logic — the image was genuinely uploaded and shared, but the caller
+        # had no fileId to trace it and it was left world-readable forever.
+        # Fixed version keeps fileId, still runs the revoke_sharing-respecting
+        # cleanup, and reports the outcome honestly (error *and* shared status).
         img = tmp_path / "pic.png"
         img.write_bytes(b"fake")
         doc, _ = _build_doc_body([["MARKER\n"]])
@@ -2960,7 +3009,8 @@ class TestInsertLocalImages:
         docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
             "batchUpdate failed"
         )
-        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+        drive_svc = self._drive_svc()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
 
         result = await _docs_tools["insert_local_images"](
             doc_id="doc1",
@@ -2969,8 +3019,38 @@ class TestInsertLocalImages:
         )
 
         entry = result["results"][0]
-        assert "error" in entry
-        assert "fileId" not in entry
+        assert entry["error"] == "doc edit failed: batchUpdate failed"
+        assert entry["fileId"] == "img1"
+        # revoke_sharing defaults True — the temporary share is still cleaned up
+        # even though the embed itself failed.
+        assert entry["shared"] is False
+        drive_svc.permissions.return_value.delete.assert_called_once_with(
+            fileId="img1", permissionId="anyoneWithLink", supportsAllDrives=True
+        )
+
+    async def test_failed_batchupdate_with_revoke_sharing_false_leaves_image_shared(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "batchUpdate failed"
+        )
+        drive_svc = self._drive_svc()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            revoke_sharing=False,
+            ctx=ctx,
+        )
+
+        entry = result["results"][0]
+        assert entry["error"] == "doc edit failed: batchUpdate failed"
+        assert entry["fileId"] == "img1"
+        assert entry["shared"] is True
+        drive_svc.permissions.return_value.delete.assert_not_called()
 
     async def test_results_order_matches_images_input_order_not_doc_position_order(self, tmp_path):
         # Regression: successes used to be appended in descending-document-position

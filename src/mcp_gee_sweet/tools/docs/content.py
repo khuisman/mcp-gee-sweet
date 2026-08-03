@@ -273,16 +273,25 @@ async def _apply_doc_content(
     nodes = html_to_ast(html_content)
 
     images = extract_images(nodes)
-    image_uris: dict[int, str] = {}
     image_outcomes: list[dict[str, Any]] = []
+    # All three keyed by id(img) — the only value guaranteed unique per image.
+    # Neither a resolved URI nor a computed document position is safe to key on:
+    # two images can resolve to the identical URI (the same picture used twice),
+    # and two images with no separating content can land at the identical
+    # position (PR #502 review round 1, finding #2) — either would make a
+    # same-key lookup below silently pick the wrong image's outcome entry.
+    entry_by_id: dict[int, dict[str, Any]] = {}
+    real_uri_by_id: dict[int, str] = {}
     # (outcome_entry, file_id, permission_id) for images successfully shared —
     # revoked only after the doc edit below actually succeeds. A retry-removed
     # image (see below) is dropped from this list before revoke runs, since it
     # was never actually placed.
-    pending_revokes: dict[str, tuple[dict[str, Any], str, str]] = {}
-    # uri -> outcome entry, so a request the API rejects at insertion time (see
-    # below) can be traced back to the image that produced it.
-    uri_to_entry: dict[str, dict[str, Any]] = {}
+    pending_revokes: dict[int, tuple[dict[str, Any], str, str]] = {}
+    # ast_to_requests needs *some* URI per resolved image up front to build its
+    # insertInlineImage requests — placeholders here (guaranteed unique, unlike
+    # the real URIs) are swapped for the real ones below, in the same pass that
+    # records which request dict came from which image.
+    placeholder_uris: dict[int, str] = {}
 
     if images:
         # return_exceptions=True: _resolve_image_source already catches its own
@@ -299,19 +308,39 @@ async def _apply_doc_content(
             elif "error" in result:
                 entry["error"] = result["error"]
             else:
-                uri = result["uri"]
-                image_uris[id(img)] = uri
-                uri_to_entry[uri] = entry
+                img_id = id(img)
+                entry_by_id[img_id] = entry
+                real_uri_by_id[img_id] = result["uri"]
+                placeholder_uris[img_id] = f"urn:mcp-gee-sweet:pending-image:{img_id}"
                 file_id = result.get("file_id")
                 permission_id = result.get("permission_id")
                 if file_id:
                     entry["fileId"] = file_id
                 if file_id and permission_id:
                     entry["shared"] = True
-                    pending_revokes[uri] = (entry, file_id, permission_id)
+                    pending_revokes[img_id] = (entry, file_id, permission_id)
             image_outcomes.append(entry)
 
-    content_requests, tables = ast_to_requests(nodes, start_index=1, image_uris=image_uris)
+    content_requests, tables = ast_to_requests(nodes, start_index=1, image_uris=placeholder_uris)
+
+    # Swap each request's placeholder URI for the real one, recording which
+    # image produced that exact request *object* (by its own id(), stable
+    # across the `list(content_requests)` shallow copy below) so the retry
+    # loop can trace a failure back to the right image without relying on URI
+    # or position, both of which two images can share (see the comment above).
+    placeholder_to_img_id = {
+        placeholder: img_id for img_id, placeholder in placeholder_uris.items()
+    }
+    request_id_to_img_id: dict[int, int] = {}
+    for req in content_requests:
+        inline = req.get("insertInlineImage")
+        if inline is None:
+            continue
+        img_id = placeholder_to_img_id.get(inline["uri"])
+        if img_id is not None:
+            request_id_to_img_id[id(req)] = img_id
+            inline["uri"] = real_uri_by_id[img_id]
+
     if content_requests:
         # A resolved image's URI is only proven *reachable to us*, not necessarily
         # fetchable by Google's own (unauthenticated, separate-network-path)
@@ -343,8 +372,8 @@ async def _apply_doc_content(
                 if bad_index is None or bad_index >= len(remaining_requests):
                     raise
                 bad_request = remaining_requests.pop(bad_index)
-                bad_uri = bad_request.get("insertInlineImage", {}).get("uri")
-                entry = uri_to_entry.get(bad_uri) if bad_uri else None
+                img_id = request_id_to_img_id.get(id(bad_request))
+                entry = entry_by_id.get(img_id) if img_id is not None else None
                 if entry is not None:
                     # fileId/shared are left as-is: a local-path/drive: source was
                     # genuinely uploaded and shared even though embedding it
@@ -2021,6 +2050,7 @@ def register(tool):
                 }
             )
 
+        doc_edit_error: str | None = None
         try:
             await execute_in_thread(
                 docs_service.documents()
@@ -2029,17 +2059,21 @@ def register(tool):
                 docs_service,
             )
         except Exception as e:
-            for placement in ready:
-                entry = placement["entry"]
-                entry.pop("fileId", None)
-                entry["error"] = f"doc edit failed: {e}"
-                outcomes[placement["index"]] = entry
-            return {"docId": doc_id, "results": outcomes}
+            doc_edit_error = str(e)
 
         for placement in ready:
-            placement["entry"]["index"] = placement["marker_start"]
-            placement["entry"]["shared"] = True
-            outcomes[placement["index"]] = placement["entry"]
+            entry = placement["entry"]
+            # fileId/shared are kept regardless of doc_edit_error: a failed embed
+            # doesn't undo the upload+share that already succeeded, so the file is
+            # still genuinely world-readable and the caller needs fileId to trace
+            # it — silently dropping both here would leave it orphaned with zero
+            # signal (PR #502 review round 1, finding #1).
+            entry["shared"] = True
+            if doc_edit_error is not None:
+                entry["error"] = f"doc edit failed: {doc_edit_error}"
+            else:
+                entry["index"] = placement["marker_start"]
+            outcomes[placement["index"]] = entry
 
         if revoke_sharing:
 
@@ -2060,13 +2094,17 @@ def register(tool):
                     placement["entry"]["revoke_error"] = str(e)
 
             # return_exceptions=True: _revoke already catches its own errors, same
-            # rationale as the upload/share gather above.
+            # rationale as the upload/share gather above. Runs regardless of
+            # doc_edit_error — an image that failed to embed was still genuinely
+            # uploaded and shared, so a failed embed must not skip cleanup of that
+            # real, temporary anyone:reader grant.
             await asyncio.gather(*(_revoke(p) for p in ready), return_exceptions=True)
 
-        lc.doc_cache.mark_dirty(doc_id)
+        if doc_edit_error is None:
+            lc.doc_cache.mark_dirty(doc_id)
         logger.debug(
             "insert_local_images: %d/%d images placed in doc %s",
-            len(ready),
+            0 if doc_edit_error is not None else len(ready),
             len(images),
             doc_id,
         )
