@@ -60,7 +60,7 @@ ignore = ["E501"]
 
 [dependency-groups]
 dev = [
-    "mkdocs>=1.6.0",
+    "mkdocs>=1.6.1",
     "mkdocs-material>=9.5.0",
     "mike>=2.1.0",
     "pre-commit>=4.6.0",
