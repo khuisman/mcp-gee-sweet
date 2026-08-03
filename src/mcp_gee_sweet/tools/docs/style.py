@@ -346,6 +346,12 @@ def register(tool):
               {"row_index": 0, "column_index": 0,
                "border_bottom": {"color": {"red": 0, "green": 0, "blue": 0}, "width": 1.0}}
             ]
+
+        For form-style column alignment (labels/values lined up without a visible
+        table, since tabStops is read-only — #404), zero padding on every cell is
+        the confirmed part of the recipe; whether border_width: 0 also suppresses
+        a table's default visible border is not yet confirmed live. See
+        docs/design/borderless-table-columns.md.
         """
         lc = ctx.request_context.lifespan_context
         if not cells:
