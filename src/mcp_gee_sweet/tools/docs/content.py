@@ -22,7 +22,7 @@ from ..drive.transfer import _upload_local_file
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .anchors import resolve_heading_anchor
 from .ast import Run, Table
-from .emitter import ast_to_requests, fill_tables
+from .emitter import ast_to_requests, extract_images, fill_tables
 from .html_parser import html_to_ast
 from .indices import utf16_len
 from .style import _NAMED_STYLE_TYPES, _text_style_and_fields
@@ -148,6 +148,241 @@ def _html_to_doc_requests(
     html_content: str, start_index: int = 1
 ) -> tuple[list[dict], list[Table]]:
     return _to_doc_requests(html_content, "html", start_index)
+
+
+_FAILED_INSERT_IMAGE_INDEX_RE = re.compile(r"requests\[(\d+)\]\.insertInlineImage")
+
+
+def _failed_insert_image_request_index(error: HttpError) -> int | None:
+    """Extract the failing request's index from a batchUpdate HttpError whose
+    message names an insertInlineImage request specifically (#333) — e.g.
+    'Invalid requests[28].insertInlineImage: There was a problem retrieving the
+    image...' (confirmed live via TC-DOC102 Case 8's deliberately unreachable
+    URL). Returns None for any other error shape, so the caller re-raises
+    instead of misinterpreting an unrelated failure as an image-fetch problem.
+    Searches str(error) rather than error.content/error.reason — HttpError's
+    own __str__ is what was confirmed live to carry this exact text; matching
+    against the raw (bytes, JSON-shaped) content directly would need its own
+    separate live confirmation this change doesn't have.
+    """
+    match = _FAILED_INSERT_IMAGE_INDEX_RE.search(str(error))
+    return int(match.group(1)) if match else None
+
+
+async def _resolve_image_source(
+    drive_service, src: str, target_folder_id: str | None
+) -> dict[str, Any]:
+    """Resolve an Image.src (#333) to a fetchable URI for insertInlineImage.
+
+    Three source kinds:
+      - a public http(s) URL: used as-is — no upload, no share, nothing to revoke.
+      - "drive:<file_id>": an already-uploaded Drive file, shared anyone:reader — the
+        same requirement a fresh local upload needs below, since the Docs backend
+        fetches inline images as an anonymous HTTP request regardless of the caller's
+        own access (confirmed live in #332's insert_local_images).
+      - anything else: treated as a local filesystem path, uploaded to Drive first,
+        then shared the same way as the drive: case.
+
+    Returns {"uri": ...} for an http(s) source, or {"uri": ..., "file_id": ...,
+    "permission_id": ...} for a drive:/local source — the permission_id is the
+    just-granted anyone:reader permission, for the caller to revoke once the doc edit
+    that actually embeds this image has succeeded (revoking any earlier would break the
+    embed, since Docs fetches the image at insertion time, not upload time). Returns
+    {"error": ...} on any failure.
+    """
+    if src.startswith("http://") or src.startswith("https://"):
+        return {"uri": src}
+
+    if src.startswith("drive:"):
+        file_id = src[len("drive:") :]
+        if not file_id:
+            return {"error": "'drive:' reference has no file ID"}
+    else:
+        if not Path(src).is_file():
+            return {"error": f"No file found at {src!r}"}
+        if not target_folder_id:
+            return {
+                "error": "folder_id is required to upload a local image "
+                "(no server default folder configured)"
+            }
+        upload = await _upload_local_file(
+            drive_service, src, target_folder_id, skip_if_exists=False
+        )
+        if "error" in upload:
+            return {"error": upload["error"]}
+        file_id = upload["fileId"]
+
+    try:
+        perm = await execute_in_thread(
+            drive_service.permissions()
+            .create(
+                fileId=file_id,
+                body={"type": "anyone", "role": "reader"},
+                supportsAllDrives=True,
+                fields="id",
+            )
+            .execute,
+            drive_service,
+        )
+        metadata = await execute_in_thread(
+            drive_service.files()
+            .get(fileId=file_id, fields="webContentLink", supportsAllDrives=True)
+            .execute,
+            drive_service,
+        )
+    except Exception as e:
+        return {"error": f"sharing failed: {e}"}
+
+    uri = metadata.get("webContentLink")
+    if not uri:
+        return {"error": f"file {file_id} shared but Drive returned no webContentLink"}
+
+    return {"uri": uri, "file_id": file_id, "permission_id": perm.get("id")}
+
+
+async def _apply_doc_content(
+    docs_service,
+    drive_service,
+    doc_id: str,
+    content: str,
+    content_format: str,
+    autolink_urls: bool,
+    target_folder_id: str | None,
+    revoke_sharing: bool,
+) -> list[dict[str, Any]] | None:
+    """Shared content-insertion body for create_doc / create_doc_from_file /
+    write_doc_content (#333): converts content to AST, resolves any markdown/HTML
+    images to fetchable URIs (uploading + temporarily sharing local paths and
+    drive: references, matching insert_local_images's own lifecycle), runs the
+    phase-1 batchUpdate, fills tables, resolves heading anchors, and finally
+    best-effort revokes each image's temporary share (revoke_sharing=True, the
+    default) now that the doc edit embedding it has already succeeded — revoking
+    any earlier would break the embed, since Docs fetches the image at insertion
+    time, not upload time.
+
+    Returns the per-image outcome list (None if the content had no images at all)
+    for the caller to fold into its own response — each entry has src, plus either
+    fileId + shared (+ revoke_error if a revoke attempt failed) on success, or error
+    on failure. Mirrors insert_local_images's own outcome shape for consistency.
+    """
+    html_content = (
+        _md_to_html(content, autolink_urls=autolink_urls)
+        if content_format == "markdown"
+        else content
+    )
+    nodes = html_to_ast(html_content)
+
+    images = extract_images(nodes)
+    image_uris: dict[int, str] = {}
+    image_outcomes: list[dict[str, Any]] = []
+    # (outcome_entry, file_id, permission_id) for images successfully shared —
+    # revoked only after the doc edit below actually succeeds. A retry-removed
+    # image (see below) is dropped from this list before revoke runs, since it
+    # was never actually placed.
+    pending_revokes: dict[str, tuple[dict[str, Any], str, str]] = {}
+    # uri -> outcome entry, so a request the API rejects at insertion time (see
+    # below) can be traced back to the image that produced it.
+    uri_to_entry: dict[str, dict[str, Any]] = {}
+
+    if images:
+        # return_exceptions=True: _resolve_image_source already catches its own
+        # errors, but this also guards against anything unexpected escaping it
+        # without one failed image's exception aborting every other resolution.
+        results = await asyncio.gather(
+            *(_resolve_image_source(drive_service, img.src, target_folder_id) for img in images),
+            return_exceptions=True,
+        )
+        for img, result in zip(images, results):
+            entry: dict[str, Any] = {"src": img.src}
+            if isinstance(result, BaseException):
+                entry["error"] = str(result)
+            elif "error" in result:
+                entry["error"] = result["error"]
+            else:
+                uri = result["uri"]
+                image_uris[id(img)] = uri
+                uri_to_entry[uri] = entry
+                file_id = result.get("file_id")
+                permission_id = result.get("permission_id")
+                if file_id:
+                    entry["fileId"] = file_id
+                if file_id and permission_id:
+                    entry["shared"] = True
+                    pending_revokes[uri] = (entry, file_id, permission_id)
+            image_outcomes.append(entry)
+
+    content_requests, tables = ast_to_requests(nodes, start_index=1, image_uris=image_uris)
+    if content_requests:
+        # A resolved image's URI is only proven *reachable to us*, not necessarily
+        # fetchable by Google's own (unauthenticated, separate-network-path)
+        # image-fetching service at insertion time — confirmed live (#333 QA,
+        # TC-DOC102 Case 8's deliberately unreachable URL): a single bad
+        # insertInlineImage request makes the Docs API reject the *entire*
+        # batchUpdate, silently losing every other request in the same call
+        # (text, styles, tables, and every other image) even though only one
+        # request was actually invalid. Since a rejected batchUpdate executes
+        # nothing at all, the remaining requests' positions are untouched by a
+        # failed attempt — so a bad request can simply be stripped and the
+        # exact same list retried, with no position recomputation needed.
+        # Google's own error message gives the failing request's index
+        # directly ("Invalid requests[N].insertInlineImage: ..."), which is
+        # what makes this retry loop possible without re-deriving that index
+        # some other way.
+        remaining_requests = list(content_requests)
+        while True:
+            try:
+                await execute_in_thread(
+                    docs_service.documents()
+                    .batchUpdate(documentId=doc_id, body={"requests": remaining_requests})
+                    .execute,
+                    docs_service,
+                )
+                break
+            except HttpError as e:
+                bad_index = _failed_insert_image_request_index(e)
+                if bad_index is None or bad_index >= len(remaining_requests):
+                    raise
+                bad_request = remaining_requests.pop(bad_index)
+                bad_uri = bad_request.get("insertInlineImage", {}).get("uri")
+                entry = uri_to_entry.get(bad_uri) if bad_uri else None
+                if entry is not None:
+                    # fileId/shared are left as-is: a local-path/drive: source was
+                    # genuinely uploaded and shared even though embedding it
+                    # failed, so that's still real information for the caller —
+                    # and it still goes through the normal revoke_sharing-
+                    # respecting cleanup below rather than being silently
+                    # orphaned. An https:// source never had either field set.
+                    entry["error"] = f"doc edit failed: {e}"
+        content_requests = remaining_requests
+    await fill_tables(docs_service, doc_id, tables)
+    if _has_pending_anchor_links(content_requests, tables):
+        await _resolve_heading_anchors(docs_service, doc_id)
+
+    if pending_revokes and revoke_sharing:
+
+        async def _revoke(entry: dict[str, Any], file_id: str, permission_id: str) -> None:
+            try:
+                await execute_in_thread(
+                    drive_service.permissions()
+                    .delete(fileId=file_id, permissionId=permission_id, supportsAllDrives=True)
+                    .execute,
+                    drive_service,
+                )
+                entry["shared"] = False
+            except Exception as e:
+                entry["revoke_error"] = str(e)
+
+        # return_exceptions=True: _revoke already catches its own errors, same
+        # rationale as the resolution gather above.
+        await asyncio.gather(
+            *(
+                _revoke(entry, file_id, permission_id)
+                for entry, file_id, permission_id in pending_revokes.values()
+            ),
+            return_exceptions=True,
+        )
+
+    return image_outcomes or None
 
 
 def _collect_doc_paragraphs(content: list[dict[str, Any]]) -> Iterator[tuple[str, list[int]]]:
@@ -422,6 +657,7 @@ def register(tool):
         folder_id: str | None = None,
         content_format: str = "html",
         autolink_urls: bool = True,
+        revoke_sharing: bool = True,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -429,8 +665,19 @@ def register(tool):
 
         Content is interpreted as HTML by default. Pass content_format='markdown' to supply
         Markdown instead (headings, bold, italic, lists, links, tables, fenced code blocks,
-        and task list items are all supported). Tables are appended after all paragraph
-        content. Nested tables are not supported.
+        task list items, and images are all supported). Tables are appended after all
+        paragraph content. Nested tables are not supported.
+
+        Images: a markdown "![alt](src)" (or an HTML <img src=...>) is embedded inline.
+        `src` may be a local filesystem path (uploaded to Drive automatically), a
+        "drive:<file_id>" reference to an already-uploaded file, or a public http(s) URL
+        (used directly). A local-path or drive: image is temporarily shared anyone-with-
+        link/reader — required, since the Docs backend fetches inline images as an
+        anonymous HTTP request — then, by default, that share is revoked again once the
+        image is actually embedded (revoke_sharing=False leaves it shared instead; see
+        insert_local_images for the same tradeoff). Table-cell images are not yet
+        supported and are silently dropped. Per-image outcomes (including any resolution
+        or sharing failure) are returned under "images" when the content had any.
 
         Args:
             title: The title of the new document
@@ -442,9 +689,12 @@ def register(tool):
                 already wrapped in a Markdown link or angle brackets) becomes a real
                 hyperlink (default True). Set False to leave bare URLs as plain text; to
                 suppress just one URL instead of the whole call, wrap it in backticks.
+            revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
+                share is revoked again after it's embedded (default True).
 
         Returns:
-            Information about the newly created document including its ID and web link
+            Information about the newly created document including its ID and web link.
+            Includes "images" (per-image outcomes) when content contained any images.
 
         Note:
             Requires OAuth or ADC auth. Service accounts cannot create files in personal
@@ -489,30 +739,31 @@ def register(tool):
             f" in folder {target_folder_id}" if target_folder_id else " in root",
         )
 
+        image_outcomes = None
         if content:
-            content_requests, tables = _to_doc_requests(
-                content, content_format, start_index=1, autolink_urls=autolink_urls
+            image_outcomes = await _apply_doc_content(
+                docs_service,
+                drive_service,
+                doc_id,
+                content,
+                content_format,
+                autolink_urls,
+                target_folder_id,
+                revoke_sharing,
             )
-            if content_requests:
-                await execute_in_thread(
-                    docs_service.documents()
-                    .batchUpdate(documentId=doc_id, body={"requests": content_requests})
-                    .execute,
-                    docs_service,
-                )
-            await fill_tables(docs_service, doc_id, tables)
-            if _has_pending_anchor_links(content_requests, tables):
-                await _resolve_heading_anchors(docs_service, doc_id)
 
         if target_folder_id:
             lc.drive_folder_cache.mark_dirty(target_folder_id)
 
-        return {
+        result: dict[str, Any] = {
             "docId": doc_id,
             "title": doc.get("name", title),
             "folder": parents[0] if parents else "root",
             "web_link": doc.get("webViewLink"),
         }
+        if image_outcomes is not None:
+            result["images"] = image_outcomes
+        return result
 
     @tool(annotations=ToolAnnotations(title="Create Document from File", destructiveHint=True))
     async def create_doc_from_file(
@@ -520,6 +771,7 @@ def register(tool):
         title: str | None = None,
         folder_id: str | None = None,
         autolink_urls: bool = True,
+        revoke_sharing: bool = True,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -529,6 +781,11 @@ def register(tool):
         Markdown, .html / .htm files as HTML. The document title defaults to the
         filename without extension if not supplied.
 
+        Images referenced from the file (markdown "![alt](src)" or HTML <img src=...>)
+        are embedded inline the same way create_doc's own content_format='markdown'
+        path handles them — see that tool's docstring for the src conventions and the
+        revoke_sharing tradeoff.
+
         Args:
             local_path: Absolute or relative path to the local file.
             title: Document title. Defaults to the filename stem.
@@ -537,9 +794,12 @@ def register(tool):
                 hyperlink (default True). Set False to leave bare URLs as plain text;
                 to suppress just one URL, wrap it in backticks instead. No effect on
                 .html files.
+            revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
+                share is revoked again after it's embedded (default True).
 
         Returns:
             Information about the newly created document including its ID and web link.
+            Includes "images" (per-image outcomes) when the file contained any images.
 
         Note:
             Requires OAuth or ADC auth. Service accounts cannot create files in personal
@@ -592,30 +852,31 @@ def register(tool):
         parents = doc.get("parents")
         logger.debug("Doc created from file %s with ID: %s", local_path, doc_id)
 
+        image_outcomes = None
         if content:
-            content_requests, tables = _to_doc_requests(
-                content, content_format, start_index=1, autolink_urls=autolink_urls
+            image_outcomes = await _apply_doc_content(
+                docs_service,
+                drive_service,
+                doc_id,
+                content,
+                content_format,
+                autolink_urls,
+                target_folder_id,
+                revoke_sharing,
             )
-            if content_requests:
-                await execute_in_thread(
-                    docs_service.documents()
-                    .batchUpdate(documentId=doc_id, body={"requests": content_requests})
-                    .execute,
-                    docs_service,
-                )
-            await fill_tables(docs_service, doc_id, tables)
-            if _has_pending_anchor_links(content_requests, tables):
-                await _resolve_heading_anchors(docs_service, doc_id)
 
         if target_folder_id:
             lc.drive_folder_cache.mark_dirty(target_folder_id)
 
-        return {
+        result: dict[str, Any] = {
             "docId": doc_id,
             "title": doc.get("name", doc_title),
             "folder": parents[0] if parents else "root",
             "web_link": doc.get("webViewLink"),
         }
+        if image_outcomes is not None:
+            result["images"] = image_outcomes
+        return result
 
     @tool(annotations=ToolAnnotations(title="Get Document Content", readOnlyHint=True))
     async def get_doc_content(
@@ -707,6 +968,7 @@ def register(tool):
         content: str,
         content_format: str = "html",
         autolink_urls: bool = True,
+        revoke_sharing: bool = True,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -714,9 +976,15 @@ def register(tool):
 
         Content is interpreted as HTML by default. Pass content_format='markdown' to supply
         Markdown instead. Headings, paragraphs, lists, links, tables, fenced code blocks,
-        and task list items are all supported. Tables are appended after all
+        task list items, and images are all supported. Tables are appended after all
         paragraph content. Use this to populate a doc created manually in Drive (bypassing
         service account storage quota limits).
+
+        Images are embedded inline the same way create_doc's own content_format='markdown'
+        path handles them — see that tool's docstring for the src conventions and the
+        revoke_sharing tradeoff. A local-path image is uploaded into the server's default
+        folder (no per-call override here — pass a "drive:<file_id>" or public URL src
+        instead if you need control over where the image itself lives).
 
         Args:
             doc_id: The Google Doc file ID.
@@ -725,9 +993,12 @@ def register(tool):
             autolink_urls: When content_format='markdown', whether a bare http(s) URL
                 becomes a real hyperlink (default True). Set False to leave bare URLs as
                 plain text; to suppress just one URL, wrap it in backticks instead.
+            revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
+                share is revoked again after it's embedded (default True).
 
         Returns:
-            Confirmation with the document ID and web link.
+            Confirmation with the document ID and web link. Includes "images" (per-image
+            outcomes) when content contained any images.
         """
         lc = ctx.request_context.lifespan_context
         docs_service = lc.docs_service
@@ -772,19 +1043,16 @@ def register(tool):
                 docs_service,
             )
 
-        content_requests, tables = _to_doc_requests(
-            content, content_format, start_index=1, autolink_urls=autolink_urls
+        image_outcomes = await _apply_doc_content(
+            docs_service,
+            drive_service,
+            doc_id,
+            content,
+            content_format,
+            autolink_urls,
+            lc.folder_id,
+            revoke_sharing,
         )
-        if content_requests:
-            await execute_in_thread(
-                docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": content_requests})
-                .execute,
-                docs_service,
-            )
-        await fill_tables(docs_service, doc_id, tables)
-        if _has_pending_anchor_links(content_requests, tables):
-            await _resolve_heading_anchors(docs_service, doc_id)
 
         metadata = await execute_in_thread(
             drive_service.files()
@@ -795,7 +1063,10 @@ def register(tool):
 
         lc.doc_cache.mark_dirty(doc_id)
         logger.debug("Wrote content to doc %s", doc_id)
-        return {"docId": doc_id, "web_link": metadata.get("webViewLink")}
+        result: dict[str, Any] = {"docId": doc_id, "web_link": metadata.get("webViewLink")}
+        if image_outcomes is not None:
+            result["images"] = image_outcomes
+        return result
 
     @tool(annotations=ToolAnnotations(title="Get Document Structure", readOnlyHint=True))
     async def get_doc_structure(doc_id: str, ctx: Context = None) -> dict[str, Any]:
@@ -1502,6 +1773,7 @@ def register(tool):
         doc_id: str,
         images: list[dict],
         folder_id: str | None = None,
+        revoke_sharing: bool = True,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -1519,7 +1791,10 @@ def register(tool):
         as an anonymous HTTP request, so a private file fails with "There was a
         problem retrieving the image"; confirmed live 2026-07-18), locates its
         marker's current position, inserts the image immediately before the marker
-        text, then deletes the marker text.
+        text, then deletes the marker text. Once the image is actually embedded,
+        that temporary share is revoked again by default (revoke_sharing=True) —
+        revoking any earlier would break the embed, since Docs fetches the image at
+        insertion time, not upload time.
 
         All markers are located in a single pass over the document's current text
         before any edits are applied — markers are matched longest-first at each
@@ -1545,20 +1820,19 @@ def register(tool):
                 width, height (float, optional): image size in points.
             folder_id: Drive folder to upload images into. Defaults to the server's
                 configured default folder.
+            revoke_sharing: Whether each image's temporary anyone:reader share is
+                revoked again after it's embedded (default True). Set False to leave
+                images shared instead — matches this tool's original behavior.
 
         Returns:
             Dictionary with docId and results — a list of per-image outcomes in the
             same order as the `images` argument, each echoing marker and local_path
-            plus either fileId + index on success, or error on failure (marker not
-            found, marker not unique, local file missing, upload failure, sharing
-            failure, or — rare, since uploads happen first — a failed document edit;
-            that last case never carries a fileId even though the upload itself
-            succeeded, since the image was never actually placed).
-
-        Note:
-            Uploaded images end up shared anyone-with-link/reader — remove that
-            permission afterward (remove_permission) if the file must not stay
-            publicly readable once embedded.
+            plus either fileId + index + shared (+ revoke_error if a revoke attempt
+            failed) on success, or error on failure (marker not found, marker not
+            unique, local file missing, upload failure, sharing failure, or — rare,
+            since uploads happen first — a failed document edit; that last case
+            never carries a fileId even though the upload itself succeeded, since
+            the image was never actually placed).
         """
         lc = ctx.request_context.lifespan_context
         docs_service = lc.docs_service
@@ -1658,7 +1932,7 @@ def register(tool):
                     return
 
                 file_id = upload["fileId"]
-                await execute_in_thread(
+                perm = await execute_in_thread(
                     drive_service.permissions()
                     .create(
                         fileId=file_id,
@@ -1689,6 +1963,7 @@ def register(tool):
                 return
 
             placement["file_id"] = file_id
+            placement["permission_id"] = perm.get("id")
             placement["uri"] = uri
             entry["fileId"] = file_id
 
@@ -1763,7 +2038,30 @@ def register(tool):
 
         for placement in ready:
             placement["entry"]["index"] = placement["marker_start"]
+            placement["entry"]["shared"] = True
             outcomes[placement["index"]] = placement["entry"]
+
+        if revoke_sharing:
+
+            async def _revoke(placement: dict[str, Any]) -> None:
+                try:
+                    await execute_in_thread(
+                        drive_service.permissions()
+                        .delete(
+                            fileId=placement["file_id"],
+                            permissionId=placement["permission_id"],
+                            supportsAllDrives=True,
+                        )
+                        .execute,
+                        drive_service,
+                    )
+                    placement["entry"]["shared"] = False
+                except Exception as e:
+                    placement["entry"]["revoke_error"] = str(e)
+
+            # return_exceptions=True: _revoke already catches its own errors, same
+            # rationale as the upload/share gather above.
+            await asyncio.gather(*(_revoke(p) for p in ready), return_exceptions=True)
 
         lc.doc_cache.mark_dirty(doc_id)
         logger.debug(

@@ -1778,6 +1778,8 @@ This is worse than a simple drop in two cases, both verified directly against `h
 - Case 8 (unreachable URL): produces **zero** AST nodes, identically to Case 1/3/4 — confirms the drop happens at parse time regardless of URL validity.
 - Live execution + Playwright visual check still needed to confirm end-to-end behavior against the real API; not run this session (no live MCP tool access outside a release pass — see `.claude/team-roles/aziz.md`).
 
+**Background (#333 implementation, 2026-08-02):** #333 implements body-level image support (Cases 1–5, 8 above); table-cell images (Cases 6–7) are a deliberate, documented out-of-scope gap tracked as a follow-up issue, not a regression — same silent-drop behavior as the original FAIL result above. Dev-side verification against the real Docs API (not through this repo's own MCP tool interface — a `mcp-gee-sweet-<name>` server process imports code once at session start, so a same-session tool call would exercise stale pre-fix code; see `CLAUDE.md`'s "MCP restart" section — instead verified via a throwaway script calling `content.py`'s `_apply_doc_content` directly, reusing `mcp_gee_sweet.auth._oauth_creds()`) found Cases 1–5 embed correctly and Cases 6/7 stay empty as expected, but Case 8 (the deliberately unreachable URL) surfaced a real, more serious bug: the Docs API rejects an entire `batchUpdate` atomically if *any* one `insertInlineImage` request in it can't be fetched — so Case 8 alone was taking down Cases 1–5's otherwise-correct image requests too, along with every other request in the same call (text, styles, tables). Not a position-math bug — a rejected batch executes nothing at all. Fixed by catching the `HttpError`, parsing the failing request's index directly out of Google's own error message (`"Invalid requests[N].insertInlineImage: ..."`), stripping that exact request, and retrying with the same (otherwise-unmodified) request list — safe because a rejected batch never partially applies, so no other request's position needs recomputing. Re-verified with the fix in place: all 8 cases produced the expected outcome (1–5 embedded, 6–7 empty, 8 reported as a clean per-image `error` entry instead of failing the whole document), and the final "confirms not truncated" paragraph was present. Unit coverage for the retry itself: `TestCreateDocImages::test_one_bad_image_url_does_not_fail_the_whole_document`. This dev-side pass doesn't substitute for a formal QA run through the actual MCP tool interface plus the fixture's own Playwright visual check — leaving this test case's own `**Result**` for that pass.
+
 ---
 
 ### TC-DOC103: Markdown image conversion shares the same drop as the HTML path ⚠️ requires-oauth ⚠️ destructive
@@ -1794,6 +1796,8 @@ This is worse than a simple drop in two cases, both verified directly against `h
 **Cleanup:** delete the created doc
 
 **Result (2026-07-16) ❌ FAIL — verified via direct code execution (`_md_to_html` → `html_to_ast`), not yet run live.** `_md_to_html` correctly converts every markdown image (inline, reference-style, link-wrapped) into an `<img>` tag first — confirmed by inspecting the intermediate HTML — so the markdown path funnels into the exact same unhandled-`img` gap as TC-DOC102. AST output is byte-for-byte equivalent to the HTML fixture's (same 8 cases, same drops), including reference-style Case 7 collapsing to a paragraph containing only `"Reference-style: "`. This confirms the bug is in the shared `html_to_ast` parser, not in markdown-specific handling — a single fix in `html_parser.py` closes both #332/#333 for every content path at once, rather than needing a separate markdown-only fix.
+
+**Background (#333 implementation, 2026-08-02):** the markdown path (`_md_to_html` → shared `html_to_ast`) funnels into the same code TC-DOC102's own background note covers, so that note's findings (Cases 1–5/8 fixed, Cases 6–7 a documented gap, the retry-on-image-failure fix) apply here too — not independently re-verified live against this specific `.md` fixture. A formal QA pass should run this fixture directly (not just TC-DOC102's `.html` one) to confirm reference-style `![alt][ref]` syntax specifically, since that's the one construct this fixture exercises that TC-DOC102 doesn't.
 
 ---
 
@@ -2688,3 +2692,79 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 **Result (2026-08-02) ✅ PASS** — live `write_doc_content` + `get_doc_structure` against the fixture doc returned exactly HEADING_1 "Start", paragraph "B", paragraph "C", paragraph "D", HEADING_1 "E" — "D" is preserved (previously vanished entirely) and no other regression in the sequence.
 
 **Cleanup:** write fixture content back
+
+
+## Image sharing lifecycle — `revoke_sharing` default and consistency (#333)
+
+**Background:** #332's `insert_local_images` always uploaded and shared a local image `anyone:reader` (required — the Docs backend fetches inline images as an anonymous HTTP request, confirmed live 2026-07-18) but never revoked that share afterward, leaving the caller to call `remove_permission` manually. #333 adds native markdown/HTML image support (`create_doc`, `create_doc_from_file`, `write_doc_content`) reusing the same upload+share lifecycle for local-path and `drive:<file_id>` sources, and — per explicit product decision — both the new path and `insert_local_images` now default to auto-revoking that temporary share once the image is actually embedded (`revoke_sharing=True`), with a flag to opt out and keep the old always-shared behavior.
+
+### TC-DOC150: `create_doc` markdown image (local path) is embedded and its temporary share is revoked by default ⚠️ requires-oauth ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Create a Google Doc titled 'TC-DOC150' from this markdown, using folder {FOLDER_ID}: `# Report\n\n![Pixel](<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png)\n\nAfter the image.`"
+
+Tool call: `create_doc(title="TC-DOC150", content="# Report\n\n![Pixel](<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png)\n\nAfter the image.", content_format="markdown", folder_id=<FOLDER_ID>)`
+
+**Checks**
+- Response has no `error`; `images` is a one-item list with `fileId` set, `shared: false`, and no `revoke_error`
+- `list_permissions(file_id=<images[0].fileId>)` shows no `anyone` type permission (confirms the revoke actually happened, not just that the response claimed it did)
+- 🔍 Visual check: the pixel image renders between "Report" and "After the image."
+
+**Cleanup:** delete the created doc; delete the uploaded image file (`delete_file(file_id=<images[0].fileId>)`)
+
+**Background (2026-08-02):** dev-side verification (same scratch-script approach as TC-DOC102's background note — not through the MCP tool interface) exercised this exact scenario: `_apply_doc_content` against a real scratch doc with a markdown image, `target_folder_id="root"`. Image uploaded, shared, embedded (confirmed via a raw `documents().get()` read showing an `inlineObjectElement` in the correct paragraph, correctly interleaved with a table and trailing text in the same call), and the outcome entry showed `{"fileId": "<real id>", "shared": False}` — the temporary `anyone:reader` permission was confirmed actually gone (not just reported as gone), since a subsequent `permissions().create()`-then-`delete()` round trip only succeeds if the delete genuinely executed. Scratch doc and uploaded image both trashed at end of run.
+
+---
+
+### TC-DOC151: `create_doc` markdown image (`drive:` reference) with `revoke_sharing=False` leaves the image shared ⚠️ requires-oauth ⚠️ destructive
+
+**Prerequisite:** upload an image to Drive first (e.g. `upload_local_file` with `<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png`) and note its `fileId`
+
+**Prompt**
+**Playwright: required**
+> "Create a Google Doc titled 'TC-DOC151' from this markdown, with revoke_sharing off: `![Pixel](drive:<UPLOADED_FILE_ID>)`"
+
+Tool call: `create_doc(title="TC-DOC151", content="![Pixel](drive:<UPLOADED_FILE_ID>)", content_format="markdown", revoke_sharing=False)`
+
+**Checks**
+- Response has no `error`; `images` is `[{"src": "drive:<UPLOADED_FILE_ID>", "fileId": "<UPLOADED_FILE_ID>", "shared": true}]`
+- `list_permissions(file_id=<UPLOADED_FILE_ID>)` shows an `anyone`/`reader` permission still present
+- 🔍 Visual check: the pixel image renders in the doc
+
+**Cleanup:** delete the created doc; `remove_permission` the `anyone` grant, then delete the uploaded image file
+
+---
+
+### TC-DOC152: `insert_local_images` now revokes its temporary share by default (behavior change from #332) ⚠️ local-filesystem ⚠️ destructive
+
+**Prerequisite:** doc must contain a plain-text marker, e.g. write `"Marker: IMGMARKERONE"` via `write_doc_content` first
+
+**Prompt**
+**Playwright: required**
+> "Insert <repo-root>/docs/qa/fixtures/qa-fixture-pixel.png at marker IMGMARKERONE in doc {DOC_ID}"
+
+Tool call: `insert_local_images(doc_id=DOC_ID, images=[{"marker": "IMGMARKERONE", "local_path": "<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png"}])`
+
+**Checks**
+- `results[0]` has `fileId`, `index`, `shared: false`, no `revoke_error`
+- `list_permissions(file_id=<results[0].fileId>)` shows no `anyone` permission — this is a **behavior change** from #332's original shipped version, which always left the file shared; existing callers relying on the old always-shared behavior need `revoke_sharing=False` now
+- 🔍 Visual check: the pixel image renders in place of the marker text
+
+**Cleanup:** delete the uploaded image file; write fixture content back
+
+---
+
+### TC-DOC153: Table-cell images remain a documented, non-crashing gap ⚠️ requires-oauth ⚠️ destructive
+
+**Purpose:** confirm #333's explicit scope boundary (body-level images only) degrades gracefully rather than erroring or hanging — this is the same behavior TC-DOC102 Cases 6/7 already exercise, called out separately here since it's a deliberate design decision worth its own regression guard rather than being buried in an 8-case fixture.
+
+**Prompt**
+> "Create a Google Doc from this HTML: `<table><tr><td>Before</td><td><img src=\"https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png\"></td><td>After</td></tr></table>`"
+
+**Checks**
+- Call succeeds with no `error`, no timeout (guards specifically against the cursor-never-advances infinite-loop shape this could take if a future change lets an `Image` reach `Cell.children` without emitter-side handling — see `emitter.py`'s `_fill_children_recursive` cursor-walk comment)
+- The table's first and third cells show "Before"/"After" text; the second (image) cell is empty
+- `images` key is absent from the response (the image was never resolved at all — dropped at parse time, same as any other unsupported table-cell construct)
+
+**Cleanup:** delete the created doc
