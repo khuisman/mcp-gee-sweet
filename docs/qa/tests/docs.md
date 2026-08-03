@@ -2715,6 +2715,8 @@ Tool call: `create_doc(title="TC-DOC150", content="# Report\n\n![Pixel](<repo-ro
 
 **Background (2026-08-02):** dev-side verification (same scratch-script approach as TC-DOC102's background note — not through the MCP tool interface) exercised this exact scenario: `_apply_doc_content` against a real scratch doc with a markdown image, `target_folder_id="root"`. Image uploaded, shared, embedded (confirmed via a raw `documents().get()` read showing an `inlineObjectElement` in the correct paragraph, correctly interleaved with a table and trailing text in the same call), and the outcome entry showed `{"fileId": "<real id>", "shared": False}` — the temporary `anyone:reader` permission was confirmed actually gone (not just reported as gone), since a subsequent `permissions().create()`-then-`delete()` round trip only succeeds if the delete genuinely executed. Scratch doc and uploaded image both trashed at end of run.
 
+**Result (2026-08-02) ✅ PASS — live via the actual `create_doc` MCP tool.** Response had no `error`; `images` was `[{"src": "<local path>", "fileId": "<real id>", "shared": false}]`, no `revoke_error`. `list_permissions` on the uploaded file's `fileId` showed only the owner and service-account permissions — no `anyone` grant. Playwright screenshot confirmed the pixel image renders between "Report" and "After the image." (visually a tiny dot, as expected for this 1×1 fixture with no explicit width/height). Doc and uploaded image trashed after the check.
+
 ---
 
 ### TC-DOC151: `create_doc` markdown image (`drive:` reference) with `revoke_sharing=False` leaves the image shared ⚠️ requires-oauth ⚠️ destructive
@@ -2753,6 +2755,8 @@ Tool call: `insert_local_images(doc_id=DOC_ID, images=[{"marker": "IMGMARKERONE"
 
 **Cleanup:** delete the uploaded image file; write fixture content back
 
+**Result (2026-08-02) ✅ PASS — live via the actual `insert_local_images` MCP tool**, run against a scratch doc (not the shared fixture doc) containing `Marker: IMGMARKERONE`. Note: the tool now requires `folder_id` ("folder_id is required (no server default folder configured)" when omitted) — this test case's own tool-call example above doesn't pass one; worth updating the case text separately, not blocking. With `folder_id` supplied: `results[0]` had `fileId`, `index`, `shared: false`, no `revoke_error`; `list_permissions` on the uploaded file showed no `anyone` permission, confirming the new revoke-by-default behavior change from #332. Visual check not captured (structural/permission checks were conclusive); scratch doc and uploaded image trashed after the check.
+
 ---
 
 ### TC-DOC153: Table-cell images remain a documented, non-crashing gap ⚠️ requires-oauth ⚠️ destructive
@@ -2768,3 +2772,5 @@ Tool call: `insert_local_images(doc_id=DOC_ID, images=[{"marker": "IMGMARKERONE"
 - `images` key is absent from the response (the image was never resolved at all — dropped at parse time, same as any other unsupported table-cell construct)
 
 **Cleanup:** delete the created doc
+
+**Result (2026-08-02) ✅ PASS — live via the actual `create_doc` MCP tool.** Call returned immediately with no `error` and no `images` key. `get_doc_structure` confirmed the table's cell 0 text is "Before", cell 2 text is "After", and cell 1 (the image cell) is empty (`""`). Doc trashed after the check.
