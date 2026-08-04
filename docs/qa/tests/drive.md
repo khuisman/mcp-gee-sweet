@@ -1473,6 +1473,24 @@ Delete both files from `{FOLDER_ID}`. Remove `/tmp/qa-folder-242/`.
 
 ---
 
+### TC-D243: convert=True — a second run against the same folder skips the already-converted file (PR #505 review, issue #411) ⚠️ local-filesystem
+**Background:** `upload_local_folder`'s `convert=True` skip check keys `existing_by_name` by Drive's *actual* returned file name but looks up entries by the local file's own name (`p.name`, extension included). Drive's native import-conversion strips the source extension from the converted copy's display name (confirmed live via TC-D215/TC-D242 — a converted `data.csv` shows up in Drive as `data`, not `data.csv`), so the lookup by `p.name` never matches a previously-converted file. A second `convert=True` run against the same folder is expected to re-convert and duplicate every file already converted by the first run.
+
+**Prompt**
+> Step 1: "Upload the directory `/tmp/qa-folder-243/` to {FOLDER_ID} with convert set to true" *(create the directory with a single `dup.csv`)*
+> Step 2: "Upload the directory `/tmp/qa-folder-243/` to {FOLDER_ID} with convert set to true again"
+
+**Checks**
+- Step 2's `dup.csv` appears in `skipped`, not `uploaded` — the already-converted file from step 1 should be recognized and not re-converted
+- `list_files` on `{FOLDER_ID}` shows exactly one converted Sheet from `dup.csv`, not two
+
+**Teardown**
+Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
+
+**Result — BLOCKED, not run.** PR #505's own `/code-review high` found this exact scenario broken by direct code inspection (line-level diff read, confirmed against the already-live-verified TC-D215/TC-D242 extension-stripping behavior) before this test case could be executed live — the sky server's Google OAuth token was expired/revoked (`invalid_grant`) at review time, blocking all live tool calls this pass. Sent back to the Dev per the code-review finding; this case should be run live once a fix lands and the server is re-authenticated.
+
+---
+
 ## `download_file`
 
 ### TC-D101: Download a non-Google file ⚠️ local-filesystem
