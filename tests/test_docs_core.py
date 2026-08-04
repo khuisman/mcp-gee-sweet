@@ -6,6 +6,7 @@ from mcp_gee_sweet.tools.docs.ast import (
     BulletItem,
     Cell,
     Heading,
+    Image,
     NamedBlock,
     Paragraph,
     Row,
@@ -26,6 +27,7 @@ from mcp_gee_sweet.tools.docs.emitter import (
     _run_group_fill_requests,
     _text_offset_since_last_table,
     ast_to_requests,
+    extract_images,
 )
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 
@@ -424,16 +426,22 @@ class TestHtmlToAst:
 
 
 class TestUnsupportedConstructPreservesParagraphBoundary:
-    """#401: a construct the converter can't represent (<img>, <hr>) must
-    leave behind an empty block rather than deleting the paragraph boundary
-    itself, so adjacent content doesn't fuse together."""
+    """#401: a construct the converter can't represent (<hr>) must leave
+    behind an empty block rather than deleting the paragraph boundary
+    itself, so adjacent content doesn't fuse together. <img> used to be in
+    this category too, but #333 makes it a genuinely supported construct —
+    see TestImageParsing below for its own coverage — so this class now
+    documents that its paragraph boundary is preserved by carrying the real
+    Image node forward, not by leaving an empty placeholder."""
 
-    def test_img_wrapped_in_paragraph_leaves_empty_paragraph(self):
+    def test_img_wrapped_in_paragraph_preserves_boundary_with_real_content(self):
         nodes = html_to_ast('<p>A</p><p><img src="x.png"></p><p>B</p>')
         assert len(nodes) == 3
         assert [isinstance(n, Paragraph) for n in nodes] == [True, True, True]
         assert nodes[0].runs[0].text == "A"
-        assert nodes[1].runs == []
+        assert len(nodes[1].runs) == 1
+        assert isinstance(nodes[1].runs[0], Image)
+        assert nodes[1].runs[0].src == "x.png"
         assert nodes[2].runs[0].text == "B"
 
     def test_bare_hr_between_paragraphs_leaves_empty_paragraph(self):
@@ -497,14 +505,31 @@ class TestUnsupportedConstructPreservesParagraphBoundary:
         # #401 follow-up (PR #406, TC-DOC136): _interrupt_open_block flushed
         # the currently-open block before descending into a nested construct
         # with preserve_if_empty always False, so a bullet whose only content
-        # was an unsupported <img> vanished entirely — not just the image —
-        # whenever it was interrupted by its own nested list instead of
-        # closing directly. TC-DOC135's own review round live-reproduced
-        # this exact gap.
-        html = '<ul><li><img src="x.png"><ul><li>nested</li></ul></li></ul>'
+        # was an unsupported construct vanished entirely — not just that
+        # construct's own content — whenever it was interrupted by its own
+        # nested list instead of closing directly. TC-DOC135's own review
+        # round live-reproduced this exact gap using <img> as the dropped
+        # construct; #333 makes <img> itself supported (see
+        # test_image_survives_interruption_by_nested_list below for that same
+        # shape with a real Image node preserved instead of an empty runs
+        # list) — a bare <hr> stands in here to keep covering a construct
+        # that's still genuinely dropped.
+        html = "<ul><li><hr><ul><li>nested</li></ul></li></ul>"
         nodes = html_to_ast(html)
         assert [isinstance(n, BulletItem) for n in nodes] == [True, True]
         assert nodes[0].runs == []
+        assert nodes[1].runs[0].text == "nested"
+
+    def test_image_survives_interruption_by_nested_list(self):
+        # #333 companion to the dropped-construct test above: a bullet whose
+        # only content is an <img> must carry the real Image node forward
+        # through the same interrupt/resume path, not an empty runs list.
+        html = '<ul><li><img src="x.png"><ul><li>nested</li></ul></li></ul>'
+        nodes = html_to_ast(html)
+        assert [isinstance(n, BulletItem) for n in nodes] == [True, True]
+        assert len(nodes[0].runs) == 1
+        assert isinstance(nodes[0].runs[0], Image)
+        assert nodes[0].runs[0].src == "x.png"
         assert nodes[1].runs[0].text == "nested"
 
     def test_parent_with_no_own_text_still_unaffected_by_the_fix(self):
@@ -1106,3 +1131,99 @@ class TestBuildBlankParaBeforeTableCollapses:
     def test_table_preceded_by_table_not_touched(self):
         doc = self._doc([self._table_elem(1), self._table_elem(10)])
         assert _build_blank_para_before_table_collapses(doc) == []
+
+
+class TestImagePositionalInserts:
+    """#333: extract_images + ast_to_requests's image_uris handling — the combined
+    descending-position pass that lets images and tables shift each other's
+    positions correctly, exactly like the table-only pass it generalizes."""
+
+    def test_extract_images_collects_in_document_order(self):
+        img1 = Image(src="a.png")
+        img2 = Image(src="b.png")
+        nodes = [
+            Paragraph(runs=[Run("before "), img1, Run(" after")]),
+            BulletItem(runs=[img2]),
+        ]
+        assert extract_images(nodes) == [img1, img2]
+
+    def test_extract_images_skips_table_cell_content(self):
+        # Table-cell images are a deliberate gap (#333) — html_parser.py never
+        # actually puts one there, but extract_images must not crash or
+        # silently pick one up if it somehow did.
+        table = Table(rows=[Row(cells=[Cell(children=[Run("x")])])])
+        nodes = [table]
+        assert extract_images(nodes) == []
+
+    def test_unresolved_image_dropped_no_crash(self):
+        nodes = [Paragraph(runs=[Run("before "), Image(src="a.png"), Run(" after")])]
+        requests, _ = ast_to_requests(nodes)  # no image_uris
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "before  after\n"
+        assert not any("insertInlineImage" in r for r in requests)
+
+    def test_resolved_image_positioned_correctly_with_size(self):
+        img = Image(src="a.png", width=100.0, height=50.0)
+        nodes = [Paragraph(runs=[Run("Before")]), Paragraph(runs=[img])]
+        requests, _ = ast_to_requests(nodes, image_uris={id(img): "https://example.com/a.png"})
+        image_reqs = [r for r in requests if "insertInlineImage" in r]
+        assert len(image_reqs) == 1
+        req = image_reqs[0]["insertInlineImage"]
+        assert req["uri"] == "https://example.com/a.png"
+        assert req["location"]["index"] == 8  # "Before\n" = 7 chars, start_index 1
+        assert req["objectSize"]["width"] == {"magnitude": 100.0, "unit": "PT"}
+        assert req["objectSize"]["height"] == {"magnitude": 50.0, "unit": "PT"}
+
+    def test_image_position_accounts_for_preceding_bullet_tab_consumption(self):
+        # A nested bullet's leading tabs are consumed by createParagraphBullets
+        # before the image-insertion pass runs — the image's own final position
+        # must already reflect that shrinkage (tabs_through in ast_to_requests).
+        img = Image(src="a.png")
+        nodes = [
+            BulletItem(runs=[Run("outer")], depth=0),
+            BulletItem(runs=[Run("nested")], depth=1),
+            Paragraph(runs=[img]),
+        ]
+        requests, _ = ast_to_requests(nodes, image_uris={id(img): "https://example.com/a.png"})
+        insert = next(r for r in requests if "insertText" in r)
+        # Raw text (pre-tab-removal): "outer\n" (6) + "\tnested\n" (8) = 14 chars from
+        # start_index 1, so the image's own paragraph starts at raw position 15 — one
+        # tab (1 char) gets removed by createParagraphBullets, so its final position
+        # must be 15 - 1 = 14, not the raw 15.
+        assert insert["insertText"]["text"] == "outer\n\tnested\n\n"
+        image_req = next(r for r in requests if "insertInlineImage" in r)
+        assert image_req["insertInlineImage"]["location"]["index"] == 14
+
+    def test_image_after_table_lands_correctly_not_shifted_by_table_insertion(self):
+        # The core ordering fix (#333): an image positioned after a table in the
+        # document must not have its target position invalidated by the table's
+        # own insertTable request running first — both are applied together in
+        # one descending-position pass, not as two separate blocks.
+        img = Image(src="a.png")
+        table = Table(rows=[Row(cells=[Cell(children=[Run("cell")])])])
+        nodes = [
+            Paragraph(runs=[Run("Before")]),
+            table,
+            Paragraph(runs=[img]),
+        ]
+        requests, tables = ast_to_requests(nodes, image_uris={id(img): "https://example.com/a.png"})
+        assert tables == [table]
+        insert = next(r for r in requests if "insertText" in r)
+        # "Before\n" (7 chars) then (table contributes 0 chars to text) then "\n"
+        # for the image's own now-empty paragraph.
+        assert insert["insertText"]["text"] == "Before\n\n"
+        table_req = next(r for r in requests if "insertTable" in r)
+        image_req = next(r for r in requests if "insertInlineImage" in r)
+        # Table lands right after "Before\n" (position 8); the image's own paragraph
+        # (computed in the same table-agnostic coordinate space) also starts at 8 —
+        # both requests target position 8, and since the image request is processed
+        # in the same combined descending pass, it isn't shifted by the table
+        # insertion despite appearing later in the document.
+        assert table_req["insertTable"]["location"]["index"] == 8
+        assert image_req["insertInlineImage"]["location"]["index"] == 8
+        # Descending-position ordering means the higher-position insertion (here,
+        # a tie — image is emitted after its own node walk, so it appears after
+        # the table in requests) must still not corrupt either target index.
+        idx_table = requests.index(table_req)
+        idx_image = requests.index(image_req)
+        assert {idx_table, idx_image}.issubset(range(len(requests)))
