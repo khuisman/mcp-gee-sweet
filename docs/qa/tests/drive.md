@@ -1442,6 +1442,8 @@ Delete all `qa-convert.*` files and their converted Drive counterparts from `{FO
 **Teardown**
 Delete both converted files from `{FOLDER_ID}`. Remove `/tmp/qa-folder-240/`.
 
+**Result (2026-08-04) ✅ PASS** — Verified via `mcp-gee-sweet-sky` (PR #505 regression check) against an isolated fixture folder. `uploaded: ["a.csv", "b.md"]`, `failed` empty. `list_files` showed `a.csv` as `application/vnd.google-apps.spreadsheet` (name stripped to `a`) and `b.md` as `application/vnd.google-apps.document` (name kept `.md`, per the documented convert_markdown naming convention). `get_sheet_data` on the spreadsheet's `a.csv` sheet tab returned the real CSV content (`col1,col2` / `hello,world`); `get_doc_content` on the Doc returned the real markdown content ("Test" heading + "Some content." paragraph) — confirms actual import, not just mimeType relabeling.
+
 ---
 
 ### TC-D241: convert=True — a file with an unsupported extension is reported in `failed`, siblings still upload ⚠️ local-filesystem
@@ -1457,6 +1459,8 @@ Delete both converted files from `{FOLDER_ID}`. Remove `/tmp/qa-folder-240/`.
 **Teardown**
 Delete the converted `a.csv` from `{FOLDER_ID}`. Remove `/tmp/qa-folder-241/`.
 
+**Result (2026-08-04) ✅ PASS** — Verified via `mcp-gee-sweet-sky` (PR #505 regression check) against an isolated fixture folder. `a.csv` appeared in `uploaded`; `archive.zip` appeared in `failed` with error `"Conversion not supported for extension '.zip'. Supported extensions: .csv, .docx, .htm, .html, .md, .pptx, .xlsx"`, and no Drive file was created for it.
+
 ---
 
 ### TC-D242: convert=True — an existing unconverted duplicate is not treated as skip-worthy (mirrors TC-D215 for the bulk path) ⚠️ local-filesystem
@@ -1470,6 +1474,8 @@ Delete the converted `a.csv` from `{FOLDER_ID}`. Remove `/tmp/qa-folder-241/`.
 
 **Teardown**
 Delete both files from `{FOLDER_ID}`. Remove `/tmp/qa-folder-242/`.
+
+**Result (2026-08-04) ✅ PASS** — Verified via `mcp-gee-sweet-sky` (PR #505 regression check) against an isolated fixture folder. Step 2's `a.csv` appeared in `uploaded`, not `skipped`. `list_files` showed two distinct files: the original raw `text/csv` `a.csv`, and the new converted `a` spreadsheet — distinct `fileId`s confirmed.
 
 ---
 
@@ -1487,7 +1493,7 @@ Delete both files from `{FOLDER_ID}`. Remove `/tmp/qa-folder-242/`.
 **Teardown**
 Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
 
-**Result — BLOCKED, not run.** PR #505's own `/code-review high` found this exact scenario broken by direct code inspection (line-level diff read, confirmed against the already-live-verified TC-D215/TC-D242 extension-stripping behavior) before this test case could be executed live — the sky server's Google OAuth token was expired/revoked (`invalid_grant`) at review time, blocking all live tool calls this pass. Sent back to the Dev per the code-review finding; this case should be run live once a fix lands and the server is re-authenticated.
+**Result (2026-08-04) ❌ FAIL** — Verified via `mcp-gee-sweet-sky` against a fresh isolated fixture folder. Step 1 uploaded `dup.csv` as expected (`uploaded: ["dup.csv"]`). Step 2 also returned `uploaded: ["dup.csv"]` instead of `skipped` — confirmed the bug live, not just via code inspection. `list_files` on the fixture folder showed two distinct Sheet files both named `dup` (extension stripped by Drive on both conversions), with different `fileId`s and `modifiedTime`s ~18s apart — exactly the duplicate-reconversion failure PR #505's code review predicted. Fixture folder and files trashed as teardown. This confirms the bug reported to the Dev in the PR #505 QA-round-1 comment.
 
 ---
 
