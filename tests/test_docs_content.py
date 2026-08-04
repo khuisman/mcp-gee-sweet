@@ -13,6 +13,7 @@ from mcp_gee_sweet.tools.docs.ast import (
     BulletItem,
     Cell,
     Heading,
+    Image,
     Paragraph,
     Row,
     Run,
@@ -23,6 +24,7 @@ from mcp_gee_sweet.tools.docs.content import (
     _has_pending_anchor_links,
     _md_to_html,
     _resolve_heading_anchors,
+    _resolve_image_source,
     _to_doc_requests,
 )
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
@@ -569,15 +571,33 @@ class TestBareTopLevelText:
 
     async def test_bare_text_after_unclosed_void_tag_still_wrapped(self):
         # Regression guard (found in PR #385's own review round): a void
-        # element written without a self-closing slash (e.g. "<img src=...>",
-        # not "<img src=... />") never gets a matching close tag from
+        # element written without a self-closing slash (e.g. "<meta ...>",
+        # not "<meta ... />") never gets a matching close tag from
         # HTMLParser. An implementation that excludes only "br" from
         # _tag_depth would leave the counter stuck above 0 here, silently
         # re-dropping the trailing bare text — the exact #343 failure mode.
-        nodes = html_to_ast('<img src="x.png">hello world')
+        # <img> itself no longer exercises this specific path since #333 gave
+        # it its own dedicated bare-top-level handling (see the sibling test
+        # below) — <meta> stands in as a still-fully-unsupported void tag.
+        nodes = html_to_ast('<meta charset="utf-8">hello world')
         assert len(nodes) == 1
         assert isinstance(nodes[0], Paragraph)
         assert "".join(r.text for r in nodes[0].runs) == "hello world"
+
+    async def test_bare_img_before_trailing_text_preserves_boundary(self):
+        # #333: a bare top-level <img> (no wrapping <p> — only reachable via
+        # raw HTML, since markdown's own "![]()" always renders wrapped in a
+        # <p>) now gets the same boundary-preserving treatment <hr> already
+        # has (sibling test below): its own Paragraph node, with the trailing
+        # text becoming a second node rather than folding into one.
+        nodes = html_to_ast('<img src="x.png">hello world')
+        assert len(nodes) == 2
+        assert isinstance(nodes[0], Paragraph)
+        assert len(nodes[0].runs) == 1
+        assert isinstance(nodes[0].runs[0], Image)
+        assert nodes[0].runs[0].src == "x.png"
+        assert isinstance(nodes[1], Paragraph)
+        assert "".join(r.text for r in nodes[1].runs) == "hello world"
 
     async def test_bare_hr_before_trailing_text_preserves_boundary_and_tag_depth(self):
         # Same #343 tag_depth regression guard as above, but for bare <hr>: since
@@ -867,6 +887,357 @@ class TestCreateDocMarkdown:
             if "updateParagraphStyle" in r
         ]
         assert "HEADING_1" in heading_types
+
+
+class TestResolveImageSource:
+    """Unit coverage for _resolve_image_source's three src kinds (#333)."""
+
+    async def test_https_url_used_directly_no_upload_no_share(self):
+        drive_svc = MagicMock()
+        result = await _resolve_image_source(drive_svc, "https://example.com/a.png", "folder1")
+        assert result == {"uri": "https://example.com/a.png"}
+        drive_svc.files.assert_not_called()
+        drive_svc.permissions.assert_not_called()
+
+    async def test_http_url_used_directly(self):
+        drive_svc = MagicMock()
+        result = await _resolve_image_source(drive_svc, "http://example.com/a.png", "folder1")
+        assert result == {"uri": "http://example.com/a.png"}
+
+    async def test_drive_reference_shared_and_resolved(self):
+        drive_svc = MagicMock()
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm1"
+        }
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "webContentLink": "https://drive.google.com/uc?id=file1"
+        }
+        result = await _resolve_image_source(drive_svc, "drive:file1", "folder1")
+        assert result == {
+            "uri": "https://drive.google.com/uc?id=file1",
+            "file_id": "file1",
+            "permission_id": "perm1",
+        }
+        drive_svc.permissions.return_value.create.assert_called_once_with(
+            fileId="file1",
+            body={"type": "anyone", "role": "reader"},
+            supportsAllDrives=True,
+            fields="id",
+        )
+
+    async def test_drive_reference_with_no_file_id_is_error(self):
+        drive_svc = MagicMock()
+        result = await _resolve_image_source(drive_svc, "drive:", "folder1")
+        assert "error" in result
+        drive_svc.permissions.assert_not_called()
+
+    async def test_local_path_missing_is_error(self, tmp_path):
+        drive_svc = MagicMock()
+        result = await _resolve_image_source(drive_svc, str(tmp_path / "missing.png"), "folder1")
+        assert "error" in result
+        assert "No file found" in result["error"]
+
+    async def test_local_path_with_no_folder_id_is_error(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        drive_svc = MagicMock()
+        result = await _resolve_image_source(drive_svc, str(img), None)
+        assert "error" in result
+        assert "folder_id" in result["error"]
+
+    async def test_local_path_uploaded_shared_and_resolved(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "uploaded1",
+            "name": "pic.png",
+            "webViewLink": "https://drive.google.com/file/d/uploaded1/view",
+        }
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm2"
+        }
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "webContentLink": "https://drive.google.com/uc?id=uploaded1"
+        }
+        result = await _resolve_image_source(drive_svc, str(img), "folder1")
+        assert result == {
+            "uri": "https://drive.google.com/uc?id=uploaded1",
+            "file_id": "uploaded1",
+            "permission_id": "perm2",
+        }
+
+    async def test_sharing_failure_is_error(self, tmp_path):
+        drive_svc = MagicMock()
+        drive_svc.permissions.return_value.create.return_value.execute.side_effect = RuntimeError(
+            "boom"
+        )
+        result = await _resolve_image_source(drive_svc, "drive:file1", "folder1")
+        assert "error" in result
+        assert "boom" in result["error"]
+
+    async def test_missing_web_content_link_is_error(self):
+        drive_svc = MagicMock()
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm1"
+        }
+        drive_svc.files.return_value.get.return_value.execute.return_value = {}
+        result = await _resolve_image_source(drive_svc, "drive:file1", "folder1")
+        assert "error" in result
+        assert "webContentLink" in result["error"]
+
+
+class TestCreateDocImages:
+    """End-to-end coverage for #333's markdown-image path through create_doc."""
+
+    def _make_services(self, doc_id="doc123"):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": doc_id,
+            "name": "Test",
+            "parents": ["folder1"],
+            "webViewLink": "https://example.com",
+        }
+        docs_svc = MagicMock()
+        return drive_svc, docs_svc
+
+    def _ctx(self, drive_svc, docs_svc, folder_id=None):
+        return _make_ctx(
+            drive_service=drive_svc,
+            docs_service=docs_svc,
+            folder_id=folder_id,
+            drive_folder_cache=MagicMock(),
+        )
+
+    def _batchupdate_requests(self, docs_svc):
+        return docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]["requests"]
+
+    async def test_https_image_embedded_inline(self):
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["create_doc"](
+            title="Doc",
+            content="![Alt](https://example.com/a.png)",
+            content_format="markdown",
+            ctx=ctx,
+        )
+        image_reqs = [r for r in self._batchupdate_requests(docs_svc) if "insertInlineImage" in r]
+        assert len(image_reqs) == 1
+        assert image_reqs[0]["insertInlineImage"]["uri"] == "https://example.com/a.png"
+        # No upload/share needed for a public URL — nothing to revoke, so this
+        # image contributes only "src" to its outcome entry.
+        assert result["images"] == [{"src": "https://example.com/a.png"}]
+        drive_svc.permissions.assert_not_called()
+
+    async def test_drive_reference_image_shared_then_revoked_by_default(self):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm1"
+        }
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "webContentLink": "https://drive.google.com/uc?id=file1"
+        }
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["create_doc"](
+            title="Doc",
+            content="![Alt](drive:file1)",
+            content_format="markdown",
+            ctx=ctx,
+        )
+        assert result["images"] == [{"src": "drive:file1", "fileId": "file1", "shared": False}]
+        drive_svc.permissions.return_value.delete.assert_called_once_with(
+            fileId="file1", permissionId="perm1", supportsAllDrives=True
+        )
+
+    async def test_revoke_sharing_false_leaves_image_shared(self):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm1"
+        }
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "webContentLink": "https://drive.google.com/uc?id=file1"
+        }
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["create_doc"](
+            title="Doc",
+            content="![Alt](drive:file1)",
+            content_format="markdown",
+            revoke_sharing=False,
+            ctx=ctx,
+        )
+        assert result["images"] == [{"src": "drive:file1", "fileId": "file1", "shared": True}]
+        drive_svc.permissions.return_value.delete.assert_not_called()
+
+    async def test_revoke_failure_reported_without_failing_call(self):
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm1"
+        }
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "webContentLink": "https://drive.google.com/uc?id=file1"
+        }
+        drive_svc.permissions.return_value.delete.return_value.execute.side_effect = RuntimeError(
+            "revoke boom"
+        )
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["create_doc"](
+            title="Doc",
+            content="![Alt](drive:file1)",
+            content_format="markdown",
+            ctx=ctx,
+        )
+        assert result["images"] == [
+            {
+                "src": "drive:file1",
+                "fileId": "file1",
+                "shared": True,
+                "revoke_error": "revoke boom",
+            }
+        ]
+
+    async def test_unresolvable_image_reported_as_error_doc_still_created(self, tmp_path):
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        missing = str(tmp_path / "missing.png")
+        result = await _docs_tools["create_doc"](
+            title="Doc",
+            content=f"Before\n\n![Alt]({missing})\n\nAfter",
+            content_format="markdown",
+            ctx=ctx,
+        )
+        assert result["images"] == [{"src": missing, "error": f"No file found at {missing!r}"}]
+        # The image itself never made it into the doc — no insertInlineImage request —
+        # but the surrounding text still went through.
+        image_reqs = [r for r in self._batchupdate_requests(docs_svc) if "insertInlineImage" in r]
+        assert image_reqs == []
+        insert = next(r for r in self._batchupdate_requests(docs_svc) if "insertText" in r)
+        assert "Before" in insert["insertText"]["text"]
+        assert "After" in insert["insertText"]["text"]
+
+    async def test_no_images_omits_images_key(self):
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["create_doc"](title="Doc", content="<p>plain</p>", ctx=ctx)
+        assert "images" not in result
+
+    def _insert_image_http_error(self, index: int) -> HttpError:
+        resp = MagicMock()
+        resp.status = 400
+        message = (
+            f"Invalid requests[{index}].insertInlineImage: There was a problem "
+            "retrieving the image. The provided image should be publicly "
+            "accessible, within size limit, and in supported formats."
+        )
+        content = json.dumps({"error": {"code": 400, "message": message}}).encode()
+        return HttpError(
+            resp=resp, content=content, uri="https://docs.googleapis.com/v1/documents/x:batchUpdate"
+        )
+
+    async def test_one_bad_image_url_does_not_fail_the_whole_document(self):
+        # #333 live regression (TC-DOC102 Case 8, confirmed against the real Docs
+        # API): a single unfetchable image URI made the Docs API reject the
+        # *entire* batchUpdate — text, tables, and every other image in the same
+        # call — since a rejected batch executes nothing. Google's own error
+        # names the failing request's index directly, so the fix retries with
+        # that exact request stripped rather than needing to recompute anything.
+        drive_svc, docs_svc = self._make_services()
+        good_uri = "https://example.com/good.png"
+        bad_uri = "https://example.com/bad.png"
+        content = f"Before\n\n![Good]({good_uri})\n\n![Bad]({bad_uri})\n\nAfter"
+        # Two insertInlineImage requests are queued (good first in doc order —
+        # see the fixture text — so the bad one is request index 1 among them,
+        # but its actual index within the full combined request list is
+        # whatever ast_to_requests produced; find it dynamically below instead
+        # of hand-computing it, since that's exactly the kind of position
+        # bookkeeping this fix is designed not to need).
+        first_call_requests = []
+
+        def batchupdate_side_effect(documentId, body):
+            nonlocal first_call_requests
+            m = MagicMock()
+            if not first_call_requests:
+                first_call_requests = body["requests"]
+                bad_index = next(
+                    i
+                    for i, r in enumerate(body["requests"])
+                    if r.get("insertInlineImage", {}).get("uri") == bad_uri
+                )
+                m.execute.side_effect = self._insert_image_http_error(bad_index)
+            else:
+                m.execute.return_value = {}
+            return m
+
+        docs_svc.documents.return_value.batchUpdate.side_effect = batchupdate_side_effect
+        ctx = self._ctx(drive_svc, docs_svc)
+
+        result = await _docs_tools["create_doc"](
+            title="Doc", content=content, content_format="markdown", ctx=ctx
+        )
+
+        outcomes = {o["src"]: o for o in result["images"]}
+        assert "error" not in outcomes[good_uri]
+        assert "error" in outcomes[bad_uri]
+        assert "doc edit failed" in outcomes[bad_uri]["error"]
+
+        # The retried (second) batchUpdate call must still contain the good
+        # image's request and everything else — only the bad one was removed.
+        second_call_requests = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"][
+            "requests"
+        ]
+        assert any(
+            r.get("insertInlineImage", {}).get("uri") == good_uri for r in second_call_requests
+        )
+        assert not any(
+            r.get("insertInlineImage", {}).get("uri") == bad_uri for r in second_call_requests
+        )
+        assert docs_svc.documents.return_value.batchUpdate.call_count == 2
+
+    async def test_duplicate_image_uri_retry_failure_attributed_to_correct_image(self):
+        # PR #502 review round 1, finding #2: two images resolving to the
+        # *identical* URI (the same picture referenced twice) used to
+        # misattribute a retry failure via a uri-keyed lookup (last
+        # registration wins) — a failure on the first (lowest-position)
+        # occurrence's request could get reported against the second
+        # (successfully embedded) image's outcome entry instead. Fixed via
+        # id(img)-keyed tracking that survives the placeholder-uri swap
+        # ast_to_requests needs internally.
+        drive_svc, docs_svc = self._make_services()
+        same_uri = "https://example.com/same.png"
+        content = f"![First]({same_uri})\n\n![Second]({same_uri})"
+        first_call_requests = []
+
+        def batchupdate_side_effect(documentId, body):
+            nonlocal first_call_requests
+            m = MagicMock()
+            if not first_call_requests:
+                first_call_requests = body["requests"]
+                image_reqs = [r for r in body["requests"] if "insertInlineImage" in r]
+                assert len(image_reqs) == 2
+                # Fail the lowest-position (first-in-document) image request.
+                first_image_req = min(
+                    image_reqs, key=lambda r: r["insertInlineImage"]["location"]["index"]
+                )
+                bad_index = body["requests"].index(first_image_req)
+                m.execute.side_effect = self._insert_image_http_error(bad_index)
+            else:
+                m.execute.return_value = {}
+            return m
+
+        docs_svc.documents.return_value.batchUpdate.side_effect = batchupdate_side_effect
+        ctx = self._ctx(drive_svc, docs_svc)
+
+        result = await _docs_tools["create_doc"](
+            title="Doc", content=content, content_format="markdown", ctx=ctx
+        )
+
+        outcomes = result["images"]
+        assert len(outcomes) == 2
+        # The first (document-order) entry is the one whose request was failed
+        # above — it must carry the error, and the second (genuinely
+        # successful) entry must not, despite sharing the identical src/uri.
+        assert "error" in outcomes[0]
+        assert "error" not in outcomes[1]
 
 
 class TestCreateDocFromFile:
@@ -1808,6 +2179,24 @@ class TestWriteDocContent:
         )
         assert not any("deleteContentRange" in r for r in calls[0])
 
+    async def test_https_image_embedded_and_reported(self):
+        # write_doc_content shares _apply_doc_content with create_doc (#333) —
+        # this is a thin wiring check, not a re-test of resolution logic
+        # already covered by TestResolveImageSource/TestCreateDocImages.
+        drive_svc, docs_svc = self._make_services(end_index=2)
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["write_doc_content"](
+            doc_id="doc1",
+            content="![Alt](https://example.com/a.png)",
+            content_format="markdown",
+            ctx=ctx,
+        )
+        calls = self._batchupdate_calls(docs_svc)
+        image_reqs = [r for r in calls[-1] if "insertInlineImage" in r]
+        assert len(image_reqs) == 1
+        assert image_reqs[0]["insertInlineImage"]["uri"] == "https://example.com/a.png"
+        assert result["images"] == [{"src": "https://example.com/a.png"}]
+
 
 def _build_doc_body(paragraph_runs: list[list[str]]) -> tuple[dict, list[tuple[int, str]]]:
     """Build a synthetic Docs API body from a list of paragraphs, each a list of
@@ -2408,6 +2797,9 @@ class TestInsertLocalImages:
                 "local_path": str(img),
                 "fileId": "img1",
                 "index": marker_start,
+                # revoke_sharing defaults to True — the temporary anyone:reader
+                # share granted below is revoked again once the image is placed.
+                "shared": False,
             }
         ]
 
@@ -2416,6 +2808,11 @@ class TestInsertLocalImages:
             body={"type": "anyone", "role": "reader"},
             supportsAllDrives=True,
             fields="id",
+        )
+        drive_svc.permissions.return_value.delete.assert_called_once_with(
+            fileId="img1",
+            permissionId="anyoneWithLink",
+            supportsAllDrives=True,
         )
 
         body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
@@ -2598,10 +2995,13 @@ class TestInsertLocalImages:
         )
         assert delete_req["range"]["endIndex"] == expected_end
 
-    async def test_failed_batchupdate_entry_has_error_but_no_fileid(self, tmp_path):
-        # Regression: the doc-edit-failure handler used to reuse the same entry
-        # dict that already carried "fileId" from a successful upload, leaving
-        # both fileId and error set — contradicting the documented either/or contract.
+    async def test_failed_batchupdate_entry_keeps_fileid_and_is_revoked(self, tmp_path):
+        # PR #502 review round 1, finding #1: a doc-edit failure used to pop
+        # "fileId" and return immediately, before ever reaching the revoke
+        # logic — the image was genuinely uploaded and shared, but the caller
+        # had no fileId to trace it and it was left world-readable forever.
+        # Fixed version keeps fileId, still runs the revoke_sharing-respecting
+        # cleanup, and reports the outcome honestly (error *and* shared status).
         img = tmp_path / "pic.png"
         img.write_bytes(b"fake")
         doc, _ = _build_doc_body([["MARKER\n"]])
@@ -2609,7 +3009,8 @@ class TestInsertLocalImages:
         docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
             "batchUpdate failed"
         )
-        ctx = self._ctx(docs_svc=docs_svc, drive_svc=self._drive_svc(), folder_id="folder1")
+        drive_svc = self._drive_svc()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
 
         result = await _docs_tools["insert_local_images"](
             doc_id="doc1",
@@ -2618,8 +3019,38 @@ class TestInsertLocalImages:
         )
 
         entry = result["results"][0]
-        assert "error" in entry
-        assert "fileId" not in entry
+        assert entry["error"] == "doc edit failed: batchUpdate failed"
+        assert entry["fileId"] == "img1"
+        # revoke_sharing defaults True — the temporary share is still cleaned up
+        # even though the embed itself failed.
+        assert entry["shared"] is False
+        drive_svc.permissions.return_value.delete.assert_called_once_with(
+            fileId="img1", permissionId="anyoneWithLink", supportsAllDrives=True
+        )
+
+    async def test_failed_batchupdate_with_revoke_sharing_false_leaves_image_shared(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "batchUpdate failed"
+        )
+        drive_svc = self._drive_svc()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            revoke_sharing=False,
+            ctx=ctx,
+        )
+
+        entry = result["results"][0]
+        assert entry["error"] == "doc edit failed: batchUpdate failed"
+        assert entry["fileId"] == "img1"
+        assert entry["shared"] is True
+        drive_svc.permissions.return_value.delete.assert_not_called()
 
     async def test_results_order_matches_images_input_order_not_doc_position_order(self, tmp_path):
         # Regression: successes used to be appended in descending-document-position
