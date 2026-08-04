@@ -3314,6 +3314,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#image-sharing-lifecycle-revoke_sharing-default-and-consistency-333" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Image sharing lifecycle — revoke_sharing default and consistency (#333)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Image sharing lifecycle — revoke_sharing default and consistency (#333)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc150-create_doc-markdown-image-local-path-is-embedded-and-its-temporary-share-is-revoked-by-default-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC150: create_doc markdown image (local path) is embedded and its temporary share is revoked by default ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc151-create_doc-markdown-image-drive-reference-with-revoke_sharingfalse-leaves-the-image-shared-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC151: create_doc markdown image (drive: reference) with revoke_sharing=False leaves the image shared ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc152-insert_local_images-now-revokes-its-temporary-share-by-default-behavior-change-from-332-local-filesystem-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC152: insert_local_images now revokes its temporary share by default (behavior change from #332) ⚠️ local-filesystem ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc153-table-cell-images-remain-a-documented-non-crashing-gap-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC153: Table-cell images remain a documented, non-crashing gap ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4948,6 +5009,7 @@ Doc lacked the literal text "QA anchor target", so it was inserted via <code>ins
 - Case 7 (image inside a nested table cell): the nested <code>Table</code> itself comes through correctly as a structural node, but its own single cell (containing only the image) is empty, same as Case 6.
 - Case 8 (unreachable URL): produces <strong>zero</strong> AST nodes, identically to Case 1/3/4 — confirms the drop happens at parse time regardless of URL validity.
 - Live execution + Playwright visual check still needed to confirm end-to-end behavior against the real API; not run this session (no live MCP tool access outside a release pass — see <code>.claude/team-roles/aziz.md</code>).</p>
+<p><strong>Background (#333 implementation, 2026-08-02):</strong> #333 implements body-level image support (Cases 1–5, 8 above); table-cell images (Cases 6–7) are a deliberate, documented out-of-scope gap tracked as a follow-up issue, not a regression — same silent-drop behavior as the original FAIL result above. Dev-side verification against the real Docs API (not through this repo's own MCP tool interface — a <code>mcp-gee-sweet-&lt;name&gt;</code> server process imports code once at session start, so a same-session tool call would exercise stale pre-fix code; see <code>CLAUDE.md</code>'s "MCP restart" section — instead verified via a throwaway script calling <code>content.py</code>'s <code>_apply_doc_content</code> directly, reusing <code>mcp_gee_sweet.auth._oauth_creds()</code>) found Cases 1–5 embed correctly and Cases 6/7 stay empty as expected, but Case 8 (the deliberately unreachable URL) surfaced a real, more serious bug: the Docs API rejects an entire <code>batchUpdate</code> atomically if <em>any</em> one <code>insertInlineImage</code> request in it can't be fetched — so Case 8 alone was taking down Cases 1–5's otherwise-correct image requests too, along with every other request in the same call (text, styles, tables). Not a position-math bug — a rejected batch executes nothing at all. Fixed by catching the <code>HttpError</code>, parsing the failing request's index directly out of Google's own error message (<code>"Invalid requests[N].insertInlineImage: ..."</code>), stripping that exact request, and retrying with the same (otherwise-unmodified) request list — safe because a rejected batch never partially applies, so no other request's position needs recomputing. Re-verified with the fix in place: all 8 cases produced the expected outcome (1–5 embedded, 6–7 empty, 8 reported as a clean per-image <code>error</code> entry instead of failing the whole document), and the final "confirms not truncated" paragraph was present. Unit coverage for the retry itself: <code>TestCreateDocImages::test_one_bad_image_url_does_not_fail_the_whole_document</code>. This dev-side pass doesn't substitute for a formal QA run through the actual MCP tool interface plus the fixture's own Playwright visual check — leaving this test case's own <code>**Result**</code> for that pass.</p>
 <hr />
 <h3 id="tc-doc103-markdown-image-conversion-shares-the-same-drop-as-the-html-path-requires-oauth-destructive">TC-DOC103: Markdown image conversion shares the same drop as the HTML path ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc103-markdown-image-conversion-shares-the-same-drop-as-the-html-path-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4961,6 +5023,7 @@ Doc lacked the literal text "QA anchor target", so it was inserted via <code>ins
 - 🔍 Visual check: images render in all 8 cases, including the reference-style image</p>
 <p><strong>Cleanup:</strong> delete the created doc</p>
 <p><strong>Result (2026-07-16) ❌ FAIL — verified via direct code execution (<code>_md_to_html</code> → <code>html_to_ast</code>), not yet run live.</strong> <code>_md_to_html</code> correctly converts every markdown image (inline, reference-style, link-wrapped) into an <code>&lt;img&gt;</code> tag first — confirmed by inspecting the intermediate HTML — so the markdown path funnels into the exact same unhandled-<code>img</code> gap as TC-DOC102. AST output is byte-for-byte equivalent to the HTML fixture's (same 8 cases, same drops), including reference-style Case 7 collapsing to a paragraph containing only <code>"Reference-style: "</code>. This confirms the bug is in the shared <code>html_to_ast</code> parser, not in markdown-specific handling — a single fix in <code>html_parser.py</code> closes both #332/#333 for every content path at once, rather than needing a separate markdown-only fix.</p>
+<p><strong>Background (#333 implementation, 2026-08-02):</strong> the markdown path (<code>_md_to_html</code> → shared <code>html_to_ast</code>) funnels into the same code TC-DOC102's own background note covers, so that note's findings (Cases 1–5/8 fixed, Cases 6–7 a documented gap, the retry-on-image-failure fix) apply here too — not independently re-verified live against this specific <code>.md</code> fixture. A formal QA pass should run this fixture directly (not just TC-DOC102's <code>.html</code> one) to confirm reference-style <code>![alt][ref]</code> syntax specifically, since that's the one construct this fixture exercises that TC-DOC102 doesn't.</p>
 <hr />
 <h2 id="htmlmarkdown-doc-nested-list-conversion-334">HTML/Markdown → Doc nested list conversion (#334)<a class="headerlink" href="#htmlmarkdown-doc-nested-list-conversion-334" title="Permanent link">&para;</a></h2>
 <p><strong>Background:</strong> Three independent, compounding bugs, isolated separately below:</p>
@@ -5624,6 +5687,64 @@ Run against a live sandbox scoped to only <code>create_doc,create_doc_from_file,
 - <code>get_doc_structure</code> lists, in order: a HEADING_1 "Start", a bullet "B", a bullet "C", a plain (non-heading) paragraph "D", and a HEADING_1 "E" — the pre-fix bug dropped "D" entirely and rendered "E" as its own new heading instead of "Start"'s resumed content</p>
 <p><strong>Result (2026-08-02) ✅ PASS</strong> — live <code>write_doc_content</code> + <code>get_doc_structure</code> against the fixture doc returned exactly HEADING_1 "Start", paragraph "B", paragraph "C", paragraph "D", HEADING_1 "E" — "D" is preserved (previously vanished entirely) and no other regression in the sequence.</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
+<h2 id="image-sharing-lifecycle-revoke_sharing-default-and-consistency-333">Image sharing lifecycle — <code>revoke_sharing</code> default and consistency (#333)<a class="headerlink" href="#image-sharing-lifecycle-revoke_sharing-default-and-consistency-333" title="Permanent link">&para;</a></h2>
+<p><strong>Background:</strong> #332's <code>insert_local_images</code> always uploaded and shared a local image <code>anyone:reader</code> (required — the Docs backend fetches inline images as an anonymous HTTP request, confirmed live 2026-07-18) but never revoked that share afterward, leaving the caller to call <code>remove_permission</code> manually. #333 adds native markdown/HTML image support (<code>create_doc</code>, <code>create_doc_from_file</code>, <code>write_doc_content</code>) reusing the same upload+share lifecycle for local-path and <code>drive:&lt;file_id&gt;</code> sources, and — per explicit product decision — both the new path and <code>insert_local_images</code> now default to auto-revoking that temporary share once the image is actually embedded (<code>revoke_sharing=True</code>), with a flag to opt out and keep the old always-shared behavior.</p>
+<h3 id="tc-doc150-create_doc-markdown-image-local-path-is-embedded-and-its-temporary-share-is-revoked-by-default-requires-oauth-destructive">TC-DOC150: <code>create_doc</code> markdown image (local path) is embedded and its temporary share is revoked by default ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc150-create_doc-markdown-image-local-path-is-embedded-and-its-temporary-share-is-revoked-by-default-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Create a Google Doc titled 'TC-DOC150' from this markdown, using folder {FOLDER_ID}: <code># Report\n\n![Pixel](&lt;repo-root&gt;/docs/qa/fixtures/qa-fixture-pixel.png)\n\nAfter the image.</code>"</p>
+</blockquote>
+<p>Tool call: <code>create_doc(title="TC-DOC150", content="# Report\n\n![Pixel](&lt;repo-root&gt;/docs/qa/fixtures/qa-fixture-pixel.png)\n\nAfter the image.", content_format="markdown", folder_id=&lt;FOLDER_ID&gt;)</code></p>
+<p><strong>Checks</strong>
+- Response has no <code>error</code>; <code>images</code> is a one-item list with <code>fileId</code> set, <code>shared: false</code>, and no <code>revoke_error</code>
+- <code>list_permissions(file_id=&lt;images[0].fileId&gt;)</code> shows no <code>anyone</code> type permission (confirms the revoke actually happened, not just that the response claimed it did)
+- 🔍 Visual check: the pixel image renders between "Report" and "After the image."</p>
+<p><strong>Cleanup:</strong> delete the created doc; delete the uploaded image file (<code>delete_file(file_id=&lt;images[0].fileId&gt;)</code>)</p>
+<p><strong>Background (2026-08-02):</strong> dev-side verification (same scratch-script approach as TC-DOC102's background note — not through the MCP tool interface) exercised this exact scenario: <code>_apply_doc_content</code> against a real scratch doc with a markdown image, <code>target_folder_id="root"</code>. Image uploaded, shared, embedded (confirmed via a raw <code>documents().get()</code> read showing an <code>inlineObjectElement</code> in the correct paragraph, correctly interleaved with a table and trailing text in the same call), and the outcome entry showed <code>{"fileId": "&lt;real id&gt;", "shared": False}</code> — the temporary <code>anyone:reader</code> permission was confirmed actually gone (not just reported as gone), since a subsequent <code>permissions().create()</code>-then-<code>delete()</code> round trip only succeeds if the delete genuinely executed. Scratch doc and uploaded image both trashed at end of run.</p>
+<p><strong>Result (2026-08-02) ✅ PASS — live via the actual <code>create_doc</code> MCP tool.</strong> Response had no <code>error</code>; <code>images</code> was <code>[{"src": "&lt;local path&gt;", "fileId": "&lt;real id&gt;", "shared": false}]</code>, no <code>revoke_error</code>. <code>list_permissions</code> on the uploaded file's <code>fileId</code> showed only the owner and service-account permissions — no <code>anyone</code> grant. Playwright screenshot confirmed the pixel image renders between "Report" and "After the image." (visually a tiny dot, as expected for this 1×1 fixture with no explicit width/height). Doc and uploaded image trashed after the check.</p>
+<hr />
+<h3 id="tc-doc151-create_doc-markdown-image-drive-reference-with-revoke_sharingfalse-leaves-the-image-shared-requires-oauth-destructive">TC-DOC151: <code>create_doc</code> markdown image (<code>drive:</code> reference) with <code>revoke_sharing=False</code> leaves the image shared ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc151-create_doc-markdown-image-drive-reference-with-revoke_sharingfalse-leaves-the-image-shared-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prerequisite:</strong> upload an image to Drive first (e.g. <code>upload_local_file</code> with <code>&lt;repo-root&gt;/docs/qa/fixtures/qa-fixture-pixel.png</code>) and note its <code>fileId</code></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Create a Google Doc titled 'TC-DOC151' from this markdown, with revoke_sharing off: <code>![Pixel](drive:&lt;UPLOADED_FILE_ID&gt;)</code>"</p>
+</blockquote>
+<p>Tool call: <code>create_doc(title="TC-DOC151", content="![Pixel](drive:&lt;UPLOADED_FILE_ID&gt;)", content_format="markdown", revoke_sharing=False)</code></p>
+<p><strong>Checks</strong>
+- Response has no <code>error</code>; <code>images</code> is <code>[{"src": "drive:&lt;UPLOADED_FILE_ID&gt;", "fileId": "&lt;UPLOADED_FILE_ID&gt;", "shared": true}]</code>
+- <code>list_permissions(file_id=&lt;UPLOADED_FILE_ID&gt;)</code> shows an <code>anyone</code>/<code>reader</code> permission still present
+- 🔍 Visual check: the pixel image renders in the doc</p>
+<p><strong>Cleanup:</strong> delete the created doc; <code>remove_permission</code> the <code>anyone</code> grant, then delete the uploaded image file</p>
+<hr />
+<h3 id="tc-doc152-insert_local_images-now-revokes-its-temporary-share-by-default-behavior-change-from-332-local-filesystem-destructive">TC-DOC152: <code>insert_local_images</code> now revokes its temporary share by default (behavior change from #332) ⚠️ local-filesystem ⚠️ destructive<a class="headerlink" href="#tc-doc152-insert_local_images-now-revokes-its-temporary-share-by-default-behavior-change-from-332-local-filesystem-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prerequisite:</strong> doc must contain a plain-text marker, e.g. write <code>"Marker: IMGMARKERONE"</code> via <code>write_doc_content</code> first</p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Insert <repo-root>/docs/qa/fixtures/qa-fixture-pixel.png at marker IMGMARKERONE in doc {DOC_ID}"</p>
+</blockquote>
+<p>Tool call: <code>insert_local_images(doc_id=DOC_ID, images=[{"marker": "IMGMARKERONE", "local_path": "&lt;repo-root&gt;/docs/qa/fixtures/qa-fixture-pixel.png"}])</code></p>
+<p><strong>Checks</strong>
+- <code>results[0]</code> has <code>fileId</code>, <code>index</code>, <code>shared: false</code>, no <code>revoke_error</code>
+- <code>list_permissions(file_id=&lt;results[0].fileId&gt;)</code> shows no <code>anyone</code> permission — this is a <strong>behavior change</strong> from #332's original shipped version, which always left the file shared; existing callers relying on the old always-shared behavior need <code>revoke_sharing=False</code> now
+- 🔍 Visual check: the pixel image renders in place of the marker text</p>
+<p><strong>Cleanup:</strong> delete the uploaded image file; write fixture content back</p>
+<p><strong>Result (2026-08-02) ✅ PASS — live via the actual <code>insert_local_images</code> MCP tool</strong>, run against a scratch doc (not the shared fixture doc) containing <code>Marker: IMGMARKERONE</code>. Note: the tool now requires <code>folder_id</code> ("folder_id is required (no server default folder configured)" when omitted) — this test case's own tool-call example above doesn't pass one; worth updating the case text separately, not blocking. With <code>folder_id</code> supplied: <code>results[0]</code> had <code>fileId</code>, <code>index</code>, <code>shared: false</code>, no <code>revoke_error</code>; <code>list_permissions</code> on the uploaded file showed no <code>anyone</code> permission, confirming the new revoke-by-default behavior change from #332. Visual check not captured (structural/permission checks were conclusive); scratch doc and uploaded image trashed after the check.</p>
+<hr />
+<h3 id="tc-doc153-table-cell-images-remain-a-documented-non-crashing-gap-requires-oauth-destructive">TC-DOC153: Table-cell images remain a documented, non-crashing gap ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc153-table-cell-images-remain-a-documented-non-crashing-gap-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> confirm #333's explicit scope boundary (body-level images only) degrades gracefully rather than erroring or hanging — this is the same behavior TC-DOC102 Cases 6/7 already exercise, called out separately here since it's a deliberate design decision worth its own regression guard rather than being buried in an 8-case fixture.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a Google Doc from this HTML: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;Before&lt;/td&gt;&lt;td&gt;&lt;img src=\"https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png\"&gt;&lt;/td&gt;&lt;td&gt;After&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds with no <code>error</code>, no timeout (guards specifically against the cursor-never-advances infinite-loop shape this could take if a future change lets an <code>Image</code> reach <code>Cell.children</code> without emitter-side handling — see <code>emitter.py</code>'s <code>_fill_children_recursive</code> cursor-walk comment)
+- The table's first and third cells show "Before"/"After" text; the second (image) cell is empty
+- <code>images</code> key is absent from the response (the image was never resolved at all — dropped at parse time, same as any other unsupported table-cell construct)</p>
+<p><strong>Cleanup:</strong> delete the created doc</p>
+<p><strong>Result (2026-08-02) ✅ PASS — live via the actual <code>create_doc</code> MCP tool.</strong> Call returned immediately with no <code>error</code> and no <code>images</code> key. <code>get_doc_structure</code> confirmed the table's cell 0 text is "Before", cell 2 text is "After", and cell 1 (the image cell) is empty (<code>""</code>). Doc trashed after the check.</p>
 
 
 

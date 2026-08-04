@@ -10,31 +10,27 @@
       
       
       
-        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/design/">
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/design/image-conversion/">
       
       
-        <link rel="prev" href="./">
-      
-      
-        <link rel="next" href="docs-ast-pipeline/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Design Docs - mcp-gee-sweet</title>
+        <title>Design: Native Markdown/HTML Image Support (issue #333) - mcp-gee-sweet</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,7 +49,7 @@
       
     
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -78,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#design-documents" class="md-skip">
+        <a href="#design-native-markdownhtml-image-support-issue-333" class="md-skip">
           Skip to content
         </a>
       
@@ -98,7 +94,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -118,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Design Docs
+              Design: Native Markdown/HTML Image Support (issue #333)
             
           </span>
         </div>
@@ -236,7 +232,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -266,7 +262,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -345,7 +341,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tools/" class="md-nav__link">
+      <a href="../../tools/" class="md-nav__link">
         
   
   
@@ -373,7 +369,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../auth/" class="md-nav__link">
+      <a href="../../auth/" class="md-nav__link">
         
   
   
@@ -401,7 +397,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/" class="md-nav__link">
+      <a href="../../configuration/" class="md-nav__link">
         
   
   
@@ -429,7 +425,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../client-setup/" class="md-nav__link">
+      <a href="../../client-setup/" class="md-nav__link">
         
   
   
@@ -461,8 +457,6 @@
       
   
   
-    
-  
   
   
     
@@ -475,11 +469,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
@@ -500,7 +494,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -518,7 +512,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -543,19 +537,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -571,7 +556,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -584,7 +568,7 @@
   
   
     <li class="md-nav__item">
-      <a href="docs-ast-pipeline/" class="md-nav__link">
+      <a href="../docs-ast-pipeline/" class="md-nav__link">
         
   
   
@@ -671,7 +655,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/" class="md-nav__link">
+      <a href="../../decisions/" class="md-nav__link">
         
   
   
@@ -699,7 +683,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-fork/" class="md-nav__link">
+      <a href="../../decisions/decision-fork/" class="md-nav__link">
         
   
   
@@ -727,7 +711,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-composite-tools/" class="md-nav__link">
+      <a href="../../decisions/decision-composite-tools/" class="md-nav__link">
         
   
   
@@ -755,7 +739,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-testing/" class="md-nav__link">
+      <a href="../../decisions/decision-testing/" class="md-nav__link">
         
   
   
@@ -783,7 +767,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-publishing/" class="md-nav__link">
+      <a href="../../decisions/decision-publishing/" class="md-nav__link">
         
   
   
@@ -818,7 +802,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../roadmap/" class="md-nav__link">
+      <a href="../../roadmap/" class="md-nav__link">
         
   
   
@@ -897,7 +881,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/" class="md-nav__link">
+      <a href="../../qa/" class="md-nav__link">
         
   
   
@@ -925,7 +909,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/setup/" class="md-nav__link">
+      <a href="../../qa/setup/" class="md-nav__link">
         
   
   
@@ -953,7 +937,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/run/" class="md-nav__link">
+      <a href="../../qa/run/" class="md-nav__link">
         
   
   
@@ -981,7 +965,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/fixtures.template/" class="md-nav__link">
+      <a href="../../qa/fixtures.template/" class="md-nav__link">
         
   
   
@@ -1058,7 +1042,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/calendar/" class="md-nav__link">
+      <a href="../../qa/tests/calendar/" class="md-nav__link">
         
   
   
@@ -1086,7 +1070,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/docs/" class="md-nav__link">
+      <a href="../../qa/tests/docs/" class="md-nav__link">
         
   
   
@@ -1114,7 +1098,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/drive/" class="md-nav__link">
+      <a href="../../qa/tests/drive/" class="md-nav__link">
         
   
   
@@ -1142,7 +1126,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/infra/" class="md-nav__link">
+      <a href="../../qa/tests/infra/" class="md-nav__link">
         
   
   
@@ -1170,7 +1154,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_read/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_read/" class="md-nav__link">
         
   
   
@@ -1198,7 +1182,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_write/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_write/" class="md-nav__link">
         
   
   
@@ -1226,7 +1210,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_charts/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_charts/" class="md-nav__link">
         
   
   
@@ -1254,7 +1238,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_mgmt/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_mgmt/" class="md-nav__link">
         
   
   
@@ -1290,7 +1274,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../notes-read/" class="md-nav__link">
+      <a href="../../notes-read/" class="md-nav__link">
         
   
   
@@ -1338,35 +1322,84 @@
   
 
 
-<h1 id="design-documents">Design Documents<a class="headerlink" href="#design-documents" title="Permanent link">&para;</a></h1>
-<p>Detailed implementation design docs — file layouts, data models, algorithm choices, and trade-offs as they were understood when each piece of work was planned.</p>
-<p>These are more granular than the <a href="../decisions/">decision records</a>, which capture <em>why</em> a direction was chosen. Design docs capture <em>how</em> something is built.</p>
-<table>
-<thead>
-<tr>
-<th>Doc</th>
-<th>Date</th>
-<th>Scope</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="docs-ast-pipeline/">Docs AST Pipeline</a></td>
-<td>2026-06-17</td>
-<td>Phase 2 HTML→AST→Docs API pipeline — AST node design, file layout, emitter algorithm, test plan</td>
-</tr>
-<tr>
-<td><a href="heading-anchor-resolution/">Heading-Anchor Resolution</a></td>
-<td>2026-07-28</td>
-<td>Resolving GitHub/GitLab <code>#slug</code> heading-anchor links to working Docs jump links — multi-scheme slugifier, strip-if-unmatched policy, opinionated-layer-over-primitive rationale</td>
-</tr>
-<tr>
-<td><a href="image-conversion/">Native Markdown/HTML Image Support</a></td>
-<td>2026-08-02</td>
-<td><code>Image</code> as a zero-width AST node vs. a marker-based alternative, the combined table+image descending-position insertion pass, three-source-kind resolution + share/revoke lifecycle, the retry-on-image-failure fix, and the deliberate table-cell-image gap</td>
-</tr>
-</tbody>
-</table>
+<h1 id="design-native-markdownhtml-image-support-issue-333">Design: Native Markdown/HTML Image Support (issue #333)<a class="headerlink" href="#design-native-markdownhtml-image-support-issue-333" title="Permanent link">&para;</a></h1>
+<h2 id="problem">Problem<a class="headerlink" href="#problem" title="Permanent link">&para;</a></h2>
+<p><code>create_doc</code>/<code>create_doc_from_file</code>/<code>write_doc_content</code> silently dropped every <code>&lt;img&gt;</code> /
+<code>![alt](src)</code> during conversion (confirmed via TC-DOC102/103, filed as the original #333 bug
+report). The only path to an embedded image was the pre-existing <code>insert_local_images</code> (#332),
+which requires a manual placeholder-marker workaround per image — a multi-step, multi-tool-call
+dance the issue's own reporter described in detail.</p>
+<h2 id="image-as-a-first-class-ast-node-not-a-marker">Image as a first-class AST node, not a marker<a class="headerlink" href="#image-as-a-first-class-ast-node-not-a-marker" title="Permanent link">&para;</a></h2>
+<p>The tempting shortcut was to reuse <code>insert_local_images</code>'s already-proven marker mechanism
+under the hood: substitute each <code>![]()</code> with a unique placeholder token during markdown→HTML
+conversion, let the existing (unmodified) AST/emitter pipeline treat it as ordinary text, then
+run a second pass after the main content batch to locate each marker and swap in the image —
+exactly what <code>insert_local_images</code> already does. This would have meant zero changes to
+<code>ast.py</code>/<code>html_parser.py</code>/<code>emitter.py</code>'s position math.</p>
+<p>Rejected in favor of a true <code>Image</code> AST node (<code>ast.py</code>) because the marker approach requires a
+<em>second</em> round-trip after the main <code>insertText</code>/table batch — a real robustness cost (a doc left
+with literal marker text visible if the second pass fails) for no benefit once the atomic
+single-batch approach turned out to be achievable. An <code>Image</code> node contributes <strong>zero characters</strong>
+to <code>ast_to_requests</code>'s text-building pass (unlike a marker) — it's purely a positional marker
+within a node's <code>runs</code> list, resolved into its own <code>insertInlineImage</code> request. This lets it
+piggyback on the exact "process positional insertions in descending-document-order" pattern this
+codebase already uses for tables (<code>ast_to_requests</code>'s trailing loop), generalized here into
+<code>positional_inserts</code>: a single combined list of <code>(final_position, request)</code> covering <strong>both</strong>
+tables and images, sorted descending and applied together. Interleaving them in one list (not two
+separate blocks, "all tables then all images") matters — a table inserted before a lower-position
+image within the same document would otherwise physically shift that image's precomputed
+position before it gets a chance to run.</p>
+<p><code>ast_to_requests</code> stays fully synchronous (no network I/O) by accepting an already-resolved
+<code>image_uris: dict[id(image), str]</code> map rather than doing any resolution itself.
+<code>extract_images(nodes)</code> is the paired helper the caller (<code>content.py</code>, async) uses to collect
+every <code>Image</code> in a parsed tree <em>before</em> calling <code>ast_to_requests</code>, resolve each one to a URI, and
+pass the map in. An <code>Image</code> with no entry in that map (resolution failed, or the caller never
+passed one at all) is silently omitted — the same graceful-degradation behavior any other
+unsupported construct already gets from this parser.</p>
+<h2 id="three-source-kinds-one-shared-resolver">Three source kinds, one shared resolver<a class="headerlink" href="#three-source-kinds-one-shared-resolver" title="Permanent link">&para;</a></h2>
+<p><code>src</code> may be a local filesystem path (uploaded to Drive, then shared), a <code>drive:&lt;file_id&gt;</code>
+reference to an already-uploaded file (shared, not uploaded), or a public <code>http(s)://</code> URL (used
+directly — no upload, no share, nothing to revoke). <code>_resolve_image_source</code> (<code>content.py</code>)
+implements all three; <code>insert_local_images</code>'s own upload+share logic was left as its existing
+inline code rather than refactored to share this helper, since its local-path-only case doesn't
+need the source-kind dispatch.</p>
+<p>Local-path and <code>drive:</code> sources are shared <code>anyone:reader</code> regardless of source, since the Docs
+backend fetches an inline image as an anonymous HTTP request at insertion time — confirmed live
+in #332, reconfirmed here for the <code>drive:</code> case specifically. Per explicit product decision
+(2026-08-02), that temporary share is revoked again by default once the image is actually
+embedded (<code>revoke_sharing=True</code>) — a <strong>behavior change</strong> from #332's <code>insert_local_images</code>, which
+always left images shared with no flag at all; both surfaces now share the same default and the
+same opt-out flag, since a caller has no principled reason to want different defaults from two
+tools performing the same upload→share→embed→[revoke] lifecycle.</p>
+<h2 id="live-discovered-bug-one-bad-image-uri-fails-the-entire-batch">Live-discovered bug: one bad image URI fails the entire batch<a class="headerlink" href="#live-discovered-bug-one-bad-image-uri-fails-the-entire-batch" title="Permanent link">&para;</a></h2>
+<p>The atomic single-batch design (image + table insertions bundled with all other content
+requests) has a real failure mode the position-math design alone doesn't cover: the Docs API
+rejects an entire <code>batchUpdate</code> if <em>any one</em> <code>insertInlineImage</code> request in it can't be fetched
+by Google's own (unauthenticated, separate-network-path) image-fetching service — confirmed live
+via TC-DOC102's own Case 8 (a deliberately unreachable URL), which was silently killing Cases
+1–5's otherwise-valid image requests in the same call. This is not a position-math bug — a
+rejected <code>batchUpdate</code> executes nothing at all, successful or not.</p>
+<p>Fixed by treating this as a retryable, not fatal, failure: Google's own error message names the
+failing request's index directly (<code>"Invalid requests[N].insertInlineImage: ..."</code>), so
+<code>_apply_doc_content</code> catches the <code>HttpError</code>, parses that index out via regex
+(<code>_failed_insert_image_request_index</code>), strips exactly that request from the list, and retries
+with everything else unchanged. Safe without any position recomputation specifically <em>because</em> a
+rejected batch never partially applies — every other request's absolute position is exactly as
+valid on retry as it was on the first attempt. The removed image's outcome entry gets an
+<code>error</code> field; every other image/table/text request in the same call is unaffected.</p>
+<h2 id="known-deliberate-gap-table-cell-images">Known, deliberate gap: table-cell images<a class="headerlink" href="#known-deliberate-gap-table-cell-images" title="Permanent link">&para;</a></h2>
+<p><code>html_parser.py</code>'s img-handling only fires when a block context is open at the body level
+(<code>self._block_tag</code> truthy) — explicitly excluded when inside a table cell, where it falls through
+to the existing silent-no-op path any other unsupported construct already gets there. This is not
+an oversight: <code>Cell.children</code>'s type (<code>list[Run | Image | Table]</code>) already allows an <code>Image</code> for
+forward-compatibility, but the cell-fill machinery (<code>emitter.py</code>'s <code>_fill_children_recursive</code>)
+would infinite-loop on one if it ever appeared — its cursor-advance logic assumes every non-Table
+child is a <code>Run</code> with a <code>.text</code> to consume, and would stall forever on an <code>Image</code> (<code>isinstance(child,
+Run)</code> false, so the run-group loop never advances <code>cursor</code>). Supporting table-cell images
+requires extending that cursor logic (and the live-index re-fetch cycle it depends on) to a third
+child type — a meaningfully larger increment of complexity than body-level support, and not
+something the original issue's own ask required. Tracked as a follow-up rather than folded into
+this change.</p>
 
 
 
@@ -1422,10 +1455,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>
