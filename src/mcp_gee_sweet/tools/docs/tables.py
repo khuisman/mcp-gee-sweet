@@ -26,6 +26,11 @@ def register(tool):
         insert_doc_text (targeting each cell's paragraphStartIndex) to fill cells,
         or with style_doc_table_cells to apply formatting.
 
+        Also useful for form-style column alignment (labels/values lined up without
+        a visible table) — a zero-padding table gives exact column positions where
+        tabStops would otherwise be needed (tabStops itself is read-only, #404). See
+        docs/design/borderless-table-columns.md for the full recipe.
+
         Args:
             doc_id: The Google Doc file ID.
             index: Document body index where the table should be inserted.
