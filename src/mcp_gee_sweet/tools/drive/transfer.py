@@ -16,7 +16,7 @@ from mcp.server.fastmcp import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread, thread_http
-from ..response_limits import enforce_response_size_cap
+from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from . import _SA_QUOTA_ERROR
 
 logger = logging.getLogger(__name__)
@@ -575,18 +575,13 @@ async def _sync_level(
 
     total_bytes = 0
 
-    if dry_run:
-        for step in plan:
-            rel_name = f"{rel_prefix}{step['name']}"
-            if step["action"] == "skip":
-                skipped.append(rel_name)
-            elif step["action"] in ("conflict", "collision"):
-                # A name-collision preview reports as 'conflict', not 'failed' —
-                # nothing was materialized during dry_run, so it shouldn't imply
-                # an attempt was made and failed (#422 QA review, finding #4).
-                conflicts.append(rel_name)
-            # upload/download actions aren't materialized during dry_run
-    else:
+    # dry_run leaves uploaded/downloaded/skipped/conflicts/failed empty rather than
+    # duplicating each name (plus a now-redundant bare action label) into a flat
+    # list alongside its already-complete entry in `actions` — that duplication is
+    # what pushed a moderately-sized folder's dry-run response over the response
+    # size cap (#512) despite `actions` alone (name + action + reason for every
+    # item considered) already being a complete, non-redundant picture of the plan.
+    if not dry_run:
 
         async def _run_one(step: dict[str, str]) -> dict[str, Any]:
             name = step["name"]
@@ -1742,6 +1737,7 @@ def register(tool):
         skip_system_files: bool = True,
         dry_run: bool = False,
         recursive: bool = False,
+        result_local_path: str | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -1818,9 +1814,13 @@ def register(tool):
 
         ## dry_run
 
-        When dry_run=True no files or folders are created/transferred. The response
-        includes an 'actions' list showing every file considered at every level
-        visited, with the reason.
+        When dry_run=True no files or folders are created/transferred. 'uploaded',
+        'downloaded', 'skipped', 'conflicts', and 'failed' are always empty in this
+        mode (nothing was materialized to report there) — the response instead
+        includes an 'actions' list with {name, action, reason} for every file
+        considered at every level visited; this is the complete, non-redundant
+        picture of what a real run would do and why, without duplicating each name
+        into a second, action-labelless list alongside it (#512).
 
         ## Progress
 
@@ -1864,14 +1864,25 @@ def register(tool):
             dry_run: If True, plan the sync but transfer nothing.
             recursive: If True, also sync matching subfolders at any depth (see above).
                        Defaults to False — a single call only covers the top-level folder.
+            result_local_path: If set, write the result to this file/directory path
+                       instead of returning it inline, unconditionally bypassing the
+                       response-size safety cap below — useful for a large recursive
+                       sync (dry_run or real) whose result would otherwise exceed it.
+                       Returns a manifest ({local_path, bytes_written, folder_id,
+                       dry_run}) instead of the sync result itself.
 
         Returns:
             uploaded, downloaded, skipped, conflicts, failed lists (relative paths —
             just the filename at the top level, 'subdir/name' for nested matches when
-            recursive descends), 'folders_skipped' (relative subfolder paths not
-            entered — always empty when recursive=False), size_bytes transferred,
-            dry_run flag, and — when dry_run=True — an 'actions' list with
-            {name, action, reason} for every file considered at every level visited.
+            recursive descends; always empty when dry_run=True, see the dry_run
+            section above), 'folders_skipped' (relative subfolder paths not entered —
+            always empty when recursive=False), size_bytes transferred, dry_run flag,
+            and — when dry_run=True — an 'actions' list with {name, action, reason}
+            for every file considered at every level visited. Raises ValueError if
+            the response exceeds a safety cap (default 40,000 characters, set
+            MAX_TOOL_RESPONSE_CHARS to change it, or pass result_local_path to bypass
+            it and write to disk instead) — a recursive sync/preview over many files
+            is the most likely way to hit this.
         """
         if direction not in ("bidirectional", "upload", "download"):
             raise ValueError(
@@ -1932,6 +1943,14 @@ def register(tool):
         if dry_run:
             result["actions"] = actions
 
+        if result_local_path:
+            return await write_capped_result_to_disk(
+                result,
+                result_local_path,
+                default_filename=f"{folder_id}_sync_result.json",
+                manifest_extra={"folder_id": folder_id, "dry_run": dry_run},
+            )
+
         # recursive=True removes the previous implicit bound (one folder's direct
         # children) on every list here, especially 'actions' during a dry run — the
         # decision doc's own reproduction case (22 subfolders / ~225 files) is a
@@ -1941,6 +1960,6 @@ def register(tool):
             tool_name="sync_folder",
             hint="Recursive syncs can produce very large result lists. Narrow "
             "folder_id, direction, or recursive scope, or ",
-            local_path_available=False,
+            local_path_param="result_local_path",
         )
         return result

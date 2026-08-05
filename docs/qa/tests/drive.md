@@ -2184,17 +2184,57 @@ Delete `nested-sub` from `{FOLDER_ID}`. Remove `/tmp/qa-download-328/`.
 
 ### TC-D196: `recursive=True` dry-run trips the response-size cap on a large action list (PR #328 review) ⚠️ local-filesystem
 
-**Background:** `recursive=True` removes the previous implicit bound (one folder's direct children) on the `actions` list; nothing called `enforce_response_size_cap` the way other large-payload tools (e.g. `export_file`) do. The #315 decision doc's own reproduction case (22 subfolders / ~225 files) was a realistic scale to hit `MAX_TOOL_RESPONSE_CHARS`. This needs a large real Drive tree to trip live — if no existing fixture of that scale is available, this may need to be run against a temporarily-constructed large folder rather than the standard QA fixtures.
+**Background:** `recursive=True` removes the previous implicit bound (one folder's direct children) on the `actions` list; nothing called `enforce_response_size_cap` the way other large-payload tools (e.g. `export_file`) do. The #315 decision doc's own reproduction case (22 subfolders / ~225 files) was a realistic scale to hit `MAX_TOOL_RESPONSE_CHARS`. This needs a large real Drive tree to trip live — if no existing fixture of that scale is available, this may need to be run against a temporarily-constructed large folder rather than the standard QA fixtures. **Update (#512):** the flat lists (`uploaded`/`downloaded`/`skipped`/`conflicts`/`failed`) no longer duplicate `actions` during `dry_run` (see TC-D244), and a `result_local_path` offramp now exists (see TC-D245) — this case still stands for the "narrow scope" no-offramp path, but the error message's bypass guidance changed.
 
 **Prompt**
 > "Do a dry run sync of {LARGE_FOLDER_ID} with a matching local directory in bidirectional mode with recursive=True" *(requires a Drive folder with enough nested files/subfolders — roughly 20+ subfolders / 200+ files — to serialize past 40,000 characters)*
 
 **Checks**
 - Call raises `ValueError` mentioning the actual response size and the 40,000-character cap
-- Error message does not offer a `local_path` bypass (unlike `get_sheet_data`'s cap message) — `sync_folder`'s `local_path` param already means the sync destination, not a dump target for the oversized response
+- Error message offers `result_local_path` as a bypass (not bare `local_path` — `sync_folder`'s own `local_path` param already means the sync destination, not a dump target for the oversized response)
 - Error message suggests narrowing scope (folder, direction, or non-recursive) instead
 
-**Result (2026-07-17)** pending — a 20+ subfolder / 200+ file live fixture is impractical to construct and tear down for a single scoped QA pass (200+ setup/teardown tool calls). Already deterministically unit-tested (`TestSyncFolderResponseSizeCap::test_oversized_result_raises`, monkeypatches the cap to trigger reliably) and passing. Not re-attempted live this pass.
+*(A 20+ subfolder / 200+ file live fixture is impractical to construct/tear down for a scoped QA pass — this case is deterministically unit-tested instead: `TestSyncFolderResponseSizeCap::test_oversized_result_raises`, `test_error_points_to_result_local_path_not_local_path`.)*
+
+---
+
+### TC-D244: dry_run's flat lists stay empty — `actions` alone is the complete, non-redundant preview (issue #512) ⚠️ local-filesystem
+
+**Background:** `sync_folder(dry_run=True)` used to duplicate every `skip`/`conflict` name into both a flat list (`skipped`/`conflicts`) and a full `{name, action, reason}` entry in `actions` — for a folder that's mostly already in sync, this roughly doubled the response for no new information, deterministically tripping the 40,000-character response-size cap on a moderately-sized folder (reported: 303 local / 280 Drive files, only 24 new/changed). Fixed by leaving the flat lists empty during `dry_run` — `actions` was already a complete picture (name + action-type + reason for every item considered, including upload/download entries the flat lists never populated during dry_run even before this fix) — and relying on it exclusively instead of duplicating a subset of it into a second structure.
+
+**Setup**
+In a scratch Drive folder, upload ~5 small text files (e.g. `qa-512-a.txt` .. `qa-512-e.txt`). In a local directory, create local copies of 3 of them with the same content and mtime touched to match (so they read as in-sync), leave 1 Drive-only, and add 1 new local-only file not present in Drive.
+
+**Prompt**
+> Call `sync_folder(folder_id="{SCRATCH_FOLDER_ID}", local_path="/tmp/qa-512/", direction="bidirectional", dry_run=true)`
+
+**Checks**
+- `result["uploaded"] == []`, `result["downloaded"] == []`, `result["skipped"] == []`, `result["conflicts"] == []`, `result["failed"] == []` — all empty regardless of what the plan actually contains
+- `result["actions"]` contains one entry per file considered (5 Drive + 1 local-only = 6), each with `name`, `action`, and `reason`
+- The 3 in-sync files appear in `actions` with `action == "skip"`, `reason == "in sync"`
+- The Drive-only file appears in `actions` with `action == "download"` (bidirectional direction)
+- The local-only file appears in `actions` with `action == "upload"`
+- No file is transferred and no local/Drive state changes (dry_run)
+
+**Teardown**
+Delete the 5 Drive files. Remove `/tmp/qa-512/`.
+
+---
+
+### TC-D245: `result_local_path` bypasses the response-size cap and writes the sync result to disk (issue #512)
+
+**Background:** Unlike every other capped tool except `export_file`/`list_file_activity` (both deliberately, per `docs/decisions/decision-response-size-cap-generalization.md`), `sync_folder` had no escape hatch at all — its own `local_path` param is already the sync destination, so it couldn't double as a dump target the way `get_sheet_data`'s `local_path` does. `result_local_path` is a new, separate param serving that purpose: passing it unconditionally writes the full result to disk (bypassing the cap entirely, matching the `get_doc_content`/`get_sheet_data` pattern) instead of returning it inline.
+
+**Prompt**
+> Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-512b/", direction="bidirectional", dry_run=true, result_local_path="/tmp/qa-512b-result/")`
+
+**Checks**
+- Call succeeds (no `ValueError`) even if the inline result would otherwise be small (this bypass is unconditional once passed, not only triggered when the cap is actually exceeded)
+- Returned manifest contains `local_path` (pointing at a file under `/tmp/qa-512b-result/`), `bytes_written`, `folder_id`, and `dry_run: true` — not the sync result's own keys (`uploaded`/`actions`/etc.) directly
+- Reading the file at the manifest's `local_path` and parsing it as JSON reproduces the same shape `sync_folder` would have returned inline (`uploaded`, `downloaded`, `skipped`, `conflicts`, `failed`, `folders_skipped`, `size_bytes`, `dry_run`, `actions`)
+
+**Teardown**
+Remove `/tmp/qa-512b/` and `/tmp/qa-512b-result/`.
 
 ---
 

@@ -11,14 +11,19 @@ MAX_TOOL_RESPONSE_CHARS = int(os.environ.get("MAX_TOOL_RESPONSE_CHARS", "40000")
 
 
 def enforce_response_size_cap(
-    result: Any, *, tool_name: str, hint: str = "", local_path_available: bool = True
+    result: Any,
+    *,
+    tool_name: str,
+    hint: str = "",
+    local_path_available: bool = True,
+    local_path_param: str = "local_path",
 ) -> None:
     """Raise ValueError if the serialized result exceeds the configured cap."""
     size = len(json.dumps(result))
     if size > MAX_TOOL_RESPONSE_CHARS:
         local_path_clause = (
-            "Pass local_path to write the result to disk instead of returning it inline "
-            "(bypasses this cap), or set"
+            f"Pass {local_path_param} to write the result to disk instead of returning it "
+            "inline (bypasses this cap), or set"
             if local_path_available
             else "set"
         )

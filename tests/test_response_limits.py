@@ -50,6 +50,17 @@ class TestEnforceResponseSizeCap:
             )
         assert "local_path" not in str(exc_info.value)
 
+    def test_local_path_param_overrides_hint_name(self, monkeypatch):
+        # sync_folder's own local_path param already means the sync destination
+        # (#512) — it needs the hint to name a different param for the response
+        # offramp instead of the generic default.
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
+        with pytest.raises(ValueError) as exc_info:
+            response_limits.enforce_response_size_cap(
+                {"a": "bb"}, tool_name="some_tool", local_path_param="result_local_path"
+            )
+        assert "result_local_path" in str(exc_info.value)
+
     def test_env_var_sets_cap_at_import_time(self, monkeypatch):
         monkeypatch.setenv("MAX_TOOL_RESPONSE_CHARS", "12345")
         reloaded = importlib.reload(response_limits)

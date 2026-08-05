@@ -99,7 +99,7 @@
 | `upload_local_folder` | Upload all files in a local directory (non-recursive) to a Google Drive folder. | `local_path`, `parent_folder_id`, `skip_if_exists?`, `skip_system_files?`, `convert?` |
 | `download_file` | Download a file from Google Drive to the local filesystem. | `file_id`, `local_path`, `export_format?` |
 | `download_folder` | Download all files in a Google Drive folder (non-recursive) to a local directory. | `folder_id`, `local_path`, `export_format?`, `mime_type_filter?`, `skip_if_exists?` |
-| `sync_folder` | Sync files between a Google Drive folder and a local directory. | `folder_id`, `local_path`, `direction?`, `export_format?`, `convert_markdown?`, `use_checksum?`, `skip_system_files?`, `dry_run?`, `recursive?` |
+| `sync_folder` | Sync files between a Google Drive folder and a local directory. | `folder_id`, `local_path`, `direction?`, `export_format?`, `convert_markdown?`, `use_checksum?`, `skip_system_files?`, `dry_run?`, `recursive?`, `result_local_path?` |
 
 ## Drive — sharing
 
