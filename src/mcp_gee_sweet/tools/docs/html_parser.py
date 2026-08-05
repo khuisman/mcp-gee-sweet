@@ -631,7 +631,15 @@ class _AstParser(HTMLParser):
         if tag == "pre" and self._table_depth == 0 and self._block_tag == "pre":
             # Images are never appended to _pending_runs while self._in_pre is
             # True (see the img handling in handle_starttag) — this filter is
-            # a type-narrowing no-op, not a behavior change.
+            # a type-narrowing no-op, not a behavior change. list[Run | Image]
+            # is kept (rather than list[Run]) because handle_endtag reuses
+            # `runs` as one function-scoped variable across several branches
+            # (table cells, generic block tags) that do need list[Run |
+            # Image] — Python's list invariance means a genuinely list[Run]
+            # local here still couldn't be passed to Paragraph(runs=...)'s
+            # list[Run | Image] parameter below without the same cast, so the
+            # isinstance filter in the join just below stays for the same
+            # reason.
             runs: list[Run | Image] = [r for r in self._flush_pending_runs() if isinstance(r, Run)]
             # Strip trailing newline that markdown adds inside <pre> content
             last = runs[-1] if runs else None
@@ -645,9 +653,16 @@ class _AstParser(HTMLParser):
             # content — the same fresh-vs-resumed distinction _emit_block_node
             # already draws for <p>/<li>/headings (#401/#402), #443. A
             # *fresh* <pre> keeps its whitespace unconditionally, since every
-            # character inside <pre> is normally significant.
+            # character inside <pre> is normally significant. But a resumed
+            # segment that dropped genuinely unsupported content (e.g. a
+            # <hr> inside <pre>) must still get a boundary node even when its
+            # remaining flush is whitespace-only or empty — the same
+            # preserve_if_empty guarantee _emit_block_node gives every other
+            # block type — otherwise the dropped content leaves no trace at
+            # all in the resulting doc (QA round 1, PR #515).
             text = "".join(r.text for r in runs if isinstance(r, Run))
-            if runs and not (self._block_resumed and not text.strip()):
+            is_fresh_pre_whitespace = not self._block_resumed and bool(runs)
+            if text.strip() or is_fresh_pre_whitespace or self._block_had_unsupported_content:
                 self._nodes.append(Paragraph(runs=runs))
             self._block_tag = None
             self._in_pre = False

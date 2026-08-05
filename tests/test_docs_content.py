@@ -246,6 +246,32 @@ class TestPreBlock:
         assert isinstance(nodes[0], Paragraph)
         assert "".join(r.text for r in nodes[0].runs) == "   "
 
+    async def test_pre_resumed_after_table_keeps_boundary_when_content_was_dropped(self):
+        # QA round 1 (PR #515): a resumed <pre> whose trailing flush is
+        # whitespace-only *and* had genuinely dropped unsupported content
+        # (e.g. a bare <hr> inside <pre>) must still get a boundary node —
+        # the same preserve_if_empty guarantee _emit_block_node gives every
+        # other block type — rather than vanishing exactly like the pure-
+        # noise case above and leaving no trace that content was dropped.
+        nodes = html_to_ast("<pre>code<table><tr><td>cell</td></tr></table> <hr></pre>")
+        assert len(nodes) == 3
+        assert isinstance(nodes[0], Paragraph)
+        assert isinstance(nodes[1], Table)
+        assert isinstance(nodes[2], Paragraph)
+        assert "".join(r.text for r in nodes[2].runs) == " "
+
+    async def test_pre_resumed_after_table_keeps_empty_boundary_when_content_was_dropped(self):
+        # Same as above but with zero surviving whitespace at all (nothing
+        # between the closing </table> and the dropped <hr>) — the boundary
+        # node must still be emitted, with empty runs, matching
+        # _emit_block_node's own runs=[] preserve_if_empty path (#401).
+        nodes = html_to_ast("<pre>code<table><tr><td>cell</td></tr></table><hr></pre>")
+        assert len(nodes) == 3
+        assert isinstance(nodes[0], Paragraph)
+        assert isinstance(nodes[1], Table)
+        assert isinstance(nodes[2], Paragraph)
+        assert nodes[2].runs == []
+
 
 class TestTaskList:
     async def test_checked_item_sets_checked_true(self):
