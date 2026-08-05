@@ -200,6 +200,8 @@ Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against that serve
 - The entry with `category: "no_drive_storage_quota"` still contains the original 7 tools and does not contain `transfer_ownership`
 - A full-access auth method (`oauth`/`adc`) still returns `limited_tools: []`, `limitations: []`
 
+**Result (2026-08-04, mcp-gee-sweet-kit, oauth):** ✅ PASS on the full-access check only — `{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "limitations": []}`. The other four checks are **pending** — they require a `service_account`-authed server, and Kit's own dedicated server (`mcp-gee-sweet-kit`) is OAuth-only; per the team tool-boundary rule, QA doesn't call another role's `mcp-gee-sweet-<other>` server (`kai-sa`, or the standalone `mcp-gee-sweet-sa`) even when visible in the session's tool list. Needs a session with a service-account-authed server (Kai, via `mcp-gee-sweet-kai-sa`) to complete.
+
 ---
 
 ### TC-I26: `spreadsheet://{id}/info` resource resolves lifespan context (issue #363)
