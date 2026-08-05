@@ -2242,6 +2242,25 @@ Remove `/tmp/qa-512b/` and `/tmp/qa-512b-result/`.
 
 ---
 
+### TC-D246: `result_local_path` pointing at or inside `local_path` is rejected up front (PR #518 review finding, issue #512)
+
+**Background:** TC-D245's live pass caught this: `local_path` is scanned as sync input on every call, unlike every other capped tool's `local_path`/`result_local_path` (pure output destinations) — writing the result manifest inside it made the manifest file itself show up as a new local-only entry on the very next sync, and would get uploaded to Drive on a real (non-dry_run) run. Fixed by rejecting the call up front (before any Drive API call) when `result_local_path` resolves to `local_path` itself or a path inside it.
+
+**Prompt**
+> Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-512c/", direction="bidirectional", dry_run=true, result_local_path="/tmp/qa-512c/")` (exact same directory as `local_path`)
+>
+> Then: `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-512c/", direction="bidirectional", dry_run=true, result_local_path="/tmp/qa-512c/nested/out.json")` (nested inside `local_path`)
+
+**Checks**
+- Both calls raise `ValueError` mentioning `result_local_path`, before making any Drive API call (no listing, no file created)
+- Error message explains why (`local_path` is scanned as sync input) and suggests a separate directory
+- A control call with `result_local_path="/tmp/qa-512c-result/"` (a sibling directory, not inside `local_path`) succeeds normally (regression check against TC-D245)
+
+**Teardown**
+Remove `/tmp/qa-512c/` and `/tmp/qa-512c-result/`.
+
+---
+
 ### TC-D197: `recursive=True` — sibling subfolders sync correctly with no cross-attribution under concurrent descent (PR #328 review) ⚠️ destructive ⚠️ local-filesystem
 
 **Background:** CLAUDE.md names `sync_folder` among the tools that parallelize per-item work via `asyncio.gather(..., return_exceptions=True)`. The recursive descent into sibling subfolders originally awaited each one sequentially instead, right next to the file-level loop in the same function that does use `gather` — wall-clock time scaled with the sum of subfolder round-trips instead of the max. Fixed by gathering sibling `_sync_level` calls the same way. Genuine concurrency (not just correctness) is unit-tested via a real-thread synchronization barrier (`tests/drive/test_transfer.py::TestSyncFolderRecursive::test_recursive_sibling_subfolders_descend_concurrently`); this live check confirms correctness under real concurrent Drive API calls — a mocked test can't catch a genuine race the way #183's TC-D178/TC-D179 precedent established.

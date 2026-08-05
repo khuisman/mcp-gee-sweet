@@ -1869,7 +1869,12 @@ def register(tool):
                        response-size safety cap below — useful for a large recursive
                        sync (dry_run or real) whose result would otherwise exceed it.
                        Returns a manifest ({local_path, bytes_written, folder_id,
-                       dry_run}) instead of the sync result itself.
+                       dry_run}) instead of the sync result itself. Must not be
+                       `local_path` or a path inside it — `local_path` is scanned as
+                       sync input on every call, so a result manifest written there
+                       would show up as a new local-only file on the next sync (and
+                       get uploaded to Drive on a real run); raises ValueError if it
+                       resolves inside `local_path`.
 
         Returns:
             uploaded, downloaded, skipped, conflicts, failed lists (relative paths —
@@ -1897,6 +1902,25 @@ def register(tool):
         drive_service = lc.drive_service
         dest_dir = Path(local_path)
         dest_dir.mkdir(parents=True, exist_ok=True)
+
+        if result_local_path:
+            # local_path is also a live input directory this same call scans — unlike
+            # every other capped tool's local_path (a pure output destination), writing
+            # the result manifest inside it would make the manifest file itself show up
+            # as a new local-only entry on the very next sync, and get uploaded to Drive
+            # on a real (non-dry_run) run (QA finding, PR #518 review, live-reproduced).
+            result_path_resolved = Path(result_local_path).resolve()
+            dest_dir_resolved = dest_dir.resolve()
+            if (
+                result_path_resolved == dest_dir_resolved
+                or dest_dir_resolved in result_path_resolved.parents
+            ):
+                raise ValueError(
+                    f"result_local_path ('{result_local_path}') must not be local_path "
+                    f"('{local_path}') or a path inside it — local_path is scanned as "
+                    "sync input, so writing the result manifest there would make it show "
+                    "up as a new local-only file on the next sync. Use a separate directory."
+                )
 
         uploaded: list[str] = []
         downloaded: list[str] = []

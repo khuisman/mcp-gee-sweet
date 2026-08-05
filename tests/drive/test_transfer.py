@@ -2282,3 +2282,44 @@ class TestSyncFolderResponseSizeCap:
         assert manifest["dry_run"] is True
         written = json.loads(Path(manifest["local_path"]).read_text())
         assert written["actions"][0]["name"] == "readme.txt"
+
+    async def test_result_local_path_equal_to_local_path_raises(self, tmp_path):
+        # QA finding, PR #518 review: local_path is scanned as sync input on every
+        # call — writing the result manifest there would show up as a new
+        # local-only file on the very next sync (and get uploaded on a real run).
+        fs = _FakeDriveFS({"root": [_drive_file("readme.txt", "f1")]})
+        sync_dir = tmp_path / "sync"
+        with pytest.raises(ValueError, match="result_local_path"):
+            await _transfer_tools["sync_folder"](
+                folder_id="root",
+                local_path=str(sync_dir),
+                dry_run=True,
+                result_local_path=str(sync_dir),
+                ctx=self._ctx(fs),
+            )
+
+    async def test_result_local_path_inside_local_path_raises(self, tmp_path):
+        fs = _FakeDriveFS({"root": [_drive_file("readme.txt", "f1")]})
+        sync_dir = tmp_path / "sync"
+        with pytest.raises(ValueError, match="result_local_path"):
+            await _transfer_tools["sync_folder"](
+                folder_id="root",
+                local_path=str(sync_dir),
+                dry_run=True,
+                result_local_path=str(sync_dir / "nested" / "out.json"),
+                ctx=self._ctx(fs),
+            )
+
+    async def test_result_local_path_outside_local_path_succeeds(self, tmp_path):
+        fs = _FakeDriveFS({"root": [_drive_file("readme.txt", "f1")]})
+        sync_dir = tmp_path / "sync"
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        manifest = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(sync_dir),
+            dry_run=True,
+            result_local_path=str(out_dir),
+            ctx=self._ctx(fs),
+        )
+        assert manifest["folder_id"] == "root"
