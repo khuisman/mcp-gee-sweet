@@ -638,6 +638,88 @@ class TestUploadLocalFolder:
         assert result["uploaded"] == ["data.csv"]
         assert result["skipped"] == []
 
+    async def test_convert_skips_when_existing_converted_file_has_stripped_extension(
+        self, tmp_path
+    ):
+        """TC-D243 (PR #505 review): Drive's native import-conversion strips the
+        source extension from some converted types' display name (confirmed
+        live for CSV) — a second convert=True run must still recognize the
+        already-converted file even though its Drive name ("data") no longer
+        matches the local file's name ("data.csv"), or it re-converts and
+        duplicates it on every run."""
+        (tmp_path / "data.csv").write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"name": "data", "mimeType": "application/vnd.google-apps.spreadsheet"}]
+        }
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["skipped"] == ["data.csv"]
+        assert result["uploaded"] == []
+        drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_convert_skips_when_both_raw_and_converted_duplicates_exist(self, tmp_path):
+        """A third convert=True run against a folder that already has both the
+        raw pre-convert duplicate (TC-D242's scenario, matched by full name) and
+        the already-converted file (TC-D243's scenario, matched by stem) must
+        still recognize the converted one and skip, not create a third file —
+        the two lookups must be independent, not short-circuit on the first
+        (unrelated) match."""
+        (tmp_path / "data.csv").write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {"name": "data.csv", "mimeType": "text/csv"},
+                {"name": "data", "mimeType": "application/vnd.google-apps.spreadsheet"},
+            ]
+        }
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["skipped"] == ["data.csv"]
+        assert result["uploaded"] == []
+        drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_file_deleted_mid_loop_reported_as_failed_not_raised(self, tmp_path, monkeypatch):
+        """_upload_local_file raises ValueError uncaught if the local file is
+        gone by the time it's actually called (its own path.is_file() check
+        runs before its try/except) — e.g. deleted between the directory scan
+        and this file's turn in the loop. The old inline upload code caught
+        this per-file; the refactor to _upload_local_file needs its own
+        try/except to keep that isolation (PR #505 review, issue #411).
+        Simulated via monkeypatch since a real race on disk isn't reliably
+        reproducible in a unit test."""
+        (tmp_path / "a.txt").write_text("a")
+        (tmp_path / "b.txt").write_text("b")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+
+        real_upload = transfer_module._upload_local_file
+
+        async def _flaky(drive_service, local_path, *args, **kwargs):
+            if local_path.endswith("b.txt"):
+                raise ValueError(f"No file found at {local_path!r}")
+            return await real_upload(drive_service, local_path, *args, **kwargs)
+
+        monkeypatch.setattr(transfer_module, "_upload_local_file", _flaky)
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid",
+            "name": "a.txt",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await self._tool()(str(tmp_path), "folder1", ctx=self._ctx(drive_svc))
+
+        assert result["uploaded"] == ["a.txt"]
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["name"] == "b.txt"
+        assert "No file found" in result["failed"][0]["error"]
+
     async def test_create_failure_reported_as_failed_not_raised(self, tmp_path):
         (tmp_path / "a.txt").write_text("a")
         drive_svc = MagicMock()

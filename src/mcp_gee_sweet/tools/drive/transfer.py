@@ -1403,21 +1403,42 @@ def register(tool):
             existing_by_name = {}
 
         for p in sorted(candidates):
-            if p.name in existing_by_name:
-                if not convert:
-                    skipped.append(p.name)
-                    continue
+            if convert:
                 target_mime = _CONVERT_MIME.get(p.suffix.lower())
-                if target_mime is not None and existing_by_name[p.name] == target_mime[1]:
+                # Drive's native import-conversion strips the source extension from
+                # some converted types' display name (confirmed live for CSV,
+                # TC-D215/TC-D243) but keeps it for others (.md, TC-D240) — check
+                # both the original name and the extension-stripped stem
+                # independently so either naming behavior, or both existing at
+                # once (a raw duplicate alongside an already-converted one), is
+                # recognized correctly (PR #505 review, issue #411).
+                if target_mime is not None and (
+                    existing_by_name.get(p.name) == target_mime[1]
+                    or existing_by_name.get(p.stem) == target_mime[1]
+                ):
                     skipped.append(p.name)
                     continue
+            elif p.name in existing_by_name:
+                skipped.append(p.name)
+                continue
 
             # skip_if_exists=False here — existence was already decided above from the
             # single bulk list() call, so _upload_local_file doesn't need its own
             # per-file check (preserves the one-list-call-per-run contract, TC-D100).
-            result = await _upload_local_file(
-                drive_service, str(p), parent_folder_id, skip_if_exists=False, convert=convert
-            )
+            try:
+                result = await _upload_local_file(
+                    drive_service, str(p), parent_folder_id, skip_if_exists=False, convert=convert
+                )
+            except Exception as e:
+                # _upload_local_file raises ValueError uncaught if the file no
+                # longer exists at call time (e.g. deleted between the directory
+                # scan above and this file's turn in the loop) — without this,
+                # one missing file crashed the whole call, discarding every
+                # already-accumulated uploaded/skipped/failed result instead of
+                # recording a single failed entry (PR #505 review, issue #411).
+                failed.append({"name": p.name, "error": str(e)})
+                continue
+
             if "error" in result:
                 failed.append({"name": p.name, "error": result["error"]})
             else:
