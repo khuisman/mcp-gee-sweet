@@ -1,9 +1,11 @@
 """Tests for tools/drive/transfer.py (upload_file, _xlsx_range_values, etc.)."""
 
 import io
+import json
 import os
 import threading
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import openpyxl
@@ -1502,8 +1504,10 @@ class TestSyncFolderConvertMarkdown:
             ctx=self._ctx(fs),
         )
 
+        # #512: dry_run leaves the flat lists empty — 'actions' (asserted below) is
+        # the sole, non-redundant source of truth for a dry_run preview.
         assert result["failed"] == []
-        assert result["conflicts"] == ["notes.md"]
+        assert result["conflicts"] == []
         assert len(result["actions"]) == 1
         assert result["actions"][0]["name"] == "notes.md"
         assert result["actions"][0]["action"] == "collision"
@@ -2244,11 +2248,10 @@ class TestSyncFolderResponseSizeCap:
                 ctx=self._ctx(fs),
             )
 
-    async def test_error_does_not_offer_local_path_bypass(self, tmp_path, monkeypatch):
+    async def test_error_points_to_result_local_path_not_local_path(self, tmp_path, monkeypatch):
         # sync_folder's local_path param already means the sync destination — it
-        # can't double as a place to dump the oversized response, so the error must
-        # not suggest passing it for that (unlike get_sheet_data's local_path, which
-        # exists specifically for this purpose).
+        # can't double as a place to dump the oversized response (#512), so the
+        # error must point at the dedicated result_local_path param instead.
         monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
         fs = _FakeDriveFS({"root": [_drive_file("readme.txt", "f1")]})
         with pytest.raises(ValueError) as exc_info:
@@ -2258,4 +2261,65 @@ class TestSyncFolderResponseSizeCap:
                 dry_run=True,
                 ctx=self._ctx(fs),
             )
-        assert "local_path" not in str(exc_info.value)
+        assert "result_local_path" in str(exc_info.value)
+
+    async def test_result_local_path_bypasses_cap_and_writes_to_disk(self, tmp_path, monkeypatch):
+        # #512: unlike the sync destination local_path, result_local_path is the
+        # offramp for the *response* — passing it must skip the cap entirely and
+        # write the full result to disk instead of raising.
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
+        fs = _FakeDriveFS({"root": [_drive_file("readme.txt", "f1")]})
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        manifest = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path / "sync"),
+            dry_run=True,
+            result_local_path=str(out_dir),
+            ctx=self._ctx(fs),
+        )
+        assert manifest["folder_id"] == "root"
+        assert manifest["dry_run"] is True
+        written = json.loads(Path(manifest["local_path"]).read_text())
+        assert written["actions"][0]["name"] == "readme.txt"
+
+    async def test_result_local_path_equal_to_local_path_raises(self, tmp_path):
+        # QA finding, PR #518 review: local_path is scanned as sync input on every
+        # call — writing the result manifest there would show up as a new
+        # local-only file on the very next sync (and get uploaded on a real run).
+        fs = _FakeDriveFS({"root": [_drive_file("readme.txt", "f1")]})
+        sync_dir = tmp_path / "sync"
+        with pytest.raises(ValueError, match="result_local_path"):
+            await _transfer_tools["sync_folder"](
+                folder_id="root",
+                local_path=str(sync_dir),
+                dry_run=True,
+                result_local_path=str(sync_dir),
+                ctx=self._ctx(fs),
+            )
+
+    async def test_result_local_path_inside_local_path_raises(self, tmp_path):
+        fs = _FakeDriveFS({"root": [_drive_file("readme.txt", "f1")]})
+        sync_dir = tmp_path / "sync"
+        with pytest.raises(ValueError, match="result_local_path"):
+            await _transfer_tools["sync_folder"](
+                folder_id="root",
+                local_path=str(sync_dir),
+                dry_run=True,
+                result_local_path=str(sync_dir / "nested" / "out.json"),
+                ctx=self._ctx(fs),
+            )
+
+    async def test_result_local_path_outside_local_path_succeeds(self, tmp_path):
+        fs = _FakeDriveFS({"root": [_drive_file("readme.txt", "f1")]})
+        sync_dir = tmp_path / "sync"
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        manifest = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(sync_dir),
+            dry_run=True,
+            result_local_path=str(out_dir),
+            ctx=self._ctx(fs),
+        )
+        assert manifest["folder_id"] == "root"

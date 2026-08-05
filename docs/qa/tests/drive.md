@@ -2004,7 +2004,7 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-231-src/` 
 
 ### TC-D232: a name collision under dry_run reports as a conflict preview, not a failed entry (PR #433 review, finding #4) ⚠️ local-filesystem
 
-**Background:** `dry_run=true` never materializes any transfer, so `failed` should only ever contain real execution failures — nothing should land there during a preview. The collision guard's `failed.append()` originally ran unconditionally in the `drive_map`-building loop, before the `dry_run` gate, so a collision showed up in `failed` even during dry_run — inconsistent with the pre-existing folder-collision failure path in the same function, which is explicitly guarded against this. The fix reports it as a `conflict` (in both `conflicts` and `actions`, with `action: "collision"`) during dry_run, and only as a real `failed` entry once execution is actually attempted.
+**Background:** `dry_run=true` never materializes any transfer, so `failed` should only ever contain real execution failures — nothing should land there during a preview. The collision guard's `failed.append()` originally ran unconditionally in the `drive_map`-building loop, before the `dry_run` gate, so a collision showed up in `failed` even during dry_run — inconsistent with the pre-existing folder-collision failure path in the same function, which is explicitly guarded against this. The fix reports it as a `conflict` in `actions` (with `action: "collision"`) during dry_run, and only as a real `failed` entry once execution is actually attempted. **Update (#512, see TC-D244):** the flat `conflicts` list (like every other flat list) is now always empty during `dry_run` — `actions` alone is the complete preview, so this case's own collision entry only shows up there now, not in both places.
 
 **Prompt**
 > Reuse TC-D227's setup: a plain file and a `convert_markdown`-produced Doc both named `notes.md` in `{FOLDER_ID}`. With `/tmp/qa-sync-232/` created but empty:
@@ -2012,14 +2012,14 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-231-src/` 
 
 **Checks**
 - Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-232/", direction="bidirectional", convert_markdown=true, dry_run=true)`
-- `failed` is empty; `notes.md` appears in `conflicts` instead
+- `failed` is empty; `conflicts` is also empty (#512 — flat lists stay empty during dry_run)
 - `actions` contains one entry for `notes.md` with `"action": "collision"`
 - Neither Drive-side `notes.md` file was touched (nothing materializes during dry_run)
 
 **Teardown**
 Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-232/`.
 
-**Result (2026-07-27) ✅ PASS** — `sync_folder(..., dry_run=true)` against the same collision fixture returned `failed: []`, `conflicts: ["notes.md", ...]`, and `actions` containing `{"name": "notes.md", "action": "collision", ...}` — the dry_run/failed-invariant is now upheld. Both Drive-side files confirmed untouched afterward. Both trashed after the test.
+**Result (2026-08-04) ✅ PASS** — Reproduced with a scratch fixture (own scratch folder, not the shared `{FOLDER_ID}`): `sync_folder(..., convert_markdown=true, dry_run=true)` against a plain `notes.md` and a `convert_markdown`-produced Doc also named `notes.md` returned `failed: []`, `conflicts: []`, and `actions: [{"name": "notes.md", "action": "collision", "reason": "a plain file and a convert_markdown Doc are named 'notes.md' in this Drive folder — sync can't tell which one the local file matches; rename or remove one of them in Drive"}]` — confirms the #512 dry_run/flat-lists-always-empty change applies to the collision case too, not just skip/upload/download. Both scratch files trashed after the test.
 
 ---
 
@@ -2184,17 +2184,82 @@ Delete `nested-sub` from `{FOLDER_ID}`. Remove `/tmp/qa-download-328/`.
 
 ### TC-D196: `recursive=True` dry-run trips the response-size cap on a large action list (PR #328 review) ⚠️ local-filesystem
 
-**Background:** `recursive=True` removes the previous implicit bound (one folder's direct children) on the `actions` list; nothing called `enforce_response_size_cap` the way other large-payload tools (e.g. `export_file`) do. The #315 decision doc's own reproduction case (22 subfolders / ~225 files) was a realistic scale to hit `MAX_TOOL_RESPONSE_CHARS`. This needs a large real Drive tree to trip live — if no existing fixture of that scale is available, this may need to be run against a temporarily-constructed large folder rather than the standard QA fixtures.
+**Background:** `recursive=True` removes the previous implicit bound (one folder's direct children) on the `actions` list; nothing called `enforce_response_size_cap` the way other large-payload tools (e.g. `export_file`) do. The #315 decision doc's own reproduction case (22 subfolders / ~225 files) was a realistic scale to hit `MAX_TOOL_RESPONSE_CHARS`. This needs a large real Drive tree to trip live — if no existing fixture of that scale is available, this may need to be run against a temporarily-constructed large folder rather than the standard QA fixtures. **Update (#512):** the flat lists (`uploaded`/`downloaded`/`skipped`/`conflicts`/`failed`) no longer duplicate `actions` during `dry_run` (see TC-D244), and a `result_local_path` offramp now exists (see TC-D245) — this case still stands for the "narrow scope" no-offramp path, but the error message's bypass guidance changed.
 
 **Prompt**
 > "Do a dry run sync of {LARGE_FOLDER_ID} with a matching local directory in bidirectional mode with recursive=True" *(requires a Drive folder with enough nested files/subfolders — roughly 20+ subfolders / 200+ files — to serialize past 40,000 characters)*
 
 **Checks**
 - Call raises `ValueError` mentioning the actual response size and the 40,000-character cap
-- Error message does not offer a `local_path` bypass (unlike `get_sheet_data`'s cap message) — `sync_folder`'s `local_path` param already means the sync destination, not a dump target for the oversized response
+- Error message offers `result_local_path` as a bypass (not bare `local_path` — `sync_folder`'s own `local_path` param already means the sync destination, not a dump target for the oversized response)
 - Error message suggests narrowing scope (folder, direction, or non-recursive) instead
 
-**Result (2026-07-17)** pending — a 20+ subfolder / 200+ file live fixture is impractical to construct and tear down for a single scoped QA pass (200+ setup/teardown tool calls). Already deterministically unit-tested (`TestSyncFolderResponseSizeCap::test_oversized_result_raises`, monkeypatches the cap to trigger reliably) and passing. Not re-attempted live this pass.
+*(A 20+ subfolder / 200+ file live fixture is impractical to construct/tear down for a scoped QA pass — this case is deterministically unit-tested instead: `TestSyncFolderResponseSizeCap::test_oversized_result_raises`, `test_error_points_to_result_local_path_not_local_path`.)*
+
+---
+
+### TC-D244: dry_run's flat lists stay empty — `actions` alone is the complete, non-redundant preview (issue #512) ⚠️ local-filesystem
+
+**Background:** `sync_folder(dry_run=True)` used to duplicate every `skip`/`conflict` name into both a flat list (`skipped`/`conflicts`) and a full `{name, action, reason}` entry in `actions` — for a folder that's mostly already in sync, this roughly doubled the response for no new information, deterministically tripping the 40,000-character response-size cap on a moderately-sized folder (reported: 303 local / 280 Drive files, only 24 new/changed). Fixed by leaving the flat lists empty during `dry_run` — `actions` was already a complete picture (name + action-type + reason for every item considered, including upload/download entries the flat lists never populated during dry_run even before this fix) — and relying on it exclusively instead of duplicating a subset of it into a second structure.
+
+**Setup**
+In a scratch Drive folder, upload ~5 small text files (e.g. `qa-512-a.txt` .. `qa-512-e.txt`). In a local directory, create local copies of 3 of them with the same content and mtime touched to match (so they read as in-sync), leave the remaining 2 Drive-only, and add 1 new local-only file not present in Drive.
+
+**Prompt**
+> Call `sync_folder(folder_id="{SCRATCH_FOLDER_ID}", local_path="/tmp/qa-512/", direction="bidirectional", dry_run=true)`
+
+**Checks**
+- `result["uploaded"] == []`, `result["downloaded"] == []`, `result["skipped"] == []`, `result["conflicts"] == []`, `result["failed"] == []` — all empty regardless of what the plan actually contains
+- `result["actions"]` contains one entry per file considered (5 Drive + 1 local-only = 6), each with `name`, `action`, and `reason`
+- The 3 in-sync files appear in `actions` with `action == "skip"`, `reason == "in sync"`
+- Each Drive-only file appears in `actions` with `action == "download"` (bidirectional direction)
+- The local-only file appears in `actions` with `action == "upload"`
+- No file is transferred and no local/Drive state changes (dry_run)
+
+**Teardown**
+Delete the 5 Drive files. Remove `/tmp/qa-512/`.
+
+**Result (2026-08-04) ✅ PASS** — Reproduced with a scratch folder (5 files a–e uploaded via `upload_local_file`; a/b/c copied locally with `cp -p` to preserve the mtime `upload_local_file` had already stamped onto Drive, so they land in-sync without any manual touch; d/e left Drive-only; f added local-only). `sync_folder(..., dry_run=true)` returned all five flat lists empty and `actions` with exactly 6 entries: a/b/c `skip`/"in sync", d/e `download`/"drive only", f `upload`/"local only". Scratch folder trashed after the test.
+
+---
+
+### TC-D245: `result_local_path` bypasses the response-size cap and writes the sync result to disk (issue #512)
+
+**Background:** Unlike every other capped tool except `export_file`/`list_file_activity` (both deliberately, per `docs/decisions/decision-response-size-cap-generalization.md`), `sync_folder` had no escape hatch at all — its own `local_path` param is already the sync destination, so it couldn't double as a dump target the way `get_sheet_data`'s `local_path` does. `result_local_path` is a new, separate param serving that purpose: passing it unconditionally writes the full result to disk (bypassing the cap entirely, matching the `get_doc_content`/`get_sheet_data` pattern) instead of returning it inline.
+
+**Prompt**
+> Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-512b/", direction="bidirectional", dry_run=true, result_local_path="/tmp/qa-512b-result/")`
+
+**Checks**
+- Call succeeds (no `ValueError`) even if the inline result would otherwise be small (this bypass is unconditional once passed, not only triggered when the cap is actually exceeded)
+- Returned manifest contains `local_path` (pointing at a file under `/tmp/qa-512b-result/`), `bytes_written`, `folder_id`, and `dry_run: true` — not the sync result's own keys (`uploaded`/`actions`/etc.) directly
+- Reading the file at the manifest's `local_path` and parsing it as JSON reproduces the same shape `sync_folder` would have returned inline (`uploaded`, `downloaded`, `skipped`, `conflicts`, `failed`, `folders_skipped`, `size_bytes`, `dry_run`, `actions`)
+
+**Teardown**
+Remove `/tmp/qa-512b/` and `/tmp/qa-512b-result/`.
+
+**Result (2026-08-04) ✅ PASS** — Reusing TC-D244's scratch fixture, `sync_folder(..., dry_run=true, result_local_path=<result dir>/)` returned only `{local_path, bytes_written, folder_id, dry_run: true}` (no inline `uploaded`/`actions`/etc.). Reading the written JSON file reproduced the exact same shape/values the inline call in TC-D244 returned. **Live-confirmed a related correctness gap while running this case — see the PR comment: `result_local_path` has no guard against pointing inside the sync's own `local_path`, so the written manifest file gets picked up as a spurious local-only file on the next sync.**
+
+---
+
+### TC-D246: `result_local_path` pointing at or inside `local_path` is rejected up front (PR #518 review finding, issue #512)
+
+**Background:** TC-D245's live pass caught this: `local_path` is scanned as sync input on every call, unlike every other capped tool's `local_path`/`result_local_path` (pure output destinations) — writing the result manifest inside it made the manifest file itself show up as a new local-only entry on the very next sync, and would get uploaded to Drive on a real (non-dry_run) run. Fixed by rejecting the call up front (before any Drive API call) when `result_local_path` resolves to `local_path` itself or a path inside it.
+
+**Prompt**
+> Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-512c/", direction="bidirectional", dry_run=true, result_local_path="/tmp/qa-512c/")` (exact same directory as `local_path`)
+>
+> Then: `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-512c/", direction="bidirectional", dry_run=true, result_local_path="/tmp/qa-512c/nested/out.json")` (nested inside `local_path`)
+
+**Checks**
+- Both calls raise `ValueError` mentioning `result_local_path`, before making any Drive API call (no listing, no file created)
+- Error message explains why (`local_path` is scanned as sync input) and suggests a separate directory
+- A control call with `result_local_path="/tmp/qa-512c-result/"` (a sibling directory, not inside `local_path`) succeeds normally (regression check against TC-D245)
+
+**Teardown**
+Remove `/tmp/qa-512c/` and `/tmp/qa-512c-result/`.
+
+**Result (2026-08-04) ✅ PASS** — Reproduced against a scratch fixture. Both invalid calls (`result_local_path` equal to `local_path`, and nested inside it) raised `ValueError: result_local_path (...) must not be local_path (...) or a path inside it...` with no Drive API call made and no file created under `local_path` either time. The sibling-directory control call succeeded normally, writing the manifest under the separate result dir (regression-checked against TC-D245). `uv run python -m pytest tests/drive/test_transfer.py -k result_local_path` also passes (5/5).
 
 ---
 
