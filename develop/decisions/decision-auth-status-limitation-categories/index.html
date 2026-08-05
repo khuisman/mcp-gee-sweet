@@ -10,31 +10,27 @@
       
       
       
-        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/auth/">
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/decisions/decision-auth-status-limitation-categories/">
       
       
-        <link rel="prev" href="../tools/">
-      
-      
-        <link rel="next" href="../configuration/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Authentication - mcp-gee-sweet</title>
+        <title>Decision: Per-Category Limitations in server://auth-status (issue #447) - mcp-gee-sweet</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,7 +49,7 @@
       
     
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -78,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#authentication" class="md-skip">
+        <a href="#decision-per-category-limitations-in-serverauth-status-issue-447" class="md-skip">
           Skip to content
         </a>
       
@@ -98,7 +94,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -118,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Authentication
+              Decision: Per-Category Limitations in server://auth-status (issue #447)
             
           </span>
         </div>
@@ -236,7 +232,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -266,7 +262,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -290,8 +286,6 @@
       
   
   
-    
-  
   
   
     
@@ -304,11 +298,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
         
           
           <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
@@ -329,7 +323,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -347,7 +341,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tools/" class="md-nav__link">
+      <a href="../../tools/" class="md-nav__link">
         
   
   
@@ -372,37 +366,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Authentication
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../auth/" class="md-nav__link">
         
   
   
@@ -418,114 +385,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#auth-waterfall-default" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Auth waterfall (default)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pinning-a-method" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Pinning a method
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#method-a-service-account-recommended-for-servers" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Method A: Service account (recommended for servers)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#method-b-oauth-20-personal-use-local-dev" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Method B: OAuth 2.0 (personal use / local dev)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#method-c-base64-credential-injection" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Method C: Base64 credential injection
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#method-d-application-default-credentials" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Method D: Application Default Credentials
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#required-google-apis" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Required Google APIs
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#environment-variable-summary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Environment variable summary
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -538,7 +397,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/" class="md-nav__link">
+      <a href="../../configuration/" class="md-nav__link">
         
   
   
@@ -566,7 +425,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../client-setup/" class="md-nav__link">
+      <a href="../../client-setup/" class="md-nav__link">
         
   
   
@@ -653,7 +512,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../design/" class="md-nav__link">
+      <a href="../../design/" class="md-nav__link">
         
   
   
@@ -681,7 +540,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../design/" class="md-nav__link">
+      <a href="../../design/" class="md-nav__link">
         
   
   
@@ -709,7 +568,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../design/docs-ast-pipeline/" class="md-nav__link">
+      <a href="../../design/docs-ast-pipeline/" class="md-nav__link">
         
   
   
@@ -796,7 +655,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -824,7 +683,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-fork/" class="md-nav__link">
+      <a href="../decision-fork/" class="md-nav__link">
         
   
   
@@ -852,7 +711,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-composite-tools/" class="md-nav__link">
+      <a href="../decision-composite-tools/" class="md-nav__link">
         
   
   
@@ -880,7 +739,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-testing/" class="md-nav__link">
+      <a href="../decision-testing/" class="md-nav__link">
         
   
   
@@ -908,7 +767,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-publishing/" class="md-nav__link">
+      <a href="../decision-publishing/" class="md-nav__link">
         
   
   
@@ -943,7 +802,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../roadmap/" class="md-nav__link">
+      <a href="../../roadmap/" class="md-nav__link">
         
   
   
@@ -1022,7 +881,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/" class="md-nav__link">
+      <a href="../../qa/" class="md-nav__link">
         
   
   
@@ -1050,7 +909,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/setup/" class="md-nav__link">
+      <a href="../../qa/setup/" class="md-nav__link">
         
   
   
@@ -1078,7 +937,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/run/" class="md-nav__link">
+      <a href="../../qa/run/" class="md-nav__link">
         
   
   
@@ -1106,7 +965,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/fixtures.template/" class="md-nav__link">
+      <a href="../../qa/fixtures.template/" class="md-nav__link">
         
   
   
@@ -1183,7 +1042,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/calendar/" class="md-nav__link">
+      <a href="../../qa/tests/calendar/" class="md-nav__link">
         
   
   
@@ -1211,7 +1070,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/docs/" class="md-nav__link">
+      <a href="../../qa/tests/docs/" class="md-nav__link">
         
   
   
@@ -1239,7 +1098,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/drive/" class="md-nav__link">
+      <a href="../../qa/tests/drive/" class="md-nav__link">
         
   
   
@@ -1267,7 +1126,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/infra/" class="md-nav__link">
+      <a href="../../qa/tests/infra/" class="md-nav__link">
         
   
   
@@ -1295,7 +1154,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_read/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_read/" class="md-nav__link">
         
   
   
@@ -1323,7 +1182,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_write/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_write/" class="md-nav__link">
         
   
   
@@ -1351,7 +1210,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_charts/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_charts/" class="md-nav__link">
         
   
   
@@ -1379,7 +1238,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_mgmt/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_mgmt/" class="md-nav__link">
         
   
   
@@ -1415,7 +1274,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../notes-read/" class="md-nav__link">
+      <a href="../../notes-read/" class="md-nav__link">
         
   
   
@@ -1463,126 +1322,41 @@
   
 
 
-<h1 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h1>
-<p>The server tries auth methods in a waterfall by default. Set <code>AUTH_METHOD</code> to pin a specific method with no fallback.</p>
-<h2 id="auth-waterfall-default">Auth waterfall (default)<a class="headerlink" href="#auth-waterfall-default" title="Permanent link">&para;</a></h2>
-<ol>
-<li>OAuth (<code>CREDENTIALS_PATH</code> / <code>TOKEN_PATH</code>)</li>
-<li>Service account (<code>CREDENTIALS_CONFIG</code> or <code>SERVICE_ACCOUNT_PATH</code>)</li>
-<li>Application Default Credentials (ADC)</li>
-</ol>
-<p>OAuth is tried first because it authenticates as a user and has full personal Drive access. Service account is the headless fallback. ADC covers GCP-hosted deployments.</p>
-<h2 id="pinning-a-method">Pinning a method<a class="headerlink" href="#pinning-a-method" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">AUTH_METHOD</span><span class="o">=</span>oauth<span class="w">            </span><span class="c1"># OAuth only — fails fast if credentials are missing</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">AUTH_METHOD</span><span class="o">=</span>service_account<span class="w">  </span><span class="c1"># Service account only</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nv">AUTH_METHOD</span><span class="o">=</span>adc<span class="w">              </span><span class="c1"># ADC only</span>
+<h1 id="decision-per-category-limitations-in-serverauth-status-issue-447">Decision: Per-Category Limitations in <code>server://auth-status</code> (issue #447)<a class="headerlink" href="#decision-per-category-limitations-in-serverauth-status-issue-447" title="Permanent link">&para;</a></h1>
+<p><strong>Date:</strong> 2026-08-02
+<strong>Snapshot commit:</strong> branch <code>fix/joy/issue-447</code> — see <code>src/mcp_gee_sweet/server.py</code></p>
+<h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
+<p><code>transfer_ownership</code> (#140, PR #445) ships with a docstring note pointing callers at <code>server://auth-status</code> to check whether their auth method supports it — but PR #445's own review found the tool was never added to <code>_SA_LIMITED_TOOLS</code>, the list <code>_auth_status_json</code> uses to populate that resource. A caller checking the resource before calling the tool wouldn't see the restriction and would only discover it when the live call failed (TC-D234, <code>docs/qa/tests/drive.md</code>).</p>
+<p>This wasn't a one-line list addition. <code>_auth_status_json</code>'s existing schema attaches one shared <code>reason</code>/<code>alternatives</code> string to every tool in the list, written specifically for the <em>storage-quota</em> failure class shared by <code>create_spreadsheet</code>/<code>create_doc</code>/<code>copy_file</code>/the upload tools/<code>sync_folder</code>: "Service accounts have no Drive storage quota...". <code>transfer_ownership</code> fails for an unrelated reason — a service account has no personal Drive <em>identity</em> to transfer files to/from, not a quota problem — so its <code>reason</code> and <code>alternatives</code> needed to say something different. Attaching the quota reason to it would have been factually wrong; the ticket asked for a design call on how to generalize the schema (or handle the tool some other way) rather than shipping that.</p>
+<h2 id="decision-split-into-per-category-limitation-entries">Decision: split into per-category limitation entries<a class="headerlink" href="#decision-split-into-per-category-limitation-entries" title="Permanent link">&para;</a></h2>
+<p><code>_SA_LIMITED_TOOLS</code> (a flat <code>list[str]</code>) became <code>_SA_LIMITATIONS</code> (a <code>list[dict]</code>), one entry per failure class:</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;category&quot;</span><span class="p">:</span> <span class="s2">&quot;no_drive_storage_quota&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="s2">&quot;tools&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">...</span><span class="n">the</span> <span class="n">original</span> <span class="mi">7</span> <span class="n">tools</span><span class="o">...</span><span class="p">],</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="s2">&quot;reason&quot;</span><span class="p">:</span> <span class="s2">&quot;Service accounts have no Drive storage quota...&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="s2">&quot;alternatives&quot;</span><span class="p">:</span> <span class="s2">&quot;Switch to OAuth (CREDENTIALS_PATH) or ADC for full tool coverage.&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">}</span>
 </code></pre></div>
-<h2 id="method-a-service-account-recommended-for-servers">Method A: Service account (recommended for servers)<a class="headerlink" href="#method-a-service-account-recommended-for-servers" title="Permanent link">&para;</a></h2>
-<p>Best for headless or automated environments. Credentials don't expire.</p>
-<ol>
-<li>Create a service account in GCP Console → IAM &amp; Admin → Service Accounts.</li>
-<li>Download the JSON key file.</li>
-<li>Share a Google Drive folder with the service account's <code>client_email</code> (Editor access).</li>
-<li>Set environment variables:</li>
-<li><code>SERVICE_ACCOUNT_PATH</code> — path to the JSON key file</li>
-<li><code>DRIVE_FOLDER_ID</code> — ID of the shared Drive folder</li>
-</ol>
-<p><strong>Limitation:</strong> service accounts cannot create files in a user's personal Drive (no quota). Use OAuth or a Shared Drive when you need to create files. Service accounts also have no personal Drive identity, so <code>transfer_ownership</code> always fails — that one requires OAuth, with no Shared Drive workaround. See <code>server://auth-status</code> to check your active auth method and affected tools.</p>
-<h2 id="method-b-oauth-20-personal-use-local-dev">Method B: OAuth 2.0 (personal use / local dev)<a class="headerlink" href="#method-b-oauth-20-personal-use-local-dev" title="Permanent link">&para;</a></h2>
-<p>Authenticates as you — gives full access to your personal Drive. Requires a browser login on first run.</p>
-<ol>
-<li>Configure an OAuth consent screen in GCP Console → APIs &amp; Services → OAuth consent screen.</li>
-<li>Create an OAuth Client ID credential (type: Desktop app) and download the JSON.</li>
-<li>Set environment variables:</li>
-<li><code>CREDENTIALS_PATH</code> — path to the downloaded OAuth JSON (default: <code>credentials.json</code>)</li>
-<li><code>TOKEN_PATH</code> — where the refresh token is stored after login (default: <code>token.json</code>)</li>
-</ol>
-<p><strong>Re-authenticating after a scope change:</strong> if you've already authenticated and a new scope has been added (e.g. <code>drive.activity.readonly</code>), delete <code>token.json</code> and restart the server to trigger a fresh OAuth flow.</p>
-<h2 id="method-c-base64-credential-injection">Method C: Base64 credential injection<a class="headerlink" href="#method-c-base64-credential-injection" title="Permanent link">&para;</a></h2>
-<p>Useful in Docker/Kubernetes where file mounts are inconvenient. Encode your service account or OAuth JSON as Base64 and pass it via environment variable.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># macOS / Linux</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>base64<span class="w"> </span>-i<span class="w"> </span>service_account.json<span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;\n&#39;</span>
-</code></pre></div>
-<p>Set the output as <code>CREDENTIALS_CONFIG</code>. The server detects the credential type automatically.</p>
-<h2 id="method-d-application-default-credentials">Method D: Application Default Credentials<a class="headerlink" href="#method-d-application-default-credentials" title="Permanent link">&para;</a></h2>
-<p>For GCP-hosted environments (GKE, Cloud Run, Compute Engine) or local dev with <code>gcloud</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Local development</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>gcloud<span class="w"> </span>auth<span class="w"> </span>application-default<span class="w"> </span>login<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span>--scopes<span class="o">=</span>https://www.googleapis.com/auth/cloud-platform,<span class="se">\</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>https://www.googleapis.com/auth/spreadsheets,<span class="se">\</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>https://www.googleapis.com/auth/drive,<span class="se">\</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>https://www.googleapis.com/auth/drive.activity.readonly,<span class="se">\</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>https://www.googleapis.com/auth/documents,<span class="se">\</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>https://www.googleapis.com/auth/calendar
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>gcloud<span class="w"> </span>auth<span class="w"> </span>application-default<span class="w"> </span>set-quota-project<span class="w"> </span>YOUR_PROJECT_ID
-</code></pre></div>
-<p>On GCP, attach a service account to your compute resource — ADC picks it up automatically. The <code>GOOGLE_APPLICATION_CREDENTIALS</code> env var (Google's standard) also feeds into ADC.</p>
-<h2 id="required-google-apis">Required Google APIs<a class="headerlink" href="#required-google-apis" title="Permanent link">&para;</a></h2>
-<p>Enable these in GCP Console → APIs &amp; Services → Library:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="s2">&quot;category&quot;</span><span class="p">:</span> <span class="s2">&quot;no_personal_drive_identity&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="s2">&quot;tools&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;transfer_ownership&quot;</span><span class="p">],</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="s2">&quot;reason&quot;</span><span class="p">:</span> <span class="s2">&quot;Service accounts have no personal Drive identity to transfer file ownership to/from...&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="s2">&quot;alternatives&quot;</span><span class="p">:</span> <span class="s2">&quot;Switch to OAuth (CREDENTIALS_PATH) for full tool coverage.&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">}</span>
+</code></pre></div></p>
+<p><code>_auth_status_json</code>'s output gained a <code>limitations</code> array (the categorized detail) alongside a <code>limited_tools</code> array that's still a flat, flattened-across-categories list — kept for callers that only want a quick "is this tool restricted" membership check without caring why. The old top-level <code>reason</code>/<code>alternatives</code> strings were removed rather than kept as a deprecated/backward-compatible pair: this is a pre-1.0 MCP resource with no external contract to preserve, and a stale flat <code>reason</code> sitting alongside the new categorized <code>limitations</code> would just invite a caller to read the wrong one.</p>
+<p><strong>Alternatives considered and rejected:</strong>
+- <strong>Bolt <code>transfer_ownership</code> onto the existing flat list, write a reason string broad enough to cover both classes.</strong> Rejected — the issue itself flagged this as the thing to avoid; a caller reading "no Drive storage quota" as the reason <code>transfer_ownership</code> failed would misdiagnose the actual problem (identity, not quota) if they ever needed to reason about it beyond "this tool is restricted."
+- <strong>Per-tool map (<code>{tool_name: {reason, alternatives}}</code>) instead of per-category.</strong> Rejected as unnecessary granularity for now — every restricted tool today maps to exactly one of two categories, and a per-tool map would just repeat the same reason/alternatives string across the 7 quota-limited tools for no benefit. Revisit if a third tool-specific failure class shows up that doesn't fit either existing category.</p>
+<h2 id="scoped-out-adcs-own-identity-ambiguity">Scoped out: ADC's own identity ambiguity<a class="headerlink" href="#scoped-out-adcs-own-identity-ambiguity" title="Permanent link">&para;</a></h2>
+<p>The <code>no_personal_drive_identity</code> category's <code>alternatives</code> deliberately does <strong>not</strong> suggest ADC as a fix, only OAuth — unlike the quota category, which still lists both. <code>google.auth.default()</code> (what <code>AUTH_METHOD=adc</code> resolves through) can return either a real user's credentials or a service-account-backed credential (GCE/Cloud Run/GKE attached metadata service account, or <code>GOOGLE_APPLICATION_CREDENTIALS</code> pointed at a key file), and <code>auth_method</code> alone can't currently distinguish the two — so telling a caller "switch to ADC" for this specific class would be an unverifiable claim.</p>
+<p>This same ambiguity technically also undermines the pre-existing quota category's ADC suggestion (an ADC session backed by a service account has the same quota problem <code>AUTH_METHOD=service_account</code> does), but that's a <em>pre-existing</em> inaccuracy, not something #447 introduced or was scoped to fix. Filed separately as <strong>#506</strong> rather than folded into this change — fixing it means teaching <code>spreadsheet_lifespan</code> (<code>auth.py</code>) to inspect the resolved credential's actual type and report a more specific <code>auth_method</code>/identity flag, a bigger change than this ticket's per-tool schema fix.</p>
+<h2 id="consumers-updated">Consumers updated<a class="headerlink" href="#consumers-updated" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Google Sheets API</li>
-<li>Google Drive API</li>
-<li>Google Drive Activity API (required for <code>list_file_activity</code>)</li>
-<li>Google Docs API</li>
-<li>Google Calendar API</li>
+<li><code>tests/test_server.py::TestAuthStatusResource</code> — split the old single reason/alternatives test into one assertion per category (<code>test_service_account_storage_quota_limitation</code>, <code>test_service_account_transfer_ownership_limitation</code>), added <code>transfer_ownership</code> to the <code>limited_tools</code> membership check, updated the full-access (<code>oauth</code>/<code>adc</code>) tests to expect <code>limitations: []</code> instead of <code>reason: None</code>.</li>
+<li><code>docs/qa/tests/infra.md</code> — TC-I27 added (new schema, service-account auth); TC-I25 (the original <code>#363</code> resource-resolution test, whose recorded <code>Result</code> shows the old flat shape) got a note pointing at TC-I27 rather than a rewritten <code>Result</code>, since TC-I25's own checks (no <code>AttributeError</code>, correct <code>auth_method</code>) are unaffected by the schema change and its historical result shouldn't be edited to claim something that wasn't actually re-run.</li>
+<li><code>docs/auth.md</code> — the service-account "Limitation" bullet now also names <code>transfer_ownership</code> and notes it has no Shared Drive workaround (unlike the quota-limited tools).</li>
 </ul>
-<h2 id="environment-variable-summary">Environment variable summary<a class="headerlink" href="#environment-variable-summary" title="Permanent link">&para;</a></h2>
-<p>Auth-specific variables only — see <a href="../configuration/#environment-variables">Configuration</a> for the full list including cache, tool filtering, and transport settings.</p>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Auth method</th>
-<th>Description</th>
-<th>Default</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>AUTH_METHOD</code></td>
-<td>all</td>
-<td>Pin to one method: <code>oauth</code>, <code>service_account</code>, <code>adc</code></td>
-<td>waterfall</td>
-</tr>
-<tr>
-<td><code>SERVICE_ACCOUNT_PATH</code></td>
-<td>service account</td>
-<td>Path to service account JSON key</td>
-<td>—</td>
-</tr>
-<tr>
-<td><code>GOOGLE_APPLICATION_CREDENTIALS</code></td>
-<td>ADC</td>
-<td>Path to service account key (Google standard)</td>
-<td>—</td>
-</tr>
-<tr>
-<td><code>DRIVE_FOLDER_ID</code></td>
-<td>service account</td>
-<td>Drive folder shared with the service account</td>
-<td>—</td>
-</tr>
-<tr>
-<td><code>CREDENTIALS_PATH</code></td>
-<td>OAuth</td>
-<td>Path to OAuth client ID JSON</td>
-<td><code>credentials.json</code></td>
-</tr>
-<tr>
-<td><code>TOKEN_PATH</code></td>
-<td>OAuth</td>
-<td>Path to store the OAuth refresh token</td>
-<td><code>token.json</code></td>
-</tr>
-<tr>
-<td><code>CREDENTIALS_CONFIG</code></td>
-<td>service account / OAuth</td>
-<td>Base64-encoded credentials JSON</td>
-<td>—</td>
-</tr>
-</tbody>
-</table>
 
 
 
@@ -1638,10 +1412,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

@@ -1305,6 +1305,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#tc-i27-serverauth-status-reports-per-tool-limitation-categories-not-one-shared-reason-issue-447" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I27: server://auth-status reports per-tool limitation categories, not one shared reason (issue #447)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tc-i26-spreadsheetidinfo-resource-resolves-lifespan-context-issue-363" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1969,6 +1980,21 @@ Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</co
 - No <code>AttributeError</code> / <code>'FastMCP' object has no attribute 'get_lifespan_context'</code>
 - Returns valid JSON with <code>auth_method</code> matching the server's actual configured auth method</p>
 <p><strong>Result:</strong> ✅ PASS (2026-07-19, mcp-gee-sweet-sky, oauth). <code>{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "reason": null}</code> — no AttributeError, <code>auth_method</code> matches configured oauth.</p>
+<p><strong>Note (#447):</strong> the flat <code>"reason"</code>/<code>"alternatives"</code> fields shown in the Result above no longer exist — see TC-I27 for the current per-limitation <code>"limitations"</code> shape. This case's own checks (no AttributeError, <code>auth_method</code> matches) are unaffected by that schema change and don't need re-running.</p>
+<hr />
+<h3 id="tc-i27-serverauth-status-reports-per-tool-limitation-categories-not-one-shared-reason-issue-447">TC-I27: <code>server://auth-status</code> reports per-tool limitation categories, not one shared reason (issue #447)<a class="headerlink" href="#tc-i27-serverauth-status-reports-per-tool-limitation-categories-not-one-shared-reason-issue-447" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>_auth_status_json</code> used to attach a single <code>reason</code>/<code>alternatives</code> string to every tool in <code>_SA_LIMITED_TOOLS</code>, written specifically around the storage-quota failure class (<code>create_spreadsheet</code>, <code>create_doc</code>, <code>copy_file</code>, the upload tools, <code>sync_folder</code>). <code>transfer_ownership</code> (#140) fails for a different reason — no personal Drive <em>identity</em>, not a quota problem — so it was left off that list entirely rather than get an inaccurate reason attached to it. Fixed by splitting <code>_SA_LIMITATIONS</code> into categories, each with its own <code>tools</code>/<code>reason</code>/<code>alternatives</code>, so <code>limited_tools</code> (flattened across categories, for a quick membership check) and the new <code>limitations</code> array (the categorized detail) both include <code>transfer_ownership</code> with text that's actually true for it. <code>alternatives</code> for this category deliberately does not mention ADC — see #506, filed alongside this fix, for why ADC can't be assumed to always fix a personal-Drive-identity limitation.</p>
+<p><strong>Setup</strong>
+Server running with <code>AUTH_METHOD=service_account</code> (e.g. <code>mcp-gee-sweet-sa</code> / <code>mcp-gee-sweet-kai-sa</code>).</p>
+<p><strong>Action</strong>
+Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</code> against that server.</p>
+<p><strong>Checks</strong>
+- <code>limited_tools</code> includes <code>"transfer_ownership"</code> alongside the existing quota-limited tools
+- <code>limitations</code> is a list of ≥2 entries, each with <code>category</code>, <code>tools</code>, <code>reason</code>, <code>alternatives</code>
+- The entry with <code>category: "no_personal_drive_identity"</code> has <code>tools == ["transfer_ownership"]</code>, its <code>reason</code> mentions "identity" (not "storage quota"), and its <code>alternatives</code> does not mention ADC
+- The entry with <code>category: "no_drive_storage_quota"</code> still contains the original 7 tools and does not contain <code>transfer_ownership</code>
+- A full-access auth method (<code>oauth</code>/<code>adc</code>) still returns <code>limited_tools: []</code>, <code>limitations: []</code></p>
+<p><strong>Result (2026-08-04, mcp-gee-sweet-kit, oauth):</strong> ✅ PASS on the full-access check only — <code>{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "limitations": []}</code>. The other four checks are <strong>pending</strong> — they require a <code>service_account</code>-authed server, and Kit's own dedicated server (<code>mcp-gee-sweet-kit</code>) is OAuth-only; per the team tool-boundary rule, QA doesn't call another role's <code>mcp-gee-sweet-&lt;other&gt;</code> server (<code>kai-sa</code>, or the standalone <code>mcp-gee-sweet-sa</code>) even when visible in the session's tool list. Needs a session with a service-account-authed server (Kai, via <code>mcp-gee-sweet-kai-sa</code>) to complete.</p>
 <hr />
 <h3 id="tc-i26-spreadsheetidinfo-resource-resolves-lifespan-context-issue-363">TC-I26: <code>spreadsheet://{id}/info</code> resource resolves lifespan context (issue #363)<a class="headerlink" href="#tc-i26-spreadsheetidinfo-resource-resolves-lifespan-context-issue-363" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> Same regression and fix as TC-I25, but for the resource that actually calls the Sheets API (<code>execute_in_thread</code> off <code>context.sheets_service</code>) — proves the fix works on the <code>async def</code> resource path too, not just the sync one.</p>
