@@ -2259,6 +2259,8 @@ Remove `/tmp/qa-512b/` and `/tmp/qa-512b-result/`.
 **Teardown**
 Remove `/tmp/qa-512c/` and `/tmp/qa-512c-result/`.
 
+**Result (2026-08-04) ✅ PASS** — Reproduced against a scratch fixture. Both invalid calls (`result_local_path` equal to `local_path`, and nested inside it) raised `ValueError: result_local_path (...) must not be local_path (...) or a path inside it...` with no Drive API call made and no file created under `local_path` either time. The sibling-directory control call succeeded normally, writing the manifest under the separate result dir (regression-checked against TC-D245). `uv run python -m pytest tests/drive/test_transfer.py -k result_local_path` also passes (5/5).
+
 ---
 
 ### TC-D197: `recursive=True` — sibling subfolders sync correctly with no cross-attribution under concurrent descent (PR #328 review) ⚠️ destructive ⚠️ local-filesystem
