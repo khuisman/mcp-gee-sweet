@@ -2774,3 +2774,23 @@ Tool call: `insert_local_images(doc_id=DOC_ID, images=[{"marker": "IMGMARKERONE"
 **Cleanup:** delete the created doc
 
 **Result (2026-08-02) ✅ PASS — live via the actual `create_doc` MCP tool.** Call returned immediately with no `error` and no `images` key. `get_doc_structure` confirmed the table's cell 0 text is "Before", cell 2 text is "After", and cell 1 (the image cell) is empty (`""`). Doc trashed after the check.
+
+---
+
+### TC-DOC154: A `<pre>` block resumed after a nested table doesn't leave a spurious trailing whitespace-only paragraph ⚠️ requires-oauth ⚠️ destructive
+
+**Background:** issue #443, found during PR #441's code review (issue #402: preserve whitespace/`&nbsp;`-only paragraphs during HTML→Docs conversion). `_emit_block_node` distinguishes a freshly-closed block's whitespace-only trailing text (kept, real content) from a *resumed* block's whitespace-only trailing flush (dropped as markup-formatting noise) — see TC-DOC138's background for the general mechanism. The `<pre>` close-tag handler built its `Paragraph` directly instead of going through `_emit_block_node`, so a `<pre>` resumed after a nested construct (e.g. a `<table>`) interrupting it kept trailing whitespace unconditionally, producing a spurious visible-space paragraph. Fixed by applying the same fresh-vs-resumed check to `<pre>`'s own trailing-whitespace decision, while still keeping a *fresh* `<pre>`'s whitespace unconditionally (every character inside `<pre>` is normally significant, unlike `<p>`).
+
+**Prompt**
+> "Create a Google Doc from this HTML: `<pre>code<table><tr><td>cell</td></tr></table>   </pre>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows exactly two content elements: a `<pre>`-styled paragraph reading "code", followed by a 1×1 table whose cell reads "cell" — no trailing empty/whitespace-only paragraph after the table
+- Companion regression guard (same call, different content): `<pre>   </pre>` on its own (no interruption) still produces one paragraph whose text is the literal whitespace — confirms the fix didn't also start dropping a *fresh* `<pre>`'s own whitespace content
+
+**Cleanup:** delete the created doc(s)
+
+**Result (2026-08-04) ❌ FAIL — run live against PR #515 (issue #443).** Primary check and companion regression guard both PASS: `<pre>code<table>...</table>   </pre>` produces exactly "code" paragraph → 1×1 table ("cell") → the mandatory structural trailing paragraph every Doc requires, with no spurious visible-space paragraph; a standalone `<pre>   </pre>` (no interruption) still keeps its literal whitespace unconditionally. However, `/code-review high` on the same PR live-verified (via `html_to_ast` against the worktree's own code) and this session independently reproduced via the real Docs API a related, not-yet-fixed case the test prompt above doesn't cover: a resumed `<pre>` whose trailing whitespace-only flush follows genuinely *dropped* unsupported content (e.g. `<pre>code<table>...</table> <hr></pre>`) produces a doc structurally identical to the no-drop case — no boundary node at all, silently losing the paragraph break that `_emit_block_node`'s `preserve_if_empty` guarantees every other block type (`<p>`/`<li>`/headings) in an analogous situation. Sent back to Dev (PR #515 comment) rather than approved; not filed as a separate ticket since it's blocking on this same PR.
+
+**Result (2026-08-05) ✅ PASS — re-verified live against fix commit `a465ea3`.** Round 1's finding is fixed: `<pre>code<table>...</table> <hr></pre>` (space survives after dropped `<hr>`) now renders a boundary paragraph `" \n"` immediately after the table; the zero-whitespace variant `<pre>code<table>...</table><hr></pre>` renders an empty boundary paragraph, matching the fix's own two new unit tests. Both of round 1's original checks (primary + companion regression guard) re-confirmed unaffected by the rewritten condition. `TestPreBlock` (10/10) passes. Note for future rounds: the first live-verification attempt this round produced a false FAIL — the `/mcp reconnect` had been run *before* this worktree was reset to the fix commit, so the tool call exercised stale pre-fix code (same class of gotcha as the PR #385 retro entry in `.claude/team-roles/qa.md`); caught by cross-checking against a direct script invocation of the same code path, not by the tool output itself. `qa-approved` applied.
