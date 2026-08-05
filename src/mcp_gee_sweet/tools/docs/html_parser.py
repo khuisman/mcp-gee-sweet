@@ -639,7 +639,15 @@ class _AstParser(HTMLParser):
                 last.text = last.text.rstrip("\n")
                 if not last.text:
                     runs.pop()
-            if runs:
+            # A *resumed* <pre> (interrupted by a nested table/etc, then
+            # reopened via _resume_interrupted_block) whose trailing flush is
+            # whitespace-only is markup-formatting noise, not authored <pre>
+            # content — the same fresh-vs-resumed distinction _emit_block_node
+            # already draws for <p>/<li>/headings (#401/#402), #443. A
+            # *fresh* <pre> keeps its whitespace unconditionally, since every
+            # character inside <pre> is normally significant.
+            text = "".join(r.text for r in runs if isinstance(r, Run))
+            if runs and not (self._block_resumed and not text.strip()):
                 self._nodes.append(Paragraph(runs=runs))
             self._block_tag = None
             self._in_pre = False

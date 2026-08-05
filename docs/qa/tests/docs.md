@@ -2774,3 +2774,19 @@ Tool call: `insert_local_images(doc_id=DOC_ID, images=[{"marker": "IMGMARKERONE"
 **Cleanup:** delete the created doc
 
 **Result (2026-08-02) ✅ PASS — live via the actual `create_doc` MCP tool.** Call returned immediately with no `error` and no `images` key. `get_doc_structure` confirmed the table's cell 0 text is "Before", cell 2 text is "After", and cell 1 (the image cell) is empty (`""`). Doc trashed after the check.
+
+---
+
+### TC-DOC154: A `<pre>` block resumed after a nested table doesn't leave a spurious trailing whitespace-only paragraph ⚠️ requires-oauth ⚠️ destructive
+
+**Background:** issue #443, found during PR #441's code review (issue #402: preserve whitespace/`&nbsp;`-only paragraphs during HTML→Docs conversion). `_emit_block_node` distinguishes a freshly-closed block's whitespace-only trailing text (kept, real content) from a *resumed* block's whitespace-only trailing flush (dropped as markup-formatting noise) — see TC-DOC138's background for the general mechanism. The `<pre>` close-tag handler built its `Paragraph` directly instead of going through `_emit_block_node`, so a `<pre>` resumed after a nested construct (e.g. a `<table>`) interrupting it kept trailing whitespace unconditionally, producing a spurious visible-space paragraph. Fixed by applying the same fresh-vs-resumed check to `<pre>`'s own trailing-whitespace decision, while still keeping a *fresh* `<pre>`'s whitespace unconditionally (every character inside `<pre>` is normally significant, unlike `<p>`).
+
+**Prompt**
+> "Create a Google Doc from this HTML: `<pre>code<table><tr><td>cell</td></tr></table>   </pre>`"
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows exactly two content elements: a `<pre>`-styled paragraph reading "code", followed by a 1×1 table whose cell reads "cell" — no trailing empty/whitespace-only paragraph after the table
+- Companion regression guard (same call, different content): `<pre>   </pre>` on its own (no interruption) still produces one paragraph whose text is the literal whitespace — confirms the fix didn't also start dropping a *fresh* `<pre>`'s own whitespace content
+
+**Cleanup:** delete the created doc(s)

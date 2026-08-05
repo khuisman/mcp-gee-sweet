@@ -217,6 +217,35 @@ class TestPreBlock:
         assert isinstance(nodes[0], Paragraph)
         assert isinstance(nodes[1], Paragraph)
 
+    async def test_pre_resumed_after_table_drops_whitespace_only_trailing_flush(self):
+        # #443: a <pre> interrupted by a nested table, then resumed, whose
+        # trailing flush is whitespace-only, is markup-formatting noise (the
+        # same fresh-vs-resumed distinction _emit_block_node already draws
+        # for <p>/<li>/headings, #401/#402) — not a spurious visible-space
+        # paragraph.
+        nodes = html_to_ast("<pre>code<table><tr><td>cell</td></tr></table>   </pre>")
+        assert len(nodes) == 2
+        assert isinstance(nodes[0], Paragraph)
+        assert "".join(r.text for r in nodes[0].runs) == "code"
+        assert isinstance(nodes[1], Table)
+
+    async def test_pre_resumed_after_table_keeps_real_trailing_text(self):
+        nodes = html_to_ast("<pre>code<table><tr><td>cell</td></tr></table>more code</pre>")
+        assert len(nodes) == 3
+        assert isinstance(nodes[0], Paragraph)
+        assert isinstance(nodes[1], Table)
+        assert isinstance(nodes[2], Paragraph)
+        assert "".join(r.text for r in nodes[2].runs) == "more code"
+
+    async def test_fresh_pre_whitespace_only_content_is_preserved(self):
+        # Unlike the resumed case above, a *fresh* <pre> (never interrupted)
+        # keeps its whitespace unconditionally — every character inside
+        # <pre> is normally significant.
+        nodes = html_to_ast("<pre>   </pre>")
+        assert len(nodes) == 1
+        assert isinstance(nodes[0], Paragraph)
+        assert "".join(r.text for r in nodes[0].runs) == "   "
+
 
 class TestTaskList:
     async def test_checked_item_sets_checked_true(self):
