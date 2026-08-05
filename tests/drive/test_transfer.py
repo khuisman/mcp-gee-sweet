@@ -487,6 +487,264 @@ class TestUploadLocalFileConvert:
         drive_svc.files.return_value.create.assert_not_called()
 
 
+class TestUploadLocalFolder:
+    """upload_local_folder now routes each file through the shared
+    _upload_local_file helper (issue #411) instead of its own independent
+    inline create() call, so it can offer the same convert param
+    upload_local_file already has. The bulk skip_if_exists pre-check (one
+    list() call for the whole folder, TC-D100) is preserved rather than
+    delegated per-file, since _upload_local_file's own skip_if_exists check
+    would cost one list() call per candidate instead."""
+
+    def _tool(self):
+        return _transfer_tools["upload_local_folder"]
+
+    def _ctx(self, drive_svc):
+        return _make_ctx(drive_service=drive_svc, drive_folder_cache=MagicMock())
+
+    async def test_bulk_upload_of_mixed_directory(self, tmp_path):
+        (tmp_path / "a.txt").write_text("a")
+        (tmp_path / "b.png").write_bytes(b"fake")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid",
+            "name": "x",
+            "webViewLink": "https://example.com",
+        }
+        ctx = self._ctx(drive_svc)
+
+        result = await self._tool()(str(tmp_path), "folder1", ctx=ctx)
+
+        assert result["uploaded"] == ["a.txt", "b.png"]
+        assert result["skipped"] == []
+        assert result["failed"] == []
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_once_with(
+            "folder1"
+        )
+
+    async def test_ds_store_excluded_by_default(self, tmp_path):
+        (tmp_path / "a.txt").write_text("a")
+        (tmp_path / ".DS_Store").write_bytes(b"junk")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid",
+            "name": "a.txt",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await self._tool()(str(tmp_path), "folder1", ctx=self._ctx(drive_svc))
+
+        assert result["uploaded"] == ["a.txt"]
+        assert ".DS_Store" not in result["uploaded"]
+
+    async def test_skip_if_exists_makes_exactly_one_list_call_for_the_whole_folder(self, tmp_path):
+        """TC-D100: the existence check must stay a single batched list() call
+        across the whole folder, not one per file — this is why the bulk
+        pre-check result is passed down as skip_if_exists=False into
+        _upload_local_file rather than letting each call do its own check."""
+        (tmp_path / "a.txt").write_text("a")
+        (tmp_path / "b.txt").write_text("b")
+        (tmp_path / "c.txt").write_text("c")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"name": "a.txt", "mimeType": "text/plain"}]
+        }
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid",
+            "name": "x",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await self._tool()(str(tmp_path), "folder1", ctx=self._ctx(drive_svc))
+
+        assert result["skipped"] == ["a.txt"]
+        assert sorted(result["uploaded"]) == ["b.txt", "c.txt"]
+        assert drive_svc.files.return_value.list.call_count == 1
+
+    async def test_convert_routes_through_shared_helper_and_sets_target_mimetype(self, tmp_path):
+        (tmp_path / "data.csv").write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid",
+            "name": "data.csv",
+            "webViewLink": "https://example.com",
+        }
+        drive_svc.files.return_value.update.return_value.execute.return_value = {"id": "fid"}
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["uploaded"] == ["data.csv"]
+        assert result["failed"] == []
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["body"]["mimeType"] == "application/vnd.google-apps.spreadsheet"
+
+    async def test_convert_unsupported_extension_reported_as_failed_not_uploaded(self, tmp_path):
+        (tmp_path / "archive.zip").write_bytes(b"fake")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["uploaded"] == []
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["name"] == "archive.zip"
+        assert ".zip" in result["failed"][0]["error"]
+        drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_convert_skips_when_existing_file_already_in_target_mimetype(self, tmp_path):
+        (tmp_path / "data.csv").write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"name": "data.csv", "mimeType": "application/vnd.google-apps.spreadsheet"}]
+        }
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["skipped"] == ["data.csv"]
+        assert result["uploaded"] == []
+        drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_convert_does_not_skip_when_existing_file_is_still_unconverted(self, tmp_path):
+        """A same-named file that exists but hasn't been converted yet (still its
+        raw mimeType) is not the duplicate convert=True's skip check is meant to
+        catch — mirrors _upload_local_file's own convert-aware skip logic."""
+        (tmp_path / "data.csv").write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"name": "data.csv", "mimeType": "text/csv"}]
+        }
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid-converted",
+            "name": "data.csv",
+            "webViewLink": "https://example.com",
+        }
+        drive_svc.files.return_value.update.return_value.execute.return_value = {
+            "id": "fid-converted"
+        }
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["uploaded"] == ["data.csv"]
+        assert result["skipped"] == []
+
+    async def test_convert_skips_when_existing_converted_file_has_stripped_extension(
+        self, tmp_path
+    ):
+        """TC-D243 (PR #505 review): Drive's native import-conversion strips the
+        source extension from some converted types' display name (confirmed
+        live for CSV) — a second convert=True run must still recognize the
+        already-converted file even though its Drive name ("data") no longer
+        matches the local file's name ("data.csv"), or it re-converts and
+        duplicates it on every run."""
+        (tmp_path / "data.csv").write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"name": "data", "mimeType": "application/vnd.google-apps.spreadsheet"}]
+        }
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["skipped"] == ["data.csv"]
+        assert result["uploaded"] == []
+        drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_convert_skips_when_both_raw_and_converted_duplicates_exist(self, tmp_path):
+        """A third convert=True run against a folder that already has both the
+        raw pre-convert duplicate (TC-D242's scenario, matched by full name) and
+        the already-converted file (TC-D243's scenario, matched by stem) must
+        still recognize the converted one and skip, not create a third file —
+        the two lookups must be independent, not short-circuit on the first
+        (unrelated) match."""
+        (tmp_path / "data.csv").write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {"name": "data.csv", "mimeType": "text/csv"},
+                {"name": "data", "mimeType": "application/vnd.google-apps.spreadsheet"},
+            ]
+        }
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["skipped"] == ["data.csv"]
+        assert result["uploaded"] == []
+        drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_file_deleted_mid_loop_reported_as_failed_not_raised(self, tmp_path, monkeypatch):
+        """_upload_local_file raises ValueError uncaught if the local file is
+        gone by the time it's actually called (its own path.is_file() check
+        runs before its try/except) — e.g. deleted between the directory scan
+        and this file's turn in the loop. The old inline upload code caught
+        this per-file; the refactor to _upload_local_file needs its own
+        try/except to keep that isolation (PR #505 review, issue #411).
+        Simulated via monkeypatch since a real race on disk isn't reliably
+        reproducible in a unit test."""
+        (tmp_path / "a.txt").write_text("a")
+        (tmp_path / "b.txt").write_text("b")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+
+        real_upload = transfer_module._upload_local_file
+
+        async def _flaky(drive_service, local_path, *args, **kwargs):
+            if local_path.endswith("b.txt"):
+                raise ValueError(f"No file found at {local_path!r}")
+            return await real_upload(drive_service, local_path, *args, **kwargs)
+
+        monkeypatch.setattr(transfer_module, "_upload_local_file", _flaky)
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid",
+            "name": "a.txt",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await self._tool()(str(tmp_path), "folder1", ctx=self._ctx(drive_svc))
+
+        assert result["uploaded"] == ["a.txt"]
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["name"] == "b.txt"
+        assert "No file found" in result["failed"][0]["error"]
+
+    async def test_create_failure_reported_as_failed_not_raised(self, tmp_path):
+        (tmp_path / "a.txt").write_text("a")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.side_effect = RuntimeError("boom")
+
+        result = await self._tool()(str(tmp_path), "folder1", ctx=self._ctx(drive_svc))
+
+        assert result["uploaded"] == []
+        assert result["failed"] == [{"name": "a.txt", "error": "boom"}]
+
+    async def test_no_upload_does_not_mark_folder_cache_dirty(self, tmp_path):
+        (tmp_path / "a.txt").write_text("a")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"name": "a.txt", "mimeType": "text/plain"}]
+        }
+        ctx = self._ctx(drive_svc)
+
+        result = await self._tool()(str(tmp_path), "folder1", ctx=ctx)
+
+        assert result["uploaded"] == []
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_not_called()
+
+
 class TestXlsxRangeValues:
     async def test_no_range_returns_all_rows(self):
         wb = _roundtrip(_make_wb([["A", "B"], ["C", "D"]]))

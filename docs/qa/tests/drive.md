@@ -1427,6 +1427,78 @@ Delete all `qa-convert.*` files and their converted Drive counterparts from `{FO
 
 ---
 
+### TC-D240: convert=True — each file converts per its own extension (issue #411) ⚠️ local-filesystem
+**Background:** `upload_local_folder` previously had its own independent inline upload path with no `convert` param, so bulk-importing a folder of CSV/DOCX/PPTX files into native Google formats required falling back to per-file `upload_local_file` calls. Fixed by routing each file through the same `_upload_local_file` helper `upload_local_file` uses.
+
+**Prompt**
+> "Upload the directory `/tmp/qa-folder-240/` to {FOLDER_ID} with convert set to true" *(create the directory with `a.csv` and `b.md`, each with a bit of real content)*
+
+**Checks**
+- Call `upload_local_folder(local_path="/tmp/qa-folder-240/", parent_folder_id="{FOLDER_ID}", convert=true)`
+- Both `a.csv` and `b.md` appear in `uploaded`, `failed` is empty
+- `list_files` on `{FOLDER_ID}` shows `a.csv`'s Drive `mimeType` as `application/vnd.google-apps.spreadsheet` and `b.md`'s as `application/vnd.google-apps.document` — not their raw MIME types
+- `get_sheet_data`/`get_doc_content` against the respective returned content confirms Drive actually imported it, not just relabeled the MIME type
+
+**Teardown**
+Delete both converted files from `{FOLDER_ID}`. Remove `/tmp/qa-folder-240/`.
+
+**Result (2026-08-04) ✅ PASS** — Verified via `mcp-gee-sweet-sky` (PR #505 regression check) against an isolated fixture folder. `uploaded: ["a.csv", "b.md"]`, `failed` empty. `list_files` showed `a.csv` as `application/vnd.google-apps.spreadsheet` (name stripped to `a`) and `b.md` as `application/vnd.google-apps.document` (name kept `.md`, per the documented convert_markdown naming convention). `get_sheet_data` on the spreadsheet's `a.csv` sheet tab returned the real CSV content (`col1,col2` / `hello,world`); `get_doc_content` on the Doc returned the real markdown content ("Test" heading + "Some content." paragraph) — confirms actual import, not just mimeType relabeling.
+
+---
+
+### TC-D241: convert=True — a file with an unsupported extension is reported in `failed`, siblings still upload ⚠️ local-filesystem
+**Prompt**
+> "Upload the directory `/tmp/qa-folder-241/` to {FOLDER_ID} with convert set to true" *(create the directory with `a.csv` and `archive.zip`)*
+
+**Checks**
+- Call `upload_local_folder(local_path="/tmp/qa-folder-241/", parent_folder_id="{FOLDER_ID}", convert=true)`
+- `a.csv` appears in `uploaded` and converts normally
+- `archive.zip` appears in `failed` with an error mentioning the `.zip` extension is unsupported, not in `uploaded`
+- `list_files` on `{FOLDER_ID}` shows no file created for `archive.zip`
+
+**Teardown**
+Delete the converted `a.csv` from `{FOLDER_ID}`. Remove `/tmp/qa-folder-241/`.
+
+**Result (2026-08-04) ✅ PASS** — Verified via `mcp-gee-sweet-sky` (PR #505 regression check) against an isolated fixture folder. `a.csv` appeared in `uploaded`; `archive.zip` appeared in `failed` with error `"Conversion not supported for extension '.zip'. Supported extensions: .csv, .docx, .htm, .html, .md, .pptx, .xlsx"`, and no Drive file was created for it.
+
+---
+
+### TC-D242: convert=True — an existing unconverted duplicate is not treated as skip-worthy (mirrors TC-D215 for the bulk path) ⚠️ local-filesystem
+**Prompt**
+> Step 1: "Upload the directory `/tmp/qa-folder-242/` to {FOLDER_ID}" *(no convert — creates a raw `text/csv` file named `a.csv`)*
+> Step 2: "Upload the directory `/tmp/qa-folder-242/` to {FOLDER_ID} with convert set to true"
+
+**Checks**
+- Step 2's `a.csv` appears in `uploaded` (not `skipped`) — a same-named raw file already existing in Drive doesn't count as the converted duplicate
+- `list_files` on `{FOLDER_ID}` shows two distinct files: the original raw `text/csv` one from step 1, and the new converted spreadsheet from step 2 (Drive's own import-conversion strips the `.csv` extension from the converted copy's display name, same as TC-D215)
+
+**Teardown**
+Delete both files from `{FOLDER_ID}`. Remove `/tmp/qa-folder-242/`.
+
+**Result (2026-08-04) ✅ PASS** — Verified via `mcp-gee-sweet-sky` (PR #505 regression check) against an isolated fixture folder. Step 2's `a.csv` appeared in `uploaded`, not `skipped`. `list_files` showed two distinct files: the original raw `text/csv` `a.csv`, and the new converted `a` spreadsheet — distinct `fileId`s confirmed.
+
+---
+
+### TC-D243: convert=True — a second run against the same folder skips the already-converted file (PR #505 review, issue #411) ⚠️ local-filesystem
+**Background:** `upload_local_folder`'s `convert=True` skip check keys `existing_by_name` by Drive's *actual* returned file name but looks up entries by the local file's own name (`p.name`, extension included). Drive's native import-conversion strips the source extension from the converted copy's display name (confirmed live via TC-D215/TC-D242 — a converted `data.csv` shows up in Drive as `data`, not `data.csv`), so the lookup by `p.name` never matches a previously-converted file. A second `convert=True` run against the same folder is expected to re-convert and duplicate every file already converted by the first run.
+
+**Prompt**
+> Step 1: "Upload the directory `/tmp/qa-folder-243/` to {FOLDER_ID} with convert set to true" *(create the directory with a single `dup.csv`)*
+> Step 2: "Upload the directory `/tmp/qa-folder-243/` to {FOLDER_ID} with convert set to true again"
+
+**Checks**
+- Step 2's `dup.csv` appears in `skipped`, not `uploaded` — the already-converted file from step 1 should be recognized and not re-converted
+- `list_files` on `{FOLDER_ID}` shows exactly one converted Sheet from `dup.csv`, not two
+
+**Teardown**
+Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
+
+**Result (2026-08-04) ❌ FAIL (round 1)** — Verified via `mcp-gee-sweet-sky` against a fresh isolated fixture folder. Step 1 uploaded `dup.csv` as expected (`uploaded: ["dup.csv"]`). Step 2 also returned `uploaded: ["dup.csv"]` instead of `skipped` — confirmed the bug live, not just via code inspection. `list_files` on the fixture folder showed two distinct Sheet files both named `dup` (extension stripped by Drive on both conversions), with different `fileId`s and `modifiedTime`s ~18s apart — exactly the duplicate-reconversion failure PR #505's code review predicted. Fixture folder and files trashed as teardown. This confirms the bug reported to the Dev in the PR #505 QA-round-1 comment.
+
+**Result (2026-08-05) ✅ PASS (round 2, fix 53df82b)** — Verified via `mcp-gee-sweet-sky` against a fresh isolated fixture folder. Step 2 now returns `skipped: ["dup.csv"]`, `uploaded: []`. `list_files` showed exactly one converted `dup` Sheet, no duplicate. Also live-tested the mixed raw+converted edge case the fix commit specifically claims to handle (not in the original checks above): raw upload, then `convert=True` twice — the third call correctly skips (`skipped: ["dup.csv"]`) with `list_files` showing exactly two files total (the raw `dup.csv` and the converted `dup`), no third copy. `TestUploadLocalFolder` unit suite (12 tests) passes. Fixtures trashed as teardown.
+
+---
+
 ## `download_file`
 
 ### TC-D101: Download a non-Google file ⚠️ local-filesystem
