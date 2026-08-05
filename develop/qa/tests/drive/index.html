@@ -2827,6 +2827,50 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-d240-converttrue-each-file-converts-per-its-own-extension-issue-411-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D240: convert=True — each file converts per its own extension (issue #411) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d241-converttrue-a-file-with-an-unsupported-extension-is-reported-in-failed-siblings-still-upload-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D241: convert=True — a file with an unsupported extension is reported in failed, siblings still upload ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d242-converttrue-an-existing-unconverted-duplicate-is-not-treated-as-skip-worthy-mirrors-tc-d215-for-the-bulk-path-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D242: convert=True — an existing unconverted duplicate is not treated as skip-worthy (mirrors TC-D215 for the bulk path) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-d243-converttrue-a-second-run-against-the-same-folder-skips-the-already-converted-file-pr-505-review-issue-411-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D243: convert=True — a second run against the same folder skips the already-converted file (PR #505 review, issue #411) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5787,6 +5831,63 @@ Delete all <code>qa-convert.*</code> files and their converted Drive counterpart
 - Previously uploaded files appear in <code>skipped</code>
 - <code>uploaded</code> contains only new files (if any)
 - Only one <code>list</code> API call is made per run (not one per file) — check server logs</p>
+<hr />
+<h3 id="tc-d240-converttrue-each-file-converts-per-its-own-extension-issue-411-local-filesystem">TC-D240: convert=True — each file converts per its own extension (issue #411) ⚠️ local-filesystem<a class="headerlink" href="#tc-d240-converttrue-each-file-converts-per-its-own-extension-issue-411-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>upload_local_folder</code> previously had its own independent inline upload path with no <code>convert</code> param, so bulk-importing a folder of CSV/DOCX/PPTX files into native Google formats required falling back to per-file <code>upload_local_file</code> calls. Fixed by routing each file through the same <code>_upload_local_file</code> helper <code>upload_local_file</code> uses.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Upload the directory <code>/tmp/qa-folder-240/</code> to {FOLDER_ID} with convert set to true" <em>(create the directory with <code>a.csv</code> and <code>b.md</code>, each with a bit of real content)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>upload_local_folder(local_path="/tmp/qa-folder-240/", parent_folder_id="{FOLDER_ID}", convert=true)</code>
+- Both <code>a.csv</code> and <code>b.md</code> appear in <code>uploaded</code>, <code>failed</code> is empty
+- <code>list_files</code> on <code>{FOLDER_ID}</code> shows <code>a.csv</code>'s Drive <code>mimeType</code> as <code>application/vnd.google-apps.spreadsheet</code> and <code>b.md</code>'s as <code>application/vnd.google-apps.document</code> — not their raw MIME types
+- <code>get_sheet_data</code>/<code>get_doc_content</code> against the respective returned content confirms Drive actually imported it, not just relabeled the MIME type</p>
+<p><strong>Teardown</strong>
+Delete both converted files from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-folder-240/</code>.</p>
+<p><strong>Result (2026-08-04) ✅ PASS</strong> — Verified via <code>mcp-gee-sweet-sky</code> (PR #505 regression check) against an isolated fixture folder. <code>uploaded: ["a.csv", "b.md"]</code>, <code>failed</code> empty. <code>list_files</code> showed <code>a.csv</code> as <code>application/vnd.google-apps.spreadsheet</code> (name stripped to <code>a</code>) and <code>b.md</code> as <code>application/vnd.google-apps.document</code> (name kept <code>.md</code>, per the documented convert_markdown naming convention). <code>get_sheet_data</code> on the spreadsheet's <code>a.csv</code> sheet tab returned the real CSV content (<code>col1,col2</code> / <code>hello,world</code>); <code>get_doc_content</code> on the Doc returned the real markdown content ("Test" heading + "Some content." paragraph) — confirms actual import, not just mimeType relabeling.</p>
+<hr />
+<h3 id="tc-d241-converttrue-a-file-with-an-unsupported-extension-is-reported-in-failed-siblings-still-upload-local-filesystem">TC-D241: convert=True — a file with an unsupported extension is reported in <code>failed</code>, siblings still upload ⚠️ local-filesystem<a class="headerlink" href="#tc-d241-converttrue-a-file-with-an-unsupported-extension-is-reported-in-failed-siblings-still-upload-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Upload the directory <code>/tmp/qa-folder-241/</code> to {FOLDER_ID} with convert set to true" <em>(create the directory with <code>a.csv</code> and <code>archive.zip</code>)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>upload_local_folder(local_path="/tmp/qa-folder-241/", parent_folder_id="{FOLDER_ID}", convert=true)</code>
+- <code>a.csv</code> appears in <code>uploaded</code> and converts normally
+- <code>archive.zip</code> appears in <code>failed</code> with an error mentioning the <code>.zip</code> extension is unsupported, not in <code>uploaded</code>
+- <code>list_files</code> on <code>{FOLDER_ID}</code> shows no file created for <code>archive.zip</code></p>
+<p><strong>Teardown</strong>
+Delete the converted <code>a.csv</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-folder-241/</code>.</p>
+<p><strong>Result (2026-08-04) ✅ PASS</strong> — Verified via <code>mcp-gee-sweet-sky</code> (PR #505 regression check) against an isolated fixture folder. <code>a.csv</code> appeared in <code>uploaded</code>; <code>archive.zip</code> appeared in <code>failed</code> with error <code>"Conversion not supported for extension '.zip'. Supported extensions: .csv, .docx, .htm, .html, .md, .pptx, .xlsx"</code>, and no Drive file was created for it.</p>
+<hr />
+<h3 id="tc-d242-converttrue-an-existing-unconverted-duplicate-is-not-treated-as-skip-worthy-mirrors-tc-d215-for-the-bulk-path-local-filesystem">TC-D242: convert=True — an existing unconverted duplicate is not treated as skip-worthy (mirrors TC-D215 for the bulk path) ⚠️ local-filesystem<a class="headerlink" href="#tc-d242-converttrue-an-existing-unconverted-duplicate-is-not-treated-as-skip-worthy-mirrors-tc-d215-for-the-bulk-path-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Step 1: "Upload the directory <code>/tmp/qa-folder-242/</code> to {FOLDER_ID}" <em>(no convert — creates a raw <code>text/csv</code> file named <code>a.csv</code>)</em>
+Step 2: "Upload the directory <code>/tmp/qa-folder-242/</code> to {FOLDER_ID} with convert set to true"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Step 2's <code>a.csv</code> appears in <code>uploaded</code> (not <code>skipped</code>) — a same-named raw file already existing in Drive doesn't count as the converted duplicate
+- <code>list_files</code> on <code>{FOLDER_ID}</code> shows two distinct files: the original raw <code>text/csv</code> one from step 1, and the new converted spreadsheet from step 2 (Drive's own import-conversion strips the <code>.csv</code> extension from the converted copy's display name, same as TC-D215)</p>
+<p><strong>Teardown</strong>
+Delete both files from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-folder-242/</code>.</p>
+<p><strong>Result (2026-08-04) ✅ PASS</strong> — Verified via <code>mcp-gee-sweet-sky</code> (PR #505 regression check) against an isolated fixture folder. Step 2's <code>a.csv</code> appeared in <code>uploaded</code>, not <code>skipped</code>. <code>list_files</code> showed two distinct files: the original raw <code>text/csv</code> <code>a.csv</code>, and the new converted <code>a</code> spreadsheet — distinct <code>fileId</code>s confirmed.</p>
+<hr />
+<h3 id="tc-d243-converttrue-a-second-run-against-the-same-folder-skips-the-already-converted-file-pr-505-review-issue-411-local-filesystem">TC-D243: convert=True — a second run against the same folder skips the already-converted file (PR #505 review, issue #411) ⚠️ local-filesystem<a class="headerlink" href="#tc-d243-converttrue-a-second-run-against-the-same-folder-skips-the-already-converted-file-pr-505-review-issue-411-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>upload_local_folder</code>'s <code>convert=True</code> skip check keys <code>existing_by_name</code> by Drive's <em>actual</em> returned file name but looks up entries by the local file's own name (<code>p.name</code>, extension included). Drive's native import-conversion strips the source extension from the converted copy's display name (confirmed live via TC-D215/TC-D242 — a converted <code>data.csv</code> shows up in Drive as <code>data</code>, not <code>data.csv</code>), so the lookup by <code>p.name</code> never matches a previously-converted file. A second <code>convert=True</code> run against the same folder is expected to re-convert and duplicate every file already converted by the first run.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Step 1: "Upload the directory <code>/tmp/qa-folder-243/</code> to {FOLDER_ID} with convert set to true" <em>(create the directory with a single <code>dup.csv</code>)</em>
+Step 2: "Upload the directory <code>/tmp/qa-folder-243/</code> to {FOLDER_ID} with convert set to true again"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Step 2's <code>dup.csv</code> appears in <code>skipped</code>, not <code>uploaded</code> — the already-converted file from step 1 should be recognized and not re-converted
+- <code>list_files</code> on <code>{FOLDER_ID}</code> shows exactly one converted Sheet from <code>dup.csv</code>, not two</p>
+<p><strong>Teardown</strong>
+Delete the converted file(s) from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-folder-243/</code>.</p>
+<p><strong>Result (2026-08-04) ❌ FAIL (round 1)</strong> — Verified via <code>mcp-gee-sweet-sky</code> against a fresh isolated fixture folder. Step 1 uploaded <code>dup.csv</code> as expected (<code>uploaded: ["dup.csv"]</code>). Step 2 also returned <code>uploaded: ["dup.csv"]</code> instead of <code>skipped</code> — confirmed the bug live, not just via code inspection. <code>list_files</code> on the fixture folder showed two distinct Sheet files both named <code>dup</code> (extension stripped by Drive on both conversions), with different <code>fileId</code>s and <code>modifiedTime</code>s ~18s apart — exactly the duplicate-reconversion failure PR #505's code review predicted. Fixture folder and files trashed as teardown. This confirms the bug reported to the Dev in the PR #505 QA-round-1 comment.</p>
+<p><strong>Result (2026-08-05) ✅ PASS (round 2, fix 53df82b)</strong> — Verified via <code>mcp-gee-sweet-sky</code> against a fresh isolated fixture folder. Step 2 now returns <code>skipped: ["dup.csv"]</code>, <code>uploaded: []</code>. <code>list_files</code> showed exactly one converted <code>dup</code> Sheet, no duplicate. Also live-tested the mixed raw+converted edge case the fix commit specifically claims to handle (not in the original checks above): raw upload, then <code>convert=True</code> twice — the third call correctly skips (<code>skipped: ["dup.csv"]</code>) with <code>list_files</code> showing exactly two files total (the raw <code>dup.csv</code> and the converted <code>dup</code>), no third copy. <code>TestUploadLocalFolder</code> unit suite (12 tests) passes. Fixtures trashed as teardown.</p>
 <hr />
 <h2 id="download_file"><code>download_file</code><a class="headerlink" href="#download_file" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d101-download-a-non-google-file-local-filesystem">TC-D101: Download a non-Google file ⚠️ local-filesystem<a class="headerlink" href="#tc-d101-download-a-non-google-file-local-filesystem" title="Permanent link">&para;</a></h3>
