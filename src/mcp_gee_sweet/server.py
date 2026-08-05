@@ -180,14 +180,44 @@ from .tools import register_all  # noqa: E402
 register_all(tool)
 
 
-_SA_LIMITED_TOOLS = [
-    "create_spreadsheet",
-    "create_doc",
-    "copy_file",
-    "upload_file",
-    "upload_local_file",
-    "upload_local_folder",
-    "sync_folder (upload and bidirectional directions)",
+# Service-account restrictions fall into distinct failure classes with their own
+# reason/alternatives text — bolting a new tool onto one class's reason string is
+# wrong when its actual failure mode differs (issue #447: transfer_ownership fails
+# because a service account has no personal Drive *identity*, not the storage-quota
+# problem every other entry here shares).
+_SA_LIMITATIONS = [
+    {
+        "category": "no_drive_storage_quota",
+        "tools": [
+            "create_spreadsheet",
+            "create_doc",
+            "copy_file",
+            "upload_file",
+            "upload_local_file",
+            "upload_local_folder",
+            "sync_folder (upload and bidirectional directions)",
+        ],
+        "reason": (
+            "Service accounts have no Drive storage quota and cannot create "
+            "or copy files in personal Drive. These tools will return an error "
+            "unless a Shared Drive destination is used."
+        ),
+        "alternatives": "Switch to OAuth (CREDENTIALS_PATH) or ADC for full tool coverage.",
+    },
+    {
+        "category": "no_personal_drive_identity",
+        "tools": ["transfer_ownership"],
+        "reason": (
+            "Service accounts have no personal Drive identity to transfer file "
+            "ownership to/from, so Drive's API rejects the transfer."
+        ),
+        # Deliberately doesn't offer ADC here: unlike the quota class above, ADC may
+        # itself resolve to a service-account-backed credential (metadata service,
+        # or GOOGLE_APPLICATION_CREDENTIALS pointed at a key file) with the exact
+        # same identity limitation, and auth_method alone can't distinguish that
+        # from a real user. Tracked separately: #506.
+        "alternatives": "Switch to OAuth (CREDENTIALS_PATH) for full tool coverage.",
+    },
 ]
 
 
@@ -198,13 +228,8 @@ def _auth_status_json(auth_method: str) -> str:
             {
                 "auth_method": "service_account",
                 "can_create_in_personal_drive": False,
-                "limited_tools": _SA_LIMITED_TOOLS,
-                "reason": (
-                    "Service accounts have no Drive storage quota and cannot create "
-                    "or copy files in personal Drive. These tools will return an error "
-                    "unless a Shared Drive destination is used."
-                ),
-                "alternatives": "Switch to OAuth (CREDENTIALS_PATH) or ADC for full tool coverage.",
+                "limited_tools": [t for lim in _SA_LIMITATIONS for t in lim["tools"]],
+                "limitations": _SA_LIMITATIONS,
             },
             indent=2,
         )
@@ -213,7 +238,7 @@ def _auth_status_json(auth_method: str) -> str:
             "auth_method": auth_method,
             "can_create_in_personal_drive": True,
             "limited_tools": [],
-            "reason": None,
+            "limitations": [],
         },
         indent=2,
     )

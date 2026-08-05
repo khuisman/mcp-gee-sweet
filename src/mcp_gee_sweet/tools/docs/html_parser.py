@@ -6,7 +6,7 @@ import html as html_module
 from dataclasses import dataclass
 from html.parser import HTMLParser
 
-from .ast import BulletItem, Cell, DocNode, Heading, NamedBlock, Paragraph, Row, Run, Table
+from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Row, Run, Table
 
 _BLOCK_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6", "p", "li"}
 _NAMED_BLOCK_STYLES = {"title": "TITLE", "subtitle": "SUBTITLE"}
@@ -68,6 +68,18 @@ def _px_to_pt(value: str) -> float | None:
         return None
 
 
+def _make_image(attr_dict: dict, src: str) -> Image:
+    """Build an Image node from an <img> tag's attributes. width/height are
+    only ever present on raw HTML <img> tags (content_format="html") — plain
+    markdown "![alt](src)" has no syntax for them, so they're None there."""
+    return Image(
+        src=src,
+        alt=attr_dict.get("alt") or None,
+        width=_px_to_pt(attr_dict.get("width") or ""),
+        height=_px_to_pt(attr_dict.get("height") or ""),
+    )
+
+
 class _AstParser(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -120,7 +132,7 @@ class _AstParser(HTMLParser):
 
         # --- current run buffer ---
         self._run_buf: list[str] = []
-        self._pending_runs: list[Run] = []
+        self._pending_runs: list[Run | Image] = []
 
         # --- table context ---
         self._table_depth = 0
@@ -161,17 +173,20 @@ class _AstParser(HTMLParser):
         )
         self._pending_runs.append(run)
 
-    def _flush_pending_runs(self) -> list[Run]:
+    def _flush_pending_runs(self) -> list[Run | Image]:
         self._flush_run()
         runs, self._pending_runs = self._pending_runs, []
         return runs
 
-    def _make_bullet_item(self, runs: list[Run]) -> BulletItem:
+    def _make_bullet_item(self, runs: list[Run | Image]) -> BulletItem:
         ordered = self._list_ordered[-1] if self._list_ordered else False
         depth = len(self._list_ordered) - 1
-        # Detect task list markers written as literal [x] / [ ] by the markdown library
+        # Detect task list markers written as literal [x] / [ ] by the markdown library.
+        # An image can never be the first child here in practice (markdown always wraps
+        # a bare "![]()" in its own <p>, never mixes it as literal leading text before a
+        # checkbox marker) but the isinstance guard keeps this robust regardless.
         checked = None
-        if runs:
+        if runs and isinstance(runs[0], Run):
             first_text = runs[0].text
             if first_text.startswith(("[x] ", "[X] ")):
                 checked = True
@@ -201,7 +216,9 @@ class _AstParser(HTMLParser):
         self._code_depth = 0
         self._link_url = []
 
-    def _emit_block_node(self, tag: str, runs: list[Run], *, preserve_if_empty: bool = False):
+    def _emit_block_node(
+        self, tag: str, runs: list[Run | Image], *, preserve_if_empty: bool = False
+    ):
         """Turn a closed block's buffered runs into the node type its own tag
         implies (Heading / BulletItem / NamedBlock / Paragraph) — shared by
         the normal close-tag path and by _interrupt_open_block, so both stay
@@ -249,9 +266,15 @@ class _AstParser(HTMLParser):
         node; an ordinary formatting artifact doesn't). Emitter.py's
         ast_to_requests() no longer special-cases this text at all — it
         emits whatever text a kept node carries, whitespace or not.
+
+        An Image (#333) counts as real content the same way non-whitespace
+        text does: a node whose runs are e.g. just [Image(...)], with no
+        Run at all, must never hit the empty-drop path below just because
+        joining its (nonexistent) Run text yields "".
         """
-        text = "".join(r.text for r in runs).strip()
-        if not text:
+        text = "".join(r.text for r in runs if isinstance(r, Run)).strip()
+        has_image = any(isinstance(r, Image) for r in runs)
+        if not text and not has_image:
             is_fresh_paragraph_whitespace = tag == "p" and bool(runs) and not self._block_resumed
             if not is_fresh_paragraph_whitespace and not preserve_if_empty:
                 return
@@ -482,6 +505,24 @@ class _AstParser(HTMLParser):
             self._nodes.append(Paragraph(runs=[]))
             return
 
+        # --- bare top-level <img> with no open block (#333) ---
+        # Same rationale as <hr> just above: markdown's own "![]()" syntax
+        # always renders wrapped in a <p>, so this only matters for raw HTML
+        # (content_format="html") supplying a top-level <img> with no
+        # wrapping tag at all.
+        if (
+            tag == "img"
+            and self._block_tag is None
+            and self._table_depth == 0
+            and self._tag_depth == 0
+        ):
+            src = attr_dict.get("src")
+            if src:
+                self._nodes.append(Paragraph(runs=[_make_image(attr_dict, src)]))
+                return
+            # No src — nothing to embed; fall through to the generic
+            # unrecognized-tag handling below (a no-op at depth 0).
+
         # --- inline elements / unrecognized tags ---
         if tag not in _VOID_TAGS:
             self._tag_depth += 1
@@ -505,9 +546,23 @@ class _AstParser(HTMLParser):
                 self._code_depth += 1
             elif tag == "br":
                 self._run_buf.append("\n")
+            elif tag == "img" and self._block_tag and not self._in_pre:
+                # Supported (#333) only at body level (self._block_tag truthy) —
+                # NOT inside a table cell (self._block_tag is always None there,
+                # so this branch can't fire for cell content) and not inside
+                # <pre>, where an embedded image makes no sense. Table-cell
+                # images remain a documented, deliberately out-of-scope gap
+                # (tracked as a follow-up) and fall through unchanged to the
+                # existing silent-no-op behavior any other unsupported tag
+                # already gets in a cell.
+                src = attr_dict.get("src")
+                if src:
+                    self._pending_runs.append(_make_image(attr_dict, src))
+                else:
+                    self._block_had_unsupported_content = True
             elif self._block_tag:
-                # Anything else reaching this fallthrough (an unsupported
-                # void element like <img>, a bare <hr> inside a block, or any
+                # Anything else reaching this fallthrough (a bare <hr> inside
+                # a block, an <img> inside a table cell or <pre>, or any
                 # other tag this parser doesn't specially recognize) is
                 # silently dropped rather than contributing a run — see
                 # self._block_had_unsupported_content.
@@ -574,11 +629,15 @@ class _AstParser(HTMLParser):
 
         # --- pre / code block ---
         if tag == "pre" and self._table_depth == 0 and self._block_tag == "pre":
-            runs = self._flush_pending_runs()
+            # Images are never appended to _pending_runs while self._in_pre is
+            # True (see the img handling in handle_starttag) — this filter is
+            # a type-narrowing no-op, not a behavior change.
+            runs: list[Run | Image] = [r for r in self._flush_pending_runs() if isinstance(r, Run)]
             # Strip trailing newline that markdown adds inside <pre> content
-            if runs and runs[-1].text.endswith("\n"):
-                runs[-1].text = runs[-1].text.rstrip("\n")
-                if not runs[-1].text:
+            last = runs[-1] if runs else None
+            if isinstance(last, Run) and last.text.endswith("\n"):
+                last.text = last.text.rstrip("\n")
+                if not last.text:
                     runs.pop()
             if runs:
                 self._nodes.append(Paragraph(runs=runs))
@@ -662,7 +721,8 @@ class _TableBuilder:
         self._current_cell: dict | None = None  # metadata for current open cell
         self._cell_col_widths: list[float | None] = []  # widths from <td width>
         self.in_cell = False
-        self._current_children: list[Run | Table] = []  # ordered content of the open cell
+        # ordered content of the open cell
+        self._current_children: list[Run | Image | Table] = []
 
     def start_row(self):
         self._current_row_cells = []
@@ -682,7 +742,7 @@ class _TableBuilder:
         self.in_cell = True
         self._current_children = []
 
-    def append_runs(self, runs: list[Run]):
+    def append_runs(self, runs: list[Run | Image]):
         """Add flushed text runs to this still-open cell's ordered content."""
         self._current_children.extend(runs)
 
@@ -690,7 +750,7 @@ class _TableBuilder:
         """Add a completed nested <table> to this still-open cell's ordered content."""
         self._current_children.append(table)
 
-    def end_cell(self, runs: list[Run]):
+    def end_cell(self, runs: list[Run | Image]):
         if self._current_cell is None:
             return
         meta = self._current_cell

@@ -1,9 +1,9 @@
 # Decision: Human-Led Verification with Phased AI Trust
 
-**Date:** 2026-05-13 (revised 2026-06-02, 2026-07-04)
+**Date:** 2026-05-13 (revised 2026-06-02, 2026-07-04, 2026-08-02)
 **Snapshot commit:** [`d94f81ab`](https://github.com/khuisman/mcp-gee-sweet/commit/d94f81ab9e313d8a3cc4c46d141777e4e8069c14) — QA framework as it existed when this decision was first made
 
-> This is a living decision record. The original decision (2026-05-13) established the QA framework structure. The 2026-06-02 revision corrected a mischaracterisation of Option C and laid out a phased evolution plan toward a hybrid human + AI verification system. The 2026-07-04 revision records that the framework evolved differently than that plan anticipated — see [What Actually Happened](#what-actually-happened-2026-07-04) — and separately replaces the blanket "Full Regression before every stable release" rule with an explicit scoping process — see [Release Gate Scoping](#release-gate-scoping-2026-07-04).
+> This is a living decision record. The original decision (2026-05-13) established the QA framework structure. The 2026-06-02 revision corrected a mischaracterisation of Option C and laid out a phased evolution plan toward a hybrid human + AI verification system. The 2026-07-04 revision records that the framework evolved differently than that plan anticipated — see [What Actually Happened](#what-actually-happened-2026-07-04) — and separately replaces the blanket "Full Regression before every stable release" rule with an explicit scoping process — see [Release Gate Scoping](#release-gate-scoping-2026-07-04). The 2026-08-02 revision records that the `docs/qa-checklist.md` attestation described below was never built out as planned and was retired — see [Attestation Retired](#attestation-retired-2026-08-02).
 
 ---
 
@@ -74,7 +74,7 @@ The framework consists of:
 - **`docs/qa/tests/*.md`** — one file per tool category, each test case a prompt + check list with a TC-prefixed identifier
 - **`docs/qa/setup.md`** — one-time fixture setup (a real spreadsheet, doc, folder, and calendar in Drive)
 - **`docs/qa/run.md`** — the conductor prompt; paste into a Claude session with the server connected to run the full suite
-- **`docs/qa-checklist.md`** — the attestation document; each TC is a checkbox that someone signs off on having run
+- **`docs/qa-checklist.md`** (retired 2026-08-02 — see [Attestation Retired](#attestation-retired-2026-08-02)) — originally the attestation document, each TC a checkbox someone signed off on having run
 
 ## Phased Evolution: Toward Hybrid Human + AI Trust
 
@@ -139,6 +139,14 @@ The fix isn't "skip QA for boring releases" — it's replacing a blanket rule wi
 The distinction that separates these: did the change reorganize the file/module (structural), or touch one or a few isolated tool sections in place without reorganizing anything (non-structural)? Structural changes still get the full domain file, full stop. Non-structural changes can be scoped to just the changed tools' test sections, identified from the actual diff rather than from what the originating issue says it touched — a fix's real footprint can be larger or smaller than its issue description. See [`docs/qa/runs/README.md`](../qa/runs/README.md#release-gate) step 6 for the mechanical rule.
 
 See [`docs/qa/runs/README.md`](../qa/runs/README.md#release-gate) for the mechanical process (the "how"); this section is the "why" it changed from the original all-or-nothing rule.
+
+---
+
+## Attestation Retired (2026-08-02)
+
+`docs/qa-checklist.md` — the per-TC checkbox attestation described in [Decision](#decision) and never advanced past Phase 1 (see [What Actually Happened](#what-actually-happened-2026-07-04)) — has been deleted. It tracked pre-#64 module names (`read.py`/`write.py`/`sheets.py`/`drive.py`/`charts.py`) and a removed API (`mcp.get_lifespan_context()`) that were fixed everywhere else in the codebase after #201's reconciliation pass, but drifted stale again with no mechanism keeping it in sync with `docs/qa/tests/*.md` (issue #370).
+
+Sign-off already lives elsewhere and had for some time: `docs/qa/runs/vX.Y.Z.md` is the actual per-release attestation record (see [Release Gate Scoping](#release-gate-scoping-2026-07-04)), and `docs/qa/runs/README.md`'s smoke suite table is where a new tool's TC gets registered for coverage — both real, live mechanisms the checklist file duplicated without ever being the thing anything actually checked. No replacement is needed; the two files above already did this job.
 
 ---
 

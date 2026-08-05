@@ -57,7 +57,6 @@ nav:
   - Roadmap: roadmap.md
   - Development:
     - QA Overview: qa/README.md
-    - QA Checklist: qa-checklist.md
     - QA Setup: qa/setup.md
     - QA Run Guide: qa/run.md
     - QA Fixtures: qa/fixtures.template.md

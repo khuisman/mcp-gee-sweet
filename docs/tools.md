@@ -128,10 +128,10 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 
 | Tool | Description | Key parameters |
 |---|---|---|
-| `create_doc` | Create a new Google Doc, optionally with initial content. | `title`, `content?`, `folder_id?`, `content_format?`, `autolink_urls?` |
-| `create_doc_from_file` | Create a Google Doc from a local .md or .html file. | `local_path`, `title?`, `folder_id?`, `autolink_urls?` |
+| `create_doc` | Create a new Google Doc, optionally with initial content. | `title`, `content?`, `folder_id?`, `content_format?`, `autolink_urls?`, `revoke_sharing?` |
+| `create_doc_from_file` | Create a Google Doc from a local .md or .html file. | `local_path`, `title?`, `folder_id?`, `autolink_urls?`, `revoke_sharing?` |
 | `get_doc_content` | Get the plain text content of a Google Doc. | `file_id`, `local_path?` |
-| `write_doc_content` | Replace the full content of an existing Google Doc. | `doc_id`, `content`, `content_format?`, `autolink_urls?` |
+| `write_doc_content` | Replace the full content of an existing Google Doc. | `doc_id`, `content`, `content_format?`, `autolink_urls?`, `revoke_sharing?` |
 | `get_doc_structure` | Return the full structural map of a Google Doc body with element indices. | `doc_id` |
 | `find_in_doc` | Search a Google Doc's text and return match locations as document character offsets. | `doc_id`, `query`, `regex?`, `case_sensitive?`, `max_results?`, `local_path?` |
 | `insert_doc_text` | Insert text at one or more positions in a Google Doc. | `doc_id`, `insertions` |
@@ -141,7 +141,7 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | `insert_inline_image` | Insert an inline image at a specific index in a Google Doc. | `doc_id`, `index`, `uri?`, `drive_file_id?`, `width?`, `height?` |
 | `insert_page_break` | Insert an explicit page break at a specific index in a Google Doc. | `doc_id`, `index` |
 | `insert_softbreak_paragraph` | Insert a single paragraph built from multiple lines joined by soft line breaks (Shift+Enter in the Docs UI), with the paragraph's style set explicitly rather than inherited from whatever is at `index`. | `doc_id`, `index`, `lines`, `named_style_type?` |
-| `insert_local_images` | Upload local image files to Drive and swap each into a Google Doc at a plain-text marker, in one call. | `doc_id`, `images`, `folder_id?` |
+| `insert_local_images` | Upload local image files to Drive and swap each into a Google Doc at a plain-text marker, in one call. | `doc_id`, `images`, `folder_id?`, `revoke_sharing?` |
 | `insert_doc_table` | Insert an empty table at a specific position in a Google Doc. | `doc_id`, `index`, `rows`, `columns` |
 | `insert_table_row` | Insert a row into an existing table in a Google Doc. | `doc_id`, `table_start_index`, `row_index`, `insert_below?` |
 | `delete_table_row` | Delete a row from an existing table in a Google Doc. | `doc_id`, `table_start_index`, `row_index` |

@@ -5,33 +5,72 @@ from __future__ import annotations
 import logging
 
 from ...auth import execute_in_thread
-from .ast import BulletItem, Cell, DocNode, Heading, NamedBlock, Paragraph, Row, Run, Table
+from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Row, Run, Table
 from .indices import utf16_len
 
 logger = logging.getLogger(__name__)
 
 
-def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[dict], list[Table]]:
+def extract_images(nodes: list[DocNode]) -> list[Image]:
+    """Collect every Image node in `nodes`, in document order.
+
+    Used by the caller (docs/content.py, an async function) to resolve each
+    image's src to a fetchable URI — a Drive upload, a share-permission
+    grant, or both — *before* calling ast_to_requests, since that stays a
+    synchronous, I/O-free function like the rest of this module (#333).
+
+    Only walks body-level nodes' own `runs` (Heading/Paragraph/BulletItem/
+    NamedBlock). Table cells never actually receive an Image node from
+    html_parser.py today — table-cell images are a deliberately out-of-scope
+    gap (tracked as a follow-up), not a silent omission here.
+    """
+    images: list[Image] = []
+    for node in nodes:
+        if isinstance(node, Table):
+            continue
+        for item in node.runs:
+            if isinstance(item, Image):
+                images.append(item)
+    return images
+
+
+def ast_to_requests(
+    nodes: list[DocNode],
+    start_index: int = 1,
+    image_uris: dict[int, str] | None = None,
+) -> tuple[list[dict], list[Table]]:
     """Convert AST nodes to phase-1 batchUpdate requests and a list of Table nodes.
 
     Phase-1 requests cover all non-table text (one insertText), paragraph/heading styles,
-    bullets, inline link styles, and insertTable requests (in reverse order).
+    bullets, inline link styles, and insertTable + insertInlineImage requests (applied
+    together in one descending-document-position pass, so an earlier insertion's target
+    position is never invalidated by a later one — see the combined pass below).
 
     Tables are NOT filled here. The caller must execute a second pass using fill_tables()
     after running the phase-1 batchUpdate, so that live cell indices are available.
 
+    image_uris: maps id(image) (for each Image returned by extract_images(nodes), called
+    on this same `nodes` value beforehand) to its already-resolved fetchable URI. An Image
+    with no entry here (never resolved, or resolution failed) is silently omitted from the
+    requests — same fallback as any other unsupported construct — since the Docs API's
+    insertInlineImage has no notion of "insert later"; the caller is expected to have
+    already recorded why that image failed via extract_images's own resolution pass.
+
     Returns (requests, tables) where tables is the list of Table AST nodes in document
     order.
     """
+    if image_uris is None:
+        image_uris = {}
     text_parts: list[str] = []
     utf16_offset = 0
-    segment_meta: list[tuple] = []  # (node, doc_start, doc_end, skip_len)
+    segment_meta: list[tuple] = []  # (node, doc_start, doc_end, skip_len, tabs_through)
     tables: list[Table] = []
     table_positions: list[int] = []  # doc index for each table
     # Nested-bullet leading tabs (see below) are consumed/removed by their own
     # createParagraphBullets call, shifting everything after them backward — including
-    # any table positioned later in the doc. Track, for each table, how many such tabs
-    # will have been consumed ahead of it by the time insertTable actually runs.
+    # any table (or image — #333) positioned later in the doc. Track, for each table, how
+    # many such tabs will have been consumed ahead of it by the time insertTable actually
+    # runs; segment_meta's own tabs_through field does the same for images (see below).
     table_tab_offsets: list[int] = []
     cumulative_tabs = 0
 
@@ -59,10 +98,13 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
             prefix = ""
             if isinstance(node, BulletItem) and node.checked is not None:
                 prefix = "☑ " if node.checked else "☐ "
-            text = prefix + "".join(r.text for r in node.runs)
+            # Images (#333) contribute zero characters here — they're not part of the
+            # text at all, just a positional marker resolved into its own
+            # insertInlineImage request below, exactly like a Table.
+            text = prefix + "".join(r.text for r in node.runs if isinstance(r, Run))
             # Every node reaching this loop is one html_parser.py already decided
             # is worth a line in the doc — a node with runs=[] (an unsupported
-            # construct like <img>/<hr>, #401) as much as a node whose runs are
+            # construct like a bare <hr>, #401) as much as a node whose runs are
             # non-empty but whitespace-only (e.g. a standalone `&nbsp;` used as a
             # deliberate blank-line spacer, #402). Emit its text as-is rather than
             # re-deciding "is this content" here; the empty-string case (runs=[])
@@ -71,22 +113,34 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
             text_parts.append(appended_text)
             utf16_offset += utf16_len(appended_text)
             doc_end = start_index + utf16_offset
-            segment_meta.append((node, doc_start, doc_end, utf16_len(tabs) + utf16_len(prefix)))
             if tabs:
                 cumulative_tabs += utf16_len(tabs)
+            # Captured *after* this node's own tabs are added: any image inside this
+            # node's own runs sits past those tabs (skip_len already accounts for
+            # them), so its own createParagraphBullets removal — part of the same
+            # descending pass images and tables share below — shifts it too, not
+            # just tabs from strictly earlier nodes.
+            segment_meta.append(
+                (node, doc_start, doc_end, utf16_len(tabs) + utf16_len(prefix), cumulative_tabs)
+            )
 
     requests: list[dict] = []
     full_text = "".join(text_parts)
     # createParagraphBullets calls are deferred: they must run after every other request
-    # below (which all assume no positions have shifted yet) but before insertTable
-    # further down (see table_tab_offsets) — see the loop after segment_meta for why
+    # below (which all assume no positions have shifted yet) but before the combined
+    # table/image insertion pass further down — see the loop after segment_meta for why
     # they're applied in descending document order.
     bullet_run_requests: list[tuple[int, dict]] = []
+    # Combined descending-position insertion pass (tables + images, #333): both shift
+    # every later, not-yet-processed position, so they must be interleaved by their true
+    # final position rather than processed as two separate blocks — see ast_to_requests's
+    # docstring. Each entry is (final_position, request_dict).
+    positional_inserts: list[tuple[int, dict]] = []
 
     if full_text:
         requests.append({"insertText": {"location": {"index": start_index}, "text": full_text}})
 
-        for node, doc_start, doc_end, skip_len in segment_meta:
+        for node, doc_start, doc_end, skip_len, tabs_through in segment_meta:
             rng = {"startIndex": doc_start, "endIndex": doc_end}
 
             if isinstance(node, Heading):
@@ -118,13 +172,23 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
 
             # Inline run styles for non-table content (bold, italic, links, font_family, etc.)
             # skip_len skips past any leading nesting tabs and checkbox glyph so run
-            # offsets stay accurate
+            # offsets stay accurate. Image entries (#333) contribute 0 to offset (they're
+            # not part of the text) and are queued into positional_inserts instead of a
+            # style request.
             offset = skip_len
-            for run in node.runs:
-                run_len = utf16_len(run.text)
+            for item in node.runs:
+                if isinstance(item, Image):
+                    uri = image_uris.get(id(item))
+                    if uri is not None:
+                        image_position = doc_start + offset - tabs_through
+                        positional_inserts.append(
+                            (image_position, _image_insert_request(item, uri, image_position))
+                        )
+                    continue
+                run_len = utf16_len(item.text)
                 if run_len > 0:
                     style_reqs = _run_style_requests(
-                        run, doc_start + offset, doc_start + offset + run_len
+                        item, doc_start + offset, doc_start + offset + run_len
                     )
                     requests.extend(style_reqs)
                 offset += run_len
@@ -142,7 +206,7 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
         # is the pattern Google's own Docs API samples use for building nested lists.
         i = 0
         while i < len(segment_meta):
-            node, run_start, run_end, _ = segment_meta[i]
+            node, run_start, run_end, _, _ = segment_meta[i]
             if not isinstance(node, BulletItem):
                 i += 1
                 continue
@@ -178,25 +242,50 @@ def ast_to_requests(nodes: list[DocNode], start_index: int = 1) -> tuple[list[di
         ):
             requests.append(bullets_request)
 
-    # insertTable requests in REVERSE order so earlier positions aren't shifted. Each
-    # position is adjusted for any nested-bullet leading tabs already consumed ahead of
-    # it above (those requests precede these in the array, so by the time these run, that
-    # many characters have already been removed from in front of this table).
-    for i in range(len(tables) - 1, -1, -1):
-        table = tables[i]
+    # Queue each table's insertTable request into the same positional_inserts pass
+    # images use above. Position is adjusted for any nested-bullet leading tabs already
+    # consumed ahead of it (those requests precede this combined pass in the array, so by
+    # the time it runs, that many characters have already been removed from in front of
+    # this table).
+    for i, table in enumerate(tables):
         num_rows = len(table.rows)
         num_cols = max((sum(c.colspan for c in row.cells) for row in table.rows), default=0)
-        requests.append(
-            {
-                "insertTable": {
-                    "rows": num_rows,
-                    "columns": num_cols,
-                    "location": {"index": table_positions[i] - table_tab_offsets[i]},
-                }
-            }
+        positional_inserts.append(
+            (
+                table_positions[i] - table_tab_offsets[i],
+                {
+                    "insertTable": {
+                        "rows": num_rows,
+                        "columns": num_cols,
+                        "location": {"index": table_positions[i] - table_tab_offsets[i]},
+                    }
+                },
+            )
         )
 
+    # Applied latest-document-position-first (tables and images interleaved by their true
+    # final position, not as two separate blocks): each insertion's own target position is
+    # still valid at the point it runs, since nothing before it in the doc has shifted yet,
+    # and processing this way means an earlier, not-yet-processed insertion's position is
+    # never invalidated by a later one's own content (#333 generalizes this from the
+    # table-only version of the same pattern).
+    for _, insert_request in sorted(positional_inserts, key=lambda item: item[0], reverse=True):
+        requests.append(insert_request)
+
     return requests, tables
+
+
+def _image_insert_request(image: Image, uri: str, position: int) -> dict:
+    """Build an insertInlineImage request for an already-resolved image at `position`."""
+    request: dict = {"insertInlineImage": {"uri": uri, "location": {"index": position}}}
+    if image.width is not None or image.height is not None:
+        object_size: dict = {}
+        if image.width is not None:
+            object_size["width"] = {"magnitude": image.width, "unit": "PT"}
+        if image.height is not None:
+            object_size["height"] = {"magnitude": image.height, "unit": "PT"}
+        request["insertInlineImage"]["objectSize"] = object_size
+    return request
 
 
 def _run_style_requests(run: Run, start: int, end: int) -> list[dict]:
@@ -395,7 +484,7 @@ def _ast_cell_to_doc_cell(doc_table: dict, ast_table: Table, r: int, ast_col: in
     return None
 
 
-def _is_insertable_table(child: Run | Table) -> bool:
+def _is_insertable_table(child: Run | Image | Table) -> bool:
     """A Table child only actually gets an insertTable shell (and thus a
     paragraph/table/paragraph split in the live doc) if it has at least one row
     and one column — see the `num_rows > 0 and num_cols > 0` guard where
@@ -430,7 +519,7 @@ def _cell_para_start_for_cursor(doc_cell: dict, ast_cell: Cell, cursor: int) -> 
     return paragraphs[tables_before].get("startIndex")
 
 
-def _text_offset_since_last_table(children: list[Run | Table], cursor: int) -> int:
+def _text_offset_since_last_table(children: list[Run | Image | Table], cursor: int) -> int:
     """Sum of Run text lengths between the nearest preceding *insertable* Table
     (exclusive) and cursor — a degenerate table is transparent here since it
     was never actually inserted (see _is_insertable_table).

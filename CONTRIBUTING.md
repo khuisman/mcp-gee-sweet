@@ -140,7 +140,6 @@ The primary QA method today is `run_suite`/`run_group` with Playwright-backed vi
 Every new tool must have at least:
 - A happy-path test case
 - An error/edge-case test case
-- The tool included in the `docs/qa-checklist.md` attestation
 - The tool's happy-path TC added to the smoke suite in `docs/qa/runs/README.md`
 
 See [Design Principles](https://khuisman.github.io/mcp-gee-sweet/latest/design/) for the tool inclusion criteria and composite tool rules.

@@ -179,6 +179,29 @@ Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against this serve
 
 **Result:** ✅ PASS (2026-07-19, mcp-gee-sweet-sky, oauth). `{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "reason": null}` — no AttributeError, `auth_method` matches configured oauth.
 
+**Note (#447):** the flat `"reason"`/`"alternatives"` fields shown in the Result above no longer exist — see TC-I27 for the current per-limitation `"limitations"` shape. This case's own checks (no AttributeError, `auth_method` matches) are unaffected by that schema change and don't need re-running.
+
+---
+
+### TC-I27: `server://auth-status` reports per-tool limitation categories, not one shared reason (issue #447)
+
+**Background:** `_auth_status_json` used to attach a single `reason`/`alternatives` string to every tool in `_SA_LIMITED_TOOLS`, written specifically around the storage-quota failure class (`create_spreadsheet`, `create_doc`, `copy_file`, the upload tools, `sync_folder`). `transfer_ownership` (#140) fails for a different reason — no personal Drive *identity*, not a quota problem — so it was left off that list entirely rather than get an inaccurate reason attached to it. Fixed by splitting `_SA_LIMITATIONS` into categories, each with its own `tools`/`reason`/`alternatives`, so `limited_tools` (flattened across categories, for a quick membership check) and the new `limitations` array (the categorized detail) both include `transfer_ownership` with text that's actually true for it. `alternatives` for this category deliberately does not mention ADC — see #506, filed alongside this fix, for why ADC can't be assumed to always fix a personal-Drive-identity limitation.
+
+**Setup**
+Server running with `AUTH_METHOD=service_account` (e.g. `mcp-gee-sweet-sa` / `mcp-gee-sweet-kai-sa`).
+
+**Action**
+Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against that server.
+
+**Checks**
+- `limited_tools` includes `"transfer_ownership"` alongside the existing quota-limited tools
+- `limitations` is a list of ≥2 entries, each with `category`, `tools`, `reason`, `alternatives`
+- The entry with `category: "no_personal_drive_identity"` has `tools == ["transfer_ownership"]`, its `reason` mentions "identity" (not "storage quota"), and its `alternatives` does not mention ADC
+- The entry with `category: "no_drive_storage_quota"` still contains the original 7 tools and does not contain `transfer_ownership`
+- A full-access auth method (`oauth`/`adc`) still returns `limited_tools: []`, `limitations: []`
+
+**Result (2026-08-04, mcp-gee-sweet-kit, oauth):** ✅ PASS on the full-access check only — `{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "limitations": []}`. The other four checks are **pending** — they require a `service_account`-authed server, and Kit's own dedicated server (`mcp-gee-sweet-kit`) is OAuth-only; per the team tool-boundary rule, QA doesn't call another role's `mcp-gee-sweet-<other>` server (`kai-sa`, or the standalone `mcp-gee-sweet-sa`) even when visible in the session's tool list. Needs a session with a service-account-authed server (Kai, via `mcp-gee-sweet-kai-sa`) to complete.
+
 ---
 
 ### TC-I26: `spreadsheet://{id}/info` resource resolves lifespan context (issue #363)
