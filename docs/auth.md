@@ -29,7 +29,7 @@ Best for headless or automated environments. Credentials don't expire.
    - `SERVICE_ACCOUNT_PATH` — path to the JSON key file
    - `DRIVE_FOLDER_ID` — ID of the shared Drive folder
 
-**Limitation:** service accounts cannot create files in a user's personal Drive (no quota). Use OAuth or a Shared Drive when you need to create files. See `server://auth-status` to check your active auth method.
+**Limitation:** service accounts cannot create files in a user's personal Drive (no quota). Use OAuth or a Shared Drive when you need to create files. Service accounts also have no personal Drive identity, so `transfer_ownership` always fails — that one requires OAuth, with no Shared Drive workaround. See `server://auth-status` to check your active auth method and affected tools.
 
 ## Method B: OAuth 2.0 (personal use / local dev)
 
