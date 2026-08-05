@@ -2004,7 +2004,7 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-231-src/` 
 
 ### TC-D232: a name collision under dry_run reports as a conflict preview, not a failed entry (PR #433 review, finding #4) ⚠️ local-filesystem
 
-**Background:** `dry_run=true` never materializes any transfer, so `failed` should only ever contain real execution failures — nothing should land there during a preview. The collision guard's `failed.append()` originally ran unconditionally in the `drive_map`-building loop, before the `dry_run` gate, so a collision showed up in `failed` even during dry_run — inconsistent with the pre-existing folder-collision failure path in the same function, which is explicitly guarded against this. The fix reports it as a `conflict` (in both `conflicts` and `actions`, with `action: "collision"`) during dry_run, and only as a real `failed` entry once execution is actually attempted.
+**Background:** `dry_run=true` never materializes any transfer, so `failed` should only ever contain real execution failures — nothing should land there during a preview. The collision guard's `failed.append()` originally ran unconditionally in the `drive_map`-building loop, before the `dry_run` gate, so a collision showed up in `failed` even during dry_run — inconsistent with the pre-existing folder-collision failure path in the same function, which is explicitly guarded against this. The fix reports it as a `conflict` in `actions` (with `action: "collision"`) during dry_run, and only as a real `failed` entry once execution is actually attempted. **Update (#512, see TC-D244):** the flat `conflicts` list (like every other flat list) is now always empty during `dry_run` — `actions` alone is the complete preview, so this case's own collision entry only shows up there now, not in both places.
 
 **Prompt**
 > Reuse TC-D227's setup: a plain file and a `convert_markdown`-produced Doc both named `notes.md` in `{FOLDER_ID}`. With `/tmp/qa-sync-232/` created but empty:
@@ -2012,14 +2012,14 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-231-src/` 
 
 **Checks**
 - Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-232/", direction="bidirectional", convert_markdown=true, dry_run=true)`
-- `failed` is empty; `notes.md` appears in `conflicts` instead
+- `failed` is empty; `conflicts` is also empty (#512 — flat lists stay empty during dry_run)
 - `actions` contains one entry for `notes.md` with `"action": "collision"`
 - Neither Drive-side `notes.md` file was touched (nothing materializes during dry_run)
 
 **Teardown**
 Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-232/`.
 
-**Result (2026-07-27) ✅ PASS** — `sync_folder(..., dry_run=true)` against the same collision fixture returned `failed: []`, `conflicts: ["notes.md", ...]`, and `actions` containing `{"name": "notes.md", "action": "collision", ...}` — the dry_run/failed-invariant is now upheld. Both Drive-side files confirmed untouched afterward. Both trashed after the test.
+**Result (2026-08-04) ✅ PASS** — Reproduced with a scratch fixture (own scratch folder, not the shared `{FOLDER_ID}`): `sync_folder(..., convert_markdown=true, dry_run=true)` against a plain `notes.md` and a `convert_markdown`-produced Doc also named `notes.md` returned `failed: []`, `conflicts: []`, and `actions: [{"name": "notes.md", "action": "collision", "reason": "a plain file and a convert_markdown Doc are named 'notes.md' in this Drive folder — sync can't tell which one the local file matches; rename or remove one of them in Drive"}]` — confirms the #512 dry_run/flat-lists-always-empty change applies to the collision case too, not just skip/upload/download. Both scratch files trashed after the test.
 
 ---
 
@@ -2203,7 +2203,7 @@ Delete `nested-sub` from `{FOLDER_ID}`. Remove `/tmp/qa-download-328/`.
 **Background:** `sync_folder(dry_run=True)` used to duplicate every `skip`/`conflict` name into both a flat list (`skipped`/`conflicts`) and a full `{name, action, reason}` entry in `actions` — for a folder that's mostly already in sync, this roughly doubled the response for no new information, deterministically tripping the 40,000-character response-size cap on a moderately-sized folder (reported: 303 local / 280 Drive files, only 24 new/changed). Fixed by leaving the flat lists empty during `dry_run` — `actions` was already a complete picture (name + action-type + reason for every item considered, including upload/download entries the flat lists never populated during dry_run even before this fix) — and relying on it exclusively instead of duplicating a subset of it into a second structure.
 
 **Setup**
-In a scratch Drive folder, upload ~5 small text files (e.g. `qa-512-a.txt` .. `qa-512-e.txt`). In a local directory, create local copies of 3 of them with the same content and mtime touched to match (so they read as in-sync), leave 1 Drive-only, and add 1 new local-only file not present in Drive.
+In a scratch Drive folder, upload ~5 small text files (e.g. `qa-512-a.txt` .. `qa-512-e.txt`). In a local directory, create local copies of 3 of them with the same content and mtime touched to match (so they read as in-sync), leave the remaining 2 Drive-only, and add 1 new local-only file not present in Drive.
 
 **Prompt**
 > Call `sync_folder(folder_id="{SCRATCH_FOLDER_ID}", local_path="/tmp/qa-512/", direction="bidirectional", dry_run=true)`
@@ -2212,12 +2212,14 @@ In a scratch Drive folder, upload ~5 small text files (e.g. `qa-512-a.txt` .. `q
 - `result["uploaded"] == []`, `result["downloaded"] == []`, `result["skipped"] == []`, `result["conflicts"] == []`, `result["failed"] == []` — all empty regardless of what the plan actually contains
 - `result["actions"]` contains one entry per file considered (5 Drive + 1 local-only = 6), each with `name`, `action`, and `reason`
 - The 3 in-sync files appear in `actions` with `action == "skip"`, `reason == "in sync"`
-- The Drive-only file appears in `actions` with `action == "download"` (bidirectional direction)
+- Each Drive-only file appears in `actions` with `action == "download"` (bidirectional direction)
 - The local-only file appears in `actions` with `action == "upload"`
 - No file is transferred and no local/Drive state changes (dry_run)
 
 **Teardown**
 Delete the 5 Drive files. Remove `/tmp/qa-512/`.
+
+**Result (2026-08-04) ✅ PASS** — Reproduced with a scratch folder (5 files a–e uploaded via `upload_local_file`; a/b/c copied locally with `cp -p` to preserve the mtime `upload_local_file` had already stamped onto Drive, so they land in-sync without any manual touch; d/e left Drive-only; f added local-only). `sync_folder(..., dry_run=true)` returned all five flat lists empty and `actions` with exactly 6 entries: a/b/c `skip`/"in sync", d/e `download`/"drive only", f `upload`/"local only". Scratch folder trashed after the test.
 
 ---
 
@@ -2235,6 +2237,8 @@ Delete the 5 Drive files. Remove `/tmp/qa-512/`.
 
 **Teardown**
 Remove `/tmp/qa-512b/` and `/tmp/qa-512b-result/`.
+
+**Result (2026-08-04) ✅ PASS** — Reusing TC-D244's scratch fixture, `sync_folder(..., dry_run=true, result_local_path=<result dir>/)` returned only `{local_path, bytes_written, folder_id, dry_run: true}` (no inline `uploaded`/`actions`/etc.). Reading the written JSON file reproduced the exact same shape/values the inline call in TC-D244 returned. **Live-confirmed a related correctness gap while running this case — see the PR comment: `result_local_path` has no guard against pointing inside the sync's own `local_path`, so the written manifest file gets picked up as a spurious local-only file on the next sync.**
 
 ---
 
