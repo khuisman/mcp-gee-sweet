@@ -2804,9 +2804,9 @@ Tool call: `insert_local_images(doc_id=DOC_ID, images=[{"marker": "IMGMARKERONE"
 **Setup:** none — list created fresh by the call under test.
 
 **Prompt**
-> "Write this Markdown to doc {DOC_ID}: '- Top level item\n  - Nested item\n', then show me its structure."
+> "Write this Markdown to doc {DOC_ID}: '- Top level item\n    - Nested item\n', then show me its structure."
 
-Tool calls: `write_doc_content(doc_id={DOC_ID}, content="- Top level item\n  - Nested item\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})`.
+Tool calls: `write_doc_content(doc_id={DOC_ID}, content="- Top level item\n    - Nested item\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})`.
 
 **Checks**
 - Both list-item elements have a non-null `bullet` field, and both share the SAME `listId`
@@ -2814,6 +2814,8 @@ Tool calls: `write_doc_content(doc_id={DOC_ID}, content="- Top level item\n  - N
 - "Nested item"'s `bullet.nestingLevel` is `1`
 
 **Cleanup:** write fixture content back
+
+**Result (2026-08-06) ❌ FAIL as originally written, ✅ PASS after test-case fix — run live against PR #524 (issue #334).** The prompt originally used a 2-space indent (`"- Top level item\n  - Nested item\n"`), which this codebase's `_md_to_html` (`sane_lists` extension, same as plain `python-markdown`) does not recognize as nested — both items render as a single flat `<ul>` with no nesting, so "Nested item" correctly reported `nestingLevel: 0` given that input; not a product bug, a test-case bug (`sane_lists`/`markdown` requires 4-space indent to nest a list). Fixed the prompt above to 4-space indent and re-ran: both items share one `listId`, "Top level item" is `nestingLevel: 0`, "Nested item" is `nestingLevel: 1` — PASS.
 
 ---
 
@@ -2839,6 +2841,8 @@ Tool calls: `create_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <
 
 **Cleanup:** write fixture content back
 
+**Result (2026-08-06) ❌ FAIL — run live against PR #524 (issue #334).** First `get_doc_structure` call matches expectations (all 6 items share one `listId` at `nestingLevel: 0`, confirming the flattening). The repair step fails: after `create_paragraph_bullets(ranges=[{"start_index": 45, "end_index": 114, "nesting_level": 1}])` (single range spanning all three contiguous settings paragraphs — the tool's own documented "safe" pattern), a second `get_doc_structure` shows **all three settings paragraphs still at `nestingLevel: 0`** — the promotion had no effect. Worse, the leading tab character the tool inserts to signal depth was never consumed by the Docs API: "Instance identifier"'s own `text` field literally reads `"\t   - Instance identifier\n"`, tab included — contradicting this test's own third check ("no visible tab character leaked into text") and the tool's docstring claim that the API "consumes (removing)" the tab once applied. This is the PR's own flagship, headline use case (#334's original repro) and it does not work at all as implemented. Sent back to Dev (PR #524 comment) rather than approved.
+
 ---
 
 ### TC-DOC157: `delete_paragraph_bullets` removes list membership from a range, leaving paragraph text untouched ⚠️ destructive
@@ -2860,3 +2864,5 @@ Tool calls: `delete_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <
 - "Second item"'s `text` is still exactly "Second item\n" (unchanged)
 
 **Cleanup:** write fixture content back
+
+**Result (2026-08-06) ✅ PASS — run live against PR #524 (issue #334).** All three checks confirmed exactly as specified: "First item"/"Third item" kept their `bullet` field and shared `listId`, "Second item"'s `bullet` became `null`, and its `text` was unchanged.
