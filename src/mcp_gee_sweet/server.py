@@ -195,12 +195,13 @@ _SA_LIMITATIONS = [
             "upload_file",
             "upload_local_file",
             "upload_local_folder",
-            "sync_folder (upload and bidirectional directions)",
+            "sync_folder",
         ],
         "reason": (
             "Service accounts have no Drive storage quota and cannot create "
             "or copy files in personal Drive. These tools will return an error "
-            "unless a Shared Drive destination is used."
+            "unless a Shared Drive destination is used. For sync_folder, this "
+            "only applies to its upload and bidirectional directions."
         ),
         "alternatives": "Switch to OAuth (CREDENTIALS_PATH) or ADC for full tool coverage.",
     },
