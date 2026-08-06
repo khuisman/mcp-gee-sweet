@@ -470,27 +470,45 @@ def register(tool):
         Turn one or more paragraph ranges into a bulleted or numbered list, with
         explicit nesting depth (#334).
 
-        Wraps the Docs API's createParagraphBullets request. That request has no
-        nesting-level field of its own — the API infers a paragraph's nesting
-        depth purely from its own leading tab characters at the moment the call
-        runs, consuming (removing) them once applied. This is the same mechanism
-        this project's own markdown-to-Doc converter uses internally (see
-        emitter.py). To honor a requested nesting_level, this tool inserts that
-        many literal tab characters at the start of the range first, so the
-        range's visible text is unaffected once the bullet is applied.
+        Wraps the Docs API's createParagraphBullets/deleteParagraphBullets
+        requests, working around two confirmed-live API quirks:
+
+        - createParagraphBullets is a no-op on a paragraph that's already
+          part of a list — it neither changes the existing nesting level nor
+          consumes any leading tab characters meant to signal a new one
+          (they're left behind as literal text). Every paragraph this tool
+          touches is deleteParagraphBullets'd first (harmless even if it
+          wasn't previously a list item) so createParagraphBullets always
+          applies to a clean, non-list paragraph.
+        - createParagraphBullets has no nestingLevel field of its own — the
+          API infers each paragraph's depth from its own leading tab
+          characters, but only relative to whatever ELSE is included in that
+          *same* call. A paragraph immediately adjacent to an existing list
+          item that call doesn't also cover gets pulled back to that
+          neighbor's level regardless of its own tabs (the same class of bug
+          PR #432 fixed in this project's own markdown-to-Doc converter).
+          To keep every requested paragraph's relative depth correct, this
+          tool fetches the document, resolves each requested range to the
+          paragraph(s) it covers, and — for any that are already part of a
+          list — expands the affected span to include their full contiguous
+          run of same-list neighbors (preserving each neighbor's own current
+          nesting level unchanged). Contiguous spans sharing one bullet
+          preset are then submitted as a single createParagraphBullets call
+          each, applied in descending document-position order so no
+          not-yet-processed span's indices are invalidated by an earlier
+          span's tab insertions.
 
         Use get_doc_structure to obtain start_index/end_index for each target
         range — typically one paragraph's own startIndex/endIndex, or a
-        contiguous span of several. A range spanning several paragraphs that
-        should end up at different depths needs one call per paragraph
-        (nesting is inferred relative to the other paragraphs in the *same*
-        call) — pass single-paragraph ranges for independent, unambiguous
-        nesting per paragraph.
+        contiguous span covering several (all promoted to the same
+        nesting_level/bullet_preset). For independent depths per paragraph,
+        pass one range per paragraph.
 
         Args:
             doc_id: The Google Doc file ID.
             ranges: List of range dicts, each with:
-                start_index (int), end_index (int): from get_doc_structure.
+                start_index (int), end_index (int): from get_doc_structure —
+                    must overlap at least one existing paragraph.
                 bullet_preset (str, optional): "BULLET_DISC_CIRCLE_SQUARE"
                     (unordered, the default) or "NUMBERED_DECIMAL_ALPHA_ROMAN"
                     (ordered) — the only two presets this codebase has
@@ -498,44 +516,147 @@ def register(tool):
                     additional glyph/numbering presets not exercised here;
                     pass the literal API enum string to use one anyway.
                 nesting_level (int, optional): 0 = top-level (default), 1 =
-                    one level indented, etc.
+                    one level indented, etc. Must be >= 0.
 
         Returns:
             Confirmation with docId and count of batchUpdate requests sent.
-            Ranges are applied in descending start_index order internally so
-            inserting nesting tabs for one range never shifts the document
-            positions of another range in the same call — callers don't need
-            to pre-sort or adjust indices themselves.
+            {"error": ...} if ranges is empty, a nesting_level is negative, a
+            range doesn't overlap any paragraph, or the Docs API call fails.
         """
         lc = ctx.request_context.lifespan_context
         if not ranges:
             return {"error": "ranges list is empty"}
+        for r in ranges:
+            if r.get("nesting_level", 0) < 0:
+                return {"error": f"nesting_level must be >= 0, got {r['nesting_level']}"}
 
-        requests: list[dict] = []
-        for r in sorted(ranges, key=lambda r: r["start_index"], reverse=True):
-            start = r["start_index"]
-            end = r["end_index"]
-            nesting_level = r.get("nesting_level", 0)
-            if nesting_level:
+        try:
+            doc = await execute_in_thread(
+                lc.docs_service.documents().get(documentId=doc_id).execute,
+                lc.docs_service,
+            )
+
+            body_paragraphs = [
+                (
+                    elem.get("startIndex", 0),
+                    elem.get("endIndex", 0),
+                    elem["paragraph"].get("bullet"),
+                )
+                for elem in doc.get("body", {}).get("content", [])
+                if "paragraph" in elem
+            ]
+            by_start = {ps: (pe, b) for ps, pe, b in body_paragraphs}
+            by_end = {pe: (ps, b) for ps, pe, b in body_paragraphs}
+
+            requested: dict[tuple[int, int], dict] = {}
+            for r in ranges:
+                r_start, r_end = r["start_index"], r["end_index"]
+                preset = r.get("bullet_preset", "BULLET_DISC_CIRCLE_SQUARE")
+                nesting_level = r.get("nesting_level", 0)
+                covered = [
+                    (ps, pe) for ps, pe, _b in body_paragraphs if ps < r_end and pe > r_start
+                ]
+                if not covered:
+                    return {"error": f"no paragraph overlaps range {r_start}-{r_end}"}
+                for ps, pe in covered:
+                    requested[(ps, pe)] = {
+                        "start": ps,
+                        "end": pe,
+                        "nesting_level": nesting_level,
+                        "preset": preset,
+                    }
+
+            # Expand each already-listed requested paragraph to include its
+            # full contiguous same-listId neighbor run (see docstring) —
+            # context paragraphs keep their own current nesting level.
+            expanded: dict[tuple[int, int], dict] = dict(requested)
+            for ps, pe, bullet in body_paragraphs:
+                key = (ps, pe)
+                if key not in requested or not bullet:
+                    continue
+                list_id = bullet.get("listId")
+                preset = requested[key]["preset"]
+
+                cursor = ps
+                while cursor in by_end:
+                    prev_start, prev_bullet = by_end[cursor]
+                    if not prev_bullet or prev_bullet.get("listId") != list_id:
+                        break
+                    pkey = (prev_start, cursor)
+                    if pkey not in expanded:
+                        expanded[pkey] = {
+                            "start": prev_start,
+                            "end": cursor,
+                            "nesting_level": prev_bullet.get("nestingLevel", 0),
+                            "preset": preset,
+                        }
+                    cursor = prev_start
+
+                cursor = pe
+                while cursor in by_start:
+                    next_end, next_bullet = by_start[cursor]
+                    if not next_bullet or next_bullet.get("listId") != list_id:
+                        break
+                    nkey = (cursor, next_end)
+                    if nkey not in expanded:
+                        expanded[nkey] = {
+                            "start": cursor,
+                            "end": next_end,
+                            "nesting_level": next_bullet.get("nestingLevel", 0),
+                            "preset": preset,
+                        }
+                    cursor = next_end
+
+            units = sorted(expanded.values(), key=lambda u: u["start"])
+
+            # Group touching, same-preset paragraphs into runs — each run
+            # gets exactly one createParagraphBullets call, since the API
+            # infers nesting level relative to siblings within that one call.
+            runs: list[list[dict]] = [[units[0]]]
+            for u in units[1:]:
+                last = runs[-1][-1]
+                if u["start"] == last["end"] and u["preset"] == last["preset"]:
+                    runs[-1].append(u)
+                else:
+                    runs.append([u])
+
+            requests: list[dict] = []
+            # Runs applied in descending document-position order so one
+            # run's tab insertions never invalidate a not-yet-processed
+            # run's own indices — same convention as insert_doc_text.
+            for run in sorted(runs, key=lambda run: run[0]["start"], reverse=True):
+                run_start = run[0]["start"]
+                run_end = run[-1]["end"]
                 requests.append(
                     {
-                        "insertText": {
-                            "location": {"index": start},
-                            "text": "\t" * nesting_level,
+                        "deleteParagraphBullets": {
+                            "range": {"startIndex": run_start, "endIndex": run_end}
                         }
                     }
                 )
-                end += nesting_level
-            requests.append(
-                {
-                    "createParagraphBullets": {
-                        "range": {"startIndex": start, "endIndex": end},
-                        "bulletPreset": r.get("bullet_preset", "BULLET_DISC_CIRCLE_SQUARE"),
+                for unit in sorted(run, key=lambda u: u["start"], reverse=True):
+                    if unit["nesting_level"]:
+                        requests.append(
+                            {
+                                "insertText": {
+                                    "location": {"index": unit["start"]},
+                                    "text": "\t" * unit["nesting_level"],
+                                }
+                            }
+                        )
+                total_tabs = sum(u["nesting_level"] for u in run)
+                requests.append(
+                    {
+                        "createParagraphBullets": {
+                            "range": {
+                                "startIndex": run_start,
+                                "endIndex": run_end + total_tabs,
+                            },
+                            "bulletPreset": run[0]["preset"],
+                        }
                     }
-                }
-            )
+                )
 
-        try:
             await execute_in_thread(
                 lc.docs_service.documents()
                 .batchUpdate(documentId=doc_id, body={"requests": requests})

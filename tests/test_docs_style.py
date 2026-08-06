@@ -507,10 +507,36 @@ class TestStyleDocRangeTool:
 
 
 class TestCreateParagraphBulletsTool:
+    """#334 round 2: createParagraphBullets is a no-op on an already-listed
+    paragraph, and infers nesting only relative to whatever else is in the
+    same call — confirmed live against the real Docs API (see PR #524
+    review). The tool now fetches the doc, expands each already-listed
+    target to its full contiguous same-listId neighbor run (preserving each
+    neighbor's own nesting level), and issues one createParagraphBullets
+    call per contiguous run, always preceded by deleteParagraphBullets.
+    """
+
     def _setup(self):
         tool, tools = _make_tool_registry()
         docs_module.register(tool)
         return tools
+
+    def _doc(self, paragraphs):
+        # paragraphs: list of (start, end, text, bullet_or_None)
+        content = []
+        for start, end, text, bullet in paragraphs:
+            para = {"elements": [{"textRun": {"content": text}}]}
+            if bullet is not None:
+                para["bullet"] = bullet
+            content.append({"startIndex": start, "endIndex": end, "paragraph": para})
+        return {"documentId": "doc123", "body": {"content": content}}
+
+    def _mocks(self, doc):
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = doc
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        return mock_docs, ctx
 
     async def test_empty_ranges_returns_error(self):
         tools = self._setup()
@@ -518,11 +544,34 @@ class TestCreateParagraphBulletsTool:
         result = await tools["create_paragraph_bullets"](doc_id="doc123", ranges=[], ctx=ctx)
         assert "error" in result
 
-    async def test_top_level_range_sends_single_request_no_tabs(self):
+    async def test_negative_nesting_level_returns_error(self):
         tools = self._setup()
-        mock_docs = MagicMock()
-        mock_docs.documents().batchUpdate().execute.return_value = {}
-        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        ctx = _make_ctx(docs_service=MagicMock(), doc_cache=MagicMock())
+        result = await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 5, "nesting_level": -1}],
+            ctx=ctx,
+        )
+        assert "error" in result
+
+    async def test_range_not_overlapping_any_paragraph_returns_error(self):
+        tools = self._setup()
+        doc = self._doc([(1, 10, "Item\n", None)])
+        _mock_docs, ctx = self._mocks(doc)
+        result = await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[{"start_index": 50, "end_index": 60}],
+            ctx=ctx,
+        )
+        assert "error" in result
+
+    async def test_fresh_paragraph_top_level_sends_delete_then_create(self):
+        # No pre-existing bullet, nesting_level 0 (default): a lone
+        # deleteParagraphBullets (harmless no-op) then createParagraphBullets,
+        # no insertText needed.
+        tools = self._setup()
+        doc = self._doc([(1, 10, "Item\n", None)])
+        mock_docs, ctx = self._mocks(doc)
 
         result = await tools["create_paragraph_bullets"](
             doc_id="doc123",
@@ -531,16 +580,16 @@ class TestCreateParagraphBulletsTool:
         )
         assert "error" not in result
         reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
-        assert len(reqs) == 1
-        bullet_req = reqs[0]["createParagraphBullets"]
+        assert len(reqs) == 2
+        assert reqs[0]["deleteParagraphBullets"]["range"] == {"startIndex": 1, "endIndex": 10}
+        bullet_req = reqs[1]["createParagraphBullets"]
         assert bullet_req["range"] == {"startIndex": 1, "endIndex": 10}
         assert bullet_req["bulletPreset"] == "BULLET_DISC_CIRCLE_SQUARE"
 
     async def test_ordered_preset_passthrough(self):
         tools = self._setup()
-        mock_docs = MagicMock()
-        mock_docs.documents().batchUpdate().execute.return_value = {}
-        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        doc = self._doc([(1, 10, "Item\n", None)])
+        mock_docs, ctx = self._mocks(doc)
 
         await tools["create_paragraph_bullets"](
             doc_id="doc123",
@@ -554,16 +603,17 @@ class TestCreateParagraphBulletsTool:
             ctx=ctx,
         )
         reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
-        assert reqs[0]["createParagraphBullets"]["bulletPreset"] == "NUMBERED_DECIMAL_ALPHA_ROMAN"
+        create_req = next(
+            r["createParagraphBullets"] for r in reqs if "createParagraphBullets" in r
+        )
+        assert create_req["bulletPreset"] == "NUMBERED_DECIMAL_ALPHA_ROMAN"
 
-    async def test_nesting_level_inserts_leading_tabs_and_extends_range(self):
-        # The Docs API has no nestingLevel field on createParagraphBullets — it
-        # infers depth from each paragraph's own leading tab characters at call
-        # time, consuming them once applied (see emitter.py's own mechanism).
+    async def test_nesting_level_on_isolated_paragraph_inserts_tabs(self):
+        # A single paragraph with no same-list neighbors in the doc at all —
+        # nothing to expand, tabs inserted directly for the target itself.
         tools = self._setup()
-        mock_docs = MagicMock()
-        mock_docs.documents().batchUpdate().execute.return_value = {}
-        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        doc = self._doc([(5, 15, "Item\n", {"listId": "L1"})])
+        mock_docs, ctx = self._mocks(doc)
 
         await tools["create_paragraph_bullets"](
             doc_id="doc123",
@@ -571,27 +621,95 @@ class TestCreateParagraphBulletsTool:
             ctx=ctx,
         )
         reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
-        assert len(reqs) == 2
-        # insertText must precede createParagraphBullets so the tabs exist in
-        # the document by the time the bullet request consumes them.
-        assert reqs[0]["insertText"] == {"location": {"index": 5}, "text": "\t\t"}
-        assert reqs[1]["createParagraphBullets"]["range"] == {"startIndex": 5, "endIndex": 17}
+        assert reqs[0]["deleteParagraphBullets"]["range"] == {"startIndex": 5, "endIndex": 15}
+        assert reqs[1]["insertText"] == {"location": {"index": 5}, "text": "\t\t"}
+        assert reqs[2]["createParagraphBullets"]["range"] == {"startIndex": 5, "endIndex": 17}
 
-    async def test_multiple_ranges_applied_in_descending_start_index_order(self):
-        # A range's own tab insertion must never shift another range's
-        # caller-supplied indices in the same call — achieved by processing
-        # the highest start_index first, mirroring insert_doc_text/
-        # delete_doc_range's existing reverse-sort pattern.
+    async def test_expands_to_include_same_list_neighbors(self):
+        # #334 round 2's core fix: nesting the middle paragraph of an
+        # existing 3-item list must pull in both same-listId neighbors
+        # (preserving their own nesting_level unchanged) into ONE run,
+        # rather than only touching the requested paragraph in isolation —
+        # confirmed live that an isolated single-paragraph call gets
+        # silently overridden back to level 0 by untouched neighbors.
         tools = self._setup()
-        mock_docs = MagicMock()
-        mock_docs.documents().batchUpdate().execute.return_value = {}
-        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        bullet = {"listId": "L1"}
+        doc = self._doc(
+            [
+                (1, 6, "One\n", bullet),
+                (6, 11, "Two\n", bullet),
+                (11, 17, "Three\n", bullet),
+            ]
+        )
+        mock_docs, ctx = self._mocks(doc)
+
+        result = await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[{"start_index": 6, "end_index": 11, "nesting_level": 1}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        # One run spanning all three paragraphs: delete over the whole span,
+        # exactly one insertText (only "Two" gets a tab), one create call.
+        delete_reqs = [r for r in reqs if "deleteParagraphBullets" in r]
+        insert_reqs = [r for r in reqs if "insertText" in r]
+        create_reqs = [r for r in reqs if "createParagraphBullets" in r]
+        assert len(delete_reqs) == 1
+        assert delete_reqs[0]["deleteParagraphBullets"]["range"] == {
+            "startIndex": 1,
+            "endIndex": 17,
+        }
+        assert len(insert_reqs) == 1
+        assert insert_reqs[0]["insertText"] == {"location": {"index": 6}, "text": "\t"}
+        assert len(create_reqs) == 1
+        assert create_reqs[0]["createParagraphBullets"]["range"] == {
+            "startIndex": 1,
+            "endIndex": 18,
+        }
+
+    async def test_does_not_expand_across_different_list_id(self):
+        # A directly-adjacent paragraph belonging to a DIFFERENT list must
+        # not be pulled into the run.
+        tools = self._setup()
+        doc = self._doc(
+            [
+                (1, 6, "Target\n", {"listId": "L1"}),
+                (6, 12, "Other\n", {"listId": "L2"}),
+            ]
+        )
+        mock_docs, ctx = self._mocks(doc)
+
+        await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 6, "nesting_level": 1}],
+            ctx=ctx,
+        )
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        delete_req = next(
+            r["deleteParagraphBullets"] for r in reqs if "deleteParagraphBullets" in r
+        )
+        assert delete_req["range"] == {"startIndex": 1, "endIndex": 6}
+
+    async def test_multiple_runs_applied_in_descending_position_order(self):
+        # Two non-adjacent single-paragraph targets become two separate
+        # runs; higher-position run's requests must be emitted first so an
+        # earlier tab insertion never shifts a not-yet-processed run's
+        # indices.
+        tools = self._setup()
+        doc = self._doc(
+            [
+                (1, 6, "First\n", None),
+                (20, 26, "Second\n", None),
+            ]
+        )
+        mock_docs, ctx = self._mocks(doc)
 
         await tools["create_paragraph_bullets"](
             doc_id="doc123",
             ranges=[
-                {"start_index": 1, "end_index": 5, "nesting_level": 1},
-                {"start_index": 20, "end_index": 25, "nesting_level": 1},
+                {"start_index": 1, "end_index": 6, "nesting_level": 1},
+                {"start_index": 20, "end_index": 26, "nesting_level": 1},
             ],
             ctx=ctx,
         )
@@ -599,14 +717,25 @@ class TestCreateParagraphBulletsTool:
         insert_indices = [r["insertText"]["location"]["index"] for r in reqs if "insertText" in r]
         assert insert_indices == [20, 1]
 
-    async def test_docs_api_error_returns_error_dict(self):
+    async def test_get_doc_error_returns_error_dict(self):
         tools = self._setup()
         mock_docs = MagicMock()
-        mock_docs.documents().batchUpdate().execute.side_effect = Exception("boom")
+        mock_docs.documents().get().execute.side_effect = Exception("boom")
         ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
 
         result = await tools["create_paragraph_bullets"](
             doc_id="doc123", ranges=[{"start_index": 1, "end_index": 5}], ctx=ctx
+        )
+        assert result == {"error": "boom"}
+
+    async def test_docs_api_error_returns_error_dict(self):
+        tools = self._setup()
+        doc = self._doc([(1, 6, "Item\n", None)])
+        mock_docs, ctx = self._mocks(doc)
+        mock_docs.documents().batchUpdate().execute.side_effect = Exception("boom")
+
+        result = await tools["create_paragraph_bullets"](
+            doc_id="doc123", ranges=[{"start_index": 1, "end_index": 6}], ctx=ctx
         )
         assert result == {"error": "boom"}
 
