@@ -1115,8 +1115,15 @@ def register(tool):
             - startIndex, endIndex
             Paragraphs also include namedStyleType, text, headingId (Google's internal
             ID for this heading, present only when namedStyleType is HEADING_1..6 —
-            e.g. "h.abc123"; null otherwise), and a runs list (each run has text,
-            bold, italic, underline, strikethrough, font_size, link_url).
+            e.g. "h.abc123"; null otherwise), a runs list (each run has text,
+            bold, italic, underline, strikethrough, font_size, link_url), and
+            bullet (null for a non-list paragraph; otherwise {listId,
+            nestingLevel} — nestingLevel is 0 for a top-level list item, absent
+            from the raw API response in that case, normalized to 0 here so
+            every list paragraph reports a level). Use this to detect a
+            markdown-to-Doc conversion that flattened an intended nested list
+            (#334) — sibling paragraphs that should differ in depth but share
+            the same nestingLevel — then fix it with create_paragraph_bullets.
             Tables include rows, columns, and a cells list (each cell has row, col,
             startIndex, endIndex, paragraphStartIndex, text).
 
@@ -1146,6 +1153,15 @@ def register(tool):
                 # would offer as a "Headings & bookmarks" link target (HEADING_1..6,
                 # and TITLE/SUBTITLE) — no client-side filtering needed here.
                 heading_id = pstyle.get("headingId")
+                bullet = para.get("bullet")
+                bullet_info = (
+                    {
+                        "listId": bullet.get("listId"),
+                        "nestingLevel": bullet.get("nestingLevel", 0),
+                    }
+                    if bullet
+                    else None
+                )
                 runs = []
                 for pe in para.get("elements", []):
                     tr = pe.get("textRun")
@@ -1172,6 +1188,7 @@ def register(tool):
                         "endIndex": elem.get("endIndex", 0),
                         "namedStyleType": named_style,
                         "headingId": heading_id,
+                        "bullet": bullet_info,
                         "text": "".join(r["text"] for r in runs),
                         "runs": runs,
                     }

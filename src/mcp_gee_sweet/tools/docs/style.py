@@ -460,6 +460,140 @@ def register(tool):
         logger.debug("style_doc_table_cells: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}
 
+    @tool(annotations=ToolAnnotations(title="Create Paragraph Bullets", destructiveHint=True))
+    async def create_paragraph_bullets(
+        doc_id: str,
+        ranges: list[dict],
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Turn one or more paragraph ranges into a bulleted or numbered list, with
+        explicit nesting depth (#334).
+
+        Wraps the Docs API's createParagraphBullets request. That request has no
+        nesting-level field of its own — the API infers a paragraph's nesting
+        depth purely from its own leading tab characters at the moment the call
+        runs, consuming (removing) them once applied. This is the same mechanism
+        this project's own markdown-to-Doc converter uses internally (see
+        emitter.py). To honor a requested nesting_level, this tool inserts that
+        many literal tab characters at the start of the range first, so the
+        range's visible text is unaffected once the bullet is applied.
+
+        Use get_doc_structure to obtain start_index/end_index for each target
+        range — typically one paragraph's own startIndex/endIndex, or a
+        contiguous span of several. A range spanning several paragraphs that
+        should end up at different depths needs one call per paragraph
+        (nesting is inferred relative to the other paragraphs in the *same*
+        call) — pass single-paragraph ranges for independent, unambiguous
+        nesting per paragraph.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            ranges: List of range dicts, each with:
+                start_index (int), end_index (int): from get_doc_structure.
+                bullet_preset (str, optional): "BULLET_DISC_CIRCLE_SQUARE"
+                    (unordered, the default) or "NUMBERED_DECIMAL_ALPHA_ROMAN"
+                    (ordered) — the only two presets this codebase has
+                    confirmed live (see emitter.py). The Docs API defines
+                    additional glyph/numbering presets not exercised here;
+                    pass the literal API enum string to use one anyway.
+                nesting_level (int, optional): 0 = top-level (default), 1 =
+                    one level indented, etc.
+
+        Returns:
+            Confirmation with docId and count of batchUpdate requests sent.
+            Ranges are applied in descending start_index order internally so
+            inserting nesting tabs for one range never shifts the document
+            positions of another range in the same call — callers don't need
+            to pre-sort or adjust indices themselves.
+        """
+        lc = ctx.request_context.lifespan_context
+        if not ranges:
+            return {"error": "ranges list is empty"}
+
+        requests: list[dict] = []
+        for r in sorted(ranges, key=lambda r: r["start_index"], reverse=True):
+            start = r["start_index"]
+            end = r["end_index"]
+            nesting_level = r.get("nesting_level", 0)
+            if nesting_level:
+                requests.append(
+                    {
+                        "insertText": {
+                            "location": {"index": start},
+                            "text": "\t" * nesting_level,
+                        }
+                    }
+                )
+                end += nesting_level
+            requests.append(
+                {
+                    "createParagraphBullets": {
+                        "range": {"startIndex": start, "endIndex": end},
+                        "bulletPreset": r.get("bullet_preset", "BULLET_DISC_CIRCLE_SQUARE"),
+                    }
+                }
+            )
+
+        try:
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                lc.docs_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug("create_paragraph_bullets: %d requests in doc %s", len(requests), doc_id)
+        return {"docId": doc_id, "requests": len(requests)}
+
+    @tool(annotations=ToolAnnotations(title="Delete Paragraph Bullets", destructiveHint=True))
+    async def delete_paragraph_bullets(
+        doc_id: str,
+        ranges: list[dict],
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Remove list membership (bullets/numbering) from one or more paragraph
+        ranges, leaving each paragraph's text and other styling untouched (#334).
+
+        Args:
+            doc_id: The Google Doc file ID.
+            ranges: List of range dicts, each with start_index and end_index
+                (from get_doc_structure).
+
+        Returns:
+            Confirmation with docId and count of batchUpdate requests sent.
+        """
+        lc = ctx.request_context.lifespan_context
+        if not ranges:
+            return {"error": "ranges list is empty"}
+
+        requests = [
+            {
+                "deleteParagraphBullets": {
+                    "range": {"startIndex": r["start_index"], "endIndex": r["end_index"]}
+                }
+            }
+            for r in ranges
+        ]
+
+        try:
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                lc.docs_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug("delete_paragraph_bullets: %d requests in doc %s", len(requests), doc_id)
+        return {"docId": doc_id, "requests": len(requests)}
+
     @tool(annotations=ToolAnnotations(title="Get Document Theme"))
     async def get_doc_theme(
         doc_id: str,

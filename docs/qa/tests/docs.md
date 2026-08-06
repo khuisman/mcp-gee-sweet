@@ -2794,3 +2794,69 @@ Tool call: `insert_local_images(doc_id=DOC_ID, images=[{"marker": "IMGMARKERONE"
 **Result (2026-08-04) ❌ FAIL — run live against PR #515 (issue #443).** Primary check and companion regression guard both PASS: `<pre>code<table>...</table>   </pre>` produces exactly "code" paragraph → 1×1 table ("cell") → the mandatory structural trailing paragraph every Doc requires, with no spurious visible-space paragraph; a standalone `<pre>   </pre>` (no interruption) still keeps its literal whitespace unconditionally. However, `/code-review high` on the same PR live-verified (via `html_to_ast` against the worktree's own code) and this session independently reproduced via the real Docs API a related, not-yet-fixed case the test prompt above doesn't cover: a resumed `<pre>` whose trailing whitespace-only flush follows genuinely *dropped* unsupported content (e.g. `<pre>code<table>...</table> <hr></pre>`) produces a doc structurally identical to the no-drop case — no boundary node at all, silently losing the paragraph break that `_emit_block_node`'s `preserve_if_empty` guarantees every other block type (`<p>`/`<li>`/headings) in an analogous situation. Sent back to Dev (PR #515 comment) rather than approved; not filed as a separate ticket since it's blocking on this same PR.
 
 **Result (2026-08-05) ✅ PASS — re-verified live against fix commit `a465ea3`.** Round 1's finding is fixed: `<pre>code<table>...</table> <hr></pre>` (space survives after dropped `<hr>`) now renders a boundary paragraph `" \n"` immediately after the table; the zero-whitespace variant `<pre>code<table>...</table><hr></pre>` renders an empty boundary paragraph, matching the fix's own two new unit tests. Both of round 1's original checks (primary + companion regression guard) re-confirmed unaffected by the rewritten condition. `TestPreBlock` (10/10) passes. Note for future rounds: the first live-verification attempt this round produced a false FAIL — the `/mcp reconnect` had been run *before* this worktree was reset to the fix commit, so the tool call exercised stale pre-fix code (same class of gotcha as the PR #385 retro entry in `.claude/team-roles/qa.md`); caught by cross-checking against a direct script invocation of the same code path, not by the tool output itself. `qa-approved` applied.
+
+---
+
+## Paragraph bullet inspection and repair — `get_doc_structure`'s `bullet` field, `create_paragraph_bullets`/`delete_paragraph_bullets` (issue #334)
+
+### TC-DOC155: `get_doc_structure` surfaces `bullet.listId`/`bullet.nestingLevel` for list paragraphs ⚠️ destructive
+
+**Setup:** none — list created fresh by the call under test.
+
+**Prompt**
+> "Write this Markdown to doc {DOC_ID}: '- Top level item\n  - Nested item\n', then show me its structure."
+
+Tool calls: `write_doc_content(doc_id={DOC_ID}, content="- Top level item\n  - Nested item\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})`.
+
+**Checks**
+- Both list-item elements have a non-null `bullet` field, and both share the SAME `listId`
+- "Top level item"'s `bullet.nestingLevel` is `0`
+- "Nested item"'s `bullet.nestingLevel` is `1`
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-DOC156: `create_paragraph_bullets` fixes a markdown-flattened nested list by promoting specific paragraphs to a deeper nesting level (#334's original repro) ⚠️ destructive
+
+**Background:** issue #334 — `create_doc`'s markdown-to-Doc conversion flattens an indented sub-list under a numbered item into the SAME single-level list (the six settings in the issue's own repro became items 3-8 of one flat list instead of a nested sub-list under item 2), and until now there was no way to fix this after the fact short of delete-and-retype as plain text. This test exercises the fix: `get_doc_structure`'s new `bullet` field to detect the flattening, then `create_paragraph_bullets` to repair it.
+
+**Prompt**
+> "Write this Markdown to doc {DOC_ID}: '1. Select the snapshot\n2. Configure the instance:\n   - Instance identifier\n   - Instance class\n   - Storage encryption\n3. Click Restore\n', then show me its structure."
+
+Tool calls: `write_doc_content(doc_id={DOC_ID}, content="1. Select the snapshot\n2. Configure the instance:\n   - Instance identifier\n   - Instance class\n   - Storage encryption\n3. Click Restore\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})` — note the `start_index`/`end_index` of the "Instance identifier" and "Storage encryption" paragraphs from this call's output.
+
+Then: "Now nest the three settings paragraphs (Instance identifier through Storage encryption) one level deeper under item 2, and show me the structure again."
+
+Tool calls: `create_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <Instance identifier para start_index>, "end_index": <Storage encryption para end_index>, "nesting_level": 1}])` (one range spanning all three contiguous settings paragraphs), then `get_doc_structure(doc_id={DOC_ID})` again.
+
+**Checks**
+- First `get_doc_structure` call: all 6 items ("Select the snapshot" through "Click Restore") share one `listId`, all at `nestingLevel: 0` — confirms the flattening described in #334 (the three settings paragraphs are not visually distinguished from their numbered siblings)
+- `create_paragraph_bullets` call succeeds with no API error
+- Second `get_doc_structure` call: "Select the snapshot", "Configure the instance", and "Click Restore" are still `nestingLevel: 0`; "Instance identifier", "Instance class", "Storage encryption" are now `nestingLevel: 1`, still sharing the same `listId` as their siblings
+- The three promoted paragraphs' own text is unchanged — no visible tab character leaked into `text` (confirms the Docs API fully consumes the leading tab characters used to signal nesting depth)
+- 🔍 Visual check: the three settings render as a visually indented sub-list under "Configure the instance", and "Click Restore" still numbers as item 3 (not item 6)
+
+**Cleanup:** write fixture content back
+
+---
+
+### TC-DOC157: `delete_paragraph_bullets` removes list membership from a range, leaving paragraph text untouched ⚠️ destructive
+
+**Setup:** none — list created fresh by the call under test.
+
+**Prompt**
+> "Write this Markdown to doc {DOC_ID}: '- First item\n- Second item\n- Third item\n', then show me its structure."
+
+Tool calls: `write_doc_content(doc_id={DOC_ID}, content="- First item\n- Second item\n- Third item\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})` — note "Second item"'s `start_index`/`end_index`.
+
+Then: "Remove the bullet from just the second item, and show me the structure again."
+
+Tool calls: `delete_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <Second item start_index>, "end_index": <Second item end_index>}])`, then `get_doc_structure(doc_id={DOC_ID})` again.
+
+**Checks**
+- After the call: "First item" and "Third item" still have non-null `bullet` fields (unaffected)
+- "Second item"'s `bullet` field is now `null`
+- "Second item"'s `text` is still exactly "Second item\n" (unchanged)
+
+**Cleanup:** write fixture content back
