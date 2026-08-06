@@ -314,6 +314,11 @@ def register(tool):
         List all spreadsheets in the specified Google Drive folder.
         If no folder is specified, uses the configured default folder or lists from 'My Drive'.
 
+        A strict, less-flexible special case of list_files pre-filtered to the
+        spreadsheet MIME type. For a different result cap or other file types, use
+        list_files(folder_id, mime_type='application/vnd.google-apps.spreadsheet', ...)
+        instead.
+
         Args:
             folder_id: Optional Google Drive folder ID to search in.
                       If not provided, uses the configured default folder or searches 'My Drive'.
@@ -459,6 +464,10 @@ def register(tool):
         """
         List files in a Google Drive folder, optionally filtered by MIME type.
 
+        For a spreadsheet-only listing, list_spreadsheets(folder_id) is a narrower
+        convenience wrapper around this same call pre-filtered to the spreadsheet
+        MIME type.
+
         Args:
             folder_id: The Google Drive folder ID to list files from.
             mime_type: Optional MIME type filter. Common values:
@@ -531,6 +540,10 @@ def register(tool):
         """
         Search for files in Google Drive by name or content.
 
+        For a spreadsheet-only search, search_spreadsheets(query, max_results) is a
+        narrower convenience wrapper around this same query pre-filtered to the
+        spreadsheet MIME type.
+
         Args:
             query: Search string matched against file name and full text.
             mime_type: Optional MIME type filter, e.g.
@@ -595,6 +608,11 @@ def register(tool):
     ) -> list[dict[str, Any]]:
         """
         Search for spreadsheets in Google Drive by name or content.
+
+        A strict, less-flexible special case of search_files pre-filtered to the
+        spreadsheet MIME type. For folder-scoped search or other file types, use
+        search_files(query, mime_type='application/vnd.google-apps.spreadsheet', ...)
+        instead.
 
         Args:
             query: Search query string. Searches in file name and content.
