@@ -204,6 +204,24 @@ Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against that serve
 
 ---
 
+### TC-I28: `sync_folder` reports as a literal, exact `limited_tools` entry (issue #516)
+
+**Background:** `_SA_LIMITATIONS`'s `no_drive_storage_quota` category carried `sync_folder` as `"sync_folder (upload and bidirectional directions)"` instead of the bare tool name — a string that predates PR #507's per-category restructuring and was carried forward unchanged. This silently defeats the field's own documented contract: a caller doing `"sync_folder" in status["limited_tools"]` (the exact membership check TC-I27's "original 7 tools" check doesn't itself perform literally) got `False` even though `sync_folder` genuinely is restricted under a service account. Fixed by using the bare tool name and moving the upload/bidirectional-only distinction into the category's `reason` text instead.
+
+**Setup**
+Server running with `AUTH_METHOD=service_account` (e.g. `mcp-gee-sweet-sa` / `mcp-gee-sweet-kai-sa`).
+
+**Action**
+Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against that server.
+
+**Checks**
+- `"sync_folder" in limited_tools` is `True` (exact string match — not a substring like `"sync_folder (upload and bidirectional directions)"`)
+- The `no_drive_storage_quota` entry's `reason` text mentions the upload/bidirectional-only distinction for `sync_folder`
+
+**Result (2026-08-05, mcp-gee-sweet-sky, oauth):** ✅ PASS on the full-access check only — `{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "limitations": []}`, confirming no crash/regression under oauth. Both `sync_folder`-specific checks are **pending** — same tool-boundary constraint as TC-I27: they require a `service_account`-authed server, and Sky's own dedicated server (`mcp-gee-sweet-sky`) is OAuth-only, so QA doesn't call `mcp-gee-sweet-kai-sa` (or the standalone `mcp-gee-sweet-sa`) even though visible in the session's tool list. Source inspected directly instead (`src/mcp_gee_sweet/server.py` `_SA_LIMITATIONS`): `no_drive_storage_quota.tools` now contains the bare `"sync_folder"` (no longer the old parenthetical string), and its `reason` ends with "For sync_folder, this only applies to its upload and bidirectional directions." — matches both checks by static read. Unit tests (`tests/test_server.py::TestAuthStatusResource::test_service_account_storage_quota_limitation`) also pass locally. Needs a session with a service-account-authed server (Kai, via `mcp-gee-sweet-kai-sa`) to complete live.
+
+---
+
 ### TC-I26: `spreadsheet://{id}/info` resource resolves lifespan context (issue #363)
 
 **Background:** Same regression and fix as TC-I25, but for the resource that actually calls the Sheets API (`execute_in_thread` off `context.sheets_service`) — proves the fix works on the `async def` resource path too, not just the sync one.

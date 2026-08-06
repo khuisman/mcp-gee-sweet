@@ -112,6 +112,9 @@ class TestAuthStatusResource:
         assert "create_doc" in status["limited_tools"]
         assert "copy_file" in status["limited_tools"]
         assert "upload_file" in status["limited_tools"]
+        assert "upload_local_file" in status["limited_tools"]
+        assert "upload_local_folder" in status["limited_tools"]
+        assert "sync_folder" in status["limited_tools"]
         assert "transfer_ownership" in status["limited_tools"]
 
     def test_service_account_storage_quota_limitation(self):
