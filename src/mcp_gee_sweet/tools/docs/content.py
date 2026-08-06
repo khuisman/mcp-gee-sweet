@@ -815,6 +815,13 @@ def register(tool):
         path handles them — see that tool's docstring for the src conventions and the
         revoke_sharing tradeoff.
 
+        For .md files specifically, upload_local_file(convert=True) is a Drive-native
+        alternative: one API call using Drive's own import converter, versus this
+        tool's local parse-and-rebuild pipeline. This tool supports more Markdown
+        features (tables, nested lists, task items, fenced code blocks, inline
+        images) at the cost of more Docs API calls; Drive's importer is a single
+        call but its fidelity is whatever Drive's own converter does.
+
         Args:
             local_path: Absolute or relative path to the local file.
             title: Document title. Defaults to the filename stem.

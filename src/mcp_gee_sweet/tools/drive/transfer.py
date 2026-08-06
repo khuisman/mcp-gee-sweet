@@ -1306,6 +1306,12 @@ def register(tool):
                      A .md conversion is recognized by sync_folder's convert_markdown
                      matching too (same underlying mechanism, #211) — a later
                      sync_folder call on the same folder won't create a duplicate.
+                     For .md specifically, create_doc_from_file is a local-pipeline
+                     alternative: it parses the file and rebuilds it via Docs API
+                     requests instead of Drive's importer, supporting more Markdown
+                     features (tables, nested lists, task items, fenced code blocks)
+                     at the cost of more API calls, versus this single-call
+                     Drive-native import.
 
         Returns:
             fileId, name, webViewLink, and 'skipped' (True if skip_if_exists fired).
