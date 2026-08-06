@@ -521,7 +521,7 @@ class TestCreateParagraphBulletsTool:
         docs_module.register(tool)
         return tools
 
-    def _doc(self, paragraphs):
+    def _doc(self, paragraphs, lists=None):
         # paragraphs: list of (start, end, text, bullet_or_None)
         content = []
         for start, end, text, bullet in paragraphs:
@@ -529,7 +529,24 @@ class TestCreateParagraphBulletsTool:
             if bullet is not None:
                 para["bullet"] = bullet
             content.append({"startIndex": start, "endIndex": end, "paragraph": para})
-        return {"documentId": "doc123", "body": {"content": content}}
+        doc = {"documentId": "doc123", "body": {"content": content}}
+        if lists is not None:
+            doc["lists"] = lists
+        return doc
+
+    def _numbered_list_entry(self, num_levels=1):
+        # Mirrors a live NUMBERED_DECIMAL_ALPHA_ROMAN list's own `lists` map
+        # shape (confirmed live, #334 round 2): level 0 uses glyphType.
+        return {
+            "listProperties": {
+                "nestingLevels": [{"glyphType": "DECIMAL"} for _ in range(num_levels)]
+            }
+        }
+
+    def _bullet_list_entry(self, num_levels=1):
+        return {
+            "listProperties": {"nestingLevels": [{"glyphSymbol": "●"} for _ in range(num_levels)]}
+        }
 
     def _mocks(self, doc):
         mock_docs = MagicMock()
@@ -716,6 +733,143 @@ class TestCreateParagraphBulletsTool:
         reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
         insert_indices = [r["insertText"]["location"]["index"] for r in reqs if "insertText" in r]
         assert insert_indices == [20, 1]
+
+    async def test_omitted_preset_preserves_existing_numbered_list(self):
+        # #334 round 2's core fix: repairing part of an existing NUMBERED
+        # list without passing bullet_preset must NOT silently convert the
+        # whole (expanded) run to the tool's own default bullet preset —
+        # confirmed live this happened before the fix (Playwright-caught).
+        tools = self._setup()
+        bullet = {"listId": "L1"}
+        doc = self._doc(
+            [
+                (1, 6, "One\n", bullet),
+                (6, 11, "Two\n", bullet),
+                (11, 17, "Three\n", bullet),
+            ],
+            lists={"L1": self._numbered_list_entry()},
+        )
+        mock_docs, ctx = self._mocks(doc)
+
+        # Matches TC-DOC156's own documented call: no bullet_preset passed.
+        result = await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[{"start_index": 6, "end_index": 11, "nesting_level": 1}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        create_req = next(
+            r["createParagraphBullets"] for r in reqs if "createParagraphBullets" in r
+        )
+        assert create_req["bulletPreset"] == "NUMBERED_DECIMAL_ALPHA_ROMAN"
+
+    async def test_omitted_preset_on_fresh_paragraph_defaults_to_bullet(self):
+        # No existing list to infer from — falls back to the original default.
+        tools = self._setup()
+        doc = self._doc([(1, 6, "Item\n", None)])
+        mock_docs, ctx = self._mocks(doc)
+
+        await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 6}],
+            ctx=ctx,
+        )
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        create_req = next(
+            r["createParagraphBullets"] for r in reqs if "createParagraphBullets" in r
+        )
+        assert create_req["bulletPreset"] == "BULLET_DISC_CIRCLE_SQUARE"
+
+    async def test_explicit_preset_overrides_inferred_one(self):
+        # Explicit caller intent always wins over inference.
+        tools = self._setup()
+        bullet = {"listId": "L1"}
+        doc = self._doc(
+            [(1, 6, "One\n", bullet)],
+            lists={"L1": self._numbered_list_entry()},
+        )
+        mock_docs, ctx = self._mocks(doc)
+
+        await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[
+                {
+                    "start_index": 1,
+                    "end_index": 6,
+                    "bullet_preset": "BULLET_DISC_CIRCLE_SQUARE",
+                }
+            ],
+            ctx=ctx,
+        )
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        create_req = next(
+            r["createParagraphBullets"] for r in reqs if "createParagraphBullets" in r
+        )
+        assert create_req["bulletPreset"] == "BULLET_DISC_CIRCLE_SQUARE"
+
+    async def test_adjacent_conflicting_explicit_presets_split_into_two_lists(self):
+        # Two touching paragraphs with different explicit presets is a
+        # legitimate request (two distinct lists side by side) — not an
+        # error. A preset conflict only naturally breaks the run here since
+        # both units are explicit and adjacent.
+        tools = self._setup()
+        doc = self._doc(
+            [
+                (1, 6, "One\n", None),
+                (6, 11, "Two\n", None),
+            ]
+        )
+        mock_docs, ctx = self._mocks(doc)
+
+        result = await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[
+                {"start_index": 1, "end_index": 6, "bullet_preset": "BULLET_DISC_CIRCLE_SQUARE"},
+                {
+                    "start_index": 6,
+                    "end_index": 11,
+                    "bullet_preset": "NUMBERED_DECIMAL_ALPHA_ROMAN",
+                },
+            ],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        create_reqs = [r["createParagraphBullets"] for r in reqs if "createParagraphBullets" in r]
+        assert len(create_reqs) == 2
+        presets = {c["bulletPreset"] for c in create_reqs}
+        assert presets == {"BULLET_DISC_CIRCLE_SQUARE", "NUMBERED_DECIMAL_ALPHA_ROMAN"}
+
+    async def test_conflicting_presets_bridged_by_context_returns_error(self):
+        # Two explicitly-conflicting requests that both expand (via a shared
+        # same-listId neighbor) into ONE contiguous run — since the bridging
+        # neighbor isn't itself explicit, the run-break check alone can't
+        # separate them; the run-level conflict check must catch it.
+        tools = self._setup()
+        bullet = {"listId": "L1"}
+        doc = self._doc(
+            [
+                (1, 6, "One\n", bullet),
+                (6, 11, "Two\n", bullet),
+                (11, 17, "Three\n", bullet),
+            ]
+        )
+        mock_docs, ctx = self._mocks(doc)
+
+        result = await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[
+                {"start_index": 1, "end_index": 6, "bullet_preset": "BULLET_DISC_CIRCLE_SQUARE"},
+                {
+                    "start_index": 11,
+                    "end_index": 17,
+                    "bullet_preset": "NUMBERED_DECIMAL_ALPHA_ROMAN",
+                },
+            ],
+            ctx=ctx,
+        )
+        assert "error" in result
 
     async def test_get_doc_error_returns_error_dict(self):
         tools = self._setup()

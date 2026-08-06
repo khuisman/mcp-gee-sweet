@@ -510,18 +510,25 @@ def register(tool):
                 start_index (int), end_index (int): from get_doc_structure —
                     must overlap at least one existing paragraph.
                 bullet_preset (str, optional): "BULLET_DISC_CIRCLE_SQUARE"
-                    (unordered, the default) or "NUMBERED_DECIMAL_ALPHA_ROMAN"
-                    (ordered) — the only two presets this codebase has
-                    confirmed live (see emitter.py). The Docs API defines
-                    additional glyph/numbering presets not exercised here;
-                    pass the literal API enum string to use one anyway.
+                    (unordered) or "NUMBERED_DECIMAL_ALPHA_ROMAN" (ordered) —
+                    the only two presets this codebase has confirmed live
+                    (see emitter.py). The Docs API defines additional
+                    glyph/numbering presets not exercised here; pass the
+                    literal API enum string to use one anyway. If omitted,
+                    an already-listed target paragraph keeps its existing
+                    list's own style (read from the document's own `lists`
+                    map) rather than silently being converted to a
+                    different one; a paragraph with no existing list falls
+                    back to "BULLET_DISC_CIRCLE_SQUARE".
                 nesting_level (int, optional): 0 = top-level (default), 1 =
                     one level indented, etc. Must be >= 0.
 
         Returns:
             Confirmation with docId and count of batchUpdate requests sent.
             {"error": ...} if ranges is empty, a nesting_level is negative, a
-            range doesn't overlap any paragraph, or the Docs API call fails.
+            range doesn't overlap any paragraph, two explicitly-requested
+            contiguous paragraphs specify conflicting presets, or the Docs
+            API call fails.
         """
         lc = ctx.request_context.lifespan_context
         if not ranges:
@@ -535,6 +542,30 @@ def register(tool):
                 lc.docs_service.documents().get(documentId=doc_id).execute,
                 lc.docs_service,
             )
+
+            doc_lists = doc.get("lists", {})
+
+            def infer_preset(bullet: dict | None) -> str | None:
+                # Reads the existing list's own glyph info (not just its
+                # listId/nestingLevel) so an already-listed paragraph's
+                # style is preserved rather than silently overridden by
+                # this tool's own default preset (#334 round 2).
+                if not bullet:
+                    return None
+                levels = (
+                    doc_lists.get(bullet.get("listId"), {})
+                    .get("listProperties", {})
+                    .get("nestingLevels", [])
+                )
+                level = bullet.get("nestingLevel", 0)
+                if level >= len(levels):
+                    return None
+                info = levels[level]
+                if "glyphType" in info:
+                    return "NUMBERED_DECIMAL_ALPHA_ROMAN"
+                if "glyphSymbol" in info:
+                    return "BULLET_DISC_CIRCLE_SQUARE"
+                return None
 
             body_paragraphs = [
                 (
@@ -551,31 +582,33 @@ def register(tool):
             requested: dict[tuple[int, int], dict] = {}
             for r in ranges:
                 r_start, r_end = r["start_index"], r["end_index"]
-                preset = r.get("bullet_preset", "BULLET_DISC_CIRCLE_SQUARE")
+                preset_explicit = "bullet_preset" in r
                 nesting_level = r.get("nesting_level", 0)
                 covered = [
-                    (ps, pe) for ps, pe, _b in body_paragraphs if ps < r_end and pe > r_start
+                    (ps, pe, b) for ps, pe, b in body_paragraphs if ps < r_end and pe > r_start
                 ]
                 if not covered:
                     return {"error": f"no paragraph overlaps range {r_start}-{r_end}"}
-                for ps, pe in covered:
+                for ps, pe, bullet in covered:
                     requested[(ps, pe)] = {
                         "start": ps,
                         "end": pe,
                         "nesting_level": nesting_level,
-                        "preset": preset,
+                        "preset": r.get("bullet_preset"),
+                        "preset_explicit": preset_explicit,
+                        "existing_bullet": bullet,
                     }
 
             # Expand each already-listed requested paragraph to include its
             # full contiguous same-listId neighbor run (see docstring) —
-            # context paragraphs keep their own current nesting level.
+            # context paragraphs keep their own current nesting level and
+            # carry no explicit preset of their own (resolved per-run below).
             expanded: dict[tuple[int, int], dict] = dict(requested)
             for ps, pe, bullet in body_paragraphs:
                 key = (ps, pe)
                 if key not in requested or not bullet:
                     continue
                 list_id = bullet.get("listId")
-                preset = requested[key]["preset"]
 
                 cursor = ps
                 while cursor in by_end:
@@ -588,7 +621,9 @@ def register(tool):
                             "start": prev_start,
                             "end": cursor,
                             "nesting_level": prev_bullet.get("nestingLevel", 0),
-                            "preset": preset,
+                            "preset": None,
+                            "preset_explicit": False,
+                            "existing_bullet": prev_bullet,
                         }
                     cursor = prev_start
 
@@ -603,19 +638,29 @@ def register(tool):
                             "start": cursor,
                             "end": next_end,
                             "nesting_level": next_bullet.get("nestingLevel", 0),
-                            "preset": preset,
+                            "preset": None,
+                            "preset_explicit": False,
+                            "existing_bullet": next_bullet,
                         }
                     cursor = next_end
 
             units = sorted(expanded.values(), key=lambda u: u["start"])
 
-            # Group touching, same-preset paragraphs into runs — each run
-            # gets exactly one createParagraphBullets call, since the API
-            # infers nesting level relative to siblings within that one call.
+            # Group touching paragraphs into runs — each run gets exactly one
+            # createParagraphBullets call, since the API infers nesting level
+            # relative to siblings within that one call. Only an explicit,
+            # conflicting caller-specified preset breaks an otherwise-
+            # touching run; an unspecified (context or defaulted) preset
+            # never does, since it's resolved per-run below.
             runs: list[list[dict]] = [[units[0]]]
             for u in units[1:]:
                 last = runs[-1][-1]
-                if u["start"] == last["end"] and u["preset"] == last["preset"]:
+                conflicts = (
+                    u["preset_explicit"]
+                    and last["preset_explicit"]
+                    and u["preset"] != last["preset"]
+                )
+                if u["start"] == last["end"] and not conflicts:
                     runs[-1].append(u)
                 else:
                     runs.append([u])
@@ -625,6 +670,20 @@ def register(tool):
             # run's tab insertions never invalidate a not-yet-processed
             # run's own indices — same convention as insert_doc_text.
             for run in sorted(runs, key=lambda run: run[0]["start"], reverse=True):
+                explicit_presets = {u["preset"] for u in run if u["preset_explicit"]}
+                if len(explicit_presets) > 1:
+                    return {
+                        "error": "conflicting bullet_preset values among contiguous "
+                        f"paragraphs at index {run[0]['start']}"
+                    }
+                if explicit_presets:
+                    resolved_preset = next(iter(explicit_presets))
+                else:
+                    resolved_preset = next(
+                        (p for u in run if (p := infer_preset(u["existing_bullet"])) is not None),
+                        "BULLET_DISC_CIRCLE_SQUARE",
+                    )
+
                 run_start = run[0]["start"]
                 run_end = run[-1]["end"]
                 requests.append(
@@ -652,7 +711,7 @@ def register(tool):
                                 "startIndex": run_start,
                                 "endIndex": run_end + total_tabs,
                             },
-                            "bulletPreset": run[0]["preset"],
+                            "bulletPreset": resolved_preset,
                         }
                     }
                 )
