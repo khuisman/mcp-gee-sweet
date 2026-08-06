@@ -218,6 +218,8 @@ Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against that serve
 - `"sync_folder" in limited_tools` is `True` (exact string match — not a substring like `"sync_folder (upload and bidirectional directions)"`)
 - The `no_drive_storage_quota` entry's `reason` text mentions the upload/bidirectional-only distinction for `sync_folder`
 
+**Result (2026-08-05, mcp-gee-sweet-sky, oauth):** ✅ PASS on the full-access check only — `{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "limitations": []}`, confirming no crash/regression under oauth. Both `sync_folder`-specific checks are **pending** — same tool-boundary constraint as TC-I27: they require a `service_account`-authed server, and Sky's own dedicated server (`mcp-gee-sweet-sky`) is OAuth-only, so QA doesn't call `mcp-gee-sweet-kai-sa` (or the standalone `mcp-gee-sweet-sa`) even though visible in the session's tool list. Source inspected directly instead (`src/mcp_gee_sweet/server.py` `_SA_LIMITATIONS`): `no_drive_storage_quota.tools` now contains the bare `"sync_folder"` (no longer the old parenthetical string), and its `reason` ends with "For sync_folder, this only applies to its upload and bidirectional directions." — matches both checks by static read. Unit tests (`tests/test_server.py::TestAuthStatusResource::test_service_account_storage_quota_limitation`) also pass locally. Needs a session with a service-account-authed server (Kai, via `mcp-gee-sweet-kai-sa`) to complete live.
+
 ---
 
 ### TC-I26: `spreadsheet://{id}/info` resource resolves lifespan context (issue #363)
