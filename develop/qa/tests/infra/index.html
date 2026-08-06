@@ -1316,6 +1316,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#tc-i28-sync_folder-reports-as-a-literal-exact-limited_tools-entry-issue-516" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I28: sync_folder reports as a literal, exact limited_tools entry (issue #516)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tc-i26-spreadsheetidinfo-resource-resolves-lifespan-context-issue-363" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1995,6 +2006,17 @@ Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</co
 - The entry with <code>category: "no_drive_storage_quota"</code> still contains the original 7 tools and does not contain <code>transfer_ownership</code>
 - A full-access auth method (<code>oauth</code>/<code>adc</code>) still returns <code>limited_tools: []</code>, <code>limitations: []</code></p>
 <p><strong>Result (2026-08-04, mcp-gee-sweet-kit, oauth):</strong> ✅ PASS on the full-access check only — <code>{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "limitations": []}</code>. The other four checks are <strong>pending</strong> — they require a <code>service_account</code>-authed server, and Kit's own dedicated server (<code>mcp-gee-sweet-kit</code>) is OAuth-only; per the team tool-boundary rule, QA doesn't call another role's <code>mcp-gee-sweet-&lt;other&gt;</code> server (<code>kai-sa</code>, or the standalone <code>mcp-gee-sweet-sa</code>) even when visible in the session's tool list. Needs a session with a service-account-authed server (Kai, via <code>mcp-gee-sweet-kai-sa</code>) to complete.</p>
+<hr />
+<h3 id="tc-i28-sync_folder-reports-as-a-literal-exact-limited_tools-entry-issue-516">TC-I28: <code>sync_folder</code> reports as a literal, exact <code>limited_tools</code> entry (issue #516)<a class="headerlink" href="#tc-i28-sync_folder-reports-as-a-literal-exact-limited_tools-entry-issue-516" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>_SA_LIMITATIONS</code>'s <code>no_drive_storage_quota</code> category carried <code>sync_folder</code> as <code>"sync_folder (upload and bidirectional directions)"</code> instead of the bare tool name — a string that predates PR #507's per-category restructuring and was carried forward unchanged. This silently defeats the field's own documented contract: a caller doing <code>"sync_folder" in status["limited_tools"]</code> (the exact membership check TC-I27's "original 7 tools" check doesn't itself perform literally) got <code>False</code> even though <code>sync_folder</code> genuinely is restricted under a service account. Fixed by using the bare tool name and moving the upload/bidirectional-only distinction into the category's <code>reason</code> text instead.</p>
+<p><strong>Setup</strong>
+Server running with <code>AUTH_METHOD=service_account</code> (e.g. <code>mcp-gee-sweet-sa</code> / <code>mcp-gee-sweet-kai-sa</code>).</p>
+<p><strong>Action</strong>
+Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</code> against that server.</p>
+<p><strong>Checks</strong>
+- <code>"sync_folder" in limited_tools</code> is <code>True</code> (exact string match — not a substring like <code>"sync_folder (upload and bidirectional directions)"</code>)
+- The <code>no_drive_storage_quota</code> entry's <code>reason</code> text mentions the upload/bidirectional-only distinction for <code>sync_folder</code></p>
+<p><strong>Result (2026-08-05, mcp-gee-sweet-sky, oauth):</strong> ✅ PASS on the full-access check only — <code>{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "limitations": []}</code>, confirming no crash/regression under oauth. Both <code>sync_folder</code>-specific checks are <strong>pending</strong> — same tool-boundary constraint as TC-I27: they require a <code>service_account</code>-authed server, and Sky's own dedicated server (<code>mcp-gee-sweet-sky</code>) is OAuth-only, so QA doesn't call <code>mcp-gee-sweet-kai-sa</code> (or the standalone <code>mcp-gee-sweet-sa</code>) even though visible in the session's tool list. Source inspected directly instead (<code>src/mcp_gee_sweet/server.py</code> <code>_SA_LIMITATIONS</code>): <code>no_drive_storage_quota.tools</code> now contains the bare <code>"sync_folder"</code> (no longer the old parenthetical string), and its <code>reason</code> ends with "For sync_folder, this only applies to its upload and bidirectional directions." — matches both checks by static read. Unit tests (<code>tests/test_server.py::TestAuthStatusResource::test_service_account_storage_quota_limitation</code>) also pass locally. Needs a session with a service-account-authed server (Kai, via <code>mcp-gee-sweet-kai-sa</code>) to complete live.</p>
 <hr />
 <h3 id="tc-i26-spreadsheetidinfo-resource-resolves-lifespan-context-issue-363">TC-I26: <code>spreadsheet://{id}/info</code> resource resolves lifespan context (issue #363)<a class="headerlink" href="#tc-i26-spreadsheetidinfo-resource-resolves-lifespan-context-issue-363" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> Same regression and fix as TC-I25, but for the resource that actually calls the Sheets API (<code>execute_in_thread</code> off <code>context.sheets_service</code>) — proves the fix works on the <code>async def</code> resource path too, not just the sync one.</p>
