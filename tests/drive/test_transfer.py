@@ -2229,6 +2229,140 @@ class TestDownloadFolder:
         assert result["failed"] == []
 
 
+class TestDownloadFile:
+    """#486: download_file had zero unit test coverage — download_folder (its
+    sibling) has TestDownloadFolder above, but the single-file tool itself was
+    only ever exercised indirectly, via error-message strings mentioning it by
+    name in other tests."""
+
+    def _ctx(self, drive_svc):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = drive_svc
+        return ctx
+
+    def _metadata(self, name, mime_type):
+        return {"name": name, "mimeType": mime_type}
+
+    async def test_google_doc_export(self, tmp_path):
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = self._metadata(
+            "My Doc", "application/vnd.google-apps.document"
+        )
+        svc.files.return_value.export.return_value.execute.return_value = b"pdf bytes"
+
+        result = await _transfer_tools["download_file"](
+            file_id="doc1",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            ctx=self._ctx(svc),
+        )
+
+        svc.files.return_value.export.assert_called_once_with(
+            fileId="doc1", mimeType="application/pdf"
+        )
+        dest = tmp_path / "My Doc.pdf"
+        assert result == {
+            "local_path": str(dest),
+            "name": "My Doc",
+            "size_bytes": len(b"pdf bytes"),
+        }
+        assert dest.read_bytes() == b"pdf bytes"
+
+    async def test_google_sheet_export_as_xlsx(self, tmp_path):
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = self._metadata(
+            "My Sheet", "application/vnd.google-apps.spreadsheet"
+        )
+        svc.files.return_value.export.return_value.execute.return_value = b"xlsx bytes"
+
+        result = await _transfer_tools["download_file"](
+            file_id="sheet1",
+            local_path=str(tmp_path),
+            export_format="xlsx",
+            ctx=self._ctx(svc),
+        )
+
+        svc.files.return_value.export.assert_called_once_with(
+            fileId="sheet1",
+            mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        dest = tmp_path / "My Sheet.xlsx"
+        assert result["local_path"] == str(dest)
+        assert dest.read_bytes() == b"xlsx bytes"
+
+    async def test_explicit_local_path_overrides_drive_filename(self, tmp_path):
+        """When local_path names an exact file (not a directory), that name is
+        used as-is rather than Drive's own name + a guessed extension — the
+        dest.is_dir() branch in download_file is only taken for directories."""
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = self._metadata(
+            "My Slides", "application/vnd.google-apps.presentation"
+        )
+        svc.files.return_value.export.return_value.execute.return_value = b"pptx bytes"
+        dest = tmp_path / "custom_name.pptx"
+
+        result = await _transfer_tools["download_file"](
+            file_id="slides1",
+            local_path=str(dest),
+            export_format="pptx",
+            ctx=self._ctx(svc),
+        )
+
+        svc.files.return_value.export.assert_called_once_with(
+            fileId="slides1",
+            mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        )
+        assert result["local_path"] == str(dest)
+        assert dest.read_bytes() == b"pptx bytes"
+
+    async def test_binary_file_download(self, tmp_path, monkeypatch):
+        """Non-Google files skip export() entirely and stream via get_media()/
+        MediaIoBaseDownload instead — fake the downloader since it otherwise
+        drives a real HTTP range-request loop against request.http."""
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = self._metadata(
+            "photo.png", "image/png"
+        )
+        content = b"\x89PNG raw bytes"
+
+        class _FakeDownloader:
+            def __init__(self, fh, request):
+                self._fh = fh
+
+            def next_chunk(self):
+                self._fh.write(content)
+                return None, True
+
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _FakeDownloader)
+
+        result = await _transfer_tools["download_file"](
+            file_id="bin1",
+            local_path=str(tmp_path),
+            ctx=self._ctx(svc),
+        )
+
+        svc.files.return_value.export.assert_not_called()
+        svc.files.return_value.get_media.assert_called_once_with(fileId="bin1")
+        dest = tmp_path / "photo.png"
+        assert result == {"local_path": str(dest), "name": "photo.png", "size_bytes": len(content)}
+        assert dest.read_bytes() == content
+
+    async def test_nonexistent_file_id_propagates_error(self, tmp_path):
+        resp = MagicMock()
+        resp.status = 404
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.side_effect = HttpError(
+            resp=resp, content=b'{"error": {"message": "File not found: invalidid123xyz"}}'
+        )
+
+        with pytest.raises(HttpError):
+            await _transfer_tools["download_file"](
+                file_id="invalidid123xyz",
+                local_path=str(tmp_path),
+                ctx=self._ctx(svc),
+            )
+
+
 class TestSyncFolderResponseSizeCap:
     """PR #328 review: recursive=True removes the previous implicit bound (one
     folder's direct children) on every result list, especially 'actions' during a
