@@ -49,6 +49,16 @@ _SYNC_MTIME_TOLERANCE = 5  # seconds — absorbs clock skew and upload-time drif
 # (#414 QA review, findings #2 and #7).
 _CONVERT_MARKDOWN_SOURCE_PROP = "geeSweetConvertMarkdownSource"
 
+# Google Workspace Doc mimeType, requested via Drive's native import-conversion
+# trick (upload with the source format's mimeType while setting the destination
+# file's own mimeType to this target) from two independent places: _CONVERT_MIME
+# below (local-file uploads, dispatched by extension, also covers Sheets/Slides
+# targets) and upload_file's convert_to_doc param (raw text/markdown/html content,
+# always targets a Doc since it has no extension to dispatch on). Shared here as
+# the single source of truth for the literal so the two can't drift apart on it —
+# see upload_file's own convert_to_doc branch for the other call site (#412).
+_GOOGLE_DOC_MIME = "application/vnd.google-apps.document"
+
 # extension -> (source mimeType to upload as, target Google Workspace mimeType to
 # request via Drive's native import conversion). Distinct from _EXPORT_MIME above,
 # which maps the other direction (Google type -> downloadable export format).
@@ -60,11 +70,11 @@ _CONVERT_MIME: dict[str, tuple[str, str]] = {
     ),
     ".docx": (
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/vnd.google-apps.document",
+        _GOOGLE_DOC_MIME,
     ),
-    ".md": ("text/markdown", "application/vnd.google-apps.document"),
-    ".html": ("text/html", "application/vnd.google-apps.document"),
-    ".htm": ("text/html", "application/vnd.google-apps.document"),
+    ".md": ("text/markdown", _GOOGLE_DOC_MIME),
+    ".html": ("text/html", _GOOGLE_DOC_MIME),
+    ".htm": ("text/html", _GOOGLE_DOC_MIME),
     ".pptx": (
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "application/vnd.google-apps.presentation",
@@ -88,7 +98,10 @@ async def _upload_local_file(
     DOCX/MD/HTML -> Docs, PPTX -> Slides) by uploading with the source format's
     mimeType while setting the destination file's mimeType to the target Google
     Workspace type — this is distinct from create_doc_from_file, which parses the
-    file locally and rebuilds it via Docs API requests instead of Drive's importer."""
+    file locally and rebuilds it via Docs API requests instead of Drive's importer.
+    upload_file's convert_to_doc param implements the identical trick for raw
+    text/markdown/html content instead of a local file — see _GOOGLE_DOC_MIME
+    above, shared by both so they can't drift apart on the target mimeType (#412)."""
     path = Path(local_path)
     if not path.is_file():
         raise ValueError(f"No file found at {local_path!r}")
@@ -1212,7 +1225,10 @@ def register(tool):
             convert_to_doc: If True, create a Google Doc instead of a raw file.
                             'markdown' and 'html' sources retain heading, list, and link
                             formatting via Drive's HTML import. 'text' uploads as plain text
-                            and Drive converts it (no formatting preserved).
+                            and Drive converts it (no formatting preserved). Uses the same
+                            Drive native-import-conversion trick as upload_local_file's
+                            convert param, simplified to always target a Doc since this
+                            tool has no file extension to dispatch Sheets/Slides on.
 
         Returns:
             fileId, name, parent folder ID, and webViewLink of the created file.
@@ -1245,7 +1261,13 @@ def register(tool):
             file_body["parents"] = [target_folder_id]
 
         if convert_to_doc:
-            file_body["mimeType"] = "application/vnd.google-apps.document"
+            # Same Drive native-import-conversion trick as _upload_local_file's
+            # convert/_CONVERT_MIME path above (upload with the source mimeType,
+            # override the destination mimeType to request conversion) — simpler
+            # here since this tool only ever targets a Doc, never Sheets/Slides.
+            # Shares _GOOGLE_DOC_MIME as the single source of truth for that
+            # value so the two mechanisms can't drift apart on it (#412).
+            file_body["mimeType"] = _GOOGLE_DOC_MIME
 
         media = MediaInMemoryUpload(upload_content, mimetype=upload_mime, resumable=False)
         try:
