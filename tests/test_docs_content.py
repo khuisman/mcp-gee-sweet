@@ -391,6 +391,60 @@ class TestNestedLists:
         ]
 
 
+class TestBlockquote:
+    """Blockquote representation via a flat blockquote_depth field (#476), mirroring
+    how BulletItem.depth encodes list nesting rather than a wrapper node."""
+
+    async def test_simple_blockquote_paragraph_depth_1(self):
+        nodes = html_to_ast("<blockquote><p>A quoted line</p></blockquote><p>after</p>")
+        assert [n.blockquote_depth for n in nodes] == [1, 0]
+        assert "".join(r.text for r in nodes[0].runs) == "A quoted line"
+
+    async def test_non_blockquote_nodes_default_to_depth_0(self):
+        nodes = html_to_ast("<p>plain</p>")
+        assert nodes[0].blockquote_depth == 0
+
+    async def test_nested_blockquote_increments_depth(self):
+        md = "> outer\n> > nested\n\nafter\n"
+        html = _md_to_html(md)
+        nodes = html_to_ast(html)
+        assert [n.blockquote_depth for n in nodes] == [1, 2, 0]
+
+    async def test_blockquote_interrupting_open_li_isolates_depth(self):
+        # Text inside the <li> but outside the <blockquote> must stay at depth 0;
+        # only the blockquote's own content is tagged — mirroring how a nested
+        # <ul> inside an <li> flushes the parent's own text separately (#335).
+        html = "<ul><li>Some intro<blockquote><p>quoted</p></blockquote>trailing</li></ul>"
+        nodes = html_to_ast(html)
+        assert [n.blockquote_depth for n in nodes] == [0, 1, 0]
+        bullets = [n for n in nodes if isinstance(n, BulletItem)]
+        assert "".join(r.text for r in bullets[0].runs) == "Some intro"
+        assert "".join(r.text for r in bullets[1].runs) == "trailing"
+
+    async def test_blockquote_wrapping_list_tags_bullet_items(self):
+        html = "<blockquote><ul><li>a</li><li>b</li></ul></blockquote>"
+        bullets = [n for n in html_to_ast(html) if isinstance(n, BulletItem)]
+        assert [b.blockquote_depth for b in bullets] == [1, 1]
+
+    async def test_blockquote_wrapping_heading(self):
+        nodes = html_to_ast("<blockquote><h2>Quoted Heading</h2></blockquote>")
+        heading = next(n for n in nodes if isinstance(n, Heading))
+        assert heading.blockquote_depth == 1
+
+    async def test_markdown_blockquote_via_gt_syntax(self):
+        html = _md_to_html("> quoted text\n")
+        nodes = html_to_ast(html)
+        assert nodes[0].blockquote_depth == 1
+        assert "".join(r.text for r in nodes[0].runs) == "quoted text"
+
+    async def test_depth_resets_after_blockquote_closes(self):
+        html = (
+            "<blockquote><p>in</p></blockquote><p>out</p><blockquote><p>in again</p></blockquote>"
+        )
+        nodes = html_to_ast(html)
+        assert [n.blockquote_depth for n in nodes] == [1, 0, 1]
+
+
 class TestLiInterruptedByOtherBlocks:
     """A block tag other than <ul>/<ol> — <pre>, <table>, <p>, <h1-h6> — opening
     inside an open <li> that has its own text (#335 review round). The

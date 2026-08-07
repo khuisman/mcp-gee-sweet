@@ -89,12 +89,14 @@ class Heading:
     level: int  # 1–6
     runs: list[Run | Image]
     paragraph_style: ParagraphStyle | None = None
+    blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
 
 
 @dataclass
 class Paragraph:
     runs: list[Run | Image]
     paragraph_style: ParagraphStyle | None = None
+    blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
 
 
 @dataclass
@@ -104,6 +106,7 @@ class BulletItem:
     ordered: bool = False
     checked: bool | None = None  # None = not a task item; True/False = ☑/☐
     paragraph_style: ParagraphStyle | None = None
+    blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
 
 
 @dataclass
@@ -111,6 +114,7 @@ class NamedBlock:
     style_type: str  # TITLE, SUBTITLE, NORMAL_TEXT
     runs: list[Run | Image]
     paragraph_style: ParagraphStyle | None = None
+    blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
 
 
 DocNode = Union[Heading, Paragraph, BulletItem, Table, NamedBlock]

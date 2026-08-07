@@ -179,6 +179,7 @@ another registered tool), passing `content_format` through to `_to_doc_requests`
 | `\| a \| b \|` | `<table>` | `Table` | table via two-phase fill |
 | `` `code` `` | `<code>` | `Run(font_family="Courier New")` | monospace text run |
 | ` ```code block``` ` | `<pre><code>` | `Paragraph` (all runs `font_family="Courier New"`) | monospace paragraph |
+| `> quoted text` | `<blockquote><p>` | `Paragraph(blockquote_depth=1)` (or `Heading`/`BulletItem`/`NamedBlock`, whichever the quoted content is) | left border + indent, scaled by nesting depth (#476 — see [blockquote-representation.md](blockquote-representation.md)) |
 
 Code blocks and inline code render with `font_family="Courier New"` on every run (#103) — no
 further code-block-specific styling (background shading, line numbers) is planned.

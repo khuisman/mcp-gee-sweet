@@ -170,6 +170,13 @@ def ast_to_requests(
             # BulletItem's own createParagraphBullets request is handled by the grouping
             # pass below, not here.
 
+            # Blockquote styling (#476): a left border + scaled indent, applied uniformly
+            # regardless of node type (Heading/Paragraph/NamedBlock/BulletItem can all be
+            # blockquote content) since Google Docs has no native blockquote paragraph
+            # style to set instead — see docs/design/blockquote-representation.md.
+            if node.blockquote_depth > 0:
+                requests.append(_blockquote_style_request(rng, node.blockquote_depth))
+
             # Inline run styles for non-table content (bold, italic, links, font_family, etc.)
             # skip_len skips past any leading nesting tabs and checkbox glyph so run
             # offsets stay accurate. Image entries (#333) contribute 0 to offset (they're
@@ -273,6 +280,39 @@ def ast_to_requests(
         requests.append(insert_request)
 
     return requests, tables
+
+
+# Left-border quote bar + per-level indent (#476). Confirmed live (scratch doc round
+# trip) that paragraphStyle.borderLeft is genuinely writable via updateParagraphStyle
+# and persists — not one of the Docs API's read-only-despite-schema-silence fields (see
+# CLAUDE.md's "Verify a ticket's API premise live" note; #404's tabStops was the
+# cautionary case this now double-checks against).
+_BLOCKQUOTE_INDENT_PT_PER_LEVEL = 36
+_BLOCKQUOTE_BORDER = {
+    "color": {"color": {"rgbColor": {"red": 0.6, "green": 0.6, "blue": 0.6}}},
+    "width": {"magnitude": 3, "unit": "PT"},
+    "padding": {"magnitude": 8, "unit": "PT"},
+    "dashStyle": "SOLID",
+}
+
+
+def _blockquote_style_request(rng: dict, depth: int) -> dict:
+    """updateParagraphStyle request giving a blockquote paragraph a left border and an
+    indent scaled by nesting depth — Google Docs has no native blockquote paragraph
+    style, so this is the closest visual equivalent the API's ParagraphStyle exposes."""
+    return {
+        "updateParagraphStyle": {
+            "range": rng,
+            "paragraphStyle": {
+                "indentStart": {
+                    "magnitude": _BLOCKQUOTE_INDENT_PT_PER_LEVEL * depth,
+                    "unit": "PT",
+                },
+                "borderLeft": _BLOCKQUOTE_BORDER,
+            },
+            "fields": "indentStart,borderLeft",
+        }
+    }
 
 
 def _image_insert_request(image: Image, uri: str, position: int) -> dict:

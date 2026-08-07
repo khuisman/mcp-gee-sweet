@@ -112,6 +112,16 @@ class _AstParser(HTMLParser):
         self._list_ordered: list[bool] = []  # stack: True=ol, False=ul
         self._in_pre = False  # inside <pre>; text is literal, runs get font_family
 
+        # Nesting depth of open <blockquote> tags (#476). Read directly by
+        # _emit_block_node at the moment each leaf node is built, the same way
+        # _make_bullet_item reads len(self._list_ordered) fresh rather than
+        # threading depth through as a parameter — correct as long as this is
+        # only mutated in handle_starttag/handle_endtag's own "blockquote"
+        # branches, which bracket exactly the content that's actually inside
+        # the tag via the existing _interrupt_open_block/_resume_interrupted_
+        # block machinery (the same mechanism table/pre/ol/ul already use).
+        self._blockquote_depth = 0
+
         # Depth of open non-block tags (span, b, a, unrecognized tags, ...)
         # that reach the generic inline-element fallthrough below. Lets
         # handle_data tell genuinely bare top-level text (depth 0, e.g. plain
@@ -280,13 +290,23 @@ class _AstParser(HTMLParser):
                 return
         if tag in _HEADING_TAGS:
             level = int(tag[1])
-            self._nodes.append(Heading(level=level, runs=runs))
+            self._nodes.append(
+                Heading(level=level, runs=runs, blockquote_depth=self._blockquote_depth)
+            )
         elif tag == "li":
-            self._nodes.append(self._make_bullet_item(runs))
+            bullet = self._make_bullet_item(runs)
+            bullet.blockquote_depth = self._blockquote_depth
+            self._nodes.append(bullet)
         elif tag == "p" and self._block_named_style:
-            self._nodes.append(NamedBlock(style_type=self._block_named_style, runs=runs))
+            self._nodes.append(
+                NamedBlock(
+                    style_type=self._block_named_style,
+                    runs=runs,
+                    blockquote_depth=self._blockquote_depth,
+                )
+            )
         else:
-            self._nodes.append(Paragraph(runs=runs))
+            self._nodes.append(Paragraph(runs=runs, blockquote_depth=self._blockquote_depth))
 
     def _interrupt_open_block(self, new_construct_tag: str):
         """A block-ish construct (new_construct_tag: 'ul', 'ol', 'table',
@@ -453,6 +473,18 @@ class _AstParser(HTMLParser):
         if tag == "ul":
             self._interrupt_open_block("ul")
             self._list_ordered.append(False)
+            return
+
+        # --- blockquote (#476) ---
+        # Interrupts any open block the same way ol/ul/table/pre already do,
+        # flushing the outer block's own buffered text (at the pre-increment
+        # depth — that text is not inside this blockquote) before entering.
+        # Depth increments after the interrupt so nested content — including a
+        # further nested <blockquote> — reads the correct depth via
+        # _emit_block_node's self._blockquote_depth lookup.
+        if tag == "blockquote":
+            self._interrupt_open_block("blockquote")
+            self._blockquote_depth += 1
             return
 
         # --- pre / code block ---
@@ -625,6 +657,18 @@ class _AstParser(HTMLParser):
             if self._list_ordered:
                 self._list_ordered.pop()
             self._resume_interrupted_block("ul")
+            return
+
+        # --- blockquote (#476) ---
+        # Resume before decrementing depth: if a block was left open right up
+        # to this close tag (e.g. malformed HTML missing its own inner close
+        # tag), _resume_interrupted_block's own pre-resume flush must still
+        # see this content as inside the blockquote (depth not yet
+        # decremented) — mirroring how _emit_block_node reads
+        # self._blockquote_depth fresh at flush time everywhere else.
+        if tag == "blockquote":
+            self._resume_interrupted_block("blockquote")
+            self._blockquote_depth = max(0, self._blockquote_depth - 1)
             return
 
         # --- pre / code block ---
