@@ -746,6 +746,11 @@ class TestUploadLocalFolder:
         assert result["uploaded"] == []
         ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_not_called()
 
+    async def test_missing_local_directory_raises(self, tmp_path):
+        drive_svc = MagicMock()
+        with pytest.raises(ValueError, match="No directory found"):
+            await self._tool()(str(tmp_path / "missing"), "folder1", ctx=self._ctx(drive_svc))
+
 
 class TestXlsxRangeValues:
     async def test_no_range_returns_all_rows(self):
