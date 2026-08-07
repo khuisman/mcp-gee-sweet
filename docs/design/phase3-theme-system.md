@@ -55,27 +55,26 @@ The original implementation tried `updateNamedStyles` (plural), which returned H
 
 ```python
 {
-  # Named style type key → style entry (all fields optional)
-  "HEADING_1": {
-    "font_family": "Georgia",      # str
-    "font_size": 20.0,             # float, points
-    "bold": True,                  # bool
-    "italic": False,               # bool
-    "color": {"red": 0, "green": 0, "blue": 0},  # RGB 0-1
-    "line_spacing": 115,           # float, 100=single
-    "space_above": 12.0,           # float, points
-    "space_below": 6.0,            # float, points
-  },
-  "NORMAL_TEXT": { ... },
-
-  # Optional: apply default cell styling to all tables in the doc
-  "table": {
-    "border_color": {"red": 0, "green": 0, "blue": 0},
-    "border_width": 0.5,           # float, points
-    "border_dash_style": "SOLID",  # str
-    "cell_padding": 3.6,           # float, points (all four sides)
-    "header_background": {"red": 0.953, "green": 0.953, "blue": 0.953},  # first row only
-  }
+    # Named style type key → style entry (all fields optional)
+    "HEADING_1": {
+        "font_family": "Georgia",  # str
+        "font_size": 20.0,  # float, points
+        "bold": True,  # bool
+        "italic": False,  # bool
+        "color": {"red": 0, "green": 0, "blue": 0},  # RGB 0-1
+        "line_spacing": 115,  # float, 100=single
+        "space_above": 12.0,  # float, points
+        "space_below": 6.0,  # float, points
+    },
+    "NORMAL_TEXT": {...},
+    # Optional: apply default cell styling to all tables in the doc
+    "table": {
+        "border_color": {"red": 0, "green": 0, "blue": 0},
+        "border_width": 0.5,  # float, points
+        "border_dash_style": "SOLID",  # str
+        "cell_padding": 3.6,  # float, points (all four sides)
+        "header_background": {"red": 0.953, "green": 0.953, "blue": 0.953},  # first row only
+    },
 }
 ```
 

@@ -63,7 +63,8 @@ Docs package was later split by domain (#64); this logic now lives in
 ### 1. New import + helper
 
 ```python
-import markdown as _md   # already a dep; add import at top of docs/__init__.py
+import markdown as _md  # already a dep; add import at top of docs/__init__.py
+
 
 def _md_to_html(md_text: str) -> str:
     return _md.markdown(md_text, extensions=["tables", "fenced_code", "sane_lists"])

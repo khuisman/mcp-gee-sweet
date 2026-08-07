@@ -50,18 +50,20 @@ class RGBColor:
     green: float
     blue: float
 
+
 @dataclass
 class ParagraphStyle:
-    alignment: str | None = None            # LEFT, CENTER, RIGHT, JUSTIFIED
-    indent_start: float | None = None       # pt
-    indent_end: float | None = None         # pt
+    alignment: str | None = None  # LEFT, CENTER, RIGHT, JUSTIFIED
+    indent_start: float | None = None  # pt
+    indent_end: float | None = None  # pt
     indent_first_line: float | None = None  # pt
-    space_above: float | None = None        # pt
-    space_below: float | None = None        # pt
-    line_spacing: float | None = None       # 100=single, 150=1.5×, 200=double
+    space_above: float | None = None  # pt
+    space_below: float | None = None  # pt
+    line_spacing: float | None = None  # 100=single, 150=1.5×, 200=double
     page_break_before: bool | None = None
     keep_lines_together: bool | None = None
     keep_with_next: bool | None = None
+
 
 @dataclass
 class Run:
@@ -71,40 +73,44 @@ class Run:
     underline: bool | None = None
     strikethrough: bool | None = None
     link_url: str | None = None
-    font_size: float | None = None                # Phase 3 only
-    foreground_color: RGBColor | None = None      # Phase 3 only
-    font_family: str | None = None                # Phase 3 only
-    background_color: RGBColor | None = None      # Phase 3 only; text highlight
-    baseline_offset: str | None = None            # Phase 3 only; SUPERSCRIPT, SUBSCRIPT
-    small_caps: bool | None = None                # Phase 3 only
+    font_size: float | None = None  # Phase 3 only
+    foreground_color: RGBColor | None = None  # Phase 3 only
+    font_family: str | None = None  # Phase 3 only
+    background_color: RGBColor | None = None  # Phase 3 only; text highlight
+    baseline_offset: str | None = None  # Phase 3 only; SUPERSCRIPT, SUBSCRIPT
+    small_caps: bool | None = None  # Phase 3 only
+
 
 @dataclass
 class Cell:
     runs: list[Run]
     colspan: int = 1
-    rowspan: int = 1                              # AST only; emitter deferred (see below)
-    is_header: bool = False                       # <th> → runs get bold=True
-    content_alignment: str | None = None          # TOP, MIDDLE, BOTTOM
-    background_color: RGBColor | None = None      # Phase 3 only
-    padding_top: float | None = None              # Phase 3 only
-    padding_right: float | None = None            # Phase 3 only
-    padding_bottom: float | None = None           # Phase 3 only
-    padding_left: float | None = None             # Phase 3 only
-    border_color: RGBColor | None = None          # Phase 3 only
-    border_width: float | None = None             # Phase 3 only
-    border_dash_style: str | None = None          # Phase 3 only
+    rowspan: int = 1  # AST only; emitter deferred (see below)
+    is_header: bool = False  # <th> → runs get bold=True
+    content_alignment: str | None = None  # TOP, MIDDLE, BOTTOM
+    background_color: RGBColor | None = None  # Phase 3 only
+    padding_top: float | None = None  # Phase 3 only
+    padding_right: float | None = None  # Phase 3 only
+    padding_bottom: float | None = None  # Phase 3 only
+    padding_left: float | None = None  # Phase 3 only
+    border_color: RGBColor | None = None  # Phase 3 only
+    border_width: float | None = None  # Phase 3 only
+    border_dash_style: str | None = None  # Phase 3 only
+
 
 @dataclass
 class Row:
     cells: list[Cell]
-    minimum_height: float | None = None           # pt
+    minimum_height: float | None = None  # pt
     is_header_row: bool = False
+
 
 @dataclass
 class Table:
     rows: list[Row]
     col_widths: list[float | None] = field(default_factory=list)  # Phase 2
-    table_alignment: str | None = None            # ALIGNED_START, CENTER, ALIGNED_END
+    table_alignment: str | None = None  # ALIGNED_START, CENTER, ALIGNED_END
+
 
 @dataclass
 class Heading:
@@ -112,10 +118,12 @@ class Heading:
     runs: list[Run]
     paragraph_style: ParagraphStyle | None = None
 
+
 @dataclass
 class Paragraph:
     runs: list[Run]
     paragraph_style: ParagraphStyle | None = None
+
 
 @dataclass
 class BulletItem:
@@ -124,11 +132,13 @@ class BulletItem:
     ordered: bool = False
     paragraph_style: ParagraphStyle | None = None
 
+
 @dataclass
 class NamedBlock:
     style_type: str  # TITLE, SUBTITLE, NORMAL_TEXT
     runs: list[Run]
     paragraph_style: ParagraphStyle | None = None
+
 
 DocNode = Union[Heading, Paragraph, BulletItem, Table, NamedBlock]
 ```
