@@ -460,6 +460,320 @@ def register(tool):
         logger.debug("style_doc_table_cells: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}
 
+    @tool(annotations=ToolAnnotations(title="Create Paragraph Bullets", destructiveHint=True))
+    async def create_paragraph_bullets(
+        doc_id: str,
+        ranges: list[dict],
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Turn one or more paragraph ranges into a bulleted or numbered list, with
+        explicit nesting depth (#334).
+
+        Wraps the Docs API's createParagraphBullets/deleteParagraphBullets
+        requests, working around two confirmed-live API quirks:
+
+        - createParagraphBullets is a no-op on a paragraph that's already
+          part of a list — it neither changes the existing nesting level nor
+          consumes any leading tab characters meant to signal a new one
+          (they're left behind as literal text). Every paragraph this tool
+          touches is deleteParagraphBullets'd first (harmless even if it
+          wasn't previously a list item) so createParagraphBullets always
+          applies to a clean, non-list paragraph.
+        - createParagraphBullets has no nestingLevel field of its own — the
+          API infers each paragraph's depth from its own leading tab
+          characters, but only relative to whatever ELSE is included in that
+          *same* call. A paragraph immediately adjacent to an existing list
+          item that call doesn't also cover gets pulled back to that
+          neighbor's level regardless of its own tabs (the same class of bug
+          PR #432 fixed in this project's own markdown-to-Doc converter).
+          To keep every requested paragraph's relative depth correct, this
+          tool fetches the document, resolves each requested range to the
+          paragraph(s) it covers, and — for any that are already part of a
+          list — expands the affected span to include their full contiguous
+          run of same-list neighbors (preserving each neighbor's own current
+          nesting level unchanged). Contiguous spans sharing one bullet
+          preset are then submitted as a single createParagraphBullets call
+          each, applied in descending document-position order so no
+          not-yet-processed span's indices are invalidated by an earlier
+          span's tab insertions.
+
+        Use get_doc_structure to obtain start_index/end_index for each target
+        range — typically one paragraph's own startIndex/endIndex, or a
+        contiguous span covering several (all promoted to the same
+        nesting_level/bullet_preset). For independent depths per paragraph,
+        pass one range per paragraph.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            ranges: List of range dicts, each with:
+                start_index (int), end_index (int): from get_doc_structure —
+                    must overlap at least one existing paragraph.
+                bullet_preset (str, optional): "BULLET_DISC_CIRCLE_SQUARE"
+                    (unordered) or "NUMBERED_DECIMAL_ALPHA_ROMAN" (ordered) —
+                    the only two presets this codebase has confirmed live
+                    (see emitter.py). The Docs API defines additional
+                    glyph/numbering presets not exercised here; pass the
+                    literal API enum string to use one anyway. If omitted,
+                    an already-listed target paragraph keeps its existing
+                    list's own style (read from the document's own `lists`
+                    map) rather than silently being converted to a
+                    different one; a paragraph with no existing list falls
+                    back to "BULLET_DISC_CIRCLE_SQUARE".
+                nesting_level (int, optional): 0 = top-level (default), 1 =
+                    one level indented, etc. Must be >= 0.
+
+        Returns:
+            Confirmation with docId and count of batchUpdate requests sent.
+            {"error": ...} if ranges is empty, a nesting_level is negative, a
+            range doesn't overlap any paragraph, two explicitly-requested
+            contiguous paragraphs specify conflicting presets, or the Docs
+            API call fails.
+        """
+        lc = ctx.request_context.lifespan_context
+        if not ranges:
+            return {"error": "ranges list is empty"}
+        for r in ranges:
+            if r.get("nesting_level", 0) < 0:
+                return {"error": f"nesting_level must be >= 0, got {r['nesting_level']}"}
+
+        try:
+            doc = await execute_in_thread(
+                lc.docs_service.documents().get(documentId=doc_id).execute,
+                lc.docs_service,
+            )
+
+            doc_lists = doc.get("lists", {})
+
+            def infer_preset(bullet: dict | None) -> str | None:
+                # Reads the existing list's own glyph info (not just its
+                # listId/nestingLevel) so an already-listed paragraph's
+                # style is preserved rather than silently overridden by
+                # this tool's own default preset (#334 round 2).
+                if not bullet:
+                    return None
+                levels = (
+                    doc_lists.get(bullet.get("listId"), {})
+                    .get("listProperties", {})
+                    .get("nestingLevels", [])
+                )
+                level = bullet.get("nestingLevel", 0)
+                if level >= len(levels):
+                    return None
+                info = levels[level]
+                if "glyphType" in info:
+                    return "NUMBERED_DECIMAL_ALPHA_ROMAN"
+                if "glyphSymbol" in info:
+                    return "BULLET_DISC_CIRCLE_SQUARE"
+                return None
+
+            body_paragraphs = [
+                (
+                    elem.get("startIndex", 0),
+                    elem.get("endIndex", 0),
+                    elem["paragraph"].get("bullet"),
+                )
+                for elem in doc.get("body", {}).get("content", [])
+                if "paragraph" in elem
+            ]
+            by_start = {ps: (pe, b) for ps, pe, b in body_paragraphs}
+            by_end = {pe: (ps, b) for ps, pe, b in body_paragraphs}
+
+            requested: dict[tuple[int, int], dict] = {}
+            for r in ranges:
+                r_start, r_end = r["start_index"], r["end_index"]
+                preset_explicit = "bullet_preset" in r
+                nesting_level = r.get("nesting_level", 0)
+                covered = [
+                    (ps, pe, b) for ps, pe, b in body_paragraphs if ps < r_end and pe > r_start
+                ]
+                if not covered:
+                    return {"error": f"no paragraph overlaps range {r_start}-{r_end}"}
+                for ps, pe, bullet in covered:
+                    requested[(ps, pe)] = {
+                        "start": ps,
+                        "end": pe,
+                        "nesting_level": nesting_level,
+                        "preset": r.get("bullet_preset"),
+                        "preset_explicit": preset_explicit,
+                        "existing_bullet": bullet,
+                    }
+
+            # Expand each already-listed requested paragraph to include its
+            # full contiguous same-listId neighbor run (see docstring) —
+            # context paragraphs keep their own current nesting level and
+            # carry no explicit preset of their own (resolved per-run below).
+            expanded: dict[tuple[int, int], dict] = dict(requested)
+            for ps, pe, bullet in body_paragraphs:
+                key = (ps, pe)
+                if key not in requested or not bullet:
+                    continue
+                list_id = bullet.get("listId")
+
+                cursor = ps
+                while cursor in by_end:
+                    prev_start, prev_bullet = by_end[cursor]
+                    if not prev_bullet or prev_bullet.get("listId") != list_id:
+                        break
+                    pkey = (prev_start, cursor)
+                    if pkey not in expanded:
+                        expanded[pkey] = {
+                            "start": prev_start,
+                            "end": cursor,
+                            "nesting_level": prev_bullet.get("nestingLevel", 0),
+                            "preset": None,
+                            "preset_explicit": False,
+                            "existing_bullet": prev_bullet,
+                        }
+                    cursor = prev_start
+
+                cursor = pe
+                while cursor in by_start:
+                    next_end, next_bullet = by_start[cursor]
+                    if not next_bullet or next_bullet.get("listId") != list_id:
+                        break
+                    nkey = (cursor, next_end)
+                    if nkey not in expanded:
+                        expanded[nkey] = {
+                            "start": cursor,
+                            "end": next_end,
+                            "nesting_level": next_bullet.get("nestingLevel", 0),
+                            "preset": None,
+                            "preset_explicit": False,
+                            "existing_bullet": next_bullet,
+                        }
+                    cursor = next_end
+
+            units = sorted(expanded.values(), key=lambda u: u["start"])
+
+            # Group touching paragraphs into runs — each run gets exactly one
+            # createParagraphBullets call, since the API infers nesting level
+            # relative to siblings within that one call. Only an explicit,
+            # conflicting caller-specified preset breaks an otherwise-
+            # touching run; an unspecified (context or defaulted) preset
+            # never does, since it's resolved per-run below.
+            runs: list[list[dict]] = [[units[0]]]
+            for u in units[1:]:
+                last = runs[-1][-1]
+                conflicts = (
+                    u["preset_explicit"]
+                    and last["preset_explicit"]
+                    and u["preset"] != last["preset"]
+                )
+                if u["start"] == last["end"] and not conflicts:
+                    runs[-1].append(u)
+                else:
+                    runs.append([u])
+
+            requests: list[dict] = []
+            # Runs applied in descending document-position order so one
+            # run's tab insertions never invalidate a not-yet-processed
+            # run's own indices — same convention as insert_doc_text.
+            for run in sorted(runs, key=lambda run: run[0]["start"], reverse=True):
+                explicit_presets = {u["preset"] for u in run if u["preset_explicit"]}
+                if len(explicit_presets) > 1:
+                    return {
+                        "error": "conflicting bullet_preset values among contiguous "
+                        f"paragraphs at index {run[0]['start']}"
+                    }
+                if explicit_presets:
+                    resolved_preset = next(iter(explicit_presets))
+                else:
+                    resolved_preset = next(
+                        (p for u in run if (p := infer_preset(u["existing_bullet"])) is not None),
+                        "BULLET_DISC_CIRCLE_SQUARE",
+                    )
+
+                run_start = run[0]["start"]
+                run_end = run[-1]["end"]
+                requests.append(
+                    {
+                        "deleteParagraphBullets": {
+                            "range": {"startIndex": run_start, "endIndex": run_end}
+                        }
+                    }
+                )
+                for unit in sorted(run, key=lambda u: u["start"], reverse=True):
+                    if unit["nesting_level"]:
+                        requests.append(
+                            {
+                                "insertText": {
+                                    "location": {"index": unit["start"]},
+                                    "text": "\t" * unit["nesting_level"],
+                                }
+                            }
+                        )
+                total_tabs = sum(u["nesting_level"] for u in run)
+                requests.append(
+                    {
+                        "createParagraphBullets": {
+                            "range": {
+                                "startIndex": run_start,
+                                "endIndex": run_end + total_tabs,
+                            },
+                            "bulletPreset": resolved_preset,
+                        }
+                    }
+                )
+
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                lc.docs_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug("create_paragraph_bullets: %d requests in doc %s", len(requests), doc_id)
+        return {"docId": doc_id, "requests": len(requests)}
+
+    @tool(annotations=ToolAnnotations(title="Delete Paragraph Bullets", destructiveHint=True))
+    async def delete_paragraph_bullets(
+        doc_id: str,
+        ranges: list[dict],
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Remove list membership (bullets/numbering) from one or more paragraph
+        ranges, leaving each paragraph's text and other styling untouched (#334).
+
+        Args:
+            doc_id: The Google Doc file ID.
+            ranges: List of range dicts, each with start_index and end_index
+                (from get_doc_structure).
+
+        Returns:
+            Confirmation with docId and count of batchUpdate requests sent.
+        """
+        lc = ctx.request_context.lifespan_context
+        if not ranges:
+            return {"error": "ranges list is empty"}
+
+        requests = [
+            {
+                "deleteParagraphBullets": {
+                    "range": {"startIndex": r["start_index"], "endIndex": r["end_index"]}
+                }
+            }
+            for r in ranges
+        ]
+
+        try:
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                lc.docs_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug("delete_paragraph_bullets: %d requests in doc %s", len(requests), doc_id)
+        return {"docId": doc_id, "requests": len(requests)}
+
     @tool(annotations=ToolAnnotations(title="Get Document Theme"))
     async def get_doc_theme(
         doc_id: str,

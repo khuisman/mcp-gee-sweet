@@ -1433,6 +1433,51 @@ class TestGetDocStructureHeadingId:
         assert result["elements"][0]["headingId"] is None
 
 
+class TestGetDocStructureBullet:
+    """#334: get_doc_structure surfaces each paragraph's list membership/nesting."""
+
+    def _ctx(self, docs_svc):
+        return _make_ctx(docs_service=docs_svc)
+
+    def _doc(self, bullet=None):
+        para = {
+            "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
+            "elements": [{"textRun": {"content": "Item\n", "textStyle": {}}}],
+        }
+        if bullet is not None:
+            para["bullet"] = bullet
+        return {
+            "documentId": "doc1",
+            "title": "Doc",
+            "body": {"content": [{"startIndex": 1, "endIndex": 10, "paragraph": para}]},
+        }
+
+    async def test_non_list_paragraph_has_null_bullet(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = self._doc()
+        result = await _docs_tools["get_doc_structure"](doc_id="doc1", ctx=self._ctx(docs_svc))
+        assert result["elements"][0]["bullet"] is None
+
+    async def test_list_paragraph_reports_bullet_and_nesting_level(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = self._doc(
+            bullet={"listId": "list1", "nestingLevel": 2}
+        )
+        result = await _docs_tools["get_doc_structure"](doc_id="doc1", ctx=self._ctx(docs_svc))
+        assert result["elements"][0]["bullet"] == {"listId": "list1", "nestingLevel": 2}
+
+    async def test_top_level_bullet_normalizes_missing_nesting_level_to_zero(self):
+        # The Docs API omits nestingLevel entirely for a top-level (depth 0)
+        # list item rather than sending an explicit 0 — get_doc_structure
+        # normalizes so every list paragraph reports a level.
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = self._doc(
+            bullet={"listId": "list1"}
+        )
+        result = await _docs_tools["get_doc_structure"](doc_id="doc1", ctx=self._ctx(docs_svc))
+        assert result["elements"][0]["bullet"] == {"listId": "list1", "nestingLevel": 0}
+
+
 # ---------------------------------------------------------------------------
 # Heading-anchor resolution (#409): _has_pending_anchor_links,
 # _resolve_heading_anchors, and end-to-end via create_doc_from_file.

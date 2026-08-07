@@ -2794,3 +2794,79 @@ Tool call: `insert_local_images(doc_id=DOC_ID, images=[{"marker": "IMGMARKERONE"
 **Result (2026-08-04) ❌ FAIL — run live against PR #515 (issue #443).** Primary check and companion regression guard both PASS: `<pre>code<table>...</table>   </pre>` produces exactly "code" paragraph → 1×1 table ("cell") → the mandatory structural trailing paragraph every Doc requires, with no spurious visible-space paragraph; a standalone `<pre>   </pre>` (no interruption) still keeps its literal whitespace unconditionally. However, `/code-review high` on the same PR live-verified (via `html_to_ast` against the worktree's own code) and this session independently reproduced via the real Docs API a related, not-yet-fixed case the test prompt above doesn't cover: a resumed `<pre>` whose trailing whitespace-only flush follows genuinely *dropped* unsupported content (e.g. `<pre>code<table>...</table> <hr></pre>`) produces a doc structurally identical to the no-drop case — no boundary node at all, silently losing the paragraph break that `_emit_block_node`'s `preserve_if_empty` guarantees every other block type (`<p>`/`<li>`/headings) in an analogous situation. Sent back to Dev (PR #515 comment) rather than approved; not filed as a separate ticket since it's blocking on this same PR.
 
 **Result (2026-08-05) ✅ PASS — re-verified live against fix commit `a465ea3`.** Round 1's finding is fixed: `<pre>code<table>...</table> <hr></pre>` (space survives after dropped `<hr>`) now renders a boundary paragraph `" \n"` immediately after the table; the zero-whitespace variant `<pre>code<table>...</table><hr></pre>` renders an empty boundary paragraph, matching the fix's own two new unit tests. Both of round 1's original checks (primary + companion regression guard) re-confirmed unaffected by the rewritten condition. `TestPreBlock` (10/10) passes. Note for future rounds: the first live-verification attempt this round produced a false FAIL — the `/mcp reconnect` had been run *before* this worktree was reset to the fix commit, so the tool call exercised stale pre-fix code (same class of gotcha as the PR #385 retro entry in `.claude/team-roles/qa.md`); caught by cross-checking against a direct script invocation of the same code path, not by the tool output itself. `qa-approved` applied.
+
+---
+
+## Paragraph bullet inspection and repair — `get_doc_structure`'s `bullet` field, `create_paragraph_bullets`/`delete_paragraph_bullets` (issue #334)
+
+### TC-DOC155: `get_doc_structure` surfaces `bullet.listId`/`bullet.nestingLevel` for list paragraphs ⚠️ destructive
+
+**Setup:** none — list created fresh by the call under test.
+
+**Prompt**
+> "Write this Markdown to doc {DOC_ID}: '- Top level item\n    - Nested item\n', then show me its structure."
+
+Tool calls: `write_doc_content(doc_id={DOC_ID}, content="- Top level item\n    - Nested item\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})`.
+
+**Checks**
+- Both list-item elements have a non-null `bullet` field, and both share the SAME `listId`
+- "Top level item"'s `bullet.nestingLevel` is `0`
+- "Nested item"'s `bullet.nestingLevel` is `1`
+
+**Cleanup:** write fixture content back
+
+**Result (2026-08-06) ❌ FAIL as originally written, ✅ PASS after test-case fix — run live against PR #524 (issue #334).** The prompt originally used a 2-space indent (`"- Top level item\n  - Nested item\n"`), which this codebase's `_md_to_html` (`sane_lists` extension, same as plain `python-markdown`) does not recognize as nested — both items render as a single flat `<ul>` with no nesting, so "Nested item" correctly reported `nestingLevel: 0` given that input; not a product bug, a test-case bug (`sane_lists`/`markdown` requires 4-space indent to nest a list). Fixed the prompt above to 4-space indent and re-ran: both items share one `listId`, "Top level item" is `nestingLevel: 0`, "Nested item" is `nestingLevel: 1` — PASS.
+
+---
+
+### TC-DOC156: `create_paragraph_bullets` fixes a markdown-flattened nested list by promoting specific paragraphs to a deeper nesting level (#334's original repro) ⚠️ destructive
+
+**Background:** issue #334 — `create_doc`'s markdown-to-Doc conversion flattens an indented sub-list under a numbered item into the SAME single-level list (the six settings in the issue's own repro became items 3-8 of one flat list instead of a nested sub-list under item 2), and until now there was no way to fix this after the fact short of delete-and-retype as plain text. This test exercises the fix: `get_doc_structure`'s new `bullet` field to detect the flattening, then `create_paragraph_bullets` to repair it.
+
+**Prompt**
+> "Write this Markdown to doc {DOC_ID}: '1. Select the snapshot\n2. Configure the instance:\n   - Instance identifier\n   - Instance class\n   - Storage encryption\n3. Click Restore\n', then show me its structure."
+
+Tool calls: `write_doc_content(doc_id={DOC_ID}, content="1. Select the snapshot\n2. Configure the instance:\n   - Instance identifier\n   - Instance class\n   - Storage encryption\n3. Click Restore\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})` — note the `start_index`/`end_index` of the "Instance identifier" and "Storage encryption" paragraphs from this call's output.
+
+Then: "Now nest the three settings paragraphs (Instance identifier through Storage encryption) one level deeper under item 2, and show me the structure again."
+
+Tool calls: `create_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <Instance identifier para start_index>, "end_index": <Storage encryption para end_index>, "nesting_level": 1}])` (one range spanning all three contiguous settings paragraphs), then `get_doc_structure(doc_id={DOC_ID})` again.
+
+**Checks**
+- First `get_doc_structure` call: all 6 items ("Select the snapshot" through "Click Restore") share one `listId`, all at `nestingLevel: 0` — confirms the flattening described in #334 (the three settings paragraphs are not visually distinguished from their numbered siblings)
+- `create_paragraph_bullets` call succeeds with no API error
+- Second `get_doc_structure` call: "Select the snapshot", "Configure the instance", and "Click Restore" are still `nestingLevel: 0`; "Instance identifier", "Instance class", "Storage encryption" are now `nestingLevel: 1`, still sharing the same `listId` as their siblings
+- The three promoted paragraphs' own text is unchanged — no visible tab character leaked into `text` (confirms the Docs API fully consumes the leading tab characters used to signal nesting depth)
+- 🔍 Visual check: the three settings render as a visually indented sub-list under "Configure the instance", and "Click Restore" still numbers as item 3 (not item 6)
+
+**Cleanup:** write fixture content back
+
+**Result (2026-08-06) ❌ FAIL — run live against PR #524 (issue #334).** First `get_doc_structure` call matches expectations (all 6 items share one `listId` at `nestingLevel: 0`, confirming the flattening). The repair step fails: after `create_paragraph_bullets(ranges=[{"start_index": 45, "end_index": 114, "nesting_level": 1}])` (single range spanning all three contiguous settings paragraphs — the tool's own documented "safe" pattern), a second `get_doc_structure` shows **all three settings paragraphs still at `nestingLevel: 0`** — the promotion had no effect. Worse, the leading tab character the tool inserts to signal depth was never consumed by the Docs API: "Instance identifier"'s own `text` field literally reads `"\t   - Instance identifier\n"`, tab included — contradicting this test's own third check ("no visible tab character leaked into text") and the tool's docstring claim that the API "consumes (removing)" the tab once applied. This is the PR's own flagship, headline use case (#334's original repro) and it does not work at all as implemented. Sent back to Dev (PR #524 comment) rather than approved.
+
+**Result (2026-08-06, round 2) ❌ FAIL — re-verified live against fix commit `a36f1c7`.** The `nestingLevel`/tab-leak failure from round 1 is fixed: the second `get_doc_structure` call now shows "Instance identifier"/"Instance class"/"Storage encryption" correctly at `nestingLevel: 1` sharing the sibling `listId`, with no leaked tab in `text`. However, this test's own 🔍 visual check now fails for a new reason: a Playwright screenshot of the result shows the **entire list rendered as unordered bullets (●/○) instead of numbers** — "Click Restore" is a bullet, not "3.". Confirmed via a control doc (identical markdown, no `create_paragraph_bullets` call) that the pre-repair list renders correctly numbered 1–6, so the repair call itself is what strips the numbering. Root cause: the fix's fixed algorithm applies one `bullet_preset` to the entire merged run (the requested paragraphs plus every already-listed neighbor it sweeps in as context) — since this test's own documented tool call doesn't pass `bullet_preset` (defaults to `BULLET_DISC_CIRCLE_SQUARE`), it silently overwrites the numbering of "Select the snapshot"/"Configure the instance"/"Click Restore" even though the caller never asked to touch those paragraphs' preset. The round 1 code-review's two non-blocking findings (uncaught `KeyError` on a malformed range, unvalidated negative `nesting_level`) are both fixed and confirmed live; the original multi-range-fragmentation finding is also fixed and confirmed live (3 single-paragraph ranges at depths 0/1/0 now correctly share one `listId`). Sent back to Dev (PR #524 comment) rather than approved.
+
+**Result (2026-08-06, round 3) ✅ PASS — re-verified live against fix commit `9ae16ee`.** Round 2's numbering regression is fixed: `create_paragraph_bullets` now reads the existing list's own glyph info from the document's `lists` map (`infer_preset`) when the caller doesn't pass `bullet_preset` explicitly, instead of defaulting to unordered bullets. Re-ran this test's exact documented call (no `bullet_preset`) — a Playwright screenshot confirms the list renders correctly: "1./2./3." for the top-level items, "a./b./c." for the promoted settings paragraphs, "Click Restore" still "3." All of this test's own checks pass. Also spot-checked the fix's new conflicting-preset validation: two directly-adjacent ranges with different explicit `bullet_preset`s split cleanly into two separate lists (no error, reasonable default); a mediated 3-paragraph case (two explicit, conflicting presets bridged by an already-listed paragraph with no explicit preset) correctly returns `{"error": "conflicting bullet_preset values among contiguous paragraphs..."}` as the docstring describes — the docstring's phrasing ("two explicitly-requested contiguous paragraphs") is a little imprecise about requiring same-run membership rather than literal adjacency in the caller's `ranges` list, but the behavior itself is correct and safe; noted as a non-blocking documentation nit, not filed as a ticket. Re-confirmed no regression on the original multi-range-fragmentation repro (3 single-paragraph ranges at depths 0/1/0 still land in one shared `listId` with correct depths). `qa-approved` applied.
+
+---
+
+### TC-DOC157: `delete_paragraph_bullets` removes list membership from a range, leaving paragraph text untouched ⚠️ destructive
+
+**Setup:** none — list created fresh by the call under test.
+
+**Prompt**
+> "Write this Markdown to doc {DOC_ID}: '- First item\n- Second item\n- Third item\n', then show me its structure."
+
+Tool calls: `write_doc_content(doc_id={DOC_ID}, content="- First item\n- Second item\n- Third item\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})` — note "Second item"'s `start_index`/`end_index`.
+
+Then: "Remove the bullet from just the second item, and show me the structure again."
+
+Tool calls: `delete_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <Second item start_index>, "end_index": <Second item end_index>}])`, then `get_doc_structure(doc_id={DOC_ID})` again.
+
+**Checks**
+- After the call: "First item" and "Third item" still have non-null `bullet` fields (unaffected)
+- "Second item"'s `bullet` field is now `null`
+- "Second item"'s `text` is still exactly "Second item\n" (unchanged)
+
+**Cleanup:** write fixture content back
+
+**Result (2026-08-06) ✅ PASS — run live against PR #524 (issue #334).** All three checks confirmed exactly as specified: "First item"/"Third item" kept their `bullet` field and shared `listId`, "Second item"'s `bullet` became `null`, and its `text` was unchanged.
