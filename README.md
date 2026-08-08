@@ -5,7 +5,7 @@
 ![GitHub License](https://img.shields.io/github/license/khuisman/mcp-gee-sweet)
 </div>
 
-An MCP server that gives AI clients reliable, direct access to Google Workspace — Sheets, Drive, Docs (HTML or Markdown content), and Calendar. 101 tools across four domains.
+An MCP server that gives AI clients reliable, direct access to Google Workspace — Sheets, Drive, Docs (HTML or Markdown content), and Calendar.
 
 As of mid-2026, Google's own Workspace MCP servers (Developer Preview) cover Gmail, Drive, Calendar, People, and Chat — Sheets and Docs still have no official server at all, and Drive/Calendar coverage there is a fraction of what's here. Stable releases ship to PyPI behind a QA regression gate, with a raw `batch_update` passthrough as an escape hatch for anything a named tool doesn't cover yet. See [Why it exists](https://khuisman.github.io/mcp-gee-sweet/#why-it-exists) for the full, sourced comparison against both the official servers and community alternatives.
 
@@ -102,7 +102,7 @@ See [Client Setup](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/
 
 ## Docs
 
-- [Tools](https://khuisman.github.io/mcp-gee-sweet/latest/tools/) — full tool reference (101 tools)
+- [Tools](https://khuisman.github.io/mcp-gee-sweet/latest/tools/) — full tool reference, grouped by domain
 - [Authentication](https://khuisman.github.io/mcp-gee-sweet/latest/auth/) — all four auth methods
 - [Configuration](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/) — env vars, caching, tool filtering
 - [Client Setup](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/) — MCP client config examples

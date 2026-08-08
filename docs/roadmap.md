@@ -6,26 +6,7 @@ Features are ordered by practical priority within each tier, cross-domain. Items
 
 ## What's implemented
 
-### Google Sheets — 25 tools
-- **Read:** `get_sheet_data`, `get_sheet_formulas`, `get_multiple_sheet_data`, `get_multiple_spreadsheet_summary`, `find_in_spreadsheet`
-- **Write:** `update_cells`, `batch_update_cells`, `batch_update` _(raw batchUpdate passthrough — escape hatch for anything not covered by named tools)_
-- **Structure:** `list_sheets`, `create_sheet`, `rename_sheet`, `copy_sheet`, `duplicate_sheet`, `delete_sheet`, `add_rows`, `add_columns`, `delete_rows`, `delete_columns`, `format_cells`, `merge_cells`, `unmerge_cells`, `freeze`, `sort_range`, `add_chart`
-- **Data ops:** `clear_values`
-
-### Google Drive — 32 tools
-- **Files:** `list_files`, `list_spreadsheets`, `search_files`, `search_spreadsheets`, `list_folders`, `list_drives`, `get_file_metadata`, `create_spreadsheet`, `import_csv_to_sheet`, `create_folder`, `copy_file`, `move_file`, `rename_file`, `delete_file`, `list_shared_with_me`, `list_recent_files`, `get_storage_quota`
-- **Sharing:** `share_spreadsheet`, `share_file`, `list_permissions`, `update_permission`, `remove_permission`
-- **Transfer:** `upload_file`, `upload_local_file`, `upload_local_folder`, `download_file`, `download_folder`, `sync_folder`, `export_file`, `export_revision`, `list_revisions`
-- **Activity:** `list_file_activity` _(Drive Activity API v2; requires `drive.activity.readonly` scope)_
-
-### Google Docs — 20 tools
-- **Content:** `create_doc`, `create_doc_from_file`, `get_doc_content`, `write_doc_content`, `insert_doc_text`, `delete_doc_range`, `get_doc_structure`, `insert_doc_table`, `insert_inline_image`, `create_header`, `create_footer`
-- **Styling:** `style_doc_range`, `style_doc_table_cells`, `get_doc_theme`, `get_doc_named_styles`, `apply_theme`
-- **Table structure:** `insert_table_row`, `delete_table_row`, `insert_table_column`, `delete_table_column`
-
-### Google Calendar — 13 tools
-- **Calendars:** `list_calendars`, `get_calendar`, `create_calendar`, `update_calendar`, `delete_calendar`, `add_calendar_to_list`, `remove_calendar_from_list`
-- **Events:** `list_events`, `get_event`, `create_event`, `update_event`, `delete_event`, `find_free_slots`
+Sheets, Drive, Docs, and Calendar are all covered — see [Tools](tools.md) for the full, auto-generated, per-domain list of every tool and its parameters. That list is regenerated from the source tool registry on every commit, so it's never out of sync the way a hand-maintained enumeration here would be.
 
 ---
 

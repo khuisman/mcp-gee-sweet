@@ -12,9 +12,9 @@ There's no enforced line-count limit. The signal that a file needs splitting is 
 
 In practice, files that grow past ~1000 lines have tended to be the ones that *did* drift into bundling unrelated responsibilities — treat crossing that size as a prompt to check, not a rule to enforce mechanically.
 
-**Precedent:** `tools/docs/__init__.py` was split into `content.py`/`tables.py`/`style.py`/`layout.py` (PR #232) once it outgrew being one file. `content.py` itself (1591 lines) is undergoing the same treatment now — extracted into `named_ranges.py`, `editing.py`, `images.py` (#371, #372), each a self-contained domain with its own dependency footprint verified against real ticket history before committing to the split (see `architecture/content-py-split-plan.md`-style verification, not a split done on line-count alone).
+**Precedent:** `tools/docs/__init__.py` was split into `content.py`/`tables.py`/`style.py`/`layout.py` (PR #232) once it outgrew being one file. `content.py` has since grown large enough to warrant the same treatment — planned extraction into `named_ranges.py`, `editing.py`, `images.py` (#371, #372, both open), each a self-contained domain with its own dependency footprint verified against real ticket history before committing to the split (see `architecture/content-py-split-plan.md`-style verification, not a split done on line-count alone).
 
-**Known outlier:** `tools/sheets/structure.py` is 1865 lines — larger than `content.py` was before its split — tracked in #376.
+**Known outlier:** `tools/sheets/structure.py` has grown larger than `content.py` was before its own split — tracked in #376.
 
 When a split is warranted, split by domain (mirroring the existing `sheets/`, `drive/`, `docs/` package boundaries), not by arbitrary line ranges.
 
