@@ -76,6 +76,38 @@ setup-team: ## Idempotently provision/refresh dev-team worktree slots and MCP co
 claude-team: setup-team ## Launch Claude Code with all dev-team MCP servers connected (Kai/Ash/Sky/Jay/Kit/Aziz/Amy/Joy/Bob) for Agent View.
 	claude --mcp-config .claude/mcp-configs/team.mcp.json --strict-mcp-config
 
+.PHONY: team-ash
+team-ash: setup-team ## Launch Claude Code backgrounded directly into the Ash persona (Dev, lane A); shows up in `claude agents`.
+	claude --bg "/team-member Ash"
+
+.PHONY: team-sky
+team-sky: setup-team ## Launch Claude Code backgrounded directly into the Sky persona (QA, lane A); shows up in `claude agents`.
+	claude --bg "/team-member Sky"
+
+.PHONY: team-jay
+team-jay: setup-team ## Launch Claude Code backgrounded directly into the Jay persona (Dev, lane B); shows up in `claude agents`.
+	claude --bg "/team-member Jay"
+
+.PHONY: team-kit
+team-kit: setup-team ## Launch Claude Code backgrounded directly into the Kit persona (QA, lane B); shows up in `claude agents`.
+	claude --bg "/team-member Kit"
+
+.PHONY: team-aziz
+team-aziz: setup-team ## Launch Claude Code backgrounded directly into the Aziz persona (Release QA lead); shows up in `claude agents`.
+	claude --bg "/team-member Aziz"
+
+.PHONY: team-amy
+team-amy: setup-team ## Launch Claude Code backgrounded directly into the Amy persona (Tech writer); shows up in `claude agents`.
+	claude --bg "/team-member Amy"
+
+.PHONY: team-joy
+team-joy: setup-team ## Launch Claude Code backgrounded directly into the Joy persona (Lead architect); shows up in `claude agents`.
+	claude --bg "/team-member Joy"
+
+.PHONY: team-bob
+team-bob: setup-team ## Launch Claude Code backgrounded directly into the Bob persona (Senior prompt engineer); shows up in `claude agents`.
+	claude --bg "/team-member Bob"
+
 .PHONY: test
 test: ## Run unit tests.
 	uv run python -m pytest
