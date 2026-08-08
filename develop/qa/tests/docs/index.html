@@ -3436,6 +3436,56 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#blockquote-formatting-issue-476" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Blockquote formatting (issue #476)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Blockquote formatting (issue #476)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc158-html-blockquote-gets-a-left-border-and-indent-surrounding-non-quoted-content-is-unaffected-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC158: HTML blockquote gets a left border and indent; surrounding non-quoted content is unaffected ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc159-nested-blockquote-doubles-the-indent-both-levels-get-the-same-border-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC159: Nested blockquote doubles the indent; both levels get the same border ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-doc160-blockquote-wrapping-a-bulleted-list-still-tags-each-item-text-and-list-membership-survive-alongside-the-blockquotes-own-indentborder-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-DOC160: Blockquote wrapping a bulleted list still tags each item — text and list membership survive alongside the blockquote's own indent/border ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5871,6 +5921,47 @@ Run against a live sandbox scoped to only <code>create_doc,create_doc_from_file,
 - "Second item"'s <code>text</code> is still exactly "Second item\n" (unchanged)</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
 <p><strong>Result (2026-08-06) ✅ PASS — run live against PR #524 (issue #334).</strong> All three checks confirmed exactly as specified: "First item"/"Third item" kept their <code>bullet</code> field and shared <code>listId</code>, "Second item"'s <code>bullet</code> became <code>null</code>, and its <code>text</code> was unchanged.</p>
+<hr />
+<h2 id="blockquote-formatting-issue-476">Blockquote formatting (issue #476)<a class="headerlink" href="#blockquote-formatting-issue-476" title="Permanent link">&para;</a></h2>
+<p><strong>Background:</strong> <code>&lt;blockquote&gt;</code>/Markdown <code>&gt;</code> previously converted to a plain, visually indistinguishable paragraph — see <code>docs/design/blockquote-representation.md</code> for the representation decision (a flat <code>blockquote_depth</code> field, mirroring <code>BulletItem.depth</code>, rather than a wrapper node) and why a left border (<code>paragraphStyle.borderLeft</code>) plus a depth-scaled indent (<code>paragraphStyle.indentStart</code>, 36pt per level) were chosen as the visual equivalent — Google Docs has no native blockquote paragraph style. <code>get_doc_structure</code> does not surface <code>indentStart</code>/<code>borderLeft</code> (only <code>namedStyleType</code>/<code>headingId</code> are extracted from <code>paragraphStyle</code>), so these checks need a raw <code>documents().get()</code> read — same pattern as TC-DOC146's table-cell-border verification.</p>
+<h3 id="tc-doc158-html-blockquote-gets-a-left-border-and-indent-surrounding-non-quoted-content-is-unaffected-destructive">TC-DOC158: HTML blockquote gets a left border and indent; surrounding non-quoted content is unaffected ⚠️ destructive<a class="headerlink" href="#tc-doc158-html-blockquote-gets-a-left-border-and-indent-surrounding-non-quoted-content-is-unaffected-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this HTML to doc {DOC_ID}: <code>&lt;blockquote&gt;&lt;p&gt;A quoted line&lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;Not quoted&lt;/p&gt;</code>"</p>
+</blockquote>
+<p>Tool call: <code>write_doc_content(doc_id={DOC_ID}, content="&lt;blockquote&gt;&lt;p&gt;A quoted line&lt;/p&gt;&lt;/blockquote&gt;&lt;p&gt;Not quoted&lt;/p&gt;", content_format="html")</code></p>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows two paragraphs in order: "A quoted line" then "Not quoted"
+- Raw <code>documents().get()</code> read: the "A quoted line" paragraph's <code>paragraphStyle</code> has <code>indentStart.magnitude == 36</code> and a <code>borderLeft</code> present; the "Not quoted" paragraph's <code>paragraphStyle</code> has neither key</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-08-07) ✅ PASS — run live against PR #546 round 2 (fix commit ba78e61) (issue #476).</strong> Text order confirmed "A quoted line" then "Not quoted". Raw <code>documents().get()</code> read: "A quoted line" had <code>indentStart.magnitude == 36</code> and <code>borderLeft</code> present (gray, 3pt, solid); "Not quoted" had neither key.</p>
+<hr />
+<h3 id="tc-doc159-nested-blockquote-doubles-the-indent-both-levels-get-the-same-border-destructive">TC-DOC159: Nested blockquote doubles the indent; both levels get the same border ⚠️ destructive<a class="headerlink" href="#tc-doc159-nested-blockquote-doubles-the-indent-both-levels-get-the-same-border-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this Markdown to doc {DOC_ID}: '&gt; outer\n&gt; &gt; nested\n'"</p>
+</blockquote>
+<p>Tool call: <code>write_doc_content(doc_id={DOC_ID}, content="&gt; outer\n&gt; &gt; nested\n", content_format="markdown")</code></p>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows two paragraphs in order: "outer" then "nested"
+- Raw <code>documents().get()</code> read: "outer"'s <code>paragraphStyle.indentStart.magnitude == 36</code>; "nested"'s <code>paragraphStyle.indentStart.magnitude == 72</code>; both paragraphs have a <code>borderLeft</code> present with the same width and color</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-08-07) ✅ PASS — run live against PR #546 round 2 (fix commit ba78e61) (issue #476).</strong> Text order confirmed "outer" then "nested". Raw <code>documents().get()</code> read: "outer" at <code>indentStart.magnitude == 36</code>, "nested" at <code>indentStart.magnitude == 72</code>; both had the identical <code>borderLeft</code> (gray, 3pt, solid).</p>
+<hr />
+<h3 id="tc-doc160-blockquote-wrapping-a-bulleted-list-still-tags-each-item-text-and-list-membership-survive-alongside-the-blockquotes-own-indentborder-destructive">TC-DOC160: Blockquote wrapping a bulleted list still tags each item — text and list membership survive alongside the blockquote's own indent/border ⚠️ destructive<a class="headerlink" href="#tc-doc160-blockquote-wrapping-a-bulleted-list-still-tags-each-item-text-and-list-membership-survive-alongside-the-blockquotes-own-indentborder-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Write this Markdown to doc {DOC_ID}: '&gt; - Quoted item one\n&gt; - Quoted item two\n'"</p>
+</blockquote>
+<p>Tool call: <code>write_doc_content(doc_id={DOC_ID}, content="&gt; - Quoted item one\n&gt; - Quoted item two\n", content_format="markdown")</code></p>
+<p><strong>Checks</strong>
+- Call succeeds with no API error
+- <code>get_doc_structure</code> shows both items as list paragraphs sharing one <code>listId</code>, with text exactly "Quoted item one" / "Quoted item two" (no leaked <code>&gt;</code> or <code>-</code> markdown syntax)
+- Raw <code>documents().get()</code> read: both paragraphs' <code>paragraphStyle</code> have a <code>borderLeft</code> present</p>
+<p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-08-07) ✅ PASS — run live against PR #546 round 2 (fix commit ba78e61) (issue #476).</strong> Both items landed as list paragraphs sharing one <code>listId</code>, text exactly "Quoted item one" / "Quoted item two" with no leaked markdown syntax. Raw <code>documents().get()</code> read: both paragraphs had <code>borderLeft</code> present.</p>
 
 
 

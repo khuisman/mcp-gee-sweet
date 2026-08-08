@@ -10,31 +10,27 @@
       
       
       
-        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/design/">
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/design/blockquote-representation/">
       
       
-        <link rel="prev" href="./">
-      
-      
-        <link rel="next" href="docs-ast-pipeline/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
-        <title>Design Docs - mcp-gee-sweet</title>
+        <title>Design: Blockquote Representation in the Docs AST - mcp-gee-sweet</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -53,7 +49,7 @@
       
     
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -78,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#design-documents" class="md-skip">
+        <a href="#design-blockquote-representation-in-the-docs-ast" class="md-skip">
           Skip to content
         </a>
       
@@ -98,7 +94,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -118,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Design Docs
+              Design: Blockquote Representation in the Docs AST
             
           </span>
         </div>
@@ -236,7 +232,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -266,7 +262,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -345,7 +341,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tools/" class="md-nav__link">
+      <a href="../../tools/" class="md-nav__link">
         
   
   
@@ -373,7 +369,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../auth/" class="md-nav__link">
+      <a href="../../auth/" class="md-nav__link">
         
   
   
@@ -401,7 +397,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../configuration/" class="md-nav__link">
+      <a href="../../configuration/" class="md-nav__link">
         
   
   
@@ -429,7 +425,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../client-setup/" class="md-nav__link">
+      <a href="../../client-setup/" class="md-nav__link">
         
   
   
@@ -461,8 +457,6 @@
       
   
   
-    
-  
   
   
     
@@ -475,11 +469,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
@@ -500,7 +494,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -518,7 +512,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -543,19 +537,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -571,7 +556,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -584,7 +568,7 @@
   
   
     <li class="md-nav__item">
-      <a href="docs-ast-pipeline/" class="md-nav__link">
+      <a href="../docs-ast-pipeline/" class="md-nav__link">
         
   
   
@@ -671,7 +655,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/" class="md-nav__link">
+      <a href="../../decisions/" class="md-nav__link">
         
   
   
@@ -699,7 +683,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-fork/" class="md-nav__link">
+      <a href="../../decisions/decision-fork/" class="md-nav__link">
         
   
   
@@ -727,7 +711,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-composite-tools/" class="md-nav__link">
+      <a href="../../decisions/decision-composite-tools/" class="md-nav__link">
         
   
   
@@ -755,7 +739,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-testing/" class="md-nav__link">
+      <a href="../../decisions/decision-testing/" class="md-nav__link">
         
   
   
@@ -783,7 +767,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/decision-publishing/" class="md-nav__link">
+      <a href="../../decisions/decision-publishing/" class="md-nav__link">
         
   
   
@@ -818,7 +802,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../roadmap/" class="md-nav__link">
+      <a href="../../roadmap/" class="md-nav__link">
         
   
   
@@ -897,7 +881,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/" class="md-nav__link">
+      <a href="../../qa/" class="md-nav__link">
         
   
   
@@ -925,7 +909,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/setup/" class="md-nav__link">
+      <a href="../../qa/setup/" class="md-nav__link">
         
   
   
@@ -953,7 +937,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/run/" class="md-nav__link">
+      <a href="../../qa/run/" class="md-nav__link">
         
   
   
@@ -981,7 +965,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/fixtures.template/" class="md-nav__link">
+      <a href="../../qa/fixtures.template/" class="md-nav__link">
         
   
   
@@ -1058,7 +1042,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/calendar/" class="md-nav__link">
+      <a href="../../qa/tests/calendar/" class="md-nav__link">
         
   
   
@@ -1086,7 +1070,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/docs/" class="md-nav__link">
+      <a href="../../qa/tests/docs/" class="md-nav__link">
         
   
   
@@ -1114,7 +1098,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/drive/" class="md-nav__link">
+      <a href="../../qa/tests/drive/" class="md-nav__link">
         
   
   
@@ -1142,7 +1126,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/infra/" class="md-nav__link">
+      <a href="../../qa/tests/infra/" class="md-nav__link">
         
   
   
@@ -1170,7 +1154,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_read/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_read/" class="md-nav__link">
         
   
   
@@ -1198,7 +1182,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_write/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_write/" class="md-nav__link">
         
   
   
@@ -1226,7 +1210,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_charts/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_charts/" class="md-nav__link">
         
   
   
@@ -1254,7 +1238,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../qa/tests/sheets_mgmt/" class="md-nav__link">
+      <a href="../../qa/tests/sheets_mgmt/" class="md-nav__link">
         
   
   
@@ -1290,7 +1274,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../notes-read/" class="md-nav__link">
+      <a href="../../notes-read/" class="md-nav__link">
         
   
   
@@ -1338,45 +1322,143 @@
   
 
 
-<h1 id="design-documents">Design Documents<a class="headerlink" href="#design-documents" title="Permanent link">&para;</a></h1>
-<p>Detailed implementation design docs — file layouts, data models, algorithm choices, and trade-offs as they were understood when each piece of work was planned.</p>
-<p>These are more granular than the <a href="../decisions/">decision records</a>, which capture <em>why</em> a direction was chosen. Design docs capture <em>how</em> something is built.</p>
-<table>
-<thead>
-<tr>
-<th>Doc</th>
-<th>Date</th>
-<th>Scope</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="docs-ast-pipeline/">Docs AST Pipeline</a></td>
-<td>2026-06-17</td>
-<td>Phase 2 HTML→AST→Docs API pipeline — AST node design, file layout, emitter algorithm, test plan</td>
-</tr>
-<tr>
-<td><a href="heading-anchor-resolution/">Heading-Anchor Resolution</a></td>
-<td>2026-07-28</td>
-<td>Resolving GitHub/GitLab <code>#slug</code> heading-anchor links to working Docs jump links — multi-scheme slugifier, strip-if-unmatched policy, opinionated-layer-over-primitive rationale</td>
-</tr>
-<tr>
-<td><a href="image-conversion/">Native Markdown/HTML Image Support</a></td>
-<td>2026-08-02</td>
-<td><code>Image</code> as a zero-width AST node vs. a marker-based alternative, the combined table+image descending-position insertion pass, three-source-kind resolution + share/revoke lifecycle, the retry-on-image-failure fix, and the deliberate table-cell-image gap</td>
-</tr>
-<tr>
-<td><a href="borderless-table-columns/">Borderless-Table Columns</a></td>
-<td>2026-08-02</td>
-<td>Form-style column alignment via a zero-padding table, once <code>tabStops</code> was found read-only (#404) — border-suppression step flagged unverified pending live check</td>
-</tr>
-<tr>
-<td><a href="blockquote-representation/">Blockquote Representation</a></td>
-<td>2026-08-06</td>
-<td>Flat <code>blockquote_depth</code> field (mirroring <code>BulletItem.depth</code>) vs. a wrapper node; left border + scaled indent via <code>paragraphStyle.borderLeft</code>, live-verified writable before implementing</td>
-</tr>
-</tbody>
-</table>
+<h1 id="design-blockquote-representation-in-the-docs-ast">Design: Blockquote Representation in the Docs AST<a class="headerlink" href="#design-blockquote-representation-in-the-docs-ast" title="Permanent link">&para;</a></h1>
+<p><strong>Date:</strong> 2026-08-06
+<strong>Issue:</strong> <a href="https://github.com/khuisman/mcp-gee-sweet/issues/476">#476</a>
+<strong>Status:</strong> shipped, fixed in PR #546's own QA round 1 (see below)</p>
+<h2 id="problem">Problem<a class="headerlink" href="#problem" title="Permanent link">&para;</a></h2>
+<p>Neither the AST schema (<code>ast.py</code>) nor the HTML parser (<code>html_parser.py</code>) had any concept
+of a blockquote. A <code>&lt;blockquote&gt;</code> (HTML) or <code>&gt; quoted text</code> (Markdown, core syntax — no
+extension needed) converted to a plain, visually indistinguishable <code>Paragraph</code>/<code>BulletItem</code>/
+etc. Text content survived; the semantic distinction did not.</p>
+<h2 id="decision-a-flat-blockquote_depth-field-not-a-wrapper-node">Decision: a flat <code>blockquote_depth</code> field, not a wrapper node<a class="headerlink" href="#decision-a-flat-blockquote_depth-field-not-a-wrapper-node" title="Permanent link">&para;</a></h2>
+<p>The issue's own text flagged two options: a new <code>Blockquote</code> node wrapping child content,
+or a flag on the existing leaf node types. This follows the flag approach, for the same
+reason <code>BulletItem.depth</code> encodes list nesting as an integer on each leaf node rather than
+a wrapping <code>List</code> node, and <code>BulletItem.checked</code> encodes task-list state as a field rather
+than a new node type (see <code>docs-ast-pipeline.md</code>'s Nested Table Rewrite section for the
+one case where this project <em>did</em> choose a wrapper — nested tables — and why: table cells
+need genuine structural nesting to express colspan/rowspan/multi-child ordering, which a
+flat depth counter can't). A blockquote can wrap arbitrary block content (paragraphs,
+headings, lists, even a further nested blockquote), but nothing about <em>rendering</em> one
+requires a wrapper — each contained leaf just needs to know how deep inside a blockquote
+it is, exactly the same shape of problem list nesting already solved.</p>
+<p><code>blockquote_depth: int = 0</code> was added to <code>Heading</code>, <code>Paragraph</code>, <code>BulletItem</code>, and
+<code>NamedBlock</code> — the four <code>DocNode</code> variants that already share <code>paragraph_style</code>. <code>0</code> means
+"not in a blockquote"; <code>N ≥ 1</code> is the nesting depth, supporting <code>&gt; &gt; nested</code> /
+<code>&lt;blockquote&gt;&lt;blockquote&gt;</code>.</p>
+<p><strong>Rejected: reusing <code>paragraph_style.indent_start</code> directly instead of a new field.</strong>
+<code>ParagraphStyle.indent_start</code> already exists in the schema, and the issue floated reusing
+it. Rejected because it conflates two independent concerns: "this paragraph happens to be
+indented" (a Phase 3 styling input, settable by a caller for unrelated reasons) and "this
+paragraph is semantically a blockquote" (a parser-derived fact used to decide <em>what to
+render</em>, including the left border, which is not just an indent value). A dedicated field
+keeps the semantic marker independent of Phase 3's styling knobs, matching how
+<code>BulletItem.checked</code> is a dedicated field rather than reusing an existing Run flag.</p>
+<h2 id="parser-reusing-the-interruptresume-machinery">Parser: reusing the interrupt/resume machinery<a class="headerlink" href="#parser-reusing-the-interruptresume-machinery" title="Permanent link">&para;</a></h2>
+<p><code>html_parser.py</code> already has a generic mechanism for a block-ish construct (<code>&lt;ol&gt;</code>, <code>&lt;ul&gt;</code>,
+<code>&lt;table&gt;</code>, <code>&lt;pre&gt;</code>) interrupting whatever leaf block is currently open, flushing it, and
+resuming it afterward (<code>_interrupt_open_block</code> / <code>_resume_interrupted_block</code>). <code>&lt;blockquote&gt;</code>
+plugs into this unchanged: on open, <code>_interrupt_open_block("blockquote")</code> runs (flushing
+any outer text at the pre-increment depth, since that text is not inside the quote) and
+<code>self._blockquote_depth</code> increments; on close, <code>_resume_interrupted_block("blockquote")</code>
+runs before decrementing (so a malformed trailing flush during resume — content left open
+right up to the close tag — still reads the correct "still inside" depth).</p>
+<p><code>_emit_block_node</code> reads <code>self._blockquote_depth</code> directly at the moment it builds each
+node, the same way <code>_make_bullet_item</code> reads <code>len(self._list_ordered)</code> fresh rather than
+threading depth through as a parameter. No new state machine, no <code>_BlockFrame</code> changes —
+blockquote's interruption is always a single matching open/close pair (unlike <code>&lt;ol&gt;</code>/<code>&lt;ul&gt;</code>,
+which the existing frame design tolerates being mismatched); the plain
+<code>frame.interrupted_by != closing_tag</code> equality check in <code>_resume_interrupted_block</code> already
+handles it correctly.</p>
+<h2 id="emitter-left-border-scaled-indent">Emitter: left border + scaled indent<a class="headerlink" href="#emitter-left-border-scaled-indent" title="Permanent link">&para;</a></h2>
+<p>Google Docs has no native blockquote <code>namedStyleType</code> — <code>ParagraphStyle</code> in the Docs API
+schema has no direct blockquote-style field either. Two options were live-tested against a
+scratch document before committing to either (per this project's rule to verify an API
+premise live before implementing — see CLAUDE.md's <code>tabStops</code>/#404 cautionary tale):</p>
+<ul>
+<li><code>paragraphStyle.indentStart</code> — already used elsewhere in this codebase's schema, known
+  writable.</li>
+<li><code>paragraphStyle.borderLeft</code> — never previously used in this codebase. Its discovery-schema
+  description carries no "read-only" note, but that alone wasn't trusted (#404's <code>tabStops</code>
+  looked identical and turned out unsettable). Confirmed live via a scratch doc:
+  <code>updateParagraphStyle</code> with <code>borderLeft</code> set succeeds, and a re-fetch shows it persisted.</li>
+</ul>
+<p>Both are applied together via one <code>updateParagraphStyle</code> request per blockquote-tagged node
+(<code>_blockquote_style_request</code> in <code>emitter.py</code>):</p>
+<ul>
+<li><code>indentStart</code>: <code>36pt × blockquote_depth</code> — scales with nesting.</li>
+<li><code>borderLeft</code>: a constant gray (<code>0.6, 0.6, 0.6</code>), 3pt solid line, 8pt padding — a visual
+  "quote bar," independent of depth.</li>
+</ul>
+<p>Applied uniformly regardless of node type (<code>Heading</code>/<code>Paragraph</code>/<code>NamedBlock</code>/<code>BulletItem</code>
+can all be blockquote content) rather than special-cased per type, since the condition is
+just <code>node.blockquote_depth &gt; 0</code>.</p>
+<p><strong>Rejected: forcing <code>italic=True</code> on contained runs.</strong> The issue's own text floated this
+("e.g. indent + optional italic") as a common blockquote convention. Rejected because it
+would override or conflict with a run's own explicit formatting decisions (e.g. bold text
+quoted verbatim should stay bold, not be silently forced italic too) — the border + indent
+already give a strong, unambiguous "this is a quote" visual without touching text styling
+at all.</p>
+<p><strong>Interaction with list nesting (not a bug, documented for the next person surprised by
+it):</strong> a blockquote-wrapped list item can end up with a visually deeper indent than
+<code>36pt × blockquote_depth</code> alone would suggest, when Markdown's <code>sane_lists</code> extension
+parses the quoted item as also being one level deeper in list nesting (lazy continuation of
+a preceding list, e.g. <code>- Item\n&gt; - Quoted item</code> with no blank line between). In that case
+the item's <code>BulletItem.depth</code> (list nesting) and <code>blockquote_depth</code> (quote nesting) are both</p>
+<blockquote>
+<p>0, and their two indent contributions — the list preset's own per-level indent (applied
+via <code>createParagraphBullets</code>, a separate mechanism) and this feature's explicit
+<code>indentStart</code> — are genuinely orthogonal API properties that both apply. Confirmed live;
+not something this feature should try to compensate for, since the extra depth accurately
+reflects two real, independent kinds of nesting.</p>
+</blockquote>
+<h2 id="qa-round-1-pr-546-two-gaps-in-the-interruptresume-integration">QA round 1 (PR #546): two gaps in the interrupt/resume integration<a class="headerlink" href="#qa-round-1-pr-546-two-gaps-in-the-interruptresume-integration" title="Permanent link">&para;</a></h2>
+<p>Reproduced directly against parser output (<code>html_to_ast</code>), no live Google API calls
+needed — both were pure AST-construction bugs.</p>
+<p><strong>1. Three <code>Paragraph</code>-construction sites bypassed <code>_emit_block_node</code> entirely.</strong> The
+initial implementation's single point of truth — "<code>_emit_block_node</code> reads
+<code>self._blockquote_depth</code> directly at the moment it builds each node" — was true for
+<code>_emit_block_node</code> itself, but <code>html_parser.py</code> has three other call sites that construct
+a <code>Paragraph</code> node directly without going through it: a bare <code>&lt;hr&gt;</code> with no open block, a
+bare <code>&lt;img&gt;</code> with no open block, and <code>&lt;pre&gt;</code>'s own close-tag handler (which builds its
+<code>Paragraph</code> directly rather than dispatching through <code>_emit_block_node</code>, for reasons
+unrelated to blockquotes — see the <code>&lt;pre&gt;</code>/#443 history in <code>CLAUDE.md</code>). All three
+silently defaulted to <code>blockquote_depth=0</code> when they were the sole content of a
+<code>&lt;blockquote&gt;</code>. Fixed by passing <code>blockquote_depth=self._blockquote_depth</code> explicitly at
+each of the three sites — the "single point of truth" claim was correct in spirit but
+incomplete in coverage; the fix doesn't introduce a fourth code path, it just closes the
+three gaps in the existing rule.</p>
+<p><strong>2. Malformed HTML with <code>&lt;blockquote&gt;</code> opening at top level lost the split entirely</strong> —
+<code>&lt;blockquote&gt;&lt;p&gt;text&lt;/blockquote&gt;after</code> merged into one <code>Paragraph(text="textafter",
+blockquote_depth=0)</code> instead of two nodes. Root cause traced deeper than the blockquote
+code itself: <code>_interrupt_open_block</code> correctly pushes no frame when nothing is open to
+interrupt (there's nothing to resume), but <code>_resume_interrupted_block</code>'s own
+flush-whatever's-open step (the PR #478 fix, see that function's docstring) was only
+reachable from <em>inside</em> the "a frame exists and will be resumed" branch — so a wrapper
+construct that opened frameless (nothing outer to interrupt) with its own inner content
+left open at close time skipped the flush entirely, regardless of whether that content
+was blockquote's or anyone else's. Confirmed this is not blockquote-specific: plain
+<code>&lt;ul&gt;text&lt;/ul&gt;after</code> (no blockquote involved, verified against <code>develop</code> before this
+PR's own changes) reproduces the identical merge. Fixed by moving the flush to run
+unconditionally at the top of <code>_resume_interrupted_block</code>, before the
+<code>if not self._block_stack: return</code> check — closing the gap for every wrapper construct
+(<code>&lt;ol&gt;</code>/<code>&lt;ul&gt;</code>/<code>&lt;table&gt;</code>/<code>&lt;pre&gt;</code>/<code>&lt;blockquote&gt;</code>) at once, per this project's "take the
+generalized fix, not just the reported case" rule (see <code>.claude/team-roles/dev.md</code>'s
+Retro section), rather than a blockquote-specific patch that would have left the
+identical defect reachable through <code>&lt;ul&gt;</code>/<code>&lt;ol&gt;</code> at top level.</p>
+<h2 id="what-this-does-not-do">What this does NOT do<a class="headerlink" href="#what-this-does-not-do" title="Permanent link">&para;</a></h2>
+<ul>
+<li>No reverse conversion (Doc → Markdown/HTML <code>blockquote</code> output) — this project has no
+  Doc-to-source export path at all currently, matching the existing precedent for other
+  one-way conversions (e.g. <code>anchors.py</code>'s heading-anchor resolution).</li>
+<li>Does not attempt to detect an <em>existing</em> Google Doc's manually-applied indent+border as
+  "this was a blockquote" on any round-trip read — there is no such round-trip path in this
+  codebase (AST flows one direction, HTML/Markdown → Docs), so this concern doesn't arise.</li>
+<li>No comprehensive multi-construct fixture — tracked separately as
+  <a href="https://github.com/khuisman/mcp-gee-sweet/issues/477">#477</a>, which explicitly depended on
+  this issue landing first.</li>
+</ul>
 
 
 
@@ -1432,10 +1514,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

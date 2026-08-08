@@ -1534,6 +1534,12 @@ another registered tool), passing <code>content_format</code> through to <code>_
 <td><code>Paragraph</code> (all runs <code>font_family="Courier New"</code>)</td>
 <td>monospace paragraph</td>
 </tr>
+<tr>
+<td><code>&gt; quoted text</code></td>
+<td><code>&lt;blockquote&gt;&lt;p&gt;</code></td>
+<td><code>Paragraph(blockquote_depth=1)</code> (or <code>Heading</code>/<code>BulletItem</code>/<code>NamedBlock</code>, whichever the quoted content is)</td>
+<td>left border + indent, scaled by nesting depth (#476 — see <a href="../blockquote-representation/">blockquote-representation.md</a>)</td>
+</tr>
 </tbody>
 </table>
 <p>Code blocks and inline code render with <code>font_family="Courier New"</code> on every run (#103) — no
