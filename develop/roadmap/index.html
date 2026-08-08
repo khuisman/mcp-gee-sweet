@@ -874,56 +874,6 @@
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="What&#39;s implemented">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#google-sheets-25-tools" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Google Sheets — 25 tools
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#google-drive-32-tools" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Google Drive — 32 tools
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#google-docs-20-tools" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Google Docs — 20 tools
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#google-calendar-13-tools" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Google Calendar — 13 tools
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
 </li>
       
         <li class="md-nav__item">
@@ -1715,31 +1665,7 @@
 <p>This doc is a high-level orientation — feature ideas, architectural direction, and historical context. <strong>Active work is tracked in <a href="https://github.com/khuisman/mcp-gee-sweet/issues">GitHub Issues</a>.</strong> When a roadmap item is scheduled, an issue is opened; the checkbox here stays as a reference.</p>
 <p>Features are ordered by practical priority within each tier, cross-domain. Items marked with a source were identified by auditing competing projects — see <a href="../decisions/decision-fork/">decision-fork.md</a> for full credits.</p>
 <h2 id="whats-implemented">What's implemented<a class="headerlink" href="#whats-implemented" title="Permanent link">&para;</a></h2>
-<h3 id="google-sheets-25-tools">Google Sheets — 25 tools<a class="headerlink" href="#google-sheets-25-tools" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>Read:</strong> <code>get_sheet_data</code>, <code>get_sheet_formulas</code>, <code>get_multiple_sheet_data</code>, <code>get_multiple_spreadsheet_summary</code>, <code>find_in_spreadsheet</code></li>
-<li><strong>Write:</strong> <code>update_cells</code>, <code>batch_update_cells</code>, <code>batch_update</code> <em>(raw batchUpdate passthrough — escape hatch for anything not covered by named tools)</em></li>
-<li><strong>Structure:</strong> <code>list_sheets</code>, <code>create_sheet</code>, <code>rename_sheet</code>, <code>copy_sheet</code>, <code>duplicate_sheet</code>, <code>delete_sheet</code>, <code>add_rows</code>, <code>add_columns</code>, <code>delete_rows</code>, <code>delete_columns</code>, <code>format_cells</code>, <code>merge_cells</code>, <code>unmerge_cells</code>, <code>freeze</code>, <code>sort_range</code>, <code>add_chart</code></li>
-<li><strong>Data ops:</strong> <code>clear_values</code></li>
-</ul>
-<h3 id="google-drive-32-tools">Google Drive — 32 tools<a class="headerlink" href="#google-drive-32-tools" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>Files:</strong> <code>list_files</code>, <code>list_spreadsheets</code>, <code>search_files</code>, <code>search_spreadsheets</code>, <code>list_folders</code>, <code>list_drives</code>, <code>get_file_metadata</code>, <code>create_spreadsheet</code>, <code>import_csv_to_sheet</code>, <code>create_folder</code>, <code>copy_file</code>, <code>move_file</code>, <code>rename_file</code>, <code>delete_file</code>, <code>list_shared_with_me</code>, <code>list_recent_files</code>, <code>get_storage_quota</code></li>
-<li><strong>Sharing:</strong> <code>share_spreadsheet</code>, <code>share_file</code>, <code>list_permissions</code>, <code>update_permission</code>, <code>remove_permission</code></li>
-<li><strong>Transfer:</strong> <code>upload_file</code>, <code>upload_local_file</code>, <code>upload_local_folder</code>, <code>download_file</code>, <code>download_folder</code>, <code>sync_folder</code>, <code>export_file</code>, <code>export_revision</code>, <code>list_revisions</code></li>
-<li><strong>Activity:</strong> <code>list_file_activity</code> <em>(Drive Activity API v2; requires <code>drive.activity.readonly</code> scope)</em></li>
-</ul>
-<h3 id="google-docs-20-tools">Google Docs — 20 tools<a class="headerlink" href="#google-docs-20-tools" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>Content:</strong> <code>create_doc</code>, <code>create_doc_from_file</code>, <code>get_doc_content</code>, <code>write_doc_content</code>, <code>insert_doc_text</code>, <code>delete_doc_range</code>, <code>get_doc_structure</code>, <code>insert_doc_table</code>, <code>insert_inline_image</code>, <code>create_header</code>, <code>create_footer</code></li>
-<li><strong>Styling:</strong> <code>style_doc_range</code>, <code>style_doc_table_cells</code>, <code>get_doc_theme</code>, <code>get_doc_named_styles</code>, <code>apply_theme</code></li>
-<li><strong>Table structure:</strong> <code>insert_table_row</code>, <code>delete_table_row</code>, <code>insert_table_column</code>, <code>delete_table_column</code></li>
-</ul>
-<h3 id="google-calendar-13-tools">Google Calendar — 13 tools<a class="headerlink" href="#google-calendar-13-tools" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>Calendars:</strong> <code>list_calendars</code>, <code>get_calendar</code>, <code>create_calendar</code>, <code>update_calendar</code>, <code>delete_calendar</code>, <code>add_calendar_to_list</code>, <code>remove_calendar_from_list</code></li>
-<li><strong>Events:</strong> <code>list_events</code>, <code>get_event</code>, <code>create_event</code>, <code>update_event</code>, <code>delete_event</code>, <code>find_free_slots</code></li>
-</ul>
+<p>Sheets, Drive, Docs, and Calendar are all covered — see <a href="../tools/">Tools</a> for the full, auto-generated, per-domain list of every tool and its parameters. That list is regenerated from the source tool registry on every commit, so it's never out of sync the way a hand-maintained enumeration here would be.</p>
 <hr />
 <h2 id="release-cadence">Release cadence<a class="headerlink" href="#release-cadence" title="Permanent link">&para;</a></h2>
 <table>
