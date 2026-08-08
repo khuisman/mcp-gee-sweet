@@ -573,6 +573,45 @@ class TestNamedBlockEmitter:
         assert any("deleteParagraphBullets" in r for r in requests)
 
 
+class TestBlockquoteEmitter:
+    """Blockquote paragraphs get a left border + scaled indent (#476) — the closest
+    visual equivalent to a real blockquote style the Docs API's ParagraphStyle
+    exposes, since Google Docs has no native blockquote namedStyleType."""
+
+    def _blockquote_style_requests(self, requests):
+        return [
+            r["updateParagraphStyle"]
+            for r in requests
+            if "updateParagraphStyle" in r
+            and "borderLeft" in r["updateParagraphStyle"]["paragraphStyle"]
+        ]
+
+    def test_blockquote_paragraph_gets_border_and_indent(self):
+        requests, _ = _html_to_doc_requests("<blockquote><p>Quoted</p></blockquote>")
+        bq_requests = self._blockquote_style_requests(requests)
+        assert len(bq_requests) == 1
+        style = bq_requests[0]["paragraphStyle"]
+        assert style["borderLeft"]["dashStyle"] == "SOLID"
+        assert style["indentStart"]["magnitude"] == 36
+        assert bq_requests[0]["fields"] == "indentStart,borderLeft"
+
+    def test_plain_paragraph_gets_no_border(self):
+        requests, _ = _html_to_doc_requests("<p>Not quoted</p>")
+        assert self._blockquote_style_requests(requests) == []
+
+    def test_nested_blockquote_doubles_indent(self):
+        html = "<blockquote><p>outer</p><blockquote><p>inner</p></blockquote></blockquote>"
+        requests, _ = _html_to_doc_requests(html)
+        bq_requests = self._blockquote_style_requests(requests)
+        magnitudes = sorted(r["paragraphStyle"]["indentStart"]["magnitude"] for r in bq_requests)
+        assert magnitudes == [36, 72]
+
+    def test_blockquote_wrapping_bullet_item_gets_border(self):
+        html = "<blockquote><ul><li>a</li></ul></blockquote>"
+        requests, _ = _html_to_doc_requests(html)
+        assert len(self._blockquote_style_requests(requests)) == 1
+
+
 class TestColspanNumCols:
     """num_cols must count colspan, not just cells, for insertTable requests."""
 

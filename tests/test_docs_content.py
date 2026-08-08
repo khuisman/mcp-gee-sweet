@@ -391,6 +391,92 @@ class TestNestedLists:
         ]
 
 
+class TestBlockquote:
+    """Blockquote representation via a flat blockquote_depth field (#476), mirroring
+    how BulletItem.depth encodes list nesting rather than a wrapper node."""
+
+    async def test_simple_blockquote_paragraph_depth_1(self):
+        nodes = html_to_ast("<blockquote><p>A quoted line</p></blockquote><p>after</p>")
+        assert [n.blockquote_depth for n in nodes] == [1, 0]
+        assert "".join(r.text for r in nodes[0].runs) == "A quoted line"
+
+    async def test_non_blockquote_nodes_default_to_depth_0(self):
+        nodes = html_to_ast("<p>plain</p>")
+        assert nodes[0].blockquote_depth == 0
+
+    async def test_nested_blockquote_increments_depth(self):
+        md = "> outer\n> > nested\n\nafter\n"
+        html = _md_to_html(md)
+        nodes = html_to_ast(html)
+        assert [n.blockquote_depth for n in nodes] == [1, 2, 0]
+
+    async def test_blockquote_interrupting_open_li_isolates_depth(self):
+        # Text inside the <li> but outside the <blockquote> must stay at depth 0;
+        # only the blockquote's own content is tagged — mirroring how a nested
+        # <ul> inside an <li> flushes the parent's own text separately (#335).
+        html = "<ul><li>Some intro<blockquote><p>quoted</p></blockquote>trailing</li></ul>"
+        nodes = html_to_ast(html)
+        assert [n.blockquote_depth for n in nodes] == [0, 1, 0]
+        bullets = [n for n in nodes if isinstance(n, BulletItem)]
+        assert "".join(r.text for r in bullets[0].runs) == "Some intro"
+        assert "".join(r.text for r in bullets[1].runs) == "trailing"
+
+    async def test_blockquote_wrapping_list_tags_bullet_items(self):
+        html = "<blockquote><ul><li>a</li><li>b</li></ul></blockquote>"
+        bullets = [n for n in html_to_ast(html) if isinstance(n, BulletItem)]
+        assert [b.blockquote_depth for b in bullets] == [1, 1]
+
+    async def test_blockquote_wrapping_heading(self):
+        nodes = html_to_ast("<blockquote><h2>Quoted Heading</h2></blockquote>")
+        heading = next(n for n in nodes if isinstance(n, Heading))
+        assert heading.blockquote_depth == 1
+
+    async def test_markdown_blockquote_via_gt_syntax(self):
+        html = _md_to_html("> quoted text\n")
+        nodes = html_to_ast(html)
+        assert nodes[0].blockquote_depth == 1
+        assert "".join(r.text for r in nodes[0].runs) == "quoted text"
+
+    async def test_depth_resets_after_blockquote_closes(self):
+        html = (
+            "<blockquote><p>in</p></blockquote><p>out</p><blockquote><p>in again</p></blockquote>"
+        )
+        nodes = html_to_ast(html)
+        assert [n.blockquote_depth for n in nodes] == [1, 0, 1]
+
+    # QA round 1 (PR #546): three Paragraph-construction sites other than
+    # _emit_block_node's own dispatch — bare <hr>, bare <img>, and <pre>'s own
+    # close handler — built their Paragraph node directly without passing
+    # blockquote_depth=self._blockquote_depth, so each silently defaulted to 0
+    # when it was the sole content of a <blockquote>.
+
+    async def test_bare_hr_inside_blockquote_gets_depth(self):
+        nodes = html_to_ast("<blockquote><hr></blockquote>")
+        assert nodes[0].blockquote_depth == 1
+
+    async def test_bare_img_inside_blockquote_gets_depth(self):
+        nodes = html_to_ast('<blockquote><img src="x.png"></blockquote>')
+        assert nodes[0].blockquote_depth == 1
+
+    async def test_pre_inside_blockquote_gets_depth(self):
+        nodes = html_to_ast("<blockquote><pre>code here</pre></blockquote>")
+        assert nodes[0].blockquote_depth == 1
+
+    # QA round 1 (PR #546): a <blockquote> that opens with nothing outer to
+    # interrupt pushes no frame onto _block_stack (see _interrupt_open_block).
+    # If its own inner content is malformed (missing its own close tag),
+    # _resume_interrupted_block("blockquote") used to bail out before ever
+    # flushing that still-open inner block, since its flush-before-resume step
+    # was only reachable when a frame existed. The still-open block then
+    # absorbed the following sibling text and reported blockquote_depth=0.
+    async def test_malformed_blockquote_at_top_level_still_splits_and_tags_depth(self):
+        nodes = html_to_ast("<blockquote><p>text</blockquote>after")
+        assert [(n.blockquote_depth, "".join(r.text for r in n.runs)) for n in nodes] == [
+            (1, "text"),
+            (0, "after"),
+        ]
+
+
 class TestLiInterruptedByOtherBlocks:
     """A block tag other than <ul>/<ol> — <pre>, <table>, <p>, <h1-h6> — opening
     inside an open <li> that has its own text (#335 review round). The
@@ -547,6 +633,20 @@ class TestBlockInterruptionGeneralizedBeyondLi:
             ("Paragraph", "D"),
             ("Heading", "E"),
         ]
+
+    async def test_frameless_top_level_wrapper_still_flushes_implicit_paragraph(self):
+        # #476 QA round 1: the #478 fix above only reached its flush-before-
+        # resume step from inside the "a frame exists on _block_stack" branch.
+        # A wrapper construct that opens with *nothing* outer to interrupt (so
+        # _interrupt_open_block pushes no frame at all) whose own bare
+        # top-level text (implicit paragraph, #343) is still open when the
+        # wrapper's own close tag arrives fell through the earlier
+        # `if not self._block_stack: return` guard without ever flushing —
+        # confirmed as a pre-existing gap, not something new to blockquote
+        # (the same shape reproduces for <ol>/<table>/<pre> at top level too).
+        nodes = html_to_ast("<ul>text</ul>after")
+        texts = ["".join(r.text for r in n.runs) for n in nodes]
+        assert texts == ["text", "after"]
 
 
 class TestMismatchedListTags:

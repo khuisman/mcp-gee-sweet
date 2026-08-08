@@ -2870,3 +2870,61 @@ Tool calls: `delete_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <
 **Cleanup:** write fixture content back
 
 **Result (2026-08-06) ✅ PASS — run live against PR #524 (issue #334).** All three checks confirmed exactly as specified: "First item"/"Third item" kept their `bullet` field and shared `listId`, "Second item"'s `bullet` became `null`, and its `text` was unchanged.
+
+---
+
+## Blockquote formatting (issue #476)
+
+**Background:** `<blockquote>`/Markdown `>` previously converted to a plain, visually indistinguishable paragraph — see `docs/design/blockquote-representation.md` for the representation decision (a flat `blockquote_depth` field, mirroring `BulletItem.depth`, rather than a wrapper node) and why a left border (`paragraphStyle.borderLeft`) plus a depth-scaled indent (`paragraphStyle.indentStart`, 36pt per level) were chosen as the visual equivalent — Google Docs has no native blockquote paragraph style. `get_doc_structure` does not surface `indentStart`/`borderLeft` (only `namedStyleType`/`headingId` are extracted from `paragraphStyle`), so these checks need a raw `documents().get()` read — same pattern as TC-DOC146's table-cell-border verification.
+
+### TC-DOC158: HTML blockquote gets a left border and indent; surrounding non-quoted content is unaffected ⚠️ destructive
+
+**Prompt**
+> "Write this HTML to doc {DOC_ID}: `<blockquote><p>A quoted line</p></blockquote><p>Not quoted</p>`"
+
+Tool call: `write_doc_content(doc_id={DOC_ID}, content="<blockquote><p>A quoted line</p></blockquote><p>Not quoted</p>", content_format="html")`
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows two paragraphs in order: "A quoted line" then "Not quoted"
+- Raw `documents().get()` read: the "A quoted line" paragraph's `paragraphStyle` has `indentStart.magnitude == 36` and a `borderLeft` present; the "Not quoted" paragraph's `paragraphStyle` has neither key
+
+**Cleanup:** write fixture content back
+
+**Result (2026-08-07) ✅ PASS — run live against PR #546 round 2 (fix commit ba78e61) (issue #476).** Text order confirmed "A quoted line" then "Not quoted". Raw `documents().get()` read: "A quoted line" had `indentStart.magnitude == 36` and `borderLeft` present (gray, 3pt, solid); "Not quoted" had neither key.
+
+---
+
+### TC-DOC159: Nested blockquote doubles the indent; both levels get the same border ⚠️ destructive
+
+**Prompt**
+> "Write this Markdown to doc {DOC_ID}: '> outer\n> > nested\n'"
+
+Tool call: `write_doc_content(doc_id={DOC_ID}, content="> outer\n> > nested\n", content_format="markdown")`
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows two paragraphs in order: "outer" then "nested"
+- Raw `documents().get()` read: "outer"'s `paragraphStyle.indentStart.magnitude == 36`; "nested"'s `paragraphStyle.indentStart.magnitude == 72`; both paragraphs have a `borderLeft` present with the same width and color
+
+**Cleanup:** write fixture content back
+
+**Result (2026-08-07) ✅ PASS — run live against PR #546 round 2 (fix commit ba78e61) (issue #476).** Text order confirmed "outer" then "nested". Raw `documents().get()` read: "outer" at `indentStart.magnitude == 36`, "nested" at `indentStart.magnitude == 72`; both had the identical `borderLeft` (gray, 3pt, solid).
+
+---
+
+### TC-DOC160: Blockquote wrapping a bulleted list still tags each item — text and list membership survive alongside the blockquote's own indent/border ⚠️ destructive
+
+**Prompt**
+> "Write this Markdown to doc {DOC_ID}: '> - Quoted item one\n> - Quoted item two\n'"
+
+Tool call: `write_doc_content(doc_id={DOC_ID}, content="> - Quoted item one\n> - Quoted item two\n", content_format="markdown")`
+
+**Checks**
+- Call succeeds with no API error
+- `get_doc_structure` shows both items as list paragraphs sharing one `listId`, with text exactly "Quoted item one" / "Quoted item two" (no leaked `>` or `-` markdown syntax)
+- Raw `documents().get()` read: both paragraphs' `paragraphStyle` have a `borderLeft` present
+
+**Cleanup:** write fixture content back
+
+**Result (2026-08-07) ✅ PASS — run live against PR #546 round 2 (fix commit ba78e61) (issue #476).** Both items landed as list paragraphs sharing one `listId`, text exactly "Quoted item one" / "Quoted item two" with no leaked markdown syntax. Raw `documents().get()` read: both paragraphs had `borderLeft` present.
