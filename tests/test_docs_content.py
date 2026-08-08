@@ -444,6 +444,38 @@ class TestBlockquote:
         nodes = html_to_ast(html)
         assert [n.blockquote_depth for n in nodes] == [1, 0, 1]
 
+    # QA round 1 (PR #546): three Paragraph-construction sites other than
+    # _emit_block_node's own dispatch — bare <hr>, bare <img>, and <pre>'s own
+    # close handler — built their Paragraph node directly without passing
+    # blockquote_depth=self._blockquote_depth, so each silently defaulted to 0
+    # when it was the sole content of a <blockquote>.
+
+    async def test_bare_hr_inside_blockquote_gets_depth(self):
+        nodes = html_to_ast("<blockquote><hr></blockquote>")
+        assert nodes[0].blockquote_depth == 1
+
+    async def test_bare_img_inside_blockquote_gets_depth(self):
+        nodes = html_to_ast('<blockquote><img src="x.png"></blockquote>')
+        assert nodes[0].blockquote_depth == 1
+
+    async def test_pre_inside_blockquote_gets_depth(self):
+        nodes = html_to_ast("<blockquote><pre>code here</pre></blockquote>")
+        assert nodes[0].blockquote_depth == 1
+
+    # QA round 1 (PR #546): a <blockquote> that opens with nothing outer to
+    # interrupt pushes no frame onto _block_stack (see _interrupt_open_block).
+    # If its own inner content is malformed (missing its own close tag),
+    # _resume_interrupted_block("blockquote") used to bail out before ever
+    # flushing that still-open inner block, since its flush-before-resume step
+    # was only reachable when a frame existed. The still-open block then
+    # absorbed the following sibling text and reported blockquote_depth=0.
+    async def test_malformed_blockquote_at_top_level_still_splits_and_tags_depth(self):
+        nodes = html_to_ast("<blockquote><p>text</blockquote>after")
+        assert [(n.blockquote_depth, "".join(r.text for r in n.runs)) for n in nodes] == [
+            (1, "text"),
+            (0, "after"),
+        ]
+
 
 class TestLiInterruptedByOtherBlocks:
     """A block tag other than <ul>/<ol> — <pre>, <table>, <p>, <h1-h6> — opening
@@ -601,6 +633,20 @@ class TestBlockInterruptionGeneralizedBeyondLi:
             ("Paragraph", "D"),
             ("Heading", "E"),
         ]
+
+    async def test_frameless_top_level_wrapper_still_flushes_implicit_paragraph(self):
+        # #476 QA round 1: the #478 fix above only reached its flush-before-
+        # resume step from inside the "a frame exists on _block_stack" branch.
+        # A wrapper construct that opens with *nothing* outer to interrupt (so
+        # _interrupt_open_block pushes no frame at all) whose own bare
+        # top-level text (implicit paragraph, #343) is still open when the
+        # wrapper's own close tag arrives fell through the earlier
+        # `if not self._block_stack: return` guard without ever flushing —
+        # confirmed as a pre-existing gap, not something new to blockquote
+        # (the same shape reproduces for <ol>/<table>/<pre> at top level too).
+        nodes = html_to_ast("<ul>text</ul>after")
+        texts = ["".join(r.text for r in n.runs) for n in nodes]
+        assert texts == ["text", "after"]
 
 
 class TestMismatchedListTags:

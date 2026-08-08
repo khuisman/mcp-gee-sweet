@@ -372,22 +372,56 @@ class _AstParser(HTMLParser):
         this closing tag's own pop (see handle_endtag's list-context
         section) — the depth check needs the post-pop count.
 
-        Before actually resuming, flushes whatever block is currently open
-        (self._block_tag), if any. Normally nothing is open at this point —
-        every other path that closes a block routes through
-        _interrupt_open_block or a block-tag's own close handler, both of
-        which already flush before touching self._block_tag. But bare
-        top-level text directly inside a still-open <ol>/<ul> (not wrapped in
-        its own <li>) opens an *implicit* paragraph via handle_data's bare-
-        text path (#343) without ever going through _interrupt_open_block, so
-        it has no frame of its own on self._block_stack. Resuming an outer
-        frame while that implicit paragraph was still open used to silently
-        overwrite self._block_tag and clear self._run_buf out from under it,
-        losing its text entirely — caught live against
-        `<h1>Start<ol><li>B<ul><li>C</li></ol>D</ol>E`, where 'D' vanished
-        and 'E' was mistyped as a new heading instead of resuming the
-        paragraph implicitly opened by 'D' (PR #478 review round).
+        Before checking for a frame to resume at all, flushes whatever block
+        is currently open (self._block_tag), if any — unconditional on
+        whether a frame exists on self._block_stack, not just when one is
+        about to be resumed. Normally nothing is open at this point — every
+        other path that closes a block routes through _interrupt_open_block
+        or a block-tag's own close handler, both of which already flush
+        before touching self._block_tag. But two cases reach here with
+        self._block_tag still set and no frame to explain it:
+
+        1. Bare top-level text directly inside a still-open <ol>/<ul> (not
+           wrapped in its own <li>) opens an *implicit* paragraph via
+           handle_data's bare-text path (#343) without ever going through
+           _interrupt_open_block, so it has no frame of its own on
+           self._block_stack. Resuming an outer frame while that implicit
+           paragraph was still open used to silently overwrite
+           self._block_tag and clear self._run_buf out from under it, losing
+           its text entirely — caught live against
+           `<h1>Start<ol><li>B<ul><li>C</li></ol>D</ol>E`, where 'D' vanished
+           and 'E' was mistyped as a new heading instead of resuming the
+           paragraph implicitly opened by 'D' (PR #478 review round).
+        2. A wrapper construct (<ol>/<ul>/<table>/<pre>/<blockquote>) that
+           opened with *nothing* outer to interrupt (so _interrupt_open_block
+           pushed no frame at all — self._block_stack has nothing to say
+           about this construct) whose own inner content is left open when
+           this closing tag arrives — either malformed HTML missing its own
+           close tag (`<blockquote><p>text</blockquote>after`) or the same
+           implicit-paragraph case as (1) but with no outer frame at all
+           (`<ul>text</ul>after`). The original #478 fix only reached its
+           flush from inside the "a frame exists and will be resumed" branch
+           below, so this frameless case fell through the earlier
+           `if not self._block_stack: return` guard without ever flushing —
+           self._block_tag stayed open and silently absorbed whatever text
+           came after this closing tag (#476 QA round 1, confirmed to also
+           reproduce for plain `<ul>text</ul>after` with no blockquote
+           involved — a pre-existing gap this generalizes the fix for,
+           not something new to blockquote).
+
+        After this unconditional flush, self._block_tag is cleared — correct
+        for case 2, where there is nothing to resume into; case 1's frame
+        (when one exists) still overwrites self._block_tag below via
+        frame.outer_tag once resuming is confirmed.
         """
+        if self._block_tag is not None:
+            runs = self._flush_pending_runs()
+            self._emit_block_node(
+                self._block_tag, runs, preserve_if_empty=self._block_had_unsupported_content
+            )
+            self._block_tag = None
+            self._block_named_style = None
+
         if not self._block_stack:
             return
         frame = self._block_stack[-1]
@@ -402,11 +436,6 @@ class _AstParser(HTMLParser):
         self._block_stack.pop()
         if not resumes:
             return
-        if self._block_tag is not None:
-            runs = self._flush_pending_runs()
-            self._emit_block_node(
-                self._block_tag, runs, preserve_if_empty=self._block_had_unsupported_content
-            )
         self._block_tag = frame.outer_tag
         self._block_resumed = True
         self._block_had_unsupported_content = False
@@ -534,7 +563,7 @@ class _AstParser(HTMLParser):
             and self._table_depth == 0
             and self._tag_depth == 0
         ):
-            self._nodes.append(Paragraph(runs=[]))
+            self._nodes.append(Paragraph(runs=[], blockquote_depth=self._blockquote_depth))
             return
 
         # --- bare top-level <img> with no open block (#333) ---
@@ -550,7 +579,12 @@ class _AstParser(HTMLParser):
         ):
             src = attr_dict.get("src")
             if src:
-                self._nodes.append(Paragraph(runs=[_make_image(attr_dict, src)]))
+                self._nodes.append(
+                    Paragraph(
+                        runs=[_make_image(attr_dict, src)],
+                        blockquote_depth=self._blockquote_depth,
+                    )
+                )
                 return
             # No src — nothing to embed; fall through to the generic
             # unrecognized-tag handling below (a no-op at depth 0).
@@ -707,7 +741,7 @@ class _AstParser(HTMLParser):
             text = "".join(r.text for r in runs if isinstance(r, Run))
             is_fresh_pre_whitespace = not self._block_resumed and bool(runs)
             if text.strip() or is_fresh_pre_whitespace or self._block_had_unsupported_content:
-                self._nodes.append(Paragraph(runs=runs))
+                self._nodes.append(Paragraph(runs=runs, blockquote_depth=self._blockquote_depth))
             self._block_tag = None
             self._in_pre = False
             self._resume_interrupted_block("pre")

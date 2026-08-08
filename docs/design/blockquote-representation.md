@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-06
 **Issue:** [#476](https://github.com/khuisman/mcp-gee-sweet/issues/476)
-**Status:** shipped
+**Status:** shipped, fixed in PR #546's own QA round 1 (see below)
 
 ## Problem
 
@@ -101,6 +101,44 @@ via `createParagraphBullets`, a separate mechanism) and this feature's explicit
 `indentStart` — are genuinely orthogonal API properties that both apply. Confirmed live;
 not something this feature should try to compensate for, since the extra depth accurately
 reflects two real, independent kinds of nesting.
+
+## QA round 1 (PR #546): two gaps in the interrupt/resume integration
+
+Reproduced directly against parser output (`html_to_ast`), no live Google API calls
+needed — both were pure AST-construction bugs.
+
+**1. Three `Paragraph`-construction sites bypassed `_emit_block_node` entirely.** The
+initial implementation's single point of truth — "`_emit_block_node` reads
+`self._blockquote_depth` directly at the moment it builds each node" — was true for
+`_emit_block_node` itself, but `html_parser.py` has three other call sites that construct
+a `Paragraph` node directly without going through it: a bare `<hr>` with no open block, a
+bare `<img>` with no open block, and `<pre>`'s own close-tag handler (which builds its
+`Paragraph` directly rather than dispatching through `_emit_block_node`, for reasons
+unrelated to blockquotes — see the `<pre>`/#443 history in `CLAUDE.md`). All three
+silently defaulted to `blockquote_depth=0` when they were the sole content of a
+`<blockquote>`. Fixed by passing `blockquote_depth=self._blockquote_depth` explicitly at
+each of the three sites — the "single point of truth" claim was correct in spirit but
+incomplete in coverage; the fix doesn't introduce a fourth code path, it just closes the
+three gaps in the existing rule.
+
+**2. Malformed HTML with `<blockquote>` opening at top level lost the split entirely** —
+`<blockquote><p>text</blockquote>after` merged into one `Paragraph(text="textafter",
+blockquote_depth=0)` instead of two nodes. Root cause traced deeper than the blockquote
+code itself: `_interrupt_open_block` correctly pushes no frame when nothing is open to
+interrupt (there's nothing to resume), but `_resume_interrupted_block`'s own
+flush-whatever's-open step (the PR #478 fix, see that function's docstring) was only
+reachable from *inside* the "a frame exists and will be resumed" branch — so a wrapper
+construct that opened frameless (nothing outer to interrupt) with its own inner content
+left open at close time skipped the flush entirely, regardless of whether that content
+was blockquote's or anyone else's. Confirmed this is not blockquote-specific: plain
+`<ul>text</ul>after` (no blockquote involved, verified against `develop` before this
+PR's own changes) reproduces the identical merge. Fixed by moving the flush to run
+unconditionally at the top of `_resume_interrupted_block`, before the
+`if not self._block_stack: return` check — closing the gap for every wrapper construct
+(`<ol>`/`<ul>`/`<table>`/`<pre>`/`<blockquote>`) at once, per this project's "take the
+generalized fix, not just the reported case" rule (see `.claude/team-roles/dev.md`'s
+Retro section), rather than a blockquote-specific patch that would have left the
+identical defect reachable through `<ul>`/`<ol>` at top level.
 
 ## What this does NOT do
 
