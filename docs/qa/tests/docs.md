@@ -2891,6 +2891,8 @@ Tool call: `write_doc_content(doc_id={DOC_ID}, content="<blockquote><p>A quoted 
 
 **Cleanup:** write fixture content back
 
+**Result (2026-08-07) ✅ PASS — run live against PR #546 round 2 (fix commit ba78e61) (issue #476).** Text order confirmed "A quoted line" then "Not quoted". Raw `documents().get()` read: "A quoted line" had `indentStart.magnitude == 36` and `borderLeft` present (gray, 3pt, solid); "Not quoted" had neither key.
+
 ---
 
 ### TC-DOC159: Nested blockquote doubles the indent; both levels get the same border ⚠️ destructive
@@ -2907,6 +2909,8 @@ Tool call: `write_doc_content(doc_id={DOC_ID}, content="> outer\n> > nested\n", 
 
 **Cleanup:** write fixture content back
 
+**Result (2026-08-07) ✅ PASS — run live against PR #546 round 2 (fix commit ba78e61) (issue #476).** Text order confirmed "outer" then "nested". Raw `documents().get()` read: "outer" at `indentStart.magnitude == 36`, "nested" at `indentStart.magnitude == 72`; both had the identical `borderLeft` (gray, 3pt, solid).
+
 ---
 
 ### TC-DOC160: Blockquote wrapping a bulleted list still tags each item — text and list membership survive alongside the blockquote's own indent/border ⚠️ destructive
@@ -2922,3 +2926,5 @@ Tool call: `write_doc_content(doc_id={DOC_ID}, content="> - Quoted item one\n> -
 - Raw `documents().get()` read: both paragraphs' `paragraphStyle` have a `borderLeft` present
 
 **Cleanup:** write fixture content back
+
+**Result (2026-08-07) ✅ PASS — run live against PR #546 round 2 (fix commit ba78e61) (issue #476).** Both items landed as list paragraphs sharing one `listId`, text exactly "Quoted item one" / "Quoted item two" with no leaked markdown syntax. Raw `documents().get()` read: both paragraphs had `borderLeft` present.
