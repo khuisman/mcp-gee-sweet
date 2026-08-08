@@ -2362,6 +2362,39 @@ class TestDownloadFile:
                 ctx=self._ctx(svc),
             )
 
+    async def test_workspace_file_without_export_format_raises_valueerror(self, tmp_path):
+        """PR #547 QA round 1: the only place this can ever be verified — the
+        matching live case (TC-D105) is a standing SKIP (⚠️ local-filesystem)."""
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = self._metadata(
+            "My Doc", "application/vnd.google-apps.document"
+        )
+
+        with pytest.raises(ValueError, match="export_format is required"):
+            await _transfer_tools["download_file"](
+                file_id="doc1",
+                local_path=str(tmp_path),
+                ctx=self._ctx(svc),
+            )
+        svc.files.return_value.export.assert_not_called()
+
+    async def test_invalid_export_format_raises_valueerror(self, tmp_path):
+        """PR #547 QA round 1: same untested-and-unreachable-live rationale as
+        the missing-export_format case above."""
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = self._metadata(
+            "My Doc", "application/vnd.google-apps.document"
+        )
+
+        with pytest.raises(ValueError, match="Unknown export_format 'bogus'"):
+            await _transfer_tools["download_file"](
+                file_id="doc1",
+                local_path=str(tmp_path),
+                export_format="bogus",
+                ctx=self._ctx(svc),
+            )
+        svc.files.return_value.export.assert_not_called()
+
 
 class TestSyncFolderResponseSizeCap:
     """PR #328 review: recursive=True removes the previous implicit bound (one
