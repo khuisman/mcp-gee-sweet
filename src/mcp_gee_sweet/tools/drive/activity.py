@@ -86,7 +86,7 @@ def register(tool):
             - file_id: echoed back for reference
             - activities: list of activity entries (timestamp, action, actors)
             - next_page_token: present when more results are available
-            Raises ValueError if the response exceeds a safety cap (default 40,000
+            Raises ValueError if the response exceeds a safety cap (default 1,000,000
             characters, set MAX_TOOL_RESPONSE_CHARS to change it) — lower page_size and
             paginate via next_page_token instead of raising the cap; a single activity's
             actors list can be large on files with many collaborators.

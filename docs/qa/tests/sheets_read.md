@@ -105,7 +105,24 @@ Set `MAX_TOOL_RESPONSE_CHARS=200000` in server config and restart the server (e.
 - Call now succeeds instead of raising — confirms the cap is actually read from the env var, not hardcoded
 - Restore `MAX_TOOL_RESPONSE_CHARS` (unset it) after this test
 
-**Result:** ⏳ Pending — not yet live-tested. Unlike TC-R03b-d, this requires a server restart with a changed env var (not just an MCP reconnect), which wasn't done this pass. Covered by unit tests (`test_cap_is_configurable` in `tests/sheets/test_data.py`, `test_env_var_sets_cap_at_import_time` in `tests/test_response_limits.py`) in the meantime. Var renamed from `MAX_GRID_DATA_RESPONSE_CHARS` by issue #242 (generalized to 5 more tools).
+**Result:** ⏳ Pending — not yet live-tested. Unlike TC-R03b-d, this requires a server restart with a changed env var (not just an MCP reconnect), which wasn't done this pass. Covered by unit tests (`test_cap_is_configurable` in `tests/sheets/test_data.py`, `test_env_var_sets_cap_at_import_time` in `tests/test_response_limits.py`) in the meantime. Var renamed from `MAX_GRID_DATA_RESPONSE_CHARS` by issue #242 (generalized to 5 more tools). Note: since issue #519 raised the *shipped* default to 1,000,000, demonstrating configurability now requires setting `MAX_TOOL_RESPONSE_CHARS` below that default (e.g. `200000` as originally written still works) against a range sized to land between the custom cap and whatever the range would otherwise produce uncapped — the "over the default 40,000-character cap" framing in the Setup above is stale (pre-#519); the demonstration itself (env var actually changes behavior) doesn't depend on the specific default value.
+
+---
+
+### TC-R38: Grid data over the old cap now succeeds under the raised default (issue #519)
+
+**Background:** Issue #519 raised `MAX_TOOL_RESPONSE_CHARS`'s default from 40,000 to 1,000,000 after live-testing found the client-connection-death failure mode the cap defends against no longer reproduces at that scale for the primary MCP client (see `docs/decisions/decision-response-size-cap-reevaluation-519.md`). This test confirms a range that used to trip the *old* default now succeeds without needing `local_path` or a `MAX_TOOL_RESPONSE_CHARS` override.
+
+**Setup**
+Apply the same kind of formatting as TC-R03c but to a smaller range — start with `format_cells(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:Z23", bold=True, background_color={"red": 0.9, "green": 0.95, "blue": 1}, number_format_type="NUMBER")` (598 cells; TC-R03c's ~832 bytes/cell rate would put this around ~498,000 chars). Use a scratch sheet, not the shared `Sales` fixture, to avoid leaving formatting behind. Then call `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=<scratch sheet>, range="A1:Z23", include_grid_data=True)` with no `local_path` and no `MAX_TOOL_RESPONSE_CHARS` override (default server config).
+
+If the measured response lands outside the 40,000–1,000,000 band (formatting density varies), adjust the range size and re-measure — the point is landing strictly between the old and new default, not this exact range.
+
+**Checks**
+- Call succeeds — no `ValueError` raised
+- Response contains real grid data (`rowData` present, formatting visible) — not a manifest/pointer
+- Response size (measure via the returned JSON) is confirmed to be over 40,000 characters (would have tripped the old default) and under 1,000,000 (the new default)
+- Clean up: delete the scratch sheet afterward
 
 ---
 

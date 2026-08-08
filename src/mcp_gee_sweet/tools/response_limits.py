@@ -4,10 +4,15 @@ import os
 from pathlib import Path
 from typing import Any
 
-# See docs/decisions/decision-grid-data-size-cap.md and
-# docs/decisions/decision-response-size-cap-generalization.md for the live-tested
-# numbers behind this default and cap/local_path design.
-MAX_TOOL_RESPONSE_CHARS = int(os.environ.get("MAX_TOOL_RESPONSE_CHARS", "40000"))
+# See docs/decisions/decision-grid-data-size-cap.md,
+# docs/decisions/decision-response-size-cap-generalization.md, and
+# docs/decisions/decision-response-size-cap-reevaluation-519.md for the live-tested
+# numbers behind this default and cap/local_path design. The default was raised from
+# 40000 to 1000000 in issue #519 after live-testing found the client-connection-death
+# failure mode this cap defends against no longer reproduces (for the current primary
+# MCP client) even at sizes well past the old default — the cap itself stays as
+# defense-in-depth for other/untested MCP clients and genuinely extreme responses.
+MAX_TOOL_RESPONSE_CHARS = int(os.environ.get("MAX_TOOL_RESPONSE_CHARS", "1000000"))
 
 
 def enforce_response_size_cap(

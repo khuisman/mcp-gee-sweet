@@ -898,7 +898,7 @@ def register(tool):
             If the calendar list itself fails to load and calendar_ids wasn't given
             (so there's no way to know what to query), returns a single top-level
             {"error": ...} instead of raising.
-            Raises ValueError if the response exceeds the safety cap (default 40,000
+            Raises ValueError if the response exceeds the safety cap (default 1,000,000
             characters, set MAX_TOOL_RESPONSE_CHARS to change it) — narrow the time
             window, pass calendar_ids, or lower max_results_per_calendar.
         """

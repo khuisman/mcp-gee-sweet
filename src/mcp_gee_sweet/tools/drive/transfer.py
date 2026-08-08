@@ -1028,7 +1028,7 @@ def register(tool):
             fileId, name, mime_type, format, encoding ('utf-8' or 'base64'), content.
             Text formats (txt, html, csv, rtf) are returned as plain strings; all others
             are base64-encoded bytes. Raises ValueError if the response exceeds a safety
-            cap (default 40,000 characters, set MAX_TOOL_RESPONSE_CHARS to change it) —
+            cap (default 1,000,000 characters, set MAX_TOOL_RESPONSE_CHARS to change it) —
             base64 encoding inflates raw file size by ~33%, so binary exports hit this
             cap at a much smaller *file* size than text ones. Call download_file instead
             for anything but small files; it writes raw bytes straight to disk with no
@@ -1912,7 +1912,7 @@ def register(tool):
             always empty when recursive=False), size_bytes transferred, dry_run flag,
             and — when dry_run=True — an 'actions' list with {name, action, reason}
             for every file considered at every level visited. Raises ValueError if
-            the response exceeds a safety cap (default 40,000 characters, set
+            the response exceeds a safety cap (default 1,000,000 characters, set
             MAX_TOOL_RESPONSE_CHARS to change it, or pass result_local_path to bypass
             it and write to disk instead) — a recursive sync/preview over many files
             is the most likely way to hit this.
