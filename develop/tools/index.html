@@ -1968,12 +1968,12 @@
 <tr>
 <td><code>create_doc</code></td>
 <td>Create a new Google Doc, optionally with initial content.</td>
-<td><code>title</code>, <code>content?</code>, <code>folder_id?</code>, <code>content_format?</code>, <code>autolink_urls?</code>, <code>revoke_sharing?</code></td>
+<td><code>title</code>, <code>content?</code>, <code>folder_id?</code>, <code>content_format?</code>, <code>autolink_urls?</code>, <code>revoke_sharing?</code>, <code>auto_downscale?</code></td>
 </tr>
 <tr>
 <td><code>create_doc_from_file</code></td>
 <td>Create a Google Doc from a local .md or .html file.</td>
-<td><code>local_path</code>, <code>title?</code>, <code>folder_id?</code>, <code>autolink_urls?</code>, <code>revoke_sharing?</code></td>
+<td><code>local_path</code>, <code>title?</code>, <code>folder_id?</code>, <code>autolink_urls?</code>, <code>revoke_sharing?</code>, <code>auto_downscale?</code></td>
 </tr>
 <tr>
 <td><code>get_doc_content</code></td>
@@ -1983,7 +1983,7 @@
 <tr>
 <td><code>write_doc_content</code></td>
 <td>Replace the full content of an existing Google Doc.</td>
-<td><code>doc_id</code>, <code>content</code>, <code>content_format?</code>, <code>autolink_urls?</code>, <code>revoke_sharing?</code></td>
+<td><code>doc_id</code>, <code>content</code>, <code>content_format?</code>, <code>autolink_urls?</code>, <code>revoke_sharing?</code>, <code>auto_downscale?</code></td>
 </tr>
 <tr>
 <td><code>get_doc_structure</code></td>
@@ -2018,7 +2018,7 @@
 <tr>
 <td><code>insert_inline_image</code></td>
 <td>Insert an inline image at a specific index in a Google Doc.</td>
-<td><code>doc_id</code>, <code>index</code>, <code>uri?</code>, <code>drive_file_id?</code>, <code>width?</code>, <code>height?</code></td>
+<td><code>doc_id</code>, <code>index</code>, <code>uri?</code>, <code>drive_file_id?</code>, <code>width?</code>, <code>height?</code>, <code>auto_downscale?</code></td>
 </tr>
 <tr>
 <td><code>insert_page_break</code></td>
@@ -2033,7 +2033,7 @@
 <tr>
 <td><code>insert_local_images</code></td>
 <td>Upload local image files to Drive and swap each into a Google Doc at a plain-text marker, in one call.</td>
-<td><code>doc_id</code>, <code>images</code>, <code>folder_id?</code>, <code>revoke_sharing?</code></td>
+<td><code>doc_id</code>, <code>images</code>, <code>folder_id?</code>, <code>revoke_sharing?</code>, <code>auto_downscale?</code></td>
 </tr>
 <tr>
 <td><code>insert_doc_table</code></td>
