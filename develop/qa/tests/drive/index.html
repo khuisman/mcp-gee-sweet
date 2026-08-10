@@ -3297,10 +3297,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#tc-d119-invalid-direction-raises-error-local-filesystem" class="md-nav__link">
+  <a href="#tc-d119-invalid-direction-or-export_format-returns-error-not-a-raised-exception-local-filesystem-issue-488" class="md-nav__link">
     <span class="md-ellipsis">
       
-        TC-D119: Invalid direction raises error ⚠️ local-filesystem
+        TC-D119: Invalid direction or export_format returns error, not a raised exception ⚠️ local-filesystem (issue #488)
       
     </span>
   </a>
@@ -6338,14 +6338,20 @@ Delete both <code>notes.md</code> files from <code>{FOLDER_ID}</code>. Remove <c
 Delete both <code>notes.md</code> files from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-sync-232/</code>.</p>
 <p><strong>Result (2026-08-04) ✅ PASS</strong> — Reproduced with a scratch fixture (own scratch folder, not the shared <code>{FOLDER_ID}</code>): <code>sync_folder(..., convert_markdown=true, dry_run=true)</code> against a plain <code>notes.md</code> and a <code>convert_markdown</code>-produced Doc also named <code>notes.md</code> returned <code>failed: []</code>, <code>conflicts: []</code>, and <code>actions: [{"name": "notes.md", "action": "collision", "reason": "a plain file and a convert_markdown Doc are named 'notes.md' in this Drive folder — sync can't tell which one the local file matches; rename or remove one of them in Drive"}]</code> — confirms the #512 dry_run/flat-lists-always-empty change applies to the collision case too, not just skip/upload/download. Both scratch files trashed after the test.</p>
 <hr />
-<h3 id="tc-d119-invalid-direction-raises-error-local-filesystem">TC-D119: Invalid direction raises error ⚠️ local-filesystem<a class="headerlink" href="#tc-d119-invalid-direction-raises-error-local-filesystem" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<h3 id="tc-d119-invalid-direction-or-export_format-returns-error-not-a-raised-exception-local-filesystem-issue-488">TC-D119: Invalid direction or export_format returns error, not a raised exception ⚠️ local-filesystem (issue #488)<a class="headerlink" href="#tc-d119-invalid-direction-or-export_format-returns-error-not-a-raised-exception-local-filesystem-issue-488" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt 1</strong></p>
 <blockquote>
 <p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync/</code> using direction='mirror'"</p>
 </blockquote>
+<p><strong>Prompt 2</strong> (PR #563 review round — the identical bug in the adjacent <code>export_format</code> check)</p>
+<blockquote>
+<p>"Sync {FOLDER_ID} with <code>/tmp/qa-sync/</code> using export_format='bogus'"</p>
+</blockquote>
 <p><strong>Checks</strong>
-- <code>ValueError</code> raised immediately, before any API calls
-- Error message lists the valid direction values</p>
+- Prompt 1 returns <code>{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}</code> — not a raised exception, not a silent no-op
+- Prompt 2 returns <code>{"error": "Unknown export_format 'bogus'. Valid: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx"}</code> — not a raised exception
+- Neither makes a Drive API call (rejected before any upload/download work)</p>
+<p><strong>Result (2026-08-10) ✅ PASS</strong> — Re-verified against fix commit <code>4b5eb33</code>. <code>sync_folder(folder_id=&lt;qa-fixtures folder&gt;, local_path=&lt;scratch dir&gt;, direction='mirror', dry_run=true)</code> returned exactly <code>{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}</code>. <code>sync_folder(..., export_format='bogus', dry_run=true)</code> now also returns <code>{"error": "Unknown export_format 'bogus'. Valid: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx"}</code> — no raised exception, matches <code>direction</code>'s shape. Both prompts pass, no Drive API calls made for either.</p>
 <hr />
 <h3 id="tc-d178-concurrent-mixed-uploaddownload-batch-no-cross-attribution-or-corruption-destructive-local-filesystem-issue-183">TC-D178: Concurrent mixed upload/download batch — no cross-attribution or corruption ⚠️ destructive ⚠️ local-filesystem (issue #183)<a class="headerlink" href="#tc-d178-concurrent-mixed-uploaddownload-batch-no-cross-attribution-or-corruption-destructive-local-filesystem-issue-183" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> #183 made <code>sync_folder</code>'s per-file transfers run concurrently via <code>asyncio.gather()</code> instead of one at a time, including simultaneous uploads and downloads in the same call. Mocked unit tests can't catch a genuine race against the real Drive API — this exercises enough distinct, identifiable files at once (each with unique content) to surface any result attributed to the wrong file, or file content written to the wrong destination, under real concurrency.</p>
