@@ -1446,6 +1446,19 @@ class TestCreateDocImages:
         assert "error" in outcomes[bad_uri]
         assert "doc edit failed" in outcomes[bad_uri]["error"]
 
+        # The retried (second) batchUpdate call must still contain the good
+        # image's request and everything else — only the bad one was removed.
+        second_call_requests = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"][
+            "requests"
+        ]
+        assert any(
+            r.get("insertInlineImage", {}).get("uri") == good_uri for r in second_call_requests
+        )
+        assert not any(
+            r.get("insertInlineImage", {}).get("uri") == bad_uri for r in second_call_requests
+        )
+        assert docs_svc.documents.return_value.batchUpdate.call_count == 2
+
     async def test_oversized_uri_image_error_is_rewritten(self):
         # A bare http(s) image source can't be pre-validated (#400's scope boundary
         # — see docs/decisions/decision-pillow-image-dependency.md): this is its only
@@ -3459,6 +3472,36 @@ class TestInsertLocalImages:
         drive_svc.permissions.return_value.delete.assert_called_once_with(
             fileId="img1", permissionId="anyoneWithLink", supportsAllDrives=True
         )
+
+    async def test_failed_batchupdate_too_large_error_is_rewritten(self, tmp_path):
+        # QA round 1 finding (PR #554): this doc-edit-failure path is one of three
+        # insertInlineImage call sites #400 touched, but the only one that didn't
+        # apply rewrite_too_large_error — an image that got this far (oversized but
+        # undecodable by Pillow, so pre-validation silently skipped it) still got
+        # Google's raw, opaque message instead of the clarified one.
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        resp = MagicMock()
+        resp.status = 400
+        message = "Invalid requests[0].insertInlineImage: The provided image is too large."
+        content = json.dumps({"error": {"code": 400, "message": message}}).encode()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = HttpError(
+            resp=resp, content=content, uri="https://docs.googleapis.com/v1/documents/x:batchUpdate"
+        )
+        drive_svc = self._drive_svc()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        error = result["results"][0]["error"]
+        assert message in error
+        assert "25 megapixels" in error
 
     async def test_failed_batchupdate_with_revoke_sharing_false_leaves_image_shared(self, tmp_path):
         img = tmp_path / "pic.png"

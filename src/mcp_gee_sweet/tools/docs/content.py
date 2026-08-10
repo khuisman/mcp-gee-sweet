@@ -2278,7 +2278,7 @@ def register(tool):
                 docs_service,
             )
         except Exception as e:
-            doc_edit_error = str(e)
+            doc_edit_error = rewrite_too_large_error(str(e))
 
         for placement in ready:
             entry = placement["entry"]
