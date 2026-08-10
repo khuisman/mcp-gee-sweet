@@ -124,6 +124,8 @@ If the measured response lands outside the 40,000–1,000,000 band (formatting d
 - Response size (measure via the returned JSON) is confirmed to be over 40,000 characters (would have tripped the old default) and under 1,000,000 (the new default)
 - Clean up: delete the scratch sheet afterward
 
+**Result:** ✅ PASS — live-tested against `mcp-gee-sweet-qa-fixtures` (scratch sheet `QA-TC-R38-Scratch`, deleted after). `get_sheet_data(..., include_grid_data=True)` on the formatted A1:Z23 range succeeded with no `ValueError`; response was 428,753 characters (Claude Code's own client-side MCP output cap wrote it to a local file, unrelated to the server's `MAX_TOOL_RESPONSE_CHARS` cap, which was never tripped) — comfortably between the old 40,000 default and the new 1,000,000 default. Confirmed `rowData` present with real formatting (`userEnteredFormat`/`effectiveFormat` showing bold, background color, number format) across all 23 rows, not a manifest/pointer.
+
 ---
 
 ### TC-R04: Non-existent sheet name
