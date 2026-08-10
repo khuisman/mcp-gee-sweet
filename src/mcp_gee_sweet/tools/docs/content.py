@@ -24,6 +24,14 @@ from .anchors import resolve_heading_anchor
 from .ast import Run, Table
 from .emitter import ast_to_requests, extract_images, fill_tables
 from .html_parser import html_to_ast
+from .images import (
+    check_dimensions,
+    check_image_bytes,
+    downscale_drive_file,
+    downscale_image_bytes,
+    rewrite_too_large_error,
+    upload_and_share_image,
+)
 from .indices import utf16_len
 from .style import _NAMED_STYLE_TYPES, _text_style_and_fields
 
@@ -170,18 +178,30 @@ def _failed_insert_image_request_index(error: HttpError) -> int | None:
 
 
 async def _resolve_image_source(
-    drive_service, src: str, target_folder_id: str | None
+    drive_service, src: str, target_folder_id: str | None, auto_downscale: bool = False
 ) -> dict[str, Any]:
     """Resolve an Image.src (#333) to a fetchable URI for insertInlineImage.
 
     Three source kinds:
-      - a public http(s) URL: used as-is — no upload, no share, nothing to revoke.
+      - a public http(s) URL: used as-is — no upload, no share, nothing to revoke, and
+        (per #400's scope boundary — see docs/decisions/decision-pillow-image-
+        dependency.md) no size pre-validation either, since that would mean fetching
+        arbitrary external content just to check it.
       - "drive:<file_id>": an already-uploaded Drive file, shared anyone:reader — the
         same requirement a fresh local upload needs below, since the Docs backend
         fetches inline images as an anonymous HTTP request regardless of the caller's
         own access (confirmed live in #332's insert_local_images).
       - anything else: treated as a local filesystem path, uploaded to Drive first,
         then shared the same way as the drive: case.
+
+    The drive: and local-path kinds are both checked against Google Docs' ~25-
+    megapixel inline-image limit (#400) before ever being embedded — a drive: file's
+    dimensions come straight from Drive's own imageMediaMetadata (no download needed);
+    a local file's are read directly off disk. The default (auto_downscale=False)
+    returns {"error": ...} naming the limit and the image's actual size, before any
+    upload/share happens. auto_downscale=True instead resizes it: a drive: source gets
+    a new " (resized)" copy created alongside the original (left untouched); a
+    local-path source uploads the resized bytes directly instead of the original file.
 
     Returns {"uri": ...} for an http(s) source, or {"uri": ..., "file_id": ...,
     "permission_id": ...} for a drive:/local source — the permission_id is the
@@ -197,6 +217,35 @@ async def _resolve_image_source(
         file_id = src[len("drive:") :]
         if not file_id:
             return {"error": "'drive:' reference has no file ID"}
+
+        try:
+            drive_metadata = await execute_in_thread(
+                drive_service.files()
+                .get(
+                    fileId=file_id,
+                    fields="name,parents,imageMediaMetadata",
+                    supportsAllDrives=True,
+                )
+                .execute,
+                drive_service,
+            )
+        except Exception as e:
+            return {"error": f"failed to get Drive file metadata: {e}"}
+
+        img_meta = drive_metadata.get("imageMediaMetadata") or {}
+        img_width, img_height = img_meta.get("width"), img_meta.get("height")
+        if img_width and img_height:
+            size_error = check_dimensions(img_width, img_height)
+            if size_error is not None:
+                if not auto_downscale:
+                    return size_error
+                parents = drive_metadata.get("parents") or []
+                return await downscale_drive_file(
+                    drive_service,
+                    file_id,
+                    name=drive_metadata.get("name", file_id),
+                    parent_folder_id=parents[0] if parents else target_folder_id,
+                )
     else:
         if not Path(src).is_file():
             return {"error": f"No file found at {src!r}"}
@@ -205,6 +254,27 @@ async def _resolve_image_source(
                 "error": "folder_id is required to upload a local image "
                 "(no server default folder configured)"
             }
+
+        try:
+            data = await asyncio.to_thread(Path(src).read_bytes)
+        except Exception as e:
+            return {"error": f"failed to read local file: {e}"}
+
+        size_error = check_image_bytes(data)
+        if size_error is not None:
+            if not auto_downscale:
+                return size_error
+            downscaled = downscale_image_bytes(data)
+            if downscaled is None:
+                return {
+                    "error": f"{size_error['error']} Could not auto-downscale it "
+                    "(unreadable format, or animated)."
+                }
+            resized_bytes, mime_type = downscaled
+            return await upload_and_share_image(
+                drive_service, resized_bytes, mime_type, Path(src).name, target_folder_id
+            )
+
         upload = await _upload_local_file(
             drive_service, src, target_folder_id, skip_if_exists=False
         )
@@ -249,6 +319,7 @@ async def _apply_doc_content(
     autolink_urls: bool,
     target_folder_id: str | None,
     revoke_sharing: bool,
+    auto_downscale: bool = False,
 ) -> list[dict[str, Any]] | None:
     """Shared content-insertion body for create_doc / create_doc_from_file /
     write_doc_content (#333): converts content to AST, resolves any markdown/HTML
@@ -259,6 +330,10 @@ async def _apply_doc_content(
     default) now that the doc edit embedding it has already succeeded — revoking
     any earlier would break the embed, since Docs fetches the image at insertion
     time, not upload time.
+
+    auto_downscale (#400) is passed straight through to _resolve_image_source for
+    each image — see that function's own docstring for the per-source-kind behavior
+    and the http(s) scope boundary.
 
     Returns the per-image outcome list (None if the content had no images at all)
     for the caller to fold into its own response — each entry has src, plus either
@@ -298,7 +373,10 @@ async def _apply_doc_content(
         # errors, but this also guards against anything unexpected escaping it
         # without one failed image's exception aborting every other resolution.
         results = await asyncio.gather(
-            *(_resolve_image_source(drive_service, img.src, target_folder_id) for img in images),
+            *(
+                _resolve_image_source(drive_service, img.src, target_folder_id, auto_downscale)
+                for img in images
+            ),
             return_exceptions=True,
         )
         for img, result in zip(images, results):
@@ -380,8 +458,10 @@ async def _apply_doc_content(
                     # failed, so that's still real information for the caller —
                     # and it still goes through the normal revoke_sharing-
                     # respecting cleanup below rather than being silently
-                    # orphaned. An https:// source never had either field set.
-                    entry["error"] = f"doc edit failed: {e}"
+                    # orphaned. An https:// source never had either field set — and
+                    # is the one source kind #400's pre-validation doesn't cover, so
+                    # this is its only chance to learn the size-limit cause at all.
+                    entry["error"] = f"doc edit failed: {rewrite_too_large_error(str(e))}"
         content_requests = remaining_requests
     await fill_tables(docs_service, doc_id, tables)
     if _has_pending_anchor_links(content_requests, tables):
@@ -687,6 +767,7 @@ def register(tool):
         content_format: str = "html",
         autolink_urls: bool = True,
         revoke_sharing: bool = True,
+        auto_downscale: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -708,6 +789,13 @@ def register(tool):
         supported and are silently dropped. Per-image outcomes (including any resolution
         or sharing failure) are returned under "images" when the content had any.
 
+        A local-path or drive: image over Google Docs' ~25-megapixel inline-image limit
+        (#400) fails with a clear error naming the limit and its actual size, before any
+        upload/share happens — set auto_downscale=True to resize it instead (see that
+        arg's own docs). A public http(s) image can't be pre-validated this way; an
+        oversized one instead fails at the embed step with a rewritten error explaining
+        the likely cause.
+
         Args:
             title: The title of the new document
             content: Optional content for the document body
@@ -720,6 +808,11 @@ def register(tool):
                 suppress just one URL instead of the whole call, wrap it in backticks.
             revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
                 share is revoked again after it's embedded (default True).
+            auto_downscale: Resize an oversized local-path/drive: image instead of
+                failing it (default False). A drive: source gets a new " (resized)"
+                copy created alongside the original (left untouched); a local-path
+                source uploads the resized bytes directly instead of the original file.
+                No effect on a public http(s) image source (see above).
 
         Returns:
             Information about the newly created document including its ID and web link.
@@ -779,6 +872,7 @@ def register(tool):
                 autolink_urls,
                 target_folder_id,
                 revoke_sharing,
+                auto_downscale,
             )
 
         if target_folder_id:
@@ -801,6 +895,7 @@ def register(tool):
         folder_id: str | None = None,
         autolink_urls: bool = True,
         revoke_sharing: bool = True,
+        auto_downscale: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -812,8 +907,8 @@ def register(tool):
 
         Images referenced from the file (markdown "![alt](src)" or HTML <img src=...>)
         are embedded inline the same way create_doc's own content_format='markdown'
-        path handles them — see that tool's docstring for the src conventions and the
-        revoke_sharing tradeoff.
+        path handles them — see that tool's docstring for the src conventions, the
+        revoke_sharing tradeoff, and the auto_downscale/#400 size-limit behavior.
 
         For .md files specifically, upload_local_file(convert=True) is a Drive-native
         alternative: one API call using Drive's own import converter, versus this
@@ -832,6 +927,8 @@ def register(tool):
                 .html files.
             revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
                 share is revoked again after it's embedded (default True).
+            auto_downscale: Resize an oversized local-path/drive: image instead of
+                failing it (default False) — see create_doc's own docstring.
 
         Returns:
             Information about the newly created document including its ID and web link.
@@ -899,6 +996,7 @@ def register(tool):
                 autolink_urls,
                 target_folder_id,
                 revoke_sharing,
+                auto_downscale,
             )
 
         if target_folder_id:
@@ -1005,6 +1103,7 @@ def register(tool):
         content_format: str = "html",
         autolink_urls: bool = True,
         revoke_sharing: bool = True,
+        auto_downscale: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -1017,10 +1116,11 @@ def register(tool):
         service account storage quota limits).
 
         Images are embedded inline the same way create_doc's own content_format='markdown'
-        path handles them — see that tool's docstring for the src conventions and the
-        revoke_sharing tradeoff. A local-path image is uploaded into the server's default
-        folder (no per-call override here — pass a "drive:<file_id>" or public URL src
-        instead if you need control over where the image itself lives).
+        path handles them — see that tool's docstring for the src conventions, the
+        revoke_sharing tradeoff, and the auto_downscale/#400 size-limit behavior. A
+        local-path image is uploaded into the server's default folder (no per-call
+        override here — pass a "drive:<file_id>" or public URL src instead if you need
+        control over where the image itself lives).
 
         Args:
             doc_id: The Google Doc file ID.
@@ -1031,6 +1131,8 @@ def register(tool):
                 plain text; to suppress just one URL, wrap it in backticks instead.
             revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
                 share is revoked again after it's embedded (default True).
+            auto_downscale: Resize an oversized local-path/drive: image instead of
+                failing it (default False) — see create_doc's own docstring.
 
         Returns:
             Confirmation with the document ID and web link. Includes "images" (per-image
@@ -1088,6 +1190,7 @@ def register(tool):
             autolink_urls,
             lc.folder_id,
             revoke_sharing,
+            auto_downscale,
         )
 
         metadata = await execute_in_thread(
@@ -1583,6 +1686,7 @@ def register(tool):
         drive_file_id: str | None = None,
         width: float | None = None,
         height: float | None = None,
+        auto_downscale: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -1607,9 +1711,24 @@ def register(tool):
                 Mutually exclusive with uri.
             width: Optional image width in points.
             height: Optional image height in points.
+            auto_downscale: Google Docs rejects any inline image over ~25 megapixels
+                (#400). When drive_file_id is provided and Drive's own reported
+                dimensions exceed that limit, the default (False) fails fast with a
+                clear error naming the limit and the image's actual size — before
+                ever calling the Docs API. Set True to instead resize it and embed
+                the resized copy: the original Drive file is left untouched, a new
+                file named "<original name> (resized)" is created alongside it and
+                shared anyone:reader, and its own fileId is returned as
+                resized_file_id. Ignored when uri is used instead of drive_file_id —
+                there's no local copy of a bare uri to resize; an oversized uri
+                source instead fails with a rewritten error explaining the likely
+                cause, since pre-validating or re-hosting arbitrary external content
+                is out of scope here (see docs/decisions/decision-pillow-image-
+                dependency.md).
 
         Returns:
-            Confirmation with docId and the insertion index.
+            Confirmation with docId and the insertion index. Also includes
+            resized_file_id if drive_file_id was resized under auto_downscale.
         """
         if not uri and not drive_file_id:
             return {"error": "Provide either uri or drive_file_id"}
@@ -1617,12 +1736,17 @@ def register(tool):
             return {"error": "Provide only one of uri or drive_file_id, not both"}
 
         lc = ctx.request_context.lifespan_context
+        resized_file_id: str | None = None
 
         if drive_file_id:
             try:
                 metadata = await execute_in_thread(
                     lc.drive_service.files()
-                    .get(fileId=drive_file_id, fields="webContentLink", supportsAllDrives=True)
+                    .get(
+                        fileId=drive_file_id,
+                        fields="name,parents,webContentLink,imageMediaMetadata",
+                        supportsAllDrives=True,
+                    )
                     .execute,
                     lc.drive_service,
                 )
@@ -1631,6 +1755,25 @@ def register(tool):
                     return {"error": f"Could not get download link for Drive file {drive_file_id}"}
             except Exception as e:
                 return {"error": f"Failed to get Drive file metadata: {e}"}
+
+            img_meta = metadata.get("imageMediaMetadata") or {}
+            img_width, img_height = img_meta.get("width"), img_meta.get("height")
+            if img_width and img_height:
+                size_error = check_dimensions(img_width, img_height)
+                if size_error is not None:
+                    if not auto_downscale:
+                        return size_error
+                    original_parents = metadata.get("parents") or []
+                    resized = await downscale_drive_file(
+                        lc.drive_service,
+                        drive_file_id,
+                        name=metadata.get("name", drive_file_id),
+                        parent_folder_id=original_parents[0] if original_parents else lc.folder_id,
+                    )
+                    if "error" in resized:
+                        return resized
+                    uri = resized["uri"]
+                    resized_file_id = resized["file_id"]
 
         image_request: dict[str, Any] = {
             "insertInlineImage": {
@@ -1653,12 +1796,17 @@ def register(tool):
                 .execute,
                 lc.docs_service,
             )
+        except HttpError as e:
+            return {"error": rewrite_too_large_error(str(e))}
         except Exception as e:
             return {"error": str(e)}
 
         lc.doc_cache.mark_dirty(doc_id)
         logger.debug("insert_inline_image: at index %d in doc %s", index, doc_id)
-        return {"docId": doc_id, "index": index}
+        result: dict[str, Any] = {"docId": doc_id, "index": index}
+        if resized_file_id:
+            result["resized_file_id"] = resized_file_id
+        return result
 
     @tool(annotations=ToolAnnotations(title="Insert Page Break", destructiveHint=True))
     async def insert_page_break(
@@ -1827,6 +1975,7 @@ def register(tool):
         images: list[dict],
         folder_id: str | None = None,
         revoke_sharing: bool = True,
+        auto_downscale: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -1876,16 +2025,24 @@ def register(tool):
             revoke_sharing: Whether each image's temporary anyone:reader share is
                 revoked again after it's embedded (default True). Set False to leave
                 images shared instead — matches this tool's original behavior.
+            auto_downscale: Google Docs rejects any inline image over ~25 megapixels
+                (#400). Each image's local file is checked against that limit before
+                it's ever uploaded. The default (False) fails just that image with a
+                clear error naming the limit and its actual size — other images in
+                the same call are unaffected. Set True to instead resize an oversized
+                image and upload the resized copy (the local file on disk is never
+                modified); that outcome's entry gets downscaled: true.
 
         Returns:
             Dictionary with docId and results — a list of per-image outcomes in the
             same order as the `images` argument, each echoing marker and local_path
             plus either fileId + index + shared (+ revoke_error if a revoke attempt
-            failed) on success, or error on failure (marker not found, marker not
-            unique, local file missing, upload failure, sharing failure, or — rare,
-            since uploads happen first — a failed document edit; that last case
-            never carries a fileId even though the upload itself succeeded, since
-            the image was never actually placed).
+            failed, + downscaled: true if auto_downscale resized it) on success, or
+            error on failure (marker not found, marker not unique, local file
+            missing, oversized with auto_downscale off, upload failure, sharing
+            failure, or — rare, since uploads happen first — a failed document edit;
+            that last case never carries a fileId even though the upload itself
+            succeeded, since the image was never actually placed).
         """
         lc = ctx.request_context.lifespan_context
         docs_service = lc.docs_service
@@ -1975,9 +2132,47 @@ def register(tool):
 
         async def _upload_and_share(placement: dict[str, Any]) -> None:
             entry = placement["entry"]
+            local_path = placement["local_path"]
+
+            try:
+                data = await asyncio.to_thread(Path(local_path).read_bytes)
+            except Exception as e:
+                entry["error"] = f"failed to read local file: {e}"
+                placement["failed"] = True
+                return
+
+            size_error = check_image_bytes(data)
+            if size_error is not None:
+                if not auto_downscale:
+                    entry["error"] = size_error["error"]
+                    placement["failed"] = True
+                    return
+                downscaled = downscale_image_bytes(data)
+                if downscaled is None:
+                    entry["error"] = (
+                        f"{size_error['error']} Could not auto-downscale it "
+                        "(unreadable format, or animated)."
+                    )
+                    placement["failed"] = True
+                    return
+                resized_bytes, mime_type = downscaled
+                result = await upload_and_share_image(
+                    drive_service, resized_bytes, mime_type, Path(local_path).name, target_folder_id
+                )
+                if "error" in result:
+                    entry["error"] = result["error"]
+                    placement["failed"] = True
+                    return
+                placement["file_id"] = result["file_id"]
+                placement["permission_id"] = result["permission_id"]
+                placement["uri"] = result["uri"]
+                entry["fileId"] = result["file_id"]
+                entry["downscaled"] = True
+                return
+
             try:
                 upload = await _upload_local_file(
-                    drive_service, placement["local_path"], target_folder_id, skip_if_exists=False
+                    drive_service, local_path, target_folder_id, skip_if_exists=False
                 )
                 if "error" in upload:
                     entry["error"] = upload["error"]
@@ -2083,7 +2278,7 @@ def register(tool):
                 docs_service,
             )
         except Exception as e:
-            doc_edit_error = str(e)
+            doc_edit_error = rewrite_too_large_error(str(e))
 
         for placement in ready:
             entry = placement["entry"]
