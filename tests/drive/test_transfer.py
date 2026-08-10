@@ -2228,6 +2228,104 @@ class TestDownloadFolder:
         assert result["downloaded"] == ["Doc One.pdf"]
         assert result["failed"] == []
 
+    async def test_skip_if_exists_true_skips_existing_and_does_not_redownload(self, tmp_path):
+        """TC-D109 (v0.8.0 QA run, #227): skip_if_exists was live-SKIPped as
+        local-filesystem-dependent and had no unit coverage. A destination file
+        that already exists must be left untouched — the candidate never reaches
+        export()/get_media() at all."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "doc1",
+                    "name": "Doc One",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+            ]
+        }
+        dest = tmp_path / "Doc One.pdf"
+        dest.write_bytes(b"already here")
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            skip_if_exists=True,
+            ctx=self._ctx(svc),
+        )
+        assert result["skipped"] == ["Doc One.pdf"]
+        assert result["downloaded"] == []
+        assert result["failed"] == []
+        svc.files.return_value.export.assert_not_called()
+        assert dest.read_bytes() == b"already here"
+
+    async def test_skip_if_exists_false_redownloads_existing_file(self, tmp_path):
+        """Companion to the skip_if_exists=True case above: with the flag off, an
+        existing destination file is not treated as a skip candidate and gets
+        overwritten by a fresh export."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "doc1",
+                    "name": "Doc One",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+            ]
+        }
+        svc.files.return_value.export.return_value.execute.return_value = b"new content"
+        dest = tmp_path / "Doc One.pdf"
+        dest.write_bytes(b"stale content")
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            skip_if_exists=False,
+            ctx=self._ctx(svc),
+        )
+        assert result["downloaded"] == ["Doc One.pdf"]
+        assert result["skipped"] == []
+        svc.files.return_value.export.assert_called_once()
+        assert dest.read_bytes() == b"new content"
+
+    async def test_mime_type_filter_appended_to_drive_query(self, tmp_path):
+        """TC-D110 (v0.8.0 QA run, #227): mime_type_filter is delegated entirely to
+        Drive's own query string, not filtered client-side — the only thing a unit
+        test can verify is that it's appended to `q` correctly."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+
+        await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            mime_type_filter="application/pdf",
+            ctx=self._ctx(svc),
+        )
+
+        svc.files.return_value.list.assert_called_once()
+        query = svc.files.return_value.list.call_args.kwargs["q"]
+        assert query == ("'root' in parents and trashed=false and mimeType='application/pdf'")
+
+    async def test_mime_type_filter_escapes_embedded_single_quote(self, tmp_path):
+        """The filter value is interpolated directly into the query string — an
+        embedded single quote must be escaped rather than breaking the query
+        syntax."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        mime_filter = "weird/type'value"
+
+        await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            mime_type_filter=mime_filter,
+            ctx=self._ctx(svc),
+        )
+
+        query = svc.files.return_value.list.call_args.kwargs["q"]
+        safe = mime_filter.replace("'", "\\'")
+        assert query == f"'root' in parents and trashed=false and mimeType='{safe}'"
+
 
 class TestDownloadFile:
     """#486: download_file had zero unit test coverage — download_folder (its
