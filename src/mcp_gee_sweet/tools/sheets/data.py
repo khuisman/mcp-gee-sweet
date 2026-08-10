@@ -93,9 +93,9 @@ def register(tool):
                 padded grid instead of just your data can produce a response large enough to break the
                 client connection.
                 Default is False (returns values only, more efficient).
-                Raises ValueError if the actual response size exceeds a safety cap
-                (default 1,000,000 characters, set MAX_TOOL_RESPONSE_CHARS to change it —
-                e.g. to match a raised MAX_MCP_OUTPUT_TOKENS in your MCP client) and
+                Raises ValueError if the actual response size exceeds a safety cap (see
+                MAX_TOOL_RESPONSE_CHARS in docs/configuration.md for the configured default —
+                raise it to match a higher MAX_MCP_OUTPUT_TOKENS in your MCP client) and
                 local_path is not set — narrow the range, retry, or pass local_path to
                 bypass the cap entirely.
             local_path: Optional local filesystem path (file or directory) to write the result
@@ -228,8 +228,8 @@ def register(tool):
         Returns:
             A list of dictionaries, each containing the original query parameters
             and the fetched 'data' or an 'error'. Raises ValueError if the response
-            exceeds a safety cap (default 1,000,000 characters, set MAX_TOOL_RESPONSE_CHARS
-            to change it) and local_path is not set — split into fewer queries per call,
+            exceeds a safety cap (see MAX_TOOL_RESPONSE_CHARS in docs/configuration.md
+            for the configured default) and local_path is not set — split into fewer queries per call,
             or pass local_path. If local_path is set, returns
             {local_path, query_count, bytes_written} instead.
         """
@@ -301,8 +301,8 @@ def register(tool):
             Includes spreadsheet title, sheet summaries (title, headers, first rows), or an error.
             Results are cached; call refresh_cache(spreadsheet_id=<id>) to invalidate,
             or refresh_cache() to clear all caches. Raises ValueError if the response
-            exceeds a safety cap (default 1,000,000 characters, set MAX_TOOL_RESPONSE_CHARS
-            to change it) and local_path is not set — summarize fewer spreadsheets per
+            exceeds a safety cap (see MAX_TOOL_RESPONSE_CHARS in docs/configuration.md
+            for the configured default) and local_path is not set — summarize fewer spreadsheets per
             call, lower rows_to_fetch, or pass local_path. If local_path is set, returns
             {local_path, spreadsheet_count, bytes_written} instead.
         """
@@ -495,8 +495,8 @@ def register(tool):
             List of found cells with their location (sheet, cell in A1 notation) and value.
             max_results bounds match count, not response size — matched cell values can
             still be large. Raises ValueError if the response exceeds a safety cap
-            (default 1,000,000 characters, set MAX_TOOL_RESPONSE_CHARS to change it) and
-            local_path is not set — lower max_results, or pass local_path. If local_path
+            (see MAX_TOOL_RESPONSE_CHARS in docs/configuration.md for the configured
+            default) and local_path is not set — lower max_results, or pass local_path. If local_path
             is set, returns {local_path, spreadsheet_id, query, match_count, bytes_written}
             instead.
         """
