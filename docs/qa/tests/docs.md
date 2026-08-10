@@ -3100,6 +3100,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
+**Result (2026-08-10) ✅ PASS — run live against PR #564 (issue #341).** `update_doc_from_file` returned `docId` matching `{DOC_ID}` and a `web_link`, no `error`. `get_doc_structure` afterward showed HEADING_1 "QA Test Document", bold "bold"/italic "italic" runs, `☑ Task complete`/`☐ Task pending` bullet items, and the Col A/Col B table — matches TC-DOC44's own `create_doc_from_file` output for the same fixture file. `get_file_metadata` before and after showed identical `name`/`parents`/`webViewLink` — doc identity and location preserved.
+
 ### TC-DOC169: `update_doc_from_file` with a local .html file ⚠️ destructive
 **Prompt**
 > "Update Google Doc {DOC_ID} from the file <repo-root>/docs/qa/fixtures/tc-d196-create-doc.html"
@@ -3110,6 +3112,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
+**Result (2026-08-10) ✅ PASS — run live against PR #564 (issue #341).** Returned `docId` matching `{DOC_ID}`, no `error`. `get_doc_structure` afterward showed HEADING_2 "From HTML file" and paragraph "Content paragraph." — matches TC-DOC45's own `create_doc_from_file` output for the same fixture file.
+
 ### TC-DOC170: `update_doc_from_file` file not found
 **Prompt**
 > "Update Google Doc {DOC_ID} from the file ~/does-not-exist.md"
@@ -3117,6 +3121,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 **Checks**
 - Returns `{"error": "File not found: ..."}` — no exception raised
 - Fixture doc `{DOC_ID}` is left completely untouched (`get_doc_content` unchanged) — the file-existence check runs before any Docs API call
+
+**Result (2026-08-10) ✅ PASS — run live against PR #564 (issue #341).** Returned `{"error": "File not found: ~/does-not-exist.md"}`, no exception. `get_doc_content` before and after the call returned byte-identical content (including headers/footers) and the same `modified_time`.
 
 ### TC-DOC171: `update_doc_from_file` unsupported extension with no override returns an error, doc untouched
 **Setup:** create a local file `qa-update.txt` with arbitrary plain text
@@ -3130,6 +3136,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 
 **Cleanup:** delete the local `qa-update.txt` file
 
+**Result (2026-08-10) ✅ PASS — run live against PR #564 (issue #341).** Returned `{"error": "Unsupported file extension '.txt'. Use .md or .html/.htm, or pass content_format explicitly."}`. `get_doc_content` before and after the call was byte-identical with the same `modified_time` — no Docs API call was made.
+
 ### TC-DOC172: `update_doc_from_file` `content_format` explicitly overrides an unrecognized extension ⚠️ destructive
 **Setup:** create a local file `qa-update-override.txt` containing `# Overridden Heading\n\nParagraph text.\n`
 
@@ -3140,3 +3148,5 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 - No `error`; `get_doc_structure` shows HEADING_1 "Overridden Heading" and paragraph "Paragraph text."
 
 **Cleanup:** write fixture content back over `{DOC_ID}`; delete the local `qa-update-override.txt` file
+
+**Result (2026-08-10) ✅ PASS — run live against PR #564 (issue #341).** Called with `content_format='markdown'` on `qa-update-override.txt`; no `error`. `get_doc_structure` afterward showed HEADING_1 "Overridden Heading" and paragraph "Paragraph text." Fixture content restored and local file deleted afterward.
