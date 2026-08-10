@@ -3080,3 +3080,63 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 **Cleanup:** trash the uploaded file (`results[0].fileId`); write fixture content back over `{DOC_ID}`
 
 **Result (2026-08-09) ✅ PASS — run live against PR #554 round 2 (fix commit badad67, issue #400).** First attempt (immediately after a reconnect that had happened *before* the worktree was synced to `badad67`) reproduced the exact stale-reconnect trap this project's QA process has hit before — the error came back unrewritten. A second reconnect (after confirming the worktree was already on the fix commit) plus a retry got the correctly rewritten error: `doc edit failed: <HttpError 400 ... "The provided image is too large."> This is very likely Google Docs' inline-image limit of 25 megapixels (...) — check the image's pixel dimensions and resize it before retrying.` Marker text confirmed unchanged after the failed call.
+
+---
+
+## `update_doc_from_file` (#341)
+
+`update_doc_from_file(doc_id, local_path, content_format=None, ...)` combines `create_doc_from_file`'s server-side file reading (extension inference, same error shapes) with `write_doc_content`'s in-place clear+replace mechanism — both now share one implementation via `_replace_doc_content`. Like `write_doc_content`/`insert_doc_text`/`style_doc_range`, the tool itself is auth-agnostic (it never creates a Drive file, only edits an existing doc's content) — none of the cases below are tagged `⚠️ requires-oauth`, matching those siblings' own convention (see the note at line 2053 above). All cases operate directly on the shared fixture doc `{DOC_ID}`, the same convention `write_doc_content`'s own TC-DOC39–43 use.
+
+### TC-DOC168: `update_doc_from_file` replaces `{DOC_ID}`'s content in place from a local .md file ⚠️ destructive
+**Setup:** `get_file_metadata(file_id={DOC_ID})`, note `name`/`parents`/`webViewLink` for comparison after
+
+**Prompt**
+> "Update Google Doc {DOC_ID} from the file <repo-root>/docs/qa/fixtures/tc-d195-create-doc.md"
+
+**Checks**
+- Returned `docId` equals `{DOC_ID}`, `web_link` present, no `error`
+- `get_doc_structure` shows HEADING_1 "QA Test Document", bold/italic runs, `☑`/`☐` bullet items, and the Col A/Col B table from the fixture — matching what TC-DOC44 confirms `create_doc_from_file` produces from the same file
+- `get_file_metadata(file_id={DOC_ID})` afterward shows the same `name`/`parents`/`webViewLink` as the Setup snapshot — confirms the doc's identity and Drive location were preserved (no new Doc was minted), only its content changed
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+### TC-DOC169: `update_doc_from_file` with a local .html file ⚠️ destructive
+**Prompt**
+> "Update Google Doc {DOC_ID} from the file <repo-root>/docs/qa/fixtures/tc-d196-create-doc.html"
+
+**Checks**
+- Returned `docId` equals `{DOC_ID}`, no `error`
+- `get_doc_structure` shows HEADING_2 "From HTML file" and paragraph "Content paragraph." — matching what TC-DOC45 confirms for the same file via `create_doc_from_file`
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+### TC-DOC170: `update_doc_from_file` file not found
+**Prompt**
+> "Update Google Doc {DOC_ID} from the file ~/does-not-exist.md"
+
+**Checks**
+- Returns `{"error": "File not found: ..."}` — no exception raised
+- Fixture doc `{DOC_ID}` is left completely untouched (`get_doc_content` unchanged) — the file-existence check runs before any Docs API call
+
+### TC-DOC171: `update_doc_from_file` unsupported extension with no override returns an error, doc untouched
+**Setup:** create a local file `qa-update.txt` with arbitrary plain text
+
+**Prompt**
+> "Update Google Doc {DOC_ID} from the file <path-to>/qa-update.txt"
+
+**Checks**
+- Returns `{"error": "Unsupported file extension '.txt'. ..."}` mentioning `.txt` and that `content_format` can be passed explicitly
+- Fixture doc `{DOC_ID}` is left untouched (no Docs API call made — the extension check runs before the doc_id lookup, same as the file-not-found case above)
+
+**Cleanup:** delete the local `qa-update.txt` file
+
+### TC-DOC172: `update_doc_from_file` `content_format` explicitly overrides an unrecognized extension ⚠️ destructive
+**Setup:** create a local file `qa-update-override.txt` containing `# Overridden Heading\n\nParagraph text.\n`
+
+**Prompt**
+> "Update Google Doc {DOC_ID} from the file <path-to>/qa-update-override.txt with content_format='markdown'"
+
+**Checks**
+- No `error`; `get_doc_structure` shows HEADING_1 "Overridden Heading" and paragraph "Paragraph text."
+
+**Cleanup:** write fixture content back over `{DOC_ID}`; delete the local `qa-update-override.txt` file

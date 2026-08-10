@@ -310,6 +310,90 @@ async def _resolve_image_source(
     return {"uri": uri, "file_id": file_id, "permission_id": perm.get("id")}
 
 
+async def _replace_doc_content(
+    docs_service,
+    drive_service,
+    doc_cache,
+    folder_id: str | None,
+    doc_id: str,
+    content: str,
+    content_format: str,
+    autolink_urls: bool,
+    revoke_sharing: bool,
+    auto_downscale: bool,
+) -> dict[str, Any]:
+    """Shared body for write_doc_content / update_doc_from_file (#341): clears an
+    existing doc's content, then replaces it via _apply_doc_content. Extracted so
+    the clear-then-insert mechanism (including the same-batch insertText
+    style-inheritance quirk below) has exactly one implementation instead of two
+    copies that could drift out of sync.
+    """
+    doc = await execute_in_thread(
+        docs_service.documents().get(documentId=doc_id).execute,
+        docs_service,
+    )
+    body_content = doc.get("body", {}).get("content", [])
+    end_index = body_content[-1].get("endIndex", 2) if body_content else 2
+
+    clear_requests = []
+    if end_index > 2:
+        # The document's final paragraph mark can't be deleted by the Docs API (only
+        # everything before it), so an explicit textStyle override left there by prior
+        # content — e.g. the font_size:1 collapse applied to a blank paragraph before a
+        # table, see _build_blank_para_before_table_collapses in emitter.py — would
+        # otherwise survive this "clear" and can leak into newly-inserted content below.
+        # Reset it before deleting, while its original index range is still valid.
+        clear_requests.append(
+            {
+                "updateTextStyle": {
+                    "range": {"startIndex": end_index - 1, "endIndex": end_index},
+                    "textStyle": {},
+                    "fields": "*",
+                }
+            }
+        )
+        clear_requests.append(
+            {"deleteContentRange": {"range": {"startIndex": 1, "endIndex": end_index - 1}}}
+        )
+        # Sent as its own batchUpdate, not combined with the insert below: live testing
+        # showed the Docs API resolves a same-batch insertText's inherited formatting
+        # from a pre-batch snapshot, so contamination survived even after the clear
+        # request above ran earlier in that same batch. A separate call forces the
+        # insert to see the already-cleared document state.
+        await execute_in_thread(
+            docs_service.documents()
+            .batchUpdate(documentId=doc_id, body={"requests": clear_requests})
+            .execute,
+            docs_service,
+        )
+
+    image_outcomes = await _apply_doc_content(
+        docs_service,
+        drive_service,
+        doc_id,
+        content,
+        content_format,
+        autolink_urls,
+        folder_id,
+        revoke_sharing,
+        auto_downscale,
+    )
+
+    metadata = await execute_in_thread(
+        drive_service.files()
+        .get(fileId=doc_id, fields="webViewLink", supportsAllDrives=True)
+        .execute,
+        drive_service,
+    )
+
+    doc_cache.mark_dirty(doc_id)
+    logger.debug("Replaced content in doc %s", doc_id)
+    result: dict[str, Any] = {"docId": doc_id, "web_link": metadata.get("webViewLink")}
+    if image_outcomes is not None:
+        result["images"] = image_outcomes
+    return result
+
+
 async def _apply_doc_content(
     docs_service,
     drive_service,
@@ -1139,73 +1223,97 @@ def register(tool):
             outcomes) when content contained any images.
         """
         lc = ctx.request_context.lifespan_context
-        docs_service = lc.docs_service
-        drive_service = lc.drive_service
-
-        doc = await execute_in_thread(
-            docs_service.documents().get(documentId=doc_id).execute,
-            docs_service,
-        )
-        body_content = doc.get("body", {}).get("content", [])
-        end_index = body_content[-1].get("endIndex", 2) if body_content else 2
-
-        clear_requests = []
-        if end_index > 2:
-            # The document's final paragraph mark can't be deleted by the Docs API (only
-            # everything before it), so an explicit textStyle override left there by prior
-            # content — e.g. the font_size:1 collapse applied to a blank paragraph before a
-            # table, see _build_blank_para_before_table_collapses in emitter.py — would
-            # otherwise survive this "clear" and can leak into newly-inserted content below.
-            # Reset it before deleting, while its original index range is still valid.
-            clear_requests.append(
-                {
-                    "updateTextStyle": {
-                        "range": {"startIndex": end_index - 1, "endIndex": end_index},
-                        "textStyle": {},
-                        "fields": "*",
-                    }
-                }
-            )
-            clear_requests.append(
-                {"deleteContentRange": {"range": {"startIndex": 1, "endIndex": end_index - 1}}}
-            )
-            # Sent as its own batchUpdate, not combined with the insert below: live testing
-            # showed the Docs API resolves a same-batch insertText's inherited formatting
-            # from a pre-batch snapshot, so contamination survived even after the clear
-            # request above ran earlier in that same batch. A separate call forces the
-            # insert to see the already-cleared document state.
-            await execute_in_thread(
-                docs_service.documents()
-                .batchUpdate(documentId=doc_id, body={"requests": clear_requests})
-                .execute,
-                docs_service,
-            )
-
-        image_outcomes = await _apply_doc_content(
-            docs_service,
-            drive_service,
+        return await _replace_doc_content(
+            lc.docs_service,
+            lc.drive_service,
+            lc.doc_cache,
+            lc.folder_id,
             doc_id,
             content,
             content_format,
             autolink_urls,
-            lc.folder_id,
             revoke_sharing,
             auto_downscale,
         )
 
-        metadata = await execute_in_thread(
-            drive_service.files()
-            .get(fileId=doc_id, fields="webViewLink", supportsAllDrives=True)
-            .execute,
-            drive_service,
-        )
+    @tool(annotations=ToolAnnotations(title="Update Document from File", destructiveHint=True))
+    async def update_doc_from_file(
+        doc_id: str,
+        local_path: str,
+        content_format: str | None = None,
+        autolink_urls: bool = True,
+        revoke_sharing: bool = True,
+        auto_downscale: bool = False,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Replace an existing Google Doc's content in place from a local .md or .html file.
 
-        lc.doc_cache.mark_dirty(doc_id)
-        logger.debug("Wrote content to doc %s", doc_id)
-        result: dict[str, Any] = {"docId": doc_id, "web_link": metadata.get("webViewLink")}
-        if image_outcomes is not None:
-            result["images"] = image_outcomes
-        return result
+        Reads local_path server-side the same way create_doc_from_file does (file
+        format inferred from extension, or pass content_format to override), then
+        replaces the doc's content the same way write_doc_content does — preserving
+        the doc's ID, URL, permissions, and Drive location. Unlike calling
+        create_doc_from_file again, this never mints a duplicate Doc, and unlike
+        write_doc_content, the caller never has to read the file into its own
+        context — the server reads it directly.
+
+        Images referenced from the file (markdown "![alt](src)" or HTML <img src=...>)
+        are embedded inline the same way create_doc's own content_format='markdown'
+        path handles them — see that tool's docstring for the src conventions, the
+        revoke_sharing tradeoff, and the auto_downscale/#400 size-limit behavior.
+
+        Args:
+            doc_id: The Google Doc file ID to update in place.
+            local_path: Absolute or relative path to the local file.
+            content_format: 'markdown' or 'html'. Defaults to inferring from
+                local_path's extension (.md -> markdown, .html/.htm -> html); pass
+                explicitly to override the extension-based guess.
+            autolink_urls: For markdown content, whether a bare http(s) URL becomes a
+                real hyperlink (default True). Set False to leave bare URLs as plain
+                text; to suppress just one URL, wrap it in backticks instead. No
+                effect on HTML content.
+            revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
+                share is revoked again after it's embedded (default True).
+            auto_downscale: Resize an oversized local-path/drive: image instead of
+                failing it (default False) — see create_doc's own docstring.
+
+        Returns:
+            Confirmation with the document ID and web link. Includes "images" (per-image
+            outcomes) when the file contained any images.
+        """
+        path = Path(local_path)
+        if not path.exists():
+            return {"error": f"File not found: {local_path}"}
+
+        if content_format is None:
+            ext = path.suffix.lower()
+            if ext == ".md":
+                content_format = "markdown"
+            elif ext in (".html", ".htm"):
+                content_format = "html"
+            else:
+                return {
+                    "error": (
+                        f"Unsupported file extension '{ext}'. Use .md or .html/.htm, "
+                        "or pass content_format explicitly."
+                    )
+                }
+
+        content = path.read_text(encoding="utf-8")
+
+        lc = ctx.request_context.lifespan_context
+        return await _replace_doc_content(
+            lc.docs_service,
+            lc.drive_service,
+            lc.doc_cache,
+            lc.folder_id,
+            doc_id,
+            content,
+            content_format,
+            autolink_urls,
+            revoke_sharing,
+            auto_downscale,
+        )
 
     @tool(annotations=ToolAnnotations(title="Get Document Structure", readOnlyHint=True))
     async def get_doc_structure(doc_id: str, ctx: Context = None) -> dict[str, Any]:
