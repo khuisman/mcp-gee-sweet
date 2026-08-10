@@ -2032,6 +2032,8 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-232/`.
 - Tool returns `{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}` — not a raised exception, not a silent no-op
 - No Drive API calls made (rejected before any upload/download work)
 
+**Result (2026-08-10) ✅ PASS** — `sync_folder(folder_id=<qa-fixtures folder>, local_path=<scratch dir>, direction='mirror', dry_run=true)` returned exactly `{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}`, no raised exception. Also live-checked the sibling `export_format` param for the same PR's own code-review finding: `sync_folder(..., export_format='bogus', dry_run=true)` still raises an uncaught `ValueError` ("Unknown export_format 'bogus'. Valid: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx"), surfacing as a hard tool-call error rather than the same `{"error": ...}` shape — confirms the code-review finding live. This PR's own fix is correct for `direction` but leaves the identical bug in `export_format` three lines below unfixed; see PR comment.
+
 ---
 
 ### TC-D178: Concurrent mixed upload/download batch — no cross-attribution or corruption ⚠️ destructive ⚠️ local-filesystem (issue #183)
