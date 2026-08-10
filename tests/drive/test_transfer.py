@@ -2323,8 +2323,7 @@ class TestDownloadFolder:
         )
 
         query = svc.files.return_value.list.call_args.kwargs["q"]
-        safe = mime_filter.replace("'", "\\'")
-        assert query == f"'root' in parents and trashed=false and mimeType='{safe}'"
+        assert query == ("'root' in parents and trashed=false and mimeType='weird/type\\'value'")
 
 
 class TestDownloadFile:
