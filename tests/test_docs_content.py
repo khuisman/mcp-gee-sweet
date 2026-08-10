@@ -1651,6 +1651,150 @@ class TestCreateDocFromFile:
         assert ".txt" in result["error"]
 
 
+class TestUpdateDocFromFile:
+    """update_doc_from_file (#341) combines create_doc_from_file's server-side file
+    reading (extension inference, error handling) with write_doc_content's in-place
+    clear+replace mechanism, via the shared _replace_doc_content helper — so it never
+    mints a duplicate Doc the way re-running create_doc_from_file would."""
+
+    def _make_services(self, end_index=50):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "webViewLink": "https://example.com"
+        }
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "body": {"content": [{"endIndex": end_index}]}
+        }
+        return drive_svc, docs_svc
+
+    def _ctx(self, drive_svc, docs_svc):
+        return _make_ctx(
+            drive_service=drive_svc,
+            docs_service=docs_svc,
+            doc_cache=MagicMock(),
+            folder_id=None,
+        )
+
+    def _batchupdate_calls(self, docs_svc):
+        return [
+            c.kwargs["body"]["requests"]
+            for c in docs_svc.documents.return_value.batchUpdate.call_args_list
+        ]
+
+    async def test_md_file_replaces_content_in_place(self, tmp_path):
+        md_file = tmp_path / "notes.md"
+        md_file.write_text("# Hello\n\nParagraph text.\n")
+        drive_svc, docs_svc = self._make_services(end_index=50)
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["update_doc_from_file"](
+            doc_id="doc1", local_path=str(md_file), ctx=ctx
+        )
+        assert result["docId"] == "doc1"
+        assert "error" not in result
+        # No new Doc created — only the existing one's content was touched.
+        drive_svc.files.return_value.create.assert_not_called()
+        docs_svc.documents.return_value.get.assert_called_once_with(documentId="doc1")
+
+    async def test_md_file_heading_emitted(self, tmp_path):
+        md_file = tmp_path / "doc.md"
+        md_file.write_text("# Section\n")
+        drive_svc, docs_svc = self._make_services(end_index=2)
+        ctx = self._ctx(drive_svc, docs_svc)
+        await _docs_tools["update_doc_from_file"](doc_id="doc1", local_path=str(md_file), ctx=ctx)
+        calls = self._batchupdate_calls(docs_svc)
+        heading_types = [
+            r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+            for r in calls[-1]
+            if "updateParagraphStyle" in r
+        ]
+        assert "HEADING_1" in heading_types
+
+    async def test_html_file_accepted(self, tmp_path):
+        html_file = tmp_path / "page.html"
+        html_file.write_text("<h2>Hello</h2>")
+        drive_svc, docs_svc = self._make_services(end_index=2)
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["update_doc_from_file"](
+            doc_id="doc1", local_path=str(html_file), ctx=ctx
+        )
+        assert "docId" in result
+        assert "error" not in result
+
+    async def test_content_format_override_wins_over_extension(self, tmp_path):
+        # A .txt file has no inferred format, but an explicit content_format still works.
+        txt_file = tmp_path / "notes.txt"
+        txt_file.write_text("# Heading\n")
+        drive_svc, docs_svc = self._make_services(end_index=2)
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["update_doc_from_file"](
+            doc_id="doc1", local_path=str(txt_file), content_format="markdown", ctx=ctx
+        )
+        assert "error" not in result
+        calls = self._batchupdate_calls(docs_svc)
+        heading_types = [
+            r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+            for r in calls[-1]
+            if "updateParagraphStyle" in r
+        ]
+        assert "HEADING_1" in heading_types
+
+    async def test_file_not_found_returns_error(self, tmp_path):
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["update_doc_from_file"](
+            doc_id="doc1", local_path=str(tmp_path / "missing.md"), ctx=ctx
+        )
+        assert "error" in result
+        assert "not found" in result["error"].lower()
+        docs_svc.documents.return_value.get.assert_not_called()
+
+    async def test_unsupported_extension_returns_error(self, tmp_path):
+        txt_file = tmp_path / "notes.txt"
+        txt_file.write_text("plain text")
+        drive_svc, docs_svc = self._make_services()
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["update_doc_from_file"](
+            doc_id="doc1", local_path=str(txt_file), ctx=ctx
+        )
+        assert "error" in result
+        assert ".txt" in result["error"]
+        docs_svc.documents.return_value.get.assert_not_called()
+
+    async def test_clears_trailing_mark_style_before_deleting_in_its_own_batch(self, tmp_path):
+        # Same clear-then-insert mechanism as write_doc_content (#255) — verified here
+        # too since it's now shared via _replace_doc_content.
+        md_file = tmp_path / "notes.md"
+        md_file.write_text("New content\n")
+        drive_svc, docs_svc = self._make_services(end_index=50)
+        ctx = self._ctx(drive_svc, docs_svc)
+        await _docs_tools["update_doc_from_file"](doc_id="doc1", local_path=str(md_file), ctx=ctx)
+        calls = self._batchupdate_calls(docs_svc)
+
+        clear_requests = calls[0]
+        assert len(clear_requests) == 2
+        assert clear_requests[0]["updateTextStyle"]["range"] == {
+            "startIndex": 49,
+            "endIndex": 50,
+        }
+        assert clear_requests[1]["deleteContentRange"]["range"] == {
+            "startIndex": 1,
+            "endIndex": 49,
+        }
+        content_requests = calls[1]
+        assert any("insertText" in r for r in content_requests)
+
+    async def test_empty_doc_skips_clear_requests(self, tmp_path):
+        md_file = tmp_path / "notes.md"
+        md_file.write_text("New content\n")
+        drive_svc, docs_svc = self._make_services(end_index=2)
+        ctx = self._ctx(drive_svc, docs_svc)
+        await _docs_tools["update_doc_from_file"](doc_id="doc1", local_path=str(md_file), ctx=ctx)
+        calls = self._batchupdate_calls(docs_svc)
+        assert len(calls) == 1
+        assert not any("deleteContentRange" in r for r in calls[0])
+
+
 # ---------------------------------------------------------------------------
 # get_doc_structure headingId (#409)
 # ---------------------------------------------------------------------------
