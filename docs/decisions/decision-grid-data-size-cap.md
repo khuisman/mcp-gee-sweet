@@ -5,6 +5,8 @@
 
 **Update (2026-07-03, issue #242):** `MAX_GRID_DATA_RESPONSE_CHARS` referenced below was renamed to `MAX_TOOL_RESPONSE_CHARS` and generalized to 5 more tools — see `docs/decisions/decision-response-size-cap-generalization.md`. This doc is left as-is below as the historical record of the original decision.
 
+**Update (2026-08-07, issue #519):** the `40000` default named throughout this doc was raised to `1000000` after live-testing found the client-connection-death failure mode described below no longer reproduces (for the current primary MCP client) at sizes well past the old default — see `docs/decisions/decision-response-size-cap-reevaluation-519.md`. This doc is left as-is below as the historical record of the original decision and its now-superseded numbers.
+
 ## Background
 
 Issue #235: `get_sheet_data(include_grid_data=True)` without a `range` fetches the sheet's full padded grid (often 1000x26 by default, regardless of actual content). In the reported case, the server-side Sheets API call succeeded (`200` in under a second), but the MCP client reported "Connection closed" — the failure was downstream of this server, in the client/transport layer, with no exception for the server to catch.

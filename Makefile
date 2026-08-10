@@ -108,6 +108,10 @@ team-joy: setup-team ## Launch Claude Code backgrounded directly into the Joy pe
 team-bob: setup-team ## Launch Claude Code backgrounded directly into the Bob persona (Senior prompt engineer); shows up in `claude agents`.
 	claude --bg "/team-member Bob"
 
+.PHONY: team-kai
+team-kai: setup-team ## Launch Claude Code backgrounded directly into the Kai persona (Orchestrator); shows up in `claude agents`.
+	claude --bg "/team-member Kai"
+
 .PHONY: test
 test: ## Run unit tests.
 	uv run python -m pytest
