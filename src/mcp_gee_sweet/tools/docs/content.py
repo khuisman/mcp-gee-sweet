@@ -1030,8 +1030,8 @@ def register(tool):
             Dictionary with the document's text content and metadata. Results are
             cached; call refresh_cache(doc_id=file_id) to invalidate, or
             refresh_cache() to clear all caches. Raises ValueError if the response
-            exceeds a safety cap (default 40,000 characters, set MAX_TOOL_RESPONSE_CHARS
-            to change it) and local_path is not set. If local_path is set, returns
+            exceeds a safety cap (see MAX_TOOL_RESPONSE_CHARS in docs/configuration.md
+            for the configured default) and local_path is not set. If local_path is set, returns
             {local_path, id, bytes_written} instead.
         """
         lc = ctx.request_context.lifespan_context
@@ -1403,9 +1403,9 @@ def register(tool):
             if query is an invalid regex, or if the Docs API call itself fails
             (e.g. doc_id doesn't exist). max_results bounds match count, not
             response size — matched context can still be large. Raises
-            ValueError if the response exceeds a safety cap (default 40,000
-            characters, set MAX_TOOL_RESPONSE_CHARS to change it) and
-            local_path is not set — lower max_results, or pass local_path. If
+            ValueError if the response exceeds a safety cap (see
+            MAX_TOOL_RESPONSE_CHARS in docs/configuration.md for the configured
+            default) and local_path is not set — lower max_results, or pass local_path. If
             local_path is set, returns {local_path, doc_id, query, match_count,
             bytes_written} instead.
         """

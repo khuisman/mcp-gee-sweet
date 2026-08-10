@@ -83,9 +83,9 @@ def register(tool):
               comment's resolved status is derived from its most recent reply's
               action.
             - next_page_token: present when more results are available
-            Raises ValueError if the response exceeds a safety cap (default 40,000
-            characters, set MAX_TOOL_RESPONSE_CHARS to change it) — lower page_size
-            and paginate via next_page_token instead of raising the cap.
+            Raises ValueError if the response exceeds a safety cap (see
+            MAX_TOOL_RESPONSE_CHARS in docs/configuration.md for the configured default) —
+            lower page_size and paginate via next_page_token instead of raising the cap.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
