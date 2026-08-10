@@ -2036,7 +2036,7 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-232/`.
 - Prompt 2 returns `{"error": "Unknown export_format 'bogus'. Valid: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx"}` — not a raised exception
 - Neither makes a Drive API call (rejected before any upload/download work)
 
-**Result (2026-08-10) ✅ PASS, direction only — ❌ FAIL, export_format** — `sync_folder(folder_id=<qa-fixtures folder>, local_path=<scratch dir>, direction='mirror', dry_run=true)` returned exactly `{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}`, no raised exception. `sync_folder(..., export_format='bogus', dry_run=true)` still raised an uncaught `ValueError` at the time of this check — the identical bug three lines below `direction`'s, unfixed by this PR's first commit. Sent back via PR comment; fixed in this PR's follow-up commit (`export_format` now returns the same `{"error": ...}` shape) — Prompt 2 needs a fresh live check against that commit before this entry can be marked full PASS.
+**Result (2026-08-10) ✅ PASS** — Re-verified against fix commit `4b5eb33`. `sync_folder(folder_id=<qa-fixtures folder>, local_path=<scratch dir>, direction='mirror', dry_run=true)` returned exactly `{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}`. `sync_folder(..., export_format='bogus', dry_run=true)` now also returns `{"error": "Unknown export_format 'bogus'. Valid: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx"}` — no raised exception, matches `direction`'s shape. Both prompts pass, no Drive API calls made for either.
 
 ---
 
