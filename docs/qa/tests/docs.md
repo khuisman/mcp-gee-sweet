@@ -2954,6 +2954,8 @@ Tool call: `insert_inline_image(doc_id={DOC_ID}, index=1, drive_file_id={OVERSIZ
 
 **Cleanup:** trash the uploaded `{OVERSIZED_FILE_ID}` file
 
+**Result (2026-08-09) ✅ PASS — run live against PR #554 (issue #400).** Error: "Image is 6000x6000 (36.0 megapixels), which exceeds Google Docs' inline-image limit of 25 megapixels (...). Resize it before inserting, or pass auto_downscale=True to have it resized automatically." `get_doc_structure` before/after calls were byte-identical.
+
 ---
 
 ### TC-DOC162: `insert_inline_image` `auto_downscale=True` resizes and embeds a copy, leaving the original untouched ⚠️ requires-oauth ⚠️ destructive
@@ -2973,10 +2975,12 @@ Tool call: `insert_inline_image(doc_id={DOC_ID}, index=1, drive_file_id={OVERSIZ
 
 **Cleanup:** delete the inserted image range (`delete_doc_range` on its index span); trash both `{OVERSIZED_FILE_ID}` and `{resized_file_id}`
 
+**Result (2026-08-09) ✅ PASS — run live against PR #554 (issue #400).** `resized_file_id` returned, distinct from the original; `get_file_metadata` on it read name `"qa-oversized.png (resized)"`; original file's checksum/size/trashed status unchanged after the call. Playwright screenshot of the doc confirmed the image rendered at the insertion point. (Note: the fixture doc has unrelated stray header content from earlier header/footer test runs, visible above the inserted image in the screenshot — pre-existing fixture pollution, not caused by this PR.)
+
 ---
 
 ### TC-DOC163: `insert_inline_image` with a too-large public `uri` gets Google's error rewritten with the size-limit explanation, not pre-validated
-**Setup:** temporarily share the oversized PNG for a public URL — upload it (`upload_local_file` as in TC-DOC161), then `share_file(file_id={OVERSIZED_FILE_ID}, type="anyone", role="reader")`, and use its `webContentLink` (from `get_file_metadata` or the upload response) as `{OVERSIZED_WEB_CONTENT_LINK}`
+**Setup:** temporarily share the oversized PNG for a public URL — upload it (`upload_local_file` as in TC-DOC161), then `share_file(file_id={OVERSIZED_FILE_ID}, permissions=[{"type": "anyone", "role": "reader"}])`, and use `https://drive.google.com/uc?export=download&id={OVERSIZED_FILE_ID}` as `{OVERSIZED_WEB_CONTENT_LINK}` — neither `get_file_metadata` nor `upload_local_file`'s response actually surfaces Drive's `webContentLink` field (confirmed live 2026-08-09: `get_file_metadata`'s field mask requests `webViewLink` only), so the direct-download URL convention is the only way to get a fetchable link from these tools alone.
 
 **Prompt**
 > "Insert the image at uri '{OVERSIZED_WEB_CONTENT_LINK}' at index 1 in doc {DOC_ID}"
@@ -2988,6 +2992,8 @@ Tool call: `insert_inline_image(doc_id={DOC_ID}, index=1, uri="{OVERSIZED_WEB_CO
 - Error does not mention `auto_downscale` (not supported for a bare `uri` source)
 
 **Cleanup:** remove the `anyone` permission from `{OVERSIZED_FILE_ID}`; trash the file
+
+**Result (2026-08-09) ✅ PASS — run live against PR #554 (issue #400).** Error: `<HttpError 400 ... "Invalid requests[0].insertInlineImage: The provided image is too large."> This is very likely Google Docs' inline-image limit of 25 megapixels (...) — check the image's pixel dimensions and resize it before retrying.` — Google's raw message preserved, explanation appended, no mention of `auto_downscale`.
 
 ---
 
@@ -3005,6 +3011,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERON
 - `get_doc_structure` shows the "IMGMARKERONE" marker text still present, unchanged
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-09) ✅ PASS — run live against PR #554 (issue #400).** `results[0].error` contained "36.0 megapixels"/"25 megapixels", no `fileId`. `list_files(folder_id={FOLDER_ID}, mime_type="image/png")` returned empty — no upload occurred. Marker paragraph unchanged.
 
 ---
 
@@ -3024,6 +3032,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERON
 
 **Cleanup:** write fixture content back over `{DOC_ID}`; trash the uploaded image file
 
+**Result (2026-08-09) ✅ PASS — run live against PR #554 (issue #400).** `results[0]` had no `error`, `fileId` present, `downscaled: true`, `index` equal to the marker paragraph's `startIndex` (1). Uploaded file name was unsuffixed `"qa-oversized.png"`. Playwright screenshot confirmed the image rendered where the marker had been.
+
 ---
 
 ### TC-DOC166: An oversized local-path image in markdown content fails per-image without blocking the rest of the doc ⚠️ requires-oauth ⚠️ destructive
@@ -3038,3 +3048,5 @@ Tool call: `write_doc_content(doc_id={DOC_ID}, content="Before\n\n![Big](/tmp/qa
 - No file named "qa-oversized.png" was uploaded to the server's default folder
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-09) ✅ PASS (run via `create_doc` substitute) — run live against PR #554 (issue #400).** This worktree's server has no `DRIVE_FOLDER_ID` configured, so `write_doc_content` itself returned `"folder_id is required to upload a local image (no server default folder configured)"` before ever reaching the size check — an environment gap, not a PR defect (`write_doc_content` has no per-call folder override by design). Re-ran the identical markdown content through `create_doc(folder_id={FOLDER_ID}, ...)` instead, which shares the same `_apply_doc_content` code path and does accept an explicit folder: call succeeded with no API error, "Before"/"After" paragraphs both present, `images[0].error` contained "36.0 megapixels"/"25 megapixels", and no file was uploaded to the target folder.
