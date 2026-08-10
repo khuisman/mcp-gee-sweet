@@ -1918,13 +1918,15 @@ def register(tool):
             is the most likely way to hit this.
         """
         if direction not in ("bidirectional", "upload", "download"):
-            raise ValueError(
-                f"direction must be 'bidirectional', 'upload', or 'download', got '{direction}'"
-            )
+            return {
+                "error": f"Invalid direction '{direction}'. "
+                "Use 'upload', 'download', or 'bidirectional'."
+            }
         if export_format and export_format not in _EXPORT_MIME:
-            raise ValueError(
-                f"Unknown export_format '{export_format}'. Valid: {', '.join(_EXPORT_MIME)}"
-            )
+            return {
+                "error": f"Unknown export_format '{export_format}'. "
+                f"Valid: {', '.join(_EXPORT_MIME)}"
+            }
 
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service

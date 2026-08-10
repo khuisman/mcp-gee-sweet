@@ -2023,14 +2023,20 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-232/`.
 
 ---
 
-### TC-D119: Invalid direction raises error ⚠️ local-filesystem
+### TC-D119: Invalid direction or export_format returns error, not a raised exception ⚠️ local-filesystem (issue #488)
 
-**Prompt**
+**Prompt 1**
 > "Sync {FOLDER_ID} with `/tmp/qa-sync/` using direction='mirror'"
 
+**Prompt 2** (PR #563 review round — the identical bug in the adjacent `export_format` check)
+> "Sync {FOLDER_ID} with `/tmp/qa-sync/` using export_format='bogus'"
+
 **Checks**
-- `ValueError` raised immediately, before any API calls
-- Error message lists the valid direction values
+- Prompt 1 returns `{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}` — not a raised exception, not a silent no-op
+- Prompt 2 returns `{"error": "Unknown export_format 'bogus'. Valid: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx"}` — not a raised exception
+- Neither makes a Drive API call (rejected before any upload/download work)
+
+**Result (2026-08-10) ✅ PASS** — Re-verified against fix commit `4b5eb33`. `sync_folder(folder_id=<qa-fixtures folder>, local_path=<scratch dir>, direction='mirror', dry_run=true)` returned exactly `{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}`. `sync_folder(..., export_format='bogus', dry_run=true)` now also returns `{"error": "Unknown export_format 'bogus'. Valid: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx"}` — no raised exception, matches `direction`'s shape. Both prompts pass, no Drive API calls made for either.
 
 ---
 
