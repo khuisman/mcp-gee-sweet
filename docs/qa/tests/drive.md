@@ -2023,16 +2023,20 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-232/`.
 
 ---
 
-### TC-D119: Invalid direction returns error ⚠️ local-filesystem (issue #488)
+### TC-D119: Invalid direction or export_format returns error, not a raised exception ⚠️ local-filesystem (issue #488)
 
-**Prompt**
+**Prompt 1**
 > "Sync {FOLDER_ID} with `/tmp/qa-sync/` using direction='mirror'"
 
-**Checks**
-- Tool returns `{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}` — not a raised exception, not a silent no-op
-- No Drive API calls made (rejected before any upload/download work)
+**Prompt 2** (PR #563 review round — the identical bug in the adjacent `export_format` check)
+> "Sync {FOLDER_ID} with `/tmp/qa-sync/` using export_format='bogus'"
 
-**Result (2026-08-10) ✅ PASS** — `sync_folder(folder_id=<qa-fixtures folder>, local_path=<scratch dir>, direction='mirror', dry_run=true)` returned exactly `{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}`, no raised exception. Also live-checked the sibling `export_format` param for the same PR's own code-review finding: `sync_folder(..., export_format='bogus', dry_run=true)` still raises an uncaught `ValueError` ("Unknown export_format 'bogus'. Valid: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx"), surfacing as a hard tool-call error rather than the same `{"error": ...}` shape — confirms the code-review finding live. This PR's own fix is correct for `direction` but leaves the identical bug in `export_format` three lines below unfixed; see PR comment.
+**Checks**
+- Prompt 1 returns `{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}` — not a raised exception, not a silent no-op
+- Prompt 2 returns `{"error": "Unknown export_format 'bogus'. Valid: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx"}` — not a raised exception
+- Neither makes a Drive API call (rejected before any upload/download work)
+
+**Result (2026-08-10) ✅ PASS, direction only — ❌ FAIL, export_format** — `sync_folder(folder_id=<qa-fixtures folder>, local_path=<scratch dir>, direction='mirror', dry_run=true)` returned exactly `{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}`, no raised exception. `sync_folder(..., export_format='bogus', dry_run=true)` still raised an uncaught `ValueError` at the time of this check — the identical bug three lines below `direction`'s, unfixed by this PR's first commit. Sent back via PR comment; fixed in this PR's follow-up commit (`export_format` now returns the same `{"error": ...}` shape) — Prompt 2 needs a fresh live check against that commit before this entry can be marked full PASS.
 
 ---
 

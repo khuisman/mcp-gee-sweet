@@ -1923,9 +1923,10 @@ def register(tool):
                 "Use 'upload', 'download', or 'bidirectional'."
             }
         if export_format and export_format not in _EXPORT_MIME:
-            raise ValueError(
-                f"Unknown export_format '{export_format}'. Valid: {', '.join(_EXPORT_MIME)}"
-            )
+            return {
+                "error": f"Unknown export_format '{export_format}'. "
+                f"Valid: {', '.join(_EXPORT_MIME)}"
+            }
 
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
