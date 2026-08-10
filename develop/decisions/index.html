@@ -1440,6 +1440,12 @@
 <td>decided</td>
 <td><code>server://auth-status</code>'s <code>_SA_LIMITED_TOOLS</code> generalized to <code>_SA_LIMITATIONS</code>, a per-failure-class list (<code>reason</code>/<code>alternatives</code> no longer shared across unrelated restrictions); adds <code>transfer_ownership</code>'s no-personal-Drive-identity class alongside the existing no-storage-quota class; ADC's own identity ambiguity scoped out to #506</td>
 </tr>
+<tr>
+<td><a href="decision-response-size-cap-reevaluation-519/">Response-Size Cap Re-Evaluation</a></td>
+<td>2026-08-07</td>
+<td>decided</td>
+<td>Live-tested up to 2MB: the client-connection-death failure mode the cap defends against no longer reproduces on the current primary MCP client; raised <code>MAX_TOOL_RESPONSE_CHARS</code> default 40000 → 1000000, kept the hard-error mechanism as defense-in-depth for other/untested clients; cross-client guidance scoped out to #555</td>
+</tr>
 </tbody>
 </table>
 

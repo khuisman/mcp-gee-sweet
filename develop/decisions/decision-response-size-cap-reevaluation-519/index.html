@@ -10,7 +10,7 @@
       
       
       
-        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/decisions/decision-grid-data-size-cap/">
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/decisions/decision-response-size-cap-reevaluation-519/">
       
       
       
@@ -23,7 +23,7 @@
     
     
       
-        <title>Decision: Response-Size Safety Net for get_sheet_data(include_grid_data=True) - mcp-gee-sweet</title>
+        <title>Decision: Response-Size Cap Re-Evaluation (issue #519) - mcp-gee-sweet</title>
       
     
     
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#decision-response-size-safety-net-for-get_sheet_datainclude_grid_datatrue" class="md-skip">
+        <a href="#decision-response-size-cap-re-evaluation-issue-519" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Decision: Response-Size Safety Net for get_sheet_data(include_grid_data=True)
+              Decision: Response-Size Cap Re-Evaluation (issue #519)
             
           </span>
         </div>
@@ -1322,81 +1322,68 @@
   
 
 
-<h1 id="decision-response-size-safety-net-for-get_sheet_datainclude_grid_datatrue">Decision: Response-Size Safety Net for get_sheet_data(include_grid_data=True)<a class="headerlink" href="#decision-response-size-safety-net-for-get_sheet_datainclude_grid_datatrue" title="Permanent link">&para;</a></h1>
-<p><strong>Date:</strong> 2026-07-03
-<strong>Snapshot commit:</strong> branch <code>feat/issue-235-grid-data-range</code> — see <code>src/mcp_gee_sweet/tools/sheets/data.py</code></p>
-<p><strong>Update (2026-07-03, issue #242):</strong> <code>MAX_GRID_DATA_RESPONSE_CHARS</code> referenced below was renamed to <code>MAX_TOOL_RESPONSE_CHARS</code> and generalized to 5 more tools — see <code>docs/decisions/decision-response-size-cap-generalization.md</code>. This doc is left as-is below as the historical record of the original decision.</p>
-<p><strong>Update (2026-08-07, issue #519):</strong> the <code>40000</code> default named throughout this doc was raised to <code>1000000</code> after live-testing found the client-connection-death failure mode described below no longer reproduces (for the current primary MCP client) at sizes well past the old default — see <code>docs/decisions/decision-response-size-cap-reevaluation-519.md</code>. This doc is left as-is below as the historical record of the original decision and its now-superseded numbers.</p>
+<h1 id="decision-response-size-cap-re-evaluation-issue-519">Decision: Response-Size Cap Re-Evaluation (issue #519)<a class="headerlink" href="#decision-response-size-cap-re-evaluation-issue-519" title="Permanent link">&para;</a></h1>
+<p><strong>Date:</strong> 2026-08-07
+<strong>Snapshot commit:</strong> branch <code>feat/joy/issue-519</code> — see <code>src/mcp_gee_sweet/tools/response_limits.py</code></p>
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
-<p>Issue #235: <code>get_sheet_data(include_grid_data=True)</code> without a <code>range</code> fetches the sheet's full padded grid (often 1000x26 by default, regardless of actual content). In the reported case, the server-side Sheets API call succeeded (<code>200</code> in under a second), but the MCP client reported "Connection closed" — the failure was downstream of this server, in the client/transport layer, with no exception for the server to catch.</p>
-<h2 id="options-considered">Options Considered<a class="headerlink" href="#options-considered" title="Permanent link">&para;</a></h2>
-<h3 id="option-a-require-an-explicit-range">Option A: Require an explicit range<a class="headerlink" href="#option-a-require-an-explicit-range" title="Permanent link">&para;</a></h3>
-<p>Raise a <code>ValueError</code> if <code>include_grid_data=True</code> and <code>range</code> is omitted, forcing the caller to supply a bounded range up front.</p>
-<p><strong>Pros:</strong> simplest possible fix; turns a silent transport failure into an immediate, actionable error.</p>
-<p><strong>Cons:</strong> pushes the burden onto the caller (typically an LLM) to already know the sheet's used extent before it can safely ask for formatting — usually means an extra round-trip (a values-only call first) just to learn the range, spending tokens on something the server can trivially compute itself. Rejected as poor UX once raised in review.</p>
-<h3 id="option-b-auto-detect-used-range-pre-fetch-cell-count-cap">Option B: Auto-detect used range + pre-fetch cell-count cap<a class="headerlink" href="#option-b-auto-detect-used-range-pre-fetch-cell-count-cap" title="Permanent link">&para;</a></h3>
-<p>Auto-detect the used range from a values-only probe when <code>range</code> is omitted (removes the guesswork), and reject the request before fetching if the resolved range's cell count exceeds a fixed threshold (initially 2000 cells), estimated from the issue's own numbers (150 cells ≈ 107KB, ~713 bytes/cell).</p>
-<p><strong>Cons — falsified by live testing:</strong> a live test against a real spreadsheet found cell count doesn't predict response size at all. A 26,000-cell <strong>blank</strong> range (a fresh sheet's default padding) returned almost nothing — Sheets omits <code>rowData</code> entirely for cells with no explicit formatting. A 1,300-cell range with real formatting applied (bold, background, number format) returned 983,982 characters and broke the session's own client. A pre-fetch estimate based on range shape can't distinguish these two cases; cutting the cap at any fixed cell count either blocks working requests (blank/lightly-formatted large ranges) or lets truly dangerous ones (small but densely-formatted ranges) through.</p>
-<h3 id="option-c-auto-detect-used-range-post-fetch-response-size-check-chosen">Option C: Auto-detect used range + post-fetch response-size check (chosen)<a class="headerlink" href="#option-c-auto-detect-used-range-post-fetch-response-size-check-chosen" title="Permanent link">&para;</a></h3>
-<p>Keep auto-detection (still correct and valuable — it prevents ever requesting formatting for irrelevant padding). Replace the pre-fetch cell-count estimate with a check on the <strong>actual serialized response</strong>, made after the Sheets API call completes (which is fast either way, per the issue's own account) but before returning it through the MCP tool response.</p>
-<p>A second live-testing round, this time applying real formatting and binary-searching range size against the session's own MCP client, found the actual failure point much lower than the cell-count-based guess would have suggested:</p>
+<p>Both prior decision docs (<a href="../decision-grid-data-size-cap/">Grid Data Size Cap</a>, <a href="../decision-response-size-cap-generalization/">Response-Size Cap Generalization</a>) named the same re-evaluation trigger in their own "When to Re-evaluate" sections: if the MCP client's behavior around an oversized tool response changes, the cap should be re-measured, not assumed still necessary.</p>
+<p>Issue #512's own comment thread raised exactly this: an <em>uncapped</em> tool (<code>list_files</code>) returned an 85,993-character response, and the MCP client (Claude Code) handled the overflow gracefully — auto-saved the full result to a local file and returned a pointer, with no error and no dropped connection. That's a real data point against the original #235 finding, where a 983,982-character response produced "Connection closed" and killed the session outright.</p>
+<p>Issue #519 asked whether that original failure mode — the actual justification for <code>MAX_TOOL_RESPONSE_CHARS</code> existing at all — still reproduces today.</p>
+<h2 id="what-was-tested-and-how">What was tested, and how<a class="headerlink" href="#what-was-tested-and-how" title="Permanent link">&para;</a></h2>
+<p>Live-verified against the real OAuth-connected MCP client (this session's <code>mcp-gee-sweet-oauth</code> user-scoped connection, not any dev-lane role's server), using <code>get_sheet_data(include_grid_data=False)</code> — a code path with <strong>no cap logic on it at all</strong>, confirmed by reading <code>sheets/data.py</code> before testing (the <code>enforce_response_size_cap</code> call only exists inside the <code>include_grid_data=True</code> branch; the values-only branch used here has no cap and no <code>local_path</code> handling). This isolates the client's own behavior with nothing from this server's cap mechanism in the way.</p>
+<p>Four scratch spreadsheets were created (via <code>import_csv_to_sheet</code>, content generated locally to avoid Python's csv module's 131072-char single-field limit — worked around by writing many 20,000-char rows instead of one giant field), read back, and deleted:</p>
 <table>
 <thead>
 <tr>
-<th>Cells</th>
-<th>Characters</th>
+<th>Response size</th>
 <th>Result</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>60</td>
-<td>(not captured — succeeded)</td>
-<td>✅</td>
+<td>85,993 chars (#512's own report, not re-run)</td>
+<td>✅ graceful — auto-saved to file, pointer returned</td>
 </tr>
 <tr>
-<td>65</td>
-<td>51,208</td>
-<td>❌</td>
+<td>160,150 chars</td>
+<td>✅ graceful</td>
 </tr>
 <tr>
-<td>75</td>
-<td>58,784</td>
-<td>❌</td>
+<td>500,235 chars</td>
+<td>✅ graceful</td>
 </tr>
 <tr>
-<td>100</td>
-<td>77,694</td>
-<td>❌</td>
+<td>1,000,360 chars</td>
+<td>✅ graceful — this is the same size class as #235's 983,982-char failure</td>
 </tr>
 <tr>
-<td>500</td>
-<td>380,494</td>
-<td>❌</td>
-</tr>
-<tr>
-<td>1,300</td>
-<td>983,982</td>
-<td>❌</td>
+<td>2,000,610 chars</td>
+<td>✅ graceful — 50x the old 40,000 default</td>
 </tr>
 </tbody>
 </table>
-<p>This placed the real limit around 48,000–51,000 characters for that session — which matches Claude Code's documented default of 25,000 tokens per MCP tool response (<code>MAX_MCP_OUTPUT_TOKENS</code>), given this densely-nested, repeated-key JSON (<code>userEnteredFormat</code>, <code>backgroundColorStyle</code>, <code>rgbColor</code> on every cell) tokenizes at roughly 2 characters/token rather than the ~4 chars/token typical of prose.</p>
-<p>Two consequences follow directly from this finding:</p>
+<p>At every size, including the one that replicates #235's original death-zone almost exactly, the client redirected the response to a file (under its own session directory, not anything this server's code produced — confirmed by grepping the source for the exact strings in the client's message and finding zero matches) instead of dropping the connection.</p>
+<p><strong>What this does not establish:</strong> a ceiling above 2MB where the client's own graceful handling might still break down, or whether this behavior is specific to the current Claude Code client version versus something that was already present. Neither claim is made here — only that, for the client actually driving this investigation, right now, the specific failure mode this cap exists to prevent did not reproduce at any tested size.</p>
+<h2 id="options-considered">Options considered<a class="headerlink" href="#options-considered" title="Permanent link">&para;</a></h2>
 <ol>
-<li><strong>The cap has to be measured, not estimated.</strong> There's no way to know from range shape alone how formatted a range's cells are, so the check runs on <code>len(json.dumps(result))</code> after the fetch.</li>
-<li><strong>The cap has to be configurable, not fixed.</strong> <code>MAX_MCP_OUTPUT_TOKENS</code> is a client-side setting the server has no visibility into — a different MCP client, or the same client with a raised limit, has a different real threshold. <code>MAX_GRID_DATA_RESPONSE_CHARS</code> (default <code>40000</code>, chosen with margin below the ~48-51K observed here) lets an operator match their own client's actual configuration.</li>
+<li><strong>Keep the cap and its default unchanged.</strong> Safest, but demonstrably over-restrictive now — it converts a case the client would handle gracefully into a hard <code>ValueError</code> that returns zero data (this is exactly what #512 reported for <code>sync_folder</code>'s dry-run).</li>
+<li><strong>Raise the default, keep the hard-error mechanism.</strong> Chosen — see below.</li>
+<li><strong>Drop the cap entirely, rely on client-side handling.</strong> Rejected: the cap's own stated purpose from day one was to protect against MCP clients that <em>don't</em> have graceful overflow handling — a case this investigation didn't and can't rule out, since only one client was tested. Removing the mechanism trades a known, cheap safety net for an assumption that holds for exactly one client.</li>
+<li><strong>Make the existing opt-in <code>local_path</code> bypass automatic</strong> (write to a server-side file and return a manifest instead of raising, whenever the cap would otherwise trip). Considered a genuinely reasonable alternative — it would protect any MCP client uniformly rather than depending on Claude Code's specific behavior. Not chosen for this issue because it inherits the same server-filesystem-locality caveat <code>local_path</code> already carries (useless to a remote SSE caller with no shared volume) and is a larger behavioral change than a config default bump. Worth reconsidering if #555's cross-client investigation finds clients that don't degrade gracefully on their own.</li>
 </ol>
-<p><code>local_path</code> (optional file/directory path) was added as an escape hatch that bypasses the cap entirely by writing the result to disk instead of returning it inline — this avoids the client output-token limit altogether, at the cost of the same server-filesystem-locality caveat <code>download_file</code>/<code>download_folder</code> already carry (meaningful for stdio and shared-volume SSE deployments; not useful for a remote SSE client with no shared filesystem).</p>
 <h2 id="decision">Decision<a class="headerlink" href="#decision" title="Permanent link">&para;</a></h2>
-<p><strong>Use Option C.</strong> Auto-detect the used range when omitted; check the actual serialized response size after fetching, not an estimate beforehand; make the cap configurable via <code>MAX_GRID_DATA_RESPONSE_CHARS</code>; offer <code>local_path</code> as an unconditional bypass.</p>
-<p>The chosen default (<code>40000</code> characters) is explicitly documented in code as <em>one environment's observed limit, not a universal constant</em> — it should not be read as an authoritative number for all MCP clients.</p>
-<h2 id="follow-up">Follow-up<a class="headerlink" href="#follow-up" title="Permanent link">&para;</a></h2>
-<p>Issue #242 tracks generalizing this pattern (post-fetch size check + configurable cap + <code>local_path</code> bypass) to other tools that can return large responses (<code>export_file</code>, <code>get_doc_content</code>, <code>get_multiple_sheet_data</code>, etc.) — out of scope for #235's fix, which is deliberately scoped to the one tool named in the bug report. That follow-up also needs to address that <code>MAX_GRID_DATA_RESPONSE_CHARS</code> was named for its one-tool scope and won't generalize as-is.</p>
+<p><strong>Raise <code>MAX_TOOL_RESPONSE_CHARS</code>'s default from <code>40000</code> to <code>1000000</code>.</strong> Keep the cap mechanism itself — it remains valuable defense-in-depth for MCP clients other than the one tested here, and for responses larger than the 2MB actually verified.</p>
+<p><code>1000000</code> was chosen with the same margin-below-the-verified-ceiling logic as the original <code>40000</code> default (chosen "with margin below the ~48-51K observed" client limit at the time): it sits at 2x margin below the 2MB confirmed-safe in this round of testing, while being large enough to fix real complaints like #512's <code>sync_folder</code> dry-run failure (which tripped at just 40,119 characters) and comfortably clear most legitimate use of the 11 currently-capped tools.</p>
+<p><strong>Scope note, unrelated to the size decision itself:</strong> the cap now applies to 11 tools (<code>get_sheet_data</code>, <code>get_multiple_sheet_data</code>, <code>get_multiple_spreadsheet_summary</code>, <code>find_in_spreadsheet</code>, <code>get_doc_content</code>, <code>find_in_doc</code>, <code>list_doc_comments</code>, <code>list_file_activity</code>, <code>export_file</code>, <code>sync_folder</code>, <code>list_all_events</code>), not the 7 the original #519 ticket title assumed — the generalization doc's own tool list (5 tools + the original <code>get_sheet_data</code>) has grown without that doc being updated to track it. <code>docs/configuration.md</code>'s config table now lists the current 11.</p>
+<h2 id="not-addressed-here">Not addressed here<a class="headerlink" href="#not-addressed-here" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Platform-specific guidance for other MCP clients.</strong> <code>MAX_TOOL_RESPONSE_CHARS</code> remains a fairly esoteric config value — an operator has to already understand their own client's overflow behavior to tune it sensibly, and this investigation only characterized one client. Filed as <a href="https://github.com/khuisman/mcp-gee-sweet/issues/555">#555</a>.</li>
+<li><strong>QA fixture re-baselining.</strong> Several existing QA test cases (<code>docs/qa/tests/sheets_read.md</code> TC-R03c/TC-R34/TC-R35, <code>docs/qa/tests/docs.md</code> TC-DOC80, <code>docs/qa/tests/drive.md</code>'s <code>export_file</code>/<code>sync_folder</code> cap tests) assert the <em>old</em> 40,000-character threshold and the fixture sizes needed to trip it. Those assertions are now stale relative to the new default and will need larger fixtures to still exercise the cap-trip path on a future live QA pass. Left untouched here — this was a scoped config-and-docs change, not a QA-suite rewrite, and fixture redesign is QA's call to make, not something to bundle in unreviewed.</li>
+</ul>
 <h2 id="when-to-re-evaluate">When to Re-evaluate<a class="headerlink" href="#when-to-re-evaluate" title="Permanent link">&para;</a></h2>
 <ul>
-<li>If #242 generalizes this pattern, this decision's env var naming and per-tool scoping should be revisited together, not left as a precedent copied ad hoc.</li>
-<li>If Claude Code's <code>MAX_MCP_OUTPUT_TOKENS</code> default changes, or another MCP client with a materially different limit becomes a primary consumer of this server, the default cap value should be re-measured rather than assumed to still be well-calibrated.</li>
+<li>If #555 finds an MCP client without graceful overflow handling becoming a primary consumer of this server, the case for keeping (or even lowering) a conservative cap gets stronger — don't assume this decision generalizes past the one client tested here.</li>
+<li>If Claude Code's own overflow-handling behavior changes again (in either direction), or a response naturally exceeding several MB becomes a realistic use case for one of the 11 capped tools, re-measure rather than assume <code>1000000</code> stays well-calibrated — same caveat every prior doc in this chain has carried.</li>
 </ul>
 
 

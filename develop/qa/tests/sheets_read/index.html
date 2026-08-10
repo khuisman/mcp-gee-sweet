@@ -1311,6 +1311,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#tc-r38-grid-data-over-the-old-cap-now-succeeds-under-the-raised-default-issue-519" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-R38: Grid data over the old cap now succeeds under the raised default (issue #519)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tc-r04-non-existent-sheet-name" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2007,7 +2018,19 @@ Set <code>MAX_TOOL_RESPONSE_CHARS=200000</code> in server config and restart the
 <p><strong>Checks</strong>
 - Call now succeeds instead of raising — confirms the cap is actually read from the env var, not hardcoded
 - Restore <code>MAX_TOOL_RESPONSE_CHARS</code> (unset it) after this test</p>
-<p><strong>Result:</strong> ⏳ Pending — not yet live-tested. Unlike TC-R03b-d, this requires a server restart with a changed env var (not just an MCP reconnect), which wasn't done this pass. Covered by unit tests (<code>test_cap_is_configurable</code> in <code>tests/sheets/test_data.py</code>, <code>test_env_var_sets_cap_at_import_time</code> in <code>tests/test_response_limits.py</code>) in the meantime. Var renamed from <code>MAX_GRID_DATA_RESPONSE_CHARS</code> by issue #242 (generalized to 5 more tools).</p>
+<p><strong>Result:</strong> ⏳ Pending — not yet live-tested. Unlike TC-R03b-d, this requires a server restart with a changed env var (not just an MCP reconnect), which wasn't done this pass. Covered by unit tests (<code>test_cap_is_configurable</code> in <code>tests/sheets/test_data.py</code>, <code>test_env_var_sets_cap_at_import_time</code> in <code>tests/test_response_limits.py</code>) in the meantime. Var renamed from <code>MAX_GRID_DATA_RESPONSE_CHARS</code> by issue #242 (generalized to 5 more tools). Note: since issue #519 raised the <em>shipped</em> default to 1,000,000, demonstrating configurability now requires setting <code>MAX_TOOL_RESPONSE_CHARS</code> below that default (e.g. <code>200000</code> as originally written still works) against a range sized to land between the custom cap and whatever the range would otherwise produce uncapped — the "over the default 40,000-character cap" framing in the Setup above is stale (pre-#519); the demonstration itself (env var actually changes behavior) doesn't depend on the specific default value.</p>
+<hr />
+<h3 id="tc-r38-grid-data-over-the-old-cap-now-succeeds-under-the-raised-default-issue-519">TC-R38: Grid data over the old cap now succeeds under the raised default (issue #519)<a class="headerlink" href="#tc-r38-grid-data-over-the-old-cap-now-succeeds-under-the-raised-default-issue-519" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Issue #519 raised <code>MAX_TOOL_RESPONSE_CHARS</code>'s default from 40,000 to 1,000,000 after live-testing found the client-connection-death failure mode the cap defends against no longer reproduces at that scale for the primary MCP client (see <code>docs/decisions/decision-response-size-cap-reevaluation-519.md</code>). This test confirms a range that used to trip the <em>old</em> default now succeeds without needing <code>local_path</code> or a <code>MAX_TOOL_RESPONSE_CHARS</code> override.</p>
+<p><strong>Setup</strong>
+Apply the same kind of formatting as TC-R03c but to a smaller range — start with <code>format_cells(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:Z23", bold=True, background_color={"red": 0.9, "green": 0.95, "blue": 1}, number_format_type="NUMBER")</code> (598 cells; TC-R03c's ~832 bytes/cell rate would put this around ~498,000 chars). Use a scratch sheet, not the shared <code>Sales</code> fixture, to avoid leaving formatting behind. Then call <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=&lt;scratch sheet&gt;, range="A1:Z23", include_grid_data=True)</code> with no <code>local_path</code> and no <code>MAX_TOOL_RESPONSE_CHARS</code> override (default server config).</p>
+<p>If the measured response lands outside the 40,000–1,000,000 band (formatting density varies), adjust the range size and re-measure — the point is landing strictly between the old and new default, not this exact range.</p>
+<p><strong>Checks</strong>
+- Call succeeds — no <code>ValueError</code> raised
+- Response contains real grid data (<code>rowData</code> present, formatting visible) — not a manifest/pointer
+- Response size (measure via the returned JSON) is confirmed to be over 40,000 characters (would have tripped the old default) and under 1,000,000 (the new default)
+- Clean up: delete the scratch sheet afterward</p>
+<p><strong>Result:</strong> ✅ PASS — live-tested against <code>mcp-gee-sweet-qa-fixtures</code> (scratch sheet <code>QA-TC-R38-Scratch</code>, deleted after). <code>get_sheet_data(..., include_grid_data=True)</code> on the formatted A1:Z23 range succeeded with no <code>ValueError</code>; response was 428,753 characters (Claude Code's own client-side MCP output cap wrote it to a local file, unrelated to the server's <code>MAX_TOOL_RESPONSE_CHARS</code> cap, which was never tripped) — comfortably between the old 40,000 default and the new 1,000,000 default. Confirmed <code>rowData</code> present with real formatting (<code>userEnteredFormat</code>/<code>effectiveFormat</code> showing bold, background color, number format) across all 23 rows, not a manifest/pointer.</p>
 <hr />
 <h3 id="tc-r04-non-existent-sheet-name">TC-R04: Non-existent sheet name<a class="headerlink" href="#tc-r04-non-existent-sheet-name" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>

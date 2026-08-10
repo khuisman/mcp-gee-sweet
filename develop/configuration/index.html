@@ -1515,8 +1515,8 @@
 </tr>
 <tr>
 <td><code>MAX_TOOL_RESPONSE_CHARS</code></td>
-<td>Safety cap on response size, in characters, for tools that can return large inline payloads (<code>get_sheet_data</code>, <code>get_multiple_sheet_data</code>, <code>find_in_spreadsheet</code>, <code>get_doc_content</code>, <code>export_file</code>, <code>list_file_activity</code>). Raise to match a raised <code>MAX_MCP_OUTPUT_TOKENS</code> in your MCP client (roughly 2 characters per token observed for densely-formatted JSON)</td>
-<td><code>40000</code></td>
+<td>Safety cap on response size, in characters, for tools that can return large inline payloads (<code>get_sheet_data</code>, <code>get_multiple_sheet_data</code>, <code>get_multiple_spreadsheet_summary</code>, <code>find_in_spreadsheet</code>, <code>get_doc_content</code>, <code>find_in_doc</code>, <code>list_doc_comments</code>, <code>list_file_activity</code>, <code>export_file</code>, <code>sync_folder</code>, <code>list_all_events</code>). Defense-in-depth against MCP clients that don't degrade gracefully on an oversized tool response — see <a href="../decisions/decision-response-size-cap-reevaluation-519/">decision-response-size-cap-reevaluation-519.md</a> for why the default was raised and what it does and doesn't protect against</td>
+<td><code>1000000</code></td>
 </tr>
 <tr>
 <td><code>HOST</code> (or <code>FASTMCP_HOST</code>)</td>
