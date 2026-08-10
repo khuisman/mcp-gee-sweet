@@ -3050,3 +3050,33 @@ Tool call: `write_doc_content(doc_id={DOC_ID}, content="Before\n\n![Big](/tmp/qa
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
 **Result (2026-08-09) ✅ PASS (run via `create_doc` substitute) — run live against PR #554 (issue #400).** This worktree's server has no `DRIVE_FOLDER_ID` configured, so `write_doc_content` itself returned `"folder_id is required to upload a local image (no server default folder configured)"` before ever reaching the size check — an environment gap, not a PR defect (`write_doc_content` has no per-call folder override by design). Re-ran the identical markdown content through `create_doc(folder_id={FOLDER_ID}, ...)` instead, which shares the same `_apply_doc_content` code path and does accept an explicit folder: call succeeded with no API error, "Before"/"After" paragraphs both present, `images[0].error` contained "36.0 megapixels"/"25 megapixels", and no file was uploaded to the target folder.
+
+---
+
+### TC-DOC167: `insert_local_images` — a real batchUpdate "too large" rejection (image under the megapixel pre-check but over Google's byte-size limit) gets the rewritten error, not Google's raw message
+**Background:** `check_image_bytes`/`check_dimensions` only enforce Google's ~25-megapixel limit, not the ~50MB file-size limit `images.py`'s own module docstring also cites from Google's docs — so an image under 25 megapixels but with a very large byte size (e.g. low-compressibility noise data) passes pre-validation silently and reaches the real `batchUpdate` call, which Google can still reject as "too large." This is the only realistic way to reach `insert_local_images`'s doc-edit-failure error-rewrite path live (round 1's finding on PR #554) — every other reachable oversized-image case is caught by pre-validation first.
+
+**Setup:** generate a real, Pillow-decodable PNG that stays under the megapixel limit but is large in bytes — noise data compresses poorly, so this reliably produces a large file:
+```
+uv run python3 -c "
+import os
+from PIL import Image
+w, h = 4800, 5000  # 24.0 megapixels — under the 25MP pre-check
+img = Image.frombytes('RGB', (w, h), os.urandom(w*h*3))
+img.save('/tmp/qa-bigfile.png', compress_level=1)
+"
+```
+(Produces a ~75MB file, safely over Google's documented 50MB ceiling while staying under the megapixel pre-check.)
+
+**Prompt**
+> "In doc {DOC_ID}, insert local images: marker 'IMGMARKERBIG', local_path '/tmp/qa-bigfile.png', into folder {FOLDER_ID}"
+
+Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBIG", "local_path": "/tmp/qa-bigfile.png"}], folder_id={FOLDER_ID})`
+
+**Checks**
+- `results[0]` has a `fileId` (the file *was* uploaded — pre-validation didn't catch it) and an `error` starting with `"doc edit failed: <HttpError 400 ... The provided image is too large...>"` followed by the appended `"This is very likely Google Docs' inline-image limit of 25 megapixels (...) — check the image's pixel dimensions and resize it before retrying."` explanation — confirms the round-1 fix (commit `badad67`) is live
+- `get_doc_structure` shows the "IMGMARKERBIG" marker text still present, unchanged — the failed batchUpdate applied no edits at all, including the marker deletion
+
+**Cleanup:** trash the uploaded file (`results[0].fileId`); write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-09) ✅ PASS — run live against PR #554 round 2 (fix commit badad67, issue #400).** First attempt (immediately after a reconnect that had happened *before* the worktree was synced to `badad67`) reproduced the exact stale-reconnect trap this project's QA process has hit before — the error came back unrewritten. A second reconnect (after confirming the worktree was already on the fix commit) plus a retry got the correctly rewritten error: `doc edit failed: <HttpError 400 ... "The provided image is too large."> This is very likely Google Docs' inline-image limit of 25 megapixels (...) — check the image's pixel dimensions and resize it before retrying.` Marker text confirmed unchanged after the failed call.
