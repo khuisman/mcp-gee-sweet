@@ -1,10 +1,12 @@
 """Tests for docs content tools and HTML/Markdown pipeline."""
 
+import io
 import json
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from googleapiclient.errors import HttpError
+from PIL import Image as PILImage
 
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools import response_limits
@@ -28,6 +30,15 @@ from mcp_gee_sweet.tools.docs.content import (
     _to_doc_requests,
 )
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
+
+
+def _make_png_bytes(width: int, height: int) -> bytes:
+    """A real (but minimal-content) PNG at the given pixel dimensions, for #400's
+    inline-image size-limit tests — Pillow needs to actually decode a header to read
+    dimensions, so a fake byte string won't do."""
+    buf = io.BytesIO()
+    PILImage.new("RGB", (width, height), color="red").save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def _make_tool_registry():
@@ -1125,6 +1136,7 @@ class TestResolveImageSource:
 
     async def test_sharing_failure_is_error(self, tmp_path):
         drive_svc = MagicMock()
+        drive_svc.files.return_value.get.return_value.execute.return_value = {"name": "file1"}
         drive_svc.permissions.return_value.create.return_value.execute.side_effect = RuntimeError(
             "boom"
         )
@@ -1141,6 +1153,105 @@ class TestResolveImageSource:
         result = await _resolve_image_source(drive_svc, "drive:file1", "folder1")
         assert "error" in result
         assert "webContentLink" in result["error"]
+
+    async def test_oversized_drive_image_fails_fast_without_sharing(self):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "name": "big.png",
+            "imageMediaMetadata": {"width": 14609, "height": 2434},
+        }
+        result = await _resolve_image_source(drive_svc, "drive:file1", "folder1")
+        assert "error" in result
+        assert "35.6 megapixels" in result["error"]
+        assert "auto_downscale=True" in result["error"]
+        drive_svc.permissions.assert_not_called()
+
+    async def test_undersized_drive_image_still_shares_normally(self):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "name": "small.png",
+            "imageMediaMetadata": {"width": 100, "height": 100},
+            "webContentLink": "https://drive.google.com/uc?id=file1",
+        }
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm1"
+        }
+        result = await _resolve_image_source(drive_svc, "drive:file1", "folder1")
+        assert result == {
+            "uri": "https://drive.google.com/uc?id=file1",
+            "file_id": "file1",
+            "permission_id": "perm1",
+        }
+
+    async def test_oversized_drive_image_auto_downscale_creates_resized_copy(self):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.get.return_value.execute.side_effect = [
+            {
+                "name": "big.png",
+                "parents": ["folder1"],
+                "imageMediaMetadata": {"width": 6000, "height": 6000},
+            },
+            {"webContentLink": "https://drive.google.com/uc?id=resized1"},
+        ]
+        drive_svc.files.return_value.create.return_value.execute.return_value = {"id": "resized1"}
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm-resized"
+        }
+
+        png_bytes = _make_png_bytes(6000, 6000)
+
+        class _FakeDownloader:
+            def __init__(self, fh, request):
+                fh.write(png_bytes)
+
+            def next_chunk(self):
+                return None, True
+
+        with (
+            patch("mcp_gee_sweet.tools.docs.images.MediaIoBaseDownload", _FakeDownloader),
+            patch("mcp_gee_sweet.tools.docs.images.thread_http"),
+        ):
+            result = await _resolve_image_source(
+                drive_svc, "drive:file1", "folder1", auto_downscale=True
+            )
+
+        assert result == {
+            "uri": "https://drive.google.com/uc?id=resized1",
+            "file_id": "resized1",
+            "permission_id": "perm-resized",
+        }
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["body"]["name"] == "big.png (resized)"
+        assert create_kwargs["body"]["parents"] == ["folder1"]
+
+    async def test_oversized_local_image_fails_fast_without_upload(self, tmp_path):
+        img = tmp_path / "big.png"
+        img.write_bytes(_make_png_bytes(14609, 2434))
+        drive_svc = MagicMock()
+        result = await _resolve_image_source(drive_svc, str(img), "folder1")
+        assert "error" in result
+        assert "35.6 megapixels" in result["error"]
+        drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_oversized_local_image_auto_downscale_uploads_resized_bytes(self, tmp_path):
+        img = tmp_path / "big.png"
+        img.write_bytes(_make_png_bytes(6000, 6000))
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {"id": "resized2"}
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm-resized2"
+        }
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "webContentLink": "https://drive.google.com/uc?id=resized2"
+        }
+        result = await _resolve_image_source(drive_svc, str(img), "folder1", auto_downscale=True)
+        assert result == {
+            "uri": "https://drive.google.com/uc?id=resized2",
+            "file_id": "resized2",
+            "permission_id": "perm-resized2",
+        }
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["body"]["name"] == "big.png"
 
 
 class TestCreateDocImages:
@@ -1346,6 +1457,60 @@ class TestCreateDocImages:
         assert not any(
             r.get("insertInlineImage", {}).get("uri") == bad_uri for r in second_call_requests
         )
+        assert docs_svc.documents.return_value.batchUpdate.call_count == 2
+
+    async def test_oversized_uri_image_error_is_rewritten(self):
+        # A bare http(s) image source can't be pre-validated (#400's scope boundary
+        # — see docs/decisions/decision-pillow-image-dependency.md): this is its only
+        # chance to learn the size-limit cause, via the same retry-and-rewrite path
+        # test_one_bad_image_url_does_not_fail_the_whole_document exercises above.
+        drive_svc, docs_svc = self._make_services()
+        uri = "https://example.com/huge.png"
+
+        def batchupdate_side_effect(documentId, body):
+            m = MagicMock()
+            bad_index = next(
+                (
+                    i
+                    for i, r in enumerate(body["requests"])
+                    if r.get("insertInlineImage", {}).get("uri") == uri
+                ),
+                None,
+            )
+            if bad_index is None:
+                # A batchUpdate call unrelated to the image request (e.g. bullet
+                # handling for an unrelated part of the content pipeline) —
+                # succeed normally, same as the real API would.
+                m.execute.return_value = {}
+                return m
+            resp = MagicMock()
+            resp.status = 400
+            message = (
+                f"Invalid requests[{bad_index}].insertInlineImage: The provided image is too large."
+            )
+            content = json.dumps({"error": {"code": 400, "message": message}}).encode()
+            if not batchupdate_side_effect.called:
+                batchupdate_side_effect.called = True
+                m.execute.side_effect = HttpError(
+                    resp=resp,
+                    content=content,
+                    uri="https://docs.googleapis.com/v1/documents/x:batchUpdate",
+                )
+            else:
+                m.execute.return_value = {}
+            return m
+
+        batchupdate_side_effect.called = False
+        docs_svc.documents.return_value.batchUpdate.side_effect = batchupdate_side_effect
+        ctx = self._ctx(drive_svc, docs_svc)
+
+        result = await _docs_tools["create_doc"](
+            title="Doc", content=f"![Huge]({uri})", content_format="markdown", ctx=ctx
+        )
+
+        error = result["images"][0]["error"]
+        assert "25 megapixels" in error
+        assert "auto_downscale" not in error  # uri source can't use it
         assert docs_svc.documents.return_value.batchUpdate.call_count == 2
 
     async def test_duplicate_image_uri_retry_failure_attributed_to_correct_image(self):
@@ -1996,7 +2161,9 @@ class TestInsertInlineImage:
         )
         assert "error" not in result
         drive_svc.files.return_value.get.assert_called_with(
-            fileId="file1", fields="webContentLink", supportsAllDrives=True
+            fileId="file1",
+            fields="name,parents,webContentLink,imageMediaMetadata",
+            supportsAllDrives=True,
         )
         body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
         req = body["requests"][0]["insertInlineImage"]
@@ -2037,6 +2204,84 @@ class TestInsertInlineImage:
             doc_id="doc1", index=1, uri="https://example.com/img.png", ctx=ctx
         )
         assert "error" in result
+
+    async def test_oversized_drive_image_fails_fast_without_batchupdate(self):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "name": "big.png",
+            "webContentLink": "https://drive.google.com/uc?id=file1",
+            "imageMediaMetadata": {"width": 14609, "height": 2434},
+        }
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc)
+        result = await _docs_tools["insert_inline_image"](
+            doc_id="doc1", index=1, drive_file_id="file1", ctx=ctx
+        )
+        assert "error" in result
+        assert "35.6 megapixels" in result["error"]
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_oversized_drive_image_auto_downscale_inserts_resized_copy(self):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.get.return_value.execute.side_effect = [
+            {
+                "name": "big.png",
+                "parents": ["folder1"],
+                "webContentLink": "https://drive.google.com/uc?id=file1",
+                "imageMediaMetadata": {"width": 6000, "height": 6000},
+            },
+            {"webContentLink": "https://drive.google.com/uc?id=resized1"},
+        ]
+        drive_svc.files.return_value.create.return_value.execute.return_value = {"id": "resized1"}
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm-resized"
+        }
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc)
+
+        png_bytes = _make_png_bytes(6000, 6000)
+
+        class _FakeDownloader:
+            def __init__(self, fh, request):
+                fh.write(png_bytes)
+
+            def next_chunk(self):
+                return None, True
+
+        with (
+            patch("mcp_gee_sweet.tools.docs.images.MediaIoBaseDownload", _FakeDownloader),
+            patch("mcp_gee_sweet.tools.docs.images.thread_http"),
+        ):
+            result = await _docs_tools["insert_inline_image"](
+                doc_id="doc1",
+                index=1,
+                drive_file_id="file1",
+                auto_downscale=True,
+                ctx=ctx,
+            )
+
+        assert "error" not in result
+        assert result["resized_file_id"] == "resized1"
+        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
+        req = body["requests"][0]["insertInlineImage"]
+        assert req["uri"] == "https://drive.google.com/uc?id=resized1"
+
+    async def test_too_large_batchupdate_error_is_rewritten(self):
+        docs_svc = MagicMock()
+        resp = MagicMock()
+        resp.status = 400
+        message = "Invalid requests[0].insertInlineImage: The provided image is too large."
+        content = json.dumps({"error": {"code": 400, "message": message}}).encode()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = HttpError(
+            resp=resp, content=content, uri="https://docs.googleapis.com/v1/documents/x:batchUpdate"
+        )
+        ctx = self._ctx(docs_svc=docs_svc)
+        result = await _docs_tools["insert_inline_image"](
+            doc_id="doc1", index=1, uri="https://example.com/img.png", ctx=ctx
+        )
+        assert "error" in result
+        assert "25 megapixels" in result["error"]
+        assert "auto_downscale" not in result["error"]  # uri source can't use it
 
 
 # ---------------------------------------------------------------------------
@@ -3228,6 +3473,36 @@ class TestInsertLocalImages:
             fileId="img1", permissionId="anyoneWithLink", supportsAllDrives=True
         )
 
+    async def test_failed_batchupdate_too_large_error_is_rewritten(self, tmp_path):
+        # QA round 1 finding (PR #554): this doc-edit-failure path is one of three
+        # insertInlineImage call sites #400 touched, but the only one that didn't
+        # apply rewrite_too_large_error — an image that got this far (oversized but
+        # undecodable by Pillow, so pre-validation silently skipped it) still got
+        # Google's raw, opaque message instead of the clarified one.
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        resp = MagicMock()
+        resp.status = 400
+        message = "Invalid requests[0].insertInlineImage: The provided image is too large."
+        content = json.dumps({"error": {"code": 400, "message": message}}).encode()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = HttpError(
+            resp=resp, content=content, uri="https://docs.googleapis.com/v1/documents/x:batchUpdate"
+        )
+        drive_svc = self._drive_svc()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        error = result["results"][0]["error"]
+        assert message in error
+        assert "25 megapixels" in error
+
     async def test_failed_batchupdate_with_revoke_sharing_false_leaves_image_shared(self, tmp_path):
         img = tmp_path / "pic.png"
         img.write_bytes(b"fake")
@@ -3296,3 +3571,55 @@ class TestInsertLocalImages:
         assert [r["marker"] for r in result["results"]] == ["MISSING", "ONE"]
         assert "error" in result["results"][0]
         assert "error" not in result["results"][1]
+
+    async def test_oversized_local_image_fails_fast_without_upload(self, tmp_path):
+        img = tmp_path / "big.png"
+        img.write_bytes(_make_png_bytes(14609, 2434))
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        drive_svc = self._drive_svc()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        assert "error" in result["results"][0]
+        assert "35.6 megapixels" in result["results"][0]["error"]
+        drive_svc.files.return_value.create.assert_not_called()
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_oversized_local_image_auto_downscale_uploads_resized_bytes(self, tmp_path):
+        img = tmp_path / "big.png"
+        img.write_bytes(_make_png_bytes(6000, 6000))
+        doc, paragraphs = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        drive_svc = self._drive_svc(file_id="resized1")
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+        marker_start = paragraphs[0][0]
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            auto_downscale=True,
+            ctx=ctx,
+        )
+
+        assert result["results"] == [
+            {
+                "marker": "MARKER",
+                "local_path": str(img),
+                "fileId": "resized1",
+                "downscaled": True,
+                "index": marker_start,
+                "shared": False,
+            }
+        ]
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["body"]["name"] == "big.png"
+        # The full-size original bytes were never uploaded as-is — only the
+        # resized copy — so create() was called exactly once, not once per
+        # attempt.
+        drive_svc.files.return_value.create.assert_called_once()

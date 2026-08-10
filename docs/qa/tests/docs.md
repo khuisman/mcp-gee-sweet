@@ -2928,3 +2928,155 @@ Tool call: `write_doc_content(doc_id={DOC_ID}, content="> - Quoted item one\n> -
 **Cleanup:** write fixture content back
 
 **Result (2026-08-07) ✅ PASS — run live against PR #546 round 2 (fix commit ba78e61) (issue #476).** Both items landed as list paragraphs sharing one `listId`, text exactly "Quoted item one" / "Quoted item two" with no leaked markdown syntax. Raw `documents().get()` read: both paragraphs had `borderLeft` present.
+
+---
+
+## Oversized inline-image handling — `insert_inline_image` / `insert_local_images` / markdown-image embedding (#400)
+
+**Background:** Google Docs' `insertInlineImage` rejects any image over ~25 megapixels with a raw `HttpError 400 "...The provided image is too large."` that names neither the actual limit nor the image's own size. `tools/docs/images.py` adds pre-validation (default: a clear error naming the limit and the image's actual size, before any upload/share/embed happens) and an opt-in `auto_downscale` param that resizes the image instead of failing — for sources whose bytes this server already has direct access to (`drive_file_id`, a `"drive:"` reference, or a local file path). A bare public `http(s)` uri can't be pre-validated this way (would mean fetching arbitrary external content just to check it) — it instead gets Google's own error message rewritten with the same explanation once the embed actually fails. See `docs/decisions/decision-pillow-image-dependency.md` for the full scope-boundary rationale.
+
+**Setup (all cases below):** generate a throwaway oversized test PNG — 6000×6000 = 36 megapixels, safely over the 25MP limit — not committed to the repo (too large):
+```
+uv run python3 -c "from PIL import Image; Image.new('RGB', (6000, 6000), 'red').save('/tmp/qa-oversized.png')"
+```
+
+### TC-DOC161: `insert_inline_image` with an oversized `drive_file_id` fails fast with a clear, actionable error
+**Setup:** upload the oversized PNG — `upload_local_file(local_path="/tmp/qa-oversized.png", parent_folder_id={FOLDER_ID}, name="qa-oversized.png")` — note the returned `fileId` as `{OVERSIZED_FILE_ID}`
+
+**Prompt**
+> "Insert the image at Drive file {OVERSIZED_FILE_ID} at index 1 in doc {DOC_ID}"
+
+Tool call: `insert_inline_image(doc_id={DOC_ID}, index=1, drive_file_id={OVERSIZED_FILE_ID})`
+
+**Checks**
+- Returns `{"error": ...}` containing "36.0 megapixels", "25 megapixels", and "auto_downscale=True"
+- `get_doc_structure` on `{DOC_ID}` is unchanged from before the call — no `insertInlineImage` reached the Docs API
+
+**Cleanup:** trash the uploaded `{OVERSIZED_FILE_ID}` file
+
+**Result (2026-08-09) ✅ PASS — run live against PR #554 (issue #400).** Error: "Image is 6000x6000 (36.0 megapixels), which exceeds Google Docs' inline-image limit of 25 megapixels (...). Resize it before inserting, or pass auto_downscale=True to have it resized automatically." `get_doc_structure` before/after calls were byte-identical.
+
+---
+
+### TC-DOC162: `insert_inline_image` `auto_downscale=True` resizes and embeds a copy, leaving the original untouched ⚠️ requires-oauth ⚠️ destructive
+**Setup:** same as TC-DOC161 — note `{OVERSIZED_FILE_ID}`
+
+**Prompt**
+**Playwright: required**
+> "Insert the image at Drive file {OVERSIZED_FILE_ID} at index 1 in doc {DOC_ID}, resizing it automatically if it's too large"
+
+Tool call: `insert_inline_image(doc_id={DOC_ID}, index=1, drive_file_id={OVERSIZED_FILE_ID}, auto_downscale=True)`
+
+**Checks**
+- Call succeeds with no API error; response includes `resized_file_id`, distinct from `{OVERSIZED_FILE_ID}`
+- `get_file_metadata({resized_file_id})` name is `"qa-oversized.png (resized)"`
+- `{OVERSIZED_FILE_ID}` itself still exists, untrashed, unmodified (the original is never touched — no `update()`/`delete()` against it)
+- 🔍 Visual check in Google Docs: an image renders at the insertion point
+
+**Cleanup:** delete the inserted image range (`delete_doc_range` on its index span); trash both `{OVERSIZED_FILE_ID}` and `{resized_file_id}`
+
+**Result (2026-08-09) ✅ PASS — run live against PR #554 (issue #400).** `resized_file_id` returned, distinct from the original; `get_file_metadata` on it read name `"qa-oversized.png (resized)"`; original file's checksum/size/trashed status unchanged after the call. Playwright screenshot of the doc confirmed the image rendered at the insertion point. (Note: the fixture doc has unrelated stray header content from earlier header/footer test runs, visible above the inserted image in the screenshot — pre-existing fixture pollution, not caused by this PR.)
+
+---
+
+### TC-DOC163: `insert_inline_image` with a too-large public `uri` gets Google's error rewritten with the size-limit explanation, not pre-validated
+**Setup:** temporarily share the oversized PNG for a public URL — upload it (`upload_local_file` as in TC-DOC161), then `share_file(file_id={OVERSIZED_FILE_ID}, permissions=[{"type": "anyone", "role": "reader"}])`, and use `https://drive.google.com/uc?export=download&id={OVERSIZED_FILE_ID}` as `{OVERSIZED_WEB_CONTENT_LINK}` — neither `get_file_metadata` nor `upload_local_file`'s response actually surfaces Drive's `webContentLink` field (confirmed live 2026-08-09: `get_file_metadata`'s field mask requests `webViewLink` only), so the direct-download URL convention is the only way to get a fetchable link from these tools alone.
+
+**Prompt**
+> "Insert the image at uri '{OVERSIZED_WEB_CONTENT_LINK}' at index 1 in doc {DOC_ID}"
+
+Tool call: `insert_inline_image(doc_id={DOC_ID}, index=1, uri="{OVERSIZED_WEB_CONTENT_LINK}")`
+
+**Checks**
+- Returns `{"error": ...}` containing Google's own raw "too large" message *and* the appended "25 megapixels" / limits-URL explanation — confirms the rewrite appends rather than replaces the original message
+- Error does not mention `auto_downscale` (not supported for a bare `uri` source)
+
+**Cleanup:** remove the `anyone` permission from `{OVERSIZED_FILE_ID}`; trash the file
+
+**Result (2026-08-09) ✅ PASS — run live against PR #554 (issue #400).** Error: `<HttpError 400 ... "Invalid requests[0].insertInlineImage: The provided image is too large."> This is very likely Google Docs' inline-image limit of 25 megapixels (...) — check the image's pixel dimensions and resize it before retrying.` — Google's raw message preserved, explanation appended, no mention of `auto_downscale`.
+
+---
+
+### TC-DOC164: `insert_local_images` with an oversized local image fails fast per-image, without ever uploading it
+**Setup:** create a doc with a marker — `write_doc_content(doc_id={DOC_ID}, content="<p>IMGMARKERONE</p>")`
+
+**Prompt**
+> "In doc {DOC_ID}, insert local images: marker 'IMGMARKERONE', local_path '/tmp/qa-oversized.png', into folder {FOLDER_ID}"
+
+Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERONE", "local_path": "/tmp/qa-oversized.png"}], folder_id={FOLDER_ID})`
+
+**Checks**
+- `results` has one entry with an `error` containing "36.0 megapixels" / "25 megapixels", no `fileId`
+- `list_files(folder_id={FOLDER_ID}, query="qa-oversized.png")` returns no results — the oversized file was never uploaded
+- `get_doc_structure` shows the "IMGMARKERONE" marker text still present, unchanged
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-09) ✅ PASS — run live against PR #554 (issue #400).** `results[0].error` contained "36.0 megapixels"/"25 megapixels", no `fileId`. `list_files(folder_id={FOLDER_ID}, mime_type="image/png")` returned empty — no upload occurred. Marker paragraph unchanged.
+
+---
+
+### TC-DOC165: `insert_local_images` `auto_downscale=True` uploads and embeds a resized copy ⚠️ requires-oauth ⚠️ destructive
+**Setup:** create a doc with a marker — `write_doc_content(doc_id={DOC_ID}, content="<p>IMGMARKERONE</p>")`
+
+**Prompt**
+**Playwright: required**
+> "In doc {DOC_ID}, insert local images: marker 'IMGMARKERONE', local_path '/tmp/qa-oversized.png', into folder {FOLDER_ID}, auto-downscaling if too large"
+
+Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERONE", "local_path": "/tmp/qa-oversized.png"}], folder_id={FOLDER_ID}, auto_downscale=True)`
+
+**Checks**
+- `results` has one entry with no `error`, a `fileId`, `downscaled: true`, and `index` equal to the marker paragraph's `startIndex` (from a prior `get_doc_structure`)
+- The uploaded file's name is `"qa-oversized.png"` (unsuffixed — unlike TC-DOC162's drive_file_id path, there's no original-file naming collision to avoid here)
+- 🔍 Visual check in Google Docs: an image renders where the marker used to be
+
+**Cleanup:** write fixture content back over `{DOC_ID}`; trash the uploaded image file
+
+**Result (2026-08-09) ✅ PASS — run live against PR #554 (issue #400).** `results[0]` had no `error`, `fileId` present, `downscaled: true`, `index` equal to the marker paragraph's `startIndex` (1). Uploaded file name was unsuffixed `"qa-oversized.png"`. Playwright screenshot confirmed the image rendered where the marker had been.
+
+---
+
+### TC-DOC166: An oversized local-path image in markdown content fails per-image without blocking the rest of the doc ⚠️ requires-oauth ⚠️ destructive
+**Prompt**
+> "Write this Markdown to doc {DOC_ID}: 'Before\n\n![Big](/tmp/qa-oversized.png)\n\nAfter'"
+
+Tool call: `write_doc_content(doc_id={DOC_ID}, content="Before\n\n![Big](/tmp/qa-oversized.png)\n\nAfter", content_format="markdown")`
+
+**Checks**
+- Call succeeds with no API error; `get_doc_structure` shows "Before" and "After" paragraphs present
+- Response's `images` has one entry for `/tmp/qa-oversized.png` with an `error` containing "36.0 megapixels" / "25 megapixels", no `fileId`
+- No file named "qa-oversized.png" was uploaded to the server's default folder
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-09) ✅ PASS (run via `create_doc` substitute) — run live against PR #554 (issue #400).** This worktree's server has no `DRIVE_FOLDER_ID` configured, so `write_doc_content` itself returned `"folder_id is required to upload a local image (no server default folder configured)"` before ever reaching the size check — an environment gap, not a PR defect (`write_doc_content` has no per-call folder override by design). Re-ran the identical markdown content through `create_doc(folder_id={FOLDER_ID}, ...)` instead, which shares the same `_apply_doc_content` code path and does accept an explicit folder: call succeeded with no API error, "Before"/"After" paragraphs both present, `images[0].error` contained "36.0 megapixels"/"25 megapixels", and no file was uploaded to the target folder.
+
+---
+
+### TC-DOC167: `insert_local_images` — a real batchUpdate "too large" rejection (image under the megapixel pre-check but over Google's byte-size limit) gets the rewritten error, not Google's raw message
+**Background:** `check_image_bytes`/`check_dimensions` only enforce Google's ~25-megapixel limit, not the ~50MB file-size limit `images.py`'s own module docstring also cites from Google's docs — so an image under 25 megapixels but with a very large byte size (e.g. low-compressibility noise data) passes pre-validation silently and reaches the real `batchUpdate` call, which Google can still reject as "too large." This is the only realistic way to reach `insert_local_images`'s doc-edit-failure error-rewrite path live (round 1's finding on PR #554) — every other reachable oversized-image case is caught by pre-validation first.
+
+**Setup:** generate a real, Pillow-decodable PNG that stays under the megapixel limit but is large in bytes — noise data compresses poorly, so this reliably produces a large file:
+```
+uv run python3 -c "
+import os
+from PIL import Image
+w, h = 4800, 5000  # 24.0 megapixels — under the 25MP pre-check
+img = Image.frombytes('RGB', (w, h), os.urandom(w*h*3))
+img.save('/tmp/qa-bigfile.png', compress_level=1)
+"
+```
+(Produces a ~75MB file, safely over Google's documented 50MB ceiling while staying under the megapixel pre-check.)
+
+**Prompt**
+> "In doc {DOC_ID}, insert local images: marker 'IMGMARKERBIG', local_path '/tmp/qa-bigfile.png', into folder {FOLDER_ID}"
+
+Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBIG", "local_path": "/tmp/qa-bigfile.png"}], folder_id={FOLDER_ID})`
+
+**Checks**
+- `results[0]` has a `fileId` (the file *was* uploaded — pre-validation didn't catch it) and an `error` starting with `"doc edit failed: <HttpError 400 ... The provided image is too large...>"` followed by the appended `"This is very likely Google Docs' inline-image limit of 25 megapixels (...) — check the image's pixel dimensions and resize it before retrying."` explanation — confirms the round-1 fix (commit `badad67`) is live
+- `get_doc_structure` shows the "IMGMARKERBIG" marker text still present, unchanged — the failed batchUpdate applied no edits at all, including the marker deletion
+
+**Cleanup:** trash the uploaded file (`results[0].fileId`); write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-09) ✅ PASS — run live against PR #554 round 2 (fix commit badad67, issue #400).** First attempt (immediately after a reconnect that had happened *before* the worktree was synced to `badad67`) reproduced the exact stale-reconnect trap this project's QA process has hit before — the error came back unrewritten. A second reconnect (after confirming the worktree was already on the fix commit) plus a retry got the correctly rewritten error: `doc edit failed: <HttpError 400 ... "The provided image is too large."> This is very likely Google Docs' inline-image limit of 25 megapixels (...) — check the image's pixel dimensions and resize it before retrying.` Marker text confirmed unchanged after the failed call.
