@@ -81,7 +81,7 @@ class TestGetSheetData:
         # blank range costs almost nothing, while a 1,300-cell formatted one hit ~984K
         # chars. So the check has to run on the real serialized result, which means the
         # fetch itself already happened by the time we raise.
-        big_grid_result = {"filler": "x" * 300_000}
+        big_grid_result = {"filler": "x" * 1_200_000}
         svc = self._service(grid_result=big_grid_result)
         ctx = _make_ctx(sheets_service=svc)
         with pytest.raises(ValueError, match="safety cap"):
@@ -143,7 +143,7 @@ class TestGetSheetData:
     async def test_local_path_bypasses_cap_and_writes_grid_result(self, tmp_path):
         # Actually over the size cap — local_path should bypass the check entirely,
         # not just happen to be under it.
-        grid_result = {"filler": "x" * 300_000}
+        grid_result = {"filler": "x" * 1_200_000}
         svc = self._service(grid_result=grid_result)
         ctx = _make_ctx(sheets_service=svc)
         dest = tmp_path / "out.json"
