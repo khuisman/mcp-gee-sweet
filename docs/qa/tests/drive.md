@@ -2023,14 +2023,14 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-232/`.
 
 ---
 
-### TC-D119: Invalid direction raises error ⚠️ local-filesystem
+### TC-D119: Invalid direction returns error ⚠️ local-filesystem (issue #488)
 
 **Prompt**
 > "Sync {FOLDER_ID} with `/tmp/qa-sync/` using direction='mirror'"
 
 **Checks**
-- `ValueError` raised immediately, before any API calls
-- Error message lists the valid direction values
+- Tool returns `{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}` — not a raised exception, not a silent no-op
+- No Drive API calls made (rejected before any upload/download work)
 
 ---
 

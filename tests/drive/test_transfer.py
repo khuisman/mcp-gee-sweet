@@ -899,6 +899,38 @@ def _drive_folder(name, folder_id):
     return {"id": folder_id, "name": name, "mimeType": "application/vnd.google-apps.folder"}
 
 
+class TestSyncFolderDirectionValidation:
+    """Issue #488: `sync_folder` already rejected an unrecognized `direction`
+    up front (a `raise ValueError`, present since the domain-based refactor)
+    — `_sync_level` itself has no such check, but it's only ever reached
+    through this validated wrapper, so a bad value could never actually reach
+    it. The real gap was the error's shape: a raised exception rather than
+    the `{"error": ...}` dict every other bad-enum-like-param case in this
+    codebase returns (e.g. `add_data_validation`'s `condition_type`), and
+    there was no test coverage of either behavior. Fixed by returning the
+    dict instead of raising, per the maintainer's decision on the issue."""
+
+    def _ctx(self, fs: _FakeDriveFS):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = fs.svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    async def test_invalid_direction_returns_error_dict(self, tmp_path):
+        fs = _FakeDriveFS({"root": [_drive_file("readme.txt", "f1")]})
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="mirror",
+            ctx=self._ctx(fs),
+        )
+        assert result == {
+            "error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."
+        }
+        assert fs.list_calls == []  # rejected before any Drive API call
+
+
 class TestSyncFolderRecursive:
     """Issue #315: sync_folder silently ignored every subfolder, one level deep,
     reporting a clean 'in sync' result instead of surfacing the gap. `recursive=True`
