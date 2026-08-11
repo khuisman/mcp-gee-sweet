@@ -370,6 +370,51 @@ class TestQuotaErrors:
             await _drive_tools["create_spreadsheet"](title="Test", ctx=ctx)
 
 
+class TestListDrives:
+    def _drive_service(self):
+        return MagicMock()
+
+    def _page(self, n, next_token=None):
+        drives = [
+            {"id": f"d{i}", "name": f"Drive {i}", "createdTime": "2026-01-01T00:00:00Z"}
+            for i in range(n)
+        ]
+        result = {"drives": drives}
+        if next_token:
+            result["nextPageToken"] = next_token
+        return result
+
+    async def test_follows_next_page_token_across_pages(self):
+        svc = self._drive_service()
+        svc.drives.return_value.list.return_value.execute.side_effect = [
+            self._page(100, next_token="page2"),
+            self._page(60),
+        ]
+        ctx = _make_ctx(drive_service=svc)
+
+        result = await _drive_tools["list_drives"](max_results=150, ctx=ctx)
+
+        assert svc.drives.return_value.list.call_count == 2
+        first_kwargs, second_kwargs = (
+            c.kwargs for c in svc.drives.return_value.list.call_args_list
+        )
+        assert "pageToken" not in first_kwargs
+        assert second_kwargs["pageToken"] == "page2"
+        assert len(result) == 150
+
+    async def test_stops_without_extra_call_when_no_next_page_token(self):
+        svc = self._drive_service()
+        svc.drives.return_value.list.return_value.execute.side_effect = [
+            self._page(5),
+        ]
+        ctx = _make_ctx(drive_service=svc)
+
+        result = await _drive_tools["list_drives"](max_results=100, ctx=ctx)
+
+        assert svc.drives.return_value.list.call_count == 1
+        assert len(result) == 5
+
+
 class TestListSharedWithMe:
     def _drive_service(self, files=None):
         mock = MagicMock()
