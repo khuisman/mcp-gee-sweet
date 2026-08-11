@@ -15,7 +15,6 @@ from mcp_gee_sweet.tools.docs.ast import (
 )
 from mcp_gee_sweet.tools.docs.content import (
     _html_to_doc_requests,
-    _html_to_text,
     _to_doc_requests,
 )
 from mcp_gee_sweet.tools.docs.emitter import (
@@ -46,41 +45,6 @@ def _row(*cells: Cell) -> Row:
 
 def _table(*rows: Row) -> Table:
     return Table(rows=list(rows))
-
-
-class TestHtmlToText:
-    def test_plain_paragraph(self):
-        assert _html_to_text("<p>Hello world</p>") == "Hello world"
-
-    def test_multiple_paragraphs(self):
-        result = _html_to_text("<p>First</p><p>Second</p>")
-        assert "First" in result
-        assert "Second" in result
-        assert result.index("First") < result.index("Second")
-
-    def test_line_break(self):
-        result = _html_to_text("Line one<br>Line two")
-        assert "\n" in result
-
-    def test_strips_tags(self):
-        result = _html_to_text("<h1>Title</h1><p>Body</p>")
-        assert "<h1>" not in result
-        assert "Title" in result
-        assert "Body" in result
-
-    def test_html_entities(self):
-        assert "&amp;" not in _html_to_text("<p>fish &amp; chips</p>")
-        assert "fish & chips" in _html_to_text("<p>fish &amp; chips</p>")
-
-    def test_numeric_html_entity(self):
-        result = _html_to_text("<p>&#169;</p>")
-        assert "©" in result
-
-    def test_empty_input(self):
-        assert _html_to_text("") == ""
-
-    def test_plain_text_passthrough(self):
-        assert _html_to_text("just text") == "just text"
 
 
 class TestHtmlToDocRequests:
