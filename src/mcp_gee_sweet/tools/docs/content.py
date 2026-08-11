@@ -874,7 +874,7 @@ def register(tool):
         or sharing failure) are returned under "images" when the content had any.
 
         A local-path or drive: image over Google Docs' ~25-megapixel inline-image limit
-        (#400) fails with a clear error naming the limit and its actual size, before any
+        fails with a clear error naming the limit and its actual size, before any
         upload/share happens — set auto_downscale=True to resize it instead (see that
         arg's own docs). A public http(s) image can't be pre-validated this way; an
         oversized one instead fails at the embed step with a rewritten error explaining
@@ -992,7 +992,7 @@ def register(tool):
         Images referenced from the file (markdown "![alt](src)" or HTML <img src=...>)
         are embedded inline the same way create_doc's own content_format='markdown'
         path handles them — see that tool's docstring for the src conventions, the
-        revoke_sharing tradeoff, and the auto_downscale/#400 size-limit behavior.
+        revoke_sharing tradeoff, and the auto_downscale size-limit behavior.
 
         For .md files specifically, upload_local_file(convert=True) is a Drive-native
         alternative: one API call using Drive's own import converter, versus this
@@ -1201,7 +1201,7 @@ def register(tool):
 
         Images are embedded inline the same way create_doc's own content_format='markdown'
         path handles them — see that tool's docstring for the src conventions, the
-        revoke_sharing tradeoff, and the auto_downscale/#400 size-limit behavior. A
+        revoke_sharing tradeoff, and the auto_downscale size-limit behavior. A
         local-path image is uploaded into the server's default folder (no per-call
         override here — pass a "drive:<file_id>" or public URL src instead if you need
         control over where the image itself lives).
@@ -1260,7 +1260,7 @@ def register(tool):
         Images referenced from the file (markdown "![alt](src)" or HTML <img src=...>)
         are embedded inline the same way create_doc's own content_format='markdown'
         path handles them — see that tool's docstring for the src conventions, the
-        revoke_sharing tradeoff, and the auto_downscale/#400 size-limit behavior.
+        revoke_sharing tradeoff, and the auto_downscale size-limit behavior.
 
         Args:
             doc_id: The Google Doc file ID to update in place.
@@ -1339,8 +1339,8 @@ def register(tool):
             nestingLevel} — nestingLevel is 0 for a top-level list item, absent
             from the raw API response in that case, normalized to 0 here so
             every list paragraph reports a level). Use this to detect a
-            markdown-to-Doc conversion that flattened an intended nested list
-            (#334) — sibling paragraphs that should differ in depth but share
+            markdown-to-Doc conversion that flattened an intended nested list —
+            sibling paragraphs that should differ in depth but share
             the same nestingLevel — then fix it with create_paragraph_bullets.
             Tables include rows, columns, and a cells list (each cell has row, col,
             startIndex, endIndex, paragraphStartIndex, text).
@@ -1819,8 +1819,8 @@ def register(tool):
                 Mutually exclusive with uri.
             width: Optional image width in points.
             height: Optional image height in points.
-            auto_downscale: Google Docs rejects any inline image over ~25 megapixels
-                (#400). When drive_file_id is provided and Drive's own reported
+            auto_downscale: Google Docs rejects any inline image over ~25 megapixels.
+                When drive_file_id is provided and Drive's own reported
                 dimensions exceed that limit, the default (False) fails fast with a
                 clear error naming the limit and the image's actual size — before
                 ever calling the Docs API. Set True to instead resize it and embed
@@ -2133,8 +2133,8 @@ def register(tool):
             revoke_sharing: Whether each image's temporary anyone:reader share is
                 revoked again after it's embedded (default True). Set False to leave
                 images shared instead — matches this tool's original behavior.
-            auto_downscale: Google Docs rejects any inline image over ~25 megapixels
-                (#400). Each image's local file is checked against that limit before
+            auto_downscale: Google Docs rejects any inline image over ~25 megapixels.
+                Each image's local file is checked against that limit before
                 it's ever uploaded. The default (False) fails just that image with a
                 clear error naming the limit and its actual size — other images in
                 the same call are unaffected. Set True to instead resize an oversized
