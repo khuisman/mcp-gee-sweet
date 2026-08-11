@@ -68,6 +68,16 @@ class TestSearchSpreadsheets:
         q = self._captured_q(drive_svc)
         assert "budget 2024" in q
 
+    async def test_api_error_returns_error_dict_not_raised(self):
+        """TC-D35: an API/auth failure must surface as [{"error": ...}], not propagate."""
+        drive_svc = self._drive_service()
+        drive_svc.files.return_value.list.return_value.execute.side_effect = RuntimeError(
+            "simulated API failure"
+        )
+        ctx = _make_ctx(drive_service=drive_svc)
+        result = await _drive_tools["search_spreadsheets"](query="budget 2024", ctx=ctx)
+        assert result == [{"error": "Search failed: simulated API failure"}]
+
 
 class TestFileMutations:
     """Mutating file ops (create_folder, move_file, delete_file) must invalidate the folder cache."""
