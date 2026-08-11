@@ -149,8 +149,8 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | `delete_table_column` | Delete a column from an existing table in a Google Doc. | `doc_id`, `table_start_index`, `column_index` |
 | `style_doc_range` | Apply paragraph and/or text styles to one or more index ranges in a Google Doc. | `doc_id`, `ranges` |
 | `style_doc_table_cells` | Apply border, padding, and background styles to table cells in a Google Doc. | `doc_id`, `table_start_index`, `cells` |
-| `create_paragraph_bullets` | Turn one or more paragraph ranges into a bulleted or numbered list, with explicit nesting depth (#334). | `doc_id`, `ranges` |
-| `delete_paragraph_bullets` | Remove list membership (bullets/numbering) from one or more paragraph ranges, leaving each paragraph's text and other styling untouched (#334). | `doc_id`, `ranges` |
+| `create_paragraph_bullets` | Turn one or more paragraph ranges into a bulleted or numbered list, with explicit nesting depth. | `doc_id`, `ranges` |
+| `delete_paragraph_bullets` | Remove list membership (bullets/numbering) from one or more paragraph ranges, leaving each paragraph's text and other styling untouched. | `doc_id`, `ranges` |
 | `get_doc_theme` | Derive a theme dict from a Google Doc's actual paragraph styles. | `doc_id` |
 | `get_doc_named_styles` | Read a Google Doc's named style defaults and return them as a theme dict. | `doc_id` |
 | `apply_theme` | Apply a theme dict to a Google Doc by updating its named style definitions. | `doc_id`, `theme`, `overwrite?` |

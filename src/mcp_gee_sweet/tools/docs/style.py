@@ -468,7 +468,7 @@ def register(tool):
     ) -> dict[str, Any]:
         """
         Turn one or more paragraph ranges into a bulleted or numbered list, with
-        explicit nesting depth (#334).
+        explicit nesting depth.
 
         Wraps the Docs API's createParagraphBullets/deleteParagraphBullets
         requests, working around two confirmed-live API quirks:
@@ -737,7 +737,7 @@ def register(tool):
     ) -> dict[str, Any]:
         """
         Remove list membership (bullets/numbering) from one or more paragraph
-        ranges, leaving each paragraph's text and other styling untouched (#334).
+        ranges, leaving each paragraph's text and other styling untouched.
 
         Args:
             doc_id: The Google Doc file ID.
