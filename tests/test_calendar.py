@@ -856,21 +856,26 @@ class TestListEvents:
 class TestFindFreeSlots:
     """find_free_slots computes the complement of merged busy intervals."""
 
-    def _cal_svc(self, cal_id, busy_periods):
+    def _cal_svc(self, calendars):
+        """calendars: dict mapping cal_id -> list of (start, end) busy period tuples."""
         mock = MagicMock()
         mock.freebusy.return_value.query.return_value.execute.return_value = {
-            "calendars": {cal_id: {"busy": [{"start": s, "end": e} for s, e in busy_periods]}}
+            "calendars": {
+                cal_id: {"busy": [{"start": s, "end": e} for s, e in busy_periods]}
+                for cal_id, busy_periods in calendars.items()
+            }
         }
         return mock
 
     async def test_two_non_overlapping_busy_periods_produce_three_free_slots(self):
         """busy=[10-11, 14-15] in a 9-18 window → free=[9-10, 11-14, 15-18]."""
         cal_svc = self._cal_svc(
-            "primary",
-            [
-                ("2026-06-15T10:00:00Z", "2026-06-15T11:00:00Z"),
-                ("2026-06-15T14:00:00Z", "2026-06-15T15:00:00Z"),
-            ],
+            {
+                "primary": [
+                    ("2026-06-15T10:00:00Z", "2026-06-15T11:00:00Z"),
+                    ("2026-06-15T14:00:00Z", "2026-06-15T15:00:00Z"),
+                ]
+            }
         )
         ctx = _make_ctx(calendar_service=cal_svc)
 
@@ -890,11 +895,12 @@ class TestFindFreeSlots:
     async def test_overlapping_busy_periods_are_merged_before_free_slot_calculation(self):
         """busy=[10-12, 11-13] must be merged to [10-13] → free=[9-10, 13-18]."""
         cal_svc = self._cal_svc(
-            "primary",
-            [
-                ("2026-06-15T10:00:00Z", "2026-06-15T12:00:00Z"),
-                ("2026-06-15T11:00:00Z", "2026-06-15T13:00:00Z"),
-            ],
+            {
+                "primary": [
+                    ("2026-06-15T10:00:00Z", "2026-06-15T12:00:00Z"),
+                    ("2026-06-15T11:00:00Z", "2026-06-15T13:00:00Z"),
+                ]
+            }
         )
         ctx = _make_ctx(calendar_service=cal_svc)
 
@@ -912,7 +918,7 @@ class TestFindFreeSlots:
 
     async def test_no_busy_periods_means_full_window_is_free(self):
         """With an empty busy list, the entire window is returned as a single free slot."""
-        cal_svc = self._cal_svc("primary", [])
+        cal_svc = self._cal_svc({"primary": []})
         ctx = _make_ctx(calendar_service=cal_svc)
 
         result = await _cal_tools["find_free_slots"](
@@ -941,6 +947,36 @@ class TestFindFreeSlots:
             ctx=ctx,
         )
         assert "error" in result
+
+    async def test_multi_calendar_busy_periods_are_merged_across_calendars(self):
+        """TC-CAL32: busy periods from two calendars (primary=[10-11], secondary=[10:30-12],
+        interleaving/overlapping) must be merged into one combined free-slot computation,
+        not treated independently per calendar → free=[9-10, 12-18]."""
+        cal_svc = self._cal_svc(
+            {
+                "primary": [("2026-06-15T10:00:00Z", "2026-06-15T11:00:00Z")],
+                "secondary": [("2026-06-15T10:30:00Z", "2026-06-15T12:00:00Z")],
+            }
+        )
+        ctx = _make_ctx(calendar_service=cal_svc)
+
+        result = await _cal_tools["find_free_slots"](
+            calendar_ids=["primary", "secondary"],
+            time_min="2026-06-15T09:00:00Z",
+            time_max="2026-06-15T18:00:00Z",
+            ctx=ctx,
+        )
+
+        assert result["busy"]["primary"] == [
+            {"start": "2026-06-15T10:00:00Z", "end": "2026-06-15T11:00:00Z"}
+        ]
+        assert result["busy"]["secondary"] == [
+            {"start": "2026-06-15T10:30:00Z", "end": "2026-06-15T12:00:00Z"}
+        ]
+        slots = result["free_slots"]
+        assert len(slots) == 2
+        assert slots[0] == {"start": "2026-06-15T09:00:00Z", "end": "2026-06-15T10:00:00Z"}
+        assert slots[1] == {"start": "2026-06-15T12:00:00Z", "end": "2026-06-15T18:00:00Z"}
 
 
 class TestListAllEvents:
