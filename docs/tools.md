@@ -137,8 +137,6 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | `find_in_doc` | Search a Google Doc's text and return match locations as document character offsets. | `doc_id`, `query`, `regex?`, `case_sensitive?`, `max_results?`, `local_path?` |
 | `insert_doc_text` | Insert text at one or more positions in a Google Doc. | `doc_id`, `insertions` |
 | `delete_doc_range` | Delete one or more content ranges from a Google Doc. | `doc_id`, `deletions` |
-| `create_named_range` | Create a named range over a span of content in a Google Doc. | `doc_id`, `name`, `start_index`, `end_index` |
-| `create_bookmark` | Create a lightweight, named anchor point at a single position in a Google Doc. | `doc_id`, `name`, `index` |
 | `insert_inline_image` | Insert an inline image at a specific index in a Google Doc. | `doc_id`, `index`, `uri?`, `drive_file_id?`, `width?`, `height?`, `auto_downscale?` |
 | `insert_page_break` | Insert an explicit page break at a specific index in a Google Doc. | `doc_id`, `index` |
 | `insert_softbreak_paragraph` | Insert a single paragraph built from multiple lines joined by soft line breaks (Shift+Enter in the Docs UI), with the paragraph's style set explicitly rather than inherited from whatever is at `index`. | `doc_id`, `index`, `lines`, `named_style_type?` |
@@ -161,6 +159,8 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | `list_doc_comments` | List comments (and their replies) on a Google Doc via the Drive comments resource. | `doc_id`, `page_size?`, `page_token?`, `include_deleted?` |
 | `add_doc_comment` | Add a comment to a Google Doc via the Drive comments resource. | `doc_id`, `content`, `quoted_text?` |
 | `resolve_doc_comment` | Mark a comment on a Google Doc as resolved, by posting a reply with a "resolve" action via the Drive comments resource. | `doc_id`, `comment_id`, `reply_content?` |
+| `create_named_range` | Create a named range over a span of content in a Google Doc. | `doc_id`, `name`, `start_index`, `end_index` |
+| `create_bookmark` | Create a lightweight, named anchor point at a single position in a Google Doc. | `doc_id`, `name`, `index` |
 
 `write_doc_content` and `create_doc` accept either HTML or Markdown (`content_format='markdown'`) and convert it to Docs API requests via the HTML→AST→emitter pipeline — Markdown is converted to HTML first. See [Docs AST Pipeline](design/docs-ast-pipeline.md) for the design and [Markdown Support](design/markdown-support.md) for the full Markdown→Docs mapping table.
 
