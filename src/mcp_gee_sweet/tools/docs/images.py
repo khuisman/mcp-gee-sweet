@@ -8,15 +8,18 @@ than split into a differently-named one: issue #372 predates #400's creation of 
 file, and by the time it was picked up, images.py already existed here for the
 size-validation helpers — merging avoided colliding with a newly-invented module name.
 
-Google Docs' insertInlineImage request rejects any image over ~25 megapixels with a
-bare "The provided image is too large" HttpError that names neither the actual limit
-nor the image's own size — confirmed against
-https://developers.google.com/workspace/docs/api/how-tos/images, which documents the
-ceiling as 25 megapixels (also 50MB, PNG/JPEG/GIF only). The validation/downscaling
-helpers here give every insertInlineImage call site a shared way to self-diagnose an
-oversized image *before* ever calling the API, and — opt-in — automatically fix it by
-downscaling. See docs/decisions/decision-pillow-image-dependency.md for why Pillow was
-added as a dependency to do this, and the scope boundary that decision implies.
+Google Docs' insertInlineImage request rejects any image over ~25 megapixels or
+~50MB with a bare "The provided image is too large" HttpError that names neither the
+actual limit nor the image's own size — confirmed against
+https://developers.google.com/workspace/docs/api/how-tos/images, which documents both
+ceilings (PNG/JPEG/GIF only). The validation/downscaling helpers here give every
+insertInlineImage call site a shared way to self-diagnose an oversized image *before*
+ever calling the API, and — opt-in — automatically fix it by downscaling. Both limits
+are checked independently (issue #562) — a low-compressibility image (e.g. noise data)
+can be well under the megapixel ceiling while still over the byte-size one, so neither
+check alone is sufficient. See docs/decisions/decision-pillow-image-dependency.md for
+why Pillow was added as a dependency to do this, and the scope boundary that decision
+implies.
 
 Validation/downscaling only apply where a call site already has (or already fetches)
 the image's own bytes or Drive-reported dimensions without new networking: a local file
@@ -53,6 +56,11 @@ logger = logging.getLogger(__name__)
 # matching how Google's own docs express it, not a binary 1024*1024 "MP").
 MAX_INLINE_IMAGE_MEGAPIXELS = 25
 MAX_INLINE_IMAGE_PIXELS = MAX_INLINE_IMAGE_MEGAPIXELS * 1_000_000
+
+# Google Docs' documented inline-image file-size ceiling, in decimal megabytes —
+# same decimal convention as the megapixel constant above, not binary 1024*1024.
+MAX_INLINE_IMAGE_MEGABYTES = 50
+MAX_INLINE_IMAGE_BYTES = MAX_INLINE_IMAGE_MEGABYTES * 1_000_000
 
 _DOCS_IMAGE_LIMITS_URL = "https://developers.google.com/workspace/docs/api/how-tos/images"
 
@@ -92,9 +100,35 @@ def check_dimensions(width: int, height: int) -> dict[str, Any] | None:
     return None
 
 
+def too_large_bytes_message(size_bytes: int) -> str:
+    """Error text for an image whose file size exceeds Google's documented 50MB
+    inline-image ceiling — a check independent of check_dimensions/too_large_message
+    above, since a low-compressibility image (e.g. noise data) can be well under the
+    megapixel limit while still exceeding the byte-size one (#562)."""
+    megabytes = size_bytes / 1_000_000
+    return (
+        f"Image is {megabytes:.1f}MB, which exceeds Google Docs' inline-image "
+        f"file-size limit of {MAX_INLINE_IMAGE_MEGABYTES}MB ({_DOCS_IMAGE_LIMITS_URL}). "
+        "Resize it before inserting, or pass auto_downscale=True to have it resized "
+        "automatically."
+    )
+
+
+def check_file_size(size_bytes: int) -> dict[str, Any] | None:
+    """Returns {"error": ...} if size_bytes exceeds the file-size limit, else None."""
+    if size_bytes > MAX_INLINE_IMAGE_BYTES:
+        return {"error": too_large_bytes_message(size_bytes)}
+    return None
+
+
 def check_image_bytes(data: bytes) -> dict[str, Any] | None:
-    """Same as check_dimensions, decoding `data` first. Returns None (no error, not a
-    skip signal the caller needs to distinguish) when the bytes can't be decoded."""
+    """Checks `data` against both the file-size limit (always, regardless of whether
+    it decodes as an image) and, if it decodes, the megapixel limit. Returns None (no
+    error, not a skip signal the caller needs to distinguish) when the bytes can't be
+    decoded and are within the size limit."""
+    size_error = check_file_size(len(data))
+    if size_error is not None:
+        return size_error
     img = _decode(data)
     if img is None:
         return None
@@ -102,28 +136,82 @@ def check_image_bytes(data: bytes) -> dict[str, Any] | None:
 
 
 def downscale_image_bytes(data: bytes) -> tuple[bytes, str] | None:
-    """Resize image `data` to fit the megapixel limit, preserving aspect ratio and
-    format. Returns (resized_bytes, mime_type), or None if: the image can't be
-    decoded; it's already within the limit (nothing to do — caller should keep using
-    the original bytes/upload path); or it's animated (Pillow's resize only touches
-    the current frame, which would silently drop every other frame of an animated GIF
-    — declining is safer than corrupting it)."""
+    """Resize image `data` to fit both the megapixel and file-size limits, preserving
+    aspect ratio and format. Returns (resized_bytes, mime_type), or None if: the image
+    can't be decoded; it's already within both limits (nothing to do — caller should
+    keep using the original bytes/upload path); or it's animated (Pillow's resize only
+    touches the current frame, which would silently drop every other frame of an
+    animated GIF — declining is safer than corrupting it).
+
+    The byte-size limit can't be hit exactly on the first resize the way the
+    megapixel one can: encoded size depends on compression, not just pixel count, so a
+    single pixel-count-based scale is only an estimate for it. After an initial resize
+    (scaled to satisfy whichever of the two limits needs the larger reduction), the
+    result is re-encoded and, if still over the byte-size limit, shrunk further in a
+    few bounded steps — needed for #562's own motivating case: a low-compressibility
+    image that's already within the megapixel limit gets no scale-down from the
+    megapixel math at all, so without this loop the byte-size limit would never
+    actually be reached."""
     img = _decode(data)
     if img is None or getattr(img, "is_animated", False):
         return None
     width, height = img.size
     pixels = width * height
-    if pixels <= MAX_INLINE_IMAGE_PIXELS:
+    if pixels <= MAX_INLINE_IMAGE_PIXELS and len(data) <= MAX_INLINE_IMAGE_BYTES:
         return None
-    scale = (MAX_INLINE_IMAGE_PIXELS / pixels) ** 0.5
-    new_size = (max(1, int(width * scale)), max(1, int(height * scale)))
+
     fmt = img.format or "PNG"
+
+    def _encode(im: Image.Image) -> bytes:
+        if fmt == "JPEG" and im.mode not in ("RGB", "L"):
+            im = im.convert("RGB")
+        out = io.BytesIO()
+        im.save(out, format=fmt)
+        return out.getvalue()
+
+    scale = 1.0
+    if pixels > MAX_INLINE_IMAGE_PIXELS:
+        scale = min(scale, (MAX_INLINE_IMAGE_PIXELS / pixels) ** 0.5)
+    if len(data) > MAX_INLINE_IMAGE_BYTES:
+        scale = min(scale, (MAX_INLINE_IMAGE_BYTES / len(data)) ** 0.5)
+    new_size = (max(1, int(width * scale)), max(1, int(height * scale)))
     resized = img.resize(new_size, Image.Resampling.LANCZOS)
-    if fmt == "JPEG" and resized.mode not in ("RGB", "L"):
-        resized = resized.convert("RGB")
-    out = io.BytesIO()
-    resized.save(out, format=fmt)
-    return out.getvalue(), _FORMAT_MIME.get(fmt, "application/octet-stream")
+    encoded = _encode(resized)
+
+    attempts = 0
+    while len(encoded) > MAX_INLINE_IMAGE_BYTES and attempts < 5:
+        w, h = resized.size
+        next_size = (max(1, int(w * 0.8)), max(1, int(h * 0.8)))
+        if next_size == resized.size:
+            break
+        resized = resized.resize(next_size, Image.Resampling.LANCZOS)
+        encoded = _encode(resized)
+        attempts += 1
+
+    return encoded, _FORMAT_MIME.get(fmt, "application/octet-stream")
+
+
+def check_drive_image_metadata(metadata: dict[str, Any]) -> dict[str, Any] | None:
+    """Checks a Drive file's own reported imageMediaMetadata dimensions and `size`
+    field against the inline-image limits, without downloading the file — the
+    metadata-only counterpart to check_image_bytes, shared by every call site that
+    validates a drive_file_id/"drive:" source before deciding whether to embed it
+    directly or downscale it first (issue #562's own consolidation of a pattern that
+    used to be duplicated between insert_inline_image here and content.py's
+    _resolve_image_source). Dimensions are checked first, matching
+    downscale_image_bytes's own resize-by-pixels-first behavior. Returns the first
+    violation found, or None if within both limits or the metadata doesn't report
+    enough to check (e.g. a non-image binary with no imageMediaMetadata)."""
+    img_meta = metadata.get("imageMediaMetadata") or {}
+    width, height = img_meta.get("width"), img_meta.get("height")
+    if width and height:
+        error = check_dimensions(width, height)
+        if error is not None:
+            return error
+    size = metadata.get("size")
+    if size is not None:
+        return check_file_size(int(size))
+    return None
 
 
 def rewrite_too_large_error(message: str) -> str:
@@ -264,20 +352,20 @@ def register(tool):
                 Mutually exclusive with uri.
             width: Optional image width in points.
             height: Optional image height in points.
-            auto_downscale: Google Docs rejects any inline image over ~25 megapixels.
-                When drive_file_id is provided and Drive's own reported
-                dimensions exceed that limit, the default (False) fails fast with a
-                clear error naming the limit and the image's actual size — before
-                ever calling the Docs API. Set True to instead resize it and embed
-                the resized copy: the original Drive file is left untouched, a new
-                file named "<original name> (resized)" is created alongside it and
-                shared anyone:reader, and its own fileId is returned as
-                resized_file_id. Ignored when uri is used instead of drive_file_id —
-                there's no local copy of a bare uri to resize; an oversized uri
-                source instead fails with a rewritten error explaining the likely
-                cause, since pre-validating or re-hosting arbitrary external content
-                is out of scope here (see docs/decisions/decision-pillow-image-
-                dependency.md).
+            auto_downscale: Google Docs rejects any inline image over ~25 megapixels
+                or ~50MB. When drive_file_id is provided and Drive's own reported
+                dimensions or file size exceed either limit, the default (False)
+                fails fast with a clear error naming the limit and the image's actual
+                size — before ever calling the Docs API. Set True to instead resize
+                it and embed the resized copy: the original Drive file is left
+                untouched, a new file named "<original name> (resized)" is created
+                alongside it and shared anyone:reader, and its own fileId is returned
+                as resized_file_id. Ignored when uri is used instead of
+                drive_file_id — there's no local copy of a bare uri to resize; an
+                oversized uri source instead fails with a rewritten error explaining
+                the likely cause, since pre-validating or re-hosting arbitrary
+                external content is out of scope here (see docs/decisions/decision-
+                pillow-image-dependency.md).
 
         Returns:
             Confirmation with docId and the insertion index. Also includes
@@ -297,7 +385,7 @@ def register(tool):
                     lc.drive_service.files()
                     .get(
                         fileId=drive_file_id,
-                        fields="name,parents,webContentLink,imageMediaMetadata",
+                        fields="name,parents,webContentLink,imageMediaMetadata,size",
                         supportsAllDrives=True,
                     )
                     .execute,
@@ -309,24 +397,21 @@ def register(tool):
             except Exception as e:
                 return {"error": f"Failed to get Drive file metadata: {e}"}
 
-            img_meta = metadata.get("imageMediaMetadata") or {}
-            img_width, img_height = img_meta.get("width"), img_meta.get("height")
-            if img_width and img_height:
-                size_error = check_dimensions(img_width, img_height)
-                if size_error is not None:
-                    if not auto_downscale:
-                        return size_error
-                    original_parents = metadata.get("parents") or []
-                    resized = await downscale_drive_file(
-                        lc.drive_service,
-                        drive_file_id,
-                        name=metadata.get("name", drive_file_id),
-                        parent_folder_id=original_parents[0] if original_parents else lc.folder_id,
-                    )
-                    if "error" in resized:
-                        return resized
-                    uri = resized["uri"]
-                    resized_file_id = resized["file_id"]
+            size_error = check_drive_image_metadata(metadata)
+            if size_error is not None:
+                if not auto_downscale:
+                    return size_error
+                original_parents = metadata.get("parents") or []
+                resized = await downscale_drive_file(
+                    lc.drive_service,
+                    drive_file_id,
+                    name=metadata.get("name", drive_file_id),
+                    parent_folder_id=original_parents[0] if original_parents else lc.folder_id,
+                )
+                if "error" in resized:
+                    return resized
+                uri = resized["uri"]
+                resized_file_id = resized["file_id"]
 
         image_request: dict[str, Any] = {
             "insertInlineImage": {
@@ -417,13 +502,13 @@ def register(tool):
             revoke_sharing: Whether each image's temporary anyone:reader share is
                 revoked again after it's embedded (default True). Set False to leave
                 images shared instead — matches this tool's original behavior.
-            auto_downscale: Google Docs rejects any inline image over ~25 megapixels.
-                Each image's local file is checked against that limit before
-                it's ever uploaded. The default (False) fails just that image with a
-                clear error naming the limit and its actual size — other images in
-                the same call are unaffected. Set True to instead resize an oversized
-                image and upload the resized copy (the local file on disk is never
-                modified); that outcome's entry gets downscaled: true.
+            auto_downscale: Google Docs rejects any inline image over ~25 megapixels
+                or ~50MB. Each image's local file is checked against both limits
+                before it's ever uploaded. The default (False) fails just that image
+                with a clear error naming the limit and its actual size — other
+                images in the same call are unaffected. Set True to instead resize an
+                oversized image and upload the resized copy (the local file on disk
+                is never modified); that outcome's entry gets downscaled: true.
 
         Returns:
             Dictionary with docId and results — a list of per-image outcomes in the

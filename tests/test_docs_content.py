@@ -11,6 +11,7 @@ from PIL import Image as PILImage
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.docs import content as content_module
+from mcp_gee_sweet.tools.docs import images as images_module
 from mcp_gee_sweet.tools.docs.ast import (
     BulletItem,
     Cell,
@@ -1165,6 +1166,20 @@ class TestResolveImageSource:
         assert "auto_downscale=True" in result["error"]
         drive_svc.permissions.assert_not_called()
 
+    async def test_oversized_by_bytes_drive_image_fails_fast_without_sharing(self):
+        # #562: an image under the megapixel limit but over Google's byte-size limit,
+        # caught via Drive's own reported "size" — no download needed.
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "name": "big.png",
+            "imageMediaMetadata": {"width": 100, "height": 100},
+            "size": str(images_module.MAX_INLINE_IMAGE_BYTES + 1),
+        }
+        result = await _resolve_image_source(drive_svc, "drive:file1", "folder1")
+        assert "error" in result
+        assert "50MB" in result["error"]
+        drive_svc.permissions.assert_not_called()
+
     async def test_undersized_drive_image_still_shares_normally(self):
         drive_svc = MagicMock()
         drive_svc.files.return_value.get.return_value.execute.return_value = {
@@ -1230,6 +1245,21 @@ class TestResolveImageSource:
         result = await _resolve_image_source(drive_svc, str(img), "folder1")
         assert "error" in result
         assert "35.6 megapixels" in result["error"]
+        drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_oversized_by_bytes_local_image_fails_fast_without_upload(
+        self, tmp_path, monkeypatch
+    ):
+        # #562: an image under the megapixel limit but over Google's byte-size limit.
+        # A patched threshold stands in for Google's real 50MB ceiling so the fixture
+        # can stay a small, ordinary PNG.
+        monkeypatch.setattr(images_module, "MAX_INLINE_IMAGE_BYTES", 10)
+        img = tmp_path / "big.png"
+        img.write_bytes(_make_png_bytes(100, 100))
+        drive_svc = MagicMock()
+        result = await _resolve_image_source(drive_svc, str(img), "folder1")
+        assert "error" in result
+        assert "50MB" in result["error"]
         drive_svc.files.return_value.create.assert_not_called()
 
     async def test_oversized_local_image_auto_downscale_uploads_resized_bytes(self, tmp_path):

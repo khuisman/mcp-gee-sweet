@@ -3053,8 +3053,8 @@ Tool call: `write_doc_content(doc_id={DOC_ID}, content="Before\n\n![Big](/tmp/qa
 
 ---
 
-### TC-DOC167: `insert_local_images` — a real batchUpdate "too large" rejection (image under the megapixel pre-check but over Google's byte-size limit) gets the rewritten error, not Google's raw message
-**Background:** `check_image_bytes`/`check_dimensions` only enforce Google's ~25-megapixel limit, not the ~50MB file-size limit `images.py`'s own module docstring also cites from Google's docs — so an image under 25 megapixels but with a very large byte size (e.g. low-compressibility noise data) passes pre-validation silently and reaches the real `batchUpdate` call, which Google can still reject as "too large." This is the only realistic way to reach `insert_local_images`'s doc-edit-failure error-rewrite path live (round 1's finding on PR #554) — every other reachable oversized-image case is caught by pre-validation first.
+### TC-DOC167: `insert_local_images` — an image under the megapixel pre-check but over Google's byte-size limit is now caught by pre-validation, not just the batchUpdate fallback
+**Background:** `check_image_bytes`/`check_dimensions` used to only enforce Google's ~25-megapixel limit, not the ~50MB file-size limit `images.py`'s own module docstring also cites from Google's docs — so an image under 25 megapixels but with a very large byte size (e.g. low-compressibility noise data) passed pre-validation silently and reached the real `batchUpdate` call, which Google could still reject as "too large" (see the 2026-08-09 Result below, which documents that pre-#562 behavior — it predates this fix and is kept for history, not as the current expected outcome). Issue #562 added a `check_file_size` byte-size check (Google's documented ~50MB ceiling) alongside the megapixel one, so this exact case is now caught *before* any upload, the same way an over-megapixel image already was. `downscale_image_bytes` also gained a byte-size-driven shrink loop so `auto_downscale=True` has an actual effect here too, not just for the megapixel case.
 
 **Setup:** generate a real, Pillow-decodable PNG that stays under the megapixel limit but is large in bytes — noise data compresses poorly, so this reliably produces a large file:
 ```
@@ -3074,12 +3074,15 @@ img.save('/tmp/qa-bigfile.png', compress_level=1)
 Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBIG", "local_path": "/tmp/qa-bigfile.png"}], folder_id={FOLDER_ID})`
 
 **Checks**
-- `results[0]` has a `fileId` (the file *was* uploaded — pre-validation didn't catch it) and an `error` starting with `"doc edit failed: <HttpError 400 ... The provided image is too large...>"` followed by the appended `"This is very likely Google Docs' inline-image limit of 25 megapixels (...) — check the image's pixel dimensions and resize it before retrying."` explanation — confirms the round-1 fix (commit `badad67`) is live
-- `get_doc_structure` shows the "IMGMARKERBIG" marker text still present, unchanged — the failed batchUpdate applied no edits at all, including the marker deletion
+- `results[0]` has **no** `fileId` (pre-validation now catches it *before* any upload) and an `error` naming the file's actual size in MB and Google's 50MB limit (`too_large_bytes_message` — mirrors `too_large_message`'s megapixel-case wording, including the `auto_downscale=True` suggestion)
+- No new file appears in `{FOLDER_ID}` — confirm via `list_files(folder_id={FOLDER_ID})` or equivalent, since nothing should have been uploaded
+- `get_doc_structure` shows the "IMGMARKERBIG" marker text still present, unchanged
 
-**Cleanup:** trash the uploaded file (`results[0].fileId`); write fixture content back over `{DOC_ID}`
+**Follow-up check (`auto_downscale=True`):** re-run the same call with `auto_downscale=True` added — `results[0]` should now succeed with `downscaled: true` and a `fileId`, and the uploaded copy's byte size should be at or under 50MB (the megapixel-only downscale path this call would have hit pre-#562 was a no-op here, since 24MP is already under the 25MP limit — this confirms the new byte-size-driven shrink loop in `downscale_image_bytes` is what actually did the work).
 
-**Result (2026-08-09) ✅ PASS — run live against PR #554 round 2 (fix commit badad67, issue #400).** First attempt (immediately after a reconnect that had happened *before* the worktree was synced to `badad67`) reproduced the exact stale-reconnect trap this project's QA process has hit before — the error came back unrewritten. A second reconnect (after confirming the worktree was already on the fix commit) plus a retry got the correctly rewritten error: `doc edit failed: <HttpError 400 ... "The provided image is too large."> This is very likely Google Docs' inline-image limit of 25 megapixels (...) — check the image's pixel dimensions and resize it before retrying.` Marker text confirmed unchanged after the failed call.
+**Cleanup:** if `auto_downscale=True` was run, trash the uploaded file (`results[0].fileId`); write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-09) ✅ PASS — run live against PR #554 round 2 (fix commit badad67, issue #400). Predates #562 — see the note in Background above; this result documents the pre-#562 rewritten-error batchUpdate-fallback behavior that #562's pre-validation now supersedes for this specific case.** First attempt (immediately after a reconnect that had happened *before* the worktree was synced to `badad67`) reproduced the exact stale-reconnect trap this project's QA process has hit before — the error came back unrewritten. A second reconnect (after confirming the worktree was already on the fix commit) plus a retry got the correctly rewritten error: `doc edit failed: <HttpError 400 ... "The provided image is too large."> This is very likely Google Docs' inline-image limit of 25 megapixels (...) — check the image's pixel dimensions and resize it before retrying.` Marker text confirmed unchanged after the failed call.
 
 ---
 

@@ -3,6 +3,7 @@ insert_local_images) plus size validation and downscaling (#400)."""
 
 import io
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 from googleapiclient.errors import HttpError
@@ -23,6 +24,17 @@ def _make_png_bytes(width: int, height: int) -> bytes:
     inline-image size-limit tests — Pillow needs to actually decode a header to read
     dimensions, so a fake byte string won't do."""
     return _png_bytes(width, height)
+
+
+def _noise_png_bytes(width: int, height: int) -> bytes:
+    """A real, Pillow-decodable PNG of random (incompressible) pixel data, for #562's
+    byte-size (not megapixel) limit tests — unlike _png_bytes' solid color, which PNG
+    compresses to near-nothing regardless of dimensions, noise data stays large so
+    downscaling actually has to shrink pixel count to reduce encoded size."""
+    buf = io.BytesIO()
+    img = PILImage.frombytes("RGB", (width, height), os.urandom(width * height * 3))
+    img.save(buf, format="PNG", compress_level=1)
+    return buf.getvalue()
 
 
 def _make_tool_registry():
@@ -99,6 +111,29 @@ class TestCheckDimensions:
         assert images.check_dimensions(5001, 5000) is not None
 
 
+class TestCheckFileSize:
+    def test_within_limit_returns_none(self):
+        assert images.check_file_size(images.MAX_INLINE_IMAGE_BYTES) is None
+
+    def test_over_limit_returns_error(self):
+        result = images.check_file_size(images.MAX_INLINE_IMAGE_BYTES + 1)
+        assert result is not None
+        assert "50MB" in result["error"]
+
+    def test_at_exact_limit_is_not_an_error(self):
+        assert images.check_file_size(images.MAX_INLINE_IMAGE_BYTES) is None
+        assert images.check_file_size(images.MAX_INLINE_IMAGE_BYTES + 1) is not None
+
+
+class TestTooLargeBytesMessage:
+    def test_names_limit_and_actual_size(self):
+        msg = images.too_large_bytes_message(75_000_000)
+        assert "75.0MB" in msg
+        assert "50MB" in msg
+        assert "auto_downscale=True" in msg
+        assert images._DOCS_IMAGE_LIMITS_URL in msg
+
+
 class TestCheckImageBytes:
     def test_oversized_png_returns_error(self):
         result = images.check_image_bytes(_png_bytes(6000, 6000))
@@ -112,6 +147,25 @@ class TestCheckImageBytes:
         # Validation is additive, not a gate — an unreadable file still gets its
         # real answer straight from the Docs API, same as before #400.
         assert images.check_image_bytes(b"not an image") is None
+
+    def test_over_byte_limit_but_under_megapixel_limit_returns_byte_error(self, monkeypatch):
+        # #562's motivating case: a low-compressibility image that's well under the
+        # megapixel limit but still oversized in raw bytes — the byte-size check must
+        # catch it even though check_dimensions alone would pass it. A tiny threshold
+        # stands in for Google's real 50MB ceiling so the test doesn't need to
+        # generate an actual multi-megabyte image.
+        monkeypatch.setattr(images, "MAX_INLINE_IMAGE_BYTES", 10)
+        result = images.check_image_bytes(_png_bytes(100, 100))
+        assert result is not None
+        assert "MB" in result["error"]
+        assert "megapixels" not in result["error"]  # the byte check fired, not the pixel one
+
+    def test_over_byte_limit_takes_precedence_over_undecodable(self, monkeypatch):
+        # The byte-size check applies to any oversized data, decodable or not —
+        # unlike the megapixel check, which is a no-op for undecodable bytes.
+        monkeypatch.setattr(images, "MAX_INLINE_IMAGE_BYTES", 5)
+        result = images.check_image_bytes(b"not an image but over the tiny limit")
+        assert result is not None
 
 
 class TestDownscaleImageBytes:
@@ -152,6 +206,65 @@ class TestDownscaleImageBytes:
         assert mime_type == "image/jpeg"
         with PILImage.open(io.BytesIO(resized_bytes)) as img:
             assert img.format == "JPEG"
+
+    def test_over_byte_limit_but_under_megapixel_limit_still_downscales(self, monkeypatch):
+        # #562: the megapixel-based scale factor alone is a no-op here (the image is
+        # already within that limit), so downscale_image_bytes must fall back to its
+        # own byte-size-driven shrink loop to make any progress at all. Noise data (not
+        # _png_bytes' solid color, which PNG would compress to near-nothing regardless
+        # of dimensions) keeps the encoded size tied to pixel count; a tiny threshold
+        # stands in for Google's real 50MB ceiling so the fixture can stay small.
+        monkeypatch.setattr(images, "MAX_INLINE_IMAGE_BYTES", 3000)
+        original = _noise_png_bytes(80, 80)
+        assert len(original) > 3000
+        result = images.downscale_image_bytes(original)
+        assert result is not None
+        resized_bytes, mime_type = result
+        assert mime_type == "image/png"
+        assert len(resized_bytes) <= 3000
+        with PILImage.open(io.BytesIO(resized_bytes)) as img:
+            assert img.size[0] * img.size[1] < 80 * 80
+
+    def test_within_both_limits_returns_none(self):
+        assert images.downscale_image_bytes(_png_bytes(100, 100)) is None
+
+
+class TestCheckDriveImageMetadata:
+    def test_within_both_limits_returns_none(self):
+        metadata = {"imageMediaMetadata": {"width": 100, "height": 100}, "size": "1000"}
+        assert images.check_drive_image_metadata(metadata) is None
+
+    def test_over_dimension_limit_returns_error(self):
+        metadata = {"imageMediaMetadata": {"width": 14609, "height": 2434}, "size": "1000"}
+        result = images.check_drive_image_metadata(metadata)
+        assert result is not None
+        assert "35.6 megapixels" in result["error"]
+
+    def test_over_byte_limit_but_under_dimension_limit_returns_error(self):
+        metadata = {
+            "imageMediaMetadata": {"width": 100, "height": 100},
+            "size": str(images.MAX_INLINE_IMAGE_BYTES + 1),
+        }
+        result = images.check_drive_image_metadata(metadata)
+        assert result is not None
+        assert "50MB" in result["error"]
+
+    def test_no_metadata_available_returns_none(self):
+        # A non-image binary, or metadata that doesn't report enough to check —
+        # nothing to validate against, so no error (same additive-not-a-gate
+        # philosophy as check_image_bytes' undecodable-bytes case).
+        assert images.check_drive_image_metadata({}) is None
+
+    def test_dimension_violation_checked_before_size(self):
+        # Both a dimension and a size violation present — dimensions win, matching
+        # downscale_image_bytes' own resize-by-pixels-first behavior.
+        metadata = {
+            "imageMediaMetadata": {"width": 14609, "height": 2434},
+            "size": str(images.MAX_INLINE_IMAGE_BYTES + 1),
+        }
+        result = images.check_drive_image_metadata(metadata)
+        assert result is not None
+        assert "megapixels" in result["error"]
 
 
 class TestTooLargeMessage:
@@ -395,7 +508,7 @@ class TestInsertInlineImage:
         assert "error" not in result
         drive_svc.files.return_value.get.assert_called_with(
             fileId="file1",
-            fields="name,parents,webContentLink,imageMediaMetadata",
+            fields="name,parents,webContentLink,imageMediaMetadata,size",
             supportsAllDrives=True,
         )
         body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
@@ -452,6 +565,25 @@ class TestInsertInlineImage:
         )
         assert "error" in result
         assert "35.6 megapixels" in result["error"]
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_oversized_by_bytes_drive_image_fails_fast_without_batchupdate(self):
+        # #562: an image under the megapixel limit but over Google's byte-size limit,
+        # caught via Drive's own reported "size" — no download needed.
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "name": "big.png",
+            "webContentLink": "https://drive.google.com/uc?id=file1",
+            "imageMediaMetadata": {"width": 100, "height": 100},
+            "size": str(images.MAX_INLINE_IMAGE_BYTES + 1),
+        }
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc)
+        result = await _docs_tools["insert_inline_image"](
+            doc_id="doc1", index=1, drive_file_id="file1", ctx=ctx
+        )
+        assert "error" in result
+        assert "50MB" in result["error"]
         docs_svc.documents.return_value.batchUpdate.assert_not_called()
 
     async def test_oversized_drive_image_auto_downscale_inserts_resized_copy(self):
@@ -980,6 +1112,30 @@ class TestInsertLocalImages:
 
         assert "error" in result["results"][0]
         assert "35.6 megapixels" in result["results"][0]["error"]
+        drive_svc.files.return_value.create.assert_not_called()
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_oversized_by_bytes_local_image_fails_fast_without_upload(
+        self, tmp_path, monkeypatch
+    ):
+        # #562: an image under the megapixel limit but over Google's byte-size limit.
+        # A patched threshold stands in for Google's real 50MB ceiling so the fixture
+        # can stay a small, ordinary PNG.
+        monkeypatch.setattr(images, "MAX_INLINE_IMAGE_BYTES", 10)
+        img = tmp_path / "big.png"
+        img.write_bytes(_make_png_bytes(100, 100))
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        drive_svc = self._drive_svc()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        assert "error" in result["results"][0]
         drive_svc.files.return_value.create.assert_not_called()
         docs_svc.documents.return_value.batchUpdate.assert_not_called()
 
