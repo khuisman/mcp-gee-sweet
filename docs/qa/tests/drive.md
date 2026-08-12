@@ -2946,11 +2946,22 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 
 ### TC-D155: Single-quote in MIME type is escaped
 
-**Checks (unit test)**
-- `mime_type` containing `'` is escaped before interpolation into query string
-- No SQL/query-injection risk
+Regression test for #494: the original implementation escaped `mime_type` by doubling
+the quote (`''`, SQL-style) instead of backslash-escaping it (`\'`) like
+`search_files`/`search_spreadsheets` do — Drive's query grammar doesn't recognize the
+doubled form, so a `mime_type` containing an apostrophe live-crashed with an uncaught
+`HttpError 400 "Invalid Value"` rather than returning a clean result. Fixed by switching
+to the same backslash-escape convention as the sibling search tools, plus wrapping the
+call in the same try/except-returns-`{"error": ...}` pattern those tools already use.
 
-**Result (2026-06-21) ✅** Unit test confirms escape applied before query interpolation.
+**Prompt**
+> "List files shared with me, filtered to a MIME type containing an apostrophe like \"it's a test\""
+
+**Checks**
+- No Drive API syntax error and no uncaught exception (previously threw `HttpError 400 "Invalid Value"`)
+- Returns `[]` (no real MIME type will match) rather than crashing
+- Unit test `test_mime_type_single_quote_is_escaped` confirms `\'` (not `''`) appears in the constructed query string
+- Unit test `test_api_error_returns_error_dict_not_raised` confirms a genuine API failure still returns `[{"error": ...}]` rather than propagating
 
 ---
 
@@ -3002,6 +3013,25 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 - Passing `max_results=500` results in `pageSize=100` in the API call
 
 **Result (2026-06-21) ✅** Unit test confirms `pageSize=100` when `max_results=500`.
+
+---
+
+### TC-D247: Single-quote in MIME type is escaped
+
+Sibling of TC-D155 (#494) — `list_recent_files` had the identical bug: `mime_type`
+escaped by quote-doubling (`''`) instead of backslash-escaping (`\'`), live-crashing
+with `HttpError 400 "Invalid Value"` on an apostrophe. Same fix applied: backslash
+escaping matching `search_files`/`search_spreadsheets`, plus the same
+try/except-returns-`{"error": ...}` wrapping.
+
+**Prompt**
+> "List recently modified files, filtered to a MIME type containing an apostrophe like \"it's a test\""
+
+**Checks**
+- No Drive API syntax error and no uncaught exception (previously threw `HttpError 400 "Invalid Value"`)
+- Returns `[]` (no real MIME type will match) rather than crashing
+- Unit test `test_mime_type_single_quote_is_escaped` confirms `\'` (not `''`) appears in the constructed query string
+- Unit test `test_api_error_returns_error_dict_not_raised` confirms a genuine API failure still returns `[{"error": ...}]` rather than propagating
 
 ---
 

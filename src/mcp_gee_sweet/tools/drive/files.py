@@ -1065,32 +1065,35 @@ def register(tool):
 
         parts = ["sharedWithMe=true", "trashed=false"]
         if mime_type:
-            parts.append(f"mimeType='{mime_type.replace(chr(39), chr(39) * 2)}'")
+            safe_mime = mime_type.replace("'", "\\'")
+            parts.append(f"mimeType='{safe_mime}'")
 
-        results = await execute_in_thread(
-            drive_service.files()
-            .list(
-                q=" and ".join(parts),
-                pageSize=max_results,
-                spaces="drive",
-                fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
-                orderBy="modifiedTime desc",
+        try:
+            results = await execute_in_thread(
+                drive_service.files()
+                .list(
+                    q=" and ".join(parts),
+                    pageSize=max_results,
+                    spaces="drive",
+                    fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
+                    orderBy="modifiedTime desc",
+                )
+                .execute,
+                drive_service,
             )
-            .execute,
-            drive_service,
-        )
-
-        return [
-            {
-                "id": f["id"],
-                "name": f["name"],
-                "mime_type": f["mimeType"],
-                "modified_time": f.get("modifiedTime"),
-                "owners": [o.get("emailAddress") for o in f.get("owners", [])],
-                "web_link": f.get("webViewLink"),
-            }
-            for f in results.get("files", [])
-        ]
+            return [
+                {
+                    "id": f["id"],
+                    "name": f["name"],
+                    "mime_type": f["mimeType"],
+                    "modified_time": f.get("modifiedTime"),
+                    "owners": [o.get("emailAddress") for o in f.get("owners", [])],
+                    "web_link": f.get("webViewLink"),
+                }
+                for f in results.get("files", [])
+            ]
+        except Exception as e:
+            return [{"error": f"List shared with me failed: {e!s}"}]
 
     @tool(annotations=ToolAnnotations(title="List Recent Files", readOnlyHint=True))
     async def list_recent_files(
@@ -1121,34 +1124,37 @@ def register(tool):
             )
             parts.append(f"modifiedTime > '{cutoff}'")
         if mime_type:
-            parts.append(f"mimeType='{mime_type.replace(chr(39), chr(39) * 2)}'")
+            safe_mime = mime_type.replace("'", "\\'")
+            parts.append(f"mimeType='{safe_mime}'")
 
-        results = await execute_in_thread(
-            drive_service.files()
-            .list(
-                q=" and ".join(parts),
-                pageSize=max_results,
-                spaces="drive",
-                includeItemsFromAllDrives=True,
-                supportsAllDrives=True,
-                fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
-                orderBy="modifiedTime desc",
+        try:
+            results = await execute_in_thread(
+                drive_service.files()
+                .list(
+                    q=" and ".join(parts),
+                    pageSize=max_results,
+                    spaces="drive",
+                    includeItemsFromAllDrives=True,
+                    supportsAllDrives=True,
+                    fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
+                    orderBy="modifiedTime desc",
+                )
+                .execute,
+                drive_service,
             )
-            .execute,
-            drive_service,
-        )
-
-        return [
-            {
-                "id": f["id"],
-                "name": f["name"],
-                "mime_type": f["mimeType"],
-                "modified_time": f.get("modifiedTime"),
-                "owners": [o.get("emailAddress") for o in f.get("owners", [])],
-                "web_link": f.get("webViewLink"),
-            }
-            for f in results.get("files", [])
-        ]
+            return [
+                {
+                    "id": f["id"],
+                    "name": f["name"],
+                    "mime_type": f["mimeType"],
+                    "modified_time": f.get("modifiedTime"),
+                    "owners": [o.get("emailAddress") for o in f.get("owners", [])],
+                    "web_link": f.get("webViewLink"),
+                }
+                for f in results.get("files", [])
+            ]
+        except Exception as e:
+            return [{"error": f"List recent files failed: {e!s}"}]
 
     @tool(annotations=ToolAnnotations(title="Get Storage Quota", readOnlyHint=True))
     async def get_storage_quota(ctx: Context = None) -> dict[str, Any]:

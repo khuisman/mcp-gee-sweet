@@ -451,6 +451,25 @@ class TestListSharedWithMe:
         kw = self._list_call_kwargs(svc)
         assert "application/vnd.google-apps.spreadsheet" in kw["q"]
 
+    async def test_mime_type_single_quote_is_escaped(self):
+        """Regression test for #494: a bare quote-doubling escape (SQL-style, not
+        Drive's backslash convention) produced a malformed query, live-confirmed
+        as an uncaught HttpError 400 'Invalid Value' from the real Drive API."""
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        await _drive_tools["list_shared_with_me"](mime_type="it's a test", ctx=ctx)
+        q = self._list_call_kwargs(svc)["q"]
+        assert "\\'" in q  # literal backslash-apostrophe present in query string
+
+    async def test_api_error_returns_error_dict_not_raised(self):
+        svc = self._drive_service()
+        svc.files.return_value.list.return_value.execute.side_effect = RuntimeError(
+            "simulated API failure"
+        )
+        ctx = _make_ctx(drive_service=svc)
+        result = await _drive_tools["list_shared_with_me"](ctx=ctx)
+        assert result == [{"error": "List shared with me failed: simulated API failure"}]
+
     async def test_max_results_capped_at_200(self):
         svc = self._drive_service()
         ctx = _make_ctx(drive_service=svc)
@@ -517,6 +536,24 @@ class TestListRecentFiles:
         ctx = _make_ctx(drive_service=svc)
         await _drive_tools["list_recent_files"](mime_type="application/pdf", ctx=ctx)
         assert "application/pdf" in self._list_call_kwargs(svc)["q"]
+
+    async def test_mime_type_single_quote_is_escaped(self):
+        """Sibling of TestListSharedWithMe's #494 regression test — list_recent_files
+        had the identical quote-doubling bug at the same code review pass."""
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        await _drive_tools["list_recent_files"](mime_type="it's a test", ctx=ctx)
+        q = self._list_call_kwargs(svc)["q"]
+        assert "\\'" in q  # literal backslash-apostrophe present in query string
+
+    async def test_api_error_returns_error_dict_not_raised(self):
+        svc = self._drive_service()
+        svc.files.return_value.list.return_value.execute.side_effect = RuntimeError(
+            "simulated API failure"
+        )
+        ctx = _make_ctx(drive_service=svc)
+        result = await _drive_tools["list_recent_files"](ctx=ctx)
+        assert result == [{"error": "List recent files failed: simulated API failure"}]
 
 
 class TestListFiles:
