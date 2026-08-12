@@ -91,7 +91,7 @@ async def _upload_local_file(
     convert: bool = False,
 ) -> dict[str, Any]:
     """Upload a local file to a Drive folder. Shared core behind the upload_local_file
-    tool and docs/content.py's insert_local_images (imported cross-package the same
+    tool and docs/images.py's insert_local_images (imported cross-package the same
     way docs/content.py imports _SA_QUOTA_ERROR from tools/drive/__init__.py).
 
     convert=True requests Drive's native import conversion (CSV/XLSX -> Sheets,

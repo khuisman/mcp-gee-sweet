@@ -105,7 +105,7 @@ class TestUploadFile:
 
 class TestUploadLocalFileCore:
     """Direct tests for _upload_local_file — the module-level helper factored out
-    of the upload_local_file tool so docs/content.py's insert_local_images can
+    of the upload_local_file tool so docs/images.py's insert_local_images can
     call it directly."""
 
     def _quota_err(self):
