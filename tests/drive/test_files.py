@@ -609,6 +609,25 @@ class TestListFiles:
         result = await _drive_tools["list_files"](folder_id="folder1", ctx=ctx)
         assert result[0]["md5_checksum"] is None
 
+    async def test_mime_type_single_quote_is_escaped(self):
+        """Regression test — mime_type was interpolated with zero escaping (not
+        even the broken quote-doubling list_shared_with_me/list_recent_files had),
+        live-confirmed as an uncaught HttpError 400 'Invalid Value' (PR #577 QA)."""
+        svc = self._drive_service()
+        ctx = self._ctx(svc)
+        await _drive_tools["list_files"](folder_id="folder1", mime_type="it's a test", ctx=ctx)
+        q = svc.files.return_value.list.call_args.kwargs["q"]
+        assert "\\'" in q  # literal backslash-apostrophe present in query string
+
+    async def test_api_error_returns_error_dict_not_raised(self):
+        svc = self._drive_service()
+        svc.files.return_value.list.return_value.execute.side_effect = RuntimeError(
+            "simulated API failure"
+        )
+        ctx = self._ctx(svc)
+        result = await _drive_tools["list_files"](folder_id="folder1", ctx=ctx)
+        assert result == [{"error": "List files failed: simulated API failure"}]
+
 
 class TestGetFileMetadata:
     def _drive_service(self, file=None):

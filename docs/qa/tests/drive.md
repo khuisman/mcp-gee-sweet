@@ -524,6 +524,27 @@ Trash `qa-236.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-236.txt`.
 
 ---
 
+### TC-D248: Single-quote in MIME type is escaped
+
+Third sibling of TC-D155/TC-D247 (#494, PR #577 QA round) — `list_files` had the
+*worst* version of the same bug: `mime_type` was interpolated with **zero** escaping
+(not even the broken quote-doubling the other two had), and the `.execute()` call plus
+result mapping had no try/except around them at all. Live-reproduced during QA as an
+uncaught `HttpError 400 "Invalid Value"`. Fixed with the same backslash-escape
+convention and try/except-returns-`{"error": ...}` wrapping used for TC-D155/TC-D247.
+
+**Prompt**
+> "List files in {FOLDER_ID}, filtered to a MIME type containing an apostrophe like \"it's a test\""
+
+**Checks**
+- No Drive API syntax error and no uncaught exception (previously threw `HttpError 400 "Invalid Value"`)
+- Returns `[]` (no real MIME type will match) rather than crashing
+- Unit test `test_mime_type_single_quote_is_escaped` confirms `\'` appears in the constructed query string
+- Unit test `test_api_error_returns_error_dict_not_raised` confirms a genuine API failure returns `[{"error": ...}]` rather than propagating
+- Confirms the folder cache is not populated with a bad entry when the call errors (no `folder_cache.store` on the exception path)
+
+---
+
 ## `get_doc_content`
 
 ### TC-D44: Happy path
