@@ -2963,6 +2963,8 @@ call in the same try/except-returns-`{"error": ...}` pattern those tools already
 - Unit test `test_mime_type_single_quote_is_escaped` confirms `\'` (not `''`) appears in the constructed query string
 - Unit test `test_api_error_returns_error_dict_not_raised` confirms a genuine API failure still returns `[{"error": ...}]` rather than propagating
 
+**Result (2026-08-11) ✅** Live `list_shared_with_me(mime_type="it's a test")` returned `[]` cleanly, no uncaught exception. 62 unit tests in `tests/drive/test_files.py` pass. Note: `list_files` (a third sibling, same file) has the identical bug — reported as a blocking finding on PR #577, not covered by this test case.
+
 ---
 
 ## `list_recent_files`
@@ -3032,6 +3034,8 @@ try/except-returns-`{"error": ...}` wrapping.
 - Returns `[]` (no real MIME type will match) rather than crashing
 - Unit test `test_mime_type_single_quote_is_escaped` confirms `\'` (not `''`) appears in the constructed query string
 - Unit test `test_api_error_returns_error_dict_not_raised` confirms a genuine API failure still returns `[{"error": ...}]` rather than propagating
+
+**Result (2026-08-11) ✅** Live `list_recent_files(mime_type="it's a test")` returned `[]` cleanly, no uncaught exception. 62 unit tests in `tests/drive/test_files.py` pass.
 
 ---
 
