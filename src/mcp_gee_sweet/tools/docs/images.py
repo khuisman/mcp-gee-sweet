@@ -1,9 +1,12 @@
 """Inline-image tools (insert_inline_image, insert_local_images) plus the size
 validation, downscaling, and error-message clarification (#400) shared by every
 insertInlineImage call site in this package, including markdown/HTML image embedding
-in content.py's create_doc/write_doc_content (via _resolve_image_source). The two
-tools were merged into this module (#372) rather than split into a differently-named
-one, since they were already this module's primary callers.
+in content.py's create_doc/write_doc_content (via _resolve_image_source, which
+depends on these same six helpers just as heavily as the two tools below do — not
+the reason for the merge). The two tools were merged into this module (#372) rather
+than split into a differently-named one: issue #372 predates #400's creation of this
+file, and by the time it was picked up, images.py already existed here for the
+size-validation helpers — merging avoided colliding with a newly-invented module name.
 
 Google Docs' insertInlineImage request rejects any image over ~25 megapixels with a
 bare "The provided image is too large" HttpError that names neither the actual limit
