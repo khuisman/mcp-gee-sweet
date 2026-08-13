@@ -543,6 +543,8 @@ convention and try/except-returns-`{"error": ...}` wrapping used for TC-D155/TC-
 - Unit test `test_api_error_returns_error_dict_not_raised` confirms a genuine API failure returns `[{"error": ...}]` rather than propagating
 - Confirms the folder cache is not populated with a bad entry when the call errors (no `folder_cache.store` on the exception path)
 
+**Result (2026-08-12) ✅** Live `list_files(folder_id=<fixture folder>, mime_type="it's a test")` returned `[]` cleanly, no uncaught exception. 64 unit tests in `tests/drive/test_files.py` pass. Code-inspection confirms `folder_cache.store` sits after the list comprehension inside the `try` block, so an exception path never reaches it — no cache pollution on error.
+
 ---
 
 ## `get_doc_content`
