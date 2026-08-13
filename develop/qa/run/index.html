@@ -1589,7 +1589,7 @@
 <a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>1. Announce the TC number and title.
 <a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>2. Substitute fixture IDs into the prompt (replace {SPREADSHEET_ID}, {DOC_ID}, etc. with the values from `.env`).
 <a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>3. Execute the prompt using the mcp-gee-sweet tools available in this session.
-<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>4. If the test case is marked **Playwright: required** and Playwright MCP is connected: navigate to the affected resource and take a snapshot before recording the outcome.
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>4. If the test case is marked **Playwright: required** and Playwright MCP is connected: navigate to the affected resource and take a snapshot before recording the outcome. Also save a screenshot via `browser_take_screenshot`, with `filename` set to `docs/qa/screenshots/&lt;YYYY-MM-DD&gt;-&lt;tc-id&gt;.png` (today&#39;s date, lowercase TC number — e.g. `tc-doc12.png`). The date prefix keeps each run&#39;s screenshots separate without overwriting a prior run&#39;s evidence, and avoids depending on a subfolder that `browser_take_screenshot` won&#39;t auto-create.
 <a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>5. Evaluate each item in the **Checks** list against the actual result.
 <a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>6. Record one of:
 <a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>   - **PASS** — every check met
@@ -1661,9 +1661,11 @@
 <a id="__codelineno-0-102" name="__codelineno-0-102" href="#__codelineno-0-102"></a>| ... | | | |
 <a id="__codelineno-0-103" name="__codelineno-0-103" href="#__codelineno-0-103"></a>---
 <a id="__codelineno-0-104" name="__codelineno-0-104" href="#__codelineno-0-104"></a>
-<a id="__codelineno-0-105" name="__codelineno-0-105" href="#__codelineno-0-105"></a>## Resuming an interrupted run
+<a id="__codelineno-0-105" name="__codelineno-0-105" href="#__codelineno-0-105"></a>If any test case this run was marked **Playwright: required**, tell me: &quot;Screenshots saved to `docs/qa/screenshots/` (prefixed `&lt;YYYY-MM-DD&gt;-`) — delete when no longer needed.&quot;
 <a id="__codelineno-0-106" name="__codelineno-0-106" href="#__codelineno-0-106"></a>
-<a id="__codelineno-0-107" name="__codelineno-0-107" href="#__codelineno-0-107"></a>If resuming: read the partial results file I specify, identify the last completed TC, and continue from the next one. Re-confirm fixture IDs from `.env` and re-verify fixture state before continuing.
+<a id="__codelineno-0-107" name="__codelineno-0-107" href="#__codelineno-0-107"></a>## Resuming an interrupted run
+<a id="__codelineno-0-108" name="__codelineno-0-108" href="#__codelineno-0-108"></a>
+<a id="__codelineno-0-109" name="__codelineno-0-109" href="#__codelineno-0-109"></a>If resuming: read the partial results file I specify, identify the last completed TC, and continue from the next one. Re-confirm fixture IDs from `.env` and re-verify fixture state before continuing.
 </code></pre></div>
 <hr />
 <h2 id="results-location">Results location<a class="headerlink" href="#results-location" title="Permanent link">&para;</a></h2>
