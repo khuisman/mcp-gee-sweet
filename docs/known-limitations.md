@@ -50,7 +50,7 @@ cell.
 inside another table's cell.
 
 **Workaround:** Supply raw HTML instead — the HTML→AST pipeline fully supports nested tables
-(see #109). Related: `docs/qa/tests/docs.md` TC-DOC51.
+(see #109). Related: `docs/qa/tests/docs_content.md` TC-DOC51.
 
 ---
 
