@@ -113,7 +113,7 @@ For each test case:
 1. Announce the TC number and title.
 2. Substitute fixture IDs into the prompt (replace {SPREADSHEET_ID}, {DOC_ID}, etc. with the values from `.env`).
 3. Execute the prompt using the mcp-gee-sweet tools available in this session.
-4. If the test case is marked **Playwright: required** and Playwright MCP is connected: navigate to the affected resource and take a snapshot before recording the outcome.
+4. If the test case is marked **Playwright: required** and Playwright MCP is connected: navigate to the affected resource and take a snapshot before recording the outcome. Also save a screenshot via `browser_take_screenshot`, with `filename` set to `docs/qa/screenshots/<YYYY-MM-DD>/<tc-id>.png` (today's date, lowercase TC number — e.g. `tc-doc12.png`). The date subfolder keeps each run's screenshots separate without overwriting a prior run's evidence.
 5. Evaluate each item in the **Checks** list against the actual result.
 6. Record one of:
    - **PASS** — every check met
@@ -184,6 +184,8 @@ Use ✅ if all covering TCs passed, ❌ if any failed, ⚠️ no coverage if no 
 | TC-I01 | ... | PASS | |
 | ... | | | |
 ---
+
+If any test case this run was marked **Playwright: required**, tell me: "Screenshots saved to `docs/qa/screenshots/<YYYY-MM-DD>/` — delete when no longer needed."
 
 ## Resuming an interrupted run
 
