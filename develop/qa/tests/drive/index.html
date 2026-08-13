@@ -1774,6 +1774,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-d248-single-quote-in-mime-type-is-escaped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D248: Single-quote in MIME type is escaped
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4176,6 +4187,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-d247-single-quote-in-mime-type-is-escaped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-D247: Single-quote in MIME type is escaped
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5123,6 +5145,25 @@
 <p><strong>Teardown</strong>
 Trash <code>qa-236.txt</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-236.txt</code>.</p>
 <p><strong>Result (2026-07-31) ✅ PASS</strong> — uploaded file's <code>md5_checksum</code> was <code>94988405d319a361bd6424b82ab6740d</code> (32-char hex); the Doc fixture's entry had <code>md5_checksum: null</code>.</p>
+<hr />
+<h3 id="tc-d248-single-quote-in-mime-type-is-escaped">TC-D248: Single-quote in MIME type is escaped<a class="headerlink" href="#tc-d248-single-quote-in-mime-type-is-escaped" title="Permanent link">&para;</a></h3>
+<p>Third sibling of TC-D155/TC-D247 (#494, PR #577 QA round) — <code>list_files</code> had the
+<em>worst</em> version of the same bug: <code>mime_type</code> was interpolated with <strong>zero</strong> escaping
+(not even the broken quote-doubling the other two had), and the <code>.execute()</code> call plus
+result mapping had no try/except around them at all. Live-reproduced during QA as an
+uncaught <code>HttpError 400 "Invalid Value"</code>. Fixed with the same backslash-escape
+convention and try/except-returns-<code>{"error": ...}</code> wrapping used for TC-D155/TC-D247.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List files in {FOLDER_ID}, filtered to a MIME type containing an apostrophe like \"it's a test\""</p>
+</blockquote>
+<p><strong>Checks</strong>
+- No Drive API syntax error and no uncaught exception (previously threw <code>HttpError 400 "Invalid Value"</code>)
+- Returns <code>[]</code> (no real MIME type will match) rather than crashing
+- Unit test <code>test_mime_type_single_quote_is_escaped</code> confirms <code>\'</code> appears in the constructed query string
+- Unit test <code>test_api_error_returns_error_dict_not_raised</code> confirms a genuine API failure returns <code>[{"error": ...}]</code> rather than propagating
+- Confirms the folder cache is not populated with a bad entry when the call errors (no <code>folder_cache.store</code> on the exception path)</p>
+<p><strong>Result (2026-08-12) ✅</strong> Live <code>list_files(folder_id=&lt;fixture folder&gt;, mime_type="it's a test")</code> returned <code>[]</code> cleanly, no uncaught exception. 64 unit tests in <code>tests/drive/test_files.py</code> pass. Code-inspection confirms <code>folder_cache.store</code> sits after the list comprehension inside the <code>try</code> block, so an exception path never reaches it — no cache pollution on error.</p>
 <hr />
 <h2 id="get_doc_content"><code>get_doc_content</code><a class="headerlink" href="#get_doc_content" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d44-happy-path">TC-D44: Happy path<a class="headerlink" href="#tc-d44-happy-path" title="Permanent link">&para;</a></h3>
@@ -7061,10 +7102,23 @@ The <code>mcp-gee-sweet-sa</code> server available in this role worktree is a se
 <p><strong>Result (2026-06-21) ✅</strong> OAuth: exactly 3 items returned — Budget &amp; Savings, 2025 medical expenses, Tax Documents folder. Correct top-3 by <code>modifiedTime desc</code>.</p>
 <hr />
 <h3 id="tc-d155-single-quote-in-mime-type-is-escaped">TC-D155: Single-quote in MIME type is escaped<a class="headerlink" href="#tc-d155-single-quote-in-mime-type-is-escaped" title="Permanent link">&para;</a></h3>
-<p><strong>Checks (unit test)</strong>
-- <code>mime_type</code> containing <code>'</code> is escaped before interpolation into query string
-- No SQL/query-injection risk</p>
-<p><strong>Result (2026-06-21) ✅</strong> Unit test confirms escape applied before query interpolation.</p>
+<p>Regression test for #494: the original implementation escaped <code>mime_type</code> by doubling
+the quote (<code>''</code>, SQL-style) instead of backslash-escaping it (<code>\'</code>) like
+<code>search_files</code>/<code>search_spreadsheets</code> do — Drive's query grammar doesn't recognize the
+doubled form, so a <code>mime_type</code> containing an apostrophe live-crashed with an uncaught
+<code>HttpError 400 "Invalid Value"</code> rather than returning a clean result. Fixed by switching
+to the same backslash-escape convention as the sibling search tools, plus wrapping the
+call in the same try/except-returns-<code>{"error": ...}</code> pattern those tools already use.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List files shared with me, filtered to a MIME type containing an apostrophe like \"it's a test\""</p>
+</blockquote>
+<p><strong>Checks</strong>
+- No Drive API syntax error and no uncaught exception (previously threw <code>HttpError 400 "Invalid Value"</code>)
+- Returns <code>[]</code> (no real MIME type will match) rather than crashing
+- Unit test <code>test_mime_type_single_quote_is_escaped</code> confirms <code>\'</code> (not <code>''</code>) appears in the constructed query string
+- Unit test <code>test_api_error_returns_error_dict_not_raised</code> confirms a genuine API failure still returns <code>[{"error": ...}]</code> rather than propagating</p>
+<p><strong>Result (2026-08-11) ✅</strong> Live <code>list_shared_with_me(mime_type="it's a test")</code> returned <code>[]</code> cleanly, no uncaught exception. 62 unit tests in <code>tests/drive/test_files.py</code> pass. Note: <code>list_files</code> (a third sibling, same file) has the identical bug — reported as a blocking finding on PR #577, not covered by this test case.</p>
 <hr />
 <h2 id="list_recent_files"><code>list_recent_files</code><a class="headerlink" href="#list_recent_files" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d156-list-recently-modified-files">TC-D156: List recently modified files<a class="headerlink" href="#tc-d156-list-recently-modified-files" title="Permanent link">&para;</a></h3>
@@ -7102,6 +7156,23 @@ The <code>mcp-gee-sweet-sa</code> server available in this role worktree is a se
 <p><strong>Checks (unit test)</strong>
 - Passing <code>max_results=500</code> results in <code>pageSize=100</code> in the API call</p>
 <p><strong>Result (2026-06-21) ✅</strong> Unit test confirms <code>pageSize=100</code> when <code>max_results=500</code>.</p>
+<hr />
+<h3 id="tc-d247-single-quote-in-mime-type-is-escaped">TC-D247: Single-quote in MIME type is escaped<a class="headerlink" href="#tc-d247-single-quote-in-mime-type-is-escaped" title="Permanent link">&para;</a></h3>
+<p>Sibling of TC-D155 (#494) — <code>list_recent_files</code> had the identical bug: <code>mime_type</code>
+escaped by quote-doubling (<code>''</code>) instead of backslash-escaping (<code>\'</code>), live-crashing
+with <code>HttpError 400 "Invalid Value"</code> on an apostrophe. Same fix applied: backslash
+escaping matching <code>search_files</code>/<code>search_spreadsheets</code>, plus the same
+try/except-returns-<code>{"error": ...}</code> wrapping.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List recently modified files, filtered to a MIME type containing an apostrophe like \"it's a test\""</p>
+</blockquote>
+<p><strong>Checks</strong>
+- No Drive API syntax error and no uncaught exception (previously threw <code>HttpError 400 "Invalid Value"</code>)
+- Returns <code>[]</code> (no real MIME type will match) rather than crashing
+- Unit test <code>test_mime_type_single_quote_is_escaped</code> confirms <code>\'</code> (not <code>''</code>) appears in the constructed query string
+- Unit test <code>test_api_error_returns_error_dict_not_raised</code> confirms a genuine API failure still returns <code>[{"error": ...}]</code> rather than propagating</p>
+<p><strong>Result (2026-08-11) ✅</strong> Live <code>list_recent_files(mime_type="it's a test")</code> returned <code>[]</code> cleanly, no uncaught exception. 62 unit tests in <code>tests/drive/test_files.py</code> pass.</p>
 <hr />
 <h2 id="get_storage_quota"><code>get_storage_quota</code><a class="headerlink" href="#get_storage_quota" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d160-get-storage-quota">TC-D160: Get storage quota<a class="headerlink" href="#tc-d160-get-storage-quota" title="Permanent link">&para;</a></h3>
