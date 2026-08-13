@@ -281,7 +281,10 @@ class TestRewriteTooLargeError:
         original = "Invalid requests[0].insertInlineImage: The provided image is too large."
         rewritten = images.rewrite_too_large_error(original)
         assert original in rewritten
+        # Limit-agnostic (#562 QA round 1) — Google's error doesn't say which of the
+        # two limits was hit, and this call site never fetched the bytes to check.
         assert "25 megapixels" in rewritten
+        assert "50MB" in rewritten
         assert images._DOCS_IMAGE_LIMITS_URL in rewritten
 
     def test_leaves_unrelated_insertinlineimage_error_unchanged(self):
@@ -646,6 +649,7 @@ class TestInsertInlineImage:
         )
         assert "error" in result
         assert "25 megapixels" in result["error"]
+        assert "50MB" in result["error"]
         assert "auto_downscale" not in result["error"]  # uri source can't use it
 
 
@@ -1026,6 +1030,7 @@ class TestInsertLocalImages:
         error = result["results"][0]["error"]
         assert message in error
         assert "25 megapixels" in error
+        assert "50MB" in error
 
     async def test_failed_batchupdate_with_revoke_sharing_false_leaves_image_shared(self, tmp_path):
         img = tmp_path / "pic.png"

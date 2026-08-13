@@ -221,12 +221,19 @@ def rewrite_too_large_error(message: str) -> str:
     name the known cause, for call sites (a bare http(s):// uri) that can't
     pre-validate because they never fetch the image's own bytes. Returns the message
     unchanged for anything else, so an unrelated insertInlineImage failure (e.g. an
-    unfetchable URL, #333) isn't misreported as a size problem."""
+    unfetchable URL, #333) isn't misreported as a size problem.
+
+    Deliberately limit-agnostic (#562 follow-up, PR #580 QA round 1): Google's error
+    text doesn't say which of the two documented ceilings (megapixels or file size)
+    was actually hit, and this call site never fetched the image's own bytes to check
+    — naming only the megapixel limit, as this used to, gave actively misleading
+    guidance ("check the image's pixel dimensions") for a byte-size-caused rejection."""
     if "insertInlineImage" in message and "too large" in message.lower():
         return (
-            f"{message} This is very likely Google Docs' inline-image limit of "
-            f"{MAX_INLINE_IMAGE_MEGAPIXELS} megapixels ({_DOCS_IMAGE_LIMITS_URL}) — "
-            "check the image's pixel dimensions and resize it before retrying."
+            f"{message} This is very likely exceeding Google Docs' inline-image "
+            f"limits of {MAX_INLINE_IMAGE_MEGAPIXELS} megapixels or "
+            f"{MAX_INLINE_IMAGE_MEGABYTES}MB ({_DOCS_IMAGE_LIMITS_URL}) — resize it "
+            "before retrying."
         )
     return message
 

@@ -1539,6 +1539,7 @@ class TestCreateDocImages:
 
         error = result["images"][0]["error"]
         assert "25 megapixels" in error
+        assert "50MB" in error
         assert "auto_downscale" not in error  # uri source can't use it
         assert docs_svc.documents.return_value.batchUpdate.call_count == 2
 
