@@ -22,7 +22,7 @@ from .ast import Run, Table
 from .emitter import ast_to_requests, extract_images, fill_tables
 from .html_parser import html_to_ast
 from .images import (
-    check_dimensions,
+    check_drive_image_metadata,
     check_image_bytes,
     downscale_drive_file,
     downscale_image_bytes,
@@ -160,10 +160,11 @@ async def _resolve_image_source(
         then shared the same way as the drive: case.
 
     The drive: and local-path kinds are both checked against Google Docs' ~25-
-    megapixel inline-image limit (#400) before ever being embedded — a drive: file's
-    dimensions come straight from Drive's own imageMediaMetadata (no download needed);
-    a local file's are read directly off disk. The default (auto_downscale=False)
-    returns {"error": ...} naming the limit and the image's actual size, before any
+    megapixel and ~50MB inline-image limits (#400, #562) before ever being embedded —
+    a drive: file's dimensions and size come straight from Drive's own metadata (no
+    download needed); a local file's are read directly off disk. The default
+    (auto_downscale=False) returns {"error": ...} naming the limit and the image's
+    actual size, before any
     upload/share happens. auto_downscale=True instead resizes it: a drive: source gets
     a new " (resized)" copy created alongside the original (left untouched); a
     local-path source uploads the resized bytes directly instead of the original file.
@@ -188,7 +189,7 @@ async def _resolve_image_source(
                 drive_service.files()
                 .get(
                     fileId=file_id,
-                    fields="name,parents,imageMediaMetadata",
+                    fields="name,parents,imageMediaMetadata,size",
                     supportsAllDrives=True,
                 )
                 .execute,
@@ -197,20 +198,17 @@ async def _resolve_image_source(
         except Exception as e:
             return {"error": f"failed to get Drive file metadata: {e}"}
 
-        img_meta = drive_metadata.get("imageMediaMetadata") or {}
-        img_width, img_height = img_meta.get("width"), img_meta.get("height")
-        if img_width and img_height:
-            size_error = check_dimensions(img_width, img_height)
-            if size_error is not None:
-                if not auto_downscale:
-                    return size_error
-                parents = drive_metadata.get("parents") or []
-                return await downscale_drive_file(
-                    drive_service,
-                    file_id,
-                    name=drive_metadata.get("name", file_id),
-                    parent_folder_id=parents[0] if parents else target_folder_id,
-                )
+        size_error = check_drive_image_metadata(drive_metadata)
+        if size_error is not None:
+            if not auto_downscale:
+                return size_error
+            parents = drive_metadata.get("parents") or []
+            return await downscale_drive_file(
+                drive_service,
+                file_id,
+                name=drive_metadata.get("name", file_id),
+                parent_folder_id=parents[0] if parents else target_folder_id,
+            )
     else:
         if not Path(src).is_file():
             return {"error": f"No file found at {src!r}"}
