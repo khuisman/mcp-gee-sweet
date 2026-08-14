@@ -332,7 +332,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ### TC-D236: md5_checksum present for a binary file, null for a Google Workspace file (issue #274) ⚠️ local-filesystem
 
-**Background:** `list_files` now surfaces Drive's `md5Checksum` field so callers can diff content directly instead of inferring change from `modifiedTime` alone, which upload paths like `upload_local_file` don't always keep in sync with actual content (see TC-D226's follow-up finding). `{FOLDER_ID}` already contains both `{SPREADSHEET_ID}` and `{DOC_ID}` (per `setup.md`), so no new Workspace fixture needs creating here.
+**Background:** `list_files` now surfaces Drive's `md5Checksum` field so callers can diff content directly instead of inferring change from `modifiedTime` alone, which upload paths like `upload_local_file` don't always keep in sync with actual content (see `drive_transfer.md` TC-D226's follow-up finding). `{FOLDER_ID}` already contains both `{SPREADSHEET_ID}` and `{DOC_ID}` (per `setup.md`), so no new Workspace fixture needs creating here.
 
 **Prompt**
 > Upload a small local file (e.g. `/tmp/qa-236.txt` containing "hello md5") to `{FOLDER_ID}` via `upload_local_file`. Then:
@@ -791,14 +791,14 @@ convention and try/except-returns-`{"error": ...}` wrapping used for TC-D155/TC-
 **Background:** Mirrors TC-D236 for `get_file_metadata` — same `md5Checksum` field, same Workspace-files-have-none caveat, added alongside `size`'s existing conditional-presence handling.
 
 **Prompt**
-> "Get the metadata for {BINARY_FILE_ID}" *(the PNG from TC-D93)*, then "Get the metadata for {SPREADSHEET_ID}"
+> "Get the metadata for {BINARY_FILE_ID}" *(the PNG from `drive_transfer.md` TC-D93)*, then "Get the metadata for {SPREADSHEET_ID}"
 
 **Checks**
 - Call `get_file_metadata(file_id="{BINARY_FILE_ID}")` — `md5_checksum` is present, a 32-character hex string
 - Call `get_file_metadata(file_id="{SPREADSHEET_ID}")` — `md5_checksum` is `null` (Google Workspace file)
 - `{BINARY_FILE_ID}`'s `md5_checksum` matches the value `list_files` reports for the same file (TC-D236) — same field, same source
 
-**Result (2026-07-31) ✅ PASS** — no persistent PNG fixture from TC-D93 currently exists in `{FOLDER_ID}` (checked live via `list_files`), so a PNG was uploaded fresh for this run instead and trashed afterward. `get_file_metadata` returned `md5_checksum: "bf2b97d8351aa217100ec405ede9d512"` for the PNG (matched `list_files`'s value for the same file) and `md5_checksum: null` for `{SPREADSHEET_ID}`.
+**Result (2026-07-31) ✅ PASS** — no persistent PNG fixture from `drive_transfer.md` TC-D93 currently exists in `{FOLDER_ID}` (checked live via `list_files`), so a PNG was uploaded fresh for this run instead and trashed afterward. `get_file_metadata` returned `md5_checksum: "bf2b97d8351aa217100ec405ede9d512"` for the PNG (matched `list_files`'s value for the same file) and `md5_checksum: null` for `{SPREADSHEET_ID}`.
 
 ---
 

@@ -66,6 +66,21 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
+### TC-D167: export_file trips the response-size cap on base64-inflated content (issue #242)
+
+**Background:** #242 generalized #235's response-size safety net to `export_file`. Unlike the other capped tools, `export_file` has no `local_path` param — its base64 output written to a JSON file would be a worse artifact than `download_file` (pre-existing tool) already produces, so the error points there instead.
+
+**Prompt**
+> "Export {SPREADSHEET_ID} as xlsx"
+
+**Checks**
+- Call raises `ValueError` mentioning the actual response size, the 40,000-character cap, base64's ~33% inflation, and `download_file` as the recommended alternative — must NOT mention `local_path` (this tool doesn't have that param)
+
+**Result (2026-07-03) ✅ PASS**
+Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded the cap: `export_file: the response is 54280 characters, over the 40000-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead, or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` Confirms `export_file`'s cap trips far more readily than the other capped tools given base64 inflation — `download_file` is the practical default for anything but tiny files.
+
+---
+
 ## `upload_file`
 
 ### TC-D88: Upload plain text file ⚠️ requires-oauth
@@ -1157,7 +1172,7 @@ Remove `/tmp/qa-512c/` and `/tmp/qa-512c-result/`.
 
 ### TC-D197: `recursive=True` — sibling subfolders sync correctly with no cross-attribution under concurrent descent (PR #328 review) ⚠️ destructive ⚠️ local-filesystem
 
-**Background:** CLAUDE.md names `sync_folder` among the tools that parallelize per-item work via `asyncio.gather(..., return_exceptions=True)`. The recursive descent into sibling subfolders originally awaited each one sequentially instead, right next to the file-level loop in the same function that does use `gather` — wall-clock time scaled with the sum of subfolder round-trips instead of the max. Fixed by gathering sibling `_sync_level` calls the same way. Genuine concurrency (not just correctness) is unit-tested via a real-thread synchronization barrier (`tests/drive/test_transfer.py::TestSyncFolderRecursive::test_recursive_sibling_subfolders_descend_concurrently`); this live check confirms correctness under real concurrent Drive API calls — a mocked test can't catch a genuine race the way #183's TC-D178/TC-D179 precedent established.
+**Background:** CLAUDE.md names `sync_folder` among the tools that parallelize per-item work via `asyncio.gather(..., return_exceptions=True)`. The recursive descent into sibling subfolders originally awaited each one sequentially instead, right next to the file-level loop in the same function that does use `gather` — wall-clock time scaled with the sum of subfolder round-trips instead of the max. Fixed by gathering sibling `_sync_level` calls the same way. Genuine concurrency (not just correctness) is unit-tested via a real-thread synchronization barrier (`tests/drive/test_transfer.py::TestSyncFolderRecursive::test_recursive_sibling_subfolders_descend_concurrently`); this live check confirms correctness under real concurrent Drive API calls — a mocked test can't catch a genuine race the way #183's TC-D178 (this file) / `drive_files.md` TC-D179 precedent established.
 
 **Setup**
 In `{FOLDER_ID}`, create two subfolders, `sib-a` and `sib-b`, each with 3-4 distinct files with unique identifiable content (e.g. containing their own filename as a marker).

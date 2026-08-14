@@ -134,6 +134,168 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
+### TC-DOC25: style_doc_table_cells post-fix live verification ⚠️ destructive
+**Purpose:** `style_doc_table_cells` was fixed (removed top-level `tableStartLocation` that conflicted with the `tableRange` oneof) but the fix was **never re-tested live**. This is the confirmation test.
+
+**Setup:** insert a 2×2 table; record its `tableStartIndex` from the response
+
+**Prompt**
+**Playwright: required**
+> "Style cell [0,0] of the table at index {tableStartIndex} in doc {DOC_ID} with background_color red=0.8 green=0.9 blue=1.0"
+
+**Checks**
+- Response succeeds (no API 400 error about `oneof field 'cells' is already set`)
+- `requests: 1` in response
+- 🔍 Visual check in Google Docs: cell [0,0] has light blue background
+
+**Cleanup:** delete the table
+
+**Result (2026-06-20) ✅ PASS**
+- Inserted 2×2 table; styled cell [0,0] with `background_color {red:0.8, green:0.9, blue:1.0}`. No API 400 error. `requests: 1`. Fix (removal of top-level `tableStartLocation` conflicting with `tableRange` oneof) confirmed working.
+
+---
+
+## `get_doc_theme` / `get_doc_named_styles` / `apply_theme`
+
+### TC-DOC75: `get_doc_named_styles` reads named style defaults set via the Docs UI
+**Note:** Named styles are only populated when the user explicitly goes to Format > Paragraph styles > Update X to match. Most docs leave named styles at Google's defaults — this tool returns empty or near-empty for those docs. Use `get_doc_theme` to read actual paragraph appearance instead.
+
+**Prompt**
+> "Call `get_doc_named_styles` on doc {DOC_ID} and show me the result."
+
+**Checks**
+- No `error` key in result
+- For a doc where named styles were explicitly set: returns a non-empty dict with named style type keys
+- For a standard doc: may return `{}` or only Google's default entries (expected, not an error)
+
+**Result (2026-06-20) ✅ PASS** Called on a doc that had `apply_theme` previously applied (Georgia HEADING_1/H2, Roboto NORMAL_TEXT). Returned 9 entries: NORMAL_TEXT (Roboto 11pt, line_spacing 115), HEADING_1 (Georgia 24pt bold, space_above 20), HEADING_2 (Georgia 18pt, space_above 18), HEADING_3–6 (Google defaults with font sizes and colors), TITLE, SUBTITLE. Confirms `apply_theme` default mode successfully writes to named styles, and `get_doc_named_styles` reads them back correctly. No error.
+
+---
+
+### TC-DOC52: `get_doc_theme` scans body paragraph styles
+**Note:** `get_doc_theme` reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.
+
+**Prompt**
+> "Call `get_doc_theme` on doc {DOC_ID} and show me the result."
+
+**Checks**
+- No `error` key in result
+- For a doc with explicit paragraph styles: returns a dict with at least one named style type key; each entry has at least one of font_family, font_size, bold, italic, color, line_spacing, space_above, space_below
+- For a doc with purely inherited styles: result is an empty dict `{}` (expected, not an error)
+
+**Result (2026-06-20) ✅ PASS** Called on a test doc created with `create_doc` (markdown content — inherited styles): returned `{}`. Called on the same doc after `apply_theme overwrite=True` (Georgia HEADING_1, Roboto NORMAL_TEXT): returned `{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}`. `font_size` and `bold` are not returned because the Docs API normalises explicit overrides that match the named style default back to inherited. No error key in either case.
+
+---
+
+### TC-DOC53: `apply_theme` updates named style definitions ⚠️ destructive
+**Note:** Default mode (`overwrite=False`) emits `updateNamedStyle` requests — one per named style key — updating the document's style defaults. Existing paragraphs with explicit overrides are unaffected. No doc fetch is needed. Use `overwrite=True` to also apply directly to all existing paragraphs.
+
+**Prompt**
+> "Apply theme `{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}` to doc {DOC_ID}"
+
+**Checks**
+- Result contains `docId` and `requests > 0`
+- No `error` key
+- `requests` equals the number of named style keys in the theme (one `updateNamedStyle` per key)
+
+**Result (2026-06-20) ✅ PASS** Called with HEADING_1 + HEADING_2 + NORMAL_TEXT → `{"docId": "...", "requests": 3}`. Each emitted one `updateNamedStyle` request with snake_case field mask (`named_style_type,text_style.weighted_font_family,text_style.font_size`). No error. Live API accepted all three requests.
+
+---
+
+### TC-DOC54: `apply_theme` with `overwrite=True` also patches existing paragraphs ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> "Write `<h1>Heading One</h1><p>Normal body text.</p>` to doc {DOC_ID}, then apply theme `{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}` with overwrite=True"
+
+**Checks**
+- Result contains `docId` and `requests > 0`
+- `requests` > number of named style keys (named style updates + per-paragraph updates)
+- No `error` key
+- 🔍 Visual check: HEADING_1 paragraph visually in Georgia 22pt, body in Verdana 11pt
+
+**Cleanup:** write fixture content back
+
+**Result (2026-06-20) ✅ PASS** Called with HEADING_1 + NORMAL_TEXT on a doc with HEADING_1, HEADING_2 (×2), HEADING_3, NORMAL_TEXT (×4) paragraphs → `{"docId": "...", "requests": 7}` (2 `updateNamedStyle` + 5 `updateTextStyle` for matching paragraphs). No error.
+
+---
+
+### TC-DOC55: `apply_theme` with table styling ⚠️ destructive
+**Prerequisite:** doc must contain at least one table (write one with `write_doc_content` first if needed)
+
+**Prompt**
+**Playwright: required**
+> "Apply this theme to doc {DOC_ID}: `{"table": {"border_color": {"red": 0, "green": 0, "blue": 0}, "border_width": 0.5, "border_dash_style": "SOLID", "cell_padding": 3.6, "header_background": {"red": 0.953, "green": 0.953, "blue": 0.953}}}`"
+
+**Checks**
+- Result contains `docId` and `requests > 0`
+- 🔍 Visual check: table cells have thin black border, 3.6pt padding, first row has light grey background
+
+**Cleanup:** write fixture content back
+
+**Result (2026-06-20) ✅ PASS** Wrote 2-row table, applied table theme → `requests: 2` (one updateTableCellStyle per row; row 0 got header_background + padding + borders, row 1 got padding + borders). No error. Fixture restored.
+
+---
+
+### TC-DOC56: `get_doc_theme` → `apply_theme` round-trip on an AI-generated doc ⚠️ destructive
+**Note:** Round-trip only produces meaningful output on docs where styles are explicit (AI-generated). For standard inherited-style docs, `get_doc_theme` returns `{}` and `apply_theme` with an empty theme returns an error.
+
+**Prompt**
+> "Write styled content to doc {DOC_ID} with explicit font overrides, then read the theme with `get_doc_theme`, then apply it back with `apply_theme overwrite=True`. Show me both results."
+
+**Checks**
+- `get_doc_theme` returns a non-empty dict (at least one named style key with at least one field)
+- `apply_theme` returns `requests > 0`
+- No `error` in either result
+
+**Result (2026-06-20) ✅ PASS** After `apply_theme overwrite=True` (Georgia HEADING_1, Roboto NORMAL_TEXT) on the test doc, `get_doc_theme` returned `{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}`. Applying that theme back → `requests: 2` (one `updateNamedStyle` per key). No error. (font_size/bold not in round-trip because API normalises them to inherited when they match the named style default.)
+
+---
+
+## `style_doc_table_cells` / `apply_theme` — per-edge table border override (issue #403)
+
+### TC-DOC146: `style_doc_table_cells` per-edge border override — signature-line (bottom-only border) ⚠️ destructive
+
+**Purpose:** #403 — `style_doc_table_cells` previously only supported a single uniform border applied to all four cell edges. This confirms the new `border_top`/`border_right`/`border_bottom`/`border_left` per-edge overrides, using the signature-line use case from the issue (bottom border only, no other edges touched).
+
+**Setup:** insert a 2×1 table; record its `tableStartIndex` from the response
+
+**Prompt**
+**Playwright: required**
+> "Style cell [0,0] of the table at index {tableStartIndex} in doc {DOC_ID} with only a bottom border: color black, width 1.0"
+
+Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIndex>, cells=[{"row_index": 0, "column_index": 0, "border_bottom": {"color": {"red": 0, "green": 0, "blue": 0}, "width": 1.0}}])`
+
+**Checks**
+- Response succeeds, no `error` key, `requests: 1`
+- Docs tables render onto a canvas with no accessible `<table>` DOM, and a brand-new table already shows default borders on every cell — a screenshot can't distinguish "our applied border" from "the table's own default," so the visual check below is unreliable (see `run.md`'s "Docs table cell borders" limitation). Verify instead via a raw `documents().get()` read: cell [0,0]'s `tableCellStyle.borderBottom` should be present with the requested color/width; `borderTop`/`borderLeft`/`borderRight` should be absent (or default) since they were never targeted
+
+**Result:** PASS (2026-07-30, PR #462 re-verification round). Verified live via raw `documents().get()` read against the QA fixture doc rather than a screenshot (see note above) — a fresh table's untouched cell showed no `tableCellStyle` border keys at all; after `style_doc_table_cells` with only `border_bottom` set, the cell showed a `borderBottom` entry with the requested color/width and no `borderTop`/`borderLeft`/`borderRight` keys. Confirmed with two distinct rows/widths for reproducibility.
+
+**Cleanup:** delete the table
+
+---
+
+### TC-DOC147: `apply_theme` table styling with per-edge border override ⚠️ destructive
+
+**Purpose:** #403 — `apply_theme`'s `table` key had the same uniform-border-only limitation as `style_doc_table_cells`. Confirms `border_top`/`border_right`/`border_bottom`/`border_left` overrides on the theme's table styling, combined with the existing uniform `border_width` for the untouched edges.
+
+**Prerequisite:** doc must contain at least one table (write one with `write_doc_content` first if needed)
+
+**Prompt**
+**Playwright: required**
+> "Apply this theme to doc {DOC_ID}: `{"table": {"border_color": {"red": 0, "green": 0, "blue": 0}, "border_width": 0.5, "border_bottom": {"width": 2.0}}}`"
+
+**Checks**
+- Result contains `docId` and `requests > 0`
+- No `error` key
+- Same canvas-rendering limitation as TC-DOC146 — screenshot verification is unreliable here. Verify instead via a raw `documents().get()` read: interior rows' cells should show `borderTop`/`borderRight`/`borderBottom`/`borderLeft` all at the uniform width/color, and the *last* row's `borderBottom` should show the overridden width while still inheriting the uniform color (this is the core #403-follow-up fix: a width-only per-edge override must inherit color from the uniform spec, since the Docs API rejects a non-zero-width border with no color as "transparent")
+
+**Result:** PASS (2026-07-30, PR #462 re-verification round). Verified live via raw `documents().get()` read: applying `{"border_color": <uniform>, "border_width": 0.5, "border_bottom": {"width": <override>}}` produced a `borderBottom` on the outer edge with the overridden width and the *uniform* color correctly inherited (confirmed unambiguously using a non-default color, since the Docs API omits zero-valued RGB components from its response — a pure-black test color would round-trip as `{}` and couldn't distinguish "inherited" from "absent"). Also confirmed `{"border_bottom": null}` returns a clean `{"error": ...}` instead of raising.
+
+**Cleanup:** write fixture content back
+
+---
+
 ## `style_doc_range` — additional coverage
 
 ### TC-DOC28: Apply strikethrough ⚠️ destructive
@@ -180,6 +342,46 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-06-20) ✅ PASS**
 - Inserted "Visit example\n"; applied `link_url: "https://example.com"` to "example" (indices 94–101). `requests: 1`. Re-fetch: run split into "Visit " (`link_url: null`), "example" (`link_url: "https://example.com"`, `underline: true`), "\n" (`link_url: null`). Auto-underline is expected API behaviour.
+
+---
+
+### TC-DOC23: style_doc_range round-trip — heading confirmed in get_doc_structure ⚠️ destructive
+**Purpose:** `style_doc_range` was never called live during initial testing. This is the first live verification.
+
+**Setup:** insert a paragraph 'Style-test heading\n'; note its `startIndex`/`endIndex`
+
+**Prompt**
+> "Style the range {start}–{end} in doc {DOC_ID} as HEADING_1"
+
+**Checks**
+- Response contains `requests: 1`
+- Call `get_doc_structure` — the paragraph at that index shows `namedStyleType: "HEADING_1"`
+- Text content is unchanged ('Style-test heading')
+
+**Cleanup:** style back to NORMAL_TEXT, then delete the paragraph
+
+**Result (2026-06-20) ✅ PASS**
+- Inserted "Style-test heading\n" at 88; styled [88, 107] as HEADING_1. `requests: 1`. Re-fetch: `namedStyleType: "HEADING_1"`, `text: "Style-test heading\n"` unchanged.
+
+---
+
+### TC-DOC24: style_doc_range text styles round-trip ⚠️ destructive
+**Purpose:** verify bold/italic/underline are readable back via get_doc_structure runs.
+
+**Setup:** insert a paragraph 'Bold-italic test\n'; note its index range
+
+**Prompt**
+> "Make the range {start}–{end} in doc {DOC_ID} bold and italic"
+
+**Checks**
+- Response contains `requests: 1`
+- `get_doc_structure` shows a run in that paragraph with `bold: true` and `italic: true`
+- `namedStyleType` is unchanged (updateTextStyle only, no updateParagraphStyle)
+
+**Cleanup:** delete the test paragraph
+
+**Result (2026-06-20) ✅ PASS**
+- Inserted "Bold-italic test\n" at 88; applied bold+italic to [88, 105]. `requests: 1`. Re-fetch: run `bold: true`, `italic: true`; `namedStyleType: "NORMAL_TEXT"` unchanged.
 
 ---
 

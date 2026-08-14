@@ -32,7 +32,7 @@ Prompt-driven integration tests for mcp-gee-sweet. Each test case is a natural l
 | [tests/drive_sharing.md](tests/drive_sharing.md) | Drive sharing & permissions | TC-D## |
 | [tests/drive_transfer.md](tests/drive_transfer.md) | Drive upload/download/sync/export/revisions | TC-D## |
 | [tests/drive_activity.md](tests/drive_activity.md) | Drive activity | TC-D## |
-| [tests/docs_content.md](tests/docs_content.md) | Docs content (create/read/write, markdown/HTML conversion) | TC-DOC## (plus TC-D## carried over from `create_doc`/`get_doc_content`/`write_doc_content` cases originally numbered under `drive.md`) |
+| [tests/docs_content.md](tests/docs_content.md) | Docs content — `content.py` plus the catch-all for `editing.py`/`images.py`/`comments.py`/`named_ranges.py` and the markdown/HTML conversion pipeline (unlike the other 7 files, not a 1:1 submodule mapping — see the file's own Source line) | TC-DOC## (plus TC-D## carried over from `create_doc`/`get_doc_content`/`write_doc_content` cases originally numbered under `drive.md`) |
 | [tests/docs_tables.md](tests/docs_tables.md) | Docs tables | TC-DOC## |
 | [tests/docs_style.md](tests/docs_style.md) | Docs style & theming | TC-DOC## |
 | [tests/docs_layout.md](tests/docs_layout.md) | Docs layout (headers/footers) | TC-DOC## |

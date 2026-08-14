@@ -238,7 +238,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ### TC-D234: Service account cannot transfer ownership
 
-**Prompt** (run against the `mcp-gee-sweet-sa` server, per `create_spreadsheet`'s TC-D04 convention for auth-method-dependent behavior)
+**Prompt** (run against the `mcp-gee-sweet-sa` server, per `create_spreadsheet`'s `drive_files.md` TC-D04 convention for auth-method-dependent behavior)
 > "Transfer ownership of {SPREADSHEET_ID} to {TEST_PERMISSION_EMAIL}"
 
 **Checks**
