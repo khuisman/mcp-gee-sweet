@@ -2741,7 +2741,9 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
-**Result (2026-08-15) ❌ FAIL — run live against PR #591 (issue #300).** `markdown` returned `"\n\n| Merged |  |  |\n| --- | --- | --- |\n| a | b |  |\n\n"` — a **3-column** table instead of 2. A phantom placeholder column appears from the colspan merge. Confirms `/code-review high`'s finding on `doc_to_ast.py`'s `_table_elem_to_ast` (builds one `Cell` per raw `tableCells[]` JSON entry unconditionally, not accounting for the phantom placeholder entries Google's API leaves for positions covered by an earlier cell's `rowSpan`/`columnSpan` — a fact this codebase's own `emitter.py` already established). Additional live probe (rowspan, not in this test case but same root cause) is worse: `<table><tr><td rowspan="2">Tall</td><td>b1</td></tr><tr><td>b2</td></tr></table>` exported as `"| Tall | b1 |\n| --- | --- |\n|  |  |\n\n"` — **`b2`'s content is silently lost entirely**, not just misaligned. Blocking finding; commented on PR, handed back to Jay.
+**Result (2026-08-15) ❌ FAIL — run live against PR #591 (issue #300), round 1.** `markdown` returned `"\n\n| Merged |  |  |\n| --- | --- | --- |\n| a | b |  |\n\n"` — a **3-column** table instead of 2. A phantom placeholder column appears from the colspan merge. Confirms `/code-review high`'s finding on `doc_to_ast.py`'s `_table_elem_to_ast` (builds one `Cell` per raw `tableCells[]` JSON entry unconditionally, not accounting for the phantom placeholder entries Google's API leaves for positions covered by an earlier cell's `rowSpan`/`columnSpan` — a fact this codebase's own `emitter.py` already established). Additional live probe (rowspan, not in this test case but same root cause) is worse: `<table><tr><td rowspan="2">Tall</td><td>b1</td></tr><tr><td>b2</td></tr></table>` exported as `"| Tall | b1 |\n| --- | --- |\n|  |  |\n\n"` — **`b2`'s content is silently lost entirely**, not just misaligned. Blocking finding; commented on PR, handed back to Jay.
+
+**Result (2026-08-15) ✅ PASS — re-verified live against PR #591 (issue #300) fix commit 4adeb03, round 2.** `markdown` returned `"\n\n| Merged |  |\n| --- | --- |\n| a | b |\n\n"` — correct 2-column table, no phantom column. Fixed via `doc_to_ast.py`'s new `covered` position-tracking in `_table_elem_to_ast`.
 
 ---
 
@@ -2826,6 +2828,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300) fix commit 4adeb03, round 2.** `markdown` returned `"\n\n| Tall | b1 |\n| --- | --- |\n|  | b2 |\n\n"` — `b2` preserved in the second column, first column blank.
+
 ---
 
 ### TC-DOC184: Link URL containing unbalanced parentheses doesn't break the destination
@@ -2838,6 +2842,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 - `markdown` contains `[link](<https://en.wikipedia.org/wiki/Foo_(bar)>)` — the destination is angle-bracket wrapped, not a bare `(...)` that breaks on the unmatched `)`
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300) fix commit 4adeb03, round 2.** `markdown` returned `"[link](<https://en.wikipedia.org/wiki/Foo_(bar)>)\n\n"` — exact match. Regression check: a plain URL with no parens/whitespace (TC-DOC173's `https://example.com`) re-verified unaffected — still renders as a bare, unwrapped destination.
 
 ---
 
@@ -2852,3 +2858,5 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 - `markdown` contains `\# Not a heading either` (backslash before the hash — not a real ATX heading)
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300) fix commit 4adeb03, round 2.** `markdown` returned `"1\\. Not actually a list item\n\n\\# Not a heading either\n\n"` — both leading markers escaped as expected.
