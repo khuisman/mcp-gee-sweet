@@ -18,10 +18,10 @@ Review the current branch against this checklist and report the status of each i
   - Tag IS NOT present when: the tool is auth-agnostic and only the test fixture happens to live in personal Drive (`write_doc_content`, `get_doc_structure`, `insert_doc_text`, `delete_doc_range`, `style_doc_range`, `style_doc_table_cells`, etc.)
   - Tag IS NOT present on error-path tests that return before making any API call
 
-- [ ] **`**Playwright: required**` accuracy** — scan all new and modified test cases (see `docs/qa/run.md` for the tag's runtime behavior):
-  - Tag IS present when: the check verifies a mutation with a visual signature the API-level response can't fully confirm (formatting, hyperlinks, images, charts, layout)
-  - Tag IS NOT present when: the test is read-only, an error path, or a count/pagination check with no visual component
-  - Note: this tier definition is a working rule, not yet formalized in `docs/qa/run.md` — see the open TODO in `docs/qa/retro-v0.8.0.md`. Flag inconsistency rather than silently picking a side.
+- [ ] **`**Playwright: required**` accuracy** — scan all new and modified test cases against the formal Required/Spot-check/Skip tier definition in `docs/qa/run.md`'s "Playwright verification" section (formalized in #264):
+  - Tag IS present when: the check verifies a mutation with a visual signature the API-level response can't fully confirm (formatting, hyperlinks, images, charts, layout, table-cell run formatting)
+  - Tag IS NOT present when: the test is read-only, an error path, a count/pagination check, or a mutation whose visual signature the API response already fully confirms (e.g. plain-paragraph bold/italic runs, checkbox glyphs, `namedStyleType`, Drive file metadata)
+  - Don't use the informal `🔍 Visual check` note as a substitute for the tag — it isn't wired into the conductor's process (that inconsistency was #264's original finding). If a check needs visual confirmation, tag it; otherwise leave both the tag and the note off.
 
 ## 3. Safety
 
