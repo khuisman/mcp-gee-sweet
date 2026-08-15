@@ -3155,3 +3155,137 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 **Cleanup:** write fixture content back over `{DOC_ID}`; delete the local `qa-update-override.txt` file
 
 **Result (2026-08-10) ✅ PASS — run live against PR #564 (issue #341).** Called with `content_format='markdown'` on `qa-update-override.txt`; no `error`. `get_doc_structure` afterward showed HEADING_1 "Overridden Heading" and paragraph "Paragraph text." Fixture content restored and local file deleted afterward.
+
+---
+
+## `get_doc_as_markdown`
+
+### TC-DOC173: Basic export — headings, styled runs, links
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="# Title\n\nSome **bold** and *italic* and ~~strike~~ text with a [link](https://example.com).\n")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- Returns `doc_id`, `title`, and `markdown`
+- `markdown` contains `# Title`
+- `markdown` contains `**bold**`, `*italic*`, `~~strike~~`, and `[link](https://example.com)`
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+---
+
+### TC-DOC174: Nested, ordered, and checked bullet lists
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="- top\n    - nested\n- [x] done\n- [ ] todo\n\n1. first\n2. second\n")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` shows "nested" indented under "top" (e.g. two leading spaces before its `- ` marker)
+- `markdown` contains `- [x] done` and `- [ ] todo`
+- `markdown` contains an ordered-list marker (`1. `) for both "first" and "second"
+- No blank line between consecutive list items (a "tight" list)
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+---
+
+### TC-DOC175: Blockquote nesting
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="> a quoted line\n>> double quoted\n")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains a line prefixed `> ` for "a quoted line"
+- `markdown` contains a line prefixed `> > ` for "double quoted"
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+---
+
+### TC-DOC176: Inline code vs. fenced code block
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="See `x` inline.\n\n```\nfull code block\n```\n")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains `` `x` `` inline within the "See ... inline." sentence (not as its own fenced block)
+- `markdown` contains a fenced block (triple backtick) wrapping "full code block"
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+---
+
+### TC-DOC177: Table with a merged (colspan) header cell
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<table><tr><td colspan=\"2\">Merged</td></tr><tr><td>a</td><td>b</td></tr></table>")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains a pipe-table with a header row, a `| --- | --- |` separator, and a data row `| a | b |`
+- The merged cell's text ("Merged") appears in the first column of the header row; the second header column is blank
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+---
+
+### TC-DOC178: Nested table renders a placeholder, not silently dropped
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<table><tr><td>outer text<table><tr><td>inner</td></tr></table></td></tr></table>")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains "outer text" in the corresponding cell
+- That same cell contains a placeholder phrase (e.g. "nested table omitted") rather than silently losing the inner table's content with no trace
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+---
+
+### TC-DOC179: `include_comments=True` includes only open comments
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="Some anchor text here.\n")`, then `add_doc_comment(doc_id={DOC_ID}, content="please revise", quoted_text="anchor text")` to get `comment_id_1`, and a second `add_doc_comment(doc_id={DOC_ID}, content="resolved note")` to get `comment_id_2`, then `resolve_doc_comment(doc_id={DOC_ID}, comment_id=comment_id_2)`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown including comments"
+
+**Checks**
+- `markdown` contains a `## Comments` section
+- "please revise" and the quoted anchor "anchor text" appear
+- "resolved note" does NOT appear (resolved comments are excluded)
+
+**Cleanup:** write fixture content back over `{DOC_ID}` (this also clears the comments' anchor text, but the comments themselves persist on the file — delete via Drive UI if a clean fixture is required for a later run)
+
+---
+
+### TC-DOC180: `include_comments` omitted defaults to no Comments section
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` does NOT contain `## Comments`, even if the doc has comments from a prior test
+
+---
+
+### TC-DOC181: Invalid doc_id returns an error, not a crash
+**Prompt**
+> "Export doc nonexistent-doc-id-xyz as Markdown"
+
+**Checks**
+- Returns `{"error": ...}` — no traceback surfaced to the caller
+
+---
+
+### TC-DOC182: `local_path` bypasses the response and writes to disk
+**Prompt**
+> "Export doc {DOC_ID} as Markdown, writing the result to <path-to>/qa-md-export.json"
+
+**Checks**
+- Returns `{local_path, doc_id, bytes_written}` (no inline `markdown` field in the response)
+- The file at `<path-to>/qa-md-export.json` exists and its `markdown` field round-trips the doc's actual content
+
+**Cleanup:** delete the local `qa-md-export.json` file
