@@ -3173,6 +3173,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** `markdown` returned `"# Title\n\nSome **bold** and *italic* and ~~strike~~ text with a [link](https://example.com).\n\n"` — all checks satisfied.
+
 ---
 
 ### TC-DOC174: Nested, ordered, and checked bullet lists
@@ -3189,6 +3191,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** `markdown` returned `"- top\n  - nested\n- [x] done\n- [ ] todo\n1. first\n1. second\n\n"`. All stated checks satisfied literally (both ordered items are marked `1. ` — valid CommonMark, since ordered-list rendering is driven by the first item's number, not a defect). Note for a future test-case tightening pass (not filed as a ticket — matches its own written check): no blank line separates the unordered and ordered lists on the round-trip, unlike the source's blank line.
+
 ---
 
 ### TC-DOC175: Blockquote nesting
@@ -3202,6 +3206,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 - `markdown` contains a line prefixed `> > ` for "double quoted"
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** `markdown` returned `"> a quoted line\n\n> > double quoted\n\n"` — both checks satisfied.
 
 ---
 
@@ -3217,6 +3223,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** `markdown` returned `"See \`x\` inline.\n\n\`\`\`\nfull code block\n\`\`\`\n\n"` — both checks satisfied.
+
 ---
 
 ### TC-DOC177: Table with a merged (colspan) header cell
@@ -3231,6 +3239,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
+**Result (2026-08-15) ❌ FAIL — run live against PR #591 (issue #300).** `markdown` returned `"\n\n| Merged |  |  |\n| --- | --- | --- |\n| a | b |  |\n\n"` — a **3-column** table instead of 2. A phantom placeholder column appears from the colspan merge. Confirms `/code-review high`'s finding on `doc_to_ast.py`'s `_table_elem_to_ast` (builds one `Cell` per raw `tableCells[]` JSON entry unconditionally, not accounting for the phantom placeholder entries Google's API leaves for positions covered by an earlier cell's `rowSpan`/`columnSpan` — a fact this codebase's own `emitter.py` already established). Additional live probe (rowspan, not in this test case but same root cause) is worse: `<table><tr><td rowspan="2">Tall</td><td>b1</td></tr><tr><td>b2</td></tr></table>` exported as `"| Tall | b1 |\n| --- | --- |\n|  |  |\n\n"` — **`b2`'s content is silently lost entirely**, not just misaligned. Blocking finding; commented on PR, handed back to Jay.
+
 ---
 
 ### TC-DOC178: Nested table renders a placeholder, not silently dropped
@@ -3244,6 +3254,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 - That same cell contains a placeholder phrase (e.g. "nested table omitted") rather than silently losing the inner table's content with no trace
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** `markdown` returned `"\n\n| outer text*(nested table omitted — Markdown tables can't contain a table; use get_doc_structure for full fidelity)* |\n| --- |\n\n"` — both checks satisfied. Minor cosmetic nit (not filed): no space/newline between "outer text" and the placeholder note, so they run together.
 
 ---
 
@@ -3260,6 +3272,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 
 **Cleanup:** write fixture content back over `{DOC_ID}` (this also clears the comments' anchor text, but the comments themselves persist on the file — delete via Drive UI if a clean fixture is required for a later run)
 
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** Both checks satisfied: "please revise" and quoted "anchor text" present, "resolved note" absent. An unrelated stale open comment ("QA TC-DOC97: anchored note") from earlier fixture pollution also appeared in the section — pre-existing, already tracked under #304, not caused by this PR.
+
 ---
 
 ### TC-DOC180: `include_comments` omitted defaults to no Comments section
@@ -3269,6 +3283,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 **Checks**
 - `markdown` does NOT contain `## Comments`, even if the doc has comments from a prior test
 
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** `markdown` returned `"Some anchor text here.\n\n"` — no `## Comments` section, despite open comments still on the doc from TC-DOC179.
+
 ---
 
 ### TC-DOC181: Invalid doc_id returns an error, not a crash
@@ -3277,6 +3293,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 
 **Checks**
 - Returns `{"error": ...}` — no traceback surfaced to the caller
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** Returned `{"error": "<HttpError 404 ... Requested entity was not found...>"}`, no traceback.
 
 ---
 
@@ -3289,3 +3307,11 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 - The file at `<path-to>/qa-md-export.json` exists and its `markdown` field round-trips the doc's actual content
 
 **Cleanup:** delete the local `qa-md-export.json` file
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** Response was `{"local_path": ..., "bytes_written": 170, "doc_id": ...}` with no inline `markdown` field; the written file's `markdown` field matched the doc's actual content exactly.
+
+---
+
+### Additional live findings from this round (not separate test cases)
+
+**Result (2026-08-15) ❌ Confirms code-review finding — run live against PR #591 (issue #300).** `ast_to_markdown.py`'s Markdown-link rendering interpolates `link_url` unescaped: `<a href="https://en.wikipedia.org/wiki/Foo_(bar)">link</a>` exported as `[link](https://en.wikipedia.org/wiki/Foo_(bar))` — a URL containing `)` breaks CommonMark link-destination parsing. Same probe also confirmed `_MD_ESCAPE`'s missing-leading-structural-sequence gap: plain paragraphs `<p>1. Not actually a list item</p>` and `<p># Not a heading either</p>` exported unescaped as `1. Not actually a list item` and `# Not a heading either`, which any CommonMark parser reinterprets as a real ordered-list item / H1 heading. Both blocking; commented on PR, handed back to Jay.
