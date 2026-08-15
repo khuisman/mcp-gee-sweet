@@ -13,6 +13,7 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 ### TC-C01: COLUMN chart
 
 **Prompt**
+**Playwright: required**
 > "Add a column chart to the Sales sheet of {SPREADSHEET_ID} using data range A1:D5 with title 'Sales by Quarter'"
 
 **Checks**
@@ -137,6 +138,7 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 ### TC-C12: Custom position and size
 
 **Prompt**
+**Playwright: required**
 > "Add a line chart to the Sales sheet of {SPREADSHEET_ID} using range A1:D5, positioned at x=100, y=200, width=400, height=300"
 
 **Checks**
