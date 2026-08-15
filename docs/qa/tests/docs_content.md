@@ -1,10 +1,334 @@
-# Docs Direct API Tools — QA Test Cases
+# Docs Tools — Content (Create/Read/Write, Markdown/HTML Conversion) — QA Test Cases
 
-Source: `src/mcp_gee_sweet/tools/docs/` (package: `__init__.py`, `ast.py`, `html_parser.py`, `emitter.py`)
+Source: `src/mcp_gee_sweet/tools/docs/content.py`, plus four submodules bundled here rather than split into their own files (this file is the catch-all for everything issue #233's split didn't carve out a dedicated file for): `editing.py` (`insert_doc_text`, `delete_doc_range`, `insert_page_break`, `insert_softbreak_paragraph`), `images.py` (`insert_inline_image`, `insert_local_images`), `comments.py` (`list_doc_comments`, `add_doc_comment`, `resolve_doc_comment`), `named_ranges.py` (`create_named_range`, `create_bookmark`) — plus the markdown/HTML conversion pipeline these tools drive: `ast.py`, `html_parser.py`, `emitter.py`, `anchors.py`, `indices.py`.
 
 Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute `{DOC_ID}` (and, for `insert_local_images`, `{FOLDER_ID}`) from `fixtures.local.md`.
 
 These tools operate on document body indices. Use `get_doc_structure` first in any session to obtain current indices before calling insert/delete/style operations.
+
+---
+
+## `create_doc`
+
+### TC-D07: Create with no content ⚠️ requires-oauth
+**Prompt**
+> "Create a Google Doc called 'QA-Empty-Doc' with no content"
+
+**Checks**
+- Doc created successfully
+- No `batchUpdate` call made (no content to write)
+- Response includes doc ID and web link
+
+---
+
+### TC-D08: Create with HTML content — formatting preserved ⚠️ requires-oauth
+**Prompt**
+> "Create a Google Doc called 'QA-Formatted-Doc' with this content: `<h1>Main Title</h1><p>A paragraph.</p><ul><li>Item A</li><li>Item B</li></ul>`"
+
+**Checks**
+- Doc created with correct title
+- Open the doc in a browser: heading renders as H1, bullets render as a list
+- Confirms the `create_doc` bug fix: uses `_html_to_doc_requests`, not `_html_to_text`
+
+---
+
+### TC-D09: Create with a link ⚠️ requires-oauth
+**Prompt**
+> "Create a Google Doc called 'QA-Link-Doc' with content: `<p>Visit <a href=\"https://example.com\">Example</a></p>`"
+
+**Checks**
+- Doc created
+- Open in browser: "Example" is a clickable link to https://example.com
+
+---
+
+### TC-D10: Content with no block-level elements — batchUpdate skipped ⚠️ requires-oauth
+**Prompt**
+> "Create a Google Doc called 'QA-Inline-Doc' with content: `<span>just a span</span>`"
+
+**Checks**
+- Doc created without error
+- No `batchUpdate` call (inline-only HTML produces no requests)
+- Doc body is empty (span is not a block element)
+
+---
+
+### TC-D11: Drive folder cache invalidated ⚠️ requires-oauth
+**Prompt**
+> "Create a doc called 'QA-DocCache' in {FOLDER_ID}, then list the files in that folder"
+
+**Checks**
+- `list_files` includes 'QA-DocCache'
+- Confirms `drive_folder_cache.mark_dirty` fires after doc creation
+
+---
+
+### TC-D12: Long content ⚠️ requires-oauth
+**Prompt**
+> "Create a Google Doc called 'QA-Long-Doc' with a very long paragraph — repeat the word 'test ' 500 times as the body content"
+
+**Checks**
+- Doc created without error
+- Content visible in the doc
+- Note any API size limit errors
+
+---
+
+## `get_doc_content`
+
+### TC-D44: Happy path
+
+**Prompt**
+> "Get the content of doc {DOC_ID}"
+
+**Checks**
+- Returns text content with the expected HTML: heading, paragraph, list items
+- Response includes metadata (title, web link)
+- No `error` field
+
+---
+
+### TC-D45: Cache hit on second call
+
+**Prompt** (run twice)
+> "Get the content of doc {DOC_ID} again"
+
+**Checks**
+- Second call returns same content
+- Logs show `cache hit`
+
+---
+
+### TC-D46: Non-Google-Doc file ID
+
+**Prompt**
+> "Get the content of {SPREADSHEET_ID} using get_doc_content"
+
+**Checks**
+- Drive export API returns an error (spreadsheets can't be exported as plain text this way)
+- Error propagates cleanly — not a server crash
+
+---
+
+### TC-D47: Non-existent file ID
+
+**Prompt**
+> "Get the content of doc 'invalidid123xyz'"
+
+**Checks**
+- Returns a clear API error
+- Not a silent empty response
+
+---
+
+### TC-D48: Large document
+
+**Prompt**
+> "Get the content of a large Google Doc — if you have one, use its ID"
+
+**Checks**
+- Content returned without timeout or truncation
+- Note any response size limits observed
+
+---
+
+### TC-D49: Content decode branch
+
+**Prompt**
+> "Get the content of {DOC_ID} and tell me if the content came back as bytes or a string"
+
+**Checks**
+- Content decoded correctly regardless of whether the API returns bytes or string
+- 🔍 **Implementation note:** `content.decode("utf-8")` vs already-string branch in `drive.py`
+
+---
+
+### TC-DOC80: get_doc_content trips the response-size cap; cached path re-checks it too (issue #242)
+
+**Background:** #242 generalized #235's response-size safety net to `get_doc_content`. `doc_cache` previously returned a cached result *before* any cap check ran, so a cached oversized doc would bypass the cap on repeat calls — fixed so the check runs on both the cache-hit and cache-miss paths.
+
+**Setup:** `TEST_LARGE_DOC_ID` (`mcp-gee-sweet-qa-large-doc`), grown from its original ~5,300-character seed content to ~49,700 characters by inserting repeated padding text (permanent fixture growth — this doc's whole purpose is being a large-content fixture, and it was never previously large enough to exceed any cap since none existed for this tool before now).
+
+**Checks**
+- First call (fetch path) raises `ValueError` mentioning the actual response size, the cap, and `MAX_TOOL_RESPONSE_CHARS`
+- Second call (cache-hit path, no `refresh_cache` in between) raises the *same* error — proves the cache-hit path re-checks the cap rather than returning the stale oversized cached result
+- Same call with `local_path` set succeeds, returns `{local_path, id, bytes_written}`, and the file on disk contains the full content
+
+**Result (2026-07-03) ✅ PASS**
+Fetch-path call raised: `get_doc_content: the response is 49700 characters, over the 40000-character safety cap. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` Repeat call (served from `doc_cache`, confirmed via no additional Drive API round-trip) raised the identical error — confirms the cache-ordering fix. `local_path` call succeeded: `{"local_path":"/tmp/qa_doc_content_242.json","bytes_written":49700,"id":"{TEST_LARGE_DOC_ID}"}`; file verified then cleaned up.
+
+---
+
+## `write_doc_content`
+
+### TC-D50: Write to an empty doc ⚠️ requires-oauth
+**Prompt**
+> "Create a new empty doc called 'QA-WriteEmpty', then write this content to it: `<h1>Hello</h1><p>World</p>`"
+
+**Checks**
+- Doc content replaced with heading and paragraph
+- `end_index=2` path taken (doc was empty — no delete step needed)
+- Open in browser to verify formatting
+
+---
+
+### TC-D51: Write to a doc with existing content ⚠️ destructive
+
+**Prompt**
+> "Overwrite the content of {DOC_ID} with: `<h2>Replaced</h2><p>New content only.</p>`"
+
+**Checks**
+- Previous content cleared
+- New heading and paragraph visible in the doc
+- `doc_cache.mark_dirty` called — next `get_doc_content` re-fetches
+
+---
+
+### TC-D52: HTML with headings and bullets
+
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<h1>Title</h1><h2>Subtitle</h2><ul><li>A</li><li>B</li></ul><p>Footer</p>`"
+
+**Checks**
+- H1 renders as Heading 1, H2 as Heading 2
+- A and B render as bullet list items
+- Footer renders as normal paragraph
+
+---
+
+### TC-D53: HTML with a link
+
+**Prompt**
+> "Write this to {DOC_ID}: `<p>Click <a href=\"https://example.com\">here</a> for more</p>`"
+
+**Checks**
+- "here" is a clickable hyperlink to https://example.com
+- Surrounding text renders as normal paragraph
+
+> **Note:** `write_doc_content` replaces the full document content, so this test is self-contained regardless of run order.
+
+---
+
+### TC-D54: HTML with no recognizable tags
+
+**Prompt**
+> "Write `<span>no blocks here</span>` to {DOC_ID}"
+
+**Checks**
+- Existing content cleared (delete step runs)
+- Nothing inserted (span produces no block-level requests)
+- Doc body is empty
+
+---
+
+### TC-D55: Empty string content
+
+**Prompt**
+> "Write an empty string to {DOC_ID}"
+
+**Checks**
+- Existing content cleared
+- Nothing inserted
+- Doc body is empty
+
+---
+
+### TC-D56: Very long content
+
+**Prompt**
+> "Write a very long document to {DOC_ID} — use 100 paragraphs each with 50 words of placeholder text"
+
+**Checks**
+- Writes successfully or returns a clear API size limit error (~2MB per batchUpdate request)
+- Note any limit encountered
+
+> **Note:** Content is generated inline by the conductor — no fixture file needed.
+
+---
+
+### TC-D57: Cache invalidated after write
+
+**Prompt**
+> "Write `<p>CacheTest</p>` to {DOC_ID}, then immediately get the doc content"
+
+**Checks**
+- `get_doc_content` returns 'CacheTest' — not the old cached version
+- Confirms `doc_cache.mark_dirty` fires after write
+
+---
+
+## `write_doc_content` — table support (issue #62)
+
+### TC-D140: Simple 2×2 table created from HTML
+
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<table><tr><th>Name</th><th>Value</th></tr><tr><td>Alpha</td><td>1</td></tr></table>`"
+
+**Checks**
+- A real Google Docs table is visible in the doc — NOT flattened plain text
+- Table has 2 rows and 2 columns
+- Header row contains "Name" and "Value"; data row contains "Alpha" and "1"
+- Open in browser to verify
+
+---
+
+### TC-D141: Table after paragraph content
+
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<h1>Batch Comparison</h1><p>See the table below.</p><table><tr><th>Original</th><th>Double</th></tr><tr><td>2 cups flour</td><td>4 cups flour</td></tr><tr><td>1 egg</td><td>2 eggs</td></tr></table>`"
+
+**Checks**
+- Doc has "Batch Comparison" as a Heading 1
+- "See the table below." renders as a paragraph
+- A 3-row × 2-column table is present after the paragraph
+- Table cells contain correct text: "Original", "Double", "2 cups flour", "4 cups flour", etc.
+- Table appears after the paragraph content (interleaved in HTML order)
+
+---
+
+### TC-D142: Table with empty cells
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<table><tr><td>A</td><td></td></tr><tr><td></td><td>D</td></tr></table>`"
+
+**Checks**
+- 2×2 table created
+- Cell (0,0) = "A", cell (0,1) = empty, cell (1,0) = empty, cell (1,1) = "D"
+- Empty cells don't cause an error — `insertText` is simply skipped for them
+
+---
+
+### TC-D143: Table-only HTML (no paragraphs)
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<table><tr><td>X</td><td>Y</td></tr></table>`"
+
+**Checks**
+- A 1-row × 2-column table is created
+- Cells contain "X" and "Y"
+- No paragraph text before the table
+- Confirms the early-return guard correctly handles tables-only input
+
+---
+
+### TC-D144: Multiple tables in one write
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<p>First table:</p><table><tr><td>A</td><td>B</td></tr></table><p>Second table:</p><table><tr><td>C</td><td>D</td></tr></table>`"
+
+**Checks**
+- Both tables are created in the document
+- First table has cells "A" and "B"; second has "C" and "D"
+- "First table:" and "Second table:" paragraphs appear before both tables
+- No index corruption or API error between the two table insertions
+
+---
+
+### TC-D145: HTML with `<th>` header cells treated as data
+**Prompt**
+> "Write this HTML to {DOC_ID}: `<table><tr><th>Col1</th><th>Col2</th></tr><tr><td>Val1</td><td>Val2</td></tr></table>`"
+
+**Checks**
+- `<th>` cells are included in the table (not ignored)
+- First row contains "Col1" and "Col2", second row contains "Val1" and "Val2"
+- Google Docs doesn't distinguish th vs td styling — both rows are plain table cells
 
 ---
 
@@ -183,172 +507,6 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-## `style_doc_range`
-
-### TC-DOC12: Apply named style type ⚠️ destructive
-**Setup:** insert a normal paragraph; note its index range
-
-**Prompt**
-**Playwright: required**
-> "Style the range from index {start} to {end} in doc {DOC_ID} as HEADING_2"
-
-**Checks**
-- Re-fetch shows `namedStyleType: "HEADING_2"` for that paragraph
-- `requests: 1` in response
-
-**Cleanup:** re-style as NORMAL_TEXT
-
-**Result (2026-06-20) ✅ PASS**
-- Inserted "Style test paragraph.\n" at 88. Styled [88, 110] as HEADING_2. Re-fetch confirmed `namedStyleType: "HEADING_2"`. `requests: 1`.
-
----
-
-### TC-DOC13: Apply text styles (bold, italic, foreground color) ⚠️ destructive
-**Setup:** insert a normal paragraph; note its index range
-
-**Prompt**
-**Playwright: required**
-> "Make the range from index {start} to {end} in doc {DOC_ID} bold, italic, and red (foreground_color red=1 green=0 blue=0)"
-
-**Checks**
-- Re-fetch shows `bold: true`, `italic: true` on runs in that range
-- `requests: 1` in response (paragraph style skipped, only updateTextStyle emitted)
-
-**Cleanup:** delete the test paragraph
-
-**Result (2026-06-20) ✅ PASS**
-- Applied bold+italic+red foreground to [88, 110]. Re-fetch: run `bold: true`, `italic: true`. `requests: 1` (only updateTextStyle; no paragraph style change).
-
----
-
-### TC-DOC14: Apply both paragraph and text style in one range ⚠️ destructive
-**Prompt**
-> "Style range {start}–{end} in doc {DOC_ID} as HEADING_3 and bold"
-
-**Checks**
-- `requests: 2` (one updateParagraphStyle + one updateTextStyle)
-- Both applied correctly on re-fetch
-
-**Result (2026-06-20) ✅ PASS**
-- Applied HEADING_3 + bold to same paragraph. `requests: 2` (one updateParagraphStyle + one updateTextStyle).
-
----
-
-### TC-DOC15: No recognised style fields returns error
-**Prompt**
-> "Call style_doc_range on doc {DOC_ID} with a range that has no style fields"
-
-**Checks**
-- Returns `{"error": "no recognised style fields in any range"}`
-
-**Result (2026-06-20) ✅ PASS**
-- Returned `{"error": "no recognised style fields in any range"}`.
-
----
-
-## `insert_doc_table`
-
-### TC-DOC16: Insert a 2×3 table ⚠️ destructive
-**Setup:** fetch structure; note a suitable insertion index (e.g. endIndex of a paragraph)
-
-**Prompt**
-**Playwright: required**
-> "Insert a 2-row, 3-column table at index {N} in doc {DOC_ID}"
-
-**Checks**
-- Response includes `precedingParagraphIndex`, `tableStartIndex`, `tableEndIndex`, `rows: 2`, `columns: 3`
-- `cells` list has 6 entries (rows × columns)
-- Each cell has `row`, `col`, `startIndex`, `endIndex`, `paragraphStartIndex`
-- `precedingParagraphIndex` = N, `tableStartIndex` = N + 1 (Docs API always inserts a required empty paragraph before the table; it cannot be deleted while the table exists)
-- Re-fetch structure shows an empty paragraph at N, then the table at N + 1
-
-**Cleanup:** delete `[precedingParagraphIndex, tableEndIndex]` in one range — this removes both the required preceding paragraph and the table body together
-
-**Result (2026-06-20) ✅ PASS**
-- Inserted 2×3 table at N=88. Response: `precedingParagraphIndex=88`, `tableStartIndex=89` (=N+1), `tableEndIndex=105`, `rows: 2`, `columns: 3`, 6 cells. All `paragraphStartIndex = startIndex + 1`. Re-fetch confirmed table at index 89.
-
----
-
-### TC-DOC17: Cell indices usable for insert_doc_text ⚠️ destructive
-**Setup:** insert a table (TC-DOC16); use the returned `cells[0].paragraphStartIndex`
-
-**Prompt**
-> "Insert text 'Cell content' at the paragraphStartIndex of cell [0,0] returned by the table insertion"
-
-**Checks**
-- Re-fetch shows 'Cell content' in row 0, col 0
-- No index errors
-
-**Cleanup:** delete table
-
-**Result (2026-06-20) ✅ PASS**
-- Used `cells[0].paragraphStartIndex = 92` from TC-DOC16. Inserted "Cell content" at index 92. Re-fetch: cell [0,0] `text: "Cell content"`. No index errors.
-
----
-
-## `style_doc_table_cells`
-
-### TC-DOC18: Apply grey header row background ⚠️ destructive
-**Setup:** insert a 2×2 table; note its `tableStartIndex`
-
-**Prompt**
-**Playwright: required**
-> "Style row 0 of the table at index {tableStartIndex} in doc {DOC_ID} with background_color red=0.953 green=0.953 blue=0.953, column_span 2"
-
-**Checks**
-- `requests: 1` in response
-- 🔍 Visual check in Google Docs: header row has grey background
-
-**Cleanup:** delete table
-
-**Result (2026-06-20) ✅ PASS**
-- Styled row 0 with `background_color {red:0.953, green:0.953, blue:0.953}`, `column_span: 2`. `requests: 1`.
-
----
-
-### TC-DOC19: Apply borders and padding ⚠️ destructive
-**Setup:** insert a 2×2 table; note its `tableStartIndex`
-
-**Prompt**
-**Playwright: required**
-> "Style all cells in the table at index {tableStartIndex} in doc {DOC_ID} with border_color black (0,0,0), border_width 0.5, border_dash_style SOLID, padding 3.6pt on all sides"
-
-**Checks**
-- Call succeeds for each cell
-- 🔍 Visual check: table has visible borders and reasonable padding
-
-**Result (2026-06-20) ✅ PASS**
-- Applied black border (0.5pt) + 3.6pt padding to all 4 cells of a 2×2 table. `requests: 4` (one per cell). Call succeeded for each.
-
----
-
-### TC-DOC20: Empty cells list returns error
-**Prompt**
-> "Call style_doc_table_cells on doc {DOC_ID} with table_start_index {N} and an empty cells list"
-
-**Checks**
-- Returns `{"error": "cells list is empty"}`
-
-**Result (2026-06-20) ✅ PASS**
-- Returned `{"error": "cells list is empty"}`.
-
----
-
-### TC-DOC21: Cell with no style fields is skipped
-**Setup:** insert a table; pass one valid cell and one cell with no style fields
-
-**Prompt**
-> "Style the table at index {N}: cell [0,0] with background red=1, and cell [0,1] with no style fields"
-
-**Checks**
-- Only one request emitted (the no-style cell is silently skipped)
-- `requests: 1` in response
-
-**Result (2026-06-20) ✅ PASS**
-- Passed cell [0,0] with `background_color red=1` and cell [0,1] with no style fields. `requests: 1` — no-style cell silently skipped.
-
----
-
 ## Multi-operation ordering and sequencing
 
 ### TC-DOC22: Multi-delete high→low ordering verified ⚠️ destructive
@@ -365,67 +523,6 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-06-20) ✅ PASS**
 - DEL-A at 79–85, DEL-B at 94–100. Deleted both in one call. Re-fetch: both absent; "Item two\n" back at 79–88 (DEL-B's original startIndex). No out-of-bounds error. `deletions: 2`.
-
----
-
-### TC-DOC23: style_doc_range round-trip — heading confirmed in get_doc_structure ⚠️ destructive
-**Purpose:** `style_doc_range` was never called live during initial testing. This is the first live verification.
-
-**Setup:** insert a paragraph 'Style-test heading\n'; note its `startIndex`/`endIndex`
-
-**Prompt**
-> "Style the range {start}–{end} in doc {DOC_ID} as HEADING_1"
-
-**Checks**
-- Response contains `requests: 1`
-- Call `get_doc_structure` — the paragraph at that index shows `namedStyleType: "HEADING_1"`
-- Text content is unchanged ('Style-test heading')
-
-**Cleanup:** style back to NORMAL_TEXT, then delete the paragraph
-
-**Result (2026-06-20) ✅ PASS**
-- Inserted "Style-test heading\n" at 88; styled [88, 107] as HEADING_1. `requests: 1`. Re-fetch: `namedStyleType: "HEADING_1"`, `text: "Style-test heading\n"` unchanged.
-
----
-
-### TC-DOC24: style_doc_range text styles round-trip ⚠️ destructive
-**Purpose:** verify bold/italic/underline are readable back via get_doc_structure runs.
-
-**Setup:** insert a paragraph 'Bold-italic test\n'; note its index range
-
-**Prompt**
-> "Make the range {start}–{end} in doc {DOC_ID} bold and italic"
-
-**Checks**
-- Response contains `requests: 1`
-- `get_doc_structure` shows a run in that paragraph with `bold: true` and `italic: true`
-- `namedStyleType` is unchanged (updateTextStyle only, no updateParagraphStyle)
-
-**Cleanup:** delete the test paragraph
-
-**Result (2026-06-20) ✅ PASS**
-- Inserted "Bold-italic test\n" at 88; applied bold+italic to [88, 105]. `requests: 1`. Re-fetch: run `bold: true`, `italic: true`; `namedStyleType: "NORMAL_TEXT"` unchanged.
-
----
-
-### TC-DOC25: style_doc_table_cells post-fix live verification ⚠️ destructive
-**Purpose:** `style_doc_table_cells` was fixed (removed top-level `tableStartLocation` that conflicted with the `tableRange` oneof) but the fix was **never re-tested live**. This is the confirmation test.
-
-**Setup:** insert a 2×2 table; record its `tableStartIndex` from the response
-
-**Prompt**
-**Playwright: required**
-> "Style cell [0,0] of the table at index {tableStartIndex} in doc {DOC_ID} with background_color red=0.8 green=0.9 blue=1.0"
-
-**Checks**
-- Response succeeds (no API 400 error about `oneof field 'cells' is already set`)
-- `requests: 1` in response
-- 🔍 Visual check in Google Docs: cell [0,0] has light blue background
-
-**Cleanup:** delete the table
-
-**Result (2026-06-20) ✅ PASS**
-- Inserted 2×2 table; styled cell [0,0] with `background_color {red:0.8, green:0.9, blue:1.0}`. No API 400 error. `requests: 1`. Fix (removal of top-level `tableStartLocation` conflicting with `tableRange` oneof) confirmed working.
 
 ---
 
@@ -472,55 +569,6 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-06-20) ✅ PASS**
 - N=88 (endIndex of "Item two\n"). Inserted "Intro paragraph.\n" (17 chars) at 88; then 2×2 table at 105. `precedingParagraphIndex=105=N+17`, `tableStartIndex=106=N+18`. Both ops succeeded without re-fetching structure.
-
----
-
-## `style_doc_range` — additional coverage
-
-### TC-DOC28: Apply strikethrough ⚠️ destructive
-**Setup:** insert a paragraph; note its range
-
-**Prompt**
-> "Apply strikethrough to range {start}–{end} in doc {DOC_ID}"
-
-**Checks**
-- Response `requests: 1`
-- `get_doc_structure` shows run with `strikethrough: true`
-
-**Result (2026-06-20) ✅ PASS**
-- Inserted "Strikethrough test.\n"; applied strikethrough to [88, 108]. `requests: 1`. Re-fetch: run `strikethrough: true`.
-
----
-
-### TC-DOC29: Apply font_size ⚠️ destructive
-**Setup:** insert a paragraph; note its range
-
-**Prompt**
-> "Set font size to 18pt for range {start}–{end} in doc {DOC_ID}"
-
-**Checks**
-- Response `requests: 1`
-- 🔍 Visual check: text is visibly larger
-
-**Result (2026-06-20) ✅ PASS**
-- Applied `font_size: 18` to [88, 104]. `requests: 1`. (Visual check only — `get_doc_structure` does not expose `font_size` from effectiveFormat.)
-
----
-
-### TC-DOC30: Apply link_url ⚠️ destructive
-**Setup:** insert a paragraph 'Visit example\n'; note the range covering 'example'
-
-**Prompt**
-> "Apply link_url 'https://example.com' to range {start}–{end} in doc {DOC_ID}"
-
-**Checks**
-- Response `requests: 1`
-- `get_doc_structure` shows run split at the link boundary: linked run has `link_url: "https://example.com"`, non-linked run has `link_url: null`
-- 🔍 **Note:** Google Docs automatically adds `underline: true` to the linked run — expected API behaviour, not a tool bug
-- 🔍 Visual check: text appears as a hyperlink
-
-**Result (2026-06-20) ✅ PASS**
-- Inserted "Visit example\n"; applied `link_url: "https://example.com"` to "example" (indices 94–101). `requests: 1`. Re-fetch: run split into "Visit " (`link_url: null`), "example" (`link_url: "https://example.com"`, `underline: true`), "\n" (`link_url: null`). Auto-underline is expected API behaviour.
 
 ---
 
@@ -883,6 +931,111 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
+### TC-DOC76: Table immediately after heading renders at Normal Text size ⚠️ requires-oauth ⚠️ destructive
+
+**Setup:** use `docs/qa/fixtures/tc-d226-heading-table.md` from the repo (absolute path: `<repo-root>/docs/qa/fixtures/tc-d226-heading-table.md`)
+
+**Prompt**
+**Playwright: required**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."
+
+**Checks**
+- `docId` and `web_link` returned with no `error`
+- `get_doc_structure` shows a `table` element with 6 cells containing "Finding", "Severity", "Ticket", "Some finding", "HIGH", "KINDLY-123"
+- 🔍 Visual check: open the doc — table cell text renders visually smaller than the "HIGH" H2 heading above it (~11pt vs ~16pt); no blank paragraph workaround needed
+
+**Cleanup:** delete the created doc
+
+**Result (2026-06-24) ✅ PASS** "HIGH" heading renders visually larger than table text. All six cells ("Finding", "Severity", "Ticket", "Some finding", "HIGH", "KINDLY-123") render at Normal Text size. No blank paragraph between heading and table required. No oversized cell text observed.
+
+---
+
+### TC-DOC77: No visible blank line between heading and table in `create_doc_from_file` ⚠️ requires-oauth ⚠️ destructive
+
+**Background:** the Docs API inserts a structurally-required blank paragraph before every table;
+`deleteContentRange` is rejected for it. The fix collapses it to zero visual height via
+`updateParagraphStyle` (spaceAbove/Below=0, lineSpacing=1) + `updateTextStyle` (fontSize=1pt).
+
+**Setup:** use `docs/qa/fixtures/tc-d226-heading-table.md` (heading immediately followed by a table)
+
+**Prompt**
+**Playwright: required**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."
+
+**Checks**
+- Tool completes without error (no `HttpError 400`)
+- `get_doc_structure` returns a body with a heading and a table; a blank paragraph element may still be listed (it is structurally present), but its `paragraph.paragraphStyle` should show `lineSpacing: 1`, `spaceAbove: 0`, `spaceBelow: 0`
+- 🔍 Visual check: open the doc — no visible blank line between the "HIGH" heading and the table
+
+**Cleanup:** delete the created doc
+
+**Result (2026-06-25) ✅ PASS**
+- Tool completed without error. Structure: sectionBreak → HEADING_2 "HIGH\n" (1-6) → blank para "\n" (6-7, `font_size: 1` on its run confirming collapse applied) → table (7-70, cells filled correctly: Finding/Severity/Ticket header, Some finding/HIGH/KINDLY-123 data) → trailing para (70-71). Visual check: no visible gap between heading and table in the rendered doc.
+
+---
+
+### TC-DOC81: create_doc_from_file renders \$ escape as literal $ (issue #213) ⚠️ requires-oauth ⚠️ destructive
+
+**Background:** Python-Markdown's default `ESCAPED_CHARS` omits `$` (unlike CommonMark, which includes it in its escapable-punctuation set), so `\$` — commonly used to defeat math/LaTeX-delimiter renderers like Obsidian/Typora/Jupyter that treat bare `$...$` as inline math — previously passed through untouched into the rendered Doc as a literal backslash+dollar. Fixed via a small `markdown.extensions.Extension` that adds `$` to `ESCAPED_CHARS`, so it's handled by the library's own escape mechanism (respecting code-span/fenced-code protection) rather than a blind text substitution.
+
+**Setup:** use `docs/qa/fixtures/tc-d213-dollar-escape.md` from the repo (a table cell, a second table row, and a plain-text sentence, each with a `\$`-escaped dollar amount)
+
+**Prompt**
+> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d213-dollar-escape.md"
+
+**Checks**
+- `docId` and `web_link` returned with no `error`
+- `get_doc_content` shows `$6,000`, `$25`, and `$1,200` as plain literal dollar amounts — no `\$` (literal backslash+dollar) anywhere in the content
+
+**Cleanup:** delete the created doc
+
+**Result (2026-07-04) ✅ PASS**
+`create_doc_from_file` succeeded. `get_doc_content` returned: `"...Deductible\r\n\t$6,000\r\n\tCopay\r\n\t$25\r\n\tPlain text with an escaped price: $1,200 due at signing."` — all three escaped amounts rendered as literal `$`, no `\$` anywhere. Doc permanently deleted after verification.
+
+---
+
+## `create_doc` autolinks bare URLs (issue #248)
+
+### TC-DOC82: create_doc autolinks bare URLs in markdown content (issue #248) ⚠️ requires-oauth ⚠️ destructive
+
+**Background:** Python-Markdown's built-in autolink only fires on `<https://...>` (angle brackets) or `[text](url)` — a bare URL like `https://example.com/some-page` was left as inert plain text with no hyperlink. Fixed via a low-priority `InlineProcessor` extension that autolinks bare `http(s)://` URLs left as plain text after the library's own link/code-span processing runs, trimming trailing sentence punctuation and unmatched closing parens (CommonMark/GFM extended-autolink behavior).
+
+**Prompt**
+**Playwright: required**
+> "Create a Google Doc titled 'QA TC-DOC82' with content_format='markdown' and this content: `From: https://example.com/some-page. See (https://example.com/parens) for details. Already linked: [click](https://example.com/existing). Code: \`https://example.com/code\`.`"
+
+**Checks**
+- `docId` and `web_link` returned with no `error`
+- `get_doc_structure` shows a run with `link_url: "https://example.com/some-page"` (trailing period NOT included in the link)
+- A run with `link_url: "https://example.com/parens"` (wrapping parens NOT included in the link)
+- The existing markdown link still shows `link_url: "https://example.com/existing"` (not double-processed)
+- The backtick-wrapped URL has no `link_url` set (code span still suppresses autolinking)
+
+**Cleanup:** delete the created doc
+
+**Result (2026-07-05) ✅ PASS**
+`create_doc` succeeded (docId `1F66ZQQMuBx9CjaGx49bBg6DlcVMAYMnqnuYHtouyfIU`). `get_doc_structure` confirmed all four checks: `https://example.com/some-page` run has `link_url` set with the trailing `.` split into its own unlinked run; `https://example.com/parens` run has `link_url` set with both wrapping parens split into unlinked runs; the markdown link's `click` run has `link_url: "https://example.com/existing"` (untouched, not double-processed); the backtick-wrapped `https://example.com/code` run has `link_url: null`. Doc trashed after verification. Visual check (re-created identical content, Playwright screenshot, re-trashed): both bare URLs render blue/underlined, wrapping punctuation stays plain black, `click` renders as a normal link, and the backtick-wrapped URL renders as plain monospace code — not a link.
+
+---
+
+### TC-DOC83: autolink_urls=False leaves bare URLs as plain text (issue #248) ⚠️ requires-oauth ⚠️ destructive
+
+**Background:** The autolinking added for TC-DOC82 is unconditional by default. `autolink_urls: bool = True` on `create_doc`/`create_doc_from_file`/`write_doc_content` lets a caller opt out for the whole call when a bare URL should stay as plain, non-monospace text (backticks are the existing per-URL escape hatch, but they force code styling).
+
+**Prompt**
+**Playwright: required**
+> "Create a Google Doc titled 'QA TC-DOC83' with content_format='markdown', autolink_urls=False, and this content: `See https://example.com/inert here`"
+
+**Checks**
+- `docId` and `web_link` returned with no `error`
+- `get_doc_structure` shows the URL text present with `link_url: null` (no hyperlink applied)
+
+**Cleanup:** delete the created doc
+
+**Result (2026-07-05) ✅ PASS**
+`create_doc` succeeded (docId `1elTfZ70c6AO66cjLQ7O-PrzzUlYGmVwiKuNWjDXVMGI`). `get_doc_structure` confirmed the entire line ("See https://example.com/inert here") is a single unstyled run — no `link_url`, no underline. Doc trashed after verification. Visual check (re-created identical content, Playwright screenshot, re-trashed): entire line renders as plain black text, no blue/underline anywhere.
+
+---
 ## Nested table support — `write_doc_content`
 
 ### TC-DOC48: Simple nested table ⚠️ destructive
@@ -1057,85 +1210,6 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ---
 
-### TC-DOC52: `get_doc_theme` scans body paragraph styles
-**Note:** `get_doc_theme` reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.
-
-**Prompt**
-> "Call `get_doc_theme` on doc {DOC_ID} and show me the result."
-
-**Checks**
-- No `error` key in result
-- For a doc with explicit paragraph styles: returns a dict with at least one named style type key; each entry has at least one of font_family, font_size, bold, italic, color, line_spacing, space_above, space_below
-- For a doc with purely inherited styles: result is an empty dict `{}` (expected, not an error)
-
-**Result (2026-06-20) ✅ PASS** Called on a test doc created with `create_doc` (markdown content — inherited styles): returned `{}`. Called on the same doc after `apply_theme overwrite=True` (Georgia HEADING_1, Roboto NORMAL_TEXT): returned `{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}`. `font_size` and `bold` are not returned because the Docs API normalises explicit overrides that match the named style default back to inherited. No error key in either case.
-
----
-
-### TC-DOC53: `apply_theme` updates named style definitions ⚠️ destructive
-**Note:** Default mode (`overwrite=False`) emits `updateNamedStyle` requests — one per named style key — updating the document's style defaults. Existing paragraphs with explicit overrides are unaffected. No doc fetch is needed. Use `overwrite=True` to also apply directly to all existing paragraphs.
-
-**Prompt**
-> "Apply theme `{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}` to doc {DOC_ID}"
-
-**Checks**
-- Result contains `docId` and `requests > 0`
-- No `error` key
-- `requests` equals the number of named style keys in the theme (one `updateNamedStyle` per key)
-
-**Result (2026-06-20) ✅ PASS** Called with HEADING_1 + HEADING_2 + NORMAL_TEXT → `{"docId": "...", "requests": 3}`. Each emitted one `updateNamedStyle` request with snake_case field mask (`named_style_type,text_style.weighted_font_family,text_style.font_size`). No error. Live API accepted all three requests.
-
----
-
-### TC-DOC54: `apply_theme` with `overwrite=True` also patches existing paragraphs ⚠️ destructive
-**Prompt**
-**Playwright: required**
-> "Write `<h1>Heading One</h1><p>Normal body text.</p>` to doc {DOC_ID}, then apply theme `{"HEADING_1": {"font_family": "Georgia", "font_size": 22}, "NORMAL_TEXT": {"font_family": "Verdana", "font_size": 11}}` with overwrite=True"
-
-**Checks**
-- Result contains `docId` and `requests > 0`
-- `requests` > number of named style keys (named style updates + per-paragraph updates)
-- No `error` key
-- 🔍 Visual check: HEADING_1 paragraph visually in Georgia 22pt, body in Verdana 11pt
-
-**Cleanup:** write fixture content back
-
-**Result (2026-06-20) ✅ PASS** Called with HEADING_1 + NORMAL_TEXT on a doc with HEADING_1, HEADING_2 (×2), HEADING_3, NORMAL_TEXT (×4) paragraphs → `{"docId": "...", "requests": 7}` (2 `updateNamedStyle` + 5 `updateTextStyle` for matching paragraphs). No error.
-
----
-
-### TC-DOC55: `apply_theme` with table styling ⚠️ destructive
-**Prerequisite:** doc must contain at least one table (write one with `write_doc_content` first if needed)
-
-**Prompt**
-**Playwright: required**
-> "Apply this theme to doc {DOC_ID}: `{"table": {"border_color": {"red": 0, "green": 0, "blue": 0}, "border_width": 0.5, "border_dash_style": "SOLID", "cell_padding": 3.6, "header_background": {"red": 0.953, "green": 0.953, "blue": 0.953}}}`"
-
-**Checks**
-- Result contains `docId` and `requests > 0`
-- 🔍 Visual check: table cells have thin black border, 3.6pt padding, first row has light grey background
-
-**Cleanup:** write fixture content back
-
-**Result (2026-06-20) ✅ PASS** Wrote 2-row table, applied table theme → `requests: 2` (one updateTableCellStyle per row; row 0 got header_background + padding + borders, row 1 got padding + borders). No error. Fixture restored.
-
----
-
-### TC-DOC56: `get_doc_theme` → `apply_theme` round-trip on an AI-generated doc ⚠️ destructive
-**Note:** Round-trip only produces meaningful output on docs where styles are explicit (AI-generated). For standard inherited-style docs, `get_doc_theme` returns `{}` and `apply_theme` with an empty theme returns an error.
-
-**Prompt**
-> "Write styled content to doc {DOC_ID} with explicit font overrides, then read the theme with `get_doc_theme`, then apply it back with `apply_theme overwrite=True`. Show me both results."
-
-**Checks**
-- `get_doc_theme` returns a non-empty dict (at least one named style key with at least one field)
-- `apply_theme` returns `requests > 0`
-- No `error` in either result
-
-**Result (2026-06-20) ✅ PASS** After `apply_theme overwrite=True` (Georgia HEADING_1, Roboto NORMAL_TEXT) on the test doc, `get_doc_theme` returned `{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}`. Applying that theme back → `requests: 2` (one `updateNamedStyle` per key). No error. (font_size/bold not in round-trip because API normalises them to inherited when they match the named style default.)
-
----
-
 ## `insert_inline_image` (#145)
 
 ### TC-DOC57: Insert an image by public URI ⚠️ destructive
@@ -1192,418 +1266,6 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - Returns `{"error": "Provide only one of uri or drive_file_id, not both"}`
 
 **Result (2026-06-22) ✅ PASS** Returned `{"error": "Provide only one of uri or drive_file_id, not both"}`. No API call made.
-
----
-
-## `insert_table_row` / `delete_table_row` / `insert_table_column` / `delete_table_column` (#146)
-
-### TC-DOC61: Insert a row below an existing row ⚠️ destructive
-**Setup:** insert a 2×2 table; note its `tableStartIndex`
-
-**Prompt**
-> "Insert a row below row 0 in the table at index {tableStartIndex} in doc {DOC_ID}"
-
-**Checks**
-- Call succeeds with no API error
-- Response contains `docId`, `table_start_index`, `row_index: 0`
-- Re-fetch `get_doc_structure` shows the table now has 3 rows
-
-**Cleanup:** delete the table
-
-**Result (2026-06-22) ✅ PASS** Inserted 2×2 table; called `insert_table_row(row_index=0, insert_below=True)`. Response: `{docId, table_start_index, row_index: 0}`. Re-fetched structure showed 3 rows.
-
----
-
-### TC-DOC62: Insert a row above an existing row ⚠️ destructive
-**Setup:** insert a 2×2 table; note its `tableStartIndex`
-
-**Prompt**
-**Playwright: required**
-> "Insert a row above row 1 in the table at index {tableStartIndex} in doc {DOC_ID} (insert_below=False)"
-
-**Checks**
-- Call succeeds with no API error
-- Re-fetch shows the table has 3 rows
-- New row appears at row 1 (between original rows 0 and 1)
-
-**Cleanup:** delete the table
-
-**Result (2026-06-22) ✅ PASS** Inserted 2×2 table; called `insert_table_row(row_index=1, insert_below=False)`. Re-fetched structure showed 3 rows.
-
----
-
-### TC-DOC63: Delete a row ⚠️ destructive
-**Setup:** insert a 3-row table; note its `tableStartIndex`
-
-**Prompt**
-**Playwright: required**
-> "Delete row 1 from the table at index {tableStartIndex} in doc {DOC_ID}"
-
-**Checks**
-- Call succeeds with no API error
-- Response contains `docId`, `table_start_index`, `row_index: 1`
-- Re-fetch shows the table has 2 rows
-
-**Cleanup:** delete the table
-
-**Result (2026-06-22) ✅ PASS** Inserted 3-row table; called `delete_table_row(row_index=1)`. Response: `{docId, table_start_index, row_index: 1}`. Re-fetched structure showed 2 rows.
-
----
-
-### TC-DOC64: Insert a column to the right ⚠️ destructive
-**Setup:** insert a 2×2 table; note its `tableStartIndex`
-
-**Prompt**
-**Playwright: required**
-> "Insert a column to the right of column 0 in the table at index {tableStartIndex} in doc {DOC_ID}"
-
-**Checks**
-- Call succeeds with no API error
-- Response contains `docId`, `table_start_index`, `column_index: 0`
-- Re-fetch shows the table has 3 columns
-
-**Cleanup:** delete the table
-
-**Result (2026-06-22) ✅ PASS** Inserted 2×2 table; called `insert_table_column(column_index=0, insert_right=True)`. Response: `{docId, table_start_index, column_index: 0}`. Re-fetched structure showed 3 columns.
-
----
-
-### TC-DOC65: Insert a column to the left ⚠️ destructive
-**Setup:** insert a 2×2 table; note its `tableStartIndex`
-
-**Prompt**
-**Playwright: required**
-> "Insert a column to the left of column 1 in the table at index {tableStartIndex} in doc {DOC_ID} (insert_right=False)"
-
-**Checks**
-- Call succeeds with no API error
-- Re-fetch shows the table has 3 columns
-
-**Cleanup:** delete the table
-
-**Result (2026-06-22) ✅ PASS** Inserted 2×2 table; called `insert_table_column(column_index=1, insert_right=False)`. Re-fetched structure showed 3 columns.
-
----
-
-### TC-DOC66: Delete a column ⚠️ destructive
-**Setup:** insert a 2×3 table; note its `tableStartIndex`
-
-**Prompt**
-**Playwright: required**
-> "Delete column 1 from the table at index {tableStartIndex} in doc {DOC_ID}"
-
-**Checks**
-- Call succeeds with no API error
-- Response contains `docId`, `table_start_index`, `column_index: 1`
-- Re-fetch shows the table has 2 columns
-
-**Cleanup:** delete the table
-
-**Result (2026-06-22) ✅ PASS** Inserted 2×3 table; called `delete_table_column(column_index=1)`. Response: `{docId, table_start_index, column_index: 1}`. Re-fetched structure showed 2 columns.
-
----
-
-### TC-DOC67: API error returned gracefully (out of bounds row)
-**Setup:** insert a 2×2 table; note its `tableStartIndex`
-
-**Prompt**
-> "Delete row 99 from the table at index {tableStartIndex} in doc {DOC_ID}"
-
-**Checks**
-- Returns `{"error": "..."}` — does not raise an exception
-- Error message references an API failure
-
-**Result (2026-06-22) ✅ PASS** Called `delete_table_row(row_index=99)` on a 2×2 table. Returned `{"error": "..."}` with an API error message referencing an invalid row index. No exception raised.
-
----
-
-## `merge_table_cells` (#150)
-
-### TC-DOC91: Merge a horizontal range of cells (colspan) ⚠️ destructive
-**Setup:** insert a 2×3 table; note its `tableStartIndex`
-
-**Prompt**
-**Playwright: required**
-> "Merge cells in the table at index {tableStartIndex} in doc {DOC_ID} starting at row 0, column 0, spanning 1 row and 2 columns"
-
-**Checks**
-- Call succeeds with no API error
-- Response contains `docId`, `table_start_index`, `row_index: 0`, `column_index: 0`, `row_span: 1`, `column_span: 2`
-- 🔍 Visual check in Google Docs: row 0's first two columns render as one wide cell; row 1 is unaffected
-- Re-fetch `get_doc_structure` still reports 3 physical columns in row 0 (merge doesn't delete the covered cell, it only changes rendering)
-
-**Cleanup:** delete the table
-
-**Result (2026-07-14) ✅ PASS** Inserted a 2×3 table, called `merge_table_cells(table_start_index, row_index=0, column_index=0, row_span=1, column_span=2)`. Response matched exactly: `{"docId", "table_start_index", "row_index": 0, "column_index": 0, "row_span": 1, "column_span": 2}`. Playwright screenshot confirmed row 0's first two columns render as one wide cell while row 1 kept three separate cells. Re-fetched `get_doc_structure`: table still reported 3 physical columns in row 0 (cells at col 0, 1, 2 all present with distinct indices). Table deleted via `delete_doc_range`.
-
-### TC-DOC92: Merge a vertical range of cells (rowspan) ⚠️ destructive
-**Setup:** insert a 3×2 table; note its `tableStartIndex`
-
-**Prompt**
-**Playwright: required**
-> "Merge cells in the table at index {tableStartIndex} in doc {DOC_ID} starting at row 0, column 0, spanning 2 rows and 1 column"
-
-**Checks**
-- Call succeeds with no API error
-- Response contains `docId`, `table_start_index`, `row_index: 0`, `column_index: 0`, `row_span: 2`, `column_span: 1`
-- 🔍 Visual check in Google Docs: column 0's first two rows render as one tall cell; column 1 is unaffected in both rows
-
-**Cleanup:** delete the table
-
-**Result (2026-07-14) ✅ PASS** Inserted a 3×2 table, called `merge_table_cells(table_start_index, row_index=0, column_index=0, row_span=2, column_span=1)`. Response matched exactly: `{"docId", "table_start_index", "row_index": 0, "column_index": 0, "row_span": 2, "column_span": 1}`. Playwright screenshot confirmed column 0's first two rows render as one tall cell while column 1 kept two separate cells across the same rows; row 2 unaffected. Table deleted via `delete_doc_range`.
-
-### TC-DOC93: API error returned gracefully (merge range exceeds table bounds)
-**Setup:** insert a 2×2 table; note its `tableStartIndex`
-
-**Prompt**
-> "Merge cells in the table at index {tableStartIndex} in doc {DOC_ID} starting at row 0, column 0, spanning 1 row and 99 columns"
-
-**Checks**
-- Returns `{"error": "..."}` — does not raise an exception
-- Error message references an API failure
-
-**Cleanup:** delete the table
-
-**Result (2026-07-14) ✅ PASS** Inserted a 2×2 table, called `merge_table_cells(row_index=0, column_index=0, row_span=1, column_span=99)`. Returned `{"error": "<HttpError 400 ... Invalid requests[0].mergeTableCells: The table range extends outside the bounds of the table.>"}`. No exception raised. Table deleted via `delete_doc_range`.
-
----
-
-## `create_header` / `create_footer` (#147)
-
-### TC-DOC68: Create a default page header ⚠️ destructive
-**Prompt**
-**Playwright: required**
-> "Add a page header to doc {DOC_ID}"
-
-**Checks**
-- Call succeeds with no API error
-- Response contains `docId` and `headerId` (non-empty string)
-- 🔍 Visual check in Google Docs: document shows a header section
-
-**Cleanup:** none needed (headers persist; restore fixture doc if desired)
-
-**Result (2026-06-22) ✅ PASS** Called `create_header(doc_id=fixture)` (no content). Returned `{"docId": ..., "headerId": "kix.xxxxxxxxxx"}`. Header section visible in Google Docs. Note: on first call after a prior session created the header (due to index=1 bug), the "already exists" 400 error was caught and the ID was retrieved from `documentStyle.defaultHeaderId` — this is the expected fallback path.
-
----
-
-### TC-DOC69: Create a header with content ⚠️ destructive
-**Prompt**
-**Playwright: required**
-> "Add a page header to doc {DOC_ID} with content 'Confidential — Internal Only'"
-
-**Checks**
-- Response contains `docId` and `headerId`
-- Two API calls were made (create + insert text) — verifiable via no error in response
-- 🔍 Visual check: header text "Confidential — Internal Only" appears in the document header
-
-**Cleanup:** none needed
-
-**Result (2026-06-22) ✅ PASS** Called `create_header(doc_id=temp_doc, content="Confidential — Internal Only")`. Returned `{"docId": ..., "headerId": "kix.xxxxxxxxxx"}` with no `warning` key — both header creation (via `documentStyle` fallback) and content insertion at `index=0` succeeded.
-
----
-
-### TC-DOC70: Create a default page footer ⚠️ destructive
-**Prompt**
-**Playwright: required**
-> "Add a page footer to doc {DOC_ID}"
-
-**Checks**
-- Response contains `docId` and `footerId` (non-empty string)
-- 🔍 Visual check: document shows a footer section
-
-**Cleanup:** none needed
-
-**Result (2026-06-22) ✅ PASS** Called `create_footer(doc_id=fixture)`. Returned `{"docId": ..., "footerId": "kix.xxxxxxxxxx"}`. Footer section visible in Google Docs.
-
----
-
-### TC-DOC71: Create a footer with content ⚠️ destructive
-**Prompt**
-**Playwright: required**
-> "Add a page footer to doc {DOC_ID} with content 'Page 1'"
-
-**Checks**
-- Response contains `docId` and `footerId`
-- 🔍 Visual check: footer shows "Page 1"
-
-**Cleanup:** none needed
-
-**Result (2026-06-22) ✅ PASS** Called `create_footer(doc_id=temp_doc, content="Page 1")`. Returned `{"docId": ..., "footerId": "kix.xxxxxxxxxx"}` with no `warning` key — footer created and content inserted at `index=0`.
-
----
-
-### TC-DOC72: Invalid header_type returns error
-**Prompt**
-> "Call create_header on doc {DOC_ID} with header_type 'INVALID'"
-
-**Checks**
-- Returns `{"error": "Invalid header_type 'INVALID'..."}`
-
-**Result (2026-06-22) ✅ PASS** Returned `{"error": "Invalid header_type 'INVALID'. Use DEFAULT or FIRST_PAGE_HEADER"}`. No API call made.
-
----
-
-### TC-DOC73: Invalid footer_type returns error
-**Prompt**
-> "Call create_footer on doc {DOC_ID} with footer_type 'INVALID'"
-
-**Checks**
-- Returns `{"error": "Invalid footer_type 'INVALID'..."}`
-
-**Result (2026-06-22) ✅ PASS** Returned `{"error": "Invalid footer_type 'BOGUS'. Use DEFAULT or FIRST_PAGE_FOOTER"}`. No API call made.
-
----
-
-### TC-DOC74: insert_doc_text with segment_id writes into header ⚠️ destructive
-**Setup:** call `create_header` first to get a `headerId`
-
-**Prompt**
-**Playwright: required**
-> "Insert the text 'Header text via insert_doc_text' at index 0 in doc {DOC_ID} using segment_id '{headerId}'"
-
-**Note:** An empty header/footer segment has end index 1 (one newline at index 0). Insert at index 0, not 1.
-
-**Checks**
-- Call succeeds with no API error
-- Response contains `insertions: 1`
-- 🔍 Visual check: "Header text via insert_doc_text" appears in the document header
-
-**Result (2026-06-22) ✅ PASS** Called `insert_doc_text` with `[{index: 0, text: "QA Test Header", segment_id: "kix.xxxxxxxxxx"}]`. Response: `{"docId": ..., "insertions": 1}`. Text "QA Test Header" appeared in fixture doc header. Same mechanism also confirmed for footer segment insertion (segment_id: "kix.xxxxxxxxxx", text: "Page 1").
-
----
-
-### TC-DOC75: `get_doc_named_styles` reads named style defaults set via the Docs UI
-**Note:** Named styles are only populated when the user explicitly goes to Format > Paragraph styles > Update X to match. Most docs leave named styles at Google's defaults — this tool returns empty or near-empty for those docs. Use `get_doc_theme` to read actual paragraph appearance instead.
-
-**Prompt**
-> "Call `get_doc_named_styles` on doc {DOC_ID} and show me the result."
-
-**Checks**
-- No `error` key in result
-- For a doc where named styles were explicitly set: returns a non-empty dict with named style type keys
-- For a standard doc: may return `{}` or only Google's default entries (expected, not an error)
-
-**Result (2026-06-20) ✅ PASS** Called on a doc that had `apply_theme` previously applied (Georgia HEADING_1/H2, Roboto NORMAL_TEXT). Returned 9 entries: NORMAL_TEXT (Roboto 11pt, line_spacing 115), HEADING_1 (Georgia 24pt bold, space_above 20), HEADING_2 (Georgia 18pt, space_above 18), HEADING_3–6 (Google defaults with font sizes and colors), TITLE, SUBTITLE. Confirms `apply_theme` default mode successfully writes to named styles, and `get_doc_named_styles` reads them back correctly. No error.
-
----
-
-### TC-DOC76: Table immediately after heading renders at Normal Text size ⚠️ requires-oauth ⚠️ destructive
-
-**Setup:** use `docs/qa/fixtures/tc-d226-heading-table.md` from the repo (absolute path: `<repo-root>/docs/qa/fixtures/tc-d226-heading-table.md`)
-
-**Prompt**
-**Playwright: required**
-> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."
-
-**Checks**
-- `docId` and `web_link` returned with no `error`
-- `get_doc_structure` shows a `table` element with 6 cells containing "Finding", "Severity", "Ticket", "Some finding", "HIGH", "KINDLY-123"
-- 🔍 Visual check: open the doc — table cell text renders visually smaller than the "HIGH" H2 heading above it (~11pt vs ~16pt); no blank paragraph workaround needed
-
-**Cleanup:** delete the created doc
-
-**Result (2026-06-24) ✅ PASS** "HIGH" heading renders visually larger than table text. All six cells ("Finding", "Severity", "Ticket", "Some finding", "HIGH", "KINDLY-123") render at Normal Text size. No blank paragraph between heading and table required. No oversized cell text observed.
-
----
-
-### TC-DOC77: No visible blank line between heading and table in `create_doc_from_file` ⚠️ requires-oauth ⚠️ destructive
-
-**Background:** the Docs API inserts a structurally-required blank paragraph before every table;
-`deleteContentRange` is rejected for it. The fix collapses it to zero visual height via
-`updateParagraphStyle` (spaceAbove/Below=0, lineSpacing=1) + `updateTextStyle` (fontSize=1pt).
-
-**Setup:** use `docs/qa/fixtures/tc-d226-heading-table.md` (heading immediately followed by a table)
-
-**Prompt**
-**Playwright: required**
-> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d226-heading-table.md, then show me its structure."
-
-**Checks**
-- Tool completes without error (no `HttpError 400`)
-- `get_doc_structure` returns a body with a heading and a table; a blank paragraph element may still be listed (it is structurally present), but its `paragraph.paragraphStyle` should show `lineSpacing: 1`, `spaceAbove: 0`, `spaceBelow: 0`
-- 🔍 Visual check: open the doc — no visible blank line between the "HIGH" heading and the table
-
-**Cleanup:** delete the created doc
-
-**Result (2026-06-25) ✅ PASS**
-- Tool completed without error. Structure: sectionBreak → HEADING_2 "HIGH\n" (1-6) → blank para "\n" (6-7, `font_size: 1` on its run confirming collapse applied) → table (7-70, cells filled correctly: Finding/Severity/Ticket header, Some finding/HIGH/KINDLY-123 data) → trailing para (70-71). Visual check: no visible gap between heading and table in the rendered doc.
-
----
-
-### TC-DOC80: get_doc_content trips the response-size cap; cached path re-checks it too (issue #242)
-
-**Background:** #242 generalized #235's response-size safety net to `get_doc_content`. `doc_cache` previously returned a cached result *before* any cap check ran, so a cached oversized doc would bypass the cap on repeat calls — fixed so the check runs on both the cache-hit and cache-miss paths.
-
-**Setup:** `TEST_LARGE_DOC_ID` (`mcp-gee-sweet-qa-large-doc`), grown from its original ~5,300-character seed content to ~49,700 characters by inserting repeated padding text (permanent fixture growth — this doc's whole purpose is being a large-content fixture, and it was never previously large enough to exceed any cap since none existed for this tool before now).
-
-**Checks**
-- First call (fetch path) raises `ValueError` mentioning the actual response size, the cap, and `MAX_TOOL_RESPONSE_CHARS`
-- Second call (cache-hit path, no `refresh_cache` in between) raises the *same* error — proves the cache-hit path re-checks the cap rather than returning the stale oversized cached result
-- Same call with `local_path` set succeeds, returns `{local_path, id, bytes_written}`, and the file on disk contains the full content
-
-**Result (2026-07-03) ✅ PASS**
-Fetch-path call raised: `get_doc_content: the response is 49700 characters, over the 40000-character safety cap. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` Repeat call (served from `doc_cache`, confirmed via no additional Drive API round-trip) raised the identical error — confirms the cache-ordering fix. `local_path` call succeeded: `{"local_path":"/tmp/qa_doc_content_242.json","bytes_written":49700,"id":"{TEST_LARGE_DOC_ID}"}`; file verified then cleaned up.
-
----
-
-### TC-DOC81: create_doc_from_file renders \$ escape as literal $ (issue #213) ⚠️ requires-oauth ⚠️ destructive
-
-**Background:** Python-Markdown's default `ESCAPED_CHARS` omits `$` (unlike CommonMark, which includes it in its escapable-punctuation set), so `\$` — commonly used to defeat math/LaTeX-delimiter renderers like Obsidian/Typora/Jupyter that treat bare `$...$` as inline math — previously passed through untouched into the rendered Doc as a literal backslash+dollar. Fixed via a small `markdown.extensions.Extension` that adds `$` to `ESCAPED_CHARS`, so it's handled by the library's own escape mechanism (respecting code-span/fenced-code protection) rather than a blind text substitution.
-
-**Setup:** use `docs/qa/fixtures/tc-d213-dollar-escape.md` from the repo (a table cell, a second table row, and a plain-text sentence, each with a `\$`-escaped dollar amount)
-
-**Prompt**
-> "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d213-dollar-escape.md"
-
-**Checks**
-- `docId` and `web_link` returned with no `error`
-- `get_doc_content` shows `$6,000`, `$25`, and `$1,200` as plain literal dollar amounts — no `\$` (literal backslash+dollar) anywhere in the content
-
-**Cleanup:** delete the created doc
-
-**Result (2026-07-04) ✅ PASS**
-`create_doc_from_file` succeeded. `get_doc_content` returned: `"...Deductible\r\n\t$6,000\r\n\tCopay\r\n\t$25\r\n\tPlain text with an escaped price: $1,200 due at signing."` — all three escaped amounts rendered as literal `$`, no `\$` anywhere. Doc permanently deleted after verification.
-
----
-
-### TC-DOC82: create_doc autolinks bare URLs in markdown content (issue #248) ⚠️ requires-oauth ⚠️ destructive
-
-**Background:** Python-Markdown's built-in autolink only fires on `<https://...>` (angle brackets) or `[text](url)` — a bare URL like `https://example.com/some-page` was left as inert plain text with no hyperlink. Fixed via a low-priority `InlineProcessor` extension that autolinks bare `http(s)://` URLs left as plain text after the library's own link/code-span processing runs, trimming trailing sentence punctuation and unmatched closing parens (CommonMark/GFM extended-autolink behavior).
-
-**Prompt**
-**Playwright: required**
-> "Create a Google Doc titled 'QA TC-DOC82' with content_format='markdown' and this content: `From: https://example.com/some-page. See (https://example.com/parens) for details. Already linked: [click](https://example.com/existing). Code: \`https://example.com/code\`.`"
-
-**Checks**
-- `docId` and `web_link` returned with no `error`
-- `get_doc_structure` shows a run with `link_url: "https://example.com/some-page"` (trailing period NOT included in the link)
-- A run with `link_url: "https://example.com/parens"` (wrapping parens NOT included in the link)
-- The existing markdown link still shows `link_url: "https://example.com/existing"` (not double-processed)
-- The backtick-wrapped URL has no `link_url` set (code span still suppresses autolinking)
-
-**Cleanup:** delete the created doc
-
-**Result (2026-07-05) ✅ PASS**
-`create_doc` succeeded (docId `1F66ZQQMuBx9CjaGx49bBg6DlcVMAYMnqnuYHtouyfIU`). `get_doc_structure` confirmed all four checks: `https://example.com/some-page` run has `link_url` set with the trailing `.` split into its own unlinked run; `https://example.com/parens` run has `link_url` set with both wrapping parens split into unlinked runs; the markdown link's `click` run has `link_url: "https://example.com/existing"` (untouched, not double-processed); the backtick-wrapped `https://example.com/code` run has `link_url: null`. Doc trashed after verification. Visual check (re-created identical content, Playwright screenshot, re-trashed): both bare URLs render blue/underlined, wrapping punctuation stays plain black, `click` renders as a normal link, and the backtick-wrapped URL renders as plain monospace code — not a link.
-
----
-
-### TC-DOC83: autolink_urls=False leaves bare URLs as plain text (issue #248) ⚠️ requires-oauth ⚠️ destructive
-
-**Background:** The autolinking added for TC-DOC82 is unconditional by default. `autolink_urls: bool = True` on `create_doc`/`create_doc_from_file`/`write_doc_content` lets a caller opt out for the whole call when a bare URL should stay as plain, non-monospace text (backticks are the existing per-URL escape hatch, but they force code styling).
-
-**Prompt**
-**Playwright: required**
-> "Create a Google Doc titled 'QA TC-DOC83' with content_format='markdown', autolink_urls=False, and this content: `See https://example.com/inert here`"
-
-**Checks**
-- `docId` and `web_link` returned with no `error`
-- `get_doc_structure` shows the URL text present with `link_url: null` (no hyperlink applied)
-
-**Cleanup:** delete the created doc
-
-**Result (2026-07-05) ✅ PASS**
-`create_doc` succeeded (docId `1elTfZ70c6AO66cjLQ7O-PrzzUlYGmVwiKuNWjDXVMGI`). `get_doc_structure` confirmed the entire line ("See https://example.com/inert here") is a single unstyled run — no `link_url`, no underline. Doc trashed after verification. Visual check (re-created identical content, Playwright screenshot, re-trashed): entire line renders as plain black text, no blue/underline anywhere.
 
 ---
 
@@ -1742,6 +1404,7 @@ Doc lacked the literal text "QA anchor target", so it was inserted via `insert_d
 
 **Result (2026-07-16) ✅ PASS**
 `list_doc_comments(doc_id="not-a-real-doc-id")` raised `HttpError 404 ... "File not found: not-a-real-doc-id."` — propagated cleanly, no silent empty list, no server crash.
+
 ## HTML/Markdown → Doc image conversion (#332, #333)
 
 **Background:** `_AstParser` in `html_parser.py` has no `<img>` handling at all — `handle_starttag`/`handle_endtag` recognize block tags, inline formatting tags, table tags, and list tags, but an `img` tag matches none of those branches and is silently ignored. Since markdown images (`![alt](src)`) are converted to `<img>` HTML by `_md_to_html` before reaching this same parser, **every** content path that goes through the shared AST pipeline — `create_doc`, `create_doc_from_file`, `write_doc_content`, for both `content_format="html"` and `content_format="markdown"` — drops images with no error, no warning, and no placeholder. The only working path today is the separate `insert_inline_image` tool (TC-DOC57/58), which requires a second pass of index bookkeeping after the doc already exists (the manual workaround documented in #332/#333).
@@ -2468,47 +2131,6 @@ Run against a live sandbox scoped to only `create_doc,create_doc_from_file,write
 
 ---
 
-## `style_doc_range`: `link_url: null` now actually clears a link (issue #408)
-
-**Background:** TC-DOC30 above covers *setting* a link. Clearing one (`link_url: null`, documented in the tool's own docstring as the way to do it) always failed with `HttpError 400 ... "Invalid requests[0].updateTextStyle: Links must include at least one type."` instead. `_text_style_and_fields` (`style.py`, shared with `insert_softbreak_paragraph` in `editing.py`) built the clearing request as `textStyle.link = {}` — the Docs API rejects an empty `Link` object outright, confirmed live via a direct API call reproducing the exact reported error. Fixed by omitting the `link` key from `textStyle` entirely while still naming `"link"` in the `fields` mask — the correct way to reset a nested message field to its Docs API default (no link) — confirmed live this actually clears an existing link without error. Both call sites' own `if text_style: requests.append(...)` guard also had to change to `if fields:`: a link-clear-only call now legitimately produces an empty `text_style` dict alongside a non-empty `fields` list (`["link"]`), and the old guard would have silently dropped the request rather than sending it.
-
-### TC-DOC139: Clearing a link via `link_url: null` removes it instead of erroring ⚠️ destructive
-
-**Setup:** insert a paragraph "Visit example\n" in `{DOC_ID}`; apply `link_url: "https://example.com"` to the range covering "example" (same setup as TC-DOC30); note that range.
-
-**Prompt**
-> "Clear the hyperlink on range {start}–{end} in doc {DOC_ID} by setting link_url to null."
-
-**Checks**
-- Tool completes without error (no `HttpError 400` / "Links must include at least one type")
-- Response `requests: 1`
-- `get_doc_structure` shows the run over that range now has `link_url: null` (not still `"https://example.com"`)
-- 🔍 Visual check: the text no longer renders as a hyperlink (no blue/underline hyperlink styling — the auto-added `underline: true` from TC-DOC30 is a separate, independent style field and is not expected to be cleared by this call, since `link_url` and `underline` are unrelated fields in the request)
-
-**Cleanup:** delete the test paragraph
-
-**Result:** PASS (2026-07-27, live via `mcp-gee-sweet-kit`, `mcp-gee-sweet-qa-fixtures-doc` `1-whiEVwvnSOABaK9qgpzdVaGUOMRvJdQhDmCURqx4fA`). Inserted "Visit example\n", linked "example" (indices 94–101) to `https://example.com`, then cleared it via `style_doc_range(..., link_url=null)` — no `HttpError 400`, `requests: 1`. `get_doc_structure` confirmed "example" split into its own run with `link_url: null` (previously carried the link). Visual/Playwright check not performed (no browser session in this pass); cleared status confirmed via the API's own structural response instead. Test paragraph deleted after.
-
----
-
-### TC-DOC140: `insert_softbreak_paragraph`'s `link_url: null` also clears rather than erroring (shared helper)
-
-**Setup:** none — the line is inserted fresh by the call under test.
-
-**Prompt**
-> "Insert a soft-break paragraph at index 1 in doc {DOC_ID} with one line: text 'plain text, no link' and link_url null."
-
-**Checks**
-- Tool completes without error
-- Response includes `line_ranges` with one entry
-- `get_doc_structure` shows the inserted run has `link_url: null`
-
-**Cleanup:** delete the inserted paragraph
-
-**Result:** PASS (2026-07-27, live via `mcp-gee-sweet-kit`, same fixture doc). `insert_softbreak_paragraph(index=1, lines=[{"text": "plain text, no link", "link_url": null}])` completed without error, returned `line_ranges: [{"start_index": 1, "end_index": 20}]`. `get_doc_structure` confirmed the inserted run's `link_url: null`. Note: since `named_style_type` wasn't passed, the call's documented "covers the entire paragraph touched by the insert" behavior downgraded the existing "Test Document" HEADING_1 paragraph to NORMAL_TEXT (expected, not a defect) — restored via an explicit `style_doc_range` call after cleanup, fixture doc left in its original state.
-
----
-
 ## A mismatched `<ol>`/`<ul>` close tag no longer permanently desyncs list depth (issue #382)
 
 **Background:** `handle_endtag`'s `<ol>`/`<ul>` close-tag handling (`html_parser.py`) used to pop `_list_ordered` — the stack `BulletItem.depth`/`.ordered` are computed from — only when the closing tag's implied type matched the stack's own top entry. A mismatched pair (e.g. an `<ol>` closed by a stray `</ul>`, a real input surface since `write_doc_content`/`create_doc` accept raw, unvalidated HTML directly) silently skipped the pop instead of performing it, leaving the stack one level too deep for the rest of the document — every subsequent `BulletItem.depth` came out off by one, bleeding into completely unrelated, later, well-formed lists, not just the malformed one. Fixed by popping `_list_ordered` unconditionally on any `<ol>`/`<ul>` close (by count, not gated on matching the popped entry's own type) — mirroring the same unconditional-pop principle `_resume_interrupted_block` already applies to the separate node-*type* correctness concern for this same malformed-tag scenario. Well-formed nesting is unaffected, since the old gate was already true in that case.
@@ -2618,49 +2240,6 @@ Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-do
 
 ---
 
-### TC-DOC146: `style_doc_table_cells` per-edge border override — signature-line (bottom-only border) ⚠️ destructive
-
-**Purpose:** #403 — `style_doc_table_cells` previously only supported a single uniform border applied to all four cell edges. This confirms the new `border_top`/`border_right`/`border_bottom`/`border_left` per-edge overrides, using the signature-line use case from the issue (bottom border only, no other edges touched).
-
-**Setup:** insert a 2×1 table; record its `tableStartIndex` from the response
-
-**Prompt**
-**Playwright: required**
-> "Style cell [0,0] of the table at index {tableStartIndex} in doc {DOC_ID} with only a bottom border: color black, width 1.0"
-
-Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIndex>, cells=[{"row_index": 0, "column_index": 0, "border_bottom": {"color": {"red": 0, "green": 0, "blue": 0}, "width": 1.0}}])`
-
-**Checks**
-- Response succeeds, no `error` key, `requests: 1`
-- Docs tables render onto a canvas with no accessible `<table>` DOM, and a brand-new table already shows default borders on every cell — a screenshot can't distinguish "our applied border" from "the table's own default," so the visual check below is unreliable (see `run.md`'s "Docs table cell borders" limitation). Verify instead via a raw `documents().get()` read: cell [0,0]'s `tableCellStyle.borderBottom` should be present with the requested color/width; `borderTop`/`borderLeft`/`borderRight` should be absent (or default) since they were never targeted
-
-**Result:** PASS (2026-07-30, PR #462 re-verification round). Verified live via raw `documents().get()` read against the QA fixture doc rather than a screenshot (see note above) — a fresh table's untouched cell showed no `tableCellStyle` border keys at all; after `style_doc_table_cells` with only `border_bottom` set, the cell showed a `borderBottom` entry with the requested color/width and no `borderTop`/`borderLeft`/`borderRight` keys. Confirmed with two distinct rows/widths for reproducibility.
-
-**Cleanup:** delete the table
-
----
-
-### TC-DOC147: `apply_theme` table styling with per-edge border override ⚠️ destructive
-
-**Purpose:** #403 — `apply_theme`'s `table` key had the same uniform-border-only limitation as `style_doc_table_cells`. Confirms `border_top`/`border_right`/`border_bottom`/`border_left` overrides on the theme's table styling, combined with the existing uniform `border_width` for the untouched edges.
-
-**Prerequisite:** doc must contain at least one table (write one with `write_doc_content` first if needed)
-
-**Prompt**
-**Playwright: required**
-> "Apply this theme to doc {DOC_ID}: `{"table": {"border_color": {"red": 0, "green": 0, "blue": 0}, "border_width": 0.5, "border_bottom": {"width": 2.0}}}`"
-
-**Checks**
-- Result contains `docId` and `requests > 0`
-- No `error` key
-- Same canvas-rendering limitation as TC-DOC146 — screenshot verification is unreliable here. Verify instead via a raw `documents().get()` read: interior rows' cells should show `borderTop`/`borderRight`/`borderBottom`/`borderLeft` all at the uniform width/color, and the *last* row's `borderBottom` should show the overridden width while still inheriting the uniform color (this is the core #403-follow-up fix: a width-only per-edge override must inherit color from the uniform spec, since the Docs API rejects a non-zero-width border with no color as "transparent")
-
-**Result:** PASS (2026-07-30, PR #462 re-verification round). Verified live via raw `documents().get()` read: applying `{"border_color": <uniform>, "border_width": 0.5, "border_bottom": {"width": <override>}}` produced a `borderBottom` on the outer edge with the overridden width and the *uniform* color correctly inherited (confirmed unambiguously using a non-default color, since the Docs API omits zero-valued RGB components from its response — a pure-black test color would round-trip as `{}` and couldn't distinguish "inherited" from "absent"). Also confirmed `{"border_bottom": null}` returns a clean `{"error": ...}` instead of raising.
-
-**Cleanup:** write fixture content back
-
----
-
 ## Stale block-interruption frame from a mismatched list-close no longer resumed by a later, unrelated list (issue #450)
 
 **Background:** Surfaced during PR #449's QA pass (issue #382 — mismatched `<ol>`/`<ul>` close tags), confirmed as a distinct pre-existing bug rather than a regression from that PR. `_resume_interrupted_block` pushes a `_BlockFrame` onto `_block_stack` when a list interrupts an open block (e.g. an `<h1>` interrupted by `<ol>`). If the interrupting list is later closed by a *mismatched* tag (`</ul>` instead of `</ol>`), the old code only matched a frame by comparing its `interrupted_by` tag against the exact closing tag — a mismatch left the frame stuck on the stack. A later, unrelated, well-formed list could then close with a tag that happened to match the stale frame's `interrupted_by` value, incorrectly restoring `self._block_tag` to the original (now long-closed) outer block and mistyping subsequent bare trailing text as that stale block type. Fixed by matching list-category interruptions (`interrupted_by` in `{"ol", "ul"}`) by the list-nesting depth recorded at interrupt time instead of by tag identity — the frame is always resolved (popped) once that depth is reached, even on a mismatch, but the outer block is only actually *resumed* (`self._block_tag` restored) on an exact tag match; a mismatched close ends the interruption without guessing at reopening the outer block.
@@ -2692,7 +2271,6 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 **Result (2026-08-02) ✅ PASS** — live `write_doc_content` + `get_doc_structure` against the fixture doc returned exactly HEADING_1 "Start", paragraph "B", paragraph "C", paragraph "D", HEADING_1 "E" — "D" is preserved (previously vanished entirely) and no other regression in the sequence.
 
 **Cleanup:** write fixture content back
-
 
 ## Image sharing lifecycle — `revoke_sharing` default and consistency (#333)
 
@@ -2797,85 +2375,9 @@ Tool call: `insert_local_images(doc_id=DOC_ID, images=[{"marker": "IMGMARKERONE"
 
 ---
 
-## Paragraph bullet inspection and repair — `get_doc_structure`'s `bullet` field, `create_paragraph_bullets`/`delete_paragraph_bullets` (issue #334)
-
-### TC-DOC155: `get_doc_structure` surfaces `bullet.listId`/`bullet.nestingLevel` for list paragraphs ⚠️ destructive
-
-**Setup:** none — list created fresh by the call under test.
-
-**Prompt**
-> "Write this Markdown to doc {DOC_ID}: '- Top level item\n    - Nested item\n', then show me its structure."
-
-Tool calls: `write_doc_content(doc_id={DOC_ID}, content="- Top level item\n    - Nested item\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})`.
-
-**Checks**
-- Both list-item elements have a non-null `bullet` field, and both share the SAME `listId`
-- "Top level item"'s `bullet.nestingLevel` is `0`
-- "Nested item"'s `bullet.nestingLevel` is `1`
-
-**Cleanup:** write fixture content back
-
-**Result (2026-08-06) ❌ FAIL as originally written, ✅ PASS after test-case fix — run live against PR #524 (issue #334).** The prompt originally used a 2-space indent (`"- Top level item\n  - Nested item\n"`), which this codebase's `_md_to_html` (`sane_lists` extension, same as plain `python-markdown`) does not recognize as nested — both items render as a single flat `<ul>` with no nesting, so "Nested item" correctly reported `nestingLevel: 0` given that input; not a product bug, a test-case bug (`sane_lists`/`markdown` requires 4-space indent to nest a list). Fixed the prompt above to 4-space indent and re-ran: both items share one `listId`, "Top level item" is `nestingLevel: 0`, "Nested item" is `nestingLevel: 1` — PASS.
-
----
-
-### TC-DOC156: `create_paragraph_bullets` fixes a markdown-flattened nested list by promoting specific paragraphs to a deeper nesting level (#334's original repro) ⚠️ destructive
-
-**Background:** issue #334 — `create_doc`'s markdown-to-Doc conversion flattens an indented sub-list under a numbered item into the SAME single-level list (the six settings in the issue's own repro became items 3-8 of one flat list instead of a nested sub-list under item 2), and until now there was no way to fix this after the fact short of delete-and-retype as plain text. This test exercises the fix: `get_doc_structure`'s new `bullet` field to detect the flattening, then `create_paragraph_bullets` to repair it.
-
-**Prompt**
-> "Write this Markdown to doc {DOC_ID}: '1. Select the snapshot\n2. Configure the instance:\n   - Instance identifier\n   - Instance class\n   - Storage encryption\n3. Click Restore\n', then show me its structure."
-
-Tool calls: `write_doc_content(doc_id={DOC_ID}, content="1. Select the snapshot\n2. Configure the instance:\n   - Instance identifier\n   - Instance class\n   - Storage encryption\n3. Click Restore\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})` — note the `start_index`/`end_index` of the "Instance identifier" and "Storage encryption" paragraphs from this call's output.
-
-Then: "Now nest the three settings paragraphs (Instance identifier through Storage encryption) one level deeper under item 2, and show me the structure again."
-
-Tool calls: `create_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <Instance identifier para start_index>, "end_index": <Storage encryption para end_index>, "nesting_level": 1}])` (one range spanning all three contiguous settings paragraphs), then `get_doc_structure(doc_id={DOC_ID})` again.
-
-**Checks**
-- First `get_doc_structure` call: all 6 items ("Select the snapshot" through "Click Restore") share one `listId`, all at `nestingLevel: 0` — confirms the flattening described in #334 (the three settings paragraphs are not visually distinguished from their numbered siblings)
-- `create_paragraph_bullets` call succeeds with no API error
-- Second `get_doc_structure` call: "Select the snapshot", "Configure the instance", and "Click Restore" are still `nestingLevel: 0`; "Instance identifier", "Instance class", "Storage encryption" are now `nestingLevel: 1`, still sharing the same `listId` as their siblings
-- The three promoted paragraphs' own text is unchanged — no visible tab character leaked into `text` (confirms the Docs API fully consumes the leading tab characters used to signal nesting depth)
-- 🔍 Visual check: the three settings render as a visually indented sub-list under "Configure the instance", and "Click Restore" still numbers as item 3 (not item 6)
-
-**Cleanup:** write fixture content back
-
-**Result (2026-08-06) ❌ FAIL — run live against PR #524 (issue #334).** First `get_doc_structure` call matches expectations (all 6 items share one `listId` at `nestingLevel: 0`, confirming the flattening). The repair step fails: after `create_paragraph_bullets(ranges=[{"start_index": 45, "end_index": 114, "nesting_level": 1}])` (single range spanning all three contiguous settings paragraphs — the tool's own documented "safe" pattern), a second `get_doc_structure` shows **all three settings paragraphs still at `nestingLevel: 0`** — the promotion had no effect. Worse, the leading tab character the tool inserts to signal depth was never consumed by the Docs API: "Instance identifier"'s own `text` field literally reads `"\t   - Instance identifier\n"`, tab included — contradicting this test's own third check ("no visible tab character leaked into text") and the tool's docstring claim that the API "consumes (removing)" the tab once applied. This is the PR's own flagship, headline use case (#334's original repro) and it does not work at all as implemented. Sent back to Dev (PR #524 comment) rather than approved.
-
-**Result (2026-08-06, round 2) ❌ FAIL — re-verified live against fix commit `a36f1c7`.** The `nestingLevel`/tab-leak failure from round 1 is fixed: the second `get_doc_structure` call now shows "Instance identifier"/"Instance class"/"Storage encryption" correctly at `nestingLevel: 1` sharing the sibling `listId`, with no leaked tab in `text`. However, this test's own 🔍 visual check now fails for a new reason: a Playwright screenshot of the result shows the **entire list rendered as unordered bullets (●/○) instead of numbers** — "Click Restore" is a bullet, not "3.". Confirmed via a control doc (identical markdown, no `create_paragraph_bullets` call) that the pre-repair list renders correctly numbered 1–6, so the repair call itself is what strips the numbering. Root cause: the fix's fixed algorithm applies one `bullet_preset` to the entire merged run (the requested paragraphs plus every already-listed neighbor it sweeps in as context) — since this test's own documented tool call doesn't pass `bullet_preset` (defaults to `BULLET_DISC_CIRCLE_SQUARE`), it silently overwrites the numbering of "Select the snapshot"/"Configure the instance"/"Click Restore" even though the caller never asked to touch those paragraphs' preset. The round 1 code-review's two non-blocking findings (uncaught `KeyError` on a malformed range, unvalidated negative `nesting_level`) are both fixed and confirmed live; the original multi-range-fragmentation finding is also fixed and confirmed live (3 single-paragraph ranges at depths 0/1/0 now correctly share one `listId`). Sent back to Dev (PR #524 comment) rather than approved.
-
-**Result (2026-08-06, round 3) ✅ PASS — re-verified live against fix commit `9ae16ee`.** Round 2's numbering regression is fixed: `create_paragraph_bullets` now reads the existing list's own glyph info from the document's `lists` map (`infer_preset`) when the caller doesn't pass `bullet_preset` explicitly, instead of defaulting to unordered bullets. Re-ran this test's exact documented call (no `bullet_preset`) — a Playwright screenshot confirms the list renders correctly: "1./2./3." for the top-level items, "a./b./c." for the promoted settings paragraphs, "Click Restore" still "3." All of this test's own checks pass. Also spot-checked the fix's new conflicting-preset validation: two directly-adjacent ranges with different explicit `bullet_preset`s split cleanly into two separate lists (no error, reasonable default); a mediated 3-paragraph case (two explicit, conflicting presets bridged by an already-listed paragraph with no explicit preset) correctly returns `{"error": "conflicting bullet_preset values among contiguous paragraphs..."}` as the docstring describes — the docstring's phrasing ("two explicitly-requested contiguous paragraphs") is a little imprecise about requiring same-run membership rather than literal adjacency in the caller's `ranges` list, but the behavior itself is correct and safe; noted as a non-blocking documentation nit, not filed as a ticket. Re-confirmed no regression on the original multi-range-fragmentation repro (3 single-paragraph ranges at depths 0/1/0 still land in one shared `listId` with correct depths). `qa-approved` applied.
-
----
-
-### TC-DOC157: `delete_paragraph_bullets` removes list membership from a range, leaving paragraph text untouched ⚠️ destructive
-
-**Setup:** none — list created fresh by the call under test.
-
-**Prompt**
-> "Write this Markdown to doc {DOC_ID}: '- First item\n- Second item\n- Third item\n', then show me its structure."
-
-Tool calls: `write_doc_content(doc_id={DOC_ID}, content="- First item\n- Second item\n- Third item\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})` — note "Second item"'s `start_index`/`end_index`.
-
-Then: "Remove the bullet from just the second item, and show me the structure again."
-
-Tool calls: `delete_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <Second item start_index>, "end_index": <Second item end_index>}])`, then `get_doc_structure(doc_id={DOC_ID})` again.
-
-**Checks**
-- After the call: "First item" and "Third item" still have non-null `bullet` fields (unaffected)
-- "Second item"'s `bullet` field is now `null`
-- "Second item"'s `text` is still exactly "Second item\n" (unchanged)
-
-**Cleanup:** write fixture content back
-
-**Result (2026-08-06) ✅ PASS — run live against PR #524 (issue #334).** All three checks confirmed exactly as specified: "First item"/"Third item" kept their `bullet` field and shared `listId`, "Second item"'s `bullet` became `null`, and its `text` was unchanged.
-
----
-
 ## Blockquote formatting (issue #476)
 
-**Background:** `<blockquote>`/Markdown `>` previously converted to a plain, visually indistinguishable paragraph — see `docs/design/blockquote-representation.md` for the representation decision (a flat `blockquote_depth` field, mirroring `BulletItem.depth`, rather than a wrapper node) and why a left border (`paragraphStyle.borderLeft`) plus a depth-scaled indent (`paragraphStyle.indentStart`, 36pt per level) were chosen as the visual equivalent — Google Docs has no native blockquote paragraph style. `get_doc_structure` does not surface `indentStart`/`borderLeft` (only `namedStyleType`/`headingId` are extracted from `paragraphStyle`), so these checks need a raw `documents().get()` read — same pattern as TC-DOC146's table-cell-border verification.
+**Background:** `<blockquote>`/Markdown `>` previously converted to a plain, visually indistinguishable paragraph — see `docs/design/blockquote-representation.md` for the representation decision (a flat `blockquote_depth` field, mirroring `BulletItem.depth`, rather than a wrapper node) and why a left border (`paragraphStyle.borderLeft`) plus a depth-scaled indent (`paragraphStyle.indentStart`, 36pt per level) were chosen as the visual equivalent — Google Docs has no native blockquote paragraph style. `get_doc_structure` does not surface `indentStart`/`borderLeft` (only `namedStyleType`/`headingId` are extracted from `paragraphStyle`), so these checks need a raw `documents().get()` read — same pattern as `docs_style.md` TC-DOC146's table-cell-border verification.
 
 ### TC-DOC158: HTML blockquote gets a left border and indent; surrounding non-quoted content is unaffected ⚠️ destructive
 

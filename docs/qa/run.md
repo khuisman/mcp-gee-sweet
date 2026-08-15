@@ -13,7 +13,7 @@ This file contains the conductor prompt. Paste it into a Claude session that has
 
 Copy everything in the **Conductor prompt** section below and paste it into the Claude chat.
 
-To run a single category instead of the full suite, add after the prompt: "Only run the `tests/drive.md` file" (or whichever category you want).
+To run a single category instead of the full suite, add after the prompt: "Only run the `tests/drive_files.md` file" (or whichever category you want).
 
 To resume an interrupted run: paste the prompt and add "Resume from `docs/qa/results/<date>-partial.md`".
 
@@ -104,9 +104,15 @@ Work through the test files in this order:
 3. `docs/qa/tests/sheets_write.md`
 4. `docs/qa/tests/sheets_mgmt.md`
 5. `docs/qa/tests/sheets_charts.md`
-6. `docs/qa/tests/drive.md`
-7. `docs/qa/tests/docs.md`
-8. `docs/qa/tests/calendar.md`
+6. `docs/qa/tests/drive_files.md`
+7. `docs/qa/tests/drive_sharing.md`
+8. `docs/qa/tests/drive_transfer.md`
+9. `docs/qa/tests/drive_activity.md`
+10. `docs/qa/tests/docs_content.md`
+11. `docs/qa/tests/docs_tables.md`
+12. `docs/qa/tests/docs_style.md`
+13. `docs/qa/tests/docs_layout.md`
+14. `docs/qa/tests/calendar.md`
 
 For each test case:
 

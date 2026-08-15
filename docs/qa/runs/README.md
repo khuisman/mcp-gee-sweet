@@ -32,18 +32,18 @@ One happy-path case per tool group — fast, no destructive operations where avo
 | TC-S15 | `create_sheet` | `tests/sheets_mgmt.md` |
 | TC-S20 | `refresh_cache` | `tests/sheets_mgmt.md` |
 | TC-C01 | `add_chart` | `tests/sheets_charts.md` |
-| TC-D13 | `list_spreadsheets` | `tests/drive.md` |
-| TC-D36 | `list_files` | `tests/drive.md` |
-| TC-D44 | `get_doc_content` | `tests/drive.md` |
-| TC-D79 | `get_file_metadata` | `tests/drive.md` |
-| TC-D152 | `list_shared_with_me` | `tests/drive.md` |
-| TC-D160 | `get_storage_quota` | `tests/drive.md` |
-| TC-D152 | `get_doc_structure` | `tests/docs.md` |
+| TC-D13 | `list_spreadsheets` | `tests/drive_files.md` |
+| TC-D36 | `list_files` | `tests/drive_files.md` |
+| TC-D44 | `get_doc_content` | `tests/docs_content.md` |
+| TC-D79 | `get_file_metadata` | `tests/drive_files.md` |
+| TC-D152 | `list_shared_with_me` | `tests/drive_files.md` |
+| TC-D160 | `get_storage_quota` | `tests/drive_files.md` |
+| TC-D152 | `get_doc_structure` | `tests/docs_content.md` |
 | TC-CAL01 | `list_calendars` | `tests/calendar.md` |
 | TC-CAL09 | `list_events` | `tests/calendar.md` |
 | TC-CAL20 | `create_event` | `tests/calendar.md` |
 
-> **Note:** TC-D152 appears in both `drive.md` (`list_shared_with_me`) and `docs.md` (`get_doc_structure`) due to a numbering conflict — see #201. Run both; they cover different tools.
+> **Note:** TC-D152 appears in both `tests/drive_files.md` (`list_shared_with_me`) and `tests/docs_content.md` (`get_doc_structure`) due to a numbering conflict — see #201. Run both; they cover different tools. `get_doc_structure`'s own current numbering is actually `TC-DOC01` (renumbered per #201's resolution) — this row's `TC-D152` label appears to predate that renumbering and was already stale before this file split; not fixed here as it's a numbering-content question, not a file-organization one.
 
 ---
 
@@ -117,7 +117,7 @@ Full Regression is the default, but a release can substitute **Smoke + targeted 
 5. **A cross-cutting change** — touches shared infrastructure used by every tool (the `tool()` decorator, auth, server startup) — does not by itself force Full Regression. Smoke already samples one call per tool group, which is enough to catch a generic regression from a shared-layer change.
 6. **Required suites:** Smoke (always) + a Domain run for every domain identified in steps 3–4, scoped by how the change touched that domain's file:
    - **Structural** — a refactor that reorganizes files/modules (like the `docs/__init__.py` submodule split), or a change whose diff spans most of the domain's tool sections. Run the **full** domain test file. "No intended behavior change" is a claim, not evidence; only full live coverage of that file counts as evidence, especially for a domain that's never had a live pass since the reorg.
-   - **Non-structural** — one or a handful of isolated tool sections changed within a larger combined-domain file (e.g. `drive.md` covers 30+ tools, but a fix touched only `export_file` and `list_file_activity`), with no reorganization. Running just the changed tools' TC sections is sufficient — identify the exact functions touched **in the diff itself**, not just what the originating issue claims to have scoped, since a fix can touch more than its issue describes.
+   - **Non-structural** — one or a handful of isolated tool sections changed within a larger per-submodule test file (e.g. `drive_files.md` covers 20+ tools, but a fix touched only `list_recent_files`), with no reorganization. Running just the changed tools' TC sections is sufficient — identify the exact functions touched **in the diff itself**, not just what the originating issue claims to have scoped, since a fix can touch more than its issue describes.
    - **When in doubt, treat it as structural.** Over-testing a domain file costs time; under-testing a refactor costs a shipped regression.
 7. **Fall back to Full Regression** if the audit can't be done cleanly (history too messy or rebased to enumerate reliably) or if more than roughly half the domains would need a Domain run anyway — at that point scoping isn't saving meaningful time.
 8. **Document the audit** in the release's `docs/qa/runs/vX.Y.Z.md`: list the commits reviewed, the classification of each (including structural vs. non-structural for domains that got a tool-scoped run), and which domains/tools were included or excluded and why. This is what makes the scoping decision auditable rather than a one-off judgment call.
