@@ -58,7 +58,7 @@ TC-CAL09 (all historical events returned when `time_min` omitted) was a signific
 ## Action items
 
 ### Run.md / process improvements
-- [x] **Refine Playwright guidance** — define three explicit tiers in `run.md`: *Required* (mutations with a visual component), *Spot-check* (optional — only if something looks suspicious), *Skip* (read-only, error paths, count/pagination). Replace "visual whenever visual is possible" with the tier table. Done in #264 — also audited every test file against the new tiers.
+- [x] **Refine Playwright guidance** — define three explicit tiers in `run.md`: *Required* (mutations with a visual component), *Spot-check* (optional — only if something looks suspicious), *Skip* (read-only, error paths, count/pagination). Replace "visual whenever visual is possible" with the tier table. Tier definition formalized in #264 (PR #593). The same PR's audit against the new tiers covers `docs_content.md`/`docs_style.md`/`docs_tables.md`/`sheets_charts.md` (PR #592) — `drive_files.md`/`drive_transfer.md`/`drive_sharing.md` (209 test cases, zero Playwright tags) remain unaudited, tracked separately as #597.
 - [x] **Document footer/header Playwright limitation** — add a note in `run.md` that Google Docs footer/header content is not reachable via browser scroll for short documents; use API response as confirmation for those tests. Already present in `run.md`'s "Known limitations" section.
 
 ### Test suite improvements

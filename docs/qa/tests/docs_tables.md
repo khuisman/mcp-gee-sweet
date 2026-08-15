@@ -54,6 +54,7 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
 **Prompt**
+**Playwright: required**
 > "Insert a row below row 0 in the table at index {tableStartIndex} in doc {DOC_ID}"
 
 **Checks**
