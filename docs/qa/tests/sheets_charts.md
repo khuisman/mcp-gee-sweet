@@ -21,6 +21,8 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 - Response includes a `chartId`
 - Chart type is COLUMN
 
+**Result (2026-08-15) ✅ PASS** — `add_chart` returned `chartId: 1767578399`, `basicChart.chartType: COLUMN`. Playwright screenshot of the Sales sheet confirms the "Sales by Quarter" column chart rendered correctly with Q1/Q2/Q3 series grouped by product.
+
 ---
 
 ### TC-C02: BAR chart
