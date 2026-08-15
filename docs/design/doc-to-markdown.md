@@ -1,10 +1,15 @@
 # Design: Docs → Markdown Export (`get_doc_as_markdown`)
 
-**Status:** Shipped. Issue #300, PR TBD. Live-verified against real Docs/Drive API calls
+**Status:** Shipped. Issue #300, PR #591. Live-verified against real Docs/Drive API calls
 (headings, styled runs, nested/ordered/checked bullets, blockquotes, inline code, fenced code
 blocks, a colspan table, and open/resolved comment filtering) via scratch scripts per
-`CLAUDE.md`'s "Verify a ticket's API premise live" convention — no automated QA results file
-yet at write time; see `docs/qa/tests/docs.md` for the pending checklist entries.
+`CLAUDE.md`'s "Verify a ticket's API premise live" convention. PR #591's QA round 1
+(`/code-review high` + live QA against TC-DOC173–182) found three blocking correctness bugs the
+initial version's own live round trip hadn't exercised — merged-cell table corruption, an
+unescaped link URL, and unescaped leading block-marker text — detailed in "Merged
+(colspan/rowspan) table cells" and the escaping bullets below, fixed in the same PR, with
+TC-DOC183–185 added as permanent regression coverage. See `docs/qa/tests/docs_content.md` for
+the full QA checklist and results.
 
 ## Problem
 
@@ -82,6 +87,23 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   handling treats a `<td>` as flat inline content). Multiple paragraphs within one live Docs
   table cell are read back joined by a literal `"\n"`, the same character an explicit `<br>`
   would have produced on write.
+- **Merged (colspan/rowspan) table cells — phantom physical cells (PR #591 QA round 1)**: the
+  first version built one `Cell` per raw `tableCells[]` JSON entry unconditionally. Live-confirmed
+  this is wrong: a merged cell does NOT remove the physical entries it covers — the Docs API
+  leaves an empty, ordinary-looking (`columnSpan: 1, rowSpan: 1`) phantom cell at every absorbed
+  position, both within a colspan's own row and in every later row a rowspan reaches into (a
+  colspan=2 header row actually has *two* physical `tableCells[]` entries, not one). There is no
+  field marking a cell as "this is a phantom" — `emitter.py`'s write-side `_build_phantom_set`/
+  `_physical_to_ast_indices` already established this same fact for the opposite direction
+  (mapping a known AST onto live physical cells), but that logic can't be reused directly here
+  since there's no target AST yet — building one *is* the job. The fix (`_table_elem_to_ast`)
+  walks each row's physical cells in `startIndex` order, tracking which `(row, col)` positions an
+  earlier real cell's own `colspan`/`rowspan` already claims; a physical cell landing on a
+  claimed position is consumed (advances past it) but not added to the AST, exactly mirroring the
+  write side's phantom-set concept computed forward instead of backward. Before this fix, a
+  colspan=2 header exported as a 3-column table (TC-DOC177, confirmed live); a rowspan=2 cell's
+  covered row silently lost its own real trailing cell entirely (no test coverage existed for
+  this case at all — added as TC-DOC183).
 
 ### `ast_to_markdown.py` — serializing the AST
 
@@ -116,6 +138,26 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   filters to non-resolved ones (a resolved comment's discussion is already settled — not scoped
   as diff-worthy content in an export), and appends a `## Comments` section with each comment's
   author, quoted anchor text, content, and replies.
+- **Link/image URL escaping (PR #591 QA round 1)**: `run.link_url`/`image.src` were interpolated
+  directly into `[text](url)`/`![alt](url)` with no escaping. Live-confirmed a real-world URL
+  containing an unmatched `)` (e.g. `.../wiki/Foo_(bar)`) breaks CommonMark's bare-link-destination
+  parsing, which requires balanced parentheses. Fixed via `_md_link_dest`: a destination
+  containing whitespace or any parenthesis is wrapped in CommonMark's `<...>` angle-bracket
+  destination form instead, which has no such restriction (only a literal `<`, `>`, or backslash
+  inside still needs escaping). A plain URL with none of those characters is left bare, unchanged.
+- **Leading block-marker escaping (PR #591 QA round 1)**: `_MD_ESCAPE` only escaped
+  `` \ ` * _ [ ] `` — not a line-leading `#`, `>`, `-`/`*`/`+`, or an ordered-list `N.`/`N)`.
+  Live-confirmed a plain paragraph reading literally "1. Not actually a list item" or "# Not a
+  heading either" round-tripped unescaped and any CommonMark parser reinterprets it as a real
+  ordered-list item or ATX heading. Fixed via `_escape_leading_block_marker`, applied only to
+  plain `Paragraph` rendering (not `Heading`/`NamedBlock`/`BulletItem`, which already have their
+  own legitimate same-line prefix, so content following it is never re-parsed as a new block
+  starting mid-line) and applied *before* any blockquote `"> "` wrapping (a `"> #"` line is parsed
+  as a heading nested inside the blockquote by CommonMark, so the escape has to happen first, not
+  after). One CommonMark subtlety this surfaced: digits are not in CommonMark's escapable
+  ASCII-punctuation set, so `\1` is not a valid escape and renders as a literal backslash — the
+  fix escapes the trailing `.`/`)` punctuation after the digit run instead (`1\.`), which is the
+  actual mechanism that neutralizes ordered-list-marker detection.
 
 ## Verification
 
@@ -133,4 +175,14 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
    `tableCellStyle.columnSpan`/`rowSpan` shapes.
 3. Live-verified comment export separately: created open and resolved comments (with a reply) on
    a real Doc, confirmed only the open one appears in the rendered `## Comments` section.
-4. See `docs/qa/tests/docs.md` for the QA checklist test cases covering this tool.
+4. See `docs/qa/tests/docs_content.md` for the QA checklist test cases covering this tool
+   (TC-DOC173–185).
+5. **PR #591 QA round 1** (`/code-review high` + live QA against TC-DOC173–182) caught three
+   blocking bugs the round above's own live round trip hadn't exercised — a single Markdown
+   source covering every construct doesn't guarantee coverage of every edge case within a
+   construct (a *merged* table cell specifically, a URL with parens, plain text that happens to
+   look like a block marker). Fixed and re-verified live via the same scratch-script method
+   against the exact reported repros (a colspan header, a rowspan second row, a parenthesized
+   Wikipedia-style URL, and both flagged plain-paragraph texts) — all four now round-trip
+   correctly. TC-DOC183–185 added so this bug class has permanent regression coverage rather than
+   living only in a PR comment thread.

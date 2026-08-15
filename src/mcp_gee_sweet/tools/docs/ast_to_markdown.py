@@ -27,6 +27,17 @@ from .emitter import _build_phantom_set
 
 _MD_ESCAPE = re.compile(r"([\\`*_\[\]])")
 
+# A paragraph whose rendered text starts with one of these (unescaped) would be
+# misread by any CommonMark parser as a different block type entirely — an ATX
+# heading, a blockquote, a bullet item, or an ordered-list item — rather than
+# the plain paragraph text it actually is (#591 QA round 1, live-confirmed for
+# "1. Not actually a list item" and "# Not a heading either"). Scoped to plain
+# Paragraph rendering only: Heading/NamedBlock/BulletItem already have their
+# own legitimate prefix on the same line, so content following it is never
+# re-parsed as a new block starting mid-line.
+_LEADING_SIMPLE_MARKER = re.compile(r"^([#>]|[-*+])(?=[ \t]|$)")
+_LEADING_ORDERED_MARKER = re.compile(r"^(\d{1,9})([.)])(?=[ \t]|$)")
+
 _NESTED_TABLE_PLACEHOLDER = (
     "*(nested table omitted — Markdown tables can't contain a table; "
     "use get_doc_structure for full fidelity)*"
@@ -92,7 +103,7 @@ def _render_block(node: Heading | Paragraph | BulletItem | NamedBlock) -> str:
             marker = "- "
         body = f"{indent}{marker}{_render_inline(node.runs)}"
     else:
-        body = _render_inline(node.runs)
+        body = _escape_leading_block_marker(_render_inline(node.runs))
 
     depth = getattr(node, "blockquote_depth", 0)
     if depth:
@@ -103,11 +114,36 @@ def _render_block(node: Heading | Paragraph | BulletItem | NamedBlock) -> str:
     return body
 
 
+def _escape_leading_block_marker(text: str) -> str:
+    m = _LEADING_SIMPLE_MARKER.match(text)
+    if m:
+        return "\\" + text
+    m = _LEADING_ORDERED_MARKER.match(text)
+    if m:
+        digits, punct = m.group(1), m.group(2)
+        return f"{digits}\\{punct}{text[m.end() :]}"
+    return text
+
+
+def _md_link_dest(url: str) -> str:
+    """A bare (non-angle-bracket) CommonMark link destination can't contain
+    whitespace or unbalanced parentheses — confirmed live (#591 QA round 1):
+    a link to a URL like ".../wiki/Foo_(bar)" broke link-destination parsing
+    at the unmatched ")". Wrapping the destination in `<...>` sidesteps the
+    bare-destination rules entirely (CommonMark's angle-bracket destination
+    form) — the only characters that still need escaping inside are a literal
+    "<", ">", or backslash."""
+    if not any(c in url for c in "() \t\n"):
+        return url
+    escaped = url.replace("\\", "\\\\").replace("<", "\\<").replace(">", "\\>")
+    return f"<{escaped}>"
+
+
 def _render_inline(items: list[Run | Image]) -> str:
     parts: list[str] = []
     for item in items:
         if isinstance(item, Image):
-            parts.append(f"![{_escape(item.alt or '')}]({item.src})")
+            parts.append(f"![{_escape(item.alt or '')}]({_md_link_dest(item.src)})")
         else:
             parts.append(_render_run(item))
     return "".join(parts)
@@ -122,7 +158,7 @@ def _render_run(run: Run) -> str:
         # whose own text contains a backtick isn't handled specially here —
         # a documented, narrow gap rather than variable-fence tracking.
         body = f"`{run.text}`"
-        return f"[{body}]({run.link_url})" if run.link_url else body
+        return f"[{body}]({_md_link_dest(run.link_url)})" if run.link_url else body
 
     # CommonMark emphasis delimiters can't have whitespace on the inner side
     # (e.g. "**Bold **" doesn't close — the space right before "**" means it
@@ -144,7 +180,7 @@ def _render_run(run: Run) -> str:
         body = f"**{body}**"
     body = f"{leading_ws}{body}{trailing_ws}"
     if run.link_url:
-        body = f"[{body}]({run.link_url})"
+        body = f"[{body}]({_md_link_dest(run.link_url)})"
     return body
 
 
@@ -182,7 +218,7 @@ def _render_cell(cell: Cell) -> str:
         if isinstance(child, Table):
             parts.append(_NESTED_TABLE_PLACEHOLDER)
         elif isinstance(child, Image):
-            parts.append(f"![{_escape(child.alt or '')}]({child.src})")
+            parts.append(f"![{_escape(child.alt or '')}]({_md_link_dest(child.src)})")
         else:
             parts.append(_render_run(child))
     # Pipe-table cells are single-line: a literal newline (from a multi-

@@ -309,6 +309,87 @@ class TestDocToAstTables:
         assert cell.colspan == 2
         assert cell.rowspan == 3
 
+    def test_colspan_phantom_cell_in_same_row_is_skipped_not_treated_as_real(self):
+        # Google's Docs API leaves a real (empty) physical tableCells[] entry
+        # for the position a colspan absorbs — confirmed live (#591 QA round
+        # 1): a colspan=2 header row actually has TWO physical cell entries,
+        # not one. Treating the phantom as a real cell produced an extra
+        # blank column.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        {
+                                            "tableCellStyle": {"columnSpan": 2},
+                                            "content": [_para("Merged\n")],
+                                        },
+                                        {
+                                            "tableCellStyle": {"columnSpan": 1},
+                                            "content": [_para("\n")],
+                                        },
+                                    ]
+                                },
+                                {
+                                    "tableCells": [
+                                        {"tableCellStyle": {}, "content": [_para("a\n")]},
+                                        {"tableCellStyle": {}, "content": [_para("b\n")]},
+                                    ]
+                                },
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+        table = document_to_ast(doc)[0]
+        assert len(table.rows[0].cells) == 1
+        assert table.rows[0].cells[0].colspan == 2
+        assert table.rows[0].cells[0].children[0].text == "Merged"
+        assert len(table.rows[1].cells) == 2
+
+    def test_rowspan_phantom_cell_in_later_row_is_skipped_and_sibling_survives(self):
+        # The rowspan mirror of the colspan case above: the row a rowspan
+        # reaches into has its own empty phantom physical cell at the covered
+        # position — confirmed live to otherwise silently drop that row's own
+        # real trailing cell (e.g. "b2" in a 2-column table).
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        {
+                                            "tableCellStyle": {"rowSpan": 2},
+                                            "content": [_para("Tall\n")],
+                                        },
+                                        {"tableCellStyle": {}, "content": [_para("b1\n")]},
+                                    ]
+                                },
+                                {
+                                    "tableCells": [
+                                        {"tableCellStyle": {}, "content": [_para("\n")]},
+                                        {"tableCellStyle": {}, "content": [_para("b2\n")]},
+                                    ]
+                                },
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+        table = document_to_ast(doc)[0]
+        assert len(table.rows[0].cells) == 2
+        assert table.rows[0].cells[0].rowspan == 2
+        # The phantom is consumed silently; only the real trailing cell survives.
+        assert len(table.rows[1].cells) == 1
+        assert table.rows[1].cells[0].children[0].text == "b2"
+
     def test_nested_table_is_a_table_child_in_cell_children(self):
         inner_table_elem = {
             "table": {
@@ -408,6 +489,35 @@ class TestAstToMarkdownInline:
         nodes = [Paragraph(runs=[Image(src="https://x.com/i.png", alt="pic")])]
         assert ast_to_markdown(nodes) == "![pic](https://x.com/i.png)\n"
 
+    def test_link_url_with_unbalanced_parens_is_angle_bracket_wrapped(self):
+        # A bare "(...)" link destination requires balanced parens per
+        # CommonMark — "Foo_(bar)" has an unmatched ")" that would otherwise
+        # terminate the destination early (#591 QA round 1, live-confirmed).
+        url = "https://en.wikipedia.org/wiki/Foo_(bar)"
+        nodes = [Paragraph(runs=[Run(text="link", link_url=url)])]
+        assert ast_to_markdown(nodes) == f"[link](<{url}>)\n"
+
+    def test_link_url_without_special_chars_is_not_wrapped(self):
+        nodes = [Paragraph(runs=[Run(text="link", link_url="https://example.com/plain")])]
+        assert ast_to_markdown(nodes) == "[link](https://example.com/plain)\n"
+
+    def test_code_run_link_url_also_gets_escaped(self):
+        # Mixed with plain text so the paragraph isn't entirely code-styled
+        # (which would instead render as a fenced block — see
+        # TestAstToMarkdownInline.test_paragraph_entirely_code_styled_renders_as_fenced_block).
+        url = "https://x.com/(code)"
+        nodes = [
+            Paragraph(
+                runs=[Run(text="see "), Run(text="x", font_family="Courier New", link_url=url)]
+            )
+        ]
+        assert ast_to_markdown(nodes) == f"see [`x`](<{url}>)\n"
+
+    def test_image_src_with_unbalanced_parens_is_angle_bracket_wrapped(self):
+        url = "https://x.com/i(1).png"
+        nodes = [Paragraph(runs=[Image(src=url, alt="pic")])]
+        assert ast_to_markdown(nodes) == f"![pic](<{url}>)\n"
+
 
 class TestAstToMarkdownBlocks:
     def test_heading_level_renders_hashes(self):
@@ -444,6 +554,44 @@ class TestAstToMarkdownBlocks:
     def test_blockquote_depth_prefixes_each_line(self):
         nodes = [Paragraph(runs=[Run(text="quoted")], blockquote_depth=2)]
         assert ast_to_markdown(nodes) == "> > quoted\n"
+
+    def test_paragraph_starting_with_ordered_marker_is_escaped(self):
+        # Live-confirmed (#591 QA round 1): unescaped, this reparses as a
+        # real ordered-list item under any CommonMark parser.
+        nodes = [Paragraph(runs=[Run(text="1. Not actually a list item")])]
+        assert ast_to_markdown(nodes) == "1\\. Not actually a list item\n"
+
+    def test_paragraph_starting_with_hash_is_escaped(self):
+        nodes = [Paragraph(runs=[Run(text="# Not a heading either")])]
+        assert ast_to_markdown(nodes) == "\\# Not a heading either\n"
+
+    def test_paragraph_starting_with_blockquote_marker_is_escaped(self):
+        nodes = [Paragraph(runs=[Run(text="> not a quote")])]
+        assert ast_to_markdown(nodes) == "\\> not a quote\n"
+
+    def test_paragraph_starting_with_bullet_marker_is_escaped(self):
+        nodes = [Paragraph(runs=[Run(text="- not a bullet")])]
+        assert ast_to_markdown(nodes) == "\\- not a bullet\n"
+
+    def test_paragraph_starting_with_digit_but_no_marker_punctuation_is_untouched(self):
+        # "123 apples" isn't an ordered-list marker (no "." or ")" after the
+        # digits) — must not be escaped.
+        nodes = [Paragraph(runs=[Run(text="123 apples")])]
+        assert ast_to_markdown(nodes) == "123 apples\n"
+
+    def test_heading_starting_with_hash_text_is_not_double_escaped(self):
+        # A real Heading node's own "# " prefix is legitimate — the escape
+        # only applies to plain Paragraph rendering, not Heading/BulletItem/
+        # NamedBlock, which already have their own distinguishing prefix.
+        nodes = [Heading(level=1, runs=[Run(text="# looks like a heading")])]
+        assert ast_to_markdown(nodes) == "# # looks like a heading\n"
+
+    def test_leading_marker_inside_blockquote_is_still_escaped(self):
+        # A "> #" line is parsed as a heading *inside* the blockquote by
+        # CommonMark — the escape must happen before the "> " prefix is
+        # applied, not after.
+        nodes = [Paragraph(runs=[Run(text="# fake heading")], blockquote_depth=1)]
+        assert ast_to_markdown(nodes) == "> \\# fake heading\n"
 
     def test_consecutive_bullet_items_form_a_tight_list_no_blank_line(self):
         nodes = [

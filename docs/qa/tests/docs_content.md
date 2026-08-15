@@ -2814,6 +2814,41 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 
 ---
 
-### Additional live findings from this round (not separate test cases)
+### TC-DOC183: Rowspan merge preserves the covered row's own trailing cell
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<table><tr><td rowspan=\"2\">Tall</td><td>b1</td></tr><tr><td>b2</td></tr></table>")`
 
-**Result (2026-08-15) ❌ Confirms code-review finding — run live against PR #591 (issue #300).** `ast_to_markdown.py`'s Markdown-link rendering interpolates `link_url` unescaped: `<a href="https://en.wikipedia.org/wiki/Foo_(bar)">link</a>` exported as `[link](https://en.wikipedia.org/wiki/Foo_(bar))` — a URL containing `)` breaks CommonMark link-destination parsing. Same probe also confirmed `_MD_ESCAPE`'s missing-leading-structural-sequence gap: plain paragraphs `<p>1. Not actually a list item</p>` and `<p># Not a heading either</p>` exported unescaped as `1. Not actually a list item` and `# Not a heading either`, which any CommonMark parser reinterprets as a real ordered-list item / H1 heading. Both blocking; commented on PR, handed back to Jay.
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains a 2-column pipe table: header row `| Tall | b1 |`, then `| --- | --- |`, then a data row whose second column is `b2` (first column blank — the position "Tall" spans into)
+- `b2` is NOT dropped — this reproduces PR #591 QA round 1's root-cause finding (rowspan/multi-row tables previously had zero test coverage and silently lost the covered row's own real cell)
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+---
+
+### TC-DOC184: Link URL containing unbalanced parentheses doesn't break the destination
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<p><a href=\"https://en.wikipedia.org/wiki/Foo_(bar)\">link</a></p>")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains `[link](<https://en.wikipedia.org/wiki/Foo_(bar)>)` — the destination is angle-bracket wrapped, not a bare `(...)` that breaks on the unmatched `)`
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+---
+
+### TC-DOC185: Plain paragraph text resembling a block marker is escaped, not reinterpreted
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<p>1. Not actually a list item</p><p># Not a heading either</p>")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains `1\. Not actually a list item` (backslash before the period — not a real ordered-list marker)
+- `markdown` contains `\# Not a heading either` (backslash before the hash — not a real ATX heading)
+
+**Cleanup:** write fixture content back over `{DOC_ID}`

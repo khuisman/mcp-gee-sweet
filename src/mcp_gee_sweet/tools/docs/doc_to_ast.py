@@ -188,18 +188,52 @@ def _resolve_inline_image(object_id: str | None, document: dict) -> Image | None
 
 
 def _table_elem_to_ast(table: dict, document: dict) -> Table:
+    """A merged cell (colspan/rowspan > 1) does NOT remove the physical
+    tableCells[] entries it covers — Google's Docs API leaves an empty,
+    ordinary-looking (columnSpan=1, rowSpan=1) phantom cell at every absorbed
+    position, both for a colspan's own row and for every later row a rowspan
+    reaches into (confirmed live: a colspan=2 cell's row has 2 physical
+    entries, not 1; a rowspan=2 cell's second row has a leading empty phantom
+    entry before the row's real content). There's no field marking a cell as
+    "this is a phantom" — the only way to tell is to track, while walking
+    cells left-to-right/top-to-bottom, which (row, col) positions an earlier
+    real cell's own colspan/rowspan already claims, exactly mirroring
+    emitter.py's write-side phantom-set logic (`_build_phantom_set`) but
+    computed forward from the live doc instead of backward from a known AST.
+    Originally missed entirely (#591 QA round 1) — treating every physical
+    cell as real corrupted colspan tables with extra blank columns and
+    silently dropped a rowspan'd row's own trailing real cells.
+    """
+    doc_rows = table.get("tableRows", [])
+    covered: set[tuple[int, int]] = set()
     rows: list[Row] = []
-    for doc_row in table.get("tableRows", []):
+    for r, doc_row in enumerate(doc_rows):
+        physical_cells = sorted(doc_row.get("tableCells", []), key=lambda c: c.get("startIndex", 0))
         cells: list[Cell] = []
-        for doc_cell in doc_row.get("tableCells", []):
+        col = 0
+        for doc_cell in physical_cells:
+            if (r, col) in covered:
+                # Phantom entry (this row's own colspan carry-over, or a
+                # rowspan reaching down from an earlier row) — consumed, not
+                # added to the AST.
+                col += 1
+                continue
             style = doc_cell.get("tableCellStyle", {})
+            colspan = style.get("columnSpan", 1)
+            rowspan = style.get("rowSpan", 1)
             cells.append(
                 Cell(
                     children=_cell_content_to_children(doc_cell.get("content", []), document),
-                    colspan=style.get("columnSpan", 1),
-                    rowspan=style.get("rowSpan", 1),
+                    colspan=colspan,
+                    rowspan=rowspan,
                 )
             )
+            for dr in range(rowspan):
+                for dc in range(colspan):
+                    if dr == 0 and dc == 0:
+                        continue
+                    covered.add((r + dr, col + dc))
+            col += 1
         rows.append(Row(cells=cells))
 
     col_widths = [
