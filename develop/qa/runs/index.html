@@ -1070,7 +1070,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tests/docs/" class="md-nav__link">
+      <a href="../tests/docs.md" class="md-nav__link">
         
   
   
@@ -1098,7 +1098,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tests/drive/" class="md-nav__link">
+      <a href="../tests/drive.md" class="md-nav__link">
         
   
   
@@ -1418,37 +1418,37 @@
 <tr>
 <td>TC-D13</td>
 <td><code>list_spreadsheets</code></td>
-<td><code>tests/drive.md</code></td>
+<td><code>tests/drive_files.md</code></td>
 </tr>
 <tr>
 <td>TC-D36</td>
 <td><code>list_files</code></td>
-<td><code>tests/drive.md</code></td>
+<td><code>tests/drive_files.md</code></td>
 </tr>
 <tr>
 <td>TC-D44</td>
 <td><code>get_doc_content</code></td>
-<td><code>tests/drive.md</code></td>
+<td><code>tests/docs_content.md</code></td>
 </tr>
 <tr>
 <td>TC-D79</td>
 <td><code>get_file_metadata</code></td>
-<td><code>tests/drive.md</code></td>
+<td><code>tests/drive_files.md</code></td>
 </tr>
 <tr>
 <td>TC-D152</td>
 <td><code>list_shared_with_me</code></td>
-<td><code>tests/drive.md</code></td>
+<td><code>tests/drive_files.md</code></td>
 </tr>
 <tr>
 <td>TC-D160</td>
 <td><code>get_storage_quota</code></td>
-<td><code>tests/drive.md</code></td>
+<td><code>tests/drive_files.md</code></td>
 </tr>
 <tr>
 <td>TC-D152</td>
 <td><code>get_doc_structure</code></td>
-<td><code>tests/docs.md</code></td>
+<td><code>tests/docs_content.md</code></td>
 </tr>
 <tr>
 <td>TC-CAL01</td>
@@ -1468,7 +1468,7 @@
 </tbody>
 </table>
 <blockquote>
-<p><strong>Note:</strong> TC-D152 appears in both <code>drive.md</code> (<code>list_shared_with_me</code>) and <code>docs.md</code> (<code>get_doc_structure</code>) due to a numbering conflict — see #201. Run both; they cover different tools.</p>
+<p><strong>Note:</strong> TC-D152 appears in both <code>tests/drive_files.md</code> (<code>list_shared_with_me</code>) and <code>tests/docs_content.md</code> (<code>get_doc_structure</code>) due to a numbering conflict — see #201. Run both; they cover different tools. <code>get_doc_structure</code>'s own current numbering is actually <code>TC-DOC01</code> (renumbered per #201's resolution) — this row's <code>TC-D152</code> label appears to predate that renumbering and was already stale before this file split; not fixed here as it's a numbering-content question, not a file-organization one.</p>
 </blockquote>
 <hr />
 <h2 id="how-to-start-a-run">How to start a run<a class="headerlink" href="#how-to-start-a-run" title="Permanent link">&para;</a></h2>
@@ -1656,7 +1656,7 @@
 <li><strong>A cross-cutting change</strong> — touches shared infrastructure used by every tool (the <code>tool()</code> decorator, auth, server startup) — does not by itself force Full Regression. Smoke already samples one call per tool group, which is enough to catch a generic regression from a shared-layer change.</li>
 <li><strong>Required suites:</strong> Smoke (always) + a Domain run for every domain identified in steps 3–4, scoped by how the change touched that domain's file:</li>
 <li><strong>Structural</strong> — a refactor that reorganizes files/modules (like the <code>docs/__init__.py</code> submodule split), or a change whose diff spans most of the domain's tool sections. Run the <strong>full</strong> domain test file. "No intended behavior change" is a claim, not evidence; only full live coverage of that file counts as evidence, especially for a domain that's never had a live pass since the reorg.</li>
-<li><strong>Non-structural</strong> — one or a handful of isolated tool sections changed within a larger combined-domain file (e.g. <code>drive.md</code> covers 30+ tools, but a fix touched only <code>export_file</code> and <code>list_file_activity</code>), with no reorganization. Running just the changed tools' TC sections is sufficient — identify the exact functions touched <strong>in the diff itself</strong>, not just what the originating issue claims to have scoped, since a fix can touch more than its issue describes.</li>
+<li><strong>Non-structural</strong> — one or a handful of isolated tool sections changed within a larger per-submodule test file (e.g. <code>drive_files.md</code> covers 20+ tools, but a fix touched only <code>list_recent_files</code>), with no reorganization. Running just the changed tools' TC sections is sufficient — identify the exact functions touched <strong>in the diff itself</strong>, not just what the originating issue claims to have scoped, since a fix can touch more than its issue describes.</li>
 <li><strong>When in doubt, treat it as structural.</strong> Over-testing a domain file costs time; under-testing a refactor costs a shipped regression.</li>
 <li><strong>Fall back to Full Regression</strong> if the audit can't be done cleanly (history too messy or rebased to enumerate reliably) or if more than roughly half the domains would need a Domain run anyway — at that point scoping isn't saving meaningful time.</li>
 <li><strong>Document the audit</strong> in the release's <code>docs/qa/runs/vX.Y.Z.md</code>: list the commits reviewed, the classification of each (including structural vs. non-structural for domains that got a tool-scoped run), and which domains/tools were included or excluded and why. This is what makes the scoping decision auditable rather than a one-off judgment call.</li>

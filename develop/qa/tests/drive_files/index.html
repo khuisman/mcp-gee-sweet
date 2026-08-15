@@ -1,0 +1,2333 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/qa/tests/drive_files/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Drive Tools — Files & Folders — QA Test Cases - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#drive-tools-files-folders-qa-test-cases" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Drive Tools — Files &amp; Folders — QA Test Cases
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="drive-tools-files-folders-qa-test-cases">Drive Tools — Files &amp; Folders — QA Test Cases<a class="headerlink" href="#drive-tools-files-folders-qa-test-cases" title="Permanent link">&para;</a></h1>
+<p>Source: <code>src/mcp_gee_sweet/tools/drive/files.py</code></p>
+<p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute your <code>{SPREADSHEET_ID}</code>, <code>{DOC_ID}</code>, and <code>{FOLDER_ID}</code> from <code>fixtures.local.md</code>.</p>
+<hr />
+<h2 id="create_spreadsheet"><code>create_spreadsheet</code><a class="headerlink" href="#create_spreadsheet" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d01-create-in-default-folder-requires-oauth">TC-D01: Create in default folder ⚠️ requires-oauth<a class="headerlink" href="#tc-d01-create-in-default-folder-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a new spreadsheet called 'QA-Create-Test' in my default folder"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Spreadsheet created with title 'QA-Create-Test'
+- Response includes spreadsheet ID and a web link
+- <code>drive_folder_cache.mark_dirty</code> called — next <code>list_files</code> for that folder re-fetches</p>
+<hr />
+<h3 id="tc-d02-create-with-explicit-folder-id-requires-oauth">TC-D02: Create with explicit folder ID ⚠️ requires-oauth<a class="headerlink" href="#tc-d02-create-with-explicit-folder-id-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a new spreadsheet called 'QA-Create-Explicit' in folder {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Spreadsheet appears in the specified folder
+- Response includes the correct folder reference</p>
+<hr />
+<h3 id="tc-d03-create-without-a-folder-root-of-drive-requires-oauth">TC-D03: Create without a folder (root of Drive) ⚠️ requires-oauth<a class="headerlink" href="#tc-d03-create-without-a-folder-root-of-drive-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a new spreadsheet called 'QA-Create-Root' with no folder specified"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Spreadsheet created at Drive root
+- No folder assignment in response
+- 🔍 <strong>Note:</strong> service account may not have access to personal Drive root — note error if seen</p>
+<hr />
+<h3 id="tc-d04-service-account-drive-limitation">TC-D04: Service account Drive limitation<a class="headerlink" href="#tc-d04-service-account-drive-limitation" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a spreadsheet called 'QA-SA-Limit' — I want to verify whether the service account can create in personal Drive"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 🔍 <strong>Known limitation:</strong> service account cannot create in personal Drive (only shared folders it has access to)
+- Note exact error if it fails — confirm it matches the documented limitation</p>
+<hr />
+<h3 id="tc-d05-drive-folder-cache-invalidated-requires-oauth">TC-D05: Drive folder cache invalidated ⚠️ requires-oauth<a class="headerlink" href="#tc-d05-drive-folder-cache-invalidated-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a spreadsheet called 'QA-Cache-Check' in {FOLDER_ID}, then list the files in that folder"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_files</code> includes 'QA-Cache-Check'
+- Confirms <code>drive_folder_cache.mark_dirty</code> fired after creation</p>
+<hr />
+<h3 id="tc-d06-resulting-spreadsheet-has-expected-title-requires-oauth">TC-D06: Resulting spreadsheet has expected title ⚠️ requires-oauth<a class="headerlink" href="#tc-d06-resulting-spreadsheet-has-expected-title-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a spreadsheet called 'Exact Title Test' and confirm the title in the response"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response title is exactly 'Exact Title Test' — no truncation or modification</p>
+<hr />
+<h2 id="list_spreadsheets"><code>list_spreadsheets</code><a class="headerlink" href="#list_spreadsheets" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d13-list-from-configured-folder">TC-D13: List from configured folder<a class="headerlink" href="#tc-d13-list-from-configured-folder" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List all spreadsheets in my default Drive folder"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns a list of spreadsheets
+- Includes 'mcp-gee-sweet-qa-fixtures' (created in setup)
+- Each entry has a name and ID</p>
+<hr />
+<h3 id="tc-d14-list-from-explicit-folder-id">TC-D14: List from explicit folder ID<a class="headerlink" href="#tc-d14-list-from-explicit-folder-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List spreadsheets in folder {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns spreadsheets from that specific folder
+- Results scoped to the given folder</p>
+<hr />
+<h3 id="tc-d15-list-from-root-no-folder">TC-D15: List from root (no folder)<a class="headerlink" href="#tc-d15-list-from-root-no-folder" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List spreadsheets at the root of my Drive — no folder filter"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns spreadsheets from Drive root (or all accessible spreadsheets)
+- 🔍 <strong>Product decision:</strong> "root" vs "all accessible" — note which behavior is observed</p>
+<hr />
+<h3 id="tc-d16-empty-folder">TC-D16: Empty folder<a class="headerlink" href="#tc-d16-empty-folder" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List spreadsheets in a folder that has no spreadsheets — use a folder ID with only docs or no files"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>[]</code> — not an error</p>
+<hr />
+<h3 id="tc-d17-pagination-not-implemented">TC-D17: Pagination not implemented<a class="headerlink" href="#tc-d17-pagination-not-implemented" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List spreadsheets in {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 🔍 <strong>Known limitation:</strong> if the folder has &gt;100 spreadsheets, results are silently truncated
+- Note the count returned and whether a <code>nextPageToken</code> is visible in any debug output</p>
+<hr />
+<h2 id="list_folders"><code>list_folders</code><a class="headerlink" href="#list_folders" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d26-list-folders-in-a-specific-parent">TC-D26: List folders in a specific parent<a class="headerlink" href="#tc-d26-list-folders-in-a-specific-parent" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List the folders inside {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns a list of folder names and IDs (or empty list if no subfolders)
+- Each entry is a folder, not a file</p>
+<hr />
+<h3 id="tc-d27-list-from-root">TC-D27: List from root<a class="headerlink" href="#tc-d27-list-from-root" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List folders at the root of my Drive"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns top-level folders
+- Confirms <code>'root' in parents</code> filter is applied</p>
+<hr />
+<h3 id="tc-d28-empty-folder">TC-D28: Empty folder<a class="headerlink" href="#tc-d28-empty-folder" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List folders in a folder that has no subfolders"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>[]</code> — not an error
+- 🔍 <strong>Known limitation:</strong> pagination not implemented — &gt;100 subfolders would silently truncate</p>
+<hr />
+<h2 id="search_spreadsheets"><code>search_spreadsheets</code><a class="headerlink" href="#search_spreadsheets" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d29-basic-name-search">TC-D29: Basic name search<a class="headerlink" href="#tc-d29-basic-name-search" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Search for spreadsheets with 'qa-fixtures' in the name"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns at least one result including 'mcp-gee-sweet-qa-fixtures'
+- Each result has a name and ID</p>
+<hr />
+<h3 id="tc-d30-content-search">TC-D30: Content search<a class="headerlink" href="#tc-d30-content-search" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Search spreadsheets for the text 'Widget' — search file contents"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns spreadsheets containing 'Widget' in their content
+- Includes {SPREADSHEET_ID} (Sales sheet has 'Widget' in A2)</p>
+<hr />
+<h3 id="tc-d31-max_results-respected">TC-D31: max_results respected<a class="headerlink" href="#tc-d31-max_results-respected" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Search for spreadsheets matching 'test' but limit results to 2"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns at most 2 results
+- Confirms <code>max_results</code> clamped to 1–100</p>
+<hr />
+<h3 id="tc-d32-query-with-a-single-quote-injection-fix">TC-D32: Query with a single quote — injection fix<a class="headerlink" href="#tc-d32-query-with-a-single-quote-injection-fix" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Search for spreadsheets with \"it's\" in the name"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- No Drive API syntax error
+- Returns results (possibly empty) without crashing
+- Confirms the query injection bug fix: <code>'</code> → <code>\'</code> before embedding</p>
+<hr />
+<h3 id="tc-d33-no-results">TC-D33: No results<a class="headerlink" href="#tc-d33-no-results" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Search for spreadsheets named 'ZZZAbsolutelyNoMatch12345'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>[]</code> — not an error</p>
+<hr />
+<h3 id="tc-d34-empty-query-string">TC-D34: Empty query string<a class="headerlink" href="#tc-d34-empty-query-string" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Search for spreadsheets with an empty search query"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 🔍 <strong>Product decision:</strong> returns all accessible spreadsheets, or an error for empty query?
+- Note observed behavior</p>
+<hr />
+<h3 id="tc-d35-api-error">TC-D35: API error<a class="headerlink" href="#tc-d35-api-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Search for spreadsheets using an invalid API key scenario — force an auth error if possible"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>[{"error": ...}]</code> — not a top-level exception
+- Error message is from the Drive API</p>
+<hr />
+<h2 id="list_files"><code>list_files</code><a class="headerlink" href="#list_files" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d36-list-all-files-in-a-folder-no-mime-type-filter">TC-D36: List all files in a folder (no MIME type filter)<a class="headerlink" href="#tc-d36-list-all-files-in-a-folder-no-mime-type-filter" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List all files in folder {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns both spreadsheets and docs
+- Each entry has a name, ID, and MIME type
+- Trashed files not included</p>
+<hr />
+<h3 id="tc-d37-filter-by-mime-type">TC-D37: Filter by MIME type<a class="headerlink" href="#tc-d37-filter-by-mime-type" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List only Google Docs (not spreadsheets) in folder {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns only items with <code>mimeType = application/vnd.google-apps.document</code>
+- Spreadsheets excluded</p>
+<hr />
+<h3 id="tc-d38-cache-hit-on-second-call">TC-D38: Cache hit on second call<a class="headerlink" href="#tc-d38-cache-hit-on-second-call" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong> (run twice)</p>
+<blockquote>
+<p>"List files in {FOLDER_ID} again"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Second call returns same results
+- Logs show <code>cache hit</code> for the second call</p>
+<hr />
+<h3 id="tc-d39-mime_typenone-cache-key">TC-D39: mime_type=None cache key<a class="headerlink" href="#tc-d39-mime_typenone-cache-key" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List all files in {FOLDER_ID} with no MIME type filter, twice in a row"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Both calls return the same results
+- Cache key with <code>None</code> MIME type works correctly — no KeyError or cache miss</p>
+<hr />
+<h3 id="tc-d40-max_results-clamped">TC-D40: max_results clamped<a class="headerlink" href="#tc-d40-max_results-clamped" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List files in {FOLDER_ID} with a max of 2 results"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns at most 2 files
+- Confirms <code>max_results</code> clamped to 1–1000</p>
+<hr />
+<h3 id="tc-d41-pagination-limit">TC-D41: Pagination limit<a class="headerlink" href="#tc-d41-pagination-limit" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List files in a folder with many files"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 🔍 <strong>Known limitation:</strong> &gt;1000 files silently truncated — note count if relevant</p>
+<hr />
+<h3 id="tc-d42-trashed-files-excluded">TC-D42: Trashed files excluded<a class="headerlink" href="#tc-d42-trashed-files-excluded" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List files in {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Trashed files not in results
+- Confirms <code>trashed=false</code> is in the Drive query</p>
+<hr />
+<h3 id="tc-d43-cache-invalidated-after-create-requires-oauth">TC-D43: Cache invalidated after create ⚠️ requires-oauth<a class="headerlink" href="#tc-d43-cache-invalidated-after-create-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a spreadsheet called 'QA-ListFilesCache' in {FOLDER_ID}, then list files in that folder"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New spreadsheet appears in <code>list_files</code> results
+- Confirms <code>drive_folder_cache.mark_dirty</code> fires after <code>create_spreadsheet</code></p>
+<hr />
+<h3 id="tc-d236-md5_checksum-present-for-a-binary-file-null-for-a-google-workspace-file-issue-274-local-filesystem">TC-D236: md5_checksum present for a binary file, null for a Google Workspace file (issue #274) ⚠️ local-filesystem<a class="headerlink" href="#tc-d236-md5_checksum-present-for-a-binary-file-null-for-a-google-workspace-file-issue-274-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>list_files</code> now surfaces Drive's <code>md5Checksum</code> field so callers can diff content directly instead of inferring change from <code>modifiedTime</code> alone, which upload paths like <code>upload_local_file</code> don't always keep in sync with actual content (see <code>drive_transfer.md</code> TC-D226's follow-up finding). <code>{FOLDER_ID}</code> already contains both <code>{SPREADSHEET_ID}</code> and <code>{DOC_ID}</code> (per <code>setup.md</code>), so no new Workspace fixture needs creating here.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>Upload a small local file (e.g. <code>/tmp/qa-236.txt</code> containing "hello md5") to <code>{FOLDER_ID}</code> via <code>upload_local_file</code>. Then:
+"List files in {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>list_files(folder_id="{FOLDER_ID}")</code>
+- The uploaded <code>qa-236.txt</code> entry has a non-null <code>md5_checksum</code> — a 32-character hex string
+- The <code>{DOC_ID}</code> fixture's entry (Google Doc, <code>mimeType: application/vnd.google-apps.document</code>) has <code>md5_checksum: null</code></p>
+<p><strong>Teardown</strong>
+Trash <code>qa-236.txt</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa-236.txt</code>.</p>
+<p><strong>Result (2026-07-31) ✅ PASS</strong> — uploaded file's <code>md5_checksum</code> was <code>94988405d319a361bd6424b82ab6740d</code> (32-char hex); the Doc fixture's entry had <code>md5_checksum: null</code>.</p>
+<hr />
+<h3 id="tc-d248-single-quote-in-mime-type-is-escaped">TC-D248: Single-quote in MIME type is escaped<a class="headerlink" href="#tc-d248-single-quote-in-mime-type-is-escaped" title="Permanent link">&para;</a></h3>
+<p>Third sibling of TC-D155/TC-D247 (#494, PR #577 QA round) — <code>list_files</code> had the
+<em>worst</em> version of the same bug: <code>mime_type</code> was interpolated with <strong>zero</strong> escaping
+(not even the broken quote-doubling the other two had), and the <code>.execute()</code> call plus
+result mapping had no try/except around them at all. Live-reproduced during QA as an
+uncaught <code>HttpError 400 "Invalid Value"</code>. Fixed with the same backslash-escape
+convention and try/except-returns-<code>{"error": ...}</code> wrapping used for TC-D155/TC-D247.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List files in {FOLDER_ID}, filtered to a MIME type containing an apostrophe like \"it's a test\""</p>
+</blockquote>
+<p><strong>Checks</strong>
+- No Drive API syntax error and no uncaught exception (previously threw <code>HttpError 400 "Invalid Value"</code>)
+- Returns <code>[]</code> (no real MIME type will match) rather than crashing
+- Unit test <code>test_mime_type_single_quote_is_escaped</code> confirms <code>\'</code> appears in the constructed query string
+- Unit test <code>test_api_error_returns_error_dict_not_raised</code> confirms a genuine API failure returns <code>[{"error": ...}]</code> rather than propagating
+- Confirms the folder cache is not populated with a bad entry when the call errors (no <code>folder_cache.store</code> on the exception path)</p>
+<p><strong>Result (2026-08-12) ✅</strong> Live <code>list_files(folder_id=&lt;fixture folder&gt;, mime_type="it's a test")</code> returned <code>[]</code> cleanly, no uncaught exception. 64 unit tests in <code>tests/drive/test_files.py</code> pass. Code-inspection confirms <code>folder_cache.store</code> sits after the list comprehension inside the <code>try</code> block, so an exception path never reaches it — no cache pollution on error.</p>
+<hr />
+<h2 id="create_folder"><code>create_folder</code><a class="headerlink" href="#create_folder" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d58-create-in-default-folder-requires-oauth">TC-D58: Create in default folder ⚠️ requires-oauth<a class="headerlink" href="#tc-d58-create-in-default-folder-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a new folder called 'QA-Folder-Test' in my default folder"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response includes a <code>folderId</code> and <code>name: 'QA-Folder-Test'</code>
+- <code>parent</code> matches <code>{FOLDER_ID}</code>
+- Folder visible in Drive</p>
+<hr />
+<h3 id="tc-d59-create-at-root-no-parent-requires-oauth">TC-D59: Create at root (no parent) ⚠️ requires-oauth<a class="headerlink" href="#tc-d59-create-at-root-no-parent-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a folder called 'QA-Folder-Root' with no parent folder specified"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Folder created without error
+- <code>parent</code> is <code>root</code> or omitted
+- 🔍 <strong>Note:</strong> service account may not have access to personal Drive root — record error if seen</p>
+<hr />
+<h3 id="tc-d60-cache-invalidated-after-create-requires-oauth">TC-D60: Cache invalidated after create ⚠️ requires-oauth<a class="headerlink" href="#tc-d60-cache-invalidated-after-create-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a folder called 'QA-Folder-Cache' in {FOLDER_ID}, then list files in that folder"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_files</code> result includes 'QA-Folder-Cache' with <code>mimeType: application/vnd.google-apps.folder</code>
+- Confirms <code>drive_folder_cache.mark_dirty</code> fired for the parent</p>
+<hr />
+<h2 id="move_file"><code>move_file</code><a class="headerlink" href="#move_file" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d61-move-a-file-to-another-folder-requires-oauth-destructive">TC-D61: Move a file to another folder ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d61-move-a-file-to-another-folder-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> Create a throwaway spreadsheet to move — do not use the fixture spreadsheet.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a new spreadsheet called 'QA-Move-Test' in folder {FOLDER_ID}, then move it to the root of My Drive, then confirm its new parent"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response includes <code>fileId</code>, <code>name</code>, and updated <code>parent</code> no longer matching <code>{FOLDER_ID}</code>
+- Both old and new parent caches invalidated — subsequent <code>list_files</code> reflects the change</p>
+<p><strong>Cleanup:</strong> Trash 'QA-Move-Test' after the test.</p>
+<hr />
+<h3 id="tc-d62-move-a-folder">TC-D62: Move a folder<a class="headerlink" href="#tc-d62-move-a-folder" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Move the folder created in TC-D58 ('QA-Folder-Test') into {FOLDER_ID} — use its folder ID"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Folder now nested inside <code>{FOLDER_ID}</code>
+- <code>mimeType</code> in response is <code>application/vnd.google-apps.folder</code></p>
+<hr />
+<h3 id="tc-d63-non-existent-file-id">TC-D63: Non-existent file ID<a class="headerlink" href="#tc-d63-non-existent-file-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Move file 'invalidid123xyz' to {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- API error propagates cleanly — not a server crash
+- Error message identifies the bad file ID</p>
+<hr />
+<h2 id="rename_file"><code>rename_file</code><a class="headerlink" href="#rename_file" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d64-rename-a-file-requires-oauth-destructive">TC-D64: Rename a file ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d64-rename-a-file-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> Create a throwaway spreadsheet to rename.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a new spreadsheet called 'QA-Rename-Test' in folder {FOLDER_ID}, then rename it to 'QA-Renamed-File'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response <code>name</code> is 'QA-Renamed-File'
+- File appears with new name in Drive
+- Parent folder cache invalidated — <code>list_files</code> reflects the new name</p>
+<p><strong>Cleanup:</strong> Trash 'QA-Renamed-File' after the test.</p>
+<hr />
+<h3 id="tc-d65-rename-a-folder">TC-D65: Rename a folder<a class="headerlink" href="#tc-d65-rename-a-folder" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Rename the 'QA-Folder-Cache' folder (from TC-D60) to 'QA-Folder-Renamed'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Folder name updated in Drive
+- Response <code>name</code> is 'QA-Folder-Renamed'</p>
+<hr />
+<h3 id="tc-d66-non-existent-file-id">TC-D66: Non-existent file ID<a class="headerlink" href="#tc-d66-non-existent-file-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Rename file 'invalidid123xyz' to 'SomeName'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- API error propagates — not a crash or silent failure</p>
+<hr />
+<h2 id="star_file-unstar_file-issue-139"><code>star_file</code> / <code>unstar_file</code> (issue #139)<a class="headerlink" href="#star_file-unstar_file-issue-139" title="Permanent link">&para;</a></h2>
+<p><strong>Note:</strong> neither <code>get_file_metadata</code> nor <code>list_files</code> currently exposes a <code>starred</code> field, so verification is round-trip only — the tool's own response is the only readable signal for these checks.</p>
+<h3 id="tc-d202-star_file-marks-an-existing-file-as-starred">TC-D202: <code>star_file</code> marks an existing file as starred<a class="headerlink" href="#tc-d202-star_file-marks-an-existing-file-as-starred" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Star the spreadsheet {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response has no <code>error</code>
+- Response <code>starred</code> is <code>true</code>
+- Response <code>fileId</code> matches <code>{SPREADSHEET_ID}</code> and <code>name</code> matches the fixture's actual name</p>
+<p><strong>Cleanup:</strong> unstar {SPREADSHEET_ID} to restore fixture state</p>
+<p><strong>Result:</strong> PASS (2026-07-21) — <code>star_file</code> on the fixture spreadsheet returned <code>{"fileId": "&lt;matches&gt;", "name": "mcp-gee-sweet-qa-fixtures", "starred": true}</code>, no error.</p>
+<hr />
+<h3 id="tc-d203-unstar_file-removes-the-starred-marker">TC-D203: <code>unstar_file</code> removes the starred marker<a class="headerlink" href="#tc-d203-unstar_file-removes-the-starred-marker" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> star {SPREADSHEET_ID} first (so this test starts from a known <code>starred=true</code> state rather than assuming one)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Unstar the spreadsheet {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response has no <code>error</code>
+- Response <code>starred</code> is <code>false</code></p>
+<p><strong>Result:</strong> PASS (2026-07-21) — <code>unstar_file</code> on the same fixture spreadsheet (already starred from TC-D202) returned <code>{"fileId": "&lt;matches&gt;", "name": "mcp-gee-sweet-qa-fixtures", "starred": false}</code>, no error. Fixture left in its normal unstarred state.</p>
+<hr />
+<h2 id="copy_file"><code>copy_file</code><a class="headerlink" href="#copy_file" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d67-copy-with-auto-assigned-name-requires-oauth">TC-D67: Copy with auto-assigned name ⚠️ requires-oauth<a class="headerlink" href="#tc-d67-copy-with-auto-assigned-name-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy the spreadsheet {SPREADSHEET_ID} without specifying a new name"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New file created with name like 'Copy of <original>'
+- Response includes a new <code>fileId</code> different from <code>{SPREADSHEET_ID}</code>
+- <code>web_link</code> is present and different from the original</p>
+<hr />
+<h3 id="tc-d68-copy-with-explicit-name-and-destination-folder-requires-oauth">TC-D68: Copy with explicit name and destination folder ⚠️ requires-oauth<a class="headerlink" href="#tc-d68-copy-with-explicit-name-and-destination-folder-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy {SPREADSHEET_ID} into {FOLDER_ID} and name the copy 'QA-Copy-Explicit'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New file named 'QA-Copy-Explicit' appears in <code>{FOLDER_ID}</code>
+- Destination folder cache invalidated — <code>list_files</code> includes the copy
+- Original <code>{SPREADSHEET_ID}</code> is unchanged</p>
+<hr />
+<h3 id="tc-d69-copy-a-google-doc-requires-oauth">TC-D69: Copy a Google Doc ⚠️ requires-oauth<a class="headerlink" href="#tc-d69-copy-a-google-doc-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy {DOC_ID} and name it 'QA-Doc-Copy'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New doc created independently of the original
+- <code>mimeType</code> is <code>application/vnd.google-apps.document</code>
+- Edits to the copy do not affect the original</p>
+<hr />
+<h3 id="tc-d70-attempt-to-copy-a-folder-requires-oauth">TC-D70: Attempt to copy a folder ⚠️ requires-oauth<a class="headerlink" href="#tc-d70-attempt-to-copy-a-folder-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy the folder from TC-D65 ('QA-Folder-Renamed') to see if folder copy is supported"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 🔍 <strong>Known API limitation:</strong> Drive API does not support copying folders — expect an API error
+- Error message should be clear, not a server crash</p>
+<hr />
+<h2 id="delete_file"><code>delete_file</code><a class="headerlink" href="#delete_file" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d71-trash-a-file-default-recoverable-destructive">TC-D71: Trash a file (default — recoverable) ⚠️ destructive<a class="headerlink" href="#tc-d71-trash-a-file-default-recoverable-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Trash the file 'QA-Renamed-File' from TC-D64 — use permanent=False"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response: <code>{"fileId": ..., "action": "trashed"}</code>
+- File no longer appears in <code>list_files</code> for its folder (trashed files excluded)
+- File is recoverable from Drive Trash</p>
+<hr />
+<h3 id="tc-d72-permanently-delete-a-file-requires-oauth-destructive">TC-D72: Permanently delete a file ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d72-permanently-delete-a-file-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> Create a throwaway spreadsheet to permanently delete.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a new spreadsheet called 'QA-Delete-Permanent' in folder {FOLDER_ID}, then permanently delete it using permanent=True"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response: <code>{"fileId": ..., "action": "deleted"}</code>
+- File is completely gone — not in Trash, not in any folder
+- Parent folder cache invalidated</p>
+<hr />
+<h3 id="tc-d73-trash-a-folder-destructive">TC-D73: Trash a folder ⚠️ destructive<a class="headerlink" href="#tc-d73-trash-a-folder-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Trash the 'QA-Folder-Renamed' folder from TC-D65"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Folder and its contents moved to Trash
+- <code>list_folders</code> no longer shows it in the parent</p>
+<hr />
+<h3 id="tc-d74-non-existent-file-id">TC-D74: Non-existent file ID<a class="headerlink" href="#tc-d74-non-existent-file-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete file 'invalidid123xyz'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- API error propagates — not a crash
+- No cache mutation occurs for a non-existent file</p>
+<hr />
+<h2 id="restore_file"><code>restore_file</code><a class="headerlink" href="#restore_file" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d202-restore-a-trashed-file-destructive">TC-D202: Restore a trashed file ⚠️ destructive<a class="headerlink" href="#tc-d202-restore-a-trashed-file-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> Create a throwaway spreadsheet in {FOLDER_ID}, then trash it (<code>delete_file</code> with <code>permanent=False</code>).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Restore file 'QA-Restore-Test' back from the trash"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response: <code>{"fileId": ..., "action": "restored"}</code>
+- File reappears in <code>list_files</code> for {FOLDER_ID} (no longer trashed)
+- Parent folder cache invalidated</p>
+<p><strong>Result (2026-07-21) ✅</strong> — Created "QA-Restore-Test" in {FOLDER_ID}, trashed it, then <code>restore_file</code> returned <code>{"fileId": "12GPwkr-...", "action": "restored"}</code>. Follow-up <code>list_files</code> on {FOLDER_ID} showed the file present with no manual <code>refresh_cache</code> needed, confirming the parent-folder cache was invalidated by the tool itself. Cleaned up (permanently deleted) after the test.</p>
+<hr />
+<h3 id="tc-d203-restore-a-non-existent-file-id">TC-D203: Restore a non-existent file ID<a class="headerlink" href="#tc-d203-restore-a-non-existent-file-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Restore file 'invalidid123xyz'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns an API error (404 "File not found") — not a crash, and not a silent no-op
+- No cache mutation occurs for a non-existent file</p>
+<p><strong>Result (2026-07-21) ✅ (behavior) / ⚠️ docstring gap</strong> — Returned <code>HttpError 404: "File not found: invalidid123xyz."</code> — propagates cleanly, no crash. This also live-confirms a code-review finding: the tool's own docstring says it "has no effect on a file that was permanently deleted," which reads as a silent no-op, but the actual behavior for any non-existent file_id (including a permanently-deleted one) is this same 404 error, not a no-op. See PR comment.</p>
+<p><strong>Update (2026-07-21, post-fix):</strong> docstring corrected (123884a) to state the API-error behavior explicitly instead of "has no effect." Behavior itself was already correct pre-fix (this was a documentation-only gap) — no re-run needed.</p>
+<hr />
+<h2 id="empty_trash"><code>empty_trash</code><a class="headerlink" href="#empty_trash" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d204-empty-trash-default-my-drive-only-destructive">TC-D204: Empty trash (default) — My Drive only ⚠️ destructive<a class="headerlink" href="#tc-d204-empty-trash-default-my-drive-only-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>⚠️ This empties every file in the caller's My Drive trash, not just files created by this QA run.</strong> Before running live, confirm with the operator that nothing else in My Drive's trash needs to survive. Shared Drive trash is untouched by a default call (no <code>drive_id</code>) — see TC-D205 for the Shared-Drive-scoped case.</p>
+<p><strong>Setup:</strong> Create a throwaway spreadsheet in {FOLDER_ID} and trash it (<code>delete_file</code> with <code>permanent=False</code>).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Empty the Drive trash"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response: <code>{"action": "trash_emptied", "drive_id": None}</code>
+- The throwaway spreadsheet from Setup is now permanently gone — <code>restore_file</code> on it returns an API error, not a success
+- Any other file already in My Drive's trash before this test ran is also now permanently gone (confirm this is expected before running)
+- A file that was, at the time of this call, sitting in a Shared Drive's trash (if one exists) is unaffected</p>
+<p><strong>Note (2026-07-21):</strong> the original single <code>empty_trash</code> test case was held, not run, during code review — <code>empty_trash</code> omitted Shared Drive scoping (<code>driveId</code>) entirely, so QA held off live-testing an implementation expected to be redesigned rather than exercise it against the account's real trash (see PR comment). That gap is what led to this case being split into TC-D204 (My Drive, now the explicit default) and TC-D205 (Shared Drive, new). Neither has a live pass yet against the fixed implementation.</p>
+<p><strong>Result (2026-07-21) skipped, by operator decision</strong> — unit tests (<code>test_empty_trash_defaults_to_my_drive_no_drive_id</code>, <code>test_empty_trash_api_error_propagates</code>) confirm the code path via mocks; operator chose to verify the real destructive My-Drive-wide effect through a different means rather than live here.</p>
+<hr />
+<h3 id="tc-d205-empty-trash-scoped-to-a-specific-shared-drive-destructive">TC-D205: Empty trash scoped to a specific Shared Drive ⚠️ destructive<a class="headerlink" href="#tc-d205-empty-trash-scoped-to-a-specific-shared-drive-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Requires a Shared Drive fixture the QA account has access to</strong> — get its ID via <code>list_drives</code>. If no Shared Drive is available in the current QA environment, skip this case and note it as such rather than fabricating a result.</p>
+<p><strong>⚠️ This empties every file in the <em>named Shared Drive's</em> trash</strong>, not just files created by this QA run, and does not touch My Drive's trash.</p>
+<p><strong>Setup:</strong> In the target Shared Drive, create a throwaway file and trash it.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Empty the trash for Shared Drive {SHARED_DRIVE_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response: <code>{"action": "trash_emptied", "drive_id": "{SHARED_DRIVE_ID}"}</code>
+- The throwaway file from Setup is now permanently gone from that Shared Drive
+- My Drive's own trash (if it has unrelated trashed files) is unaffected</p>
+<p><strong>Result (2026-07-21) skipped</strong> — <code>list_drives</code> returned no Shared Drives accessible to this QA account. Unit test <code>test_empty_trash_with_drive_id_scopes_to_shared_drive</code> confirms the <code>driveId</code> passthrough via mock; no live Shared Drive fixture currently exists to verify end-to-end.</p>
+<hr />
+<h2 id="search_files"><code>search_files</code><a class="headerlink" href="#search_files" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d75-search-by-name-across-all-mime-types">TC-D75: Search by name across all MIME types<a class="headerlink" href="#tc-d75-search-by-name-across-all-mime-types" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Search files for 'QA' — no MIME type filter"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns a mix of docs, spreadsheets, and folders created during QA
+- Each result has <code>id</code>, <code>name</code>, <code>mimeType</code>, <code>modified_time</code>, and <code>web_link</code></p>
+<hr />
+<h3 id="tc-d76-search-with-mime-type-filter">TC-D76: Search with MIME type filter<a class="headerlink" href="#tc-d76-search-with-mime-type-filter" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Search for files named 'QA' that are Google Docs only"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- All results have <code>mimeType: application/vnd.google-apps.document</code>
+- Spreadsheets and folders excluded</p>
+<hr />
+<h3 id="tc-d77-search-with-folder-filter">TC-D77: Search with folder filter<a class="headerlink" href="#tc-d77-search-with-folder-filter" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Search for files with 'QA' in the name, but only in {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- All results have <code>parent</code> matching <code>{FOLDER_ID}</code>
+- Files from other folders excluded</p>
+<hr />
+<h3 id="tc-d78-query-with-single-quote">TC-D78: Query with single quote<a class="headerlink" href="#tc-d78-query-with-single-quote" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Search files for \"it's a test\""</p>
+</blockquote>
+<p><strong>Checks</strong>
+- No Drive API syntax error
+- Returns results (possibly empty) — confirms <code>'</code> is safely escaped</p>
+<hr />
+<h2 id="get_file_metadata"><code>get_file_metadata</code><a class="headerlink" href="#get_file_metadata" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d79-metadata-for-a-google-spreadsheet">TC-D79: Metadata for a Google Spreadsheet<a class="headerlink" href="#tc-d79-metadata-for-a-google-spreadsheet" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get the metadata for {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>mimeType</code> is <code>application/vnd.google-apps.spreadsheet</code>
+- <code>name</code>, <code>parents</code>, <code>created_time</code>, <code>modified_time</code>, <code>owners</code>, <code>web_link</code> all present
+- <code>size</code> is absent (Google Workspace files have no size field)
+- <code>trashed</code> is <code>false</code></p>
+<hr />
+<h3 id="tc-d80-metadata-for-a-google-doc">TC-D80: Metadata for a Google Doc<a class="headerlink" href="#tc-d80-metadata-for-a-google-doc" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get the metadata for {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>mimeType</code> is <code>application/vnd.google-apps.document</code>
+- <code>web_link</code> is present and opens the doc</p>
+<hr />
+<h3 id="tc-d81-metadata-for-a-folder">TC-D81: Metadata for a folder<a class="headerlink" href="#tc-d81-metadata-for-a-folder" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get the metadata for {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>mimeType</code> is <code>application/vnd.google-apps.folder</code>
+- <code>web_link</code> may be absent or point to Drive folder URL</p>
+<hr />
+<h3 id="tc-d82-non-existent-file-id">TC-D82: Non-existent file ID<a class="headerlink" href="#tc-d82-non-existent-file-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get metadata for file 'invalidid123xyz'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- API error propagates — not a silent empty result or crash</p>
+<hr />
+<h3 id="tc-d237-md5_checksum-present-for-a-binary-file-null-for-a-google-workspace-file-issue-274">TC-D237: md5_checksum present for a binary file, null for a Google Workspace file (issue #274)<a class="headerlink" href="#tc-d237-md5_checksum-present-for-a-binary-file-null-for-a-google-workspace-file-issue-274" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Mirrors TC-D236 for <code>get_file_metadata</code> — same <code>md5Checksum</code> field, same Workspace-files-have-none caveat, added alongside <code>size</code>'s existing conditional-presence handling.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get the metadata for {BINARY_FILE_ID}" <em>(the PNG from <code>drive_transfer.md</code> TC-D93)</em>, then "Get the metadata for {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>get_file_metadata(file_id="{BINARY_FILE_ID}")</code> — <code>md5_checksum</code> is present, a 32-character hex string
+- Call <code>get_file_metadata(file_id="{SPREADSHEET_ID}")</code> — <code>md5_checksum</code> is <code>null</code> (Google Workspace file)
+- <code>{BINARY_FILE_ID}</code>'s <code>md5_checksum</code> matches the value <code>list_files</code> reports for the same file (TC-D236) — same field, same source</p>
+<p><strong>Result (2026-07-31) ✅ PASS</strong> — no persistent PNG fixture from <code>drive_transfer.md</code> TC-D93 currently exists in <code>{FOLDER_ID}</code> (checked live via <code>list_files</code>), so a PNG was uploaded fresh for this run instead and trashed afterward. <code>get_file_metadata</code> returned <code>md5_checksum: "bf2b97d8351aa217100ec405ede9d512"</code> for the PNG (matched <code>list_files</code>'s value for the same file) and <code>md5_checksum: null</code> for <code>{SPREADSHEET_ID}</code>.</p>
+<hr />
+<h2 id="list_drives"><code>list_drives</code><a class="headerlink" href="#list_drives" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d120-list-all-shared-drives">TC-D120: List all shared drives<a class="headerlink" href="#tc-d120-list-all-shared-drives" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List all shared drives I have access to"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns a list; each item has <code>id</code>, <code>name</code>, <code>created_time</code>, <code>capabilities</code>
+- <code>capabilities</code> is a non-empty dict (e.g. contains <code>canAddChildren</code>)
+- No error if zero shared drives accessible — returns <code>[]</code></p>
+<hr />
+<h3 id="tc-d121-filter-by-name">TC-D121: Filter by name<a class="headerlink" href="#tc-d121-filter-by-name" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List shared drives whose name contains 'Marketing'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>query='name contains "Marketing"'</code> passed to API
+- Only drives matching the filter are returned
+- Drives not matching the name are absent from results</p>
+<hr />
+<h3 id="tc-d122-max_results-clamping">TC-D122: max_results clamping<a class="headerlink" href="#tc-d122-max_results-clamping" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List shared drives with max_results=0" then "List shared drives with max_results=300"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>max_results=0</code> clamped to 1; at most 1 drive returned
+- <code>max_results=300</code> clamped to 200; no more than 200 drives returned</p>
+<hr />
+<h3 id="tc-d123-pagination-across-multiple-pages">TC-D123: Pagination across multiple pages<a class="headerlink" href="#tc-d123-pagination-across-multiple-pages" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> environment with more than 100 shared drives (or simulate via mock)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List all shared drives with max_results=150"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>nextPageToken</code> followed; second page fetched
+- Total results ≤ 150
+- No duplicate drives across pages</p>
+<hr />
+<h2 id="list_shared_with_me"><code>list_shared_with_me</code><a class="headerlink" href="#list_shared_with_me" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d152-list-all-files-shared-with-me">TC-D152: List all files shared with me<a class="headerlink" href="#tc-d152-list-all-files-shared-with-me" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List all files shared with me"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns a list of files (returns empty list for service accounts — <code>sharedWithMe</code> is a user-identity concept)
+- Each entry has <code>id</code>, <code>name</code>, <code>mimeType</code>, <code>modifiedTime</code>
+- Query includes <code>sharedWithMe=true</code> and <code>trashed=false</code>
+- <code>owners</code> field is a flat list of email strings</p>
+<p><strong>Result (2026-06-21) ✅</strong> OAuth: 50 files returned across types (spreadsheets, folders, docs, PDFs, images, videos). All have <code>id</code>, <code>name</code>, <code>mime_type</code>, <code>modified_time</code>, <code>owners</code> (flat email list), <code>web_link</code>. Ordered by <code>modifiedTime desc</code>. SA: 5 files returned — files explicitly shared with the service account (Budget &amp; Savings spreadsheet plus 4 folders).</p>
+<hr />
+<h3 id="tc-d153-filter-shared-files-by-mime-type">TC-D153: Filter shared files by MIME type<a class="headerlink" href="#tc-d153-filter-shared-files-by-mime-type" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List spreadsheets shared with me"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- All returned files have <code>mimeType</code> of <code>application/vnd.google-apps.spreadsheet</code>
+- No Docs or other types in result
+- Returns empty list for service accounts (expected)</p>
+<p><strong>Result (2026-06-21) ✅</strong> OAuth: 8 spreadsheets returned, all <code>application/vnd.google-apps.spreadsheet</code>. No other MIME types present.</p>
+<hr />
+<h3 id="tc-d154-limit-shared-files-with-max_results">TC-D154: Limit shared files with max_results<a class="headerlink" href="#tc-d154-limit-shared-files-with-max_results" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Show me the 3 most recently shared files (max 3)"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Result contains at most 3 items
+- Files ordered by <code>modifiedTime desc</code>
+- Returns empty list for service accounts (expected)</p>
+<p><strong>Result (2026-06-21) ✅</strong> OAuth: exactly 3 items returned — Budget &amp; Savings, 2025 medical expenses, Tax Documents folder. Correct top-3 by <code>modifiedTime desc</code>.</p>
+<hr />
+<h3 id="tc-d155-single-quote-in-mime-type-is-escaped">TC-D155: Single-quote in MIME type is escaped<a class="headerlink" href="#tc-d155-single-quote-in-mime-type-is-escaped" title="Permanent link">&para;</a></h3>
+<p>Regression test for #494: the original implementation escaped <code>mime_type</code> by doubling
+the quote (<code>''</code>, SQL-style) instead of backslash-escaping it (<code>\'</code>) like
+<code>search_files</code>/<code>search_spreadsheets</code> do — Drive's query grammar doesn't recognize the
+doubled form, so a <code>mime_type</code> containing an apostrophe live-crashed with an uncaught
+<code>HttpError 400 "Invalid Value"</code> rather than returning a clean result. Fixed by switching
+to the same backslash-escape convention as the sibling search tools, plus wrapping the
+call in the same try/except-returns-<code>{"error": ...}</code> pattern those tools already use.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List files shared with me, filtered to a MIME type containing an apostrophe like \"it's a test\""</p>
+</blockquote>
+<p><strong>Checks</strong>
+- No Drive API syntax error and no uncaught exception (previously threw <code>HttpError 400 "Invalid Value"</code>)
+- Returns <code>[]</code> (no real MIME type will match) rather than crashing
+- Unit test <code>test_mime_type_single_quote_is_escaped</code> confirms <code>\'</code> (not <code>''</code>) appears in the constructed query string
+- Unit test <code>test_api_error_returns_error_dict_not_raised</code> confirms a genuine API failure still returns <code>[{"error": ...}]</code> rather than propagating</p>
+<p><strong>Result (2026-08-11) ✅</strong> Live <code>list_shared_with_me(mime_type="it's a test")</code> returned <code>[]</code> cleanly, no uncaught exception. 62 unit tests in <code>tests/drive/test_files.py</code> pass. Note: <code>list_files</code> (a third sibling, same file) has the identical bug — reported as a blocking finding on PR #577, not covered by this test case.</p>
+<hr />
+<h2 id="list_recent_files"><code>list_recent_files</code><a class="headerlink" href="#list_recent_files" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d156-list-recently-modified-files">TC-D156: List recently modified files<a class="headerlink" href="#tc-d156-list-recently-modified-files" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Show me the 10 files I've most recently modified"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns up to 10 items ordered by <code>modifiedTime desc</code>
+- Each entry has <code>id</code>, <code>name</code>, <code>mimeType</code>, <code>modifiedTime</code>
+- Includes files from all drives (<code>includeItemsFromAllDrives=true</code>)</p>
+<p><strong>Result (2026-06-21) ✅</strong> Returned 10 files ordered by <code>modifiedTime desc</code>. Top item was <code>mcp-gee-sweet-qa-fixtures</code> (modified 2026-06-21T16:49). All entries have <code>id</code>, <code>name</code>, <code>mime_type</code>, <code>modified_time</code>, <code>owners</code>, <code>web_link</code>.</p>
+<hr />
+<h3 id="tc-d157-filter-by-days">TC-D157: Filter by days<a class="headerlink" href="#tc-d157-filter-by-days" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List files modified in the last 7 days"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Query includes <code>modifiedTime &gt;</code> constraint for 7 days ago
+- Only files modified within 7 days are returned</p>
+<p><strong>Result (2026-06-21) ✅</strong> All returned files have <code>modifiedTime</code> of 2026-06-15 or later (within 7 days of 2026-06-21). <code>modifiedTime &gt;</code> constraint confirmed in query.</p>
+<hr />
+<h3 id="tc-d158-filter-by-mime-type">TC-D158: Filter by MIME type<a class="headerlink" href="#tc-d158-filter-by-mime-type" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List recent spreadsheets (last 14 days)"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- All results are Google Sheets (<code>application/vnd.google-apps.spreadsheet</code>)
+- <code>modifiedTime</code> constraint applied correctly</p>
+<p><strong>Result (2026-06-21) ✅</strong> All 14 returned files are <code>application/vnd.google-apps.spreadsheet</code>. All have <code>modifiedTime</code> within 14 days of 2026-06-21.</p>
+<hr />
+<h3 id="tc-d159-max_results-capped-at-100">TC-D159: max_results capped at 100<a class="headerlink" href="#tc-d159-max_results-capped-at-100" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Passing <code>max_results=500</code> results in <code>pageSize=100</code> in the API call</p>
+<p><strong>Result (2026-06-21) ✅</strong> Unit test confirms <code>pageSize=100</code> when <code>max_results=500</code>.</p>
+<hr />
+<h3 id="tc-d247-single-quote-in-mime-type-is-escaped">TC-D247: Single-quote in MIME type is escaped<a class="headerlink" href="#tc-d247-single-quote-in-mime-type-is-escaped" title="Permanent link">&para;</a></h3>
+<p>Sibling of TC-D155 (#494) — <code>list_recent_files</code> had the identical bug: <code>mime_type</code>
+escaped by quote-doubling (<code>''</code>) instead of backslash-escaping (<code>\'</code>), live-crashing
+with <code>HttpError 400 "Invalid Value"</code> on an apostrophe. Same fix applied: backslash
+escaping matching <code>search_files</code>/<code>search_spreadsheets</code>, plus the same
+try/except-returns-<code>{"error": ...}</code> wrapping.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List recently modified files, filtered to a MIME type containing an apostrophe like \"it's a test\""</p>
+</blockquote>
+<p><strong>Checks</strong>
+- No Drive API syntax error and no uncaught exception (previously threw <code>HttpError 400 "Invalid Value"</code>)
+- Returns <code>[]</code> (no real MIME type will match) rather than crashing
+- Unit test <code>test_mime_type_single_quote_is_escaped</code> confirms <code>\'</code> (not <code>''</code>) appears in the constructed query string
+- Unit test <code>test_api_error_returns_error_dict_not_raised</code> confirms a genuine API failure still returns <code>[{"error": ...}]</code> rather than propagating</p>
+<p><strong>Result (2026-08-11) ✅</strong> Live <code>list_recent_files(mime_type="it's a test")</code> returned <code>[]</code> cleanly, no uncaught exception. 62 unit tests in <code>tests/drive/test_files.py</code> pass.</p>
+<hr />
+<h2 id="get_storage_quota"><code>get_storage_quota</code><a class="headerlink" href="#get_storage_quota" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d160-get-storage-quota">TC-D160: Get storage quota<a class="headerlink" href="#tc-d160-get-storage-quota" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"How much Google Drive storage am I using?"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>email</code>, <code>usage_bytes</code>, <code>usage_in_drive_bytes</code>, <code>usage_in_trash_bytes</code>
+- <code>limit_bytes</code> is <code>0</code> for service accounts (API returns <code>"0"</code> — no personal storage quota) or <code>None</code> if the key is absent
+- <code>usage_bytes</code> and <code>usage_in_drive_bytes</code> are integers, not strings
+- <code>display_name</code> matches the authenticated account</p>
+<p><strong>Result (2026-06-21) ✅</strong> OAuth: <code>limit_bytes=16106127360</code> (15 GB), <code>usage_bytes=13760121856</code>, <code>usage_in_drive_bytes=875136784</code>, <code>usage_in_trash_bytes=93860012</code>. All integers. SA: <code>limit_bytes=0</code> (API returned <code>"0"</code> — expected for service accounts), all usage fields 0, <code>display_name</code> is the service account email. Note: docstring corrected — SA returns <code>0</code> not <code>None</code>.</p>
+<hr />
+<h3 id="tc-d161-fields-requested-include-storagequota-and-user">TC-D161: Fields requested include storageQuota and user<a class="headerlink" href="#tc-d161-fields-requested-include-storagequota-and-user" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- API is called with <code>fields</code> including both <code>storageQuota</code> and <code>user</code>
+- No extra API calls needed to get user info</p>
+<p><strong>Result (2026-06-21) ✅</strong> Unit test confirms <code>fields</code> arg includes both <code>storageQuota</code> and <code>user</code>.</p>
+<hr />
+<h3 id="tc-d162-byte-values-are-integers-not-strings">TC-D162: Byte values are integers not strings<a class="headerlink" href="#tc-d162-byte-values-are-integers-not-strings" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- <code>usage_bytes</code>, <code>usage_in_drive_bytes</code>, <code>usage_in_trash_bytes</code> are Python <code>int</code>
+- API returns these as strings (e.g. <code>"1073741824"</code>) — tool must cast them</p>
+<p><strong>Result (2026-06-21) ✅</strong> Unit test confirms all byte values are <code>int</code> after cast from API string response.</p>
+<hr />
+<h2 id="import_csv_to_sheet-issue-187"><code>import_csv_to_sheet</code> (issue #187)<a class="headerlink" href="#import_csv_to_sheet-issue-187" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d169-basic-import-creates-a-populated-spreadsheet-requires-oauth-local-filesystem">TC-D169: Basic import creates a populated spreadsheet ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-d169-basic-import-creates-a-populated-spreadsheet-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Import the CSV at <code>/tmp/qa-import.csv</code> into a new spreadsheet called 'QA-CSV-Import' in {FOLDER_ID}" <em>(create <code>/tmp/qa-import.csv</code> first with a header row and 3-4 data rows, e.g. <code>name,age\nAlice,30\nBob,25</code>)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response includes <code>spreadsheetId</code>, <code>title</code> exactly 'QA-CSV-Import', <code>web_link</code>, and <code>rows_written</code> matching the CSV's row count (including header)
+- <code>get_sheet_data</code> on the new spreadsheet's default sheet returns the same rows, in order
+- <code>drive_folder_cache.mark_dirty</code> fired — <code>list_files</code> on {FOLDER_ID} shows the new spreadsheet without a manual refresh</p>
+<p><strong>Result (2026-07-05) ✅ PASS</strong> Created spreadsheet with <code>rows_written: 4</code>, exact title, and a <code>web_link</code>. <code>get_sheet_data</code> returned <code>[["name","age"],["Alice","30"],["Bob","25"],["Carol","42"]]</code> — matches the source CSV exactly. <code>list_files</code> on <code>{FOLDER_ID}</code> showed the new spreadsheet immediately, confirming the folder cache invalidation.</p>
+<hr />
+<h3 id="tc-d170-custom-sheet_name-renames-the-default-sheet-requires-oauth-local-filesystem">TC-D170: Custom sheet_name renames the default sheet ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-d170-custom-sheet_name-renames-the-default-sheet-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Import <code>/tmp/qa-import.csv</code> into a new spreadsheet called 'QA-CSV-SheetName', writing to a sheet named 'Imported Data'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_sheets</code> on the new spreadsheet shows exactly one sheet, named 'Imported Data' (not the default 'Sheet1')
+- Data is present on that sheet via <code>get_sheet_data</code></p>
+<p><strong>Result (2026-07-05) ✅ PASS</strong> <code>list_sheets</code> returned exactly <code>["Imported Data"]</code> — the default 'Sheet1' was renamed, not left as a second sheet. <code>get_sheet_data(sheet="Imported Data")</code> returned all 4 rows intact.</p>
+<hr />
+<h3 id="tc-d171-grid-auto-expands-beyond-the-default-1000-row-limit-requires-oauth-local-filesystem">TC-D171: Grid auto-expands beyond the default 1000-row limit ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-d171-grid-auto-expands-beyond-the-default-1000-row-limit-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Import <code>/tmp/qa-import-large.csv</code> into a new spreadsheet called 'QA-CSV-Large'" <em>(generate a CSV with 1500+ rows first, e.g. a header plus 1500 numbered rows)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds without a grid-limit error (the documented pre-fix failure mode from the issue)
+- <code>rows_written</code> matches the CSV's row count
+- <code>get_sheet_data</code> confirms the last row of data is present and readable (not silently truncated at row 1000)</p>
+<p><strong>Result (2026-07-05) ✅ PASS</strong> Imported a 1501-row CSV (header + 1500 numbered rows) with no grid-limit error — <code>rows_written: 1501</code>. Fetched <code>A999:B1501</code> and confirmed rows 998–1500 are all present and correctly ordered, including the final row <code>["1500","row-1500"]</code> — no truncation at the default 1000-row boundary.</p>
+<hr />
+<h3 id="tc-d172-ragged-rows-padded-to-a-common-width-requires-oauth-local-filesystem">TC-D172: Ragged rows padded to a common width ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-d172-ragged-rows-padded-to-a-common-width-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Import <code>/tmp/qa-import-ragged.csv</code> into a new spreadsheet called 'QA-CSV-Ragged'" <em>(create a CSV where some rows have fewer columns than others, e.g. <code>a,b,c\n1,2\n</code>)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- No dropped or misaligned rows in <code>get_sheet_data</code> — short rows are padded with empty cells rather than shifted
+- <code>rows_written</code> counts every row, including the short one</p>
+<p><strong>Result (2026-07-05) ✅ PASS</strong> CSV <code>a,b,c / 1,2 / 4,5,6</code> (middle row missing column <code>c</code>) imported with <code>rows_written: 3</code>. <code>get_sheet_data</code> returned <code>[["a","b","c"],["1","2"],["4","5","6"]]</code> — the short row landed under columns a/b with no shift, and the third row wasn't dropped. (Sheets' values.get omits the trailing empty string we pad with, which is expected — the important signal is correct alignment, not a literal empty-string round-trip.)</p>
+<hr />
+<h3 id="tc-d173-non-existent-local-path-unit-test">TC-D173: Non-existent local path (unit test)<a class="headerlink" href="#tc-d173-non-existent-local-path-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Missing <code>local_path</code> returns <code>{"error": "..."}</code> mentioning the path — no Drive API call made</p>
+<p><strong>Result:</strong> ✅ Unit test <code>test_file_not_found_returns_error</code> confirms this — no live Drive call needed since the function returns before touching <code>ctx</code>.</p>
+<hr />
+<h3 id="tc-d174-non-csv-extension-rejected-unit-test">TC-D174: Non-.csv extension rejected (unit test)<a class="headerlink" href="#tc-d174-non-csv-extension-rejected-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- A <code>.txt</code> (or other non-.csv) file returns <code>{"error": "..."}</code> mentioning <code>.csv</code>, without calling the Drive API</p>
+<p><strong>Result:</strong> ✅ Unit test <code>test_unsupported_extension_returns_error</code> confirms this.</p>
+<hr />
+<h3 id="tc-d175-service-account-drive-limitation">TC-D175: Service account Drive limitation<a class="headerlink" href="#tc-d175-service-account-drive-limitation" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Import <code>/tmp/qa-import.csv</code> into a new spreadsheet called 'QA-CSV-SA-Limit' — I want to verify whether the service account can create in personal Drive"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 🔍 <strong>Known limitation:</strong> same as <code>create_spreadsheet</code> (TC-D04) — service account cannot create in personal Drive, only shared folders it has access to
+- Unit-level equivalent already covered: <code>test_storage_quota_error_returns_helpful_message</code></p>
+<p><strong>Result (2026-07-05) ✅ PASS</strong> Against the service-account server (<code>mcp-gee-sweet-sa</code>), the call returned <code>{"error": "Service accounts cannot create or copy files in personal Drive (no storage quota). Use OAuth or ADC auth for full Drive write access, or use a Shared Drive destination. Check server://auth-status for your current auth method and affected tools."}</code> — the same <code>_SA_QUOTA_ERROR</code> message <code>create_spreadsheet</code> returns, confirming the shared error path works for this tool too.</p>
+<hr />
+<h3 id="tc-d179-large-csv-split-across-concurrent-chunk-writes-lands-correctly-requires-oauth-local-filesystem-issue-183">TC-D179: Large CSV split across concurrent chunk writes lands correctly ⚠️ requires-oauth ⚠️ local-filesystem (issue #183)<a class="headerlink" href="#tc-d179-large-csv-split-across-concurrent-chunk-writes-lands-correctly-requires-oauth-local-filesystem-issue-183" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #183 parallelized <code>import_csv_to_sheet</code>'s chunked row-writing loop via <code>asyncio.gather()</code> — each chunk writes a disjoint row range of the same sheet concurrently instead of sequentially. Mocked unit tests confirm the request shapes are correct but can't catch a genuine race against the real Sheets API (e.g. a chunk's write landing at the wrong row offset, or two chunks' writes overlapping). This forces at least 3 concurrent chunks with distinctly identifiable content per chunk.</p>
+<p><strong>Setup</strong>
+Generate a local CSV with a header row plus 12,000 data rows, where each row's first cell is its own row number (e.g. row 1's cell reads <code>"row-1"</code>, row 5000's reads <code>"row-5000"</code>). With the default <code>_CSV_IMPORT_CHUNK_ROWS=5000</code>, this produces 3 chunks (5000 + 5000 + 2000 rows).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Import <code>/tmp/qa-import-183.csv</code> into a new spreadsheet called 'QA-CSV-Concurrent-183'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>rows_written</code> equals 12,001 (header + 12,000 data rows)
+- Spot-check the boundary rows of each chunk (e.g. rows 1, 4999, 5000, 5001, 9999, 10000, 10001, 12000) via <code>get_sheet_data</code> — each cell's value matches its expected row-number marker, confirming no chunk landed at the wrong offset and no two chunks overlapped or clobbered each other
+- No gaps: every row from 1 to 12,000 is present exactly once</p>
+<p><strong>Teardown</strong>
+Delete the <code>QA-CSV-Concurrent-183</code> spreadsheet.</p>
+<hr />
+<h2 id="create_shortcut-issue-141"><code>create_shortcut</code> (issue #141)<a class="headerlink" href="#create_shortcut-issue-141" title="Permanent link">&para;</a></h2>
+<h3 id="tc-d206-create-a-shortcut-with-explicit-name-and-folder-requires-oauth-destructive">TC-D206: Create a shortcut with explicit name and folder ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d206-create-a-shortcut-with-explicit-name-and-folder-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> Create a throwaway spreadsheet to be the shortcut's target — do not use the fixture spreadsheet.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a new spreadsheet called 'QA-Shortcut-Target' in folder {FOLDER_ID}, then create a shortcut to it named 'QA-Shortcut-Explicit' in the same folder {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response has no <code>error</code>
+- Response includes <code>shortcutId</code>, <code>name: 'QA-Shortcut-Explicit'</code>, <code>parent</code> matching <code>{FOLDER_ID}</code>
+- <code>targetId</code> matches the target spreadsheet's <code>spreadsheetId</code>
+- <code>targetMimeType</code> is <code>application/vnd.google-apps.spreadsheet</code>
+- Shortcut visible in Drive at <code>{FOLDER_ID}</code>, distinguishable from the target by its shortcut icon</p>
+<p><strong>Cleanup:</strong> Trash both 'QA-Shortcut-Target' and 'QA-Shortcut-Explicit' after the test.</p>
+<p><strong>Result (2026-07-22) ✅</strong> — Created target spreadsheet, then <code>create_shortcut</code> returned <code>{"shortcutId": "1AOWbwtAbR9mzTtoYhNEGxOQkjSMoY7tY", "name": "QA-Shortcut-Explicit", "parent": "{FOLDER_ID}", "targetId": "&lt;matches target spreadsheetId&gt;", "targetMimeType": "application/vnd.google-apps.spreadsheet"}</code>, no error. Follow-up <code>list_files(folder_id={FOLDER_ID}, mime_type="application/vnd.google-apps.shortcut")</code> showed the shortcut present — the Drive UI's shortcut icon is derived directly from this mimeType, so this was used in place of a Playwright screenshot. Both files trashed after the test.</p>
+<hr />
+<h3 id="tc-d207-omitted-name-defaults-to-the-target-files-own-name-requires-oauth-destructive">TC-D207: Omitted name defaults to the target file's own name ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d207-omitted-name-defaults-to-the-target-files-own-name-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> Create a throwaway spreadsheet to be the shortcut's target.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a new spreadsheet called 'QA-Shortcut-NameSource' in folder {FOLDER_ID}, then create a shortcut to it in {FOLDER_ID} without specifying a name"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response has no <code>error</code>
+- Response <code>name</code> is <code>'QA-Shortcut-NameSource'</code> (matches the target, not 'Untitled' or blank)
+- <code>targetId</code> matches the target spreadsheet's <code>spreadsheetId</code></p>
+<p><strong>Cleanup:</strong> Trash both 'QA-Shortcut-NameSource' and the shortcut created from it.</p>
+<p><strong>Result (2026-07-22) ✅</strong> — <code>create_shortcut</code> with no <code>name</code> returned <code>{"name": "QA-Shortcut-NameSource", "targetId": "&lt;matches target spreadsheetId&gt;", ...}</code>, matching the target's own name exactly, not 'Untitled' or blank. Both files trashed after the test.</p>
+<hr />
+<h3 id="tc-d208-omitted-folder_id-falls-back-to-the-configured-default-folder-requires-oauth-destructive">TC-D208: Omitted folder_id falls back to the configured default folder ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d208-omitted-folder_id-falls-back-to-the-configured-default-folder-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> Create a throwaway spreadsheet to be the shortcut's target, in {FOLDER_ID}.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a new spreadsheet called 'QA-Shortcut-DefaultFolder' in folder {FOLDER_ID}, then create a shortcut to it named 'QA-Shortcut-Default' with no folder specified"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response <code>parent</code> matches the server's configured default folder (<code>{FOLDER_ID}</code> in this fixture setup)
+- <code>list_files</code> on <code>{FOLDER_ID}</code> includes 'QA-Shortcut-Default' with <code>mimeType: application/vnd.google-apps.shortcut</code>
+- Confirms <code>drive_folder_cache.mark_dirty</code> fired for the parent (cache reflects the new shortcut without a manual refresh)</p>
+<p><strong>Cleanup:</strong> Trash both 'QA-Shortcut-DefaultFolder' and 'QA-Shortcut-Default'.</p>
+<p><strong>Result (2026-07-22) ✅ (behavior) / environment note</strong> — This live server has no <code>DRIVE_FOLDER_ID</code> configured, so its "configured default folder" is <code>My Drive</code> root, not <code>{FOLDER_ID}</code> — confirmed by comparison: <code>create_spreadsheet</code> with no <code>folder_id</code> also lands in the same root (<code>0ACZ5KALjwnmUUk9PVA</code>). <code>create_shortcut</code>'s fallback is consistent with this established sibling pattern, so this is an environment/config difference, not a <code>create_shortcut</code> defect — the parenthetical <code>({FOLDER_ID} in this fixture setup)</code> only holds when the server's <code>DRIVE_FOLDER_ID</code> is actually set to the fixture folder. Cache-invalidation bullet already confirmed via TC-D206's <code>list_files</code> call, which showed the new shortcut with no manual <code>refresh_cache</code>. All three probe files trashed after the test.</p>
+<hr />
+<h3 id="tc-d209-non-existent-target-file-id">TC-D209: Non-existent target file ID<a class="headerlink" href="#tc-d209-non-existent-target-file-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a shortcut named 'QA-Shortcut-Bad' pointing to file ID 'invalidid123xyz' in folder {FOLDER_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- API error propagates cleanly — not a server crash
+- Error message identifies the bad target file ID
+- No shortcut left behind in <code>{FOLDER_ID}</code></p>
+<p><strong>Result (2026-07-22) ✅</strong> — Returned <code>HttpError 404: "File not found: invalidid123xyz."</code> — propagates cleanly, no crash, names the bad ID. Follow-up <code>list_files(folder_id={FOLDER_ID}, mime_type="application/vnd.google-apps.shortcut")</code> returned an empty list — no shortcut left behind.</p>
+<hr />
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
