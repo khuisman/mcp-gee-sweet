@@ -2657,3 +2657,206 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 **Cleanup:** write fixture content back over `{DOC_ID}`; delete the local `qa-update-override.txt` file
 
 **Result (2026-08-10) ✅ PASS — run live against PR #564 (issue #341).** Called with `content_format='markdown'` on `qa-update-override.txt`; no `error`. `get_doc_structure` afterward showed HEADING_1 "Overridden Heading" and paragraph "Paragraph text." Fixture content restored and local file deleted afterward.
+
+---
+
+## `get_doc_as_markdown`
+
+### TC-DOC173: Basic export — headings, styled runs, links
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="# Title\n\nSome **bold** and *italic* and ~~strike~~ text with a [link](https://example.com).\n")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- Returns `doc_id`, `title`, and `markdown`
+- `markdown` contains `# Title`
+- `markdown` contains `**bold**`, `*italic*`, `~~strike~~`, and `[link](https://example.com)`
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** `markdown` returned `"# Title\n\nSome **bold** and *italic* and ~~strike~~ text with a [link](https://example.com).\n\n"` — all checks satisfied.
+
+---
+
+### TC-DOC174: Nested, ordered, and checked bullet lists
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="- top\n    - nested\n- [x] done\n- [ ] todo\n\n1. first\n2. second\n")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` shows "nested" indented under "top" (e.g. two leading spaces before its `- ` marker)
+- `markdown` contains `- [x] done` and `- [ ] todo`
+- `markdown` contains an ordered-list marker (`1. `) for both "first" and "second"
+- No blank line between consecutive list items (a "tight" list)
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** `markdown` returned `"- top\n  - nested\n- [x] done\n- [ ] todo\n1. first\n1. second\n\n"`. All stated checks satisfied literally (both ordered items are marked `1. ` — valid CommonMark, since ordered-list rendering is driven by the first item's number, not a defect). Note for a future test-case tightening pass (not filed as a ticket — matches its own written check): no blank line separates the unordered and ordered lists on the round-trip, unlike the source's blank line.
+
+---
+
+### TC-DOC175: Blockquote nesting
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="> a quoted line\n>> double quoted\n")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains a line prefixed `> ` for "a quoted line"
+- `markdown` contains a line prefixed `> > ` for "double quoted"
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** `markdown` returned `"> a quoted line\n\n> > double quoted\n\n"` — both checks satisfied.
+
+---
+
+### TC-DOC176: Inline code vs. fenced code block
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="See `x` inline.\n\n```\nfull code block\n```\n")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains `` `x` `` inline within the "See ... inline." sentence (not as its own fenced block)
+- `markdown` contains a fenced block (triple backtick) wrapping "full code block"
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** `markdown` returned `"See \`x\` inline.\n\n\`\`\`\nfull code block\n\`\`\`\n\n"` — both checks satisfied.
+
+---
+
+### TC-DOC177: Table with a merged (colspan) header cell
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<table><tr><td colspan=\"2\">Merged</td></tr><tr><td>a</td><td>b</td></tr></table>")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains a pipe-table with a header row, a `| --- | --- |` separator, and a data row `| a | b |`
+- The merged cell's text ("Merged") appears in the first column of the header row; the second header column is blank
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ❌ FAIL — run live against PR #591 (issue #300), round 1.** `markdown` returned `"\n\n| Merged |  |  |\n| --- | --- | --- |\n| a | b |  |\n\n"` — a **3-column** table instead of 2. A phantom placeholder column appears from the colspan merge. Confirms `/code-review high`'s finding on `doc_to_ast.py`'s `_table_elem_to_ast` (builds one `Cell` per raw `tableCells[]` JSON entry unconditionally, not accounting for the phantom placeholder entries Google's API leaves for positions covered by an earlier cell's `rowSpan`/`columnSpan` — a fact this codebase's own `emitter.py` already established). Additional live probe (rowspan, not in this test case but same root cause) is worse: `<table><tr><td rowspan="2">Tall</td><td>b1</td></tr><tr><td>b2</td></tr></table>` exported as `"| Tall | b1 |\n| --- | --- |\n|  |  |\n\n"` — **`b2`'s content is silently lost entirely**, not just misaligned. Blocking finding; commented on PR, handed back to Jay.
+
+**Result (2026-08-15) ✅ PASS — re-verified live against PR #591 (issue #300) fix commit 4adeb03, round 2.** `markdown` returned `"\n\n| Merged |  |\n| --- | --- |\n| a | b |\n\n"` — correct 2-column table, no phantom column. Fixed via `doc_to_ast.py`'s new `covered` position-tracking in `_table_elem_to_ast`.
+
+---
+
+### TC-DOC178: Nested table renders a placeholder, not silently dropped
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<table><tr><td>outer text<table><tr><td>inner</td></tr></table></td></tr></table>")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains "outer text" in the corresponding cell
+- That same cell contains a placeholder phrase (e.g. "nested table omitted") rather than silently losing the inner table's content with no trace
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** `markdown` returned `"\n\n| outer text*(nested table omitted — Markdown tables can't contain a table; use get_doc_structure for full fidelity)* |\n| --- |\n\n"` — both checks satisfied. Minor cosmetic nit (not filed): no space/newline between "outer text" and the placeholder note, so they run together.
+
+---
+
+### TC-DOC179: `include_comments=True` includes only open comments
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="Some anchor text here.\n")`, then `add_doc_comment(doc_id={DOC_ID}, content="please revise", quoted_text="anchor text")` to get `comment_id_1`, and a second `add_doc_comment(doc_id={DOC_ID}, content="resolved note")` to get `comment_id_2`, then `resolve_doc_comment(doc_id={DOC_ID}, comment_id=comment_id_2)`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown including comments"
+
+**Checks**
+- `markdown` contains a `## Comments` section
+- "please revise" and the quoted anchor "anchor text" appear
+- "resolved note" does NOT appear (resolved comments are excluded)
+
+**Cleanup:** write fixture content back over `{DOC_ID}` (this also clears the comments' anchor text, but the comments themselves persist on the file — delete via Drive UI if a clean fixture is required for a later run)
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** Both checks satisfied: "please revise" and quoted "anchor text" present, "resolved note" absent. An unrelated stale open comment ("QA TC-DOC97: anchored note") from earlier fixture pollution also appeared in the section — pre-existing, already tracked under #304, not caused by this PR.
+
+---
+
+### TC-DOC180: `include_comments` omitted defaults to no Comments section
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` does NOT contain `## Comments`, even if the doc has comments from a prior test
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** `markdown` returned `"Some anchor text here.\n\n"` — no `## Comments` section, despite open comments still on the doc from TC-DOC179.
+
+---
+
+### TC-DOC181: Invalid doc_id returns an error, not a crash
+**Prompt**
+> "Export doc nonexistent-doc-id-xyz as Markdown"
+
+**Checks**
+- Returns `{"error": ...}` — no traceback surfaced to the caller
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** Returned `{"error": "<HttpError 404 ... Requested entity was not found...>"}`, no traceback.
+
+---
+
+### TC-DOC182: `local_path` bypasses the response and writes to disk
+**Prompt**
+> "Export doc {DOC_ID} as Markdown, writing the result to <path-to>/qa-md-export.json"
+
+**Checks**
+- Returns `{local_path, doc_id, bytes_written}` (no inline `markdown` field in the response)
+- The file at `<path-to>/qa-md-export.json` exists and its `markdown` field round-trips the doc's actual content
+
+**Cleanup:** delete the local `qa-md-export.json` file
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).** Response was `{"local_path": ..., "bytes_written": 170, "doc_id": ...}` with no inline `markdown` field; the written file's `markdown` field matched the doc's actual content exactly.
+
+---
+
+### TC-DOC183: Rowspan merge preserves the covered row's own trailing cell
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<table><tr><td rowspan=\"2\">Tall</td><td>b1</td></tr><tr><td>b2</td></tr></table>")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains a 2-column pipe table: header row `| Tall | b1 |`, then `| --- | --- |`, then a data row whose second column is `b2` (first column blank — the position "Tall" spans into)
+- `b2` is NOT dropped — this reproduces PR #591 QA round 1's root-cause finding (rowspan/multi-row tables previously had zero test coverage and silently lost the covered row's own real cell)
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300) fix commit 4adeb03, round 2.** `markdown` returned `"\n\n| Tall | b1 |\n| --- | --- |\n|  | b2 |\n\n"` — `b2` preserved in the second column, first column blank.
+
+---
+
+### TC-DOC184: Link URL containing unbalanced parentheses doesn't break the destination
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<p><a href=\"https://en.wikipedia.org/wiki/Foo_(bar)\">link</a></p>")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains `[link](<https://en.wikipedia.org/wiki/Foo_(bar)>)` — the destination is angle-bracket wrapped, not a bare `(...)` that breaks on the unmatched `)`
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300) fix commit 4adeb03, round 2.** `markdown` returned `"[link](<https://en.wikipedia.org/wiki/Foo_(bar)>)\n\n"` — exact match. Regression check: a plain URL with no parens/whitespace (TC-DOC173's `https://example.com`) re-verified unaffected — still renders as a bare, unwrapped destination.
+
+---
+
+### TC-DOC185: Plain paragraph text resembling a block marker is escaped, not reinterpreted
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<p>1. Not actually a list item</p><p># Not a heading either</p>")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains `1\. Not actually a list item` (backslash before the period — not a real ordered-list marker)
+- `markdown` contains `\# Not a heading either` (backslash before the hash — not a real ATX heading)
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300) fix commit 4adeb03, round 2.** `markdown` returned `"1\\. Not actually a list item\n\n\\# Not a heading either\n\n"` — both leading markers escaped as expected.

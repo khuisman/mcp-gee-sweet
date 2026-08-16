@@ -54,6 +54,33 @@ inside another table's cell.
 
 ---
 
+### `get_doc_as_markdown` — nested tables, temporary image URLs, and inline-vs-block code ambiguity
+
+**What:** `get_doc_as_markdown` (#300) has three read-side gaps, each rooted in a genuine
+Markdown-format or Docs-API constraint rather than missing implementation:
+
+1. A table nested inside another table's cell has no Markdown table syntax to express — the
+   mirror image of the write-side limitation above. That cell renders a placeholder note
+   (`*(nested table omitted...)*`) instead.
+2. An inline image resolves to Drive's temporary `contentUri`, which expires (roughly 30
+   minutes). The exported Markdown's `![alt](url)` links go stale if consumed well after
+   generation.
+3. Both inline code (`` `x` ``) and a fenced code block (` ```...``` `) are written to the Docs
+   API identically — a run (or every run in a paragraph) with `font_family="Courier New"` — see
+   `docs/design/markdown-support.md`'s mapping table. There is no other marker to tell them
+   apart on read. `get_doc_as_markdown` treats a paragraph as a fenced block only when *every*
+   run in it is code-styled; a paragraph containing nothing but a single inline code span (no
+   surrounding text) is indistinguishable from a one-line code block and renders as a fenced
+   block either way.
+
+**Why:** (1) and (3) are Docs-representation-level ambiguities, not gaps in this tool's
+traversal; (2) is inherent to how Drive serves inline image bytes.
+
+**Workaround:** For full fidelity on any of these three cases, use `get_doc_structure` (or the
+raw Docs API via `batch_update` passthrough) instead. Related: docs/design/doc-to-markdown.md.
+
+---
+
 ## Google Drive
 
 ### Service account cannot create files in personal Drive
