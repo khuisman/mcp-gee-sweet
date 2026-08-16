@@ -2869,3 +2869,56 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
 **Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300) fix commit 4adeb03, round 2.** `markdown` returned `"1\\. Not actually a list item\n\n\\# Not a heading either\n\n"` — both leading markers escaped as expected.
+
+---
+
+### TC-DOC186: Image mixed into an all-Courier-New paragraph is not dropped (#594)
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<p><img src=\"https://picsum.photos/id/1/200/100\" alt=\"test image\"><code>x = 1</code></p>")` — note `<code>` (not `<span style=...>`), and the image outside `<pre>`: html_parser.py's write side silently drops an `<img>` inside `<pre>` (a deliberate, documented gap — see `docs/images.py`'s module docstring), and `style_doc_range` has no `font_family` param at all, so `<code>` is the only reachable way to get an all-Courier-New paragraph with an image in it through this project's own tools.
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains an image reference `![...](...)` for the image — not silently dropped (alt text will round-trip empty regardless of the source `<img alt="...">` value — a pre-existing, unrelated gap tracked as #508, since `insertInlineImage`'s write path never stamps `title`/`description` on the embedded object; not this test's concern)
+- `markdown` also contains a fenced block (triple backtick) wrapping `x = 1`
+- Both appear in the output, image before the fenced block (source order)
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #599 (issue #594).** `markdown` returned `"![](https://lh7-rt.googleusercontent.com/...)\n\n```\nx = 1\n```\n\n"` — image present and ordered before the fenced code block as expected; alt text came back empty (`![]`, not `![test image]`) due to #508, unrelated to this PR's own fix.
+
+---
+
+### TC-DOC187: Blank spacer paragraph inside a table cell is preserved, not collapsed (#594)
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<table><tr><td>Line 1<br><br>Line 2</td></tr></table>")` — two consecutive `<br>` insert a literal `"\n\n"` into the cell's body text, which the Docs backend splits into three real paragraphs in the cell (`"Line 1"`, an empty one, `"Line 2"`) — this is the only reachable way through this project's write tools to produce a genuinely empty-runs paragraph (as opposed to a `&nbsp;`-only one, which round-trips as non-empty per #402) inside a table cell.
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains the cell's content as `Line 1<br><br>Line 2` (double `<br>` — the blank spacer survives as a second line break)
+- NOT `Line 1<br>Line 2` (single `<br>`) or `Line 1 Line 2` (no separator at all) — either would mean the spacer paragraph was silently dropped
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #599 (issue #594).** `markdown` returned `"\n\n| Line 1<br><br>Line 2 |\n| --- |\n\n"` — double `<br>` preserved, spacer not collapsed, for the mid-cell case this test covers.
+
+⚠️ **Gap found in the same fix, not covered by this test case:** a spacer at a cell's *leading or trailing* edge (rather than sandwiched between two real lines) is still silently dropped. Reproduced live: `write_doc_content(content="<table><tr><td>Trailing test<br><br></td></tr><tr><td><br><br>Leading test</td></tr></table>")` → `get_doc_as_markdown` returned `"\n\n| Trailing test |\n| --- |\n| Leading test |\n\n"` — no `<br><br>` in either row, indistinguishable from a cell with no spacer at all. Root cause: `_cell_content_to_children` (doc_to_ast.py) correctly represents the edge spacer as a leading/trailing `"\n"` in the cell's own text (confirmed via local AST inspection: `'Line 1\n'` / `'\nLine 2'`), but `_render_cell` (ast_to_markdown.py, unmodified by this PR) does `text = "".join(parts).strip()` before the `\n`→`<br>` conversion — `.strip()` removes exactly the leading/trailing newline this PR's own fix just added, so only a mid-cell spacer survives to the rendered Markdown. Reported as a blocking finding on PR #599 rather than fixed here directly, since it needs a code change in the same fix this PR introduces.
+
+Fix (round 2): `_render_cell` now converts `\n` → `<br>` *before* calling `.strip()`, not after — `<br>` isn't whitespace, so a genuine edge spacer survives the strip while incidental surrounding whitespace still gets trimmed as before. See TC-DOC188 below for the dedicated edge-spacer test case this gap was missing.
+
+---
+
+### TC-DOC188: Blank spacer paragraph at a cell's leading/trailing edge is preserved (#594 round 2)
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<table><tr><td>Trailing test<br></td></tr><tr><td><br>Leading test</td></tr></table>")` — a single `<br>` at each edge, matching the single-spacer shape the unit tests (`test_trailing_spacer_paragraph_in_a_cell_leaves_a_trailing_newline` et al.) model; using `<br><br>` here (as the original PR-comment repro and QA round 1's gap report did) inserts two literal `"\n"` characters, which the Docs backend splits into *two* blank paragraphs at the edge, not one — live-confirmed to render as a doubled `<br><br>` rather than the single `<br>` these checks describe. Corrected during round-2 QA re-verification.
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown`'s first data row renders as `| Trailing test<br> |` (the trailing spacer survives as a trailing `<br>`, not dropped to a bare `| Trailing test |`)
+- `markdown`'s second data row renders as `| <br>Leading test |` (the leading spacer survives as a leading `<br>`, not dropped to a bare `| Leading test |`)
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #599 (issue #594) round 2, fix commit 42ed950.** With the corrected single-`<br>`-per-edge setup, `markdown` returned `"\n\n| Trailing test<br> |\n| --- |\n| <br>Leading test |\n\n"` — matches both checks exactly. Also re-confirmed with the original (double-`<br>`) setup as a bonus check: returned `"\n\n| Trailing test<br><br> |\n| --- |\n| <br><br>Leading test |\n\n"` — 2 `<br>` in, 2 `<br>` out, consistent with the 1:1 preservation the mid-cell TC-DOC187 case already established; confirms the fix isn't collapsing multi-paragraph edge spacers either, just previously-reported-as-single-`<br>`-expected case was actually a two-paragraph input.

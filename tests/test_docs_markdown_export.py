@@ -448,6 +448,96 @@ class TestDocToAstTables:
         text = "".join(r.text for r in table.rows[0].cells[0].children)
         assert text == "line1\nline2"
 
+    def test_blank_spacer_paragraph_in_a_cell_is_preserved_not_dropped(self):
+        # A blank spacer paragraph between two lines of real text (#594) used
+        # to be `continue`d past entirely in _cell_content_to_children,
+        # silently collapsing "Line 1", blank, "Line 2" into a single
+        # "\n"-joined "Line 1\nLine 2" — indistinguishable from a cell with no
+        # spacer at all. The spacer must still show up as a second newline.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        {
+                                            "tableCellStyle": {},
+                                            "content": [
+                                                _para("Line 1\n"),
+                                                _para("\n"),
+                                                _para("Line 2\n"),
+                                            ],
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+        table = document_to_ast(doc)[0]
+        text = "".join(r.text for r in table.rows[0].cells[0].children)
+        assert text == "Line 1\n\nLine 2"
+
+    def test_trailing_spacer_paragraph_in_a_cell_leaves_a_trailing_newline(self):
+        # QA round 2 (#594): a spacer at the very end of a cell — as opposed
+        # to one sandwiched between two real lines (the case above) — is a
+        # distinct shape doc_to_ast.py must also represent correctly, since
+        # the bug that reached this far (ast_to_markdown.py's _render_cell
+        # stripping it away) is downstream of this function producing the
+        # right AST in the first place.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        {
+                                            "tableCellStyle": {},
+                                            "content": [_para("Trailing test\n"), _para("\n")],
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+        table = document_to_ast(doc)[0]
+        text = "".join(r.text for r in table.rows[0].cells[0].children)
+        assert text == "Trailing test\n"
+
+    def test_leading_spacer_paragraph_in_a_cell_leaves_a_leading_newline(self):
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        {
+                                            "tableCellStyle": {},
+                                            "content": [_para("\n"), _para("Leading test\n")],
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+        table = document_to_ast(doc)[0]
+        text = "".join(r.text for r in table.rows[0].cells[0].children)
+        assert text == "\nLeading test"
+
 
 class TestAstToMarkdownInline:
     def test_bold_and_link_render_correctly(self):
@@ -472,6 +562,23 @@ class TestAstToMarkdownInline:
     def test_paragraph_entirely_code_styled_renders_as_fenced_block(self):
         nodes = [Paragraph(runs=[Run(text="x = 1", font_family="Courier New")])]
         assert ast_to_markdown(nodes) == "```\nx = 1\n```\n"
+
+    def test_image_mixed_into_code_styled_paragraph_is_not_dropped(self):
+        # An Image sitting alongside Courier-New-styled Runs in the same
+        # paragraph used to vanish entirely (#594) — `_is_code_block` filtered
+        # to Run-only children before checking font_family, so the paragraph
+        # was still correctly classified as a code block, but the fenced-block
+        # render path then built its text from Run items only, dropping the
+        # Image with no trace it was ever there.
+        nodes = [
+            Paragraph(
+                runs=[
+                    Image(src="https://x.com/i.png", alt="pic"),
+                    Run(text="x = 1", font_family="Courier New"),
+                ]
+            )
+        ]
+        assert ast_to_markdown(nodes) == "![pic](https://x.com/i.png)\n\n```\nx = 1\n```\n"
 
     def test_code_run_mixed_with_plain_text_stays_inline_backtick_span(self):
         nodes = [
@@ -631,6 +738,42 @@ class TestAstToMarkdownTables:
     def test_pipe_character_in_cell_is_escaped(self):
         table = self._table([["a|b"]])
         assert "a\\|b" in ast_to_markdown([table])
+
+    def test_multiline_cell_with_blank_spacer_renders_as_double_br(self):
+        # Mirrors test_blank_spacer_paragraph_in_a_cell_is_preserved_not_dropped
+        # one layer up, at the actual Markdown-rendering level: the cell's
+        # internal "\n\n" (real line, spacer, real line) must survive
+        # _render_cell's newline->"<br>" conversion as two consecutive <br>
+        # tags, not collapse into a single one indistinguishable from a cell
+        # with no spacer at all.
+        from mcp_gee_sweet.tools.docs.ast import Cell, Row
+
+        table = Table(rows=[Row(cells=[Cell(children=[Run(text="Line 1\n\nLine 2")])])])
+        md = ast_to_markdown([table])
+        assert "Line 1<br><br>Line 2" in md
+
+    def test_trailing_spacer_in_a_cell_renders_a_trailing_br(self):
+        # #594 QA round 2: _render_cell's `.strip()` used to run BEFORE the
+        # "\n" -> "<br>" conversion, silently eating a spacer newline sitting
+        # at the very edge of the cell's text — indistinguishable from a
+        # cell with no spacer at all. Only the mid-cell case (the test above)
+        # was covered by round 1's own new tests, which is exactly why this
+        # slipped through code review and unit tests and only surfaced in
+        # live QA. strip() must now run AFTER the <br> conversion.
+        from mcp_gee_sweet.tools.docs.ast import Cell, Row
+
+        table = Table(rows=[Row(cells=[Cell(children=[Run(text="Trailing test\n")])])])
+        md = ast_to_markdown([table])
+        assert "Trailing test<br>" in md
+        assert "Trailing test |" not in md
+
+    def test_leading_spacer_in_a_cell_renders_a_leading_br(self):
+        from mcp_gee_sweet.tools.docs.ast import Cell, Row
+
+        table = Table(rows=[Row(cells=[Cell(children=[Run(text="\nLeading test")])])])
+        md = ast_to_markdown([table])
+        assert "<br>Leading test" in md
+        assert "| Leading test" not in md
 
     def test_nested_table_in_cell_renders_placeholder(self):
         from mcp_gee_sweet.tools.docs.ast import Cell, Row
