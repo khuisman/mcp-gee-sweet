@@ -330,12 +330,13 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 ### TC-D137: Share a folder
 
 **Prompt**
+**Playwright: required**
 > "Share folder {FOLDER_ID} with {TEST_PERMISSION_EMAIL} as a writer using share_file"
 
 **Checks**
 - Share succeeds; `successes` contains the entry
 - `list_permissions` on the folder shows the new permission
-- `list_permissions` on a child file already inside `{FOLDER_ID}` (e.g. `{SPREADSHEET_ID}`) shows the same permission — Drive propagates a folder-level grant to its children automatically, so inheritance is confirmable via the same API call rather than the folder's Share dialog in Drive UI
+- A child file's own Share dialog in Drive UI shows the inherited access — `list_permissions` on the child itself does not surface a folder-level grant (confirmed live: the Drive API's `permissions.list` only returns permissions granted directly on the queried resource, not ones inherited from an ancestor folder), so this genuinely has no API alternative
 
 ---
 
