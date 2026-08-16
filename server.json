@@ -1,0 +1,59 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.khuisman/mcp-gee-sweet",
+  "description": "MCP server for Google Workspace — Sheets, Drive, Docs (HTML or Markdown), and Calendar.",
+  "repository": {
+    "url": "https://github.com/khuisman/mcp-gee-sweet",
+    "source": "github"
+  },
+  "version": "0.8.1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "mcp-gee-sweet",
+      "version": "0.8.1",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "AUTH_METHOD",
+          "description": "Pin a single auth method with no fallback, instead of the default waterfall (OAuth, then service account, then Application Default Credentials).",
+          "isRequired": false,
+          "choices": ["oauth", "service_account", "adc"]
+        },
+        {
+          "name": "CREDENTIALS_PATH",
+          "description": "Path to an OAuth Client ID JSON file downloaded from GCP Console, used for the oauth auth method.",
+          "isRequired": false,
+          "default": "credentials.json"
+        },
+        {
+          "name": "TOKEN_PATH",
+          "description": "Path where the OAuth token is cached after the first interactive authorization.",
+          "isRequired": false,
+          "default": "token.json"
+        },
+        {
+          "name": "SERVICE_ACCOUNT_PATH",
+          "description": "Path to a Google service account JSON key file, used for the service_account auth method.",
+          "isRequired": false,
+          "default": "service_account.json"
+        },
+        {
+          "name": "CREDENTIALS_CONFIG",
+          "description": "Base64-encoded service account JSON key, as an alternative to SERVICE_ACCOUNT_PATH for headless or container deployments.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "ENABLED_TOOLS",
+          "description": "Comma-separated list of tool function names to register. Default: all tools enabled.",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}

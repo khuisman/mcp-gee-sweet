@@ -24,6 +24,7 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I22 (`set_cache_ttl`/`get_cache_ttl`, issue #99) | Unit-tested in `tests/test_cache.py` (`set_ttl`/`get_ttl` on all 5 cache classes) — TTL change takes effect on the next lookup without a restart, and is readable back |
 | TC-I23 (`CACHE_VALIDATE_MODIFIED_TIME`, issue #99) | Unit-tested in `tests/test_cache.py` (modified-time comparison in `_get_valid`, `get_modified_time` helper, `fetch_sheets` wiring). Live verification needs an edit path outside the MCP tools' own `mark_dirty` calls (which already invalidate immediately) — see TC-I23 below for the Playwright-based approach |
 | TC-I25, I26 (MCP resources reach lifespan context, issue #363) | Unit-tested in `tests/test_server.py::TestResourcesReadLifespanContextViaGetContext` (monkeypatches `mcp.get_context()`), but that proves only that `server.py`'s own code is correct against a fake — it can't prove the real `mcp` SDK's `FastMCP.get_context()` still returns a real `.request_context.lifespan_context` end-to-end through the actual resource-read protocol. Needs live verification — see TC-I25/TC-I26 below |
+| TC-I29 (`server.json` registry manifest, issue #586) | Not reachable via any MCP tool or prompt — `server.json` is a static repo-root manifest consumed by the external `mcp-publisher` CLI and the official MCP registry, not the running server. Identity/consistency (name, PyPI identifier, `mcp-name` marker) is unit-tested in `tests/test_server_json.py`. Manual / live QA only — verify once, after each stable release that changes `server.json`'s `version` — see TC-I29 below |
 
 ---
 
@@ -237,6 +238,29 @@ Call `ReadMcpResourceTool` with `uri: "spreadsheet://{SPREADSHEET_ID}/info"` aga
 - Returns valid JSON with `title` and a `sheets` array matching the spreadsheet's actual tabs
 
 **Result:** ✅ PASS (2026-07-19, mcp-gee-sweet-sky, TEST_SPREADSHEET_ID). Returned `title: "mcp-gee-sweet-qa-fixtures"` and 4 sheets (`Sales`, `Notes & Misc`, `BrandNew`, `Empty`) matching the fixture's actual tabs — no AttributeError.
+
+---
+
+### TC-I29: `server.json` registry manifest validates and the server is discoverable in the official MCP registry (issue #586)
+
+**Background:** `server.json` at the repo root is a static manifest consumed by the `mcp-publisher` CLI and the official MCP registry (`registry.modelcontextprotocol.io`), not by the running `mcp-gee-sweet` server itself — there's no MCP tool call or prompt that exercises it. Structural consistency against `pyproject.toml`/`README.md` (server name, PyPI package identifier, the `mcp-name` ownership marker) is unit-tested in `tests/test_server_json.py`; this test case covers what only the real CLI and the real registry can confirm: schema validity, PyPI ownership verification via the `mcp-name` marker, and that the publish actually landed.
+
+**Setup**
+- `mcp-publisher` CLI installed (`brew install mcp-publisher`, or the curl-and-tar one-liner in the [publishing quickstart](https://github.com/modelcontextprotocol/registry/blob/main/docs/modelcontextprotocol-io/quickstart.mdx)).
+- `server.json`'s `packages[].version` (and top-level `version`) matches a version of `mcp-gee-sweet` actually published on PyPI, since ownership verification fetches that exact release's README from PyPI.
+- Namespace `io.github.khuisman` authenticated via `mcp-publisher login github` (GitHub device-code flow).
+
+**Action**
+1. `mcp-publisher validate server.json` from the repo root.
+2. `mcp-publisher publish` from the repo root.
+3. `curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.khuisman/mcp-gee-sweet"`
+
+**Checks**
+- Step 1 reports `server.json is valid`, no schema errors.
+- Step 2 succeeds (`✓ Successfully published`) — a failure here most often means the `mcp-name: io.github.khuisman/mcp-gee-sweet` marker isn't present (or isn't on its own line / isn't terminated by a boundary character) in the README of the exact PyPI release `server.json` points at.
+- Step 3's JSON response includes a server entry with `name: "io.github.khuisman/mcp-gee-sweet"` and a `version` matching `server.json`.
+
+**Re-run cadence:** every stable release that bumps `server.json`'s `version` to track the new PyPI release — not once-and-done, since a stale `version` there means the registry keeps pointing at an old release.
 
 ---
 
