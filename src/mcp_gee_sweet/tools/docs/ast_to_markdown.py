@@ -247,8 +247,18 @@ def _render_cell(cell: Cell) -> str:
     # paragraph cell, see doc_to_ast.py's _cell_content_to_children) would
     # break the table's row structure, so it becomes a <br> instead. "|" is
     # escaped for the same structural reason.
-    text = "".join(parts).strip()
-    return text.replace("\n", "<br>").replace("|", "\\|")
+    #
+    # \n -> <br> conversion must happen BEFORE strip(), not after (#594 QA
+    # round 2): a spacer paragraph at the very start or end of a cell (as
+    # opposed to one sandwiched between two real lines) shows up here as a
+    # leading/trailing "\n" on the joined text — stripping first, as an
+    # earlier version of this function did, silently ate exactly that
+    # newline, making an edge spacer indistinguishable from a cell with no
+    # spacer at all. "<br>" is not whitespace, so converting first means
+    # strip() only removes genuine incidental whitespace, never a spacer
+    # that's already been turned into a <br> marker.
+    text = "".join(parts).replace("\n", "<br>").replace("|", "\\|")
+    return text.strip()
 
 
 def _render_comment(comment: dict) -> str:

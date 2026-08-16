@@ -2904,3 +2904,19 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 **Result (2026-08-15) ✅ PASS — run live against PR #599 (issue #594).** `markdown` returned `"\n\n| Line 1<br><br>Line 2 |\n| --- |\n\n"` — double `<br>` preserved, spacer not collapsed, for the mid-cell case this test covers.
 
 ⚠️ **Gap found in the same fix, not covered by this test case:** a spacer at a cell's *leading or trailing* edge (rather than sandwiched between two real lines) is still silently dropped. Reproduced live: `write_doc_content(content="<table><tr><td>Trailing test<br><br></td></tr><tr><td><br><br>Leading test</td></tr></table>")` → `get_doc_as_markdown` returned `"\n\n| Trailing test |\n| --- |\n| Leading test |\n\n"` — no `<br><br>` in either row, indistinguishable from a cell with no spacer at all. Root cause: `_cell_content_to_children` (doc_to_ast.py) correctly represents the edge spacer as a leading/trailing `"\n"` in the cell's own text (confirmed via local AST inspection: `'Line 1\n'` / `'\nLine 2'`), but `_render_cell` (ast_to_markdown.py, unmodified by this PR) does `text = "".join(parts).strip()` before the `\n`→`<br>` conversion — `.strip()` removes exactly the leading/trailing newline this PR's own fix just added, so only a mid-cell spacer survives to the rendered Markdown. Reported as a blocking finding on PR #599 rather than fixed here directly, since it needs a code change in the same fix this PR introduces.
+
+Fix (round 2): `_render_cell` now converts `\n` → `<br>` *before* calling `.strip()`, not after — `<br>` isn't whitespace, so a genuine edge spacer survives the strip while incidental surrounding whitespace still gets trimmed as before. See TC-DOC188 below for the dedicated edge-spacer test case this gap was missing.
+
+---
+
+### TC-DOC188: Blank spacer paragraph at a cell's leading/trailing edge is preserved (#594 round 2)
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<table><tr><td>Trailing test<br><br></td></tr><tr><td><br><br>Leading test</td></tr></table>")`
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown`'s first data row renders as `| Trailing test<br> |` (the trailing spacer survives as a trailing `<br>`, not dropped to a bare `| Trailing test |`)
+- `markdown`'s second data row renders as `| <br>Leading test |` (the leading spacer survives as a leading `<br>`, not dropped to a bare `| Leading test |`)
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
