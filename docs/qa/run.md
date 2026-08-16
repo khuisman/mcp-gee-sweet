@@ -23,6 +23,20 @@ To resume an interrupted run: paste the prompt and add "Resume from `docs/qa/res
 
 Playwright is optional at the run level. Whether a test requires visual verification is a **per-test-case decision**, marked in the test file itself with `**Playwright: required**`. The conductor follows those tags — it does not decide at runtime which tests get visual verification.
 
+### Tiers (authoring reference)
+
+Three tiers replace the earlier "visual whenever visual is possible" guidance (which produced near-zero-signal screenshots on read-only/error-path/count tests — see the v0.8.0 retro's finding #1). Only **Required** corresponds to an actual tag on the test case; **Spot-check** and **Skip** are authoring/runtime guidance, not tags.
+
+| Tier | When to use | Tag the test case? | Examples |
+|---|---|---|---|
+| **Required** | The check verifies a mutation with a visual signature the API-level response can't fully confirm — formatting, hyperlinks, images, charts, layout, table-cell run formatting, create/delete/move confirmed in UI, cache invalidation checks | Yes — `**Playwright: required**` on the Prompt line | `format_cells`, `freeze`, `merge`, `add_chart`, `delete_file`, `write_doc_content` tables, `create_event`, `style_doc_range` (font size, hyperlinks) |
+| **Spot-check** | An API response looks unexpected, or a cache discrepancy is suspected — a runtime judgment call during the run, not a fixed property of the test case | No | Any time the API says success but behavior seems wrong |
+| **Skip** | Read-only, error paths, count/pagination, cache-hit-only, unit-tested paths, or a mutation whose visual signature the API response already fully confirms (e.g. plain-paragraph bold/italic runs, checkbox glyphs as literal text, `namedStyleType`, Drive file metadata) | No | `get_sheet_data`, `list_events`, error returns, `create_folder`/`rename_file` (confirmed via `list_files`/`get_file_metadata` instead — see Drive fixture note below), row/column counts |
+
+A test case's Checks list is the source of truth: if every listed check is answerable from the tool's own response (or a follow-up read-only call), it's Skip even if the mutation *sounds* visual. If at least one check can only be answered by looking at the rendered result, it's Required. When in doubt, prefer Required — the cost of an unnecessary screenshot is lower than a silently-unverified regression.
+
+**Drive mutations are Skip by default policy, not by oversight.** Drive's UI mostly just reflects API-returned metadata directly (file name, mimeType, trashed state, parent), so `list_files`/`get_file_metadata` is the confirmation source rather than a screenshot — this is documented per-case in `docs/qa/tests/drive_*.md` Result entries (e.g. TC-D at drive_files.md's `create_shortcut` test, which uses the shortcut mimeType instead of a screenshot). Permission/sharing changes follow the same policy — see "Known limitations" below.
+
 ### How it works (authoring reference)
 
 When a test case is tagged `**Playwright: required**`, after the tool call the conductor:
