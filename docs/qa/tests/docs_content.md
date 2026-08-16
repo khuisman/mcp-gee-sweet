@@ -2879,11 +2879,13 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 > "Export doc {DOC_ID} as Markdown"
 
 **Checks**
-- `markdown` contains `![test image](https://picsum.photos/id/1/200/100)` for the image — not silently dropped
+- `markdown` contains an image reference `![...](...)` for the image — not silently dropped (alt text will round-trip empty regardless of the source `<img alt="...">` value — a pre-existing, unrelated gap tracked as #508, since `insertInlineImage`'s write path never stamps `title`/`description` on the embedded object; not this test's concern)
 - `markdown` also contains a fenced block (triple backtick) wrapping `x = 1`
 - Both appear in the output, image before the fenced block (source order)
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #599 (issue #594).** `markdown` returned `"![](https://lh7-rt.googleusercontent.com/...)\n\n```\nx = 1\n```\n\n"` — image present and ordered before the fenced code block as expected; alt text came back empty (`![]`, not `![test image]`) due to #508, unrelated to this PR's own fix.
 
 ---
 
@@ -2898,3 +2900,7 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 - NOT `Line 1<br>Line 2` (single `<br>`) or `Line 1 Line 2` (no separator at all) — either would mean the spacer paragraph was silently dropped
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #599 (issue #594).** `markdown` returned `"\n\n| Line 1<br><br>Line 2 |\n| --- |\n\n"` — double `<br>` preserved, spacer not collapsed, for the mid-cell case this test covers.
+
+⚠️ **Gap found in the same fix, not covered by this test case:** a spacer at a cell's *leading or trailing* edge (rather than sandwiched between two real lines) is still silently dropped. Reproduced live: `write_doc_content(content="<table><tr><td>Trailing test<br><br></td></tr><tr><td><br><br>Leading test</td></tr></table>")` → `get_doc_as_markdown` returned `"\n\n| Trailing test |\n| --- |\n| Leading test |\n\n"` — no `<br><br>` in either row, indistinguishable from a cell with no spacer at all. Root cause: `_cell_content_to_children` (doc_to_ast.py) correctly represents the edge spacer as a leading/trailing `"\n"` in the cell's own text (confirmed via local AST inspection: `'Line 1\n'` / `'\nLine 2'`), but `_render_cell` (ast_to_markdown.py, unmodified by this PR) does `text = "".join(parts).strip()` before the `\n`→`<br>` conversion — `.strip()` removes exactly the leading/trailing newline this PR's own fix just added, so only a mid-cell spacer survives to the rendered Markdown. Reported as a blocking finding on PR #599 rather than fixed here directly, since it needs a code change in the same fix this PR introduces.
