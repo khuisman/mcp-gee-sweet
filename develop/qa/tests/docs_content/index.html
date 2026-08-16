@@ -3376,6 +3376,160 @@ Run against a live sandbox scoped to only <code>create_doc,create_doc_from_file,
 - No <code>error</code>; <code>get_doc_structure</code> shows HEADING_1 "Overridden Heading" and paragraph "Paragraph text."</p>
 <p><strong>Cleanup:</strong> write fixture content back over <code>{DOC_ID}</code>; delete the local <code>qa-update-override.txt</code> file</p>
 <p><strong>Result (2026-08-10) ✅ PASS — run live against PR #564 (issue #341).</strong> Called with <code>content_format='markdown'</code> on <code>qa-update-override.txt</code>; no <code>error</code>. <code>get_doc_structure</code> afterward showed HEADING_1 "Overridden Heading" and paragraph "Paragraph text." Fixture content restored and local file deleted afterward.</p>
+<hr />
+<h2 id="get_doc_as_markdown"><code>get_doc_as_markdown</code><a class="headerlink" href="#get_doc_as_markdown" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc173-basic-export-headings-styled-runs-links">TC-DOC173: Basic export — headings, styled runs, links<a class="headerlink" href="#tc-doc173-basic-export-headings-styled-runs-links" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="# Title\n\nSome **bold** and *italic* and ~~strike~~ text with a [link](https://example.com).\n")</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export doc {DOC_ID} as Markdown"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>doc_id</code>, <code>title</code>, and <code>markdown</code>
+- <code>markdown</code> contains <code># Title</code>
+- <code>markdown</code> contains <code>**bold**</code>, <code>*italic*</code>, <code>~~strike~~</code>, and <code>[link](https://example.com)</code></p>
+<p><strong>Cleanup:</strong> write fixture content back over <code>{DOC_ID}</code></p>
+<p><strong>Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).</strong> <code>markdown</code> returned <code>"# Title\n\nSome **bold** and *italic* and ~~strike~~ text with a [link](https://example.com).\n\n"</code> — all checks satisfied.</p>
+<hr />
+<h3 id="tc-doc174-nested-ordered-and-checked-bullet-lists">TC-DOC174: Nested, ordered, and checked bullet lists<a class="headerlink" href="#tc-doc174-nested-ordered-and-checked-bullet-lists" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="- top\n    - nested\n- [x] done\n- [ ] todo\n\n1. first\n2. second\n")</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export doc {DOC_ID} as Markdown"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>markdown</code> shows "nested" indented under "top" (e.g. two leading spaces before its <code>-</code> marker)
+- <code>markdown</code> contains <code>- [x] done</code> and <code>- [ ] todo</code>
+- <code>markdown</code> contains an ordered-list marker (<code>1.</code>) for both "first" and "second"
+- No blank line between consecutive list items (a "tight" list)</p>
+<p><strong>Cleanup:</strong> write fixture content back over <code>{DOC_ID}</code></p>
+<p><strong>Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).</strong> <code>markdown</code> returned <code>"- top\n  - nested\n- [x] done\n- [ ] todo\n1. first\n1. second\n\n"</code>. All stated checks satisfied literally (both ordered items are marked <code>1.</code> — valid CommonMark, since ordered-list rendering is driven by the first item's number, not a defect). Note for a future test-case tightening pass (not filed as a ticket — matches its own written check): no blank line separates the unordered and ordered lists on the round-trip, unlike the source's blank line.</p>
+<hr />
+<h3 id="tc-doc175-blockquote-nesting">TC-DOC175: Blockquote nesting<a class="headerlink" href="#tc-doc175-blockquote-nesting" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="&gt; a quoted line\n&gt;&gt; double quoted\n")</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export doc {DOC_ID} as Markdown"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>markdown</code> contains a line prefixed <code>&gt;</code> for "a quoted line"
+- <code>markdown</code> contains a line prefixed <code>&gt; &gt;</code> for "double quoted"</p>
+<p><strong>Cleanup:</strong> write fixture content back over <code>{DOC_ID}</code></p>
+<p><strong>Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).</strong> <code>markdown</code> returned <code>"&gt; a quoted line\n\n&gt; &gt; double quoted\n\n"</code> — both checks satisfied.</p>
+<hr />
+<h3 id="tc-doc176-inline-code-vs-fenced-code-block">TC-DOC176: Inline code vs. fenced code block<a class="headerlink" href="#tc-doc176-inline-code-vs-fenced-code-block" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="See</code>x<code>inline.\n\n```\nfull code block\n```\n")</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export doc {DOC_ID} as Markdown"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>markdown</code> contains <code>`x`</code> inline within the "See ... inline." sentence (not as its own fenced block)
+- <code>markdown</code> contains a fenced block (triple backtick) wrapping "full code block"</p>
+<p><strong>Cleanup:</strong> write fixture content back over <code>{DOC_ID}</code></p>
+<p><strong>Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).</strong> <code>markdown</code> returned <code>"See \</code>x` inline.\n\n```\nfull code block\n```\n\n"` — both checks satisfied.</p>
+<hr />
+<h3 id="tc-doc177-table-with-a-merged-colspan-header-cell">TC-DOC177: Table with a merged (colspan) header cell<a class="headerlink" href="#tc-doc177-table-with-a-merged-colspan-header-cell" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> raw HTML via <code>write_doc_content(doc_id={DOC_ID}, content_format='html', content="&lt;table&gt;&lt;tr&gt;&lt;td colspan=\"2\"&gt;Merged&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;a&lt;/td&gt;&lt;td&gt;b&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;")</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export doc {DOC_ID} as Markdown"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>markdown</code> contains a pipe-table with a header row, a <code>| --- | --- |</code> separator, and a data row <code>| a | b |</code>
+- The merged cell's text ("Merged") appears in the first column of the header row; the second header column is blank</p>
+<p><strong>Cleanup:</strong> write fixture content back over <code>{DOC_ID}</code></p>
+<p><strong>Result (2026-08-15) ❌ FAIL — run live against PR #591 (issue #300), round 1.</strong> <code>markdown</code> returned <code>"\n\n| Merged |  |  |\n| --- | --- | --- |\n| a | b |  |\n\n"</code> — a <strong>3-column</strong> table instead of 2. A phantom placeholder column appears from the colspan merge. Confirms <code>/code-review high</code>'s finding on <code>doc_to_ast.py</code>'s <code>_table_elem_to_ast</code> (builds one <code>Cell</code> per raw <code>tableCells[]</code> JSON entry unconditionally, not accounting for the phantom placeholder entries Google's API leaves for positions covered by an earlier cell's <code>rowSpan</code>/<code>columnSpan</code> — a fact this codebase's own <code>emitter.py</code> already established). Additional live probe (rowspan, not in this test case but same root cause) is worse: <code>&lt;table&gt;&lt;tr&gt;&lt;td rowspan="2"&gt;Tall&lt;/td&gt;&lt;td&gt;b1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;b2&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code> exported as <code>"| Tall | b1 |\n| --- | --- |\n|  |  |\n\n"</code> — <strong><code>b2</code>'s content is silently lost entirely</strong>, not just misaligned. Blocking finding; commented on PR, handed back to Jay.</p>
+<p><strong>Result (2026-08-15) ✅ PASS — re-verified live against PR #591 (issue #300) fix commit 4adeb03, round 2.</strong> <code>markdown</code> returned <code>"\n\n| Merged |  |\n| --- | --- |\n| a | b |\n\n"</code> — correct 2-column table, no phantom column. Fixed via <code>doc_to_ast.py</code>'s new <code>covered</code> position-tracking in <code>_table_elem_to_ast</code>.</p>
+<hr />
+<h3 id="tc-doc178-nested-table-renders-a-placeholder-not-silently-dropped">TC-DOC178: Nested table renders a placeholder, not silently dropped<a class="headerlink" href="#tc-doc178-nested-table-renders-a-placeholder-not-silently-dropped" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> raw HTML via <code>write_doc_content(doc_id={DOC_ID}, content_format='html', content="&lt;table&gt;&lt;tr&gt;&lt;td&gt;outer text&lt;table&gt;&lt;tr&gt;&lt;td&gt;inner&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;")</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export doc {DOC_ID} as Markdown"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>markdown</code> contains "outer text" in the corresponding cell
+- That same cell contains a placeholder phrase (e.g. "nested table omitted") rather than silently losing the inner table's content with no trace</p>
+<p><strong>Cleanup:</strong> write fixture content back over <code>{DOC_ID}</code></p>
+<p><strong>Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).</strong> <code>markdown</code> returned <code>"\n\n| outer text*(nested table omitted — Markdown tables can't contain a table; use get_doc_structure for full fidelity)* |\n| --- |\n\n"</code> — both checks satisfied. Minor cosmetic nit (not filed): no space/newline between "outer text" and the placeholder note, so they run together.</p>
+<hr />
+<h3 id="tc-doc179-include_commentstrue-includes-only-open-comments">TC-DOC179: <code>include_comments=True</code> includes only open comments<a class="headerlink" href="#tc-doc179-include_commentstrue-includes-only-open-comments" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="Some anchor text here.\n")</code>, then <code>add_doc_comment(doc_id={DOC_ID}, content="please revise", quoted_text="anchor text")</code> to get <code>comment_id_1</code>, and a second <code>add_doc_comment(doc_id={DOC_ID}, content="resolved note")</code> to get <code>comment_id_2</code>, then <code>resolve_doc_comment(doc_id={DOC_ID}, comment_id=comment_id_2)</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export doc {DOC_ID} as Markdown including comments"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>markdown</code> contains a <code>## Comments</code> section
+- "please revise" and the quoted anchor "anchor text" appear
+- "resolved note" does NOT appear (resolved comments are excluded)</p>
+<p><strong>Cleanup:</strong> write fixture content back over <code>{DOC_ID}</code> (this also clears the comments' anchor text, but the comments themselves persist on the file — delete via Drive UI if a clean fixture is required for a later run)</p>
+<p><strong>Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).</strong> Both checks satisfied: "please revise" and quoted "anchor text" present, "resolved note" absent. An unrelated stale open comment ("QA TC-DOC97: anchored note") from earlier fixture pollution also appeared in the section — pre-existing, already tracked under #304, not caused by this PR.</p>
+<hr />
+<h3 id="tc-doc180-include_comments-omitted-defaults-to-no-comments-section">TC-DOC180: <code>include_comments</code> omitted defaults to no Comments section<a class="headerlink" href="#tc-doc180-include_comments-omitted-defaults-to-no-comments-section" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export doc {DOC_ID} as Markdown"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>markdown</code> does NOT contain <code>## Comments</code>, even if the doc has comments from a prior test</p>
+<p><strong>Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).</strong> <code>markdown</code> returned <code>"Some anchor text here.\n\n"</code> — no <code>## Comments</code> section, despite open comments still on the doc from TC-DOC179.</p>
+<hr />
+<h3 id="tc-doc181-invalid-doc_id-returns-an-error-not-a-crash">TC-DOC181: Invalid doc_id returns an error, not a crash<a class="headerlink" href="#tc-doc181-invalid-doc_id-returns-an-error-not-a-crash" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export doc nonexistent-doc-id-xyz as Markdown"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": ...}</code> — no traceback surfaced to the caller</p>
+<p><strong>Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).</strong> Returned <code>{"error": "&lt;HttpError 404 ... Requested entity was not found...&gt;"}</code>, no traceback.</p>
+<hr />
+<h3 id="tc-doc182-local_path-bypasses-the-response-and-writes-to-disk">TC-DOC182: <code>local_path</code> bypasses the response and writes to disk<a class="headerlink" href="#tc-doc182-local_path-bypasses-the-response-and-writes-to-disk" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export doc {DOC_ID} as Markdown, writing the result to <path-to>/qa-md-export.json"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{local_path, doc_id, bytes_written}</code> (no inline <code>markdown</code> field in the response)
+- The file at <code>&lt;path-to&gt;/qa-md-export.json</code> exists and its <code>markdown</code> field round-trips the doc's actual content</p>
+<p><strong>Cleanup:</strong> delete the local <code>qa-md-export.json</code> file</p>
+<p><strong>Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300).</strong> Response was <code>{"local_path": ..., "bytes_written": 170, "doc_id": ...}</code> with no inline <code>markdown</code> field; the written file's <code>markdown</code> field matched the doc's actual content exactly.</p>
+<hr />
+<h3 id="tc-doc183-rowspan-merge-preserves-the-covered-rows-own-trailing-cell">TC-DOC183: Rowspan merge preserves the covered row's own trailing cell<a class="headerlink" href="#tc-doc183-rowspan-merge-preserves-the-covered-rows-own-trailing-cell" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> raw HTML via <code>write_doc_content(doc_id={DOC_ID}, content_format='html', content="&lt;table&gt;&lt;tr&gt;&lt;td rowspan=\"2\"&gt;Tall&lt;/td&gt;&lt;td&gt;b1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;b2&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;")</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export doc {DOC_ID} as Markdown"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>markdown</code> contains a 2-column pipe table: header row <code>| Tall | b1 |</code>, then <code>| --- | --- |</code>, then a data row whose second column is <code>b2</code> (first column blank — the position "Tall" spans into)
+- <code>b2</code> is NOT dropped — this reproduces PR #591 QA round 1's root-cause finding (rowspan/multi-row tables previously had zero test coverage and silently lost the covered row's own real cell)</p>
+<p><strong>Cleanup:</strong> write fixture content back over <code>{DOC_ID}</code></p>
+<p><strong>Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300) fix commit 4adeb03, round 2.</strong> <code>markdown</code> returned <code>"\n\n| Tall | b1 |\n| --- | --- |\n|  | b2 |\n\n"</code> — <code>b2</code> preserved in the second column, first column blank.</p>
+<hr />
+<h3 id="tc-doc184-link-url-containing-unbalanced-parentheses-doesnt-break-the-destination">TC-DOC184: Link URL containing unbalanced parentheses doesn't break the destination<a class="headerlink" href="#tc-doc184-link-url-containing-unbalanced-parentheses-doesnt-break-the-destination" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> raw HTML via <code>write_doc_content(doc_id={DOC_ID}, content_format='html', content="&lt;p&gt;&lt;a href=\"https://en.wikipedia.org/wiki/Foo_(bar)\"&gt;link&lt;/a&gt;&lt;/p&gt;")</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export doc {DOC_ID} as Markdown"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>markdown</code> contains <code>[link](&lt;https://en.wikipedia.org/wiki/Foo_(bar)&gt;)</code> — the destination is angle-bracket wrapped, not a bare <code>(...)</code> that breaks on the unmatched <code>)</code></p>
+<p><strong>Cleanup:</strong> write fixture content back over <code>{DOC_ID}</code></p>
+<p><strong>Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300) fix commit 4adeb03, round 2.</strong> <code>markdown</code> returned <code>"[link](&lt;https://en.wikipedia.org/wiki/Foo_(bar)&gt;)\n\n"</code> — exact match. Regression check: a plain URL with no parens/whitespace (TC-DOC173's <code>https://example.com</code>) re-verified unaffected — still renders as a bare, unwrapped destination.</p>
+<hr />
+<h3 id="tc-doc185-plain-paragraph-text-resembling-a-block-marker-is-escaped-not-reinterpreted">TC-DOC185: Plain paragraph text resembling a block marker is escaped, not reinterpreted<a class="headerlink" href="#tc-doc185-plain-paragraph-text-resembling-a-block-marker-is-escaped-not-reinterpreted" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> raw HTML via <code>write_doc_content(doc_id={DOC_ID}, content_format='html', content="&lt;p&gt;1. Not actually a list item&lt;/p&gt;&lt;p&gt;# Not a heading either&lt;/p&gt;")</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Export doc {DOC_ID} as Markdown"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>markdown</code> contains <code>1\. Not actually a list item</code> (backslash before the period — not a real ordered-list marker)
+- <code>markdown</code> contains <code>\# Not a heading either</code> (backslash before the hash — not a real ATX heading)</p>
+<p><strong>Cleanup:</strong> write fixture content back over <code>{DOC_ID}</code></p>
+<p><strong>Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300) fix commit 4adeb03, round 2.</strong> <code>markdown</code> returned <code>"1\\. Not actually a list item\n\n\\# Not a heading either\n\n"</code> — both leading markers escaped as expected.</p>
 
 
 
