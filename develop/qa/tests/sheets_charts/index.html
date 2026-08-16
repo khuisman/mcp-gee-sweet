@@ -1533,7 +1533,8 @@
 <hr />
 <h2 id="add_chart"><code>add_chart</code><a class="headerlink" href="#add_chart" title="Permanent link">&para;</a></h2>
 <h3 id="tc-c01-column-chart">TC-C01: COLUMN chart<a class="headerlink" href="#tc-c01-column-chart" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Add a column chart to the Sales sheet of {SPREADSHEET_ID} using data range A1:D5 with title 'Sales by Quarter'"</p>
 </blockquote>
@@ -1541,6 +1542,7 @@
 - Chart appears on the Sales sheet
 - Response includes a <code>chartId</code>
 - Chart type is COLUMN</p>
+<p><strong>Result (2026-08-15) ✅ PASS</strong> — <code>add_chart</code> returned <code>chartId: 1767578399</code>, <code>basicChart.chartType: COLUMN</code>. Playwright screenshot of the Sales sheet confirms the "Sales by Quarter" column chart rendered correctly with Q1/Q2/Q3 series grouped by product.</p>
 <hr />
 <h3 id="tc-c02-bar-chart">TC-C02: BAR chart<a class="headerlink" href="#tc-c02-bar-chart" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1635,7 +1637,8 @@
 - No API call made</p>
 <hr />
 <h3 id="tc-c12-custom-position-and-size">TC-C12: Custom position and size<a class="headerlink" href="#tc-c12-custom-position-and-size" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Add a line chart to the Sales sheet of {SPREADSHEET_ID} using range A1:D5, positioned at x=100, y=200, width=400, height=300"</p>
 </blockquote>

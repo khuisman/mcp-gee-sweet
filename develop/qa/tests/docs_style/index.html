@@ -1565,7 +1565,8 @@
 <hr />
 <h3 id="tc-doc29-apply-font_size-destructive">TC-DOC29: Apply font_size ⚠️ destructive<a class="headerlink" href="#tc-doc29-apply-font_size-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a paragraph; note its range</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Set font size to 18pt for range {start}–{end} in doc {DOC_ID}"</p>
 </blockquote>
@@ -1577,7 +1578,8 @@
 <hr />
 <h3 id="tc-doc30-apply-link_url-destructive">TC-DOC30: Apply link_url ⚠️ destructive<a class="headerlink" href="#tc-doc30-apply-link_url-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a paragraph 'Visit example\n'; note the range covering 'example'</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Apply link_url 'https://example.com' to range {start}–{end} in doc {DOC_ID}"</p>
 </blockquote>
@@ -1623,7 +1625,8 @@
 <p><strong>Background:</strong> TC-DOC30 above covers <em>setting</em> a link. Clearing one (<code>link_url: null</code>, documented in the tool's own docstring as the way to do it) always failed with <code>HttpError 400 ... "Invalid requests[0].updateTextStyle: Links must include at least one type."</code> instead. <code>_text_style_and_fields</code> (<code>style.py</code>, shared with <code>insert_softbreak_paragraph</code> in <code>editing.py</code>) built the clearing request as <code>textStyle.link = {}</code> — the Docs API rejects an empty <code>Link</code> object outright, confirmed live via a direct API call reproducing the exact reported error. Fixed by omitting the <code>link</code> key from <code>textStyle</code> entirely while still naming <code>"link"</code> in the <code>fields</code> mask — the correct way to reset a nested message field to its Docs API default (no link) — confirmed live this actually clears an existing link without error. Both call sites' own <code>if text_style: requests.append(...)</code> guard also had to change to <code>if fields:</code>: a link-clear-only call now legitimately produces an empty <code>text_style</code> dict alongside a non-empty <code>fields</code> list (<code>["link"]</code>), and the old guard would have silently dropped the request rather than sending it.</p>
 <h3 id="tc-doc139-clearing-a-link-via-link_url-null-removes-it-instead-of-erroring-destructive">TC-DOC139: Clearing a link via <code>link_url: null</code> removes it instead of erroring ⚠️ destructive<a class="headerlink" href="#tc-doc139-clearing-a-link-via-link_url-null-removes-it-instead-of-erroring-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a paragraph "Visit example\n" in <code>{DOC_ID}</code>; apply <code>link_url: "https://example.com"</code> to the range covering "example" (same setup as TC-DOC30); note that range.</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Clear the hyperlink on range {start}–{end} in doc {DOC_ID} by setting link_url to null."</p>
 </blockquote>
@@ -1665,7 +1668,8 @@
 <hr />
 <h3 id="tc-doc156-create_paragraph_bullets-fixes-a-markdown-flattened-nested-list-by-promoting-specific-paragraphs-to-a-deeper-nesting-level-334s-original-repro-destructive">TC-DOC156: <code>create_paragraph_bullets</code> fixes a markdown-flattened nested list by promoting specific paragraphs to a deeper nesting level (#334's original repro) ⚠️ destructive<a class="headerlink" href="#tc-doc156-create_paragraph_bullets-fixes-a-markdown-flattened-nested-list-by-promoting-specific-paragraphs-to-a-deeper-nesting-level-334s-original-repro-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> issue #334 — <code>create_doc</code>'s markdown-to-Doc conversion flattens an indented sub-list under a numbered item into the SAME single-level list (the six settings in the issue's own repro became items 3-8 of one flat list instead of a nested sub-list under item 2), and until now there was no way to fix this after the fact short of delete-and-retype as plain text. This test exercises the fix: <code>get_doc_structure</code>'s new <code>bullet</code> field to detect the flattening, then <code>create_paragraph_bullets</code> to repair it.</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Write this Markdown to doc {DOC_ID}: '1. Select the snapshot\n2. Configure the instance:\n   - Instance identifier\n   - Instance class\n   - Storage encryption\n3. Click Restore\n', then show me its structure."</p>
 </blockquote>

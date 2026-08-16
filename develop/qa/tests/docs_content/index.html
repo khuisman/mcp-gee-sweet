@@ -1815,7 +1815,8 @@ Fetch-path call raised: <code>get_doc_content: the response is 49700 characters,
 <hr />
 <h3 id="tc-doc32-th-cells-produce-bold-runs-destructive">TC-DOC32: <code>&lt;th&gt;</code> cells produce bold runs ⚠️ destructive<a class="headerlink" href="#tc-doc32-th-cells-produce-bold-runs-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> Regression test for #65 — <code>&lt;th&gt;</code> previously ignored; cells had no bold styling.</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;th&gt;Name&lt;/th&gt;&lt;th&gt;Value&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Alpha&lt;/td&gt;&lt;td&gt;1&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
 </blockquote>
@@ -1830,7 +1831,8 @@ Fetch-path call raised: <code>get_doc_content: the response is 49700 characters,
 <hr />
 <h3 id="tc-doc33-inline-formatting-inside-td-cells-destructive">TC-DOC33: Inline formatting inside <code>&lt;td&gt;</code> cells ⚠️ destructive<a class="headerlink" href="#tc-doc33-inline-formatting-inside-td-cells-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> Regression test for #69 — inline formatting inside table cells was previously lost.</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;bold&lt;/b&gt; plain &lt;i&gt;italic&lt;/i&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
 </blockquote>
@@ -1896,7 +1898,8 @@ Fetch-path call raised: <code>get_doc_content: the response is 49700 characters,
 <hr />
 <h3 id="tc-doc37-combined-rowspan-and-colspan-in-the-same-table-destructive">TC-DOC37: Combined <code>rowspan</code> and <code>colspan</code> in the same table ⚠️ destructive<a class="headerlink" href="#tc-doc37-combined-rowspan-and-colspan-in-the-same-table-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> verify that a single cell carrying both <code>rowspan</code> and <code>colspan</code> emits exactly one <code>mergeTableCells</code> request with both dimensions, and that physical column tracking stays correct for subsequent cells in the same row.</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td rowspan=\"2\" colspan=\"2\"&gt;Big&lt;/td&gt;&lt;td&gt;R0C2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;R1C2&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
 </blockquote>
@@ -1912,7 +1915,8 @@ Fetch-path call raised: <code>get_doc_content: the response is 49700 characters,
 <hr />
 <h3 id="tc-doc38-rowspan-with-header-row-phantom-not-filled-real-cells-in-correct-columns-destructive">TC-DOC38: <code>rowspan</code> with header row — phantom not filled, real cells in correct columns ⚠️ destructive<a class="headerlink" href="#tc-doc38-rowspan-with-header-row-phantom-not-filled-real-cells-in-correct-columns-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> edge-case verification that when a rowspan pushes subsequent real cells to higher logical columns, the physical-to-AST index mapping resolves correctly and no cell gets the wrong content.</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;th&gt;Name&lt;/th&gt;&lt;th&gt;Type&lt;/th&gt;&lt;th&gt;Notes&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td rowspan=\"2\"&gt;Alpha&lt;/td&gt;&lt;td&gt;A&lt;/td&gt;&lt;td&gt;first&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;B&lt;/td&gt;&lt;td&gt;second&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
 </blockquote>
@@ -1949,8 +1953,7 @@ Fetch-path call raised: <code>get_doc_content: the response is 49700 characters,
 </blockquote>
 <p><strong>Checks</strong>
 - <code>get_doc_structure</code> shows a run with <code>bold: true</code> for 'bold'
-- A run with <code>italic: true</code> for 'italic'
-- 🔍 Visual check: bold and italic render correctly in Google Docs</p>
+- A run with <code>italic: true</code> for 'italic'</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
 <p><strong>Result (2026-06-19) ✅ PASS</strong>
 - Run <code>"bold"</code> had <code>bold: true</code>; run <code>"italic"</code> had <code>italic: true</code>.</p>
@@ -1962,8 +1965,7 @@ Fetch-path call raised: <code>get_doc_content: the response is 49700 characters,
 </blockquote>
 <p><strong>Checks</strong>
 - Doc contains <code>☑ Done item</code> and <code>☐ Pending item</code> as bullet items
-- Plain item has no checkbox glyph
-- 🔍 Visual check: checkboxes appear in the doc</p>
+- Plain item has no checkbox glyph</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
 <p><strong>Result (2026-06-19) ✅ PASS</strong>
 - <code>☑ Done item</code>, <code>☐ Pending item</code>, <code>Plain item</code> (no glyph) confirmed via <code>get_doc_structure</code>.
@@ -1998,7 +2000,8 @@ Fetch-path call raised: <code>get_doc_content: the response is 49700 characters,
 <hr />
 <h3 id="tc-doc44-create_doc_from_file-with-a-local-md-file-requires-oauth-destructive">TC-DOC44: <code>create_doc_from_file</code> with a local .md file ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc44-create_doc_from_file-with-a-local-md-file-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-d195-create-doc.md</code> from the repo</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d195-create-doc.md"</p>
 </blockquote>
@@ -2058,8 +2061,7 @@ Fetch-path call raised: <code>get_doc_content: the response is 49700 characters,
 <p><strong>Checks</strong>
 - Call succeeds with no API error
 - <code>get_doc_structure</code> shows the first paragraph with <code>namedStyleType: "TITLE"</code> and text "My Document Title"
-- Second paragraph has <code>namedStyleType: "NORMAL_TEXT"</code> and text "Body paragraph."
-- 🔍 Visual check: "My Document Title" appears in the TITLE named style (large, prominent) in Google Docs</p>
+- Second paragraph has <code>namedStyleType: "NORMAL_TEXT"</code> and text "Body paragraph."</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
 <p><strong>Result (2026-06-19) ✅ PASS</strong>
 - First paragraph <code>namedStyleType: "TITLE"</code>, text "My Document Title" confirmed via <code>get_doc_structure</code>.
@@ -2174,7 +2176,8 @@ Fetch-path call raised: <code>get_doc_content: the response is 49700 characters,
 <p><strong>Result (2026-06-19) ✅</strong> <code>write_doc_content</code> succeeded. <code>get_doc_structure</code> shows outer table: 1 row × 1 col, cell [0,0] startIndex=4 endIndex=17 text="" (empty text run confirms cell holds nested table, not text). Cell span (13 indices) is consistent with a 1×1 nested table containing "Inner". Note: <code>get_doc_structure</code> reports top-level body elements only; nested table cell content is not exposed by this tool.</p>
 <hr />
 <h3 id="tc-doc49-nested-table-alongside-regular-cells-destructive">TC-DOC49: Nested table alongside regular cells ⚠️ destructive<a class="headerlink" href="#tc-doc49-nested-table-alongside-regular-cells-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;Label&lt;/td&gt;&lt;td&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Val A&lt;/td&gt;&lt;td&gt;Val B&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
 </blockquote>
@@ -2187,7 +2190,8 @@ Fetch-path call raised: <code>get_doc_content: the response is 49700 characters,
 <p><strong>Result (2026-06-19) ✅</strong> <code>write_doc_content</code> succeeded. <code>get_doc_structure</code> shows outer table: 1 row × 2 cols. Cell [0,0] text="Label" ✅. Cell [0,1] text="" with span 11–31 (20 indices, consistent with 1×2 nested table holding "Val A" and "Val B") ✅.</p>
 <hr />
 <h3 id="tc-doc50-nested-table-with-multiple-rows-and-columns-destructive">TC-DOC50: Nested table with multiple rows and columns ⚠️ destructive<a class="headerlink" href="#tc-doc50-nested-table-with-multiple-rows-and-columns-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;R0C0&lt;/td&gt;&lt;td&gt;R0C1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;R1C0&lt;/td&gt;&lt;td&gt;R1C1&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
 </blockquote>
@@ -2281,7 +2285,8 @@ Fetch-path call raised: <code>get_doc_content: the response is 49700 characters,
 <hr />
 <h3 id="tc-doc90-colspanrowspan-inside-a-nested-table-now-merges-correctly-issue-109-destructive">TC-DOC90: <code>colspan</code>/<code>rowspan</code> inside a nested table now merges correctly (issue #109) ⚠️ destructive<a class="headerlink" href="#tc-doc90-colspanrowspan-inside-a-nested-table-now-merges-correctly-issue-109-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> Nested tables produced a correctly-sized shell but silently ignored <code>colspan</code>/<code>rowspan</code> on their own cells — no <code>mergeTableCells</code> request was ever emitted for them, unlike outer-table cells (TC-DOC34/36/37). Fixed by having <code>_fill_table_fully</code> run the same merge phase for a nested table's own cells that <code>fill_tables</code> already runs for the outer table.</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Write this HTML to doc {DOC_ID}: <code>&lt;table&gt;&lt;tr&gt;&lt;td&gt;&lt;table&gt;&lt;tr&gt;&lt;td colspan=\"2\"&gt;Header&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;A&lt;/td&gt;&lt;td&gt;B&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;</code>"</p>
 </blockquote>
@@ -2999,7 +3004,8 @@ Run against a live sandbox scoped to only <code>create_doc,create_doc_from_file,
 <p><strong>Background:</strong> <code>handle_endtag</code>'s <code>&lt;ol&gt;</code>/<code>&lt;ul&gt;</code> close-tag handling (<code>html_parser.py</code>) used to pop <code>_list_ordered</code> — the stack <code>BulletItem.depth</code>/<code>.ordered</code> are computed from — only when the closing tag's implied type matched the stack's own top entry. A mismatched pair (e.g. an <code>&lt;ol&gt;</code> closed by a stray <code>&lt;/ul&gt;</code>, a real input surface since <code>write_doc_content</code>/<code>create_doc</code> accept raw, unvalidated HTML directly) silently skipped the pop instead of performing it, leaving the stack one level too deep for the rest of the document — every subsequent <code>BulletItem.depth</code> came out off by one, bleeding into completely unrelated, later, well-formed lists, not just the malformed one. Fixed by popping <code>_list_ordered</code> unconditionally on any <code>&lt;ol&gt;</code>/<code>&lt;ul&gt;</code> close (by count, not gated on matching the popped entry's own type) — mirroring the same unconditional-pop principle <code>_resume_interrupted_block</code> already applies to the separate node-<em>type</em> correctness concern for this same malformed-tag scenario. Well-formed nesting is unaffected, since the old gate was already true in that case.</p>
 <h3 id="tc-doc141-a-malformed-list-elsewhere-in-the-doc-doesnt-bleed-a-bogus-nesting-depth-into-a-later-unrelated-well-formed-list-requires-oauth-destructive">TC-DOC141: A malformed list elsewhere in the doc doesn't bleed a bogus nesting depth into a later, unrelated, well-formed list ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc141-a-malformed-list-elsewhere-in-the-doc-doesnt-bleed-a-bogus-nesting-depth-into-a-later-unrelated-well-formed-list-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-doc141-mismatched-list-tags.html</code> — a malformed <code>&lt;ol&gt;&lt;li&gt;Parent&lt;ul&gt;&lt;li&gt;Child&lt;/li&gt;&lt;/ol&gt;&lt;/li&gt;&lt;/ul&gt;</code> (the <code>&lt;ol&gt;</code> is closed by a stray <code>&lt;/ul&gt;</code>), then an unrelated paragraph, then a completely separate, well-formed <code>&lt;ol&gt;&lt;li&gt;Fresh ordered item&lt;/li&gt;&lt;/ol&gt;</code>.</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc141-mismatched-list-tags.html, then show me its structure."</p>
 </blockquote>
@@ -3027,7 +3033,8 @@ Run against a live sandbox scoped to only <code>create_doc,create_doc_from_file,
 <hr />
 <h3 id="tc-doc143-create_doc_from_file-resolves-markdown-heading-anchor-links-to-working-in-doc-jump-links-and-strips-unmatched-ones-requires-oauth-destructive">TC-DOC143: <code>create_doc_from_file</code> resolves markdown heading-anchor links to working in-doc jump links, and strips unmatched ones ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc143-create_doc_from_file-resolves-markdown-heading-anchor-links-to-working-in-doc-jump-links-and-strips-unmatched-ones-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-doc142-heading-anchors.md</code>.</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc142-heading-anchors.md, then show me its structure."</p>
 </blockquote>
@@ -3044,7 +3051,8 @@ Run against a live sandbox scoped to only <code>create_doc,create_doc_from_file,
 <hr />
 <h3 id="tc-doc144-a-heading-anchor-link-inside-a-table-cell-is-resolved-regression-for-the-table-blind-body-walk-requires-oauth-destructive">TC-DOC144: A heading-anchor link inside a table cell is resolved (regression for the table-blind body walk) ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc144-a-heading-anchor-link-inside-a-table-cell-is-resolved-regression-for-the-table-blind-body-walk-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-doc144-anchor-in-table-cell.md</code> — a top-level <code># Reference Section</code> heading, then a table whose first cell contains a markdown link <code>[Reference Section](#reference-section)</code>.</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc144-anchor-in-table-cell.md, then show me its structure."</p>
 </blockquote>
@@ -3058,7 +3066,8 @@ Run against a live sandbox scoped to only <code>create_doc,create_doc_from_file,
 <hr />
 <h3 id="tc-doc145-a-heading-anchor-link-that-is-the-documents-very-first-body-element-is-resolved-regression-for-the-startindex-carry-forward-gap-requires-oauth-destructive">TC-DOC145: A heading-anchor link that is the document's very first body element is resolved (regression for the startIndex-carry-forward gap) ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-doc145-a-heading-anchor-link-that-is-the-documents-very-first-body-element-is-resolved-regression-for-the-startindex-carry-forward-gap-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> use <code>docs/qa/fixtures/tc-doc145-anchor-on-first-element.md</code> — the document's very first line is a markdown link <code>[Jump to Overview](#overview)</code>, followed by the <code># Overview</code> heading it references.</p>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc145-anchor-on-first-element.md, then show me its structure."</p>
 </blockquote>
