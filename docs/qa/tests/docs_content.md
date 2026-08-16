@@ -2869,3 +2869,32 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
 **Result (2026-08-15) ✅ PASS — run live against PR #591 (issue #300) fix commit 4adeb03, round 2.** `markdown` returned `"1\\. Not actually a list item\n\n\\# Not a heading either\n\n"` — both leading markers escaped as expected.
+
+---
+
+### TC-DOC186: Image mixed into an all-Courier-New paragraph is not dropped (#594)
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<p><img src=\"https://picsum.photos/id/1/200/100\" alt=\"test image\"><code>x = 1</code></p>")` — note `<code>` (not `<span style=...>`), and the image outside `<pre>`: html_parser.py's write side silently drops an `<img>` inside `<pre>` (a deliberate, documented gap — see `docs/images.py`'s module docstring), and `style_doc_range` has no `font_family` param at all, so `<code>` is the only reachable way to get an all-Courier-New paragraph with an image in it through this project's own tools.
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains `![test image](https://picsum.photos/id/1/200/100)` for the image — not silently dropped
+- `markdown` also contains a fenced block (triple backtick) wrapping `x = 1`
+- Both appear in the output, image before the fenced block (source order)
+
+**Cleanup:** write fixture content back over `{DOC_ID}`
+
+---
+
+### TC-DOC187: Blank spacer paragraph inside a table cell is preserved, not collapsed (#594)
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<table><tr><td>Line 1<br><br>Line 2</td></tr></table>")` — two consecutive `<br>` insert a literal `"\n\n"` into the cell's body text, which the Docs backend splits into three real paragraphs in the cell (`"Line 1"`, an empty one, `"Line 2"`) — this is the only reachable way through this project's write tools to produce a genuinely empty-runs paragraph (as opposed to a `&nbsp;`-only one, which round-trips as non-empty per #402) inside a table cell.
+
+**Prompt**
+> "Export doc {DOC_ID} as Markdown"
+
+**Checks**
+- `markdown` contains the cell's content as `Line 1<br><br>Line 2` (double `<br>` — the blank spacer survives as a second line break)
+- NOT `Line 1<br>Line 2` (single `<br>`) or `Line 1 Line 2` (no separator at all) — either would mean the spacer paragraph was silently dropped
+
+**Cleanup:** write fixture content back over `{DOC_ID}`

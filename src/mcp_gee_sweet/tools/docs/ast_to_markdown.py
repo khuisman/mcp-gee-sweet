@@ -82,10 +82,32 @@ def _is_code_block(node: Paragraph) -> bool:
     return bool(runs) and all(r.font_family == "Courier New" for r in runs)
 
 
+def _render_code_block(node: Paragraph) -> str:
+    """Every Run in `node` is code-styled (see `_is_code_block`), but a non-Run
+    child (an Image, #594) can still be interleaved among them — Markdown has
+    no way to embed an image inside a fenced code block, so a contiguous run
+    of code text becomes one fence and each Image renders on its own line
+    outside any fence, preserving both the content and its original order
+    rather than silently dropping the image the way naively joining only the
+    Run text did."""
+    segments: list[str] = []
+    buffer = ""
+    for item in node.runs:
+        if isinstance(item, Run):
+            buffer += item.text
+        else:
+            if buffer:
+                segments.append(f"```\n{buffer}\n```")
+                buffer = ""
+            segments.append(f"![{_escape(item.alt or '')}]({_md_link_dest(item.src)})")
+    if buffer:
+        segments.append(f"```\n{buffer}\n```")
+    return "\n\n".join(segments)
+
+
 def _render_block(node: Heading | Paragraph | BulletItem | NamedBlock) -> str:
     if isinstance(node, Paragraph) and _is_code_block(node):
-        text = "".join(r.text for r in node.runs if isinstance(r, Run))
-        body = f"```\n{text}\n```"
+        body = _render_code_block(node)
     elif isinstance(node, Heading):
         body = f"{'#' * node.level} {_render_inline(node.runs)}".rstrip()
     elif isinstance(node, NamedBlock):

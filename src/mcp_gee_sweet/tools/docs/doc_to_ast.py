@@ -248,16 +248,26 @@ def _cell_content_to_children(content: list[dict], document: dict) -> list[Run |
     list our AST expects (Cell.children has no per-paragraph structure — see
     ast.py). Multiple paragraphs within one cell are joined with a "\\n",
     matching the only way html_parser.py's write side ever gets a line break
-    inside a cell (an explicit <br>)."""
+    inside a cell (an explicit <br>).
+
+    A paragraph with no runs at all (a deliberate blank-line spacer — the
+    same shape `test_paragraph_that_is_only_a_newline_becomes_empty_runs`
+    covers at the top level) used to be `continue`d past entirely, silently
+    merging it into whichever paragraphs sit on either side (#594) — unlike
+    html_parser.py's write-side handling of whitespace-only paragraphs. Fixed
+    by treating an empty-runs paragraph the same as any other for the
+    seen_content/joiner bookkeeping below: it contributes no text of its own,
+    but still counts as content once seen, so the next real paragraph gets
+    its own separate "\\n" joiner on top of the blank paragraph's — two
+    newlines between two lines of real text, preserving the spacer instead of
+    collapsing it away."""
     children: list[Run | Image | Table] = []
     seen_content = False
     for elem in content:
         if "paragraph" in elem:
             runs = _paragraph_runs(elem["paragraph"], document)
-            if not runs:
-                continue
             if seen_content:
-                if isinstance(runs[0], Run):
+                if runs and isinstance(runs[0], Run):
                     runs[0].text = "\n" + runs[0].text
                 else:
                     children.append(Run(text="\n"))
