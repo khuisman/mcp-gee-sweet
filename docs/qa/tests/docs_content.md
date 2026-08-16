@@ -2910,7 +2910,7 @@ Fix (round 2): `_render_cell` now converts `\n` → `<br>` *before* calling `.st
 ---
 
 ### TC-DOC188: Blank spacer paragraph at a cell's leading/trailing edge is preserved (#594 round 2)
-**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<table><tr><td>Trailing test<br><br></td></tr><tr><td><br><br>Leading test</td></tr></table>")`
+**Setup:** raw HTML via `write_doc_content(doc_id={DOC_ID}, content_format='html', content="<table><tr><td>Trailing test<br></td></tr><tr><td><br>Leading test</td></tr></table>")` — a single `<br>` at each edge, matching the single-spacer shape the unit tests (`test_trailing_spacer_paragraph_in_a_cell_leaves_a_trailing_newline` et al.) model; using `<br><br>` here (as the original PR-comment repro and QA round 1's gap report did) inserts two literal `"\n"` characters, which the Docs backend splits into *two* blank paragraphs at the edge, not one — live-confirmed to render as a doubled `<br><br>` rather than the single `<br>` these checks describe. Corrected during round-2 QA re-verification.
 
 **Prompt**
 > "Export doc {DOC_ID} as Markdown"
@@ -2920,3 +2920,5 @@ Fix (round 2): `_render_cell` now converts `\n` → `<br>` *before* calling `.st
 - `markdown`'s second data row renders as `| <br>Leading test |` (the leading spacer survives as a leading `<br>`, not dropped to a bare `| Leading test |`)
 
 **Cleanup:** write fixture content back over `{DOC_ID}`
+
+**Result (2026-08-15) ✅ PASS — run live against PR #599 (issue #594) round 2, fix commit 42ed950.** With the corrected single-`<br>`-per-edge setup, `markdown` returned `"\n\n| Trailing test<br> |\n| --- |\n| <br>Leading test |\n\n"` — matches both checks exactly. Also re-confirmed with the original (double-`<br>`) setup as a bonus check: returned `"\n\n| Trailing test<br><br> |\n| --- |\n| <br><br>Leading test |\n\n"` — 2 `<br>` in, 2 `<br>` out, consistent with the 1:1 preservation the mid-cell TC-DOC187 case already established; confirms the fix isn't collapsing multi-paragraph edge spacers either, just previously-reported-as-single-`<br>`-expected case was actually a two-paragraph input.
