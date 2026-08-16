@@ -1037,6 +1037,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#tiers-authoring-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tiers (authoring reference)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#how-it-works-authoring-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1518,6 +1529,40 @@
 <hr />
 <h2 id="playwright-verification">Playwright verification<a class="headerlink" href="#playwright-verification" title="Permanent link">&para;</a></h2>
 <p>Playwright is optional at the run level. Whether a test requires visual verification is a <strong>per-test-case decision</strong>, marked in the test file itself with <code>**Playwright: required**</code>. The conductor follows those tags — it does not decide at runtime which tests get visual verification.</p>
+<h3 id="tiers-authoring-reference">Tiers (authoring reference)<a class="headerlink" href="#tiers-authoring-reference" title="Permanent link">&para;</a></h3>
+<p>Three tiers replace the earlier "visual whenever visual is possible" guidance (which produced near-zero-signal screenshots on read-only/error-path/count tests — see the v0.8.0 retro's finding #1). Only <strong>Required</strong> corresponds to an actual tag on the test case; <strong>Spot-check</strong> and <strong>Skip</strong> are authoring/runtime guidance, not tags.</p>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>When to use</th>
+<th>Tag the test case?</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Required</strong></td>
+<td>The check verifies a mutation with a visual signature the API-level response can't fully confirm — formatting, hyperlinks, images, charts, layout, table-cell run formatting, create/delete/move confirmed in UI, cache invalidation checks</td>
+<td>Yes — <code>**Playwright: required**</code> on the Prompt line</td>
+<td><code>format_cells</code>, <code>freeze</code>, <code>merge</code>, <code>add_chart</code>, <code>delete_file</code>, <code>write_doc_content</code> tables, <code>create_event</code>, <code>style_doc_range</code> (font size, hyperlinks)</td>
+</tr>
+<tr>
+<td><strong>Spot-check</strong></td>
+<td>An API response looks unexpected, or a cache discrepancy is suspected — a runtime judgment call during the run, not a fixed property of the test case</td>
+<td>No</td>
+<td>Any time the API says success but behavior seems wrong</td>
+</tr>
+<tr>
+<td><strong>Skip</strong></td>
+<td>Read-only, error paths, count/pagination, cache-hit-only, unit-tested paths, or a mutation whose visual signature the API response already fully confirms (e.g. plain-paragraph bold/italic runs, checkbox glyphs as literal text, <code>namedStyleType</code>, Drive file metadata)</td>
+<td>No</td>
+<td><code>get_sheet_data</code>, <code>list_events</code>, error returns, <code>create_folder</code>/<code>rename_file</code> (confirmed via <code>list_files</code>/<code>get_file_metadata</code> instead — see Drive fixture note below), row/column counts</td>
+</tr>
+</tbody>
+</table>
+<p>A test case's Checks list is the source of truth: if every listed check is answerable from the tool's own response (or a follow-up read-only call), it's Skip even if the mutation <em>sounds</em> visual. If at least one check can only be answered by looking at the rendered result, it's Required. When in doubt, prefer Required — the cost of an unnecessary screenshot is lower than a silently-unverified regression.</p>
+<p><strong>Drive mutations are Skip by default policy, not by oversight.</strong> Drive's UI mostly just reflects API-returned metadata directly (file name, mimeType, trashed state, parent), so <code>list_files</code>/<code>get_file_metadata</code> is the confirmation source rather than a screenshot — this is documented per-case in <code>docs/qa/tests/drive_*.md</code> Result entries (e.g. TC-D at drive_files.md's <code>create_shortcut</code> test, which uses the shortcut mimeType instead of a screenshot). Permission/sharing changes follow the same policy — see "Known limitations" below.</p>
 <h3 id="how-it-works-authoring-reference">How it works (authoring reference)<a class="headerlink" href="#how-it-works-authoring-reference" title="Permanent link">&para;</a></h3>
 <p>When a test case is tagged <code>**Playwright: required**</code>, after the tool call the conductor:</p>
 <ul>
