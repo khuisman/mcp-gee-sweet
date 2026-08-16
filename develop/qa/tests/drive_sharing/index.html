@@ -1480,8 +1480,7 @@
 </blockquote>
 <p><strong>Checks</strong>
 - Response: <code>{"fileId": ..., "permissionId": ..., "action": "removed"}</code>
-- Follow-up <code>list_permissions</code> no longer shows that permission ID
-- Removed user can no longer access the file (verify in Drive UI if using a real test account)</p>
+- Follow-up <code>list_permissions</code> no longer shows that permission ID</p>
 <hr />
 <h3 id="tc-d131-non-existent-permission-id">TC-D131: Non-existent permission ID<a class="headerlink" href="#tc-d131-non-existent-permission-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1575,7 +1574,8 @@ The <code>mcp-gee-sweet-sa</code> server available in this role worktree is a se
 - Follow-up <code>list_permissions</code> shows the domain permission entry</p>
 <hr />
 <h3 id="tc-d136-share-with-typeanyone-public-link">TC-D136: Share with type=anyone (public link)<a class="headerlink" href="#tc-d136-share-with-typeanyone-public-link" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Make {SPREADSHEET_ID} publicly readable using share_file with type='anyone' and role='reader'"</p>
 </blockquote>
@@ -1585,14 +1585,15 @@ The <code>mcp-gee-sweet-sa</code> server available in this role worktree is a se
 - File accessible via its <code>web_link</code> without authentication (verify in incognito browser)</p>
 <hr />
 <h3 id="tc-d137-share-a-folder">TC-D137: Share a folder<a class="headerlink" href="#tc-d137-share-a-folder" title="Permanent link">&para;</a></h3>
-<p><strong>Prompt</strong></p>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
 <blockquote>
 <p>"Share folder {FOLDER_ID} with {TEST_PERMISSION_EMAIL} as a writer using share_file"</p>
 </blockquote>
 <p><strong>Checks</strong>
 - Share succeeds; <code>successes</code> contains the entry
 - <code>list_permissions</code> on the folder shows the new permission
-- 🔍 <strong>Note:</strong> verify that child files inherit the permission (check in Drive UI)</p>
+- A child file's own Share dialog in Drive UI shows the inherited access — <code>list_permissions</code> on the child itself does not surface a folder-level grant (confirmed live: the Drive API's <code>permissions.list</code> only returns permissions granted directly on the queried resource, not ones inherited from an ancestor folder), so this genuinely has no API alternative</p>
 <hr />
 <h3 id="tc-d138-mixed-success-and-failure-in-one-call">TC-D138: Mixed success and failure in one call<a class="headerlink" href="#tc-d138-mixed-success-and-failure-in-one-call" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
