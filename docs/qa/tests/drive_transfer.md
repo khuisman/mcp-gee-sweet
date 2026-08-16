@@ -107,6 +107,7 @@ Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded t
 
 ### TC-D90: Upload Markdown and convert to Google Doc ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Upload this markdown to {FOLDER_ID} as a Google Doc called 'QA-Markdown-Doc': `# My Title\n\n## Section One\n\n- Bullet A\n- Bullet B\n\nSome **bold** text and a [link](https://example.com).`"
 
 **Checks**
@@ -121,6 +122,7 @@ Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded t
 
 ### TC-D91: Upload HTML and convert to Google Doc ⚠️ requires-oauth
 **Prompt**
+**Playwright: required**
 > "Upload this HTML to {FOLDER_ID} as a Google Doc called 'QA-HTML-Doc': `<h1>HTML Title</h1><p>A paragraph.</p><ul><li>X</li><li>Y</li></ul>`"
 
 **Checks**
@@ -132,6 +134,7 @@ Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded t
 
 ### TC-D92: Upload Markdown with table ⚠️ requires-oauth
 **Prompt**
+**Playwright: required**
 > "Upload this markdown as a Google Doc called 'QA-Table-Doc' to {FOLDER_ID}: `# Table Test\n\n| Col A | Col B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |`"
 
 **Checks**
