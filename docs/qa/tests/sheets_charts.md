@@ -13,12 +13,15 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 ### TC-C01: COLUMN chart
 
 **Prompt**
+**Playwright: required**
 > "Add a column chart to the Sales sheet of {SPREADSHEET_ID} using data range A1:D5 with title 'Sales by Quarter'"
 
 **Checks**
 - Chart appears on the Sales sheet
 - Response includes a `chartId`
 - Chart type is COLUMN
+
+**Result (2026-08-15) ✅ PASS** — `add_chart` returned `chartId: 1767578399`, `basicChart.chartType: COLUMN`. Playwright screenshot of the Sales sheet confirms the "Sales by Quarter" column chart rendered correctly with Q1/Q2/Q3 series grouped by product.
 
 ---
 
@@ -137,6 +140,7 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 ### TC-C12: Custom position and size
 
 **Prompt**
+**Playwright: required**
 > "Add a line chart to the Sales sheet of {SPREADSHEET_ID} using range A1:D5, positioned at x=100, y=200, width=400, height=300"
 
 **Checks**

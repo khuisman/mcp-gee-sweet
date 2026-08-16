@@ -317,6 +317,7 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 **Setup:** insert a paragraph; note its range
 
 **Prompt**
+**Playwright: required**
 > "Set font size to 18pt for range {start}–{end} in doc {DOC_ID}"
 
 **Checks**
@@ -332,6 +333,7 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 **Setup:** insert a paragraph 'Visit example\n'; note the range covering 'example'
 
 **Prompt**
+**Playwright: required**
 > "Apply link_url 'https://example.com' to range {start}–{end} in doc {DOC_ID}"
 
 **Checks**
@@ -394,6 +396,7 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 **Setup:** insert a paragraph "Visit example\n" in `{DOC_ID}`; apply `link_url: "https://example.com"` to the range covering "example" (same setup as TC-DOC30); note that range.
 
 **Prompt**
+**Playwright: required**
 > "Clear the hyperlink on range {start}–{end} in doc {DOC_ID} by setting link_url to null."
 
 **Checks**
@@ -453,6 +456,7 @@ Tool calls: `write_doc_content(doc_id={DOC_ID}, content="- Top level item\n    -
 **Background:** issue #334 — `create_doc`'s markdown-to-Doc conversion flattens an indented sub-list under a numbered item into the SAME single-level list (the six settings in the issue's own repro became items 3-8 of one flat list instead of a nested sub-list under item 2), and until now there was no way to fix this after the fact short of delete-and-retype as plain text. This test exercises the fix: `get_doc_structure`'s new `bullet` field to detect the flattening, then `create_paragraph_bullets` to repair it.
 
 **Prompt**
+**Playwright: required**
 > "Write this Markdown to doc {DOC_ID}: '1. Select the snapshot\n2. Configure the instance:\n   - Instance identifier\n   - Instance class\n   - Storage encryption\n3. Click Restore\n', then show me its structure."
 
 Tool calls: `write_doc_content(doc_id={DOC_ID}, content="1. Select the snapshot\n2. Configure the instance:\n   - Instance identifier\n   - Instance class\n   - Storage encryption\n3. Click Restore\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})` — note the `start_index`/`end_index` of the "Instance identifier" and "Storage encryption" paragraphs from this call's output.

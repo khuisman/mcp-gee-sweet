@@ -600,6 +600,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Purpose:** Regression test for #65 — `<th>` previously ignored; cells had no bold styling.
 
 **Prompt**
+**Playwright: required**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><th>Name</th><th>Value</th></tr><tr><td>Alpha</td><td>1</td></tr></table>`"
 
 **Checks**
@@ -619,6 +620,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Purpose:** Regression test for #69 — inline formatting inside table cells was previously lost.
 
 **Prompt**
+**Playwright: required**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><td><b>bold</b> plain <i>italic</i></td></tr></table>`"
 
 **Checks**
@@ -701,6 +703,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Purpose:** verify that a single cell carrying both `rowspan` and `colspan` emits exactly one `mergeTableCells` request with both dimensions, and that physical column tracking stays correct for subsequent cells in the same row.
 
 **Prompt**
+**Playwright: required**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><td rowspan=\"2\" colspan=\"2\">Big</td><td>R0C2</td></tr><tr><td>R1C2</td></tr></table>`"
 
 **Checks**
@@ -721,6 +724,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Purpose:** edge-case verification that when a rowspan pushes subsequent real cells to higher logical columns, the physical-to-AST index mapping resolves correctly and no cell gets the wrong content.
 
 **Prompt**
+**Playwright: required**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><th>Name</th><th>Type</th><th>Notes</th></tr><tr><td rowspan=\"2\">Alpha</td><td>A</td><td>first</td></tr><tr><td>B</td><td>second</td></tr></table>`"
 
 **Checks**
@@ -765,7 +769,6 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Checks**
 - `get_doc_structure` shows a run with `bold: true` for 'bold'
 - A run with `italic: true` for 'italic'
-- 🔍 Visual check: bold and italic render correctly in Google Docs
 
 **Cleanup:** write fixture content back
 
@@ -781,7 +784,6 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Checks**
 - Doc contains `☑ Done item` and `☐ Pending item` as bullet items
 - Plain item has no checkbox glyph
-- 🔍 Visual check: checkboxes appear in the doc
 
 **Cleanup:** write fixture content back
 
@@ -829,6 +831,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Setup:** use `docs/qa/fixtures/tc-d195-create-doc.md` from the repo
 
 **Prompt**
+**Playwright: required**
 > "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-d195-create-doc.md"
 
 **Checks**
@@ -902,7 +905,6 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 - Call succeeds with no API error
 - `get_doc_structure` shows the first paragraph with `namedStyleType: "TITLE"` and text "My Document Title"
 - Second paragraph has `namedStyleType: "NORMAL_TEXT"` and text "Body paragraph."
-- 🔍 Visual check: "My Document Title" appears in the TITLE named style (large, prominent) in Google Docs
 
 **Cleanup:** write fixture content back
 
@@ -1057,6 +1059,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC49: Nested table alongside regular cells ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><td>Label</td><td><table><tr><td>Val A</td><td>Val B</td></tr></table></td></tr></table>`"
 
 **Checks**
@@ -1073,6 +1076,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ### TC-DOC50: Nested table with multiple rows and columns ⚠️ destructive
 **Prompt**
+**Playwright: required**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><td><table><tr><td>R0C0</td><td>R0C1</td></tr><tr><td>R1C0</td><td>R1C1</td></tr></table></td></tr></table>`"
 
 **Checks**
@@ -1196,6 +1200,7 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Background:** Nested tables produced a correctly-sized shell but silently ignored `colspan`/`rowspan` on their own cells — no `mergeTableCells` request was ever emitted for them, unlike outer-table cells (TC-DOC34/36/37). Fixed by having `_fill_table_fully` run the same merge phase for a nested table's own cells that `fill_tables` already runs for the outer table.
 
 **Prompt**
+**Playwright: required**
 > "Write this HTML to doc {DOC_ID}: `<table><tr><td><table><tr><td colspan=\"2\">Header</td></tr><tr><td>A</td><td>B</td></tr></table></td></tr></table>`"
 
 **Checks**
@@ -2140,6 +2145,7 @@ Run against a live sandbox scoped to only `create_doc,create_doc_from_file,write
 **Setup:** use `docs/qa/fixtures/tc-doc141-mismatched-list-tags.html` — a malformed `<ol><li>Parent<ul><li>Child</li></ol></li></ul>` (the `<ol>` is closed by a stray `</ul>`), then an unrelated paragraph, then a completely separate, well-formed `<ol><li>Fresh ordered item</li></ol>`.
 
 **Prompt**
+**Playwright: required**
 > "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc141-mismatched-list-tags.html, then show me its structure."
 
 **Checks**
@@ -2181,6 +2187,7 @@ Tool calls: `write_doc_content(doc_id={DOC_ID}, content="# A Heading\n\nSome tex
 **Setup:** use `docs/qa/fixtures/tc-doc142-heading-anchors.md`.
 
 **Prompt**
+**Playwright: required**
 > "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc142-heading-anchors.md, then show me its structure."
 
 Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-doc142-heading-anchors.md")`, then `get_doc_structure(doc_id=<returned docId>)`.
@@ -2205,6 +2212,7 @@ Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-do
 **Setup:** use `docs/qa/fixtures/tc-doc144-anchor-in-table-cell.md` — a top-level `# Reference Section` heading, then a table whose first cell contains a markdown link `[Reference Section](#reference-section)`.
 
 **Prompt**
+**Playwright: required**
 > "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc144-anchor-in-table-cell.md, then show me its structure."
 
 Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-doc144-anchor-in-table-cell.md")`, then `get_doc_structure(doc_id=<returned docId>)`.
@@ -2225,6 +2233,7 @@ Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-do
 **Setup:** use `docs/qa/fixtures/tc-doc145-anchor-on-first-element.md` — the document's very first line is a markdown link `[Jump to Overview](#overview)`, followed by the `# Overview` heading it references.
 
 **Prompt**
+**Playwright: required**
 > "Create a Google Doc from the file <repo-root>/docs/qa/fixtures/tc-doc145-anchor-on-first-element.md, then show me its structure."
 
 Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-doc145-anchor-on-first-element.md")`, then `get_doc_structure(doc_id=<returned docId>)`.

@@ -58,8 +58,8 @@ TC-CAL09 (all historical events returned when `time_min` omitted) was a signific
 ## Action items
 
 ### Run.md / process improvements
-- [ ] **Refine Playwright guidance** — define three explicit tiers in `run.md`: *Required* (mutations with a visual component), *Spot-check* (optional — only if something looks suspicious), *Skip* (read-only, error paths, count/pagination). Replace "visual whenever visual is possible" with the tier table.
-- [ ] **Document footer/header Playwright limitation** — add a note in `run.md` that Google Docs footer/header content is not reachable via browser scroll for short documents; use API response as confirmation for those tests.
+- [x] **Refine Playwright guidance** — define three explicit tiers in `run.md`: *Required* (mutations with a visual component), *Spot-check* (optional — only if something looks suspicious), *Skip* (read-only, error paths, count/pagination). Replace "visual whenever visual is possible" with the tier table. Tier definition formalized in #264 (PR #593). The same PR's audit against the new tiers covers `docs_content.md`/`docs_style.md`/`docs_tables.md`/`sheets_charts.md` (PR #592) — `drive_files.md`/`drive_transfer.md`/`drive_sharing.md` (209 test cases, zero Playwright tags) remain unaudited, tracked separately as #597.
+- [x] **Document footer/header Playwright limitation** — add a note in `run.md` that Google Docs footer/header content is not reachable via browser scroll for short documents; use API response as confirmation for those tests. Already present in `run.md`'s "Known limitations" section.
 
 ### Test suite improvements
 - [ ] **Fix share_file test fixtures** — update `docs/qa/tests/drive.md` TC-D135/D137/D139 to require a real Google account in `TEST_PERMISSION_EMAIL` (or add a second env var). Note the drive.md setup section accordingly.
