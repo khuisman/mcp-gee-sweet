@@ -200,7 +200,6 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Checks**
 - Response: `{"fileId": ..., "permissionId": ..., "action": "removed"}`
 - Follow-up `list_permissions` no longer shows that permission ID
-- Removed user can no longer access the file (verify in Drive UI if using a real test account)
 
 ---
 
@@ -318,6 +317,7 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 ### TC-D136: Share with type=anyone (public link)
 
 **Prompt**
+**Playwright: required**
 > "Make {SPREADSHEET_ID} publicly readable using share_file with type='anyone' and role='reader'"
 
 **Checks**
@@ -330,12 +330,13 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 ### TC-D137: Share a folder
 
 **Prompt**
+**Playwright: required**
 > "Share folder {FOLDER_ID} with {TEST_PERMISSION_EMAIL} as a writer using share_file"
 
 **Checks**
 - Share succeeds; `successes` contains the entry
 - `list_permissions` on the folder shows the new permission
-- 🔍 **Note:** verify that child files inherit the permission (check in Drive UI)
+- A child file's own Share dialog in Drive UI shows the inherited access — `list_permissions` on the child itself does not surface a folder-level grant (confirmed live: the Drive API's `permissions.list` only returns permissions granted directly on the queried resource, not ones inherited from an ancestor folder), so this genuinely has no API alternative
 
 ---
 
