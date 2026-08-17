@@ -361,7 +361,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Returns a list with at least one rule (typically the owner's own `user` rule with `role: owner`)
 - Each item has `id`, `role`, `scope_type`, `scope_value`
 
-**Result:** PASS (live, disposable calendar, 2026-07-29) — returned both owner rules with all four fields.
+**Result:** PASS (live, disposable calendar, 2026-07-29). Re-verified PASS (live, 2026-08-16, PR #612 issue #460) — returned 4 rules on `kevin.huisman@gmail.com`, each with all four fields.
 
 ---
 
@@ -373,7 +373,23 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - Returns `[{"error": "..."}]` — not a top-level exception
 
-**Result:** PASS (live, 2026-07-29).
+**Result:** PASS (live, 2026-07-29). Re-verified PASS (live, 2026-08-16, PR #612 issue #460) — invalid ID against the now-paginated tool still returns `[{"error": "<HttpError 404 ...>"}]`, not a top-level exception.
+
+---
+
+### TC-CAL76: Pagination — a calendar with more ACL rules than one page must not be truncated (issue #460)
+
+**Setup:** requires a calendar with more than one page of ACL rules (Calendar API pages `acl().list()` at up to 100 items per page). If no such fixture calendar exists in this account, SKIP and record as environmental — this behavior is covered by `tests/test_calendar.py::TestListCalendarAcl::test_follows_next_page_token_across_pages` at the unit level, which mocks two pages directly.
+
+**Prompt**
+> "List the access control rules for calendar {MANY_RULES_CALENDAR_ID}"
+
+**Checks**
+- Call `list_calendar_acl(calendar_id="{MANY_RULES_CALENDAR_ID}")`
+- The returned list's length matches the calendar's actual total rule count (cross-check against the Google Calendar sharing UI or `gcloud`/API count), not capped at 100
+- No duplicate `id` values across the returned list (would indicate a page was re-fetched instead of advancing `pageToken`)
+
+**Result:** SKIP (environmental, 2026-08-16, PR #612) — no calendar in this account's fixture set has more than one page (100+) of ACL rules; `list_calendars` shows only a handful of personal/family calendars with at most a few shares each. Covered at the unit level by `tests/test_calendar.py::TestListCalendarAcl::test_follows_next_page_token_across_pages`, confirmed passing (`uv run python -m pytest tests/test_calendar.py -k TestListCalendarAcl` — 3 passed; full file — 74 passed).
 
 ---
 

@@ -331,25 +331,31 @@ def register(tool):
             List of ACL rules, each with id, role, scope_type, and scope_value.
         """
         lc = ctx.request_context.lifespan_context
+        rules = []
+        page_token = None
         try:
-            result = await execute_in_thread(
-                lc.calendar_service.acl().list(calendarId=calendar_id).execute,
-                lc.calendar_service,
-            )
+            while True:
+                result = await execute_in_thread(
+                    lc.calendar_service.acl()
+                    .list(calendarId=calendar_id, pageToken=page_token)
+                    .execute,
+                    lc.calendar_service,
+                )
+                for r in result.get("items", []):
+                    scope = r.get("scope", {})
+                    rules.append(
+                        {
+                            "id": r.get("id"),
+                            "role": r.get("role"),
+                            "scope_type": scope.get("type"),
+                            "scope_value": scope.get("value"),
+                        }
+                    )
+                page_token = result.get("nextPageToken")
+                if not page_token:
+                    break
         except Exception as e:
             return [{"error": str(e)}]
-
-        rules = []
-        for r in result.get("items", []):
-            scope = r.get("scope", {})
-            rules.append(
-                {
-                    "id": r.get("id"),
-                    "role": r.get("role"),
-                    "scope_type": scope.get("type"),
-                    "scope_value": scope.get("value"),
-                }
-            )
         return rules
 
     @tool(annotations=ToolAnnotations(title="Add Calendar ACL", destructiveHint=True))
