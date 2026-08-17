@@ -439,6 +439,42 @@ class TestListCalendarAcl:
             "scope_value": None,
         }
 
+    async def test_follows_next_page_token_across_pages(self):
+        """A calendar with enough sharing rules to paginate must not be truncated."""
+        cal_svc = MagicMock()
+        cal_svc.acl.return_value.list.return_value.execute.side_effect = [
+            {
+                "items": [
+                    {
+                        "id": "user:one@example.com",
+                        "role": "reader",
+                        "scope": {"type": "user", "value": "one@example.com"},
+                    }
+                ],
+                "nextPageToken": "page2",
+            },
+            {
+                "items": [
+                    {
+                        "id": "user:two@example.com",
+                        "role": "writer",
+                        "scope": {"type": "user", "value": "two@example.com"},
+                    }
+                ]
+            },
+        ]
+        ctx = _make_ctx(calendar_service=cal_svc)
+
+        result = await _cal_tools["list_calendar_acl"](calendar_id="cal-1", ctx=ctx)
+
+        assert cal_svc.acl.return_value.list.call_count == 2
+        first_kwargs, second_kwargs = (
+            c.kwargs for c in cal_svc.acl.return_value.list.call_args_list
+        )
+        assert first_kwargs["pageToken"] is None
+        assert second_kwargs["pageToken"] == "page2"
+        assert [r["id"] for r in result] == ["user:one@example.com", "user:two@example.com"]
+
     async def test_api_error_returns_error_list(self):
         """When acl().list() raises, result must be [{"error": ...}]."""
         cal_svc = MagicMock()

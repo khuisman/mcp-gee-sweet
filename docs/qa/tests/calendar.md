@@ -377,6 +377,20 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 ---
 
+### TC-CAL76: Pagination — a calendar with more ACL rules than one page must not be truncated (issue #460)
+
+**Setup:** requires a calendar with more than one page of ACL rules (Calendar API pages `acl().list()` at up to 100 items per page). If no such fixture calendar exists in this account, SKIP and record as environmental — this behavior is covered by `tests/test_calendar.py::TestListCalendarAcl::test_follows_next_page_token_across_pages` at the unit level, which mocks two pages directly.
+
+**Prompt**
+> "List the access control rules for calendar {MANY_RULES_CALENDAR_ID}"
+
+**Checks**
+- Call `list_calendar_acl(calendar_id="{MANY_RULES_CALENDAR_ID}")`
+- The returned list's length matches the calendar's actual total rule count (cross-check against the Google Calendar sharing UI or `gcloud`/API count), not capped at 100
+- No duplicate `id` values across the returned list (would indicate a page was re-fetched instead of advancing `pageToken`)
+
+---
+
 ## `add_calendar_acl`
 
 ### TC-CAL62: Add a reader rule for a user ⚠️ destructive
