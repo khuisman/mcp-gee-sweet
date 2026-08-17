@@ -212,31 +212,66 @@ _SA_LIMITATIONS = [
             "Service accounts have no personal Drive identity to transfer file "
             "ownership to/from, so Drive's API rejects the transfer."
         ),
-        # Deliberately doesn't offer ADC here: unlike the quota class above, ADC may
-        # itself resolve to a service-account-backed credential (metadata service,
-        # or GOOGLE_APPLICATION_CREDENTIALS pointed at a key file) with the exact
-        # same identity limitation, and auth_method alone can't distinguish that
-        # from a real user. Tracked separately: #506.
+        # Deliberately doesn't offer ADC here: ADC may itself resolve to a
+        # service-account-backed credential (metadata service, or
+        # GOOGLE_APPLICATION_CREDENTIALS pointed at a key file) with the exact same
+        # identity limitation, which auth.py's is_service_account_identity flag
+        # (#506) now detects and folds into this same limited branch — but "switch
+        # to ADC" still isn't a *fix* on its own, since a caller would have to
+        # additionally know to point ADC at a real user credential specifically.
         "alternatives": "Switch to OAuth (CREDENTIALS_PATH) for full tool coverage.",
     },
 ]
 
 
-def _auth_status_json(auth_method: str) -> str:
-    """Return a JSON string describing the auth method and its Drive limitations."""
-    if auth_method == "service_account":
+def _sa_limitations_for(auth_method: str) -> list[dict]:
+    """`_SA_LIMITATIONS`, with the quota category's `alternatives` adjusted when the
+    caller is already on ADC (issue #506): telling an ADC session backed by a
+    service account to "switch to ADC" is circular, since it's already there.
+    """
+    if auth_method != "adc":
+        return _SA_LIMITATIONS
+    adjusted = []
+    for lim in _SA_LIMITATIONS:
+        if lim["category"] == "no_drive_storage_quota":
+            lim = {
+                **lim,
+                "alternatives": (
+                    "Switch to OAuth (CREDENTIALS_PATH), or point ADC at a real "
+                    "user credential (e.g. `gcloud auth application-default "
+                    "login`) instead of a service-account-backed one."
+                ),
+            }
+        adjusted.append(lim)
+    return adjusted
+
+
+def _auth_status_json(auth_method: str, is_service_account_identity: bool = False) -> str:
+    """Return a JSON string describing the auth method and its Drive limitations.
+
+    `is_service_account_identity` covers issue #506: `auth_method == "adc"` alone
+    doesn't say whether `google.auth.default()` resolved to a real user or a
+    service-account-backed credential (GCE/Cloud Run/GKE metadata identity, or
+    `GOOGLE_APPLICATION_CREDENTIALS` pointed at a key file) — the latter has the
+    exact same Drive limitations as `auth_method == "service_account"`, even though
+    the auth *method* used to reach it was ADC.
+    """
+    if auth_method == "service_account" or is_service_account_identity:
+        limitations = _sa_limitations_for(auth_method)
         return json.dumps(
             {
-                "auth_method": "service_account",
+                "auth_method": auth_method,
+                "is_service_account_identity": True,
                 "can_create_in_personal_drive": False,
-                "limited_tools": [t for lim in _SA_LIMITATIONS for t in lim["tools"]],
-                "limitations": _SA_LIMITATIONS,
+                "limited_tools": [t for lim in limitations for t in lim["tools"]],
+                "limitations": limitations,
             },
             indent=2,
         )
     return json.dumps(
         {
             "auth_method": auth_method,
+            "is_service_account_identity": False,
             "can_create_in_personal_drive": True,
             "limited_tools": [],
             "limitations": [],
@@ -254,7 +289,7 @@ def get_auth_status() -> str:
     restricted. Useful for deciding which tools to attempt before calling them.
     """
     context = mcp.get_context().request_context.lifespan_context
-    return _auth_status_json(context.auth_method)
+    return _auth_status_json(context.auth_method, context.is_service_account_identity)
 
 
 @mcp.resource("spreadsheet://{spreadsheet_id}/info")

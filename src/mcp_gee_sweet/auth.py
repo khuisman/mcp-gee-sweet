@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import google.auth
+from google.auth import compute_engine
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
@@ -54,11 +55,33 @@ class SpreadsheetContext:
     activity_service: Any
     folder_id: str | None = None
     auth_method: str = "unknown"  # "service_account" | "oauth" | "adc"
+    # True whenever the resolved credential has no personal Drive identity —
+    # always true for auth_method == "service_account", but also true for
+    # auth_method == "adc" when google.auth.default() itself resolved to a
+    # service-account-backed credential (see _is_service_account_credential).
+    is_service_account_identity: bool = False
     cache: SheetStructureCache = field(default_factory=SheetStructureCache)
     sheet_data_cache: SheetDataCache = field(default_factory=SheetDataCache)
     drive_folder_cache: DriveFolderCache = field(default_factory=DriveFolderCache)
     doc_cache: DocContentCache = field(default_factory=DocContentCache)
     calendar_cache: CalendarCache = field(default_factory=CalendarCache)
+
+
+def _is_service_account_credential(creds: Any) -> bool:
+    """Whether `creds` is backed by a service-account identity (no personal Drive
+    storage quota, no personal Drive identity) rather than a real user's own.
+
+    True for the credentials `_service_account_creds()` returns, and — the case
+    issue #506 is about — also true for an ADC-resolved credential
+    (`google.auth.default()`) when ADC itself resolved to a service account: a
+    GCE/Cloud Run/GKE attached metadata identity (`compute_engine.Credentials`) or
+    `GOOGLE_APPLICATION_CREDENTIALS` pointed at a service account key file
+    (`service_account.Credentials`, the same class the explicit service_account
+    path uses). ADC backed by a real user (e.g. `gcloud auth application-default
+    login`) resolves to `google.oauth2.credentials.Credentials` instead — the same
+    class `_oauth_creds()` returns — so it's correctly excluded here.
+    """
+    return isinstance(creds, (service_account.Credentials, compute_engine.Credentials))
 
 
 def _oauth_creds() -> Credentials:
@@ -170,6 +193,9 @@ async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetCont
                 ) from e
 
     logger.debug("Auth resolved: %s", resolved)
+    is_service_account_identity = _is_service_account_credential(creds)
+    if resolved == "adc" and is_service_account_identity:
+        logger.debug("ADC resolved to a service-account-backed credential")
 
     # cache_discovery=False: file cache requires oauth2client<4.0; all auth paths here use google-auth
     sheets_service = build("sheets", "v4", credentials=creds, cache_discovery=False)
@@ -187,6 +213,7 @@ async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetCont
             activity_service=activity_service,
             folder_id=DRIVE_FOLDER_ID if DRIVE_FOLDER_ID else None,
             auth_method=resolved,
+            is_service_account_identity=is_service_account_identity,
             cache=SheetStructureCache(),
         )
     finally:
