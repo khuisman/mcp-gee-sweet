@@ -1348,6 +1348,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-i30-serverauth-status-distinguishes-a-real-user-adc-session-from-a-service-account-backed-one-issue-506" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I30: server://auth-status distinguishes a real-user ADC session from a service-account-backed one (issue #506)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2059,6 +2070,18 @@ Call <code>ReadMcpResourceTool</code> with <code>uri: "spreadsheet://{SPREADSHEE
 - Step 2 succeeds (<code>✓ Successfully published</code>) — a failure here most often means the <code>mcp-name: io.github.khuisman/mcp-gee-sweet</code> marker isn't present (or isn't on its own line / isn't terminated by a boundary character) in the README of the exact PyPI release <code>server.json</code> points at.
 - Step 3's JSON response includes a server entry with <code>name: "io.github.khuisman/mcp-gee-sweet"</code> and a <code>version</code> matching <code>server.json</code>.</p>
 <p><strong>Re-run cadence:</strong> every stable release that bumps <code>server.json</code>'s <code>version</code> to track the new PyPI release — not once-and-done, since a stale <code>version</code> there means the registry keeps pointing at an old release.</p>
+<hr />
+<h3 id="tc-i30-serverauth-status-distinguishes-a-real-user-adc-session-from-a-service-account-backed-one-issue-506">TC-I30: <code>server://auth-status</code> distinguishes a real-user ADC session from a service-account-backed one (issue #506)<a class="headerlink" href="#tc-i30-serverauth-status-distinguishes-a-real-user-adc-session-from-a-service-account-backed-one-issue-506" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>auth_method == "adc"</code> alone doesn't say whether <code>google.auth.default()</code> resolved to a real user credential (<code>gcloud auth application-default login</code>) or a service-account-backed one (a GCE/Cloud Run/GKE attached metadata identity, or <code>GOOGLE_APPLICATION_CREDENTIALS</code> pointed at a service account key file) — before this fix, both got tagged plain <code>"adc"</code> with <code>can_create_in_personal_drive: true</code> and zero limitations, which is wrong for the service-account-backed case. Fixed by <code>auth.py::_is_service_account_credential</code> inspecting the resolved credential's actual class (<code>service_account.Credentials</code> / <code>compute_engine.Credentials</code> → service account; <code>google.oauth2.credentials.Credentials</code> → real user) and setting a new <code>SpreadsheetContext.is_service_account_identity</code> flag independent of <code>auth_method</code>; <code>_auth_status_json</code> folds that flag into the same limited branch <code>auth_method == "service_account"</code> already takes, and swaps the quota category's <code>alternatives</code> text so it doesn't tell an already-ADC caller to "switch to ADC."</p>
+<p><strong>Setup:</strong> two variants, since this needs two different ADC-resolved credential types to compare:
+- <strong>User-backed ADC:</strong> same as TC-I11 (<code>gcloud auth application-default login</code>, all other auth env vars unset, <code>AUTH_METHOD=adc</code>).
+- <strong>Service-account-backed ADC:</strong> <code>GOOGLE_APPLICATION_CREDENTIALS</code> pointed at a service account key file (or a GCE/Cloud Run/GKE instance with an attached service account identity), <code>AUTH_METHOD=adc</code>.</p>
+<p><strong>Action</strong>
+Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</code> against each server.</p>
+<p><strong>Checks</strong>
+- User-backed ADC: <code>auth_method: "adc"</code>, <code>is_service_account_identity: false</code>, <code>can_create_in_personal_drive: true</code>, <code>limited_tools: []</code>, <code>limitations: []</code>.
+- Service-account-backed ADC: <code>auth_method: "adc"</code> (not rewritten to <code>"service_account"</code>), <code>is_service_account_identity: true</code>, <code>can_create_in_personal_drive: false</code>, <code>limited_tools</code> includes the same tools a <code>service_account</code>-authed server reports (e.g. <code>create_spreadsheet</code>, <code>transfer_ownership</code>), and the <code>no_drive_storage_quota</code> entry's <code>alternatives</code> mentions pointing ADC at a real user credential rather than "switch to ADC" (contrast with TC-I27, where a genuine <code>AUTH_METHOD=service_account</code> session's <code>alternatives</code> still does mention ADC as a real escape hatch).</p>
+<p><strong>Note:</strong> needs an environment where ADC actually resolves to a service-account-backed credential; no team server is currently provisioned that way (Kai's <code>mcp-gee-sweet-kai-sa</code>/the standalone <code>mcp-gee-sweet-sa</code> both use <code>AUTH_METHOD=service_account</code> directly, not ADC). Unit coverage in <code>tests/test_auth.py::TestIsServiceAccountCredential</code>/<code>TestLifespanAuthMethod::test_pinned_adc_*_backed_sets_is_service_account_identity_*</code> and <code>tests/test_server.py::TestAuthStatusResource::test_adc_service_account_identity_*</code> exercises the classification and JSON-shape logic directly against real <code>google-auth</code> credential classes in the meantime.</p>
 <hr />
 <h2 id="tool-filtering-enabled_tools">Tool filtering (<code>ENABLED_TOOLS</code>)<a class="headerlink" href="#tool-filtering-enabled_tools" title="Permanent link">&para;</a></h2>
 <h3 id="tc-i05-cli-flag-only-specified-tools-registered">TC-I05: CLI flag — only specified tools registered<a class="headerlink" href="#tc-i05-cli-flag-only-specified-tools-registered" title="Permanent link">&para;</a></h3>
