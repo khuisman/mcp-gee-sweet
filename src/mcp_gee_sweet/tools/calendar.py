@@ -374,9 +374,11 @@ def register(tool):
             calendar_id: The calendar ID, or 'primary'.
             role: Access role to grant. One of: 'reader', 'writer', 'owner', 'freeBusyReader'.
             scope_type: Who the rule applies to. One of: 'user', 'group', 'domain', 'default'
-                        ('default' grants public access to all users and needs no scope_value).
+                        ('default' grants public access to all users and must not have a
+                        scope_value).
             scope_value: Email address (for 'user'/'group') or domain name (for 'domain').
-                         Required unless scope_type is 'default'.
+                         Required unless scope_type is 'default', in which case it must be
+                         omitted.
             send_notifications: Whether to send a notification email to the grantee.
                                  Defaults to True.
 
@@ -396,6 +398,8 @@ def register(tool):
             }
         if scope_type != "default" and not scope_value:
             return {"error": f"scope_value is required when scope_type is '{scope_type}'."}
+        if scope_type == "default" and scope_value:
+            return {"error": "scope_value must not be set when scope_type is 'default'."}
 
         scope: dict[str, str] = {"type": scope_type}
         if scope_value:
