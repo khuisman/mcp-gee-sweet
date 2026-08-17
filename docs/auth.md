@@ -73,6 +73,8 @@ gcloud auth application-default set-quota-project YOUR_PROJECT_ID
 
 On GCP, attach a service account to your compute resource — ADC picks it up automatically. The `GOOGLE_APPLICATION_CREDENTIALS` env var (Google's standard) also feeds into ADC.
 
+**ADC can resolve to either a real user or a service identity**, and the two have different limitations: a real user credential (`gcloud auth application-default login`, or Workforce Identity Federation) has full personal Drive access, while a service identity — a GCE/Cloud Run/GKE attached metadata identity, `GOOGLE_APPLICATION_CREDENTIALS` pointed at a service account key, Workload Identity Federation, an impersonated service account, or a GDCH service account — has the same restrictions as Method A above. `server://auth-status` reports which one is actually active — `auth_method` stays `"adc"` either way, but `is_service_account_identity` distinguishes them.
+
 ## Required Google APIs
 
 Enable these in GCP Console → APIs & Services → Library:

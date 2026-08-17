@@ -97,8 +97,8 @@ class TestParseEnabledTools:
 class TestAuthStatusResource:
     """server://auth-status resource returns correct capabilities per auth method."""
 
-    def _get_status(self, auth_method):
-        return json.loads(_auth_status_json(auth_method))
+    def _get_status(self, auth_method, is_service_account_identity=False):
+        return json.loads(_auth_status_json(auth_method, is_service_account_identity))
 
     def test_service_account_cannot_create_in_personal_drive(self):
         status = self._get_status("service_account")
@@ -150,9 +150,41 @@ class TestAuthStatusResource:
 
     def test_adc_can_create_in_personal_drive(self):
         status = self._get_status("adc")
+        assert status["is_service_account_identity"] is False
         assert status["can_create_in_personal_drive"] is True
         assert status["limited_tools"] == []
         assert status["limitations"] == []
+
+    def test_adc_service_account_identity_reports_same_limitations_as_service_account(self):
+        """Issue #506: auth_method stays "adc" (that's how the credential was
+        actually obtained), but a service-account-backed ADC identity gets the
+        same restrictions as auth_method == "service_account"."""
+        status = self._get_status("adc", is_service_account_identity=True)
+        assert status["auth_method"] == "adc"
+        assert status["is_service_account_identity"] is True
+        assert status["can_create_in_personal_drive"] is False
+        assert "create_spreadsheet" in status["limited_tools"]
+        assert "transfer_ownership" in status["limited_tools"]
+
+    def test_adc_service_account_identity_quota_alternatives_do_not_suggest_adc(self):
+        """Telling an ADC session already backed by a service account to "switch to
+        ADC" would be circular — the alternatives text needs to say something an
+        ADC caller can actually act on instead."""
+        status = self._get_status("adc", is_service_account_identity=True)
+        quota = next(
+            lim for lim in status["limitations"] if lim["category"] == "no_drive_storage_quota"
+        )
+        assert "switch to adc" not in quota["alternatives"].lower()
+        assert "oauth" in quota["alternatives"].lower()
+
+    def test_service_account_quota_alternatives_still_suggest_adc(self):
+        """The AUTH_METHOD=service_account case (not ADC-backed) is unaffected by
+        the #506 fix — ADC is still a genuine escape hatch there."""
+        status = self._get_status("service_account")
+        quota = next(
+            lim for lim in status["limitations"] if lim["category"] == "no_drive_storage_quota"
+        )
+        assert "adc" in quota["alternatives"].lower()
 
 
 class TestResourcesReadLifespanContextViaGetContext:
@@ -172,9 +204,14 @@ class TestResourcesReadLifespanContextViaGetContext:
         return fake_ctx
 
     def test_get_auth_status_reads_auth_method_via_get_context(self, monkeypatch):
-        monkeypatch.setattr(mcp, "get_context", lambda: self._fake_context(auth_method="oauth"))
+        monkeypatch.setattr(
+            mcp,
+            "get_context",
+            lambda: self._fake_context(auth_method="oauth", is_service_account_identity=False),
+        )
         result = json.loads(get_auth_status())
         assert result["auth_method"] == "oauth"
+        assert result["is_service_account_identity"] is False
 
     async def test_get_spreadsheet_info_reads_sheets_service_via_get_context(self, monkeypatch):
         sheets_service = MagicMock()

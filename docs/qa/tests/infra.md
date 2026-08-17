@@ -264,6 +264,25 @@ Call `ReadMcpResourceTool` with `uri: "spreadsheet://{SPREADSHEET_ID}/info"` aga
 
 ---
 
+### TC-I30: `server://auth-status` distinguishes a real-user ADC session from a service-account-backed one (issue #506)
+
+**Background:** `auth_method == "adc"` alone doesn't say whether `google.auth.default()` resolved to a real user credential (`gcloud auth application-default login`) or a service-account-backed one (a GCE/Cloud Run/GKE attached metadata identity, or `GOOGLE_APPLICATION_CREDENTIALS` pointed at a service account key file) — before this fix, both got tagged plain `"adc"` with `can_create_in_personal_drive: true` and zero limitations, which is wrong for the service-account-backed case. Fixed by `auth.py::_is_service_account_credential` inspecting the resolved credential's actual class (`service_account.Credentials` / `compute_engine.Credentials` → service account; `google.oauth2.credentials.Credentials` → real user) and setting a new `SpreadsheetContext.is_service_account_identity` flag independent of `auth_method`; `_auth_status_json` folds that flag into the same limited branch `auth_method == "service_account"` already takes, and swaps the quota category's `alternatives` text so it doesn't tell an already-ADC caller to "switch to ADC."
+
+**Setup:** two variants, since this needs two different ADC-resolved credential types to compare:
+- **User-backed ADC:** same as TC-I11 (`gcloud auth application-default login`, all other auth env vars unset, `AUTH_METHOD=adc`).
+- **Service-account-backed ADC:** `GOOGLE_APPLICATION_CREDENTIALS` pointed at a service account key file (or a GCE/Cloud Run/GKE instance with an attached service account identity), `AUTH_METHOD=adc`.
+
+**Action**
+Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against each server.
+
+**Checks**
+- User-backed ADC: `auth_method: "adc"`, `is_service_account_identity: false`, `can_create_in_personal_drive: true`, `limited_tools: []`, `limitations: []`.
+- Service-account-backed ADC: `auth_method: "adc"` (not rewritten to `"service_account"`), `is_service_account_identity: true`, `can_create_in_personal_drive: false`, `limited_tools` includes the same tools a `service_account`-authed server reports (e.g. `create_spreadsheet`, `transfer_ownership`), and the `no_drive_storage_quota` entry's `alternatives` mentions pointing ADC at a real user credential rather than "switch to ADC" (contrast with TC-I27, where a genuine `AUTH_METHOD=service_account` session's `alternatives` still does mention ADC as a real escape hatch).
+
+**Note:** needs an environment where ADC actually resolves to a service-account-backed credential; no team server is currently provisioned that way (Kai's `mcp-gee-sweet-kai-sa`/the standalone `mcp-gee-sweet-sa` both use `AUTH_METHOD=service_account` directly, not ADC). Unit coverage in `tests/test_auth.py::TestIsServiceAccountCredential`/`TestLifespanAuthMethod::test_pinned_adc_*_backed_sets_is_service_account_identity_*` and `tests/test_server.py::TestAuthStatusResource::test_adc_service_account_identity_*` exercises the classification and JSON-shape logic directly against real `google-auth` credential classes in the meantime.
+
+---
+
 ## Tool filtering (`ENABLED_TOOLS`)
 
 ### TC-I05: CLI flag — only specified tools registered

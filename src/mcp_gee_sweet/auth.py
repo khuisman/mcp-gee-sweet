@@ -8,8 +8,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import google.auth
+from google.auth import compute_engine, external_account, impersonated_credentials
 from google.auth.transport.requests import Request
-from google.oauth2 import service_account
+from google.oauth2 import gdch_credentials, service_account
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from mcp.server.fastmcp import FastMCP
@@ -54,11 +55,59 @@ class SpreadsheetContext:
     activity_service: Any
     folder_id: str | None = None
     auth_method: str = "unknown"  # "service_account" | "oauth" | "adc"
+    # True whenever the resolved credential has no personal Drive identity —
+    # always true for auth_method == "service_account", but also true for
+    # auth_method == "adc" when google.auth.default() itself resolved to a
+    # service-account-backed credential (see _is_service_account_credential).
+    is_service_account_identity: bool = False
     cache: SheetStructureCache = field(default_factory=SheetStructureCache)
     sheet_data_cache: SheetDataCache = field(default_factory=SheetDataCache)
     drive_folder_cache: DriveFolderCache = field(default_factory=DriveFolderCache)
     doc_cache: DocContentCache = field(default_factory=DocContentCache)
     calendar_cache: CalendarCache = field(default_factory=CalendarCache)
+
+
+def _is_service_account_credential(creds: Any) -> bool:
+    """Whether `creds` is backed by a service-account identity (no personal Drive
+    storage quota, no personal Drive identity) rather than a real user's own.
+
+    True for the credentials `_service_account_creds()` returns, and — the case
+    issue #506 is about — also true for an ADC-resolved credential
+    (`google.auth.default()`) when ADC itself resolved to one of the
+    non-user-identity credential classes `google.auth._default.py`'s own dispatch
+    table can produce (confirmed against the installed `google-auth` package,
+    PR #613 QA round 1 — the original version of this check only covered the
+    first two and silently misclassified the rest the same way plain `"adc"` did
+    before this fix existed):
+
+    - `service_account.Credentials` — `GOOGLE_APPLICATION_CREDENTIALS` pointed at
+      a key file, the same class the explicit `service_account` path uses.
+    - `compute_engine.Credentials` — a GCE/Cloud Run/GKE attached metadata identity.
+    - `external_account.Credentials` — Workload Identity Federation (AWS, a
+      pluggable external process, or a file/URL-sourced identity pool; `aws`,
+      `pluggable`, and `identity_pool` credentials all subclass this one base).
+    - `impersonated_credentials.Credentials` — an impersonated service account,
+      common in CI.
+    - `gdch_credentials.ServiceAccountCredentials` — a GDCH service account.
+
+    Deliberately excludes `external_account_authorized_user.Credentials`
+    (Workforce Identity Federation): per its own module docstring it "usually
+    access[es] resources on behalf of a user (resource owner)" — a real human
+    authenticated through an external IdP, not a service identity — so it's
+    treated the same as `google.oauth2.credentials.Credentials`, the class an ADC
+    session backed by a real user (`gcloud auth application-default login`) or
+    `_oauth_creds()`'s own OAuth flow resolves to.
+    """
+    return isinstance(
+        creds,
+        (
+            service_account.Credentials,
+            compute_engine.Credentials,
+            external_account.Credentials,
+            impersonated_credentials.Credentials,
+            gdch_credentials.ServiceAccountCredentials,
+        ),
+    )
 
 
 def _oauth_creds() -> Credentials:
@@ -170,6 +219,9 @@ async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetCont
                 ) from e
 
     logger.debug("Auth resolved: %s", resolved)
+    is_service_account_identity = _is_service_account_credential(creds)
+    if resolved == "adc" and is_service_account_identity:
+        logger.debug("ADC resolved to a service-account-backed credential")
 
     # cache_discovery=False: file cache requires oauth2client<4.0; all auth paths here use google-auth
     sheets_service = build("sheets", "v4", credentials=creds, cache_discovery=False)
@@ -187,6 +239,7 @@ async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetCont
             activity_service=activity_service,
             folder_id=DRIVE_FOLDER_ID if DRIVE_FOLDER_ID else None,
             auth_method=resolved,
+            is_service_account_identity=is_service_account_identity,
             cache=SheetStructureCache(),
         )
     finally:
