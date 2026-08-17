@@ -6,8 +6,13 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-from google.auth import compute_engine
-from google.oauth2 import service_account
+from google.auth import (
+    compute_engine,
+    external_account_authorized_user,
+    identity_pool,
+    impersonated_credentials,
+)
+from google.oauth2 import gdch_credentials, service_account
 from google.oauth2.credentials import Credentials as UserCredentials
 
 import mcp_gee_sweet.auth as auth_module
@@ -128,6 +133,36 @@ class TestIsServiceAccountCredential:
 
     def test_arbitrary_object_is_not_service_account(self):
         assert _is_service_account_credential(object()) is False
+
+    def test_workload_identity_federation_is_service_account(self):
+        """PR #613 QA round 1: google.auth._default's own dispatch table can
+        resolve ADC to a Workload Identity Federation credential — `identity_pool`
+        here as a representative `external_account.Credentials` subclass (`aws`
+        and `pluggable` are the other two; `external_account.Credentials` itself
+        can't be instantiated, even via __new__, since it's abstract)."""
+        creds = identity_pool.Credentials.__new__(identity_pool.Credentials)
+        assert _is_service_account_credential(creds) is True
+
+    def test_impersonated_service_account_is_service_account(self):
+        """Common in CI: ADC resolving to an impersonated service account."""
+        creds = impersonated_credentials.Credentials.__new__(impersonated_credentials.Credentials)
+        assert _is_service_account_credential(creds) is True
+
+    def test_gdch_service_account_is_service_account(self):
+        creds = gdch_credentials.ServiceAccountCredentials.__new__(
+            gdch_credentials.ServiceAccountCredentials
+        )
+        assert _is_service_account_credential(creds) is True
+
+    def test_workforce_identity_federation_authorized_user_is_not_service_account(self):
+        """Deliberately excluded: per its own module docstring, this credential
+        class "usually access[es] resources on behalf of a user (resource
+        owner)" via Workforce Identity Federation — a real human authenticated
+        through an external IdP, not a service identity."""
+        creds = external_account_authorized_user.Credentials.__new__(
+            external_account_authorized_user.Credentials
+        )
+        assert _is_service_account_credential(creds) is False
 
 
 # ---------------------------------------------------------------------------

@@ -8,9 +8,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import google.auth
-from google.auth import compute_engine
+from google.auth import compute_engine, external_account, impersonated_credentials
 from google.auth.transport.requests import Request
-from google.oauth2 import service_account
+from google.oauth2 import gdch_credentials, service_account
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from mcp.server.fastmcp import FastMCP
@@ -73,15 +73,41 @@ def _is_service_account_credential(creds: Any) -> bool:
 
     True for the credentials `_service_account_creds()` returns, and — the case
     issue #506 is about — also true for an ADC-resolved credential
-    (`google.auth.default()`) when ADC itself resolved to a service account: a
-    GCE/Cloud Run/GKE attached metadata identity (`compute_engine.Credentials`) or
-    `GOOGLE_APPLICATION_CREDENTIALS` pointed at a service account key file
-    (`service_account.Credentials`, the same class the explicit service_account
-    path uses). ADC backed by a real user (e.g. `gcloud auth application-default
-    login`) resolves to `google.oauth2.credentials.Credentials` instead — the same
-    class `_oauth_creds()` returns — so it's correctly excluded here.
+    (`google.auth.default()`) when ADC itself resolved to one of the
+    non-user-identity credential classes `google.auth._default.py`'s own dispatch
+    table can produce (confirmed against the installed `google-auth` package,
+    PR #613 QA round 1 — the original version of this check only covered the
+    first two and silently misclassified the rest the same way plain `"adc"` did
+    before this fix existed):
+
+    - `service_account.Credentials` — `GOOGLE_APPLICATION_CREDENTIALS` pointed at
+      a key file, the same class the explicit `service_account` path uses.
+    - `compute_engine.Credentials` — a GCE/Cloud Run/GKE attached metadata identity.
+    - `external_account.Credentials` — Workload Identity Federation (AWS, a
+      pluggable external process, or a file/URL-sourced identity pool; `aws`,
+      `pluggable`, and `identity_pool` credentials all subclass this one base).
+    - `impersonated_credentials.Credentials` — an impersonated service account,
+      common in CI.
+    - `gdch_credentials.ServiceAccountCredentials` — a GDCH service account.
+
+    Deliberately excludes `external_account_authorized_user.Credentials`
+    (Workforce Identity Federation): per its own module docstring it "usually
+    access[es] resources on behalf of a user (resource owner)" — a real human
+    authenticated through an external IdP, not a service identity — so it's
+    treated the same as `google.oauth2.credentials.Credentials`, the class an ADC
+    session backed by a real user (`gcloud auth application-default login`) or
+    `_oauth_creds()`'s own OAuth flow resolves to.
     """
-    return isinstance(creds, (service_account.Credentials, compute_engine.Credentials))
+    return isinstance(
+        creds,
+        (
+            service_account.Credentials,
+            compute_engine.Credentials,
+            external_account.Credentials,
+            impersonated_credentials.Credentials,
+            gdch_credentials.ServiceAccountCredentials,
+        ),
+    )
 
 
 def _oauth_creds() -> Credentials:
