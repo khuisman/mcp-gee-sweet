@@ -1526,6 +1526,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-cal76-pagination-a-calendar-with-more-acl-rules-than-one-page-must-not-be-truncated-issue-460" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL76: Pagination — a calendar with more ACL rules than one page must not be truncated (issue #460)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2820,7 +2831,7 @@
 <p><strong>Checks</strong>
 - Returns a list with at least one rule (typically the owner's own <code>user</code> rule with <code>role: owner</code>)
 - Each item has <code>id</code>, <code>role</code>, <code>scope_type</code>, <code>scope_value</code></p>
-<p><strong>Result:</strong> PASS (live, disposable calendar, 2026-07-29) — returned both owner rules with all four fields.</p>
+<p><strong>Result:</strong> PASS (live, disposable calendar, 2026-07-29). Re-verified PASS (live, 2026-08-16, PR #612 issue #460) — returned 4 rules on <code>kevin.huisman@gmail.com</code>, each with all four fields.</p>
 <hr />
 <h3 id="tc-cal61-non-existent-calendar-id">TC-CAL61: Non-existent calendar ID<a class="headerlink" href="#tc-cal61-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2829,7 +2840,19 @@
 </blockquote>
 <p><strong>Checks</strong>
 - Returns <code>[{"error": "..."}]</code> — not a top-level exception</p>
-<p><strong>Result:</strong> PASS (live, 2026-07-29).</p>
+<p><strong>Result:</strong> PASS (live, 2026-07-29). Re-verified PASS (live, 2026-08-16, PR #612 issue #460) — invalid ID against the now-paginated tool still returns <code>[{"error": "&lt;HttpError 404 ...&gt;"}]</code>, not a top-level exception.</p>
+<hr />
+<h3 id="tc-cal76-pagination-a-calendar-with-more-acl-rules-than-one-page-must-not-be-truncated-issue-460">TC-CAL76: Pagination — a calendar with more ACL rules than one page must not be truncated (issue #460)<a class="headerlink" href="#tc-cal76-pagination-a-calendar-with-more-acl-rules-than-one-page-must-not-be-truncated-issue-460" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> requires a calendar with more than one page of ACL rules (Calendar API pages <code>acl().list()</code> at up to 100 items per page). If no such fixture calendar exists in this account, SKIP and record as environmental — this behavior is covered by <code>tests/test_calendar.py::TestListCalendarAcl::test_follows_next_page_token_across_pages</code> at the unit level, which mocks two pages directly.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List the access control rules for calendar {MANY_RULES_CALENDAR_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call <code>list_calendar_acl(calendar_id="{MANY_RULES_CALENDAR_ID}")</code>
+- The returned list's length matches the calendar's actual total rule count (cross-check against the Google Calendar sharing UI or <code>gcloud</code>/API count), not capped at 100
+- No duplicate <code>id</code> values across the returned list (would indicate a page was re-fetched instead of advancing <code>pageToken</code>)</p>
+<p><strong>Result:</strong> SKIP (environmental, 2026-08-16, PR #612) — no calendar in this account's fixture set has more than one page (100+) of ACL rules; <code>list_calendars</code> shows only a handful of personal/family calendars with at most a few shares each. Covered at the unit level by <code>tests/test_calendar.py::TestListCalendarAcl::test_follows_next_page_token_across_pages</code>, confirmed passing (<code>uv run python -m pytest tests/test_calendar.py -k TestListCalendarAcl</code> — 3 passed; full file — 74 passed).</p>
 <hr />
 <h2 id="add_calendar_acl"><code>add_calendar_acl</code><a class="headerlink" href="#add_calendar_acl" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal62-add-a-reader-rule-for-a-user-destructive">TC-CAL62: Add a reader rule for a user ⚠️ destructive<a class="headerlink" href="#tc-cal62-add-a-reader-rule-for-a-user-destructive" title="Permanent link">&para;</a></h3>
