@@ -522,6 +522,22 @@ class TestAddCalendarAcl:
         assert "error" in result
         cal_svc.acl.return_value.insert.assert_not_called()
 
+    async def test_scope_value_with_default_scope_type_returns_error(self):
+        """A stray scope_value alongside scope_type='default' must be rejected, not silently ignored."""
+        cal_svc = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc)
+
+        result = await _cal_tools["add_calendar_acl"](
+            calendar_id="cal-1",
+            role="freeBusyReader",
+            scope_type="default",
+            scope_value="someone@example.com",
+            ctx=ctx,
+        )
+
+        assert "error" in result
+        cal_svc.acl.return_value.insert.assert_not_called()
+
     async def test_default_scope_type_omits_value_and_scope_value_not_required(self):
         """scope_type='default' must not require scope_value and body must omit 'value'."""
         cal_svc = MagicMock()

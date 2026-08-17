@@ -428,6 +428,18 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 ---
 
+### TC-CAL77: scope_value rejected when scope_type is 'default' (issue #458)
+
+**Prompt**
+> "Add a calendar ACL rule on {CALENDAR_ID} with role 'freeBusyReader', scope_type 'default', and scope_value 'someone@example.com'"
+
+**Checks**
+- Call `add_calendar_acl(calendar_id="{CALENDAR_ID}", role="freeBusyReader", scope_type="default", scope_value="someone@example.com")`
+- Returns `{"error": "..."}` naming `scope_value` and `'default'` — not a silently-accepted rule with the value ignored (the prior behavior)
+- No new rule appears in a follow-up `list_calendar_acl` call
+
+---
+
 ### TC-CAL64: Invalid role rejected without calling the API
 
 **Prompt**
