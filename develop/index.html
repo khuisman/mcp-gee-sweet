@@ -1451,14 +1451,14 @@
 <tr>
 <td>Sheets</td>
 <td>35 tools — read/write, formulas, structure, formatting, charts, raw <code>batch_update</code> passthrough</td>
-<td><strong>No dedicated server</strong></td>
+<td>6 tools (Developer Preview)</td>
 <td><a href="https://github.com/taylorwilsdon/google_workspace_mcp">taylorwilsdon/google_workspace_mcp</a> (12), <a href="https://github.com/a-bonus/google-docs-mcp">a-bonus/google-docs-mcp</a> (~44, incl. comments/conditional formatting/protected ranges we don't have yet)</td>
 </tr>
 <tr>
 <td>Docs</td>
-<td>32 tools — HTML + Markdown input, AST-based theming (<code>apply_theme</code>, named styles), structural table editing</td>
-<td><strong>No dedicated server</strong></td>
-<td>taylorwilsdon (18, plus a Markdown <em>export</em> tool we don't have — see <a href="https://github.com/khuisman/mcp-gee-sweet/issues/300">#300</a>), <a href="https://github.com/piotr-agier/google-drive-mcp">piotr-agier/google-drive-mcp</a> (~17, incl. footnotes/multi-tab we don't have)</td>
+<td>34 tools — HTML + Markdown input, Markdown export, AST-based theming (<code>apply_theme</code>, named styles), structural table editing</td>
+<td>2 tools (Developer Preview)</td>
+<td>taylorwilsdon (18), <a href="https://github.com/piotr-agier/google-drive-mcp">piotr-agier/google-drive-mcp</a> (~17, incl. footnotes/multi-tab we don't have)</td>
 </tr>
 <tr>
 <td>Drive</td>
@@ -1481,7 +1481,7 @@
 </tbody>
 </table>
 <p>This project deliberately keeps its named-tool surface smaller than some alternatives — a-bonus/google-docs-mcp, for example, registers more raw tools by giving nearly every Sheets/Docs operation its own dedicated tool. Here, related operations consolidate into fewer, more parameterized tools, with <code>batch_update</code> as the escape hatch for whatever doesn't fit a named tool — see <a href="design/">Design Principles</a> for the reasoning ("tool count is a cost"). Neither approach is strictly better; it's a different tradeoff, and it's why raw tool counts alone don't tell the whole story in the table above.</p>
-<p>Known gaps found while researching this comparison (comments, conditional formatting, protected ranges, multi-tab Docs, Markdown export, and more) are tracked as candidates in the <a href="roadmap/">roadmap</a>, not silently ignored.</p>
+<p>Known gaps found while researching this comparison (comments, conditional formatting, protected ranges, multi-tab Docs, and more) are tracked as candidates in the <a href="roadmap/">roadmap</a>, not silently ignored.</p>
 <h2 id="key-design-decisions">Key design decisions<a class="headerlink" href="#key-design-decisions" title="Permanent link">&para;</a></h2>
 <p><strong>Tool count is a cost.</strong> Every registered tool is a name the AI must reason about on every call. This server applies a strict inclusion test — see <a href="design/">Design Principles</a> — and defers borderline cases to the <code>batch_update</code> passthrough rather than adding named tools speculatively.</p>
 <p><strong>Composite tools only when it matters.</strong> Multi-step workflows are left to the AI client unless they involve binary data, pagination loops, or encoding decisions that Claude handles inconsistently in practice. See <a href="design/#when-to-build-a-composite">Design Principles</a> for the policy.</p>
