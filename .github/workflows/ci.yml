@@ -10,8 +10,13 @@ permissions:
 
 jobs:
   test:
-    name: Lint and test
+    name: Lint and test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v7
@@ -19,14 +24,14 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v9.0.0
 
-      - name: Set up Python 3.12
-        run: uv python install 3.12
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
 
       - name: Check uv.lock is in sync with pyproject.toml
         run: uv lock --check
 
       - name: Install dependencies
-        run: uv sync --frozen --all-extras --dev --python 3.12
+        run: uv sync --frozen --all-extras --dev --python ${{ matrix.python-version }}
 
       - name: Lint
         run: uv run ruff check .
