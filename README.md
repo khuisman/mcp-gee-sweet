@@ -1,15 +1,18 @@
 <div align="center">
   <b>mcp-gee-sweet</b>
-  <p align="center"><i>Your AI Assistant's Gateway to Google Workspace!</i></p>
+  <p align="center"><i>The Google Workspace MCP server Google didn't build.</i></p>
 
 ![GitHub License](https://img.shields.io/github/license/khuisman/mcp-gee-sweet)
 </div>
 
 <!-- mcp-name: io.github.khuisman/mcp-gee-sweet -->
 
-An MCP server that gives AI clients reliable, direct access to Google Workspace — Sheets, Drive, Docs (HTML or Markdown content), and Calendar.
+Google ships its own Sheets and Docs MCP servers now (Developer Preview), but they're shallow — thin CRUD, both approval-gated. mcp-gee-sweet goes deeper: raw formula access — reads `=VLOOKUP()` and friends directly, structural Docs support (colspan/rowspan tables, themes, named styles, an HTML/Markdown→AST→Docs pipeline), plus complete Drive and Calendar coverage Google's preview doesn't touch at all.
 
-As of mid-2026, Google's own Workspace MCP servers (Developer Preview) cover Gmail, Drive, Calendar, People, and Chat — Sheets and Docs still have no official server at all, and Drive/Calendar coverage there is a fraction of what's here. Stable releases ship to PyPI behind a QA regression gate, with a raw `batch_update` passthrough as an escape hatch for anything a named tool doesn't cover yet. See [Why it exists](https://khuisman.github.io/mcp-gee-sweet/#why-it-exists) for the full, sourced comparison against both the official servers and community alternatives.
+A few things no other Workspace MCP has:
+- **Caching** — repeated reads return in ~2ms from a local cache instead of a round-trip API call every time.
+- **Formula access** — reads raw `=VLOOKUP()`, `=SUM()`, and `=IF()` expressions, not just the values they produce.
+- **Local sync** — two-way sync between a local folder and Google Drive.
 
 **Install (stable):**
 ```bash
@@ -22,6 +25,17 @@ uvx --prerelease=allow mcp-gee-sweet
 ```
 
 **[Full documentation →](https://khuisman.github.io/mcp-gee-sweet/)**
+
+---
+
+## What's covered
+
+| Service | Tools | Google's own MCP | Highlights |
+|---|---|---|---|
+| **Google Sheets** | 35 | 6 | Formula access, batch read/write, 8 chart types, structural ops |
+| **Google Drive** | 38 | — | File ops, sharing/permissions, local sync, revision history |
+| **Google Docs** | 34 | 2 | Full HTML→Doc pipeline, tables, range styling, themes, Markdown export |
+| **Google Calendar** | 17 | — | Event CRUD, free-slot finder across multiple calendars |
 
 ---
 
