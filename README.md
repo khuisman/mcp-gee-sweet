@@ -9,7 +9,7 @@
 
 An MCP server that gives AI clients reliable, direct access to Google Workspace — Sheets, Drive, Docs (HTML or Markdown content), and Calendar.
 
-As of mid-2026, Google's own Workspace MCP servers (Developer Preview) cover Gmail, Drive, Calendar, People, and Chat — Sheets and Docs still have no official server at all, and Drive/Calendar coverage there is a fraction of what's here. Stable releases ship to PyPI behind a QA regression gate, with a raw `batch_update` passthrough as an escape hatch for anything a named tool doesn't cover yet. See [Why it exists](https://khuisman.github.io/mcp-gee-sweet/#why-it-exists) for the full, sourced comparison against both the official servers and community alternatives.
+As of mid-2026, Google's own Workspace MCP servers (Developer Preview) cover Gmail, Drive, Calendar, People, Chat, Sheets, and Docs — but the Sheets and Docs servers are shallow (6 and 2 tools, vs. 35 and 34 here), and Drive/Calendar coverage there remains a fraction of what's here. mcp-gee-sweet goes deeper: raw formula access, structural Docs support (colspan/rowspan tables, themes, named styles, an HTML/Markdown→AST→Docs pipeline), and full Drive/Calendar coverage. Stable releases ship to PyPI behind a QA regression gate, with a raw `batch_update` passthrough as an escape hatch for anything a named tool doesn't cover yet. See [Why it exists](https://khuisman.github.io/mcp-gee-sweet/#why-it-exists) for the full, sourced comparison against both the official servers and community alternatives.
 
 **Install (stable):**
 ```bash
