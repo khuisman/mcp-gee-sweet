@@ -241,6 +241,7 @@ SUBSETS = [
             "add_calendar_acl",
             "remove_calendar_acl",
             "list_events",
+            "list_all_events",
             "get_event",
             "create_event",
             "update_event",

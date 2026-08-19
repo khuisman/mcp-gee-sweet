@@ -1,5 +1,7 @@
 """Tests for tools/calendar.py (list_calendars, create_event, list_events, find_free_slots, etc.)."""
 
+import threading
+import time
 from unittest.mock import MagicMock
 
 from googleapiclient.errors import HttpError
@@ -1328,6 +1330,46 @@ class TestListAllEvents:
         await _cal_tools["list_all_events"](ctx=ctx)
 
         cal_svc.calendarList.return_value.list.assert_not_called()
+
+    async def test_fan_out_concurrency_is_capped(self):
+        """Issue #466: with more calendars than _LIST_ALL_EVENTS_MAX_CONCURRENCY, the
+        number of events().list() calls genuinely in flight at once (real OS threads
+        via execute_in_thread) must never exceed the cap — proving the semaphore
+        actually bounds the fan-out width, not just that it doesn't crash. The
+        barrier/lock lives inside execute() itself, not list(): list() is evaluated
+        eagerly on the event-loop thread while building the call chain, before
+        execute_in_thread ever hands off to a worker thread."""
+        cap = calendar_module._LIST_ALL_EVENTS_MAX_CONCURRENCY
+        n_calendars = cap + 5
+        lock = threading.Lock()
+        state = {"current": 0, "peak": 0}
+
+        def _execute(**kwargs):
+            with lock:
+                state["current"] += 1
+                state["peak"] = max(state["peak"], state["current"])
+            time.sleep(0.05)
+            with lock:
+                state["current"] -= 1
+            return {"items": []}
+
+        def _list(**kwargs):
+            resp = MagicMock()
+            resp.execute.side_effect = _execute
+            return resp
+
+        cal_svc = MagicMock()
+        cal_svc.events.return_value.list.side_effect = _list
+        cache = MagicMock()
+        cache.get_list.return_value = [
+            {"id": f"cal-{i}", "summary": f"Cal {i}"} for i in range(n_calendars)
+        ]
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        await _cal_tools["list_all_events"](ctx=ctx)
+
+        assert state["peak"] <= cap
+        assert state["peak"] >= 2  # sanity: genuinely concurrent, not serialized
 
 
 class TestUpdateEvent:
