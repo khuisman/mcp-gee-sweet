@@ -4,6 +4,7 @@ dynamic = ["version"]
 description = "MCP server for Google Workspace — Sheets, Drive, Docs (HTML or Markdown), and Calendar."
 readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
 keywords = [
     "mcp",
     "model-context-protocol",
