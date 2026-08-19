@@ -119,7 +119,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [x] `add_calendar_to_list` / `remove_calendar_from_list` — subscribe/unsubscribe (PR #269) ([#157](https://github.com/khuisman/mcp-gee-sweet/issues/157))
 - [x] Calendar ACL — share a calendar with users or groups (PR #455) ([#158](https://github.com/khuisman/mcp-gee-sweet/issues/158))
 - [x] `list_all_events` — query all subscribed calendars in parallel, reusing the `asyncio.gather`/`execute_in_thread` pattern #183 established and the inline-per-item-error convention already used by `get_multiple_sheet_data`/`share_spreadsheet`/`share_file` (both open questions resolved; no longer decision-blocked) `ready-for-development`/`lane-a` ([#194](https://github.com/khuisman/mcp-gee-sweet/issues/194)) (PR #464)
-- [ ] Non-blocking follow-ups from #194/PR #464's review: `scripts/gen_tool_docs.py`'s "Calendar only" `SUBSETS` entry omits `list_all_events`, shaping code duplicated with `list_events`, no concurrency cap on the parallel fan-out. No lane assignment yet ([#466](https://github.com/khuisman/mcp-gee-sweet/issues/466))
+- [x] Non-blocking follow-ups from #194/PR #464's review: `scripts/gen_tool_docs.py`'s "Calendar only" `SUBSETS` entry omits `list_all_events`, shaping code duplicated with `list_events`, no concurrency cap on the parallel fan-out. No lane assignment yet ([#466](https://github.com/khuisman/mcp-gee-sweet/issues/466)) (PR #625)
 
 **Docs**
 - [x] `insert_page_break` — explicit page break at an index ([#148](https://github.com/khuisman/mcp-gee-sweet/issues/148)) (PR #314)
