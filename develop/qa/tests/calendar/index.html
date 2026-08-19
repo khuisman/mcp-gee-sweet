@@ -2581,6 +2581,7 @@
 - Returns at least one calendar
 - Each item has <code>id</code>, <code>summary</code>, <code>time_zone</code>, <code>access_role</code>, <code>primary</code>
 - The service account's own calendar (or the primary shared calendar) is present</p>
+<p><strong>Result (2026-08-18) ✅</strong> — PR #625 (issue #466) refactor round: <code>list_calendars</code> now routes through the shared <code>_get_cached_calendar_list</code> helper. Called live; returned 11 calendars, each with <code>id</code>/<code>summary</code>/<code>time_zone</code>/<code>access_role</code>/<code>primary</code> populated, one entry with <code>primary: true</code>. Output shape unchanged from pre-refactor. <code>list_events</code>/<code>get_event</code>/<code>list_all_events</code> (also touched by this PR's <code>_shape_event</code> extraction) were spot-checked live in the same round with matching, unchanged output shapes — see PR comment for the round's full write-up.</p>
 <hr />
 <h3 id="tc-cal02-primary-flag">TC-CAL02: primary flag<a class="headerlink" href="#tc-cal02-primary-flag" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
