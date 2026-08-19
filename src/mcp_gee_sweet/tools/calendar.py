@@ -21,6 +21,69 @@ _CANNOT_UNSUBSCRIBE_OWNED_ERROR = (
 _CALENDAR_ACL_ROLES = ("reader", "writer", "owner", "freeBusyReader")
 _CALENDAR_ACL_SCOPE_TYPES = ("default", "user", "group", "domain")
 
+# Caps how many events().list() calls list_all_events fans out at once. Otherwise
+# the fan-out width is implicitly however many calendars the account is subscribed
+# to, with no bound — a Workspace account subscribed to many room/resource/shared
+# calendars (tens to 100+) could trigger that many simultaneous calls in one
+# invocation, risking the Calendar API's per-user rate limit.
+_LIST_ALL_EVENTS_MAX_CONCURRENCY = 20
+
+
+def _shape_calendar_list_entry(c: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": c["id"],
+        "summary": c.get("summary", ""),
+        "time_zone": c.get("timeZone"),
+        "access_role": c.get("accessRole"),
+        "primary": c.get("primary", False),
+    }
+
+
+async def _get_cached_calendar_list(lc) -> list[dict[str, Any]]:
+    """Cache-first calendarList().list(), shaped for callers.
+
+    Shared by list_calendars and list_all_events. Propagates any fetch error to
+    the caller rather than catching it, matching list_calendars' own prior
+    (uncaught) behavior.
+    """
+    cache = lc.calendar_cache
+    cached = cache.get_list()
+    if cached is not None:
+        return cached
+
+    result = await execute_in_thread(
+        lc.calendar_service.calendarList().list().execute,
+        lc.calendar_service,
+    )
+    calendars = [_shape_calendar_list_entry(c) for c in result.get("items", [])]
+    cache.store_list(calendars)
+    return calendars
+
+
+def _shape_event(e: dict[str, Any], **extra: Any) -> dict[str, Any]:
+    """Shape a raw Calendar API event resource. Shared by list_events and
+    list_all_events; `extra` carries fields only one caller needs (e.g.
+    calendar_id/calendar_summary)."""
+    start = e.get("start", {})
+    end = e.get("end", {})
+    return {
+        "id": e["id"],
+        "summary": e.get("summary", ""),
+        "start": start.get("dateTime") or start.get("date"),
+        "end": end.get("dateTime") or end.get("date"),
+        "location": e.get("location"),
+        "description": e.get("description"),
+        "organizer": e.get("organizer", {}).get("email"),
+        "attendees": [
+            {"email": a.get("email"), "response": a.get("responseStatus")}
+            for a in e.get("attendees", [])
+        ],
+        "recurrence": e.get("recurrence"),
+        "html_link": e.get("htmlLink"),
+        "status": e.get("status"),
+        **extra,
+    }
+
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="List Calendars", readOnlyHint=True))
@@ -33,28 +96,7 @@ def register(tool):
             Results are cached; call refresh_cache(calendar_id=...) to invalidate.
         """
         lc = ctx.request_context.lifespan_context
-        cache = lc.calendar_cache
-
-        cached = cache.get_list()
-        if cached is not None:
-            return cached
-
-        result = await execute_in_thread(
-            lc.calendar_service.calendarList().list().execute,
-            lc.calendar_service,
-        )
-        calendars = [
-            {
-                "id": c["id"],
-                "summary": c.get("summary", ""),
-                "time_zone": c.get("timeZone"),
-                "access_role": c.get("accessRole"),
-                "primary": c.get("primary", False),
-            }
-            for c in result.get("items", [])
-        ]
-        cache.store_list(calendars)
-        return calendars
+        return await _get_cached_calendar_list(lc)
 
     @tool(annotations=ToolAnnotations(title="Get Calendar", readOnlyHint=True))
     async def get_calendar(calendar_id: str, ctx: Context = None) -> dict[str, Any]:
@@ -510,29 +552,7 @@ def register(tool):
         except Exception as e:
             return [{"error": str(e)}]
 
-        events = []
-        for e in result.get("items", []):
-            start = e.get("start", {})
-            end = e.get("end", {})
-            events.append(
-                {
-                    "id": e["id"],
-                    "summary": e.get("summary", ""),
-                    "start": start.get("dateTime") or start.get("date"),
-                    "end": end.get("dateTime") or end.get("date"),
-                    "location": e.get("location"),
-                    "description": e.get("description"),
-                    "organizer": e.get("organizer", {}).get("email"),
-                    "attendees": [
-                        {"email": a.get("email"), "response": a.get("responseStatus")}
-                        for a in e.get("attendees", [])
-                    ],
-                    "recurrence": e.get("recurrence"),
-                    "html_link": e.get("htmlLink"),
-                    "status": e.get("status"),
-                }
-            )
-        return events
+        return [_shape_event(e) for e in result.get("items", [])]
 
     @tool(annotations=ToolAnnotations(title="Get Event", readOnlyHint=True))
     async def get_event(calendar_id: str, event_id: str, ctx: Context = None) -> dict[str, Any]:
@@ -916,25 +936,8 @@ def register(tool):
         max_results_per_calendar = min(max(1, max_results_per_calendar), 2500)
         resolved_time_min = time_min or datetime.now(timezone.utc).isoformat()
 
-        cache = lc.calendar_cache
         try:
-            all_calendars = cache.get_list()
-            if all_calendars is None:
-                result = await execute_in_thread(
-                    lc.calendar_service.calendarList().list().execute,
-                    lc.calendar_service,
-                )
-                all_calendars = [
-                    {
-                        "id": c["id"],
-                        "summary": c.get("summary", ""),
-                        "time_zone": c.get("timeZone"),
-                        "access_role": c.get("accessRole"),
-                        "primary": c.get("primary", False),
-                    }
-                    for c in result.get("items", [])
-                ]
-                cache.store_list(all_calendars)
+            all_calendars = await _get_cached_calendar_list(lc)
         except Exception as e:
             # calendar_ids explicit: this call only needed the list for display
             # names, so fall back to bare calendar_ids instead of aborting.
@@ -957,6 +960,8 @@ def register(tool):
                 return f"{summary} ({calendar_id})"
             return summary
 
+        semaphore = asyncio.Semaphore(_LIST_ALL_EVENTS_MAX_CONCURRENCY)
+
         async def _fetch_one(calendar_id: str) -> dict[str, Any]:
             kwargs: dict[str, Any] = {
                 "calendarId": calendar_id,
@@ -973,10 +978,11 @@ def register(tool):
 
             calendar_summary = summary_by_id.get(calendar_id, calendar_id)
             try:
-                result = await execute_in_thread(
-                    lc.calendar_service.events().list(**kwargs).execute,
-                    lc.calendar_service,
-                )
+                async with semaphore:
+                    result = await execute_in_thread(
+                        lc.calendar_service.events().list(**kwargs).execute,
+                        lc.calendar_service,
+                    )
             except Exception as e:
                 return {
                     "calendar_id": calendar_id,
@@ -984,30 +990,10 @@ def register(tool):
                     "error": str(e),
                 }
 
-            events = []
-            for e in result.get("items", []):
-                start = e.get("start", {})
-                end = e.get("end", {})
-                events.append(
-                    {
-                        "id": e["id"],
-                        "summary": e.get("summary", ""),
-                        "start": start.get("dateTime") or start.get("date"),
-                        "end": end.get("dateTime") or end.get("date"),
-                        "location": e.get("location"),
-                        "description": e.get("description"),
-                        "organizer": e.get("organizer", {}).get("email"),
-                        "attendees": [
-                            {"email": a.get("email"), "response": a.get("responseStatus")}
-                            for a in e.get("attendees", [])
-                        ],
-                        "recurrence": e.get("recurrence"),
-                        "html_link": e.get("htmlLink"),
-                        "status": e.get("status"),
-                        "calendar_id": calendar_id,
-                        "calendar_summary": calendar_summary,
-                    }
-                )
+            events = [
+                _shape_event(e, calendar_id=calendar_id, calendar_summary=calendar_summary)
+                for e in result.get("items", [])
+            ]
             return {
                 "calendar_id": calendar_id,
                 "calendar_summary": calendar_summary,

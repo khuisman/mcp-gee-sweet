@@ -101,7 +101,7 @@ create_doc,create_doc_from_file,get_doc_content,get_doc_structure,find_in_doc,wr
 
 **Calendar only:**
 ```
-list_calendars,get_calendar,create_calendar,update_calendar,delete_calendar,add_calendar_to_list,remove_calendar_from_list,list_calendar_acl,add_calendar_acl,remove_calendar_acl,list_events,get_event,create_event,update_event,delete_event,find_free_slots
+list_calendars,get_calendar,create_calendar,update_calendar,delete_calendar,add_calendar_to_list,remove_calendar_from_list,list_calendar_acl,add_calendar_acl,remove_calendar_acl,list_events,list_all_events,get_event,create_event,update_event,delete_event,find_free_slots
 ```
 
 See [Tools](tools.md) for the full list of tool names.
