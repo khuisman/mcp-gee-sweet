@@ -20,6 +20,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Each item has `id`, `summary`, `time_zone`, `access_role`, `primary`
 - The service account's own calendar (or the primary shared calendar) is present
 
+**Result (2026-08-18) ✅** — PR #625 (issue #466) refactor round: `list_calendars` now routes through the shared `_get_cached_calendar_list` helper. Called live; returned 11 calendars, each with `id`/`summary`/`time_zone`/`access_role`/`primary` populated, one entry with `primary: true`. Output shape unchanged from pre-refactor. `list_events`/`get_event`/`list_all_events` (also touched by this PR's `_shape_event` extraction) were spot-checked live in the same round with matching, unchanged output shapes — see PR comment for the round's full write-up.
+
 ---
 
 ### TC-CAL02: primary flag
