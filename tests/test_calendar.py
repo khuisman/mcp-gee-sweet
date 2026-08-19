@@ -1331,15 +1331,24 @@ class TestListAllEvents:
 
         cal_svc.calendarList.return_value.list.assert_not_called()
 
-    async def test_fan_out_concurrency_is_capped(self):
-        """Issue #466: with more calendars than _LIST_ALL_EVENTS_MAX_CONCURRENCY, the
-        number of events().list() calls genuinely in flight at once (real OS threads
-        via execute_in_thread) must never exceed the cap — proving the semaphore
-        actually bounds the fan-out width, not just that it doesn't crash. The
-        barrier/lock lives inside execute() itself, not list(): list() is evaluated
-        eagerly on the event-loop thread while building the call chain, before
-        execute_in_thread ever hands off to a worker thread."""
-        cap = calendar_module._LIST_ALL_EVENTS_MAX_CONCURRENCY
+    async def test_fan_out_concurrency_is_capped(self, monkeypatch):
+        """Issue #466 / PR #625 QA round 1 (Kit): the real cap (20) sits below the
+        default asyncio.to_thread ThreadPoolExecutor's own worker ceiling
+        (min(32, os.cpu_count() + 4)) on any machine with >=16 CPUs, so on such a
+        host the thread pool itself — not the semaphore — was the thing actually
+        bounding peak observed concurrency; the original version of this test
+        still passed with the semaphore effectively disabled (cap bumped to 1000),
+        proving it wasn't testing what it claimed to. Fixed by patching the cap
+        down to a value (3) below the executor's *minimum possible* size on any
+        host (min(32, (os.cpu_count() or 1) + 4) >= 5 always), so the semaphore is
+        provably the binding constraint here regardless of the runner's CPU count.
+        The number of events().list() calls genuinely in flight at once (real OS
+        threads via execute_in_thread) must never exceed that cap. The lock lives
+        inside execute() itself, not list(): list() is evaluated eagerly on the
+        event-loop thread while building the call chain, before execute_in_thread
+        ever hands off to a worker thread."""
+        cap = 3
+        monkeypatch.setattr(calendar_module, "_LIST_ALL_EVENTS_MAX_CONCURRENCY", cap)
         n_calendars = cap + 5
         lock = threading.Lock()
         state = {"current": 0, "peak": 0}
