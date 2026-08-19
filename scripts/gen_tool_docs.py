@@ -216,10 +216,12 @@ SUBSETS = [
         "Docs only",
         [
             "create_doc",
+            "create_doc_from_file",
             "get_doc_content",
             "get_doc_structure",
             "find_in_doc",
             "write_doc_content",
+            "update_doc_from_file",
             "insert_doc_text",
             "insert_doc_table",
             "delete_doc_range",
