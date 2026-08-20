@@ -518,7 +518,7 @@ def _ast_cell_to_doc_cell(doc_table: dict, ast_table: Table, r: int, ast_col: in
     total_cols = max((sum(c.colspan for c in row.cells) for row in ast_table.rows), default=0)
     doc_cells = sorted(doc_rows[r].get("tableCells", []), key=lambda c: c.get("startIndex", 0))
     mapping = _physical_to_ast_indices(r, ast_row, phantom, total_cols)
-    for doc_cell, ast_cell_idx in zip(doc_cells, mapping):
+    for doc_cell, ast_cell_idx in zip(doc_cells, mapping, strict=True):
         if ast_cell_idx == ast_col:
             return doc_cell
     return None
@@ -914,7 +914,7 @@ def _physical_to_ast_indices(
 def _build_merge_requests(doc_tables: list[dict], ast_tables: list[Table]) -> list[dict]:
     """Emit mergeTableCells for any cell with colspan > 1 or rowspan > 1."""
     requests: list[dict] = []
-    for doc_table, ast_table in zip(doc_tables, ast_tables):
+    for doc_table, ast_table in zip(doc_tables, ast_tables, strict=True):
         table_start = _table_start_index(doc_table)
         if table_start is None:
             continue
@@ -960,14 +960,14 @@ def _build_fill_requests(doc_tables: list[dict], ast_tables: list[Table]) -> lis
     """
     all_requests: list[tuple[int, list[dict]]] = []
 
-    for doc_table, ast_table in zip(doc_tables, ast_tables):
+    for doc_table, ast_table in zip(doc_tables, ast_tables, strict=True):
         doc_rows = doc_table.get("tableRows", [])
         phantom = _build_phantom_set(ast_table)
         total_cols = max((sum(c.colspan for c in row.cells) for row in ast_table.rows), default=0)
         if total_cols == 0:
             continue
 
-        for r, (doc_row_entry, ast_row) in enumerate(zip(doc_rows, ast_table.rows)):
+        for r, (doc_row_entry, ast_row) in enumerate(zip(doc_rows, ast_table.rows, strict=True)):
             # Sort by startIndex: after mergeTableCells, the API may return covered
             # (phantom) cells last rather than in column order.
             doc_cells = sorted(
@@ -975,7 +975,7 @@ def _build_fill_requests(doc_tables: list[dict], ast_tables: list[Table]) -> lis
             )
             mapping = _physical_to_ast_indices(r, ast_row, phantom, total_cols)
 
-            for doc_cell, ast_cell_idx in zip(doc_cells, mapping):
+            for doc_cell, ast_cell_idx in zip(doc_cells, mapping, strict=True):
                 if ast_cell_idx is None:
                     continue  # rowspan phantom — skip
                 ast_cell = ast_row.cells[ast_cell_idx]
@@ -1009,7 +1009,7 @@ def _build_cell_style_requests(doc_tables: list[dict], ast_tables: list[Table]) 
     def _pt(magnitude: float) -> dict:
         return {"magnitude": magnitude, "unit": "PT"}
 
-    for doc_table, ast_table in zip(doc_tables, ast_tables):
+    for doc_table, ast_table in zip(doc_tables, ast_tables, strict=True):
         table_start = _table_start_index(doc_table)
         if table_start is None:
             continue
@@ -1088,7 +1088,7 @@ def _build_width_requests(live_doc: dict, ast_tables: list[Table]) -> list[dict]
         elem for elem in live_doc.get("body", {}).get("content", []) if "table" in elem
     ]
 
-    for elem, ast_table in zip(doc_table_elems, ast_tables):
+    for elem, ast_table in zip(doc_table_elems, ast_tables, strict=True):
         if not ast_table.col_widths:
             continue
         table_start = elem.get("startIndex")

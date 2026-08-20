@@ -62,9 +62,9 @@ class _BareUrlInlineProcessor(InlineProcessor):
         # CommonMark/GFM extended autolink behavior — "see https://x.com." shouldn't
         # swallow the period, and "(https://x.com)" shouldn't swallow the paren.
         while url:
-            if url[-1] in _BARE_URL_TRAILING_PUNCT:
-                url = url[:-1]
-            elif url[-1] == ")" and url.count("(") < url.count(")"):
+            if url[-1] in _BARE_URL_TRAILING_PUNCT or (
+                url[-1] == ")" and url.count("(") < url.count(")")
+            ):
                 url = url[:-1]
             else:
                 break
@@ -426,7 +426,7 @@ async def _apply_doc_content(
             ),
             return_exceptions=True,
         )
-        for img, result in zip(images, results):
+        for img, result in zip(images, results, strict=True):
             entry: dict[str, Any] = {"src": img.src}
             if isinstance(result, BaseException):
                 entry["error"] = str(result)

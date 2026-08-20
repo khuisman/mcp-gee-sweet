@@ -1247,7 +1247,7 @@ def register(tool):
             upload_content = (
                 f"<!DOCTYPE html><html><head><meta charset='utf-8'></head>"
                 f"<body>{html_body}</body></html>"
-            ).encode("utf-8")
+            ).encode()
             upload_mime = "text/html"
         elif source_format == "html":
             upload_content = content.encode("utf-8")

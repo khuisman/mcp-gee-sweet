@@ -29,7 +29,7 @@ def _build_doc_body(paragraph_runs: list[list[str]]) -> tuple[dict, list[tuple[i
 
 class TestCollectDocParagraphs:
     def test_single_run_paragraph(self):
-        doc, paragraphs = _build_doc_body([["Hello world\n"]])
+        doc, _paragraphs = _build_doc_body([["Hello world\n"]])
         result = list(_collect_doc_paragraphs(doc["body"]["content"]))
         assert result == [("Hello world\n", list(range(1, 13)))]
 

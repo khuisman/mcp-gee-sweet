@@ -855,7 +855,7 @@ class TestCreateParagraphBulletsTool:
                 (11, 17, "Three\n", bullet),
             ]
         )
-        mock_docs, ctx = self._mocks(doc)
+        _mock_docs, ctx = self._mocks(doc)
 
         result = await tools["create_paragraph_bullets"](
             doc_id="doc123",
@@ -1038,7 +1038,7 @@ class TestStyleDocTableCellsTool:
         # #403 QA follow-up: confirmed live that the Docs API rejects a border
         # request with non-zero width and no color as "transparent" (400 error).
         # A width-only per-edge override must inherit color from the uniform spec.
-        result, style, fields = await self._call(
+        result, style, _fields = await self._call(
             [
                 {
                     "row_index": 0,

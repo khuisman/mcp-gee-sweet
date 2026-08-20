@@ -287,14 +287,14 @@ class TestLifespanAuthMethod:
         with (
             patch("mcp_gee_sweet.auth._service_account_creds", return_value=None),
             patch("googleapiclient.discovery.build"),
+            pytest.raises(RuntimeError, match="service_account"),
         ):
-            with pytest.raises(RuntimeError, match="service_account"):
 
-                async def _run():
-                    async with spreadsheet_lifespan(MagicMock()):
-                        pass
+            async def _run():
+                async with spreadsheet_lifespan(MagicMock()):
+                    pass
 
-                asyncio.run(_run())
+            asyncio.run(_run())
 
     def test_pinned_oauth_calls_oauth_creds(self, monkeypatch):
         user_creds = UserCredentials.__new__(UserCredentials)
@@ -353,14 +353,14 @@ class TestLifespanAuthMethod:
         with (
             patch("google.auth.default", side_effect=Exception("no ADC")),
             patch("googleapiclient.discovery.build"),
+            pytest.raises(RuntimeError, match="ADC"),
         ):
-            with pytest.raises(RuntimeError, match="ADC"):
 
-                async def _run():
-                    async with spreadsheet_lifespan(MagicMock()):
-                        pass
+            async def _run():
+                async with spreadsheet_lifespan(MagicMock()):
+                    pass
 
-                asyncio.run(_run())
+            asyncio.run(_run())
 
 
 class TestLifespanWaterfall:
@@ -404,14 +404,14 @@ class TestLifespanWaterfall:
             patch("mcp_gee_sweet.auth._service_account_creds", return_value=None),
             patch("google.auth.default", side_effect=Exception("no ADC")),
             patch("googleapiclient.discovery.build"),
+            pytest.raises(RuntimeError, match="All authentication"),
         ):
-            with pytest.raises(RuntimeError, match="All authentication"):
 
-                async def _run():
-                    async with spreadsheet_lifespan(MagicMock()):
-                        pass
+            async def _run():
+                async with spreadsheet_lifespan(MagicMock()):
+                    pass
 
-                asyncio.run(_run())
+            asyncio.run(_run())
 
     def test_waterfall_context_sets_auth_method_on_context(self, monkeypatch):
         """SpreadsheetContext.auth_method is set correctly by the lifespan."""

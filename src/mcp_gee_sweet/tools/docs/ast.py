@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Union
 
 
 @dataclass
@@ -19,7 +18,7 @@ class ParagraphStyle:
     indent_first_line: float | None = None  # pt
     space_above: float | None = None  # pt
     space_below: float | None = None  # pt
-    line_spacing: float | None = None  # 100=single, 150=1.5×, 200=double
+    line_spacing: float | None = None  # 100=single, 150=1.5x, 200=double
     page_break_before: bool | None = None
     keep_lines_together: bool | None = None
     keep_with_next: bool | None = None
@@ -86,7 +85,7 @@ class Table:
 
 @dataclass
 class Heading:
-    level: int  # 1–6
+    level: int  # 1-6
     runs: list[Run | Image]
     paragraph_style: ParagraphStyle | None = None
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
@@ -117,4 +116,4 @@ class NamedBlock:
     blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
 
 
-DocNode = Union[Heading, Paragraph, BulletItem, Table, NamedBlock]
+DocNode = Heading | Paragraph | BulletItem | Table | NamedBlock

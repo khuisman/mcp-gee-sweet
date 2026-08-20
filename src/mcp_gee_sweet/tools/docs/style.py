@@ -880,11 +880,11 @@ def register(tool):
         Set overwrite=True to also apply the theme directly to all existing paragraphs,
         overwriting their current styles including any individual overrides.
 
-        Theme entry keys (NORMAL_TEXT, HEADING_1–6, TITLE, SUBTITLE). Each entry can
+        Theme entry keys (NORMAL_TEXT, HEADING_1-6, TITLE, SUBTITLE). Each entry can
         include (all optional):
           font_family (str), font_size (float, points), bold (bool), italic (bool),
           color (dict {"red": 0-1, "green": 0-1, "blue": 0-1}),
-          line_spacing (float, 100=single, 115=1.15×, 150=1.5×),
+          line_spacing (float, 100=single, 115=1.15x, 150=1.5x),
           space_above (float, points), space_below (float, points)
 
         An optional "table" key applies styling to every table currently in the document:

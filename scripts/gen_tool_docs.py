@@ -40,7 +40,7 @@ def collect_tools():
     FastMCP one, so this script never touches the mcp/auth machinery."""
     captured = []
 
-    def tool(annotations=None):  # noqa: ARG001 — keyword must match the real tool() decorator
+    def tool(annotations=None):
         def decorator(func):
             captured.append(func)
             return func
