@@ -1,0 +1,12 @@
+Wake Kai directly, if it's already running as a live agent, right after a PR picks up the `qa-approved` label — instead of leaving it sitting until the user manually tells Kai to check. Invoked from `qa.md` step 8, immediately after `gh pr edit <number> --add-label qa-approved` — not run standalone by a user, and never a blocking dependency: when no live Kai session exists, this is a silent no-op and the existing fully-manual flow (Kai's own `/orchestrator`/`/team-member Kai` startup report already surfaces the PR via `gh pr list --state open`, or the user tells Kai to check) is completely unaffected.
+
+This is a separate, narrower mechanism from `notify-partner.md` — that one resolves a *pairing* (Ash↔Sky, Jay↔Kit) for Dev/QA handoffs. There's exactly one Kai, so this file has no pairing table to resolve, just a fixed target name.
+
+**Scope: `qa-approved` only, not every approval label.** `docs-qa-approved` (Amy's docs-PR track) is applied directly by the user, not by any agent session — see `amy.md` — so there is no live-session moment to fire this from for that label. Don't extend this mechanism to it without first giving that track an agent-side application step; a user-driven label change can't call `SendMessage`.
+
+1. `ListAgents`. Look for a row named `Kai`, **case-insensitively** — same reasoning as `notify-partner.md` step 1: a session registers under whatever casing it was actually invoked with.
+   - **No matching row:** nothing to do — don't report this as a failure. Continue with the rest of `qa.md` step 8 (report to the user that it's ready for Kai to run `/merge-pr`).
+   - **More than one row matches:** there should only ever be one live Kai — it owns the single main checkout, and `kai.md` step 1 refuses to run from anywhere else. Don't guess which row is real; ask the user rather than sending to either.
+   - **Exactly one match:** proceed to step 2, addressing it by the row's own literal name as `ListAgents` returned it (not the canonical `Kai` spelling above), the same case-preservation reasoning as `notify-partner.md` step 1's last clause.
+2. `SendMessage({to: "<name>", message: "PR #<n> just got qa-approved."})`. Keep it to the triggering fact only — Kai re-derives its own next steps (checking the PR, running `/merge-pr`) from its own role file, the same as if the user had just told it to look.
+3. Fire-and-forget, same contract as `notify-partner.md` step 3: don't wait for a reply and don't poll `ListAgents` to check whether Kai picked it up.
