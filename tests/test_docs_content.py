@@ -2548,7 +2548,7 @@ class TestFindInDoc:
         results = await _docs_tools["find_in_doc"](doc_id="doc1", query="hello", ctx=ctx)
 
         assert len(results) == 2
-        p0_start, p0_text = paragraphs[0]
+        p0_start, _p0_text = paragraphs[0]
         p1_start, p1_text = paragraphs[1]
         assert results[0]["start_index"] == p0_start
         assert results[0]["end_index"] == p0_start + len("Hello")

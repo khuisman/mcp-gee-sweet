@@ -706,7 +706,7 @@ def register(tool):
             gather_results = await asyncio.gather(
                 *(_upload_and_share(p) for p in placements), return_exceptions=True
             )
-            for placement, result in zip(placements, gather_results):
+            for placement, result in zip(placements, gather_results, strict=True):
                 if isinstance(result, BaseException):
                     placement["failed"] = True
                     placement["entry"]["error"] = f"upload/share failed: {result}"

@@ -802,7 +802,7 @@ class TestInsertLocalImages:
     async def test_multiple_images_processed_highest_marker_first(self, tmp_path):
         img = tmp_path / "pic.png"
         img.write_bytes(b"fake")
-        doc, paragraphs = _build_doc_body([["ONE\n"], ["TWO\n"]])
+        doc, _paragraphs = _build_doc_body([["ONE\n"], ["TWO\n"]])
         docs_svc = self._docs_svc(doc)
         drive_svc = self._drive_svc()
         ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")

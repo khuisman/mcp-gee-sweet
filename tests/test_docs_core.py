@@ -135,7 +135,7 @@ class TestHtmlToDocRequests:
         assert insert["insertText"]["text"] == "A\n\n\nB\n"
 
     def test_table_produces_insert_table_request(self):
-        requests, tables = _html_to_doc_requests(
+        requests, _tables = _html_to_doc_requests(
             "<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>"
         )
         table_reqs = [r for r in requests if "insertTable" in r]
@@ -157,7 +157,7 @@ class TestHtmlToDocRequests:
 
     def test_table_interleaved_with_text(self):
         html = "<h2>Before</h2><table><tr><td>X</td></tr></table><h2>After</h2>"
-        requests, tables = _html_to_doc_requests(html)
+        requests, _tables = _html_to_doc_requests(html)
         insert_texts = [r for r in requests if "insertText" in r]
         insert_tables = [r for r in requests if "insertTable" in r]
         # All text ("Before\nAfter\n") in one insertText; table inserted between them

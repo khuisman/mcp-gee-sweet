@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 import os
@@ -70,10 +71,8 @@ def _open(db_path: str) -> sqlite3.Connection:
         if db_path != ":memory:":
             for suffix in ("", "-shm", "-wal"):
                 path = db_path + suffix
-                try:
+                with contextlib.suppress(OSError):
                     os.remove(path)
-                except OSError:
-                    pass
             logger.warning("Cache file unusable (%s), deleted and retrying: %s", exc, db_path)
             try:
                 return _connect(db_path)

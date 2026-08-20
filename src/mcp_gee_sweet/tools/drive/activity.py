@@ -78,7 +78,7 @@ def register(tool):
 
         Args:
             file_id: Google Drive file ID to query.
-            page_size: Maximum number of activities to return (1–100, default 50).
+            page_size: Maximum number of activities to return (1-100, default 50).
             page_token: Continuation token from a previous response for pagination.
 
         Returns:

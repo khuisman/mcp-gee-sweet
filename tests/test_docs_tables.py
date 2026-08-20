@@ -422,7 +422,7 @@ class TestNestedTableParser:
 
 class TestNestedTableEmitter:
     async def test_outer_table_emits_insert_table(self):
-        requests, tables = _html_to_doc_requests(
+        requests, _tables = _html_to_doc_requests(
             "<table><tr><td><table><tr><td>x</td></tr></table></td></tr></table>"
         )
         table_inserts = [r for r in requests if "insertTable" in r]
@@ -628,13 +628,17 @@ class FakeDoc:
         doc_dict = self.get()
 
         def walk(objs, dict_elems):
-            for i, (obj, dict_elem) in enumerate(zip(objs, dict_elems)):
+            for i, (obj, dict_elem) in enumerate(zip(objs, dict_elems, strict=True)):
                 if isinstance(obj, Para):
                     if dict_elem["startIndex"] <= index <= dict_elem["endIndex"]:
                         return obj, dict_elem["startIndex"], objs, i
                 else:
-                    for row_obj, row_elem in zip(obj.rows, dict_elem["table"]["tableRows"]):
-                        for cell_obj, cell_elem in zip(row_obj, row_elem["tableCells"]):
+                    for row_obj, row_elem in zip(
+                        obj.rows, dict_elem["table"]["tableRows"], strict=True
+                    ):
+                        for cell_obj, cell_elem in zip(
+                            row_obj, row_elem["tableCells"], strict=True
+                        ):
                             result = walk(cell_obj.content, cell_elem["content"])
                             if result:
                                 return result
