@@ -165,6 +165,39 @@ class TestUploadLocalFileCore:
         }
         drive_svc.files.return_value.create.assert_not_called()
 
+    async def test_no_skip_creates_duplicate_when_file_already_exists(self, tmp_path):
+        """skip_if_exists=False must never even check for a same-named file — TC-D95
+        (issue #495): the existence list() call is gated behind `if skip_if_exists:`
+        (transfer.py:126), so this pins that it's genuinely bypassed (not just
+        untriggered by coincidence) rather than "checked but ignored". The list()
+        mock is configured with a colliding file precisely so a regression that
+        started calling list() and honoring it would fail this test's own
+        assert_not_called(), not just silently produce the same result."""
+        local_file = tmp_path / "pic.png"
+        local_file.write_bytes(b"fake-bytes")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"id": "existing1", "name": "pic.png", "webViewLink": "https://x/existing"}]
+        }
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid_new",
+            "name": "pic.png",
+            "webViewLink": "https://example.com/pic",
+        }
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", skip_if_exists=False
+        )
+
+        assert result == {
+            "fileId": "fid_new",
+            "name": "pic.png",
+            "web_link": "https://example.com/pic",
+            "skipped": False,
+        }
+        drive_svc.files.return_value.list.assert_not_called()
+        drive_svc.files.return_value.create.assert_called_once()
+
     async def test_quota_exceeded_returns_friendly_error_dict(self, tmp_path):
         local_file = tmp_path / "pic.png"
         local_file.write_bytes(b"fake-bytes")
