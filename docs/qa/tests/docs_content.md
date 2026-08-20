@@ -718,6 +718,8 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 **Result (2026-06-20) ✅ PASS**
 - 2 rows, 3 cols. [0,0] "Big" ✅, [0,1] "" ✅, [0,2] "R0C2" ✅, [1,0] "" ✅, [1,1] "" ✅, [1,2] "R1C2" ✅. All phantom slots empty.
 
+**Result (2026-08-19, regression) ✅ PASS — re-run live against PR #636 (issue #377, Ruff UP/B/C4/SIM/RUF adoption).** PR #636 added `strict=True` to five `zip()` calls in `emitter.py`'s table-building pipeline (`_ast_cell_to_doc_cell`, `_build_merge_requests`, `_build_fill_requests`, `_build_cell_style_requests`, `_build_width_requests`) — a fail-fast guard, no intended behavior change on matched-length inputs. Re-ran via `create_doc` against a scratch doc (docId `1vux36c7ZOyBHb8YPi3WnubSotL0Mg0y5QZJjPmbEvxA`), not the shared fixture: `get_doc_structure` confirmed 2 rows, 3 columns; [0,0]="Big", [0,2]="R0C2", [1,2]="R1C2"; phantom slots [0,1]/[1,0]/[1,1] all empty. No `zip()` length-mismatch error raised. Doc trashed after verification (structural check only, no Playwright this round).
+
 ---
 
 ### TC-DOC38: `rowspan` with header row — phantom not filled, real cells in correct columns ⚠️ destructive
@@ -1017,6 +1019,8 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 **Result (2026-07-05) ✅ PASS**
 `create_doc` succeeded (docId `1F66ZQQMuBx9CjaGx49bBg6DlcVMAYMnqnuYHtouyfIU`). `get_doc_structure` confirmed all four checks: `https://example.com/some-page` run has `link_url` set with the trailing `.` split into its own unlinked run; `https://example.com/parens` run has `link_url` set with both wrapping parens split into unlinked runs; the markdown link's `click` run has `link_url: "https://example.com/existing"` (untouched, not double-processed); the backtick-wrapped `https://example.com/code` run has `link_url: null`. Doc trashed after verification. Visual check (re-created identical content, Playwright screenshot, re-trashed): both bare URLs render blue/underlined, wrapping punctuation stays plain black, `click` renders as a normal link, and the backtick-wrapped URL renders as plain monospace code — not a link.
+
+**Result (2026-08-19, regression) ✅ PASS — re-run live against PR #636 (issue #377, Ruff UP/B/C4/SIM/RUF adoption).** PR #636 merged this test's exact `if`/`elif` trailing-punctuation branch into one `or`-joined condition in `_BareUrlInlineProcessor` (mechanical SIM108-style cleanup, no intended behavior change). Re-ran via `create_doc` (docId `1NZTdIPJxmxMWGKJH_aelsillFToCShhXCutGhCiH8JU`): all four checks still hold — trailing `.` and wrapping parens correctly split off into unlinked runs, existing markdown link untouched, backtick-wrapped URL has `link_url: null`. Doc trashed after verification (structural check only, no Playwright this round).
 
 ---
 
