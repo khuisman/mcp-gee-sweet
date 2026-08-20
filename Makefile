@@ -112,6 +112,12 @@ team-bob: setup-team ## Launch Claude Code backgrounded directly into the Bob pe
 team-kai: setup-team ## Launch Claude Code backgrounded directly into the Kai persona (Orchestrator); shows up in `claude agents`.
 	claude --bg "/team-member Kai"
 
+.PHONY: lane-a
+lane-a: team-ash team-sky ## Launch both Ash (Dev) and Sky (QA) for lane A in the background.
+
+.PHONY: lane-b
+lane-b: team-jay team-kit ## Launch both Jay (Dev) and Kit (QA) for lane B in the background.
+
 .PHONY: test
 test: ## Run unit tests.
 	uv run python -m pytest
