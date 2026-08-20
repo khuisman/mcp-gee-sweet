@@ -1529,7 +1529,7 @@
 <h1 id="chart-tools-qa-test-cases">Chart Tools — QA Test Cases<a class="headerlink" href="#chart-tools-qa-test-cases" title="Permanent link">&para;</a></h1>
 <p>Source: <code>src/mcp_gee_sweet/tools/charts.py</code></p>
 <p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute your <code>{SPREADSHEET_ID}</code> from <code>fixtures.local.md</code>.</p>
-<p>All chart tests use the Sales sheet (<code>A1:D6</code>) as the data range. Charts are additive — they don't mutate cell data — so fixture reset is generally not needed. However, added charts accumulate on the sheet across test runs.</p>
+<p>All chart tests use the Sales sheet (<code>A1:D6</code>) as the data range. Charts are additive — they don't mutate cell data — so fixture reset is generally not needed. Every test case that successfully creates a chart has a <strong>Cleanup</strong> step deleting it via <code>batch_update</code> with a <code>deleteEmbeddedObject</code> request against the returned <code>chartId</code>, so a full run leaves the Sales sheet exactly as it started.</p>
 <hr />
 <h2 id="add_chart"><code>add_chart</code><a class="headerlink" href="#add_chart" title="Permanent link">&para;</a></h2>
 <h3 id="tc-c01-column-chart">TC-C01: COLUMN chart<a class="headerlink" href="#tc-c01-column-chart" title="Permanent link">&para;</a></h3>
@@ -1542,6 +1542,7 @@
 - Chart appears on the Sales sheet
 - Response includes a <code>chartId</code>
 - Chart type is COLUMN</p>
+<p><strong>Cleanup:</strong> delete the chart via <code>batch_update</code> with <code>requests=[{"deleteEmbeddedObject": {"objectId": &lt;chartId&gt;}}]</code></p>
 <p><strong>Result (2026-08-15) ✅ PASS</strong> — <code>add_chart</code> returned <code>chartId: 1767578399</code>, <code>basicChart.chartType: COLUMN</code>. Playwright screenshot of the Sales sheet confirms the "Sales by Quarter" column chart rendered correctly with Q1/Q2/Q3 series grouped by product.</p>
 <hr />
 <h3 id="tc-c02-bar-chart">TC-C02: BAR chart<a class="headerlink" href="#tc-c02-bar-chart" title="Permanent link">&para;</a></h3>
@@ -1552,6 +1553,8 @@
 <p><strong>Checks</strong>
 - Chart added with BAR type
 - Response includes <code>chartId</code></p>
+<p><strong>Cleanup:</strong> delete the chart via <code>batch_update</code> with <code>requests=[{"deleteEmbeddedObject": {"objectId": &lt;chartId&gt;}}]</code></p>
+<p><strong>Result (2026-08-19) ✅ PASS</strong> — <code>add_chart</code> returned <code>chartId: 1421396281</code>, <code>basicChart.chartType: BAR</code>. Cleanup via <code>batch_update</code>/<code>deleteEmbeddedObject</code> succeeded; Playwright screenshot of the Sales sheet before chart creation and after cleanup are pixel-identical (no leftover chart, no cell-data drift) — confirms the new Cleanup step actually restores the sheet to its pre-test state.</p>
 <hr />
 <h3 id="tc-c03-line-chart">TC-C03: LINE chart<a class="headerlink" href="#tc-c03-line-chart" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1561,6 +1564,7 @@
 <p><strong>Checks</strong>
 - LINE chart added
 - Response includes <code>chartId</code></p>
+<p><strong>Cleanup:</strong> delete the chart via <code>batch_update</code> with <code>requests=[{"deleteEmbeddedObject": {"objectId": &lt;chartId&gt;}}]</code></p>
 <hr />
 <h3 id="tc-c04-area-chart">TC-C04: AREA chart<a class="headerlink" href="#tc-c04-area-chart" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1570,6 +1574,7 @@
 <p><strong>Checks</strong>
 - AREA chart added
 - Response includes <code>chartId</code></p>
+<p><strong>Cleanup:</strong> delete the chart via <code>batch_update</code> with <code>requests=[{"deleteEmbeddedObject": {"objectId": &lt;chartId&gt;}}]</code></p>
 <hr />
 <h3 id="tc-c05-pie-chart">TC-C05: PIE chart<a class="headerlink" href="#tc-c05-pie-chart" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1580,6 +1585,7 @@
 - PIE chart added
 - Response includes <code>chartId</code>
 - Pie chart code path taken (no axis/domain/series splitting)</p>
+<p><strong>Cleanup:</strong> delete the chart via <code>batch_update</code> with <code>requests=[{"deleteEmbeddedObject": {"objectId": &lt;chartId&gt;}}]</code></p>
 <hr />
 <h3 id="tc-c06-scatter-chart">TC-C06: SCATTER chart<a class="headerlink" href="#tc-c06-scatter-chart" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1589,6 +1595,7 @@
 <p><strong>Checks</strong>
 - SCATTER chart added
 - Response includes <code>chartId</code></p>
+<p><strong>Cleanup:</strong> delete the chart via <code>batch_update</code> with <code>requests=[{"deleteEmbeddedObject": {"objectId": &lt;chartId&gt;}}]</code></p>
 <hr />
 <h3 id="tc-c07-combo-chart">TC-C07: COMBO chart<a class="headerlink" href="#tc-c07-combo-chart" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1598,6 +1605,7 @@
 <p><strong>Checks</strong>
 - COMBO chart added
 - Response includes <code>chartId</code></p>
+<p><strong>Cleanup:</strong> delete the chart via <code>batch_update</code> with <code>requests=[{"deleteEmbeddedObject": {"objectId": &lt;chartId&gt;}}]</code></p>
 <hr />
 <h3 id="tc-c08-histogram-chart">TC-C08: HISTOGRAM chart<a class="headerlink" href="#tc-c08-histogram-chart" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1607,6 +1615,7 @@
 <p><strong>Checks</strong>
 - HISTOGRAM chart added
 - Response includes <code>chartId</code></p>
+<p><strong>Cleanup:</strong> delete the chart via <code>batch_update</code> with <code>requests=[{"deleteEmbeddedObject": {"objectId": &lt;chartId&gt;}}]</code></p>
 <hr />
 <h3 id="tc-c09-invalid-chart-type">TC-C09: Invalid chart type<a class="headerlink" href="#tc-c09-invalid-chart-type" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1626,6 +1635,7 @@
 <p><strong>Checks</strong>
 - Chart created successfully — <code>.upper()</code> normalized 'column' → 'COLUMN'
 - Response includes <code>chartId</code></p>
+<p><strong>Cleanup:</strong> delete the chart via <code>batch_update</code> with <code>requests=[{"deleteEmbeddedObject": {"objectId": &lt;chartId&gt;}}]</code></p>
 <hr />
 <h3 id="tc-c11-sheet-not-found">TC-C11: Sheet not found<a class="headerlink" href="#tc-c11-sheet-not-found" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1646,6 +1656,7 @@
 - Chart added with the specified <code>overlayPosition</code> values
 - Response includes <code>chartId</code>
 - 🔍 <strong>Product decision:</strong> are position/size values in pixels or grid units? Note what the API accepts</p>
+<p><strong>Cleanup:</strong> delete the chart via <code>batch_update</code> with <code>requests=[{"deleteEmbeddedObject": {"objectId": &lt;chartId&gt;}}]</code></p>
 
 
 
