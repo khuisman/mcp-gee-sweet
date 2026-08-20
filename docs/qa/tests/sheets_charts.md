@@ -21,7 +21,7 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 - Response includes a `chartId`
 - Chart type is COLUMN
 
-**Cleanup:** delete the chart via `batch_update` with `{"deleteEmbeddedObject": {"objectId": <chartId>}}`
+**Cleanup:** delete the chart via `batch_update` with `requests=[{"deleteEmbeddedObject": {"objectId": <chartId>}}]`
 
 **Result (2026-08-15) ✅ PASS** — `add_chart` returned `chartId: 1767578399`, `basicChart.chartType: COLUMN`. Playwright screenshot of the Sales sheet confirms the "Sales by Quarter" column chart rendered correctly with Q1/Q2/Q3 series grouped by product.
 
@@ -36,7 +36,9 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 - Chart added with BAR type
 - Response includes `chartId`
 
-**Cleanup:** delete the chart via `batch_update` with `{"deleteEmbeddedObject": {"objectId": <chartId>}}`
+**Cleanup:** delete the chart via `batch_update` with `requests=[{"deleteEmbeddedObject": {"objectId": <chartId>}}]`
+
+**Result (2026-08-19) ✅ PASS** — `add_chart` returned `chartId: 1421396281`, `basicChart.chartType: BAR`. Cleanup via `batch_update`/`deleteEmbeddedObject` succeeded; Playwright screenshot of the Sales sheet before chart creation and after cleanup are pixel-identical (no leftover chart, no cell-data drift) — confirms the new Cleanup step actually restores the sheet to its pre-test state.
 
 ---
 
@@ -49,7 +51,7 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 - LINE chart added
 - Response includes `chartId`
 
-**Cleanup:** delete the chart via `batch_update` with `{"deleteEmbeddedObject": {"objectId": <chartId>}}`
+**Cleanup:** delete the chart via `batch_update` with `requests=[{"deleteEmbeddedObject": {"objectId": <chartId>}}]`
 
 ---
 
@@ -62,7 +64,7 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 - AREA chart added
 - Response includes `chartId`
 
-**Cleanup:** delete the chart via `batch_update` with `{"deleteEmbeddedObject": {"objectId": <chartId>}}`
+**Cleanup:** delete the chart via `batch_update` with `requests=[{"deleteEmbeddedObject": {"objectId": <chartId>}}]`
 
 ---
 
@@ -76,7 +78,7 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 - Response includes `chartId`
 - Pie chart code path taken (no axis/domain/series splitting)
 
-**Cleanup:** delete the chart via `batch_update` with `{"deleteEmbeddedObject": {"objectId": <chartId>}}`
+**Cleanup:** delete the chart via `batch_update` with `requests=[{"deleteEmbeddedObject": {"objectId": <chartId>}}]`
 
 ---
 
@@ -89,7 +91,7 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 - SCATTER chart added
 - Response includes `chartId`
 
-**Cleanup:** delete the chart via `batch_update` with `{"deleteEmbeddedObject": {"objectId": <chartId>}}`
+**Cleanup:** delete the chart via `batch_update` with `requests=[{"deleteEmbeddedObject": {"objectId": <chartId>}}]`
 
 ---
 
@@ -102,7 +104,7 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 - COMBO chart added
 - Response includes `chartId`
 
-**Cleanup:** delete the chart via `batch_update` with `{"deleteEmbeddedObject": {"objectId": <chartId>}}`
+**Cleanup:** delete the chart via `batch_update` with `requests=[{"deleteEmbeddedObject": {"objectId": <chartId>}}]`
 
 ---
 
@@ -115,7 +117,7 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 - HISTOGRAM chart added
 - Response includes `chartId`
 
-**Cleanup:** delete the chart via `batch_update` with `{"deleteEmbeddedObject": {"objectId": <chartId>}}`
+**Cleanup:** delete the chart via `batch_update` with `requests=[{"deleteEmbeddedObject": {"objectId": <chartId>}}]`
 
 ---
 
@@ -140,7 +142,7 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 - Chart created successfully — `.upper()` normalized 'column' → 'COLUMN'
 - Response includes `chartId`
 
-**Cleanup:** delete the chart via `batch_update` with `{"deleteEmbeddedObject": {"objectId": <chartId>}}`
+**Cleanup:** delete the chart via `batch_update` with `requests=[{"deleteEmbeddedObject": {"objectId": <chartId>}}]`
 
 ---
 
@@ -166,4 +168,4 @@ All chart tests use the Sales sheet (`A1:D6`) as the data range. Charts are addi
 - Response includes `chartId`
 - 🔍 **Product decision:** are position/size values in pixels or grid units? Note what the API accepts
 
-**Cleanup:** delete the chart via `batch_update` with `{"deleteEmbeddedObject": {"objectId": <chartId>}}`
+**Cleanup:** delete the chart via `batch_update` with `requests=[{"deleteEmbeddedObject": {"objectId": <chartId>}}]`
