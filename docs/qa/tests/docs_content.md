@@ -1221,38 +1221,43 @@ These test the HTML→AST→Docs API pipeline introduced in Phase 2 (#87). All u
 
 ## `insert_inline_image` (#145)
 
-### TC-DOC57: Insert an image by public URI ⚠️ destructive
-**Setup:** fetch structure; note the `endIndex` of a paragraph to insert after
+**Fixture:** `docs/qa/fixtures/qa-fixture-pixel.png` — the same 1×1 pixel PNG already committed for `insert_local_images` below, reused here rather than adding a second near-identical fixture (issue #224). TC-DOC57/58 previously depended on an external `gstatic.com` URL (Google's own branding logo) as their only image source, and neither case exercised a self-contained, repo-owned asset — closed here by having both cases upload+share this fixture instead. #224 also asked to investigate an SVG fixture alongside the PNG one; deliberately not added — the Docs API's `InsertInlineImageRequest` reference documents PNG/JPEG/GIF as the only supported inline-image formats (no SVG), confirmed against the API reference directly, so a committed SVG fixture would exercise a format the API rejects outright rather than add a useful test case.
+
+### TC-DOC57: Insert an image by public URI ⚠️ requires-oauth ⚠️ destructive
+**Setup:**
+1. `upload_local_file(local_path="<repo-root>/docs/qa/fixtures/qa-fixture-pixel.png", parent_folder_id={FOLDER_ID}, name="qa-fixture-pixel.png", skip_if_exists=False)` — note the returned `fileId` as `{FIXTURE_FILE_ID}`
+2. `share_file(file_id={FIXTURE_FILE_ID}, permissions=[{"type": "anyone", "role": "reader"}])`
+3. Fetch structure; note the `endIndex` of a paragraph to insert after as `{N}`
 
 **Prompt**
 **Playwright: required**
-> "Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png' at index {N} in doc {DOC_ID}"
+> "Insert an image from URI 'https://drive.google.com/uc?export=download&id={FIXTURE_FILE_ID}' at index {N} in doc {DOC_ID}"
+
+Tool call: `insert_inline_image(doc_id={DOC_ID}, index={N}, uri="https://drive.google.com/uc?export=download&id={FIXTURE_FILE_ID}")` — the `uc?export=download` link form is the same convention TC-DOC163 established, since neither `get_file_metadata` nor `upload_local_file` surfaces Drive's own `webContentLink` field.
 
 **Checks**
 - Call succeeds with no API error
 - Response contains `docId` and `index: N`
 - 🔍 Visual check in Google Docs: image appears in the document at the insertion point
 
-**Cleanup:** delete the inserted image range (use `delete_doc_range` on the image's index span, visible in `get_doc_structure` as an element)
-
-**Result (2026-06-22) ✅ PASS** Inserted Google branding PNG at paragraph boundary. Response: `{docId, index}`. Image visible in doc. Occupies one index slot as an inline element in `get_doc_structure`.
+**Cleanup:** delete the inserted image range (use `delete_doc_range` on the image's index span, visible in `get_doc_structure` as an element); remove the `anyone` permission from `{FIXTURE_FILE_ID}` and trash it
 
 ---
 
-### TC-DOC58: Insert an image with explicit size ⚠️ destructive
-**Setup:** same as TC-DOC57
+### TC-DOC58: Insert an image with explicit size, from a Drive file ⚠️ requires-oauth ⚠️ destructive
+**Setup:** same as TC-DOC57 (reuse `{FIXTURE_FILE_ID}`) — this case exercises `drive_file_id` instead of `uri`, closing a gap where no existing test covered the plain (non-`auto_downscale`) `drive_file_id` happy path: TC-DOC161/162 (#400) only cover the oversized-error and auto-downscale cases, and the auto-downscale path shares its own resized copy internally rather than requiring the caller to share anything first
 
 **Prompt**
 **Playwright: required**
-> "Insert an image from URI 'https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_92x30dp.png' at index {N} in doc {DOC_ID} with width 100 and height 50"
+> "Insert the image at Drive file {FIXTURE_FILE_ID} at index {N} in doc {DOC_ID} with width 100 and height 50"
+
+Tool call: `insert_inline_image(doc_id={DOC_ID}, index={N}, drive_file_id={FIXTURE_FILE_ID}, width=100, height=50)`
 
 **Checks**
 - Call succeeds with no API error
 - 🔍 Visual check: image is smaller than default size
 
-**Cleanup:** delete inserted image range
-
-**Result (2026-06-22) ✅ PASS** Same PNG at same location with `width=100, height=50`. Call succeeded; image rendered smaller than the default-sized TC-DOC57 image.
+**Cleanup:** delete inserted image range; remove the `anyone` permission from `{FIXTURE_FILE_ID}` and trash it
 
 ---
 
