@@ -23,6 +23,7 @@ The replacement isn't uniform across the two resources, because v2's own Context
 ```python
 _lifespan_context: SpreadsheetContext | None = None
 
+
 def get_lifespan_context() -> SpreadsheetContext:
     if _lifespan_context is None:
         raise RuntimeError("Server lifespan has not started yet")
