@@ -15,7 +15,7 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I05–I07 (tool filtering) | Unit-tested in `tests/test_server.py` — `_parse_enabled_tools()` is fully covered |
 | TC-I08–I12 (auth variants) | Unit tests tracked in #98 — mock `_service_account_creds`, `_oauth_creds`, and ADC |
 | TC-I02 (WAL concurrency) | Manual / live QA only — requires true concurrent requests |
-| TC-I13, I14 (transport) | Manual / live QA only — verify once per environment setup |
+| TC-I13, I14 (transport) | ✅ Live-tested post-#175 mcp v2 migration — see Result entries below |
 | TC-I15 (hot reload) | Manual / live QA only — known uvicorn + SSE limitation, observe and note |
 | TC-I16–I20 (logging) | ✅ Already live-tested and passed — see Result entries below |
 | DB recovery (issue #212) | Unit-tested in `tests/test_cache.py` `TestOpenFallback` — read-only file, read-only dir, and `:memory:` fallback all covered |
@@ -23,7 +23,7 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I21 (strict tool arg validation, issue #239) | ✅ Unit-tested in `tests/test_server.py::TestToolStrictArgs` (dummy tool + real `list_sheets`) and live-tested — see Result entry below |
 | TC-I22 (`set_cache_ttl`/`get_cache_ttl`, issue #99) | Unit-tested in `tests/test_cache.py` (`set_ttl`/`get_ttl` on all 5 cache classes) — TTL change takes effect on the next lookup without a restart, and is readable back |
 | TC-I23 (`CACHE_VALIDATE_MODIFIED_TIME`, issue #99) | Unit-tested in `tests/test_cache.py` (modified-time comparison in `_get_valid`, `get_modified_time` helper, `fetch_sheets` wiring). Live verification needs an edit path outside the MCP tools' own `mark_dirty` calls (which already invalidate immediately) — see TC-I23 below for the Playwright-based approach |
-| TC-I25, I26 (MCP resources reach lifespan context, issue #363) | Unit-tested in `tests/test_server.py::TestResourcesReadLifespanContextViaGetContext` (monkeypatches `mcp.get_context()`), but that proves only that `server.py`'s own code is correct against a fake — it can't prove the real `mcp` SDK's `FastMCP.get_context()` still returns a real `.request_context.lifespan_context` end-to-end through the actual resource-read protocol. Needs live verification — see TC-I25/TC-I26 below |
+| TC-I25, I26 (MCP resources reach lifespan context, issue #363; mechanism changed under mcp v2, issue #175) | Unit-tested in `tests/test_server.py::TestResourcesReadLifespanContext` (monkeypatches `auth.get_lifespan_context()` for the static `server://auth-status` resource, passes a fake `ctx: Context` directly for the template `spreadsheet://{id}/info` resource — mcp v2's `MCPServer` dropped `get_context()` with no replacement for static resources, confirmed live against mcp==2.0.0). ✅ Live re-verified post-migration against the real SDK — see Result entries below |
 | TC-I29 (`server.json` registry manifest, issue #586) | Not reachable via any MCP tool or prompt — `server.json` is a static repo-root manifest consumed by the external `mcp-publisher` CLI and the official MCP registry, not the running server. Identity/consistency (name, PyPI identifier, `mcp-name` marker) is unit-tested in `tests/test_server_json.py`. Manual / live QA only — verify once, after each stable release that changes `server.json`'s `version` — see TC-I29 below |
 
 ---
@@ -182,6 +182,10 @@ Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against this serve
 
 **Note (#447):** the flat `"reason"`/`"alternatives"` fields shown in the Result above no longer exist — see TC-I27 for the current per-limitation `"limitations"` shape. This case's own checks (no AttributeError, `auth_method` matches) are unaffected by that schema change and don't need re-running.
 
+**Note (#175):** the mcp v1→v2 SDK migration replaced the underlying mechanism this case exercises — `MCPServer` (mcp v2) dropped `get_context()` entirely, with no replacement for a static (non-templated) resource like this one (Context injection raises `ValueError` outright there, confirmed live against mcp==2.0.0). `get_auth_status` now reads a process-wide singleton (`auth.get_lifespan_context()`, set once by the lifespan) instead of going through Context at all. The 2026-07-19 Result above proved the old `mcp.get_context()` path worked; it does not prove this new path works against the real SDK.
+
+**Result (2026-08-21, mcp-gee-sweet-sky, oauth, mcp==2.0.0):** ✅ PASS — live re-verification post-#175 migration. `{"auth_method": "oauth", "is_service_account_identity": false, "can_create_in_personal_drive": true, "limited_tools": [], "limitations": []}` — no AttributeError/ValueError, `auth_method` matches configured oauth. Confirms `auth.get_lifespan_context()` resolves the real lifespan-set module state through the actual resource-read protocol against the real SDK, not just against the unit tests' mocked `auth.get_lifespan_context()`.
+
 ---
 
 ### TC-I27: `server://auth-status` reports per-tool limitation categories, not one shared reason (issue #447)
@@ -238,6 +242,10 @@ Call `ReadMcpResourceTool` with `uri: "spreadsheet://{SPREADSHEET_ID}/info"` aga
 - Returns valid JSON with `title` and a `sheets` array matching the spreadsheet's actual tabs
 
 **Result:** ✅ PASS (2026-07-19, mcp-gee-sweet-sky, TEST_SPREADSHEET_ID). Returned `title: "mcp-gee-sweet-qa-fixtures"` and 4 sheets (`Sales`, `Notes & Misc`, `BrandNew`, `Empty`) matching the fixture's actual tabs — no AttributeError.
+
+**Note (#175):** the mcp v1→v2 SDK migration changed how this resource reaches the lifespan context. `spreadsheet://{id}/info` is a template resource, and mcp v2 *does* support Context injection there (unlike the static `server://auth-status` resource in TC-I25) — `get_spreadsheet_info` now takes `ctx: Context` as an ordinary injected parameter instead of calling the now-removed `mcp.get_context()`. The 2026-07-19 Result above proved the old path worked; it does not prove this new injected-parameter path works against the real SDK.
+
+**Result (2026-08-21, mcp-gee-sweet-sky, oauth, mcp==2.0.0):** ✅ PASS — live re-verification post-#175 migration, against `mcp-gee-sweet-qa-fixtures` (`15hOwO1Jay26PyxjjYtq9Pq-gEd8lDa81g-C13-GyvCA`). Returned `title: "mcp-gee-sweet-qa-fixtures"` and 4 sheets (`Sales`, `Notes & Misc`, `BrandNew`, `Empty`) matching the fixture's actual tabs — no AttributeError/ValueError. Confirms v2's native `ctx: Context` injection resolves the real lifespan context through the actual resource-read protocol against the real SDK.
 
 ---
 
@@ -343,6 +351,8 @@ Same as TC-I05 or TC-I06 (only 2 tools enabled).
 **Result (2026-07-04) ✅ PASS**
 `list_sheets(spreadsheet_id={SPREADSHEET_ID}, bogus_kwarg="test")` raised: `1 validation error for list_sheetsArguments\nbogus_kwarg\n  Extra inputs are not permitted [type=extra_forbidden, input_value='test', input_type=str]`. Follow-up call with only `spreadsheet_id` succeeded normally, returning the sheet list — confirms the fix doesn't affect legitimate calls.
 
+**Result (2026-08-21, mcp-gee-sweet-sky, oauth, mcp==2.0.0):** ✅ PASS — re-verified post-#175 migration, since `_enforce_strict_tool_args` reaches into private `ToolManager`/`FuncMetadata`/`arg_model` internals that a major SDK bump could plausibly change shape without any public API signal. `list_sheets(spreadsheet_id=<qa-fixtures id>, bogus_kwarg="test")` raised the identical `1 validation error for list_sheetsArguments\nbogus_kwarg\n  Extra inputs are not permitted [type=extra_forbidden, ...]`; the same call without the bogus kwarg succeeded normally. Confirms the private-internals hack still works unchanged against real mcp==2.0.0.
+
 ---
 
 ## Auth fallback chain
@@ -431,6 +441,8 @@ Run `uv run mcp-gee-sweet` (default stdio transport). Connect from an MCP client
 - Connection established via stdio
 - Tool returns results normally
 
+**Result (2026-08-21, mcp-gee-sweet-sky, oauth, mcp==2.0.0):** ✅ PASS — exercised continuously throughout this PR's #175 QA pass (every tool call in this round, e.g. `list_sheets`, `search_spreadsheets`, ran over this exact stdio connection against real mcp==2.0.0). `list_sheets(spreadsheet_id=<qa-fixtures id>)` returned `["Sales", "Notes & Misc", "BrandNew", "Empty"]` matching the fixture's actual tabs.
+
 ---
 
 ### TC-I14: SSE transport
@@ -445,6 +457,8 @@ Run `uv run mcp-gee-sweet --transport sse` or `make start`. Connect from Claude 
 - Connection established via SSE
 - Tool returns results normally
 - Server accessible at the configured port
+
+**Result (2026-08-21, mcp-gee-sweet-sky's own worktree code, oauth, mcp==2.0.0):** ✅ PASS — first-recorded live run, and the PR's own regression target for issue #175 (`mcp.sse_app()`/`mcp.run()` moved `host`/`port` from constructor kwargs to call-time kwargs under mcp v2 — see `server.py`'s `app = mcp.sse_app(host=_resolved_host)` and `main()`'s `mcp.run(transport=transport, host=_resolved_host, port=_resolved_port)`). Started `uv run mcp-gee-sweet --transport sse` with `PORT=47031`; connected with the real `mcp` SDK's own `mcp.client.sse.sse_client` + `ClientSession` (not Claude Desktop, but a genuine SSE protocol round trip — `initialize()` then `call_tool()`); `list_sheets(spreadsheet_id=<qa-fixtures id>)` returned `["Sales", "Notes & Misc", "BrandNew", "Empty"]` matching the fixture's actual tabs. Confirms the SSE app construction and transport-kwarg plumbing work end-to-end against the real SDK, not just that `mcp.sse_app()` doesn't raise at import time.
 
 ---
 

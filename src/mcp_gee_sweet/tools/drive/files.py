@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from googleapiclient.errors import HttpError
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread

@@ -20,6 +20,7 @@ from mcp_gee_sweet.auth import (
     _is_service_account_credential,
     _oauth_creds,
     _service_account_creds,
+    get_lifespan_context,
     spreadsheet_lifespan,
 )
 
@@ -430,3 +431,60 @@ class TestLifespanWaterfall:
         assert ctx.docs_service is not None
         assert ctx.calendar_service is not None
         assert ctx.activity_service is not None
+
+
+# ---------------------------------------------------------------------------
+# get_lifespan_context — module-level singleton lifecycle (issue #175, PR #642
+# QA round 1): the lifespan's `finally` block must reset `_lifespan_context`
+# back to None on exit, not just set it on entry. Left as `finally: pass`, the
+# static server://auth-status resource would silently keep serving a torn-down
+# SpreadsheetContext after the lifespan exits instead of raising the
+# RuntimeError get_lifespan_context()'s own docstring promises.
+# ---------------------------------------------------------------------------
+
+
+class TestGetLifespanContext:
+    def test_raises_before_lifespan_has_ever_started(self, monkeypatch):
+        monkeypatch.setattr(auth_module, "_lifespan_context", None)
+        with pytest.raises(RuntimeError, match="has not started"):
+            get_lifespan_context()
+
+    def test_returns_context_while_lifespan_is_active(self, monkeypatch):
+        sa_creds = service_account.Credentials.__new__(service_account.Credentials)
+        monkeypatch.setattr(auth_module, "AUTH_METHOD", "service_account")
+        mock_build = MagicMock()
+
+        with (
+            patch("mcp_gee_sweet.auth._service_account_creds", return_value=sa_creds),
+            patch("googleapiclient.discovery.build", mock_build),
+        ):
+
+            async def _run():
+                async with spreadsheet_lifespan(MagicMock()) as ctx:
+                    assert get_lifespan_context() is ctx
+
+            asyncio.run(_run())
+
+    def test_raises_again_after_lifespan_exits(self, monkeypatch):
+        """Regression test: `finally: pass` left the module-level singleton
+        pointing at the torn-down context after exit instead of resetting it,
+        so a later get_lifespan_context() call silently returned stale state
+        instead of the RuntimeError it's supposed to raise outside a request.
+        """
+        sa_creds = service_account.Credentials.__new__(service_account.Credentials)
+        monkeypatch.setattr(auth_module, "AUTH_METHOD", "service_account")
+        mock_build = MagicMock()
+
+        with (
+            patch("mcp_gee_sweet.auth._service_account_creds", return_value=sa_creds),
+            patch("googleapiclient.discovery.build", mock_build),
+        ):
+
+            async def _run():
+                async with spreadsheet_lifespan(MagicMock()):
+                    pass
+
+            asyncio.run(_run())
+
+        with pytest.raises(RuntimeError, match="has not started"):
+            get_lifespan_context()

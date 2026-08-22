@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 Google Spreadsheet MCP Server
-A Model Context Protocol (MCP) server built with FastMCP for interacting with Google Sheets.
+A Model Context Protocol (MCP) server built with MCPServer for interacting with Google Sheets.
 """
 
 import functools
@@ -72,10 +72,10 @@ if _level_name := os.getenv("DEBUG_LEVEL"):
         _tool_access_fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
         _tool_access_logger.addHandler(_tool_access_fh)
 
-from mcp.server.fastmcp import FastMCP  # noqa: E402
+from mcp.server.mcpserver import Context, MCPServer  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402
 
-from .auth import execute_in_thread, spreadsheet_lifespan  # noqa: E402
+from .auth import execute_in_thread, get_lifespan_context, spreadsheet_lifespan  # noqa: E402
 
 
 def _parse_enabled_tools() -> set | None:
@@ -101,15 +101,15 @@ try:
 except ValueError:
     _resolved_port = 8000
 
-mcp = FastMCP(
+mcp = MCPServer(
     "Google Spreadsheet",
     dependencies=["google-auth", "google-auth-oauthlib", "google-api-python-client"],
     lifespan=spreadsheet_lifespan,
-    host=_resolved_host,
-    port=_resolved_port,
 )
 
-app = mcp.sse_app()
+# mcp v2 moved host/port from the constructor to call-time kwargs on
+# sse_app()/run_sse_async()/run() itself (confirmed live against mcp==2.0.0, issue #175)
+app = mcp.sse_app(host=_resolved_host)
 
 
 _tool_access_logger = logging.getLogger("mcp_gee_sweet.access")
@@ -142,10 +142,12 @@ def _timed(func):
 def _enforce_strict_tool_args(tool_name: str) -> None:
     """Reject unrecognized kwargs instead of silently ignoring them (issue #239).
 
-    FastMCP's auto-generated per-tool pydantic arg model defaults to extra="ignore"
+    MCPServer's auto-generated per-tool pydantic arg model defaults to extra="ignore"
     (pydantic's own default) — neither func_metadata() nor Tool.from_function expose
     a public way to opt into extra="forbid". Verified absent in mcp 1.27.1 through
-    1.28.1 (this project's full allowed range, mcp>=1.27.0,<2.0.0). This reaches into
+    2.0.0 (confirmed live against mcp==2.0.0, issue #175 — the private
+    _tool_manager/fn_metadata/arg_model chain this function relies on is unchanged
+    from v1 to v2). This reaches into
     private ToolManager/FuncMetadata internals to flip it after registration.
     model_rebuild(force=True) is REQUIRED: pydantic v2 bakes `extra` behavior into a
     compiled core schema at class-creation time, so mutating model_config alone is
@@ -288,12 +290,16 @@ def get_auth_status() -> str:
     Returns a JSON summary of the active auth method and which tools are
     restricted. Useful for deciding which tools to attempt before calling them.
     """
-    context = mcp.get_context().request_context.lifespan_context
+    # mcp v2 dropped get_context() with no replacement for a static (non-templated)
+    # resource — Context injection isn't supported there at all (confirmed live
+    # against mcp==2.0.0, issue #175). SpreadsheetContext is a process-wide singleton
+    # set once by the lifespan, so get_lifespan_context() reads it directly.
+    context = get_lifespan_context()
     return _auth_status_json(context.auth_method, context.is_service_account_identity)
 
 
 @mcp.resource("spreadsheet://{spreadsheet_id}/info")
-async def get_spreadsheet_info(spreadsheet_id: str) -> str:
+async def get_spreadsheet_info(spreadsheet_id: str, ctx: Context) -> str:
     """
     Get basic information about a Google Spreadsheet.
 
@@ -303,7 +309,7 @@ async def get_spreadsheet_info(spreadsheet_id: str) -> str:
     Returns:
         JSON string with spreadsheet information
     """
-    context = mcp.get_context().request_context.lifespan_context
+    context = ctx.request_context.lifespan_context
     sheets_service = context.sheets_service
 
     spreadsheet = await execute_in_thread(
@@ -354,5 +360,9 @@ def main():
             port=_resolved_port,
             reload=True,
         )
-    else:
+    elif transport == "stdio":
         mcp.run(transport=transport)
+    else:
+        # mcp v2 moved host/port from the constructor to call-time kwargs (see the
+        # mcp.sse_app() call above) — stdio's own overload doesn't accept them.
+        mcp.run(transport=transport, host=_resolved_host, port=_resolved_port)

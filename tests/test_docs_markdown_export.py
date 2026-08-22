@@ -809,7 +809,7 @@ class TestAstToMarkdownComments:
 
 class TestGetDocAsMarkdownTool:
     def test_is_read_only(self):
-        assert _docs_annotations["get_doc_as_markdown"].readOnlyHint is True
+        assert _docs_annotations["get_doc_as_markdown"].read_only_hint is True
 
     async def test_returns_markdown_for_simple_doc(self):
         docs_service = MagicMock()
