@@ -13,7 +13,7 @@ from google.auth.transport.requests import Request
 from google.oauth2 import gdch_credentials, service_account
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from .cache import (
     CalendarCache,
@@ -100,13 +100,11 @@ def _is_service_account_credential(creds: Any) -> bool:
     """
     return isinstance(
         creds,
-        (
-            service_account.Credentials,
-            compute_engine.Credentials,
-            external_account.Credentials,
-            impersonated_credentials.Credentials,
-            gdch_credentials.ServiceAccountCredentials,
-        ),
+        service_account.Credentials
+        | compute_engine.Credentials
+        | external_account.Credentials
+        | impersonated_credentials.Credentials
+        | gdch_credentials.ServiceAccountCredentials,
     )
 
 
@@ -156,8 +154,24 @@ def _service_account_creds() -> service_account.Credentials:
     return None
 
 
+# mcp v2's MCPServer dropped FastMCP's get_context() with no replacement for static
+# (non-templated) resources — Context injection there raises ValueError outright, and
+# there's no other way to reach the running server's per-process state (confirmed live
+# against mcp==2.0.0, issue #175). SpreadsheetContext is created once per process by
+# this lifespan (not per-request), so mirroring it here is the correct-shaped fix, not
+# a workaround: server.py's get_auth_status() (a static resource) reads it via
+# get_lifespan_context() instead of going through Context at all.
+_lifespan_context: SpreadsheetContext | None = None
+
+
+def get_lifespan_context() -> SpreadsheetContext:
+    if _lifespan_context is None:
+        raise RuntimeError("Server lifespan has not started yet")
+    return _lifespan_context
+
+
 @asynccontextmanager
-async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetContext]:
+async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetContext]:
     from googleapiclient.discovery import build
 
     logger.debug("AUTH_METHOD=%s", AUTH_METHOD or "auto (waterfall)")
@@ -230,17 +244,20 @@ async def spreadsheet_lifespan(server: FastMCP) -> AsyncIterator[SpreadsheetCont
     calendar_service = build("calendar", "v3", credentials=creds, cache_discovery=False)
     activity_service = build("driveactivity", "v2", credentials=creds, cache_discovery=False)
 
+    global _lifespan_context
+    context = SpreadsheetContext(
+        sheets_service=sheets_service,
+        drive_service=drive_service,
+        docs_service=docs_service,
+        calendar_service=calendar_service,
+        activity_service=activity_service,
+        folder_id=DRIVE_FOLDER_ID if DRIVE_FOLDER_ID else None,
+        auth_method=resolved,
+        is_service_account_identity=is_service_account_identity,
+        cache=SheetStructureCache(),
+    )
+    _lifespan_context = context
     try:
-        yield SpreadsheetContext(
-            sheets_service=sheets_service,
-            drive_service=drive_service,
-            docs_service=docs_service,
-            calendar_service=calendar_service,
-            activity_service=activity_service,
-            folder_id=DRIVE_FOLDER_ID if DRIVE_FOLDER_ID else None,
-            auth_method=resolved,
-            is_service_account_identity=is_service_account_identity,
-            cache=SheetStructureCache(),
-        )
+        yield context
     finally:
         pass

@@ -9,7 +9,7 @@ import markdown as _md
 from googleapiclient.errors import HttpError
 from markdown.extensions import Extension
 from markdown.inlinepatterns import InlineProcessor
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread

@@ -33,16 +33,22 @@ docs_module.register(_docs_tool)
 
 
 class TestToolAnnotations:
-    """Mutating comment tools must set destructiveHint, like every other mutating tool."""
+    """Mutating comment tools must set destructive_hint, like every other mutating tool.
+
+    ToolAnnotations still accepts either the camelCase wire alias or the snake_case
+    field name at construction time (mcp v2 kept `populate_by_name=True`), but only
+    the real field name (snake_case as of mcp==2.0.0, issue #175) is readable back
+    as an attribute — confirmed live.
+    """
 
     def test_add_doc_comment_has_destructive_hint(self):
-        assert _docs_annotations["add_doc_comment"].destructiveHint is True
+        assert _docs_annotations["add_doc_comment"].destructive_hint is True
 
     def test_resolve_doc_comment_has_destructive_hint(self):
-        assert _docs_annotations["resolve_doc_comment"].destructiveHint is True
+        assert _docs_annotations["resolve_doc_comment"].destructive_hint is True
 
     def test_list_doc_comments_is_read_only_not_destructive(self):
-        assert _docs_annotations["list_doc_comments"].readOnlyHint is True
+        assert _docs_annotations["list_doc_comments"].read_only_hint is True
 
 
 class TestListDocComments:

@@ -5,11 +5,13 @@ import inspect
 import json
 import logging
 import sys
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 from pydantic import ValidationError
 
+from mcp_gee_sweet import server
 from mcp_gee_sweet.server import (
     _auth_status_json,
     _parse_enabled_tools,
@@ -187,14 +189,18 @@ class TestAuthStatusResource:
         assert "adc" in quota["alternatives"].lower()
 
 
-class TestResourcesReadLifespanContextViaGetContext:
-    """Regression test for issue #363: both MCP resources called the nonexistent
-    `mcp.get_lifespan_context()` (never a real FastMCP API, confirmed absent even
-    in mcp==1.27.1, so not a regression from #350's SDK bump). TestAuthStatusResource
-    above only exercises `_auth_status_json()` directly, never the resource function
-    itself, so it never caught this. These tests call the actual resource functions
-    and monkeypatch `mcp.get_context()` the way FastMCP really provides it, so a
-    reintroduction of `get_lifespan_context()` (or any other API drift) fails loudly.
+class TestResourcesReadLifespanContext:
+    """Regression coverage for issue #363 (FastMCP had no `get_lifespan_context()`,
+    confirmed never a real API even in mcp==1.27.1) carried forward through the
+    mcp v2 migration (issue #175): v2's `MCPServer` dropped `get_context()` entirely,
+    with no replacement for a static (non-templated) resource — Context injection
+    there raises `ValueError` outright (confirmed live against mcp==2.0.0). So
+    `get_auth_status` now reads the process-wide `auth.get_lifespan_context()`
+    directly instead of going through Context at all, while `get_spreadsheet_info`
+    (a template resource, where v2 *does* support it) takes `ctx: Context` as an
+    ordinary injected parameter. These tests exercise both real mechanisms so a
+    reintroduction of the old `get_context()`/`get_lifespan_context()` calls (or any
+    other API drift) fails loudly.
     """
 
     def _fake_context(self, **lifespan_attrs):
@@ -203,17 +209,17 @@ class TestResourcesReadLifespanContextViaGetContext:
             setattr(fake_ctx.request_context.lifespan_context, k, v)
         return fake_ctx
 
-    def test_get_auth_status_reads_auth_method_via_get_context(self, monkeypatch):
+    def test_get_auth_status_reads_auth_method_via_get_lifespan_context(self, monkeypatch):
         monkeypatch.setattr(
-            mcp,
-            "get_context",
-            lambda: self._fake_context(auth_method="oauth", is_service_account_identity=False),
+            server,
+            "get_lifespan_context",
+            lambda: SimpleNamespace(auth_method="oauth", is_service_account_identity=False),
         )
         result = json.loads(get_auth_status())
         assert result["auth_method"] == "oauth"
         assert result["is_service_account_identity"] is False
 
-    async def test_get_spreadsheet_info_reads_sheets_service_via_get_context(self, monkeypatch):
+    async def test_get_spreadsheet_info_reads_sheets_service_via_injected_context(self):
         sheets_service = MagicMock()
         sheets_service.spreadsheets.return_value.get.return_value.execute.return_value = {
             "properties": {"title": "Test Sheet"},
@@ -227,10 +233,8 @@ class TestResourcesReadLifespanContextViaGetContext:
                 }
             ],
         }
-        monkeypatch.setattr(
-            mcp, "get_context", lambda: self._fake_context(sheets_service=sheets_service)
-        )
-        result = json.loads(await get_spreadsheet_info("some-spreadsheet-id"))
+        fake_ctx = self._fake_context(sheets_service=sheets_service)
+        result = json.loads(await get_spreadsheet_info("some-spreadsheet-id", fake_ctx))
         assert result["title"] == "Test Sheet"
         assert result["sheets"] == [
             {"title": "Sheet1", "sheetId": 0, "gridProperties": {"rowCount": 10, "columnCount": 5}}
@@ -400,7 +404,7 @@ class TestMainLogsVersion:
 class TestToolStrictArgs:
     """tool() rejects unrecognized kwargs instead of silently ignoring them (issue #239).
 
-    FastMCP's auto-generated arg model defaults to extra="ignore" (pydantic's own
+    MCPServer's auto-generated arg model defaults to extra="ignore" (pydantic's own
     default); tool() flips it to extra="forbid" after registration via private
     ToolManager/FuncMetadata internals — see _enforce_strict_tool_args's docstring.
     """

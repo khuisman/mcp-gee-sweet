@@ -23,7 +23,7 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I21 (strict tool arg validation, issue #239) | ✅ Unit-tested in `tests/test_server.py::TestToolStrictArgs` (dummy tool + real `list_sheets`) and live-tested — see Result entry below |
 | TC-I22 (`set_cache_ttl`/`get_cache_ttl`, issue #99) | Unit-tested in `tests/test_cache.py` (`set_ttl`/`get_ttl` on all 5 cache classes) — TTL change takes effect on the next lookup without a restart, and is readable back |
 | TC-I23 (`CACHE_VALIDATE_MODIFIED_TIME`, issue #99) | Unit-tested in `tests/test_cache.py` (modified-time comparison in `_get_valid`, `get_modified_time` helper, `fetch_sheets` wiring). Live verification needs an edit path outside the MCP tools' own `mark_dirty` calls (which already invalidate immediately) — see TC-I23 below for the Playwright-based approach |
-| TC-I25, I26 (MCP resources reach lifespan context, issue #363) | Unit-tested in `tests/test_server.py::TestResourcesReadLifespanContextViaGetContext` (monkeypatches `mcp.get_context()`), but that proves only that `server.py`'s own code is correct against a fake — it can't prove the real `mcp` SDK's `FastMCP.get_context()` still returns a real `.request_context.lifespan_context` end-to-end through the actual resource-read protocol. Needs live verification — see TC-I25/TC-I26 below |
+| TC-I25, I26 (MCP resources reach lifespan context, issue #363; mechanism changed under mcp v2, issue #175) | Unit-tested in `tests/test_server.py::TestResourcesReadLifespanContext` (monkeypatches `auth.get_lifespan_context()` for the static `server://auth-status` resource, passes a fake `ctx: Context` directly for the template `spreadsheet://{id}/info` resource — mcp v2's `MCPServer` dropped `get_context()` with no replacement for static resources, confirmed live against mcp==2.0.0), but that proves only that `server.py`'s own code is correct against a fake — it can't prove the real `mcp` SDK still resolves a real `.request_context.lifespan_context` (or, for the static resource, the real lifespan-set module state) end-to-end through the actual resource-read protocol. Needs live re-verification post-migration — see TC-I25/TC-I26 below |
 | TC-I29 (`server.json` registry manifest, issue #586) | Not reachable via any MCP tool or prompt — `server.json` is a static repo-root manifest consumed by the external `mcp-publisher` CLI and the official MCP registry, not the running server. Identity/consistency (name, PyPI identifier, `mcp-name` marker) is unit-tested in `tests/test_server_json.py`. Manual / live QA only — verify once, after each stable release that changes `server.json`'s `version` — see TC-I29 below |
 
 ---
@@ -182,6 +182,8 @@ Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against this serve
 
 **Note (#447):** the flat `"reason"`/`"alternatives"` fields shown in the Result above no longer exist — see TC-I27 for the current per-limitation `"limitations"` shape. This case's own checks (no AttributeError, `auth_method` matches) are unaffected by that schema change and don't need re-running.
 
+**Note (#175):** the mcp v1→v2 SDK migration replaced the underlying mechanism this case exercises — `MCPServer` (mcp v2) dropped `get_context()` entirely, with no replacement for a static (non-templated) resource like this one (Context injection raises `ValueError` outright there, confirmed live against mcp==2.0.0). `get_auth_status` now reads a process-wide singleton (`auth.get_lifespan_context()`, set once by the lifespan) instead of going through Context at all. The 2026-07-19 Result above proved the old `mcp.get_context()` path worked; it does not prove this new path works against the real SDK. Needs live re-verification post-migration — same action/checks, updated background above.
+
 ---
 
 ### TC-I27: `server://auth-status` reports per-tool limitation categories, not one shared reason (issue #447)
@@ -238,6 +240,8 @@ Call `ReadMcpResourceTool` with `uri: "spreadsheet://{SPREADSHEET_ID}/info"` aga
 - Returns valid JSON with `title` and a `sheets` array matching the spreadsheet's actual tabs
 
 **Result:** ✅ PASS (2026-07-19, mcp-gee-sweet-sky, TEST_SPREADSHEET_ID). Returned `title: "mcp-gee-sweet-qa-fixtures"` and 4 sheets (`Sales`, `Notes & Misc`, `BrandNew`, `Empty`) matching the fixture's actual tabs — no AttributeError.
+
+**Note (#175):** the mcp v1→v2 SDK migration changed how this resource reaches the lifespan context. `spreadsheet://{id}/info` is a template resource, and mcp v2 *does* support Context injection there (unlike the static `server://auth-status` resource in TC-I25) — `get_spreadsheet_info` now takes `ctx: Context` as an ordinary injected parameter instead of calling the now-removed `mcp.get_context()`. The 2026-07-19 Result above proved the old path worked; it does not prove this new injected-parameter path works against the real SDK. Needs live re-verification post-migration — same action/checks.
 
 ---
 
