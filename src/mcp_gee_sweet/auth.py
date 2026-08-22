@@ -260,4 +260,4 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
     try:
         yield context
     finally:
-        pass
+        _lifespan_context = None
