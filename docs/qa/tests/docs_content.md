@@ -1242,10 +1242,12 @@ Tool call: `insert_inline_image(doc_id={DOC_ID}, index={N}, uri="https://drive.g
 
 **Cleanup:** delete the inserted image range (use `delete_doc_range` on the image's index span, visible in `get_doc_structure` as an element); remove the `anyone` permission from `{FIXTURE_FILE_ID}` and trash it
 
+**Result (2026-08-21) ✅ PASS** Uploaded+shared `qa-fixture-pixel.png`, fetched structure (`N=88`), called `insert_inline_image(uri="https://drive.google.com/uc?export=download&id={FIXTURE_FILE_ID}")`. Response: `{docId, index: 88}` — no API error. `get_doc_structure` confirmed the image occupies one index slot (endIndex grew 89→90). Playwright screenshot confirmed a (tiny, since the source is 1×1px) image visible at the insertion point. Cleanup completed: image range deleted, permission removed, file trashed.
+
 ---
 
 ### TC-DOC58: Insert an image with explicit size, from a Drive file ⚠️ requires-oauth ⚠️ destructive
-**Setup:** same as TC-DOC57 (reuse `{FIXTURE_FILE_ID}`) — this case exercises `drive_file_id` instead of `uri`, closing a gap where no existing test covered the plain (non-`auto_downscale`) `drive_file_id` happy path: TC-DOC161/162 (#400) only cover the oversized-error and auto-downscale cases, and the auto-downscale path shares its own resized copy internally rather than requiring the caller to share anything first
+**Setup:** same as TC-DOC57 (independent fresh upload+share, its own `{FIXTURE_FILE_ID}` — do not reuse TC-DOC57's, which its own cleanup already trashes and de-shares) — this case exercises `drive_file_id` instead of `uri`, closing a gap where no existing test covered the plain (non-`auto_downscale`) `drive_file_id` happy path: TC-DOC161/162 (#400) only cover the oversized-error and auto-downscale cases, and the auto-downscale path shares its own resized copy internally rather than requiring the caller to share anything first
 
 **Prompt**
 **Playwright: required**
@@ -1255,9 +1257,11 @@ Tool call: `insert_inline_image(doc_id={DOC_ID}, index={N}, drive_file_id={FIXTU
 
 **Checks**
 - Call succeeds with no API error
-- 🔍 Visual check: image is smaller than default size
+- 🔍 Visual check: select the inserted image, open Format → Image options → Size & rotation, and confirm width and height both read ≈0.69in (50pt) — **not** 1.39in×0.69in (100pt×50pt). Confirmed live (2026-08-21) that the Docs API treats `width`/`height` as a bounding box fitted preserving the source's own native aspect ratio, not a non-uniform stretch: since `qa-fixture-pixel.png` is natively 1×1 (square), the requested 100×50 box is fit to its shorter side, landing both axes at 50pt. This is expected Docs API behavior, not a tool defect — a non-square source (verified separately with a throwaway 40×20 PNG) does land at the exact requested 100×50. The point of this check is confirming the explicit size was honored at all: 50pt is unambiguously larger than the fixture's own unsized default of 0.75pt×0.75pt (verified live), which the old "smaller than default" wording got backwards for this fixture — the explicit size here is *larger* than default, not smaller.
 
 **Cleanup:** delete inserted image range; remove the `anyone` permission from `{FIXTURE_FILE_ID}` and trash it
+
+**Result (2026-08-21) ✅ PASS** Uploaded+shared a fresh, independent copy of `qa-fixture-pixel.png` (own `{FIXTURE_FILE_ID}`, not TC-DOC57's). Called `insert_inline_image(drive_file_id={FIXTURE_FILE_ID}, width=100, height=50)` at `N=88`. Response: `{docId, index: 88}` — no API error. Verified applied size via Format → Image options → Size & rotation: width and height both read 0.69in (50pt), confirming Google's Docs API fit the requested 100×50 bounding box to the fixture's native 1:1 aspect ratio rather than stretching non-uniformly (cross-checked against the raw `documents().get()` response directly: `inlineObjects[...].inlineObjectProperties.embeddedObject.size` = `{width: 50pt, height: 50pt}`). Separately confirmed via a throwaway 40×20 non-square PNG that a non-square source *does* land at the exact requested 100×50 — this collapse is specific to a square-native source, not a general tool defect. Also confirmed the fixture's own true default (no explicit size) is 0.75pt×0.75pt, so the 50pt explicit size is clearly *larger* than default, not smaller as the original check wording (fixed this pass) claimed. Cleanup completed: image range deleted, permission removed, file trashed.
 
 ---
 
