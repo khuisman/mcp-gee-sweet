@@ -43,7 +43,7 @@ Prompt-driven integration tests for mcp-gee-sweet. Each test case is a natural l
 
 - Tests marked **⚠️ destructive** mutate the fixture spreadsheet. Run these last within their section or reset fixtures afterward using the seed prompt in `setup.md`.
 - Tests marked **⚠️ requires-oauth** need OAuth or ADC auth — service accounts cannot create or copy files in Drive (no storage quota). These tests are automatically skipped with a warning when `QA_AUTH_METHOD=service_account` in `.env`.
-- Tests marked **⚠️ local-filesystem** need file paths accessible to the MCP server process. These cannot run in an AI-session QA run and are always skipped.
+- Tests marked **⚠️ local-filesystem** need file paths accessible to the MCP server process. These cannot run in an AI-session QA run and are always skipped here. A representative subset is instead covered by the opt-in `tests/integration/` pytest harness (`MCP_GEE_SWEET_LIVE_TESTS=1 uv run python -m pytest tests/integration/` — needs real Google credentials, see that package's `conftest.py`) — see [`decision-local-fs-test-harness.md`](../decisions/decision-local-fs-test-harness.md) for what it covers and what's still follow-up.
 - Tests marked **🔍 product decision** have no single correct answer — note what you observed and open an issue if the behavior seems wrong.
 - Cache hit tests (TC-R17, TC-S02, etc.) require checking server logs: `make logs` or `docker compose logs mcp-gee-sweet`.
 

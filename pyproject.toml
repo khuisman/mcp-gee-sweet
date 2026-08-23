@@ -73,6 +73,9 @@ mcp-gee-sweet = "mcp_gee_sweet:main"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "live_fs: hits real Google APIs via a live mcp-gee-sweet subprocess; opt-in, see docs/qa/README.md",
+]
 
 [tool.ruff]
 line-length = 100
