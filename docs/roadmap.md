@@ -18,6 +18,7 @@ Sheets, Drive, Docs, and Calendar are all covered — see [Tools](tools.md) for 
 | [**v0.8.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8) | ✅ Tier 1 complete — all "frequently needed" items across all domains (84 tools) | Published 2026-06-29 |
 | [**v0.8.1**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8.1) | Defect & documentation cleanup — no new tools, ships the QA/refactor work already on `develop` plus fixes for #235, #242, #213, #239, #236 | Stabilizes before Tier 2 feature work begins |
 | [**v0.9.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9) | Tier 2 complete — power-user and structured-work layer (~20 tools), plus defects that surfaced after v0.8.1 shipped ([#248](https://github.com/khuisman/mcp-gee-sweet/issues/248)) | Covers most real workflows |
+| [**v0.9.1**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1) | Post-release defect fixes & infrastructure addons — no new tools, same shape as v0.8.1 | Stabilizes before Tier 3 begins |
 | [**v1.0.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0) | API stability declaration — Tier 3 items that make the cut + any breaking cleanups from v0.8–0.9 | Backwards-compatibility commitment |
 | [**v1.1.0+**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22v1.1%2B%22) | Future domains — Tasks, Gmail (separate minor releases, each needs a new API client) | Expanded scope |
 
@@ -172,6 +173,27 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [x] Rewrite positioning/differentiation in README and `docs/index.md` — official Google MCP servers are now in developer preview, which undercuts the current "no official alternative exists" framing; lead with concrete differentiators (tool breadth, stability/QA gate, design philosophy) instead, checked against what the official servers actually cover (PR #306) ([#263](https://github.com/khuisman/mcp-gee-sweet/issues/263))
 - [x] Markdown-support documentation gaps — README/`docs/tools.md`/`docs/known-limitations.md`/`docs/design/markdown-support.md` never caught up to the Docs markdown-input pipeline shipped via #102/#103/#104/#248; consolidates #297/#298/#299/#302 (PR #482) ([#303](https://github.com/khuisman/mcp-gee-sweet/issues/303))
 - [x] `CLAUDE.md`'s `convert_markdown` note overstates its download-branch guard as reachable — round-2 review moved that case earlier in the plan-building loop, where it's now classified `conflict`, not `failed`; the guard described is dead defensive code, not live behavior. Found during PR #414's round-3 review, routed to Amy ([#423](https://github.com/khuisman/mcp-gee-sweet/issues/423)) (PR #492)
+
+### v0.9.1 — Post-release defect fixes & infrastructure addons _(target: [v0.9.1](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1), before Tier 3 begins)_
+
+No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped, plus a handful of infrastructure/tooling additions that don't belong to any specific tool tier. Started because v0.9.0's own scope kept growing past its original Tier 2 definition; splitting this out keeps that pattern from repeating indefinitely.
+
+**Defects**
+- [ ] Isolated depth>0 bullet run renders the wrong glyph (disc instead of circle) despite correct indentation ([#439](https://github.com/khuisman/mcp-gee-sweet/issues/439))
+- [ ] `_auth_status_json` silently overrides a caller passing an inconsistent `is_service_account_identity` instead of erroring or reconciling ([#614](https://github.com/khuisman/mcp-gee-sweet/issues/614))
+- [ ] `_timed` logs a `200` status for tool calls that catch their own exception and return `{error: ...}` — observability reports success for a call that actually failed ([#579](https://github.com/khuisman/mcp-gee-sweet/issues/579))
+- [ ] `emitter.py` table-cell images have no cursor-advance handling — latent infinite loop if that code path is ever reached ([#509](https://github.com/khuisman/mcp-gee-sweet/issues/509))
+- [ ] Calendar ACL tools use a bare `except Exception` instead of the `HttpError` friendly-error pattern used elsewhere in `calendar.py` ([#459](https://github.com/khuisman/mcp-gee-sweet/issues/459))
+- [ ] `sync_folder`'s `convert_markdown` restamp-failure handling: quota-message gap, duplicated create()+update() try/except, test fixture isolation — companion to #420 ([#650](https://github.com/khuisman/mcp-gee-sweet/issues/650))
+- [ ] `sync_folder convert_markdown`'s `modifiedTime` restamp fires for all convert types (over-broad), and its create()+update() pattern is duplicated across two call sites ([#435](https://github.com/khuisman/mcp-gee-sweet/issues/435))
+- [ ] Harden `tests/integration`'s local-fs live QA harness — error surfacing on API failures, subprocess/handshake timeouts, cleanup-masking a real test failure, per-test subprocess overhead ([#648](https://github.com/khuisman/mcp-gee-sweet/issues/648))
+
+**Infrastructure**
+- [ ] Interaction-log middleware for tool calls — structured, append-only JSONL log per call (inputs, duration, cache hit, error), opt-in ID redaction, swappable backend ([#646](https://github.com/khuisman/mcp-gee-sweet/issues/646))
+- [ ] Automated tooling for dependency-bump security review — today's manual skim can miss a well-disguised supply-chain compromise ([#520](https://github.com/khuisman/mcp-gee-sweet/issues/520))
+- [ ] CI: dedupe lint/format-check and lockfile-check across the Python version matrix ([#619](https://github.com/khuisman/mcp-gee-sweet/issues/619))
+- [ ] Consolidate `uv lock --check` + `uv sync --frozen` into a single `uv sync --locked` step ([#536](https://github.com/khuisman/mcp-gee-sweet/issues/536))
+- [ ] Catch stale hardcoded tool counts in prose docs at commit time, instead of by hand each time drift is caught ([#308](https://github.com/khuisman/mcp-gee-sweet/issues/308))
 
 ### Tier 3 — Advanced / occasionally needed _(target: [v1.0.0](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0))_
 
