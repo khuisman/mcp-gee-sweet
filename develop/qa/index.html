@@ -1584,7 +1584,7 @@
 <ul>
 <li>Tests marked <strong>⚠️ destructive</strong> mutate the fixture spreadsheet. Run these last within their section or reset fixtures afterward using the seed prompt in <code>setup.md</code>.</li>
 <li>Tests marked <strong>⚠️ requires-oauth</strong> need OAuth or ADC auth — service accounts cannot create or copy files in Drive (no storage quota). These tests are automatically skipped with a warning when <code>QA_AUTH_METHOD=service_account</code> in <code>.env</code>.</li>
-<li>Tests marked <strong>⚠️ local-filesystem</strong> need file paths accessible to the MCP server process. These cannot run in an AI-session QA run and are always skipped.</li>
+<li>Tests marked <strong>⚠️ local-filesystem</strong> need file paths accessible to the MCP server process. These cannot run in an AI-session QA run and are always skipped here. A representative subset is instead covered by the opt-in <code>tests/integration/</code> pytest harness (<code>MCP_GEE_SWEET_LIVE_TESTS=1 uv run python -m pytest tests/integration/</code> — needs real Google credentials, see that package's <code>conftest.py</code>) — see <a href="../decisions/decision-local-fs-test-harness/"><code>decision-local-fs-test-harness.md</code></a> for what it covers and what's still follow-up.</li>
 <li>Tests marked <strong>🔍 product decision</strong> have no single correct answer — note what you observed and open an issue if the behavior seems wrong.</li>
 <li>Cache hit tests (TC-R17, TC-S02, etc.) require checking server logs: <code>make logs</code> or <code>docker compose logs mcp-gee-sweet</code>.</li>
 </ul>
