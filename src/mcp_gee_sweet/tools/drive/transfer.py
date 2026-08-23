@@ -895,6 +895,12 @@ async def _sync_level(
                     # (#420) — a genuine orphan now exists in Drive, so its ID
                     # rides along in the failed entry rather than being lost.
                     entry["fileId"] = o["fileId"]
+                    # create() genuinely succeeded here even though the overall
+                    # step is reported as upload_fail — the folder's contents
+                    # changed and the cache must be invalidated the same as a
+                    # real upload_ok, or a cached list_files/get_multiple_* call
+                    # on this folder won't reflect the orphan (QA round 1, PR #645).
+                    level_changed = True
                 failed.append(entry)
 
         if level_changed:
@@ -1390,7 +1396,14 @@ def register(tool):
         result = await _upload_local_file(
             drive_service, local_path, parent_folder_id, name, skip_if_exists, convert
         )
-        if "error" not in result and not result.get("skipped"):
+        # "fileId" alongside "error" means create() genuinely succeeded and only
+        # the follow-up restamp failed (#420) — the folder's contents changed
+        # even though this call reports an error, so the cache must still be
+        # invalidated. Checked as its own case, not just "fileId" in result" —
+        # a plain skip also carries the pre-existing file's fileId and must NOT
+        # mark the cache dirty, since nothing changed (QA round 1, PR #645).
+        orphaned = "error" in result and "fileId" in result
+        if ("error" not in result and not result.get("skipped")) or orphaned:
             lc.drive_folder_cache.mark_dirty(parent_folder_id)
         return result
 
@@ -1444,6 +1457,7 @@ def register(tool):
         uploaded: list[str] = []
         skipped: list[str] = []
         failed: list[dict[str, str]] = []
+        any_created = False
 
         if skip_if_exists and candidates:
             # fields includes mimeType (not just name) so the convert=True case below
@@ -1513,12 +1527,18 @@ def register(tool):
                     # (#420) — a genuine orphan now exists in Drive, so its ID
                     # rides along in the failed entry rather than being lost.
                     entry["fileId"] = result["fileId"]
+                    # create() genuinely succeeded here despite the overall
+                    # failure — the folder changed, so this must still count
+                    # for cache invalidation below even though it never reaches
+                    # `uploaded` (QA round 1, PR #645).
+                    any_created = True
                 failed.append(entry)
             else:
                 uploaded.append(p.name)
+                any_created = True
                 logger.debug("Uploaded %s", p.name)
 
-        if uploaded:
+        if any_created:
             lc.drive_folder_cache.mark_dirty(parent_folder_id)
 
         return {"uploaded": uploaded, "skipped": skipped, "failed": failed}
