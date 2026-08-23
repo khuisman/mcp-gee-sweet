@@ -32,21 +32,56 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # Same waterfall order server.py's own auth.py documents: OAuth first (personal
-# Drive access), service account as fallback.
+# Drive access), service account as fallback, then ADC.
 _OAUTH_CREDS = REPO_ROOT / "credentials.json"
 _OAUTH_TOKEN = REPO_ROOT / "token.json"
 _SERVICE_ACCOUNT = REPO_ROOT / "service_account.json"
+
+# Every env var auth.py's own waterfall reads (see its os.environ.get calls) that
+# identifies *which* credentials to use, as opposed to unrelated server config.
+_AUTH_ENV_VARS = (
+    "AUTH_METHOD",
+    "CREDENTIALS_CONFIG",
+    "CREDENTIALS_PATH",
+    "TOKEN_PATH",
+    "SERVICE_ACCOUNT_PATH",
+)
+
+
+def _adc_available() -> bool:
+    """Whether Application Default Credentials resolve in this environment.
+
+    Unlike the OAuth/service-account cases, ADC has no file this module can
+    check for ahead of time (env var, gcloud's well-known file, or GCE/Cloud
+    Run metadata are all valid sources) — asking google-auth directly is the
+    only way to know.
+    """
+    try:
+        import google.auth
+
+        google.auth.default()
+        return True
+    except Exception:
+        return False
 
 
 def _discover_auth_env() -> dict[str, str] | None:
     """Build the subprocess env vars needed to authenticate, or None if nothing usable is found.
 
     Honors AUTH_METHOD if the caller already exported it (so a developer's own
-    setup isn't second-guessed); otherwise auto-discovers the same repo-root
-    credential files `.mcp.json` already points every team-role server at.
+    setup isn't second-guessed) — forwarding every auth-relevant var actually
+    present in this process's environment, not just AUTH_METHOD itself: the MCP
+    SDK's stdio_client only inherits a small fixed allowlist for the subprocess
+    (get_default_environment()'s HOME/LOGNAME/PATH/SHELL/TERM/USER), so a
+    caller's own CREDENTIALS_PATH/TOKEN_PATH/etc. would otherwise never reach
+    the spawned server even though this function returns without complaint
+    (confirmed live, PR #644 QA round 1). Otherwise auto-discovers the same
+    repo-root credential files `.mcp.json` already points every team-role
+    server at, then CREDENTIALS_CONFIG, then ADC — the same order auth.py's own
+    waterfall tries them.
     """
     if os.environ.get("AUTH_METHOD"):
-        return {}  # nothing extra to add — inherit as-is via get_default_environment()
+        return {var: os.environ[var] for var in _AUTH_ENV_VARS if var in os.environ}
 
     if _OAUTH_CREDS.exists() and _OAUTH_TOKEN.exists():
         return {
@@ -56,6 +91,13 @@ def _discover_auth_env() -> dict[str, str] | None:
         }
     if _SERVICE_ACCOUNT.exists():
         return {"AUTH_METHOD": "service_account", "SERVICE_ACCOUNT_PATH": str(_SERVICE_ACCOUNT)}
+    if os.environ.get("CREDENTIALS_CONFIG"):
+        return {
+            "AUTH_METHOD": "service_account",
+            "CREDENTIALS_CONFIG": os.environ["CREDENTIALS_CONFIG"],
+        }
+    if _adc_available():
+        return {"AUTH_METHOD": "adc"}
     return None
 
 
@@ -69,8 +111,9 @@ def _live_tests_enabled() -> tuple[bool, str]:
         return False, "MCP_GEE_SWEET_LIVE_TESTS is not set — opt in to run this harness"
     if _discover_auth_env() is None:
         return False, (
-            "no usable Google credentials found (checked AUTH_METHOD env var and "
-            f"{_OAUTH_CREDS.name}/{_OAUTH_TOKEN.name}/{_SERVICE_ACCOUNT.name} at repo root)"
+            "no usable Google credentials found (checked AUTH_METHOD env var, "
+            f"{_OAUTH_CREDS.name}/{_OAUTH_TOKEN.name}/{_SERVICE_ACCOUNT.name} at repo root, "
+            "CREDENTIALS_CONFIG env var, and Application Default Credentials)"
         )
     if not _live_test_folder_id():
         return False, "TEST_FOLDER_ID not set (env var or repo-root .env) — see docs/qa/setup.md"
