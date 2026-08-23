@@ -1329,6 +1329,37 @@ Remove `/tmp/qa-239/`.
 
 ---
 
+### TC-D249: `sync_folder`'s convert_markdown upload — a restamp failure after a successful create() reports the orphan's fileId, not a bare upload_fail (issue #420) (unit test)
+
+**Background:** the convert_markdown upload path in `_sync_level`'s `_run_one` (`transfer.py`) wraps both the `create()` call and its metadata-only restamp `update()` follow-up (see TC-D218/TC-D228's own root cause) in one step. Before this fix, a transient failure in the restamp call — after `create()` had already succeeded — reported a bare `upload_fail` with no way to find the Doc that now genuinely exists in Drive: an untracked orphan. Not reliably reproducible live (would require forcing a transient API failure in the exact window between the two calls); verified by unit test instead.
+
+**Checks (unit test)**
+- `tests/drive/test_transfer.py::TestSyncFolderConvertMarkdown::test_restamp_failure_after_successful_create_reports_orphan_fileId` — with `create()` succeeding and the follow-up metadata-only `update()` raising, `sync_folder(convert_markdown=true)` reports the file under `failed` with `{name, error, fileId}` — the `fileId` matching the file `create()` actually made in Drive — rather than a bare `{name, error}` with no way to find the orphan. A sibling `create()`-itself-fails case (`tests/drive/test_transfer.py::TestUploadLocalFileConvert::test_create_failure_returns_error_with_no_fileId`) confirms no `fileId` is reported when nothing was actually created. The same test also asserts `drive_folder_cache.mark_dirty("root")` was called exactly once — round 1's fix landed the `fileId`-carrying failure entry in the same branch every other `*_fail` kind uses, which never set `level_changed`, so `create()` genuinely changing the folder went uncounted for cache-invalidation purposes (PR #645 QA round 1).
+
+**Result (2026-08-22) ✅ PASS (round 1)** — ran `uv run python -m pytest tests/drive/test_transfer.py -k "restamp or orphan or fileId or ConvertMarkdown or UploadLocalFileConvert"`; both cited tests pass, along with the rest of `TestSyncFolderConvertMarkdown`/`TestUploadLocalFileConvert` (35 total). Full `tests/` suite (1307 tests) also green — no regressions. Note: a real correctness gap was found in the *surrounding* cache-invalidation logic this fix's new `fileId`-carrying failure entries pass through (`_sync_level`'s `level_changed` gating and both tool wrappers' `mark_dirty` gates) — see PR #645 comment; it's a defect in code adjacent to this fix, not in the behavior this test case checks.
+
+**Result (2026-08-23) ✅ PASS (round 2)** — verified fix commit `3487a45` (`git show`) directly against source: `_run_one`'s new orphan branch now sets `level_changed = True` before `failed.append(entry)`, and the new assertion in `test_restamp_failure_after_successful_create_reports_orphan_fileId` confirms `mark_dirty("root")` is called exactly once. Ran `uv run python -m pytest tests/drive/test_transfer.py -k "mark_dirty or CacheInvalidation or restamp or orphan or fileId or ConvertMarkdown or UploadLocalFileConvert or UploadLocalFolder"` (52 passed) and the full suite (1311 passed, +4 from round 1's 1307 — the new regression-guard tests). Cache-invalidation gap closed.
+
+---
+
+### TC-D250: `upload_local_file`/`upload_local_folder` — the identical restamp-failure orphan-fileId fix, for the twin create()+update() pair (issue #420) (unit test)
+
+**Background:** `_upload_local_file`'s own `convert=True` create()+update() pair is explicitly documented as mirroring `_sync_level._run_one`'s (see #422 finding #1) — it had the identical gap: a restamp failure after a successful `create()` returned a bare `{"error": ...}` with no `fileId`, again losing the ID of a Doc that genuinely exists in Drive. Fixed alongside TC-D249's fix rather than left for a later QA round to rediscover in the sibling path (per this repo's own retro guidance on auditing every code path a docstring claims shares a mechanism). `upload_local_folder`'s own `failed`-list aggregation (`transfer.py`, around where `"error" in result` is checked) also had the same key-dropping gap as `sync_folder`'s aggregation and is covered by the same fix. Not reliably reproducible live for the same reason as TC-D249; verified by unit test.
+
+**Checks (unit test)**
+- `tests/drive/test_transfer.py::TestUploadLocalFileConvert::test_convert_modified_time_restamp_failure_returns_clean_error_not_raise` — `_upload_local_file(convert=True)` with `create()` succeeding and the restamp `update()` raising returns `{"error": ..., "fileId": "fid1"}`, not a bare `{"error": ...}`
+- `tests/drive/test_transfer.py::TestUploadLocalFileConvert::test_create_failure_returns_error_with_no_fileId` — when `create()` itself fails, the result has no `fileId` key at all (nothing was created, so there's no orphan to report)
+- `tests/drive/test_transfer.py::TestUploadLocalFileToolCacheInvalidation` (new, tool-wrapper level, not `_upload_local_file` directly) — `test_restamp_failure_orphan_still_marks_folder_cache_dirty` confirms the `upload_local_file` tool's own `mark_dirty` gate now fires for the orphan case (round 1: it didn't, since the gate was `"error" not in result`); `test_skip_does_not_mark_folder_cache_dirty` is the regression guard — a plain skip result *also* carries a `fileId` (the pre-existing file's), and must NOT be conflated with the orphan case; `test_create_failure_does_not_mark_folder_cache_dirty` confirms a `create()`-itself failure (no fileId at all) still correctly skips invalidation.
+- `tests/drive/test_transfer.py::TestUploadLocalFolder::test_restamp_failure_orphan_still_marks_folder_cache_dirty` (new) — the identical gap in `upload_local_folder`'s own `if uploaded:` gate, for the case where the orphan is the *only* file in the folder (so `uploaded` is empty and the old gate never even entered).
+
+**Result (2026-08-22) ✅ PASS (round 1)** — both cited tests pass (same run as TC-D249 above). Same cache-invalidation caveat applies: `upload_local_file`'s `mark_dirty` gate (`if "error" not in result`) and `upload_local_folder`'s (`if uploaded:`) both skip invalidating the folder cache for this fix's new orphan-with-fileId case, even though `create()` genuinely succeeded — see PR #645 comment.
+
+**Result (2026-08-23) ✅ PASS (round 2)** — verified fix commit `3487a45` directly: `upload_local_file`'s gate is now `("error" not in result and not skipped) or orphaned`, where `orphaned = "error" in result and "fileId" in result` — correctly distinct from a skip result, which also carries `fileId` (the pre-existing file's) but no `error` key, so it's excluded. `upload_local_folder` now tracks `any_created` (set on both the plain-success `else` branch and the new orphan branch) instead of gating on `if uploaded`. All 3 new regression tests (`TestUploadLocalFileToolCacheInvalidation`'s three cases, `TestUploadLocalFolder::test_restamp_failure_orphan_still_marks_folder_cache_dirty`) pass; full suite green (1311 passed). Cache-invalidation gap closed at both sites.
+
+**Result (2026-08-22) ✅ PASS** — both cited tests pass (same run as TC-D249 above). Same cache-invalidation caveat applies: `upload_local_file`'s `mark_dirty` gate (`if "error" not in result`) and `upload_local_folder`'s (`if uploaded:`) both skip invalidating the folder cache for this fix's new orphan-with-fileId case, even though `create()` genuinely succeeded — see PR #645 comment.
+
+---
+
 ## `list_revisions`
 
 ### TC-D146: List revisions for a spreadsheet

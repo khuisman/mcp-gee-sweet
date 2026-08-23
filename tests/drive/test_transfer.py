@@ -338,7 +338,12 @@ class TestUploadLocalFileConvert:
         would otherwise surface as an unhandled tool error with no fileId
         returned at all. Mirrors _sync_level._run_one's create()+update() pair,
         which already wraps both calls in one broad except and returns a clean
-        failure rather than letting a partial success propagate raw."""
+        failure rather than letting a partial success propagate raw.
+
+        #420: the clean error alone wasn't enough — a bare {"error": ...} still
+        lost the ID of the Doc that genuinely got created in Drive, leaving an
+        untracked orphan with no way to find it. The result must also carry
+        'fileId' in this specific case."""
         local_file = tmp_path / "notes.md"
         local_file.write_text("# Heading")
         drive_svc = MagicMock()
@@ -358,6 +363,27 @@ class TestUploadLocalFileConvert:
 
         assert "error" in result
         assert "transient network error" in result["error"]
+        assert result["fileId"] == "fid1"
+
+    async def test_create_failure_returns_error_with_no_fileId(self, tmp_path):
+        """#420: distinct from the restamp-failure case above — when create()
+        itself fails, nothing was created in Drive, so the error must NOT carry
+        a fileId (there's no orphan to report)."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Heading")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.side_effect = RuntimeError(
+            "create failed"
+        )
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" in result
+        assert "create failed" in result["error"]
+        assert "fileId" not in result
 
     async def test_convert_non_md_extension_does_not_stamp_source_property(self, tmp_path):
         local_file = tmp_path / "data.csv"
@@ -522,6 +548,85 @@ class TestUploadLocalFileConvert:
         drive_svc.files.return_value.create.assert_not_called()
 
 
+class TestUploadLocalFileToolCacheInvalidation:
+    """upload_local_file tool wrapper: drive_folder_cache.mark_dirty gate.
+
+    #420 QA round 1 (PR #645): the gate was `"error" not in result and not
+    skipped`, so the new orphan case — create() genuinely succeeded but the
+    convert restamp then failed, returning {"error": ..., "fileId": ...} —
+    fell through as a false negative even though the folder's contents
+    really did change."""
+
+    async def test_restamp_failure_orphan_still_marks_folder_cache_dirty(self, tmp_path):
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Heading")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "notes.md",
+            "webViewLink": "https://example.com",
+        }
+        drive_svc.files.return_value.update.return_value.execute.side_effect = RuntimeError(
+            "transient network error"
+        )
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=drive_svc, drive_folder_cache=folder_cache)
+
+        result = await _transfer_tools["upload_local_file"](
+            local_path=str(local_file),
+            parent_folder_id="folder1",
+            skip_if_exists=False,
+            convert=True,
+            ctx=ctx,
+        )
+
+        assert "error" in result
+        assert result["fileId"] == "fid1"
+        folder_cache.mark_dirty.assert_called_once_with("folder1")
+
+    async def test_skip_does_not_mark_folder_cache_dirty(self, tmp_path):
+        """Regression guard for the fix above: a skip result also carries a
+        'fileId' (the pre-existing file's), but nothing changed — it must NOT
+        be conflated with the orphan case and must not mark the cache dirty."""
+        local_file = tmp_path / "pic.png"
+        local_file.write_bytes(b"fake-bytes")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"id": "existing1", "name": "pic.png", "webViewLink": "https://x/existing"}]
+        }
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=drive_svc, drive_folder_cache=folder_cache)
+
+        result = await _transfer_tools["upload_local_file"](
+            local_path=str(local_file), parent_folder_id="folder1", ctx=ctx
+        )
+
+        assert result["skipped"] is True
+        folder_cache.mark_dirty.assert_not_called()
+
+    async def test_create_failure_does_not_mark_folder_cache_dirty(self, tmp_path):
+        """Distinct from the orphan case: create() itself failing means nothing
+        was created, so the cache must stay untouched."""
+        local_file = tmp_path / "pic.png"
+        local_file.write_bytes(b"fake-bytes")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.side_effect = RuntimeError(
+            "create failed"
+        )
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=drive_svc, drive_folder_cache=folder_cache)
+
+        result = await _transfer_tools["upload_local_file"](
+            local_path=str(local_file), parent_folder_id="folder1", ctx=ctx
+        )
+
+        assert "error" in result
+        assert "fileId" not in result
+        folder_cache.mark_dirty.assert_not_called()
+
+
 class TestUploadLocalFolder:
     """upload_local_folder now routes each file through the shared
     _upload_local_file helper (issue #411) instead of its own independent
@@ -554,6 +659,33 @@ class TestUploadLocalFolder:
         assert result["uploaded"] == ["a.txt", "b.png"]
         assert result["skipped"] == []
         assert result["failed"] == []
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_once_with(
+            "folder1"
+        )
+
+    async def test_restamp_failure_orphan_still_marks_folder_cache_dirty(self, tmp_path):
+        """#420 QA round 1 (PR #645): a single-item folder where create()
+        succeeds but the convert restamp then fails never lands in `uploaded`
+        (it's reported under `failed` instead) — the old `if uploaded:` gate
+        missed this, even though create() genuinely changed the folder."""
+        (tmp_path / "notes.md").write_text("# Heading")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "notes.md",
+            "webViewLink": "https://example.com",
+        }
+        drive_svc.files.return_value.update.return_value.execute.side_effect = RuntimeError(
+            "transient network error"
+        )
+        ctx = self._ctx(drive_svc)
+
+        result = await self._tool()(str(tmp_path), "folder1", convert=True, ctx=ctx)
+
+        assert result["uploaded"] == []
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["fileId"] == "fid1"
         ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_once_with(
             "folder1"
         )
@@ -1701,6 +1833,51 @@ class TestSyncFolderConvertMarkdown:
         assert result["failed"][0]["name"] == "notes.md"
         assert "plain file" in result["failed"][0]["error"]
         assert fs.updated_files == []
+
+    async def test_restamp_failure_after_successful_create_reports_orphan_fileId(self, tmp_path):
+        """#420: sync_folder's convert_markdown upload path wraps the create() call
+        and its metadata-only restamp update() in the same step. If create()
+        succeeds but the follow-up restamp fails (transient error), the Doc still
+        genuinely exists in Drive — reporting a bare 'upload_fail' with no fileId
+        would leave it an untracked orphan with no way to find it. The failed
+        entry must carry the created file's own ID alongside the error."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Heading")
+
+        class _RestampFailsFakeDriveFS(_FakeDriveFS):
+            def _update(self, **kwargs):
+                if "media_body" not in kwargs:
+                    # The metadata-only restamp call (no media_body) — the one
+                    # that follows a successful create(), distinct from the
+                    # media-carrying update() used to re-upload an existing file.
+                    raise RuntimeError("transient network error")
+                return super()._update(**kwargs)
+
+        fs = _RestampFailsFakeDriveFS({"root": []})
+        ctx = self._ctx(fs)
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            convert_markdown=True,
+            ctx=ctx,
+        )
+
+        # The Doc was genuinely created in Drive before the restamp failed.
+        assert len(fs.created_files) == 1
+        assert result["uploaded"] == []
+        assert len(result["failed"]) == 1
+        entry = result["failed"][0]
+        assert entry["name"] == "notes.md"
+        assert "transient network error" in entry["error"]
+        assert entry["fileId"] == "new-file-1"
+        # #420 QA round 1 (PR #645): create() genuinely changed the folder even
+        # though the overall step reports upload_fail — the cache must still be
+        # invalidated, not just for a real upload_ok/download_ok.
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_once_with(
+            "root"
+        )
 
     async def test_bidirectional_resync_after_initial_convert_stays_in_sync(self, tmp_path):
         """TC-D218 (#414 QA review): Drive's native import-conversion on create()
