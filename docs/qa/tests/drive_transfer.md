@@ -1329,6 +1329,25 @@ Remove `/tmp/qa-239/`.
 
 ---
 
+### TC-D249: `sync_folder`'s convert_markdown upload — a restamp failure after a successful create() reports the orphan's fileId, not a bare upload_fail (issue #420) (unit test)
+
+**Background:** the convert_markdown upload path in `_sync_level`'s `_run_one` (`transfer.py`) wraps both the `create()` call and its metadata-only restamp `update()` follow-up (see TC-D218/TC-D228's own root cause) in one step. Before this fix, a transient failure in the restamp call — after `create()` had already succeeded — reported a bare `upload_fail` with no way to find the Doc that now genuinely exists in Drive: an untracked orphan. Not reliably reproducible live (would require forcing a transient API failure in the exact window between the two calls); verified by unit test instead, matching the existing convention for this class of case (see TC-D166/TC-D168).
+
+**Checks (unit test)**
+- `tests/drive/test_transfer.py::TestSyncFolderConvertMarkdown::test_restamp_failure_after_successful_create_reports_orphan_fileId` — with `create()` succeeding and the follow-up metadata-only `update()` raising, `sync_folder(convert_markdown=true)` reports the file under `failed` with `{name, error, fileId}` — the `fileId` matching the file `create()` actually made in Drive — rather than a bare `{name, error}` with no way to find the orphan. A sibling `create()`-itself-fails case (`tests/drive/test_transfer.py::TestUploadLocalFileConvert::test_create_failure_returns_error_with_no_fileId`) confirms no `fileId` is reported when nothing was actually created.
+
+---
+
+### TC-D250: `upload_local_file`/`upload_local_folder` — the identical restamp-failure orphan-fileId fix, for the twin create()+update() pair (issue #420) (unit test)
+
+**Background:** `_upload_local_file`'s own `convert=True` create()+update() pair is explicitly documented as mirroring `_sync_level._run_one`'s (see #422 finding #1) — it had the identical gap: a restamp failure after a successful `create()` returned a bare `{"error": ...}` with no `fileId`, again losing the ID of a Doc that genuinely exists in Drive. Fixed alongside TC-D249's fix rather than left for a later QA round to rediscover in the sibling path (per this repo's own retro guidance on auditing every code path a docstring claims shares a mechanism). `upload_local_folder`'s own `failed`-list aggregation (`transfer.py`, around where `"error" in result` is checked) also had the same key-dropping gap as `sync_folder`'s aggregation and is covered by the same fix. Not reliably reproducible live for the same reason as TC-D249; verified by unit test.
+
+**Checks (unit test)**
+- `tests/drive/test_transfer.py::TestUploadLocalFileConvert::test_convert_modified_time_restamp_failure_returns_clean_error_not_raise` — `_upload_local_file(convert=True)` with `create()` succeeding and the restamp `update()` raising returns `{"error": ..., "fileId": "fid1"}`, not a bare `{"error": ...}`
+- `tests/drive/test_transfer.py::TestUploadLocalFileConvert::test_create_failure_returns_error_with_no_fileId` — when `create()` itself fails, the result has no `fileId` key at all (nothing was created, so there's no orphan to report)
+
+---
+
 ## `list_revisions`
 
 ### TC-D146: List revisions for a spreadsheet

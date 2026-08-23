@@ -338,7 +338,12 @@ class TestUploadLocalFileConvert:
         would otherwise surface as an unhandled tool error with no fileId
         returned at all. Mirrors _sync_level._run_one's create()+update() pair,
         which already wraps both calls in one broad except and returns a clean
-        failure rather than letting a partial success propagate raw."""
+        failure rather than letting a partial success propagate raw.
+
+        #420: the clean error alone wasn't enough — a bare {"error": ...} still
+        lost the ID of the Doc that genuinely got created in Drive, leaving an
+        untracked orphan with no way to find it. The result must also carry
+        'fileId' in this specific case."""
         local_file = tmp_path / "notes.md"
         local_file.write_text("# Heading")
         drive_svc = MagicMock()
@@ -358,6 +363,27 @@ class TestUploadLocalFileConvert:
 
         assert "error" in result
         assert "transient network error" in result["error"]
+        assert result["fileId"] == "fid1"
+
+    async def test_create_failure_returns_error_with_no_fileId(self, tmp_path):
+        """#420: distinct from the restamp-failure case above — when create()
+        itself fails, nothing was created in Drive, so the error must NOT carry
+        a fileId (there's no orphan to report)."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Heading")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.side_effect = RuntimeError(
+            "create failed"
+        )
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" in result
+        assert "create failed" in result["error"]
+        assert "fileId" not in result
 
     async def test_convert_non_md_extension_does_not_stamp_source_property(self, tmp_path):
         local_file = tmp_path / "data.csv"
@@ -1701,6 +1727,44 @@ class TestSyncFolderConvertMarkdown:
         assert result["failed"][0]["name"] == "notes.md"
         assert "plain file" in result["failed"][0]["error"]
         assert fs.updated_files == []
+
+    async def test_restamp_failure_after_successful_create_reports_orphan_fileId(self, tmp_path):
+        """#420: sync_folder's convert_markdown upload path wraps the create() call
+        and its metadata-only restamp update() in the same step. If create()
+        succeeds but the follow-up restamp fails (transient error), the Doc still
+        genuinely exists in Drive — reporting a bare 'upload_fail' with no fileId
+        would leave it an untracked orphan with no way to find it. The failed
+        entry must carry the created file's own ID alongside the error."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Heading")
+
+        class _RestampFailsFakeDriveFS(_FakeDriveFS):
+            def _update(self, **kwargs):
+                if "media_body" not in kwargs:
+                    # The metadata-only restamp call (no media_body) — the one
+                    # that follows a successful create(), distinct from the
+                    # media-carrying update() used to re-upload an existing file.
+                    raise RuntimeError("transient network error")
+                return super()._update(**kwargs)
+
+        fs = _RestampFailsFakeDriveFS({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        # The Doc was genuinely created in Drive before the restamp failed.
+        assert len(fs.created_files) == 1
+        assert result["uploaded"] == []
+        assert len(result["failed"]) == 1
+        entry = result["failed"][0]
+        assert entry["name"] == "notes.md"
+        assert "transient network error" in entry["error"]
+        assert entry["fileId"] == "new-file-1"
 
     async def test_bidirectional_resync_after_initial_convert_stays_in_sync(self, tmp_path):
         """TC-D218 (#414 QA review): Drive's native import-conversion on create()

@@ -197,14 +197,29 @@ async def _upload_local_file(
             .execute,
             drive_service,
         )
-        if convert_mime is not None:
-            # Drive's native import-conversion overwrites the modifiedTime just
-            # requested with its own "now" once the conversion finishes — the same
-            # drift _sync_level's own convert_markdown upload path already works
-            # around (see its create() branch). A metadata-only follow-up update()
-            # doesn't trigger reconversion and re-stamps it correctly. A plain
-            # (non-converting) upload has no such override — the create() body's
-            # modifiedTime above already sticks, no restamp needed.
+    except HttpError as e:
+        if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+            return {"error": _SA_QUOTA_ERROR}
+        return {"error": str(e)}
+    except Exception as e:
+        # Mirrors _sync_level._run_one's create()+update() pair (its convert_this
+        # branch): the upload_local_file tool (the caller at line ~1189) has no
+        # try/except of its own, so a create() failure must be caught here rather
+        # than propagate uncaught (#422 QA review, finding #1). Nothing was
+        # created in this branch, so a bare error with no fileId is correct — the
+        # follow-up restamp below has its own try/except for the case where
+        # create() *did* succeed (#420).
+        return {"error": str(e)}
+
+    if convert_mime is not None:
+        # Drive's native import-conversion overwrites the modifiedTime just
+        # requested with its own "now" once the conversion finishes — the same
+        # drift _sync_level's own convert_markdown upload path already works
+        # around (see its create() branch). A metadata-only follow-up update()
+        # doesn't trigger reconversion and re-stamps it correctly. A plain
+        # (non-converting) upload has no such override — the create() body's
+        # modifiedTime above already sticks, no restamp needed.
+        try:
             await execute_in_thread(
                 drive_service.files()
                 .update(
@@ -216,20 +231,19 @@ async def _upload_local_file(
                 .execute,
                 drive_service,
             )
-    except HttpError as e:
-        if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
-            return {"error": _SA_QUOTA_ERROR}
-        return {"error": str(e)}
-    except Exception as e:
-        # Mirrors _sync_level._run_one's create()+update() pair (its convert_this
-        # branch), which wraps both calls in one broad except and returns a clean
-        # failure rather than raising. Without this, a failure in the follow-up
-        # modifiedTime restamp above — after create() already succeeded — would
-        # propagate as an uncaught exception with no fileId returned, even though
-        # a Doc now genuinely exists in Drive; the upload_local_file tool (the
-        # caller at line ~1189) has no try/except of its own to catch it (#422 QA
-        # review, finding #1).
-        return {"error": str(e)}
+        except Exception as e:
+            # Unlike the create() failure above, a Doc now genuinely exists in
+            # Drive — only the metadata restamp on top of it failed. Reporting a
+            # bare error here would leave this Doc an untracked orphan with no
+            # record of its ID; surface fileId alongside the error so a caller
+            # can find and either fix or clean up the orphan (#420).
+            return {
+                "error": (
+                    f"created Drive file {result['id']!r} but failed to restamp "
+                    f"its modifiedTime: {e}"
+                ),
+                "fileId": result["id"],
+            }
 
     logger.debug("Uploaded %s → %s (%s)", local_path, result.get("id"), mime)
     return {
@@ -714,17 +728,34 @@ async def _sync_level(
                             # as newer, tries to download the (unconvertible) Doc, and
                             # the file gets stuck 'failed' forever (#414 QA review,
                             # TC-D218).
-                            await execute_in_thread(
-                                drive_service.files()
-                                .update(
-                                    fileId=created["id"],
-                                    body={"modifiedTime": lmtime_str},
-                                    supportsAllDrives=True,
-                                    fields="id",
+                            try:
+                                await execute_in_thread(
+                                    drive_service.files()
+                                    .update(
+                                        fileId=created["id"],
+                                        body={"modifiedTime": lmtime_str},
+                                        supportsAllDrives=True,
+                                        fields="id",
+                                    )
+                                    .execute,
+                                    drive_service,
                                 )
-                                .execute,
-                                drive_service,
-                            )
+                            except Exception as e:
+                                # create() already succeeded — the Doc genuinely
+                                # exists in Drive even though this restamp failed.
+                                # A bare upload_fail here would leave it an
+                                # untracked orphan with no record of its ID
+                                # (#420); report fileId alongside the error so a
+                                # caller can find and either fix or clean it up.
+                                return {
+                                    "kind": "upload_fail",
+                                    "name": name,
+                                    "error": (
+                                        f"created Drive file {created['id']!r} but "
+                                        f"failed to restamp its modifiedTime: {e}"
+                                    ),
+                                    "fileId": created["id"],
+                                }
                         logger.debug("Synced (create) %s%s → Drive", rel_prefix, name)
                     return {"kind": "upload_ok", "name": name}
                 except Exception as e:
@@ -858,7 +889,13 @@ async def _sync_level(
                 total_bytes += o["bytes"]
                 level_changed = True
             else:  # upload_fail / download_fail / collision_fail / checksum_read_fail
-                failed.append({"name": rel_name, "error": o["error"]})
+                entry = {"name": rel_name, "error": o["error"]}
+                if "fileId" in o:
+                    # Set only for the create()-succeeded-but-restamp-failed case
+                    # (#420) — a genuine orphan now exists in Drive, so its ID
+                    # rides along in the failed entry rather than being lost.
+                    entry["fileId"] = o["fileId"]
+                failed.append(entry)
 
         if level_changed:
             lc.drive_folder_cache.mark_dirty(drive_folder_id)
@@ -1336,7 +1373,11 @@ def register(tool):
                      Drive-native import.
 
         Returns:
-            fileId, name, webViewLink, and 'skipped' (True if skip_if_exists fired).
+            fileId, name, webViewLink, and 'skipped' (True if skip_if_exists fired) on
+            success. On failure, 'error' — plus a 'fileId' alongside it in the narrow
+            case where convert=True and the file was actually created in Drive but a
+            follow-up metadata call then failed (#420): that fileId names a real,
+            already-created Drive file, not something to retry creating again.
 
         Note:
             Requires OAuth or ADC auth. Service accounts cannot upload files to personal
@@ -1379,7 +1420,10 @@ def register(tool):
                      False (upload every file preserving its original format).
 
         Returns:
-            Summary with lists of 'uploaded', 'skipped', and 'failed' filenames.
+            Summary with lists of 'uploaded', 'skipped', and 'failed' filenames. Each
+            'failed' entry is {name, error} plus a 'fileId' in the narrow convert=True
+            case where the file was actually created in Drive but a follow-up metadata
+            call then failed (#420) — see upload_local_file's own Returns docs.
 
         Note:
             Requires OAuth or ADC auth. Service accounts cannot upload files to personal
@@ -1463,7 +1507,13 @@ def register(tool):
                 continue
 
             if "error" in result:
-                failed.append({"name": p.name, "error": result["error"]})
+                entry = {"name": p.name, "error": result["error"]}
+                if "fileId" in result:
+                    # Set only for the create()-succeeded-but-restamp-failed case
+                    # (#420) — a genuine orphan now exists in Drive, so its ID
+                    # rides along in the failed entry rather than being lost.
+                    entry["fileId"] = result["fileId"]
+                failed.append(entry)
             else:
                 uploaded.append(p.name)
                 logger.debug("Uploaded %s", p.name)
@@ -1911,11 +1961,16 @@ def register(tool):
             section above), 'folders_skipped' (relative subfolder paths not entered —
             always empty when recursive=False), size_bytes transferred, dry_run flag,
             and — when dry_run=True — an 'actions' list with {name, action, reason}
-            for every file considered at every level visited. Raises ValueError if
-            the response exceeds a safety cap (see MAX_TOOL_RESPONSE_CHARS in
-            docs/configuration.md for the configured default, or pass result_local_path to bypass
-            it and write to disk instead) — a recursive sync/preview over many files
-            is the most likely way to hit this.
+            for every file considered at every level visited. Each 'failed' entry is
+            {name, error} plus a 'fileId' in the narrow convert_markdown case where
+            create() actually succeeded in Drive but a follow-up metadata call then
+            failed (#420) — that fileId names a real, already-created Drive file, not
+            something the next sync will retry creating from scratch. Raises
+            ValueError if the response exceeds a safety cap (see
+            MAX_TOOL_RESPONSE_CHARS in docs/configuration.md for the configured
+            default, or pass result_local_path to bypass it and write to disk
+            instead) — a recursive sync/preview over many files is the most likely
+            way to hit this.
         """
         if direction not in ("bidirectional", "upload", "download"):
             return {
