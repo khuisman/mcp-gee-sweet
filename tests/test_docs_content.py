@@ -1143,6 +1143,31 @@ class TestResolveImageSource:
         result = await _resolve_image_source(drive_svc, "drive:file1", "folder1")
         assert "error" in result
         assert "boom" in result["error"]
+        # The Drive file itself is real (already existed, drive:-referenced) —
+        # surface file_id alongside the error so a caller isn't left with no way
+        # to trace it (#649, mirrors #420's fix in drive/transfer.py).
+        assert result["file_id"] == "file1"
+
+    async def test_local_upload_sharing_failure_returns_orphan_file_id(self, tmp_path):
+        # Distinct from the drive:-reference case above: here the file was freshly
+        # created by this call, so losing file_id on a sharing failure would mean
+        # losing all record of a real, newly-created Drive file (#649).
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "uploaded1",
+            "name": "pic.png",
+            "webViewLink": "https://drive.google.com/file/d/uploaded1/view",
+        }
+        drive_svc.permissions.return_value.create.return_value.execute.side_effect = RuntimeError(
+            "boom"
+        )
+        result = await _resolve_image_source(drive_svc, str(img), "folder1")
+        assert "error" in result
+        assert "boom" in result["error"]
+        assert result["file_id"] == "uploaded1"
 
     async def test_missing_web_content_link_is_error(self):
         drive_svc = MagicMock()
@@ -1153,6 +1178,7 @@ class TestResolveImageSource:
         result = await _resolve_image_source(drive_svc, "drive:file1", "folder1")
         assert "error" in result
         assert "webContentLink" in result["error"]
+        assert result["file_id"] == "file1"
 
     async def test_oversized_drive_image_fails_fast_without_sharing(self):
         drive_svc = MagicMock()
@@ -1409,6 +1435,32 @@ class TestCreateDocImages:
         insert = next(r for r in self._batchupdate_requests(docs_svc) if "insertText" in r)
         assert "Before" in insert["insertText"]["text"]
         assert "After" in insert["insertText"]["text"]
+
+    async def test_sharing_failure_image_outcome_still_carries_file_id(self):
+        # _resolve_image_source now surfaces file_id alongside a sharing-step
+        # error (#649) — the outcome-list assembly loop must not drop it (it
+        # previously only copied result["error"], discarding any other key).
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.get.return_value.execute.return_value = {"name": "file1"}
+        drive_svc.permissions.return_value.create.return_value.execute.side_effect = RuntimeError(
+            "boom"
+        )
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["create_doc"](
+            title="Doc",
+            content="![Alt](drive:file1)",
+            content_format="markdown",
+            ctx=ctx,
+        )
+        assert result["images"] == [
+            {
+                "src": "drive:file1",
+                "fileId": "file1",
+                "error": "sharing failed for Drive file 'file1': boom",
+            }
+        ]
+        image_reqs = [r for r in self._batchupdate_requests(docs_svc) if "insertInlineImage" in r]
+        assert image_reqs == []
 
     async def test_no_images_omits_images_key(self):
         drive_svc, docs_svc = self._make_services()

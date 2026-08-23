@@ -174,7 +174,10 @@ async def _resolve_image_source(
     just-granted anyone:reader permission, for the caller to revoke once the doc edit
     that actually embeds this image has succeeded (revoking any earlier would break the
     embed, since Docs fetches the image at insertion time, not upload time). Returns
-    {"error": ...} on any failure.
+    {"error": ...} on a failure that occurs before a Drive file exists (or was found);
+    if the file already exists but the sharing step below fails, the error also carries
+    {"file_id": ...} so the caller isn't left with an untracked orphan (#649, mirrors
+    #420's fix in drive/transfer.py).
     """
     if src.startswith("http://") or src.startswith("https://"):
         return {"uri": src}
@@ -264,11 +267,18 @@ async def _resolve_image_source(
             drive_service,
         )
     except Exception as e:
-        return {"error": f"sharing failed: {e}"}
+        # The file itself already existed or was already uploaded successfully —
+        # only sharing failed. Surface file_id alongside the error so a caller can
+        # find and either fix or clean up the orphan (#649, mirrors #420's fix in
+        # drive/transfer.py).
+        return {"error": f"sharing failed for Drive file {file_id!r}: {e}", "file_id": file_id}
 
     uri = metadata.get("webContentLink")
     if not uri:
-        return {"error": f"file {file_id} shared but Drive returned no webContentLink"}
+        return {
+            "error": f"file {file_id} shared but Drive returned no webContentLink",
+            "file_id": file_id,
+        }
 
     return {"uri": uri, "file_id": file_id, "permission_id": perm.get("id")}
 
@@ -385,7 +395,9 @@ async def _apply_doc_content(
     Returns the per-image outcome list (None if the content had no images at all)
     for the caller to fold into its own response — each entry has src, plus either
     fileId + shared (+ revoke_error if a revoke attempt failed) on success, or error
-    on failure. Mirrors insert_local_images's own outcome shape for consistency.
+    on failure (also carrying fileId if the underlying Drive file was already
+    created/found before a subsequent sharing failure — #649). Mirrors
+    insert_local_images's own outcome shape for consistency.
     """
     html_content = (
         _md_to_html(content, autolink_urls=autolink_urls)
@@ -432,6 +444,12 @@ async def _apply_doc_content(
                 entry["error"] = str(result)
             elif "error" in result:
                 entry["error"] = result["error"]
+                # A create()-succeeded-but-share-failed orphan (#649) still carries
+                # file_id — surface it so the caller isn't left with no record of
+                # a Drive file that genuinely exists.
+                orphan_file_id = result.get("file_id")
+                if orphan_file_id:
+                    entry["fileId"] = orphan_file_id
             else:
                 img_id = id(img)
                 entry_by_id[img_id] = entry

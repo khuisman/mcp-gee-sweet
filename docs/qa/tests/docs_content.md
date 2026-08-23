@@ -2935,3 +2935,25 @@ Fix (round 2): `_render_cell` now converts `\n` → `<br>` *before* calling `.st
 **Cleanup:** write fixture content back over `{DOC_ID}`
 
 **Result (2026-08-15) ✅ PASS — run live against PR #599 (issue #594) round 2, fix commit 42ed950.** With the corrected single-`<br>`-per-edge setup, `markdown` returned `"\n\n| Trailing test<br> |\n| --- |\n| <br>Leading test |\n\n"` — matches both checks exactly. Also re-confirmed with the original (double-`<br>`) setup as a bonus check: returned `"\n\n| Trailing test<br><br> |\n| --- |\n| <br><br>Leading test |\n\n"` — 2 `<br>` in, 2 `<br>` out, consistent with the 1:1 preservation the mid-cell TC-DOC187 case already established; confirms the fix isn't collapsing multi-paragraph edge spacers either, just previously-reported-as-single-`<br>`-expected case was actually a two-paragraph input.
+
+---
+
+## Orphan fileId on inline-image sharing failure (#649)
+
+Mirrors #420's fix in `drive/transfer.py` (see TC-D249/TC-D250 in `docs/qa/tests/drive_transfer.md`) applied to the same create()-succeeds-but-follow-up-fails shape in `docs/images.py`'s `upload_and_share_image` and `docs/content.py`'s `_resolve_image_source`: a transient failure in the `permissions().create()`/`files().get()` sharing step, after `files().create()` (or an already-uploaded `_upload_local_file`) had already succeeded, previously returned a bare `{"error": ...}` with no way to find the Drive file that now genuinely exists. Not reliably reproducible live (would require forcing a transient API failure in the exact window between create and share); verified by unit test instead, matching TC-D249/TC-D250's own convention.
+
+### TC-DOC189: `upload_and_share_image` / `_resolve_image_source` — a sharing-step failure after a successful upload reports the orphan's file_id, not a bare error (unit test)
+
+**Background:** three call sites had this shape: `images.py`'s `upload_and_share_image` (used directly by `insert_local_images`'s auto_downscale branch and by `downscale_drive_file`), `images.py`'s `insert_local_images`'s own plain (non-downscaled) upload+share step, and `content.py`'s `_resolve_image_source`'s shared sharing step (used by `create_doc`/`create_doc_from_file`/`write_doc_content`/`update_doc_from_file`'s markdown/HTML image embedding for both `drive:<file_id>` and local-path sources).
+
+**Checks (unit test)**
+- `tests/test_docs_images.py::TestUploadAndShareImage::test_share_failure_after_create_returns_file_id` — `create()` succeeds, `permissions().create()` raises → result carries `file_id` alongside `error`
+- `tests/test_docs_images.py::TestUploadAndShareImage::test_metadata_fetch_failure_after_create_returns_file_id` — `create()` and `permissions().create()` succeed, `files().get()` raises → result still carries `file_id`
+- `tests/test_docs_images.py::TestUploadAndShareImage::test_create_failure_returns_bare_error_no_file_id` — regression guard: when `create()` itself fails, no `file_id` key at all (nothing was created, so there's no orphan)
+- `tests/test_docs_images.py::TestInsertLocalImages::test_sharing_failure_reports_per_image_error_and_skips_doc_edit` (updated) and `test_downscaled_upload_share_failure_still_reports_file_id` (new) — both of `insert_local_images`'s upload paths (plain and auto_downscale) surface `fileId` in the per-image outcome entry on a sharing failure
+- `tests/test_docs_images.py::TestInsertLocalImages::test_sharing_failure_orphan_still_marks_folder_cache_dirty` / `test_downscaled_upload_share_failure_still_reports_file_id` (cache assertion) — the folder-listing cache is still marked dirty for the orphan case, mirroring the cache-invalidation-gate fix PR #645's QA round found necessary for the identical shape in `transfer.py`
+- `tests/test_docs_content.py::TestResolveImageSource::test_sharing_failure_is_error` (updated) — a `drive:<file_id>` source's sharing failure carries `file_id`
+- `tests/test_docs_content.py::TestResolveImageSource::test_local_upload_sharing_failure_returns_orphan_file_id` (new) — a local-path source's sharing failure (the true orphan case — the file was freshly created by this call) carries `file_id`
+- `tests/test_docs_content.py::TestCreateDocImages::test_sharing_failure_image_outcome_still_carries_file_id` (new) — `create_doc`'s own image-outcome assembly loop (which previously only copied `result["error"]`, discarding every other key) now also surfaces `fileId` in the per-image outcome entry
+
+---
