@@ -6,6 +6,12 @@
     "url": "https://github.com/khuisman/mcp-gee-sweet",
     "source": "github"
   },
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/khuisman/mcp-gee-sweet/develop/docs/assets/logo.png",
+      "mimeType": "image/png"
+    }
+  ],
   "version": "0.8.1",
   "packages": [
     {
