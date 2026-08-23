@@ -933,6 +933,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#v091-post-release-defect-fixes-infrastructure-addons-target-v091-before-tier-3-begins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v0.9.1 — Post-release defect fixes &amp; infrastructure addons (target: v0.9.1, before Tier 3 begins)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tier-3-advanced-occasionally-needed-target-v100" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1698,6 +1709,11 @@
 <td>Covers most real workflows</td>
 </tr>
 <tr>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1"><strong>v0.9.1</strong></a></td>
+<td>Post-release defect fixes &amp; infrastructure addons — no new tools, same shape as v0.8.1</td>
+<td>Stabilizes before Tier 3 begins</td>
+</tr>
+<tr>
 <td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0"><strong>v1.0.0</strong></a></td>
 <td>API stability declaration — Tier 3 items that make the cut + any breaking cleanups from v0.8–0.9</td>
 <td>Backwards-compatibility commitment</td>
@@ -1840,6 +1856,23 @@
 - [x] Rewrite positioning/differentiation in README and <code>docs/index.md</code> — official Google MCP servers are now in developer preview, which undercuts the current "no official alternative exists" framing; lead with concrete differentiators (tool breadth, stability/QA gate, design philosophy) instead, checked against what the official servers actually cover (PR #306) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/263">#263</a>)
 - [x] Markdown-support documentation gaps — README/<code>docs/tools.md</code>/<code>docs/known-limitations.md</code>/<code>docs/design/markdown-support.md</code> never caught up to the Docs markdown-input pipeline shipped via #102/#103/#104/#248; consolidates #297/#298/#299/#302 (PR #482) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/303">#303</a>)
 - [x] <code>CLAUDE.md</code>'s <code>convert_markdown</code> note overstates its download-branch guard as reachable — round-2 review moved that case earlier in the plan-building loop, where it's now classified <code>conflict</code>, not <code>failed</code>; the guard described is dead defensive code, not live behavior. Found during PR #414's round-3 review, routed to Amy (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/423">#423</a>) (PR #492)</p>
+<h3 id="v091-post-release-defect-fixes-infrastructure-addons-target-v091-before-tier-3-begins">v0.9.1 — Post-release defect fixes &amp; infrastructure addons <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1">v0.9.1</a>, before Tier 3 begins)</em><a class="headerlink" href="#v091-post-release-defect-fixes-infrastructure-addons-target-v091-before-tier-3-begins" title="Permanent link">&para;</a></h3>
+<p>No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped, plus a handful of infrastructure/tooling additions that don't belong to any specific tool tier. Started because v0.9.0's own scope kept growing past its original Tier 2 definition; splitting this out keeps that pattern from repeating indefinitely.</p>
+<p><strong>Defects</strong>
+- [ ] Isolated depth&gt;0 bullet run renders the wrong glyph (disc instead of circle) despite correct indentation (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/439">#439</a>)
+- [ ] <code>_auth_status_json</code> silently overrides a caller passing an inconsistent <code>is_service_account_identity</code> instead of erroring or reconciling (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/614">#614</a>)
+- [ ] <code>_timed</code> logs a <code>200</code> status for tool calls that catch their own exception and return <code>{error: ...}</code> — observability reports success for a call that actually failed (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/579">#579</a>)
+- [ ] <code>emitter.py</code> table-cell images have no cursor-advance handling — latent infinite loop if that code path is ever reached (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/509">#509</a>)
+- [ ] Calendar ACL tools use a bare <code>except Exception</code> instead of the <code>HttpError</code> friendly-error pattern used elsewhere in <code>calendar.py</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/459">#459</a>)
+- [ ] <code>sync_folder</code>'s <code>convert_markdown</code> restamp-failure handling: quota-message gap, duplicated create()+update() try/except, test fixture isolation — companion to #420 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/650">#650</a>)
+- [ ] <code>sync_folder convert_markdown</code>'s <code>modifiedTime</code> restamp fires for all convert types (over-broad), and its create()+update() pattern is duplicated across two call sites (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/435">#435</a>)
+- [ ] Harden <code>tests/integration</code>'s local-fs live QA harness — error surfacing on API failures, subprocess/handshake timeouts, cleanup-masking a real test failure, per-test subprocess overhead (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/648">#648</a>)</p>
+<p><strong>Infrastructure</strong>
+- [ ] Interaction-log middleware for tool calls — structured, append-only JSONL log per call (inputs, duration, cache hit, error), opt-in ID redaction, swappable backend (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/646">#646</a>)
+- [ ] Automated tooling for dependency-bump security review — today's manual skim can miss a well-disguised supply-chain compromise (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/520">#520</a>)
+- [ ] CI: dedupe lint/format-check and lockfile-check across the Python version matrix (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/619">#619</a>)
+- [ ] Consolidate <code>uv lock --check</code> + <code>uv sync --frozen</code> into a single <code>uv sync --locked</code> step (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/536">#536</a>)
+- [ ] Catch stale hardcoded tool counts in prose docs at commit time, instead of by hand each time drift is caught (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/308">#308</a>)</p>
 <h3 id="tier-3-advanced-occasionally-needed-target-v100">Tier 3 — Advanced / occasionally needed <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0">v1.0.0</a>)</em><a class="headerlink" href="#tier-3-advanced-occasionally-needed-target-v100" title="Permanent link">&para;</a></h3>
 <p><strong>Sheets</strong>
 - [ ] <code>add_conditional_formatting</code> / <code>delete_conditional_formatting</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/129">#129</a>) <em>(freema/mcp-gsheets)</em>
