@@ -39,7 +39,7 @@ dependencies = [
     "starlette>=1.6.0",
     "cryptography>=50.0.0",
     "python-multipart>=0.0.31",
-    "python-dotenv>=1.0.0",
+    "python-dotenv>=1.2.3",
 ]
 [[project.authors]]
 name = "Kevin Huisman"
