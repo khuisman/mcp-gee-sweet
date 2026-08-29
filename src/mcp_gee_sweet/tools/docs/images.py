@@ -720,9 +720,16 @@ def register(tool):
 
             uri = metadata.get("webContentLink")
             if not uri:
+                # Upload and share both succeeded — only the webContentLink
+                # read-back came up empty. The file is a real, created orphan;
+                # carry file_id through so the cache-invalidation gate below
+                # still fires and the caller can trace it (#649, same shape as
+                # the except branch above).
                 entry["error"] = (
                     f"uploaded and shared as {file_id} but Drive returned no webContentLink"
                 )
+                entry["fileId"] = file_id
+                placement["file_id"] = file_id
                 placement["failed"] = True
                 return
 

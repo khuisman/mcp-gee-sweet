@@ -720,7 +720,9 @@ class TestInsertLocalImages:
         docs_svc.documents.return_value.get.return_value.execute.return_value = doc
         return docs_svc
 
-    def _drive_svc(self, file_id="img1", web_content_link="https://drive.google.com/uc?id=img1"):
+    def _drive_svc(
+        self, file_id="img1", web_content_link: str | None = "https://drive.google.com/uc?id=img1"
+    ):
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
         drive_svc.files.return_value.create.return_value.execute.return_value = {
@@ -936,6 +938,35 @@ class TestInsertLocalImages:
         # "failed" overall — the folder listing cache must not stay stale (#649,
         # mirrors PR #645's cache-invalidation-gate fix for the same shape).
         drive_folder_cache.mark_dirty.assert_called_once_with("folder1")
+
+    async def test_missing_web_content_link_after_share_still_reports_orphan_file_id(
+        self, tmp_path
+    ):
+        # The second post-upload failure branch: upload AND share both succeeded,
+        # but the webContentLink read-back came up empty. The file is still a
+        # real, created orphan — fileId must be surfaced and the folder cache
+        # marked dirty, same as the sharing-exception branch above (PR #652 QA
+        # round 1, finding 1).
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        drive_svc = self._drive_svc(web_content_link=None)
+        drive_folder_cache = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+        ctx.request_context.lifespan_context.drive_folder_cache = drive_folder_cache
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        assert "error" in result["results"][0]
+        assert "webContentLink" in result["results"][0]["error"]
+        assert result["results"][0]["fileId"] == "img1"
+        drive_folder_cache.mark_dirty.assert_called_once_with("folder1")
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
 
     async def test_marks_caches_dirty_on_success(self, tmp_path):
         img = tmp_path / "pic.png"
