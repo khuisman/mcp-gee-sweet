@@ -167,6 +167,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [x] `server://auth-status`'s `auth_method: "adc"` can't distinguish a real user credential from a service-account-backed one (GCE/Cloud Run/GKE metadata identity, or `GOOGLE_APPLICATION_CREDENTIALS` pointed at a key file) — both get tagged plain `"adc"` with `can_create_in_personal_drive: true` and zero limitations, which is wrong whenever ADC resolves to a service account. Found during #447's design work; not blocking it. `ready-for-development` (on deck, no lane yet) ([#506](https://github.com/khuisman/mcp-gee-sweet/issues/506)) (PR #613)
 - [x] Dependabot's `pip`-ecosystem config doesn't always regenerate `uv.lock` for a version bump (confirmed on 2 of 7 PRs in the same batch) — silently defeats every `--frozen` CI/release install, which doesn't validate lock-vs-manifest consistency. Immediate drift fixed by hand 2026-08-06; switched to native `uv` ecosystem config and added a lockfile-sync CI guard ([#528](https://github.com/khuisman/mcp-gee-sweet/issues/528), PR #533)
 - [x] Migrate `mcp.server.fastmcp` → `mcp.server.mcpserver` (mcp SDK v2) — was held as a watch-item while v2 was alpha; `mcp` hit 2.0.0 stable 2026-08-20, live-confirmed `fastmcp` is fully removed (not deprecated) and `mcpserver.MCPServer` exists as expected (PR #642) ([#175](https://github.com/khuisman/mcp-gee-sweet/issues/175))
+- [ ] Docs version switcher never renders and each release's `mike deploy` overwrites the previous version instead of versioning alongside it — the `latest`/`develop` split from #267 isn't actually working ([#667](https://github.com/khuisman/mcp-gee-sweet/issues/667))
 
 **Documentation**
 - [x] Tool-count figures have drifted out of sync across README/`docs/roadmap.md`/`docs/tools.md` (the only auto-generated one, authoritative at 122) — generate the hand-maintained ones instead of manually recounting each time this is caught. Routed to Amy (PR #550) ([#467](https://github.com/khuisman/mcp-gee-sweet/issues/467))
@@ -195,7 +196,6 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] CI: dedupe lint/format-check and lockfile-check across the Python version matrix ([#619](https://github.com/khuisman/mcp-gee-sweet/issues/619))
 - [ ] Consolidate `uv lock --check` + `uv sync --frozen` into a single `uv sync --locked` step ([#536](https://github.com/khuisman/mcp-gee-sweet/issues/536))
 - [ ] Catch stale hardcoded tool counts in prose docs at commit time, instead of by hand each time drift is caught ([#308](https://github.com/khuisman/mcp-gee-sweet/issues/308))
-- [ ] Docs version switcher never renders and each release's `mike deploy` overwrites the previous version instead of versioning alongside it — the `latest`/`develop` split from #267 isn't actually working ([#667](https://github.com/khuisman/mcp-gee-sweet/issues/667))
 
 ### v0.9.2 — Comments as a first-class, cross-suite capability _(target: [v0.9.2](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2), before Tier 3 begins)_
 
