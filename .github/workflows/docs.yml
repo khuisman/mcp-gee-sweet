@@ -9,6 +9,13 @@ on:
 permissions:
   contents: write  # needed for mike to push to gh-pages branch
 
+# Serialize every docs deploy: a release run and a develop-push run both commit
+# to gh-pages, and mike does not retry a rejected non-fast-forward push.
+# cancel-in-progress: false so a queued deploy still runs to completion.
+concurrency:
+  group: docs-gh-pages
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Build and publish docs
@@ -50,7 +57,13 @@ jobs:
         id: ver
         env:
           TAG: ${{ github.event.release.tag_name }}
-        run: echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"  # v0.8.1 -> 0.8.1; a bare tag passes through unchanged
+        run: |
+          version="${TAG#v}"  # v0.8.1 -> 0.8.1; a bare X.Y.Z tag passes through unchanged
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tag '$TAG' does not resolve to an X.Y.Z version (got '$version') — refusing to deploy docs and move the 'latest' alias."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Deploy docs (release -> latest)
         if: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
