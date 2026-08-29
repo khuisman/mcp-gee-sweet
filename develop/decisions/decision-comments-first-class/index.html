@@ -1,0 +1,1555 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/decisions/decision-comments-first-class/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Decision: Comments as a First-Class, Cross-Suite Capability - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#decision-comments-as-a-first-class-cross-suite-capability" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Decision: Comments as a First-Class, Cross-Suite Capability
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="decision-comments-as-a-first-class-cross-suite-capability">Decision: Comments as a First-Class, Cross-Suite Capability<a class="headerlink" href="#decision-comments-as-a-first-class-cross-suite-capability" title="Permanent link">&para;</a></h1>
+<p><strong>Date:</strong> 2026-08-28
+<strong>Snapshot commit:</strong> branch <code>doc/joy/comments-first-class</code></p>
+<h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
+<p>The user asked whether comments had been missed entirely as a class of interaction, starting from the (incorrect) premise that Google Docs had no comment tooling at all. Investigation found the opposite problem: comments exist, but the codebase's own bookkeeping about them has drifted, and the underlying capability was never built out to match what the Drive API actually offers.</p>
+<p><strong>What's actually shipped today:</strong> <code>src/mcp_gee_sweet/tools/docs/comments.py</code> ships <code>list_doc_comments</code>, <code>add_doc_comment</code>, <code>resolve_doc_comment</code> (issue #151, PR #324, Tier 2, closed). All three call the generic Drive v3 <code>comments()</code>/<code>replies()</code> resource against <code>fileId</code> — there is nothing Docs-specific in the implementation. Confirmed live: the exact same code, pointed at a real Spreadsheet's file ID, returns real comment data today with zero modification.</p>
+<p><strong>Two roadmap/issue inaccuracies found and corrected by this doc:</strong>
+- <code>docs/roadmap.md</code> Tier 4 still carries <code>Doc comments (add/get/list/reply/resolve/delete) — we have zero comment tooling on Docs today</code>, untouched since #151 shipped a subset of exactly that scope. Stale.
+- Issue #142 ("File comments — list and add comments on Drive files," Tier 3, v1.0) was filed on the premise that "comments are separate from Google Docs comment threads." They are not — same Drive resource. #142 asks for something #151 already built, under different naming.</p>
+<p><strong>A parallel, unreviewed instance of the same pattern exists elsewhere in this codebase:</strong> <code>share_spreadsheet</code> (<code>tools/drive/sharing.py</code>) is literally the project's original tool (PR #1, from before Drive had its own domain). <code>share_file</code>, added later, is a strict superset of its capability (generic <code>type</code>/<code>role</code> permission entries vs. <code>share_spreadsheet</code>'s narrower always-<code>user</code> email+role shape), over the identical Drive <code>permissions()</code> resource. Nobody ever revisited <code>share_spreadsheet</code> once <code>share_file</code> existed — no decision doc discusses it, and the one open roadmap item touching both (#38, ownership validation) is unrelated to consolidation. This doc treats it as corroborating evidence for the design principle below, but scopes the actual fix to a separate follow-up issue (see Decision 6) rather than bundling it into comments work.</p>
+<h2 id="googles-own-permission-model-is-unified-not-split-by-product">Google's own permission model is unified — not split by product<a class="headerlink" href="#googles-own-permission-model-is-unified-not-split-by-product" title="Permanent link">&para;</a></h2>
+<p>Checked <code>auth.py</code>'s <code>SCOPES</code>: <code>spreadsheets</code>, <code>drive</code>, <code>calendar</code>, <code>drive.activity.readonly</code>. There is no Docs-specific or Sheets-specific comment (or sharing) scope. The Drive <code>comments</code>/<code>replies</code> resource (<code>files/{fileId}/comments</code>) is the <em>only</em> API surface for comments on any file type, gated entirely by the one broad <code>drive</code> scope. Google does not distinguish "comment on a Doc" from "comment on a Sheet" at any level — not the API surface, not the OAuth scope. Any Docs/Sheets split we might invent in our own tool surface would be modeling a distinction that doesn't exist upstream.</p>
+<p>Confirmed live, full method surface (neither used anywhere in this codebase today beyond the three Tier-2 tools):</p>
+<table>
+<thead>
+<tr>
+<th>Resource</th>
+<th>Methods</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comments</code></td>
+<td><code>create</code>, <code>get</code>, <code>list</code>, <code>update</code>, <code>delete</code></td>
+</tr>
+<tr>
+<td><code>replies</code></td>
+<td><code>create</code>, <code>get</code>, <code>list</code>, <code>update</code>, <code>delete</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>replies().create()</code> with <code>body.action</code> of <code>resolve</code> or <code>reopen</code> is how resolve/reopen work (confirmed via the live discovery schema); a plain reply is <code>create()</code> with <code>content</code> and no <code>action</code>.</p>
+<h2 id="decisions">Decisions<a class="headerlink" href="#decisions" title="Permanent link">&para;</a></h2>
+<h3 id="1-one-generic-tool-set-not-domain-duplicated-wrappers">1. One generic tool set, not domain-duplicated wrappers<a class="headerlink" href="#1-one-generic-tool-set-not-domain-duplicated-wrappers" title="Permanent link">&para;</a></h3>
+<p>Considered three shapes: (a) one generic set operating on any <code>file_id</code>, (b) generic implementation plus real per-domain wrapper tools that verify <code>mimeType</code> before delegating, (c) generic implementation plus unenforced per-domain naming sugar. Chose (a).</p>
+<p>Reasoning: <code>ENABLED_TOOLS</code>/<code>--include-tools</code> (confirmed in <code>server.py</code>) matches by <strong>exact function name only</strong> — no wildcards, no module-awareness. Splitting into <code>list_sheet_comments</code>/<code>list_doc_comments</code> doesn't give an operator anything beyond "twice as many on/off switches for identical underlying behavior," and doing it in an <em>enforced</em> way (b) costs a real extra <code>files().get(fileId, fields="mimeType")</code> round-trip on every call. Doing it unenforced (c) is naming sugar that risks being mistaken for a security boundary. Given Google's own model is unified (see above), (a) is also the option that doesn't invent a distinction the platform itself doesn't have.</p>
+<h3 id="2-module-home-toolsdrivecommentspy">2. Module home: <code>tools/drive/comments.py</code><a class="headerlink" href="#2-module-home-toolsdrivecommentspy" title="Permanent link">&para;</a></h3>
+<p>Comments are a generic Drive-resource capability, not owned by Docs or Sheets — this matches how <code>tools/drive/files.py</code> and <code>tools/drive/sharing.py</code> already own generic file-level operations (<code>share_file</code>, <code>copy_file</code>, <code>move_file</code>) that work against any file type. <code>tools/docs/comments.py</code> is retired; its logic moves to <code>tools/drive/comments.py</code> unchanged in substance.</p>
+<h3 id="3-rename-to-generic-tool-names-an-explicit-breaking-change">3. Rename to generic tool names — an explicit breaking change<a class="headerlink" href="#3-rename-to-generic-tool-names-an-explicit-breaking-change" title="Permanent link">&para;</a></h3>
+<p><code>list_doc_comments</code> → <code>list_file_comments</code>, <code>add_doc_comment</code> → <code>add_file_comment</code>, <code>resolve_doc_comment</code> → <code>resolve_comment</code>, param <code>doc_id</code> → <code>file_id</code>.</p>
+<p>Confirmed live: this codebase has <strong>no alias or deprecation mechanism</strong> — <code>tool()</code>'s decorator either registers a function under its exact name or doesn't; a caller pinning <code>ENABLED_TOOLS=list_doc_comments</code> would see the tool silently vanish (not error) once renamed. This is a real breaking change and should be called out explicitly in the CHANGELOG/release notes for whichever version ships it. Chosen anyway over a permanent-alias approach, consistent with this project's stated anti-shim style (<code>CLAUDE.md</code>: "avoid backwards-compatibility hacks... just change the code") and because the affected surface is small and recently shipped (Tier 2, not original/entrenched like <code>share_spreadsheet</code> — see Decision 6 for why that one is treated more cautiously).</p>
+<h3 id="4-cell-notes-are-a-separate-capability-not-part-of-comments">4. Cell notes are a separate capability, not part of "comments"<a class="headerlink" href="#4-cell-notes-are-a-separate-capability-not-part-of-comments" title="Permanent link">&para;</a></h3>
+<p>Sheets' <code>CellData.note</code> field (Sheets API v4, set via <code>batchUpdate</code> <code>updateCells</code>/<code>repeatCell</code> with <code>fields=note</code>) is a completely different mechanism from Drive comments: plain text, no author, no thread, no resolve state, no Drive API involvement at all. Confirmed via repo-wide grep: entirely unbuilt today (issue #131, Tier 4, no code touches <code>note</code> anywhere). Ships as its own module, <code>tools/sheets/notes.py</code> (<code>add_note</code>/<code>get_note</code>/<code>clear_note</code>), not folded into the comments work — conflating the two is exactly the confusion the current stale Tier 4 roadmap line already has ("Sheet comments <strong>and cell notes</strong>... zero tooling") and is worth untangling explicitly rather than perpetuating.</p>
+<h3 id="5-cell-anchored-sheets-comments-confirmed-infeasible-via-the-public-api-cell-notes-are-the-documented-answer-instead">5. Cell-anchored Sheets comments — confirmed infeasible via the public API; cell notes are the documented answer instead<a class="headerlink" href="#5-cell-anchored-sheets-comments-confirmed-infeasible-via-the-public-api-cell-notes-are-the-documented-answer-instead" title="Permanent link">&para;</a></h3>
+<p>Google's own docs (<code>developers.google.com/workspace/drive/api/v3/manage-comments</code>) state plainly that Workspace editors treat a custom <code>anchor</code> value as unanchored, and that anchors are best suited to "documents where the position doesn't change" — not an encouraging signal for arbitrary cell-pinning.</p>
+<p>Three live experiments confirmed this outright, no spike ticket needed:
+1. Reading real, human-created comments on an actual spreadsheet (via <code>comments().list()</code>) shows Sheets' own client uses <code>anchor</code> shaped as <code>{"type":"workbook-range","uid":&lt;sheetId&gt;,"range":"&lt;opaque numeric id&gt;"}</code>. This schema is <strong>not documented anywhere in Google's public API docs</strong> — it was recovered empirically. The <code>range</code> value doesn't match any sheetId, protected-range ID, or chart ID on the sheet it came from (checked via <code>spreadsheets().get()</code>); it looks like an internal ID assigned by Sheets' own client, not something constructible from an A1 string via the public API.
+2. Creating comments on a scratch spreadsheet with three candidate <code>anchor</code> payloads (the observed shape with a guessed <code>range</code>, a community-sourced <code>{"a1Range": "..."}</code> format, and Google's own documented generic <code>drive#commentRegion</code> example) — <strong>all three were accepted and echoed back verbatim by <code>comments().create()</code>/<code>.get()</code>, with zero validation.</strong> Proves the API stores literally any string as <code>anchor</code>; write-side success is not evidence of anything rendering.
+3. <strong>Visual confirmation</strong> (live, human-checked): a control comment (no anchor) plus both candidate formats were created on three cells of a scratch spreadsheet and viewed directly in the Sheets UI. None of the three — including the format that mimics real Sheets-anchored comments structurally — rendered with a cell-pinned indicator, before or after a page refresh. All three appeared identically unanchored.</p>
+<p><strong>Conclusion: closed as infeasible via the public API</strong>, matching this project's existing precedent for the <code>tabStops</code> case (issue #404) — a capability that looks plausible from the discovery schema but has no real write path. Not filed as a roadmap item pending future re-investigation; the <code>range</code> field is almost certainly an internal Sheets identifier with no public construction path, and there's no signal Google intends to expose one.</p>
+<p><strong>Cell notes were verified as the working alternative</strong> for "point at a specific cell": set live via <code>batchUpdate</code>'s <code>updateCells</code> with <code>fields="note"</code>, read back correctly via the API, and confirmed visually in the Sheets UI — the black corner-triangle indicator and hover popup rendered exactly as expected, with the exact text set through the API. This is a real, fully-functional, already-designed mechanism (Decision 4) — it's the answer to "I want to point a comment at cell B2," just not via the <code>comments</code> resource.</p>
+<h3 id="6-share_spreadsheetshare_file-overlap-flagged-not-fixed-here">6. <code>share_spreadsheet</code>/<code>share_file</code> overlap — flagged, not fixed here<a class="headerlink" href="#6-share_spreadsheetshare_file-overlap-flagged-not-fixed-here" title="Permanent link">&para;</a></h3>
+<p>Same shape of problem as #151/#142, and a cleaner case of it (<code>share_file</code> is a strict superset, not just similarly-scoped). Not bundled into this work: <code>share_spreadsheet</code> is the project's original tool with a much longer usage/compatibility tail than the 3-tool comments surface, so deprecating it deserves its own review rather than riding along with an unrelated piece of work. Filed separately (Ticket 6 below).</p>
+<h2 id="proposed-tool-surface-target-end-state">Proposed tool surface (target end-state)<a class="headerlink" href="#proposed-tool-surface-target-end-state" title="Permanent link">&para;</a></h2>
+<p>All in <code>tools/drive/comments.py</code> unless noted; all operate on any <code>file_id</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Drive call</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list_file_comments</code></td>
+<td><code>comments().list()</code></td>
+<td>Rename of <code>list_doc_comments</code></td>
+</tr>
+<tr>
+<td><code>get_file_comment</code></td>
+<td><code>comments().get()</code></td>
+<td>New</td>
+</tr>
+<tr>
+<td><code>add_file_comment</code></td>
+<td><code>comments().create()</code></td>
+<td>Rename of <code>add_doc_comment</code>; gains an optional passthrough <code>anchor: str \| None</code> param for non-Workspace Drive files (images, PDFs) where Google's documented generic <code>drive#commentRegion</code> format may actually be honored — confirmed inert for Docs/Sheets/Slides (Decision 5), so the docstring must say so explicitly rather than implying it can pin a comment to a cell</td>
+</tr>
+<tr>
+<td><code>update_file_comment</code></td>
+<td><code>comments().update()</code></td>
+<td>New — edit a comment's content</td>
+</tr>
+<tr>
+<td><code>delete_file_comment</code></td>
+<td><code>comments().delete()</code></td>
+<td>New — explicitly out of scope for #151 per its own QA docs; closes that gap</td>
+</tr>
+<tr>
+<td><code>reply_to_comment</code></td>
+<td><code>replies().create()</code> (no <code>action</code>)</td>
+<td>New — plain reply; today only a resolve-flavored reply exists</td>
+</tr>
+<tr>
+<td><code>resolve_comment</code></td>
+<td><code>replies().create(action="resolve")</code></td>
+<td>Rename of <code>resolve_doc_comment</code></td>
+</tr>
+<tr>
+<td><code>reopen_comment</code></td>
+<td><code>replies().create(action="reopen")</code></td>
+<td>New</td>
+</tr>
+<tr>
+<td><code>update_reply</code></td>
+<td><code>replies().update()</code></td>
+<td>New — edit a reply's content</td>
+</tr>
+<tr>
+<td><code>delete_reply</code></td>
+<td><code>replies().delete()</code></td>
+<td>New</td>
+</tr>
+<tr>
+<td><code>list_replies</code></td>
+<td><code>replies().list()</code></td>
+<td>New — pagination beyond what <code>list_file_comments</code> embeds inline; low priority</td>
+</tr>
+</tbody>
+</table>
+<p>Cell notes, in <code>tools/sheets/notes.py</code> (Sheets API v4, unrelated resource):</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Mechanism</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>get_note</code></td>
+<td><code>spreadsheets().get(fields=".../note")</code></td>
+</tr>
+<tr>
+<td><code>add_note</code> / <code>update_note</code></td>
+<td><code>batchUpdate</code> <code>updateCells</code>/<code>repeatCell</code>, <code>fields="note"</code></td>
+</tr>
+<tr>
+<td><code>clear_note</code></td>
+<td>same, empty string</td>
+</tr>
+</tbody>
+</table>
+<h2 id="wiring-and-doc-gen-impact">Wiring and doc-gen impact<a class="headerlink" href="#wiring-and-doc-gen-impact" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>tools/sheets/__init__.py</code> is currently empty (0 bytes); <code>tools/__init__.py::register_all</code> imports <code>sheets.data</code>/<code>sheets.structure</code> directly. Adding <code>sheets/notes.py</code> is the moment to mirror the <code>docs</code> package's own pattern: give <code>sheets/__init__.py</code> a <code>register(tool)</code> that fans out to <code>data</code>, <code>structure</code>, <code>notes</code>, and have <code>tools/__init__.py</code> call <code>sheets.register(tool)</code> once — consistent with how <code>docs.register(tool)</code> already works, instead of growing <code>register_all</code> linearly forever.</li>
+<li><code>scripts/gen_tool_docs.py</code>'s <code>SECTIONS</code> list needs two new predicate entries (<code>"Drive — comments"</code> matching <code>mcp_gee_sweet.tools.drive.comments</code>, <code>"Sheets — notes"</code> matching <code>mcp_gee_sweet.tools.sheets.notes</code>) or the pre-commit hook fails the commit outright (confirmed: <code>render_tools_md</code> raises <code>RuntimeError</code> for any unmatched module).</li>
+<li><code>tests/test_docs_comments.py</code> relocates to <code>tests/drive/test_comments.py</code>, extended for the new tools; existing coverage (confirmed by reading it in full) asserts request/response field mapping well but has <strong>no error-path unit tests</strong> (404s etc. are QA-only today) — worth closing that gap while the module moves, not just carrying it forward.</li>
+<li>QA test cases <code>TC-DOC96–101</code> (<code>docs/qa/tests/docs_content.md</code>) relocate to a new <code>docs/qa/tests/drive_comments.md</code>, following the same prescriptive Setup/Prompt/Checks/Cleanup template, extended with: a Sheets-file-id case (proving the generalization live), and one case per new tool. The anchor-feasibility spike itself becomes its own QA-style test case with an explicit Playwright visual-check line.</li>
+<li><code>docs/roadmap.md</code>: fix the stale Tier 4 Docs line, close or re-scope #142, add a new Tier-appropriate entry for cell notes (#131 already exists) and for this rename/generalization work with real issue numbers once filed.</li>
+</ul>
+<h2 id="ticket-plan">Ticket plan<a class="headerlink" href="#ticket-plan" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Roadmap/issue cleanup</strong> (no code) — fix the stale Tier 4 Docs comments line; close #142 as superseded by #151, or re-scope it to whatever's still missing.</li>
+<li><strong>Generalize existing three tools</strong> — move to <code>tools/drive/comments.py</code>, rename per Decision 3, update tests/QA/docs-gen config. Mechanical, low risk, highest value (this is the part that's actually "missing" today: discoverability, not capability).</li>
+<li><strong>Fill CRUD gaps</strong> — <code>delete_file_comment</code>, <code>reply_to_comment</code>, <code>reopen_comment</code>, <code>get_file_comment</code>, <code>update_file_comment</code>, <code>update_reply</code>, <code>delete_reply</code>, <code>list_replies</code>.</li>
+<li><strong>Cell notes</strong> — <code>tools/sheets/notes.py</code>, closes #131. Feasibility already confirmed live (Decision 5) — this is a straight implementation ticket, no spike needed.</li>
+<li><strong><code>share_spreadsheet</code>/<code>share_file</code> consolidation review</strong> — separate from comments work; evaluate deprecation path given its longer compatibility tail.</li>
+</ol>
+<p>Cell-anchored Sheets comments are <strong>not</strong> a ticket — Decision 5 closes that line of work outright, confirmed infeasible via three live experiments (empirical schema recovery, write-side validation-bypass proof, and direct visual confirmation in the Sheets UI). No further investigation recommended barring a future change in what Google's API exposes.</p>
+<h2 id="when-to-re-evaluate">When to Re-evaluate<a class="headerlink" href="#when-to-re-evaluate" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Decision 1</strong> (no domain-duplicated tools): revisit if an operator actually asks for per-domain comment restriction as a real deployment need — the enforcement cost (extra <code>mimeType</code> round-trip) was judged not worth paying speculatively, not judged impossible.</li>
+<li><strong>Decision 3</strong> (breaking rename): if this ships in a version where deprecation tooling has since been added generally to the project, prefer that mechanism over a bare rename.</li>
+<li><strong>Decision 5</strong> (anchor infeasibility): revisit only if Google documents and exposes a real, public write path for Workspace-editor comment anchoring — nothing in this investigation suggests that's planned. Not worth re-checking speculatively.</li>
+<li><strong>Decision 6</strong>: if <code>share_spreadsheet</code> usage data (QA fixtures, README references, any telemetry) shows it's rarely used standalone, the deprecation case gets stronger; if it's heavily referenced, consider keeping both permanently instead and documenting <em>why</em>, rather than leaving the question open indefinitely.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
