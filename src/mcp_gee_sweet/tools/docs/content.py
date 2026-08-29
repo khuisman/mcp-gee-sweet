@@ -174,10 +174,22 @@ async def _resolve_image_source(
     just-granted anyone:reader permission, for the caller to revoke once the doc edit
     that actually embeds this image has succeeded (revoking any earlier would break the
     embed, since Docs fetches the image at insertion time, not upload time). Returns
-    {"error": ...} on any failure.
+    {"error": ...} on failure. If this call *uploaded* a local file and only the
+    sharing step afterward failed, the error also carries {"file_id": ...} so the
+    caller isn't left with an untracked orphan (#649, mirrors #420's fix in
+    drive/transfer.py). A "drive:" source's sharing failure deliberately does NOT
+    carry file_id — that file is the caller's own pre-existing artifact, not an
+    orphan this call created, and surfacing it in a failed-image outcome would let a
+    caller with orphan-reclaim logic delete a file it never made (PR #652 QA round 1).
     """
     if src.startswith("http://") or src.startswith("https://"):
         return {"uri": src}
+
+    # True only once this call has itself uploaded a new local file — the single
+    # condition under which a later sharing failure leaves a real orphan worth
+    # reporting for cleanup (#649). A "drive:" source never sets it: that file
+    # pre-existed the call.
+    created_here = False
 
     if src.startswith("drive:"):
         file_id = src[len("drive:") :]
@@ -244,6 +256,7 @@ async def _resolve_image_source(
         if "error" in upload:
             return {"error": upload["error"]}
         file_id = upload["fileId"]
+        created_here = True
 
     try:
         perm = await execute_in_thread(
@@ -264,11 +277,22 @@ async def _resolve_image_source(
             drive_service,
         )
     except Exception as e:
-        return {"error": f"sharing failed: {e}"}
+        err: dict[str, Any] = {"error": f"sharing failed for Drive file {file_id!r}: {e}"}
+        # Only a file this call just uploaded is an orphan worth reporting for
+        # cleanup (#649, mirrors #420's fix in drive/transfer.py). A "drive:"
+        # source is the caller's own pre-existing file — see the docstring.
+        if created_here:
+            err["file_id"] = file_id
+        return err
 
     uri = metadata.get("webContentLink")
     if not uri:
-        return {"error": f"file {file_id} shared but Drive returned no webContentLink"}
+        no_link: dict[str, Any] = {
+            "error": f"file {file_id} shared but Drive returned no webContentLink"
+        }
+        if created_here:
+            no_link["file_id"] = file_id
+        return no_link
 
     return {"uri": uri, "file_id": file_id, "permission_id": perm.get("id")}
 
@@ -385,7 +409,9 @@ async def _apply_doc_content(
     Returns the per-image outcome list (None if the content had no images at all)
     for the caller to fold into its own response — each entry has src, plus either
     fileId + shared (+ revoke_error if a revoke attempt failed) on success, or error
-    on failure. Mirrors insert_local_images's own outcome shape for consistency.
+    on failure (also carrying fileId if the underlying Drive file was already
+    created/found before a subsequent sharing failure — #649). Mirrors
+    insert_local_images's own outcome shape for consistency.
     """
     html_content = (
         _md_to_html(content, autolink_urls=autolink_urls)
@@ -432,6 +458,12 @@ async def _apply_doc_content(
                 entry["error"] = str(result)
             elif "error" in result:
                 entry["error"] = result["error"]
+                # A create()-succeeded-but-share-failed orphan (#649) still carries
+                # file_id — surface it so the caller isn't left with no record of
+                # a Drive file that genuinely exists.
+                orphan_file_id = result.get("file_id")
+                if orphan_file_id:
+                    entry["fileId"] = orphan_file_id
             else:
                 img_id = id(img)
                 entry_by_id[img_id] = entry

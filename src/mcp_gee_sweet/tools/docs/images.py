@@ -245,8 +245,12 @@ async def upload_and_share_image(
     requirement every inline-image source needs, since the Docs backend fetches inline
     images as an anonymous HTTP request regardless of the caller's own access
     (confirmed live in #332/#333's own local-image paths). Returns {"uri": ...,
-    "file_id": ..., "permission_id": ...} on success or {"error": ...} on failure,
-    mirroring _resolve_image_source's own outcome shape."""
+    "file_id": ..., "permission_id": ...} on success, {"error": ...} on failure before
+    any Drive file was created, or {"error": ..., "file_id": ...} if create() succeeded
+    but the follow-up sharing/metadata step failed — the latter mirrors
+    _resolve_image_source's own outcome shape and the create()+restamp fileId-
+    preserving pattern in drive/transfer.py (#420, #649): a bare error there would
+    leave the newly-created file an untracked orphan with no record of its ID."""
     file_body: dict[str, Any] = {"name": name}
     if parent_folder_id:
         file_body["parents"] = [parent_folder_id]
@@ -258,7 +262,15 @@ async def upload_and_share_image(
             .execute,
             drive_service,
         )
-        new_file_id = created["id"]
+    except HttpError as e:
+        if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+            return {"error": _SA_QUOTA_ERROR}
+        return {"error": f"failed to upload resized image: {e}"}
+    except Exception as e:
+        return {"error": f"failed to upload resized image: {e}"}
+
+    new_file_id = created["id"]
+    try:
         perm = await execute_in_thread(
             drive_service.permissions()
             .create(
@@ -276,17 +288,20 @@ async def upload_and_share_image(
             .execute,
             drive_service,
         )
-    except HttpError as e:
-        if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
-            return {"error": _SA_QUOTA_ERROR}
-        return {"error": f"failed to upload resized image: {e}"}
     except Exception as e:
-        return {"error": f"failed to upload resized image: {e}"}
+        # Unlike the create() failure above, a file now genuinely exists in Drive —
+        # only the sharing/metadata step failed. Surface file_id alongside the error
+        # so a caller can find and either fix or clean up the orphan (#649).
+        return {
+            "error": f"created Drive file {new_file_id!r} but failed to share it: {e}",
+            "file_id": new_file_id,
+        }
 
     uri = metadata.get("webContentLink")
     if not uri:
         return {
-            "error": f"resized image {new_file_id} uploaded but Drive returned no webContentLink"
+            "error": f"resized image {new_file_id} uploaded but Drive returned no webContentLink",
+            "file_id": new_file_id,
         }
     return {"uri": uri, "file_id": new_file_id, "permission_id": perm.get("id")}
 
@@ -526,7 +541,9 @@ def register(tool):
             missing, oversized with auto_downscale off, upload failure, sharing
             failure, or — rare, since uploads happen first — a failed document edit;
             that last case never carries a fileId even though the upload itself
-            succeeded, since the image was never actually placed).
+            succeeded, since the image was never actually placed). A sharing failure
+            after the underlying Drive file was already created does carry fileId
+            (#649) — the upload itself succeeded even though the share didn't.
         """
         lc = ctx.request_context.lifespan_context
         docs_service = lc.docs_service
@@ -646,6 +663,14 @@ def register(tool):
                 if "error" in result:
                     entry["error"] = result["error"]
                     placement["failed"] = True
+                    # A create()-succeeded-but-share-failed orphan (#649) still
+                    # carries file_id — propagate it so the cache-invalidation
+                    # check below still fires for it, mirroring the gap PR #645's
+                    # QA round found in transfer.py's analogous gates.
+                    orphan_file_id = result.get("file_id")
+                    if orphan_file_id:
+                        placement["file_id"] = orphan_file_id
+                        entry["fileId"] = orphan_file_id
                     return
                 placement["file_id"] = result["file_id"]
                 placement["permission_id"] = result["permission_id"]
@@ -654,16 +679,16 @@ def register(tool):
                 entry["downscaled"] = True
                 return
 
-            try:
-                upload = await _upload_local_file(
-                    drive_service, local_path, target_folder_id, skip_if_exists=False
-                )
-                if "error" in upload:
-                    entry["error"] = upload["error"]
-                    placement["failed"] = True
-                    return
+            upload = await _upload_local_file(
+                drive_service, local_path, target_folder_id, skip_if_exists=False
+            )
+            if "error" in upload:
+                entry["error"] = upload["error"]
+                placement["failed"] = True
+                return
 
-                file_id = upload["fileId"]
+            file_id = upload["fileId"]
+            try:
                 perm = await execute_in_thread(
                     drive_service.permissions()
                     .create(
@@ -682,15 +707,29 @@ def register(tool):
                     drive_service,
                 )
             except Exception as e:
-                entry["error"] = f"upload/share failed: {e}"
+                # The file itself already uploaded successfully — only the
+                # sharing/metadata step failed. Carry file_id through so the
+                # cache-invalidation check below still fires and the caller isn't
+                # left with an untracked orphan (#649, mirrors #420's fix in
+                # drive/transfer.py).
+                entry["error"] = f"uploaded file {file_id!r} but failed to share it: {e}"
+                entry["fileId"] = file_id
+                placement["file_id"] = file_id
                 placement["failed"] = True
                 return
 
             uri = metadata.get("webContentLink")
             if not uri:
+                # Upload and share both succeeded — only the webContentLink
+                # read-back came up empty. The file is a real, created orphan;
+                # carry file_id through so the cache-invalidation gate below
+                # still fires and the caller can trace it (#649, same shape as
+                # the except branch above).
                 entry["error"] = (
                     f"uploaded and shared as {file_id} but Drive returned no webContentLink"
                 )
+                entry["fileId"] = file_id
+                placement["file_id"] = file_id
                 placement["failed"] = True
                 return
 

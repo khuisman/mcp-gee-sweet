@@ -364,6 +364,53 @@ class TestUploadAndShareImage:
         )
         assert "error" in result
         assert "webContentLink" in result["error"]
+        # The file itself was already created — not an orphan-losing case, but the
+        # id should still be surfaced (#649).
+        assert result["file_id"] == "new1"
+
+    async def test_create_failure_returns_bare_error_no_file_id(self):
+        # Nothing was created in this branch — there's no orphan to report, so
+        # file_id must not appear (#649).
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.side_effect = RuntimeError("boom")
+
+        result = await images.upload_and_share_image(
+            drive_svc, b"fake-bytes", "image/png", "pic.png", "folder1"
+        )
+        assert result == {"error": "failed to upload resized image: boom"}
+
+    async def test_share_failure_after_create_returns_file_id(self):
+        # create() succeeds but permissions().create() fails — the file genuinely
+        # exists in Drive now, so the error must carry file_id (#649, mirrors #420's
+        # fix in drive/transfer.py).
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {"id": "new1"}
+        drive_svc.permissions.return_value.create.return_value.execute.side_effect = RuntimeError(
+            "share boom"
+        )
+
+        result = await images.upload_and_share_image(
+            drive_svc, b"fake-bytes", "image/png", "pic.png", "folder1"
+        )
+        assert result["file_id"] == "new1"
+        assert "share boom" in result["error"]
+        assert "new1" in result["error"]
+
+    async def test_metadata_fetch_failure_after_create_returns_file_id(self):
+        # create() and permissions().create() both succeed but files().get() fails —
+        # same orphan-preserving shape as the sharing failure above (#649).
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {"id": "new1"}
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm1"
+        }
+        drive_svc.files.return_value.get.return_value.execute.side_effect = RuntimeError("get boom")
+
+        result = await images.upload_and_share_image(
+            drive_svc, b"fake-bytes", "image/png", "pic.png", "folder1"
+        )
+        assert result["file_id"] == "new1"
+        assert "get boom" in result["error"]
 
 
 class TestDownscaleDriveFile:
@@ -673,7 +720,9 @@ class TestInsertLocalImages:
         docs_svc.documents.return_value.get.return_value.execute.return_value = doc
         return docs_svc
 
-    def _drive_svc(self, file_id="img1", web_content_link="https://drive.google.com/uc?id=img1"):
+    def _drive_svc(
+        self, file_id="img1", web_content_link: str | None = "https://drive.google.com/uc?id=img1"
+    ):
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
         drive_svc.files.return_value.create.return_value.execute.return_value = {
@@ -860,6 +909,63 @@ class TestInsertLocalImages:
         )
 
         assert "error" in result["results"][0]
+        # The file itself was already uploaded successfully — only sharing failed.
+        # fileId must still be reported so the caller isn't left with an untracked
+        # orphan (#649, mirrors #420's fix in drive/transfer.py).
+        assert result["results"][0]["fileId"] == "img1"
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_sharing_failure_orphan_still_marks_folder_cache_dirty(self, tmp_path):
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        drive_svc = self._drive_svc()
+        drive_svc.permissions.return_value.create.return_value.execute.side_effect = Exception(
+            "share failed"
+        )
+        drive_folder_cache = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+        ctx.request_context.lifespan_context.drive_folder_cache = drive_folder_cache
+
+        await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        # A real file was created in the folder even though the call reports
+        # "failed" overall — the folder listing cache must not stay stale (#649,
+        # mirrors PR #645's cache-invalidation-gate fix for the same shape).
+        drive_folder_cache.mark_dirty.assert_called_once_with("folder1")
+
+    async def test_missing_web_content_link_after_share_still_reports_orphan_file_id(
+        self, tmp_path
+    ):
+        # The second post-upload failure branch: upload AND share both succeeded,
+        # but the webContentLink read-back came up empty. The file is still a
+        # real, created orphan — fileId must be surfaced and the folder cache
+        # marked dirty, same as the sharing-exception branch above (PR #652 QA
+        # round 1, finding 1).
+        img = tmp_path / "pic.png"
+        img.write_bytes(b"fake")
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        drive_svc = self._drive_svc(web_content_link=None)
+        drive_folder_cache = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+        ctx.request_context.lifespan_context.drive_folder_cache = drive_folder_cache
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            ctx=ctx,
+        )
+
+        assert "error" in result["results"][0]
+        assert "webContentLink" in result["results"][0]["error"]
+        assert result["results"][0]["fileId"] == "img1"
+        drive_folder_cache.mark_dirty.assert_called_once_with("folder1")
         docs_svc.documents.return_value.batchUpdate.assert_not_called()
 
     async def test_marks_caches_dirty_on_success(self, tmp_path):
@@ -1176,3 +1282,31 @@ class TestInsertLocalImages:
         # resized copy — so create() was called exactly once, not once per
         # attempt.
         drive_svc.files.return_value.create.assert_called_once()
+
+    async def test_downscaled_upload_share_failure_still_reports_file_id(self, tmp_path):
+        # The auto_downscale branch routes through upload_and_share_image — a
+        # sharing failure there must still surface fileId (#649) and still mark
+        # the folder cache dirty, since the resized copy genuinely exists in Drive.
+        img = tmp_path / "big.png"
+        img.write_bytes(_make_png_bytes(6000, 6000))
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        drive_svc = self._drive_svc(file_id="resized1")
+        drive_svc.permissions.return_value.create.return_value.execute.side_effect = Exception(
+            "share failed"
+        )
+        drive_folder_cache = MagicMock()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+        ctx.request_context.lifespan_context.drive_folder_cache = drive_folder_cache
+
+        result = await _docs_tools["insert_local_images"](
+            doc_id="doc1",
+            images=[{"marker": "MARKER", "local_path": str(img)}],
+            auto_downscale=True,
+            ctx=ctx,
+        )
+
+        assert "error" in result["results"][0]
+        assert result["results"][0]["fileId"] == "resized1"
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+        drive_folder_cache.mark_dirty.assert_called_once_with("folder1")
