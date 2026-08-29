@@ -944,6 +944,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#v092-comments-as-a-first-class-cross-suite-capability-target-v092-before-tier-3-begins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v0.9.2 — Comments as a first-class, cross-suite capability (target: v0.9.2, before Tier 3 begins)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#tier-3-advanced-occasionally-needed-target-v100" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1714,6 +1725,11 @@
 <td>Stabilizes before Tier 3 begins</td>
 </tr>
 <tr>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2"><strong>v0.9.2</strong></a></td>
+<td>Comments as a first-class, cross-suite capability — generalize + complete the Drive <code>comments</code>/<code>replies</code> surface (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/661">#661</a>); ships a breaking rename</td>
+<td>Closes out the comments story before Tier 3</td>
+</tr>
+<tr>
 <td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0"><strong>v1.0.0</strong></a></td>
 <td>API stability declaration — Tier 3 items that make the cut + any breaking cleanups from v0.8–0.9</td>
 <td>Backwards-compatibility commitment</td>
@@ -1873,6 +1889,14 @@
 - [ ] CI: dedupe lint/format-check and lockfile-check across the Python version matrix (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/619">#619</a>)
 - [ ] Consolidate <code>uv lock --check</code> + <code>uv sync --frozen</code> into a single <code>uv sync --locked</code> step (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/536">#536</a>)
 - [ ] Catch stale hardcoded tool counts in prose docs at commit time, instead of by hand each time drift is caught (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/308">#308</a>)</p>
+<h3 id="v092-comments-as-a-first-class-cross-suite-capability-target-v092-before-tier-3-begins">v0.9.2 — Comments as a first-class, cross-suite capability <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2">v0.9.2</a>, before Tier 3 begins)</em><a class="headerlink" href="#v092-comments-as-a-first-class-cross-suite-capability-target-v092-before-tier-3-begins" title="Permanent link">&para;</a></h3>
+<p>Follows the design in <a href="../decisions/decision-comments-first-class/"><code>docs/decisions/decision-comments-first-class.md</code></a> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/661">#661</a>): the Drive <code>comments</code>/<code>replies</code> resource is one generic, file-type-agnostic capability, but the codebase only ships a Docs-named <code>list</code>/<code>add</code>/<code>resolve</code> subset (#151). This release generalizes and completes it. Ships a breaking rename — no alias/deprecation mechanism exists in this codebase, so it must be called out explicitly in the release notes.</p>
+<ul>
+<li>[ ] Generalize the three comment tools to <code>tools/drive/comments.py</code> and rename <code>list_doc_comments</code>/<code>add_doc_comment</code>/<code>resolve_doc_comment</code> → <code>list_file_comments</code>/<code>add_file_comment</code>/<code>resolve_comment</code> (param <code>doc_id</code> → <code>file_id</code>); retire <code>tools/docs/comments.py</code>. Breaking change. (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/663">#663</a>)</li>
+<li>[ ] Full <code>comments</code>/<code>replies</code> CRUD parity — <code>get</code>/<code>update</code>/<code>delete</code> for comments; plain <code>reply</code>/<code>reopen</code>/<code>update</code>/<code>delete</code>/<code>list</code> for replies. Depends on #663. (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/664">#664</a>)</li>
+<li>[ ] Fix the stale Tier 4 "zero comment tooling on Docs today" line; close or re-scope #142 (asks for what #151 already shipped under different naming). (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/662">#662</a>)</li>
+<li>[ ] <strong>Decision needed:</strong> deprecate <code>share_spreadsheet</code> in favor of <code>share_file</code> (a strict superset over the same <code>permissions()</code> resource), or keep both and document why. Same pattern as #151/#142, with a longer compatibility tail. (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/665">#665</a>)</li>
+</ul>
 <h3 id="tier-3-advanced-occasionally-needed-target-v100">Tier 3 — Advanced / occasionally needed <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0">v1.0.0</a>)</em><a class="headerlink" href="#tier-3-advanced-occasionally-needed-target-v100" title="Permanent link">&para;</a></h3>
 <p><strong>Sheets</strong>
 - [ ] <code>add_conditional_formatting</code> / <code>delete_conditional_formatting</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/129">#129</a>) <em>(freema/mcp-gsheets)</em>
