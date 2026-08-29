@@ -82,6 +82,32 @@ _CONVERT_MIME: dict[str, tuple[str, str]] = {
 }
 
 
+def _restamp_failure_result(file_id: str, exc: Exception) -> dict[str, Any]:
+    """Shared result for the narrow case where create() succeeded but the
+    follow-up metadata-only modifiedTime restamp (convert / convert_markdown
+    uploads only) then failed. The created Drive file is real — pairing the
+    error with its fileId keeps that orphan findable instead of losing its ID
+    entirely (#420). A storageQuotaExceeded HttpError is rendered with the
+    shared _SA_QUOTA_ERROR text, matching every other quota-error site in this
+    file — the original per-site restamp except caught only bare Exception and
+    would have leaked a raw str(e) here (#650). Callers layer their own result
+    shape on top (e.g. _sync_level._run_one's kind/name keys)."""
+    if (
+        isinstance(exc, HttpError)
+        and exc.resp.status == 403
+        and b"storageQuotaExceeded" in (exc.content or b"")
+    ):
+        detail = _SA_QUOTA_ERROR
+    else:
+        detail = str(exc)
+    return {
+        "error": (
+            f"created Drive file {file_id!r} but failed to restamp its modifiedTime: {detail}"
+        ),
+        "fileId": file_id,
+    }
+
+
 async def _upload_local_file(
     drive_service,
     local_path: str,
@@ -236,14 +262,10 @@ async def _upload_local_file(
             # Drive — only the metadata restamp on top of it failed. Reporting a
             # bare error here would leave this Doc an untracked orphan with no
             # record of its ID; surface fileId alongside the error so a caller
-            # can find and either fix or clean up the orphan (#420).
-            return {
-                "error": (
-                    f"created Drive file {result['id']!r} but failed to restamp "
-                    f"its modifiedTime: {e}"
-                ),
-                "fileId": result["id"],
-            }
+            # can find and either fix or clean up the orphan (#420). Message +
+            # quota-error handling shared with _sync_level._run_one's identical
+            # restamp except via _restamp_failure_result (#650).
+            return _restamp_failure_result(result["id"], e)
 
     logger.debug("Uploaded %s → %s (%s)", local_path, result.get("id"), mime)
     return {
@@ -747,14 +769,14 @@ async def _sync_level(
                                 # untracked orphan with no record of its ID
                                 # (#420); report fileId alongside the error so a
                                 # caller can find and either fix or clean it up.
+                                # Message + quota-error handling shared with
+                                # _upload_local_file via _restamp_failure_result
+                                # (#650); the kind/name keys are this call site's
+                                # own result-protocol layer on top.
                                 return {
                                     "kind": "upload_fail",
                                     "name": name,
-                                    "error": (
-                                        f"created Drive file {created['id']!r} but "
-                                        f"failed to restamp its modifiedTime: {e}"
-                                    ),
-                                    "fileId": created["id"],
+                                    **_restamp_failure_result(created["id"], e),
                                 }
                         logger.debug("Synced (create) %s%s → Drive", rel_prefix, name)
                     return {"kind": "upload_ok", "name": name}

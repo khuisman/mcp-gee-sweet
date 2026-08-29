@@ -231,6 +231,11 @@ class TestUploadLocalFileCore:
 class TestUploadLocalFileConvert:
     """convert=True requests Drive's native import conversion (issue #188)."""
 
+    def _quota_err(self):
+        resp = MagicMock()
+        resp.status = 403
+        return HttpError(resp=resp, content=b'{"error": {"reason": "storageQuotaExceeded"}}')
+
     @pytest.mark.parametrize(
         "filename,expected_target_mime",
         [
@@ -364,6 +369,31 @@ class TestUploadLocalFileConvert:
         assert "error" in result
         assert "transient network error" in result["error"]
         assert result["fileId"] == "fid1"
+
+    async def test_convert_restamp_quota_error_uses_friendly_message(self, tmp_path):
+        """#650: a storageQuotaExceeded HttpError raised by the metadata-only
+        restamp update() (after create() already succeeded) went through a bare
+        `except Exception` that leaked the raw error string, unlike every other
+        quota-error site in transfer.py. It must now surface the shared
+        _SA_QUOTA_ERROR text while still carrying the created file's fileId."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Heading")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "notes.md",
+            "webViewLink": "https://example.com",
+        }
+        drive_svc.files.return_value.update.return_value.execute.side_effect = self._quota_err()
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert result["fileId"] == "fid1"
+        assert "storageQuotaExceeded" not in result["error"]  # raw message replaced
+        assert transfer_module._SA_QUOTA_ERROR in result["error"]
 
     async def test_create_failure_returns_error_with_no_fileId(self, tmp_path):
         """#420: distinct from the restamp-failure case above — when create()
@@ -1042,6 +1072,22 @@ class _FakeDriveFS:
         resp = MagicMock()
         resp.execute.return_value = {"id": kwargs.get("fileId")}
         return resp
+
+
+class _RestampFailsFakeDriveFS(_FakeDriveFS):
+    """_FakeDriveFS variant that fails only the metadata-only modifiedTime
+    restamp update() that follows a successful create() on a convert_markdown
+    upload (#420). It tells that call apart from the media-carrying update()
+    used to re-import an *existing* converted Doc purely by the absence of
+    `media_body` in the kwargs — so any test relying on this fixture also has
+    to prove that discriminator against the case it's meant to distinguish
+    from, i.e. a real re-upload of an existing file must still pass straight
+    through to the parent's _update (#650)."""
+
+    def _update(self, **kwargs):
+        if "media_body" not in kwargs:
+            raise RuntimeError("transient network error")
+        return super()._update(**kwargs)
 
 
 def _drive_file(
@@ -1844,15 +1890,6 @@ class TestSyncFolderConvertMarkdown:
         local_file = tmp_path / "notes.md"
         local_file.write_text("# Heading")
 
-        class _RestampFailsFakeDriveFS(_FakeDriveFS):
-            def _update(self, **kwargs):
-                if "media_body" not in kwargs:
-                    # The metadata-only restamp call (no media_body) — the one
-                    # that follows a successful create(), distinct from the
-                    # media-carrying update() used to re-upload an existing file.
-                    raise RuntimeError("transient network error")
-                return super()._update(**kwargs)
-
         fs = _RestampFailsFakeDriveFS({"root": []})
         ctx = self._ctx(fs)
 
@@ -1878,6 +1915,83 @@ class TestSyncFolderConvertMarkdown:
         ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_once_with(
             "root"
         )
+
+    async def test_restamp_fixture_lets_existing_file_reimport_through(self, tmp_path):
+        """#650: _RestampFailsFakeDriveFS tells the metadata-only restamp update()
+        apart from a real re-import update() purely by the absence of `media_body`.
+        The restamp-failure test above only ever exercises the create() path
+        (empty Drive folder), so nothing verified that discriminator against the
+        case it's meant to distinguish from. Here a converted Doc already exists
+        and the newer local file re-imports in place: that update() carries
+        `media_body`, so it must pass straight through to the parent _update and
+        the sync must succeed — not be misfired as the restamp failure."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Updated heading")
+        fs = _RestampFailsFakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime="2020-01-01T00:00:00.000Z",  # far older than local
+                        mime="application/vnd.google-apps.document",
+                        properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+                    )
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["failed"] == []
+        assert result["uploaded"] == ["notes.md"]
+        assert fs.created_files == []
+        assert len(fs.updated_files) == 1
+        assert fs.updated_files[0]["fileId"] == "fa"
+        assert "media_body" in fs.updated_files[0]
+
+    async def test_restamp_quota_failure_uses_friendly_message(self, tmp_path):
+        """#650: _sync_level._run_one's restamp except mirrors _upload_local_file's
+        and had the same gap — a storageQuotaExceeded HttpError there leaked its
+        raw text instead of the shared _SA_QUOTA_ERROR message. The upload_fail
+        entry must carry the friendly message and still report the orphan fileId."""
+        local_file = tmp_path / "notes.md"
+        local_file.write_text("# Heading")
+
+        class _RestampQuotaFailsFakeDriveFS(_FakeDriveFS):
+            def _update(self, **kwargs):
+                if "media_body" not in kwargs:
+                    resp = MagicMock()
+                    resp.status = 403
+                    raise HttpError(
+                        resp=resp,
+                        content=b'{"error": {"reason": "storageQuotaExceeded"}}',
+                    )
+                return super()._update(**kwargs)
+
+        fs = _RestampQuotaFailsFakeDriveFS({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["uploaded"] == []
+        assert len(result["failed"]) == 1
+        entry = result["failed"][0]
+        assert entry["name"] == "notes.md"
+        assert entry["fileId"] == "new-file-1"
+        assert "storageQuotaExceeded" not in entry["error"]
+        assert transfer_module._SA_QUOTA_ERROR in entry["error"]
 
     async def test_bidirectional_resync_after_initial_convert_stays_in_sync(self, tmp_path):
         """TC-D218 (#414 QA review): Drive's native import-conversion on create()

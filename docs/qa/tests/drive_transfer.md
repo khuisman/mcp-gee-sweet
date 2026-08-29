@@ -1360,6 +1360,18 @@ Remove `/tmp/qa-239/`.
 
 ---
 
+### TC-D251: restamp-failure handling — quota-message gap closed, two branches share one helper (issue #650) (unit test)
+
+**Background:** follow-up cleanup of three non-blocking findings from PR #645's (#420) review of the create()+restamp-`update()` pair in `transfer.py`. (1) The restamp `try`/`except` in both `_upload_local_file` and `_sync_level._run_one` caught bare `Exception` and rendered a `storageQuotaExceeded` `HttpError` there as raw `str(e)`, unlike the `create()` except right above it (and every other quota-error site in the file), which uses the shared `_SA_QUOTA_ERROR` text. (2) The two restamp-failure branches were near-identical, differing only in return-dict shape. (3) `_RestampFailsFakeDriveFS` in `tests/drive/test_transfer.py` distinguished the metadata-only restamp `update()` from a real re-import `update()` purely by the absence of `media_body`, but the test fixture (`{"root": []}`, no pre-existing files) never exercised the media-carrying `update()` path, so that discriminator was unverified against the case it claims to tell apart. Fixed by a module-level `_restamp_failure_result(file_id, exc)` (builds the shared `{"error": ..., "fileId": ...}`, applying `_SA_QUOTA_ERROR` for a quota `HttpError`); `_run_one` spreads it and adds its own `kind`/`name` keys. Same not-reliably-reproducible-live reason as TC-D249/TC-D250 — a quota error confined to the metadata-only restamp window is even harder to force than a generic transient one; verified by unit test.
+
+**Checks (unit test)**
+- `tests/drive/test_transfer.py::TestUploadLocalFileConvert::test_convert_restamp_quota_error_uses_friendly_message` — `_upload_local_file(convert=True)` with `create()` succeeding and the restamp `update()` raising a `storageQuotaExceeded` `HttpError` returns `{"error": <contains _SA_QUOTA_ERROR>, "fileId": "fid1"}`, with the raw `storageQuotaExceeded` string no longer present.
+- `tests/drive/test_transfer.py::TestSyncFolderConvertMarkdown::test_restamp_quota_failure_uses_friendly_message` — the `_sync_level._run_one` twin: same quota `HttpError` on the restamp yields a `failed` entry whose `error` carries `_SA_QUOTA_ERROR` and whose `fileId` is the created orphan's.
+- `tests/drive/test_transfer.py::TestSyncFolderConvertMarkdown::test_restamp_fixture_lets_existing_file_reimport_through` — closes finding 3: with a converted Doc already in Drive and a newer local `.md`, the in-place re-import `update()` (which carries `media_body`) passes straight through `_RestampFailsFakeDriveFS` to the parent `_update` and the sync reports `uploaded == ["notes.md"]` with no `failed` entry — proving the `media_body`-absence discriminator against the case it distinguishes from.
+- `tests/drive/test_transfer.py::TestSyncFolderConvertMarkdown::test_restamp_failure_after_successful_create_reports_orphan_fileId` (TC-D249's existing test, unchanged behavior) — still passes with the local `_RestampFailsFakeDriveFS` class promoted to module scope and reused.
+
+---
+
 ## `list_revisions`
 
 ### TC-D146: List revisions for a spreadsheet
