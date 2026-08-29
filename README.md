@@ -1,6 +1,6 @@
 <div align="center">
   <b>mcp-gee-sweet</b>
-  <p align="center"><i>The Google Workspace MCP server Google didn't build.</i></p>
+  <p align="center"><i>The Google Workspace MCP server built for depth.</i></p>
 
 ![GitHub License](https://img.shields.io/github/license/khuisman/mcp-gee-sweet)
 </div>
