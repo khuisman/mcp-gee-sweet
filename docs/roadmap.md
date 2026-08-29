@@ -186,7 +186,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] `_timed` logs a `200` status for tool calls that catch their own exception and return `{error: ...}` — observability reports success for a call that actually failed ([#579](https://github.com/khuisman/mcp-gee-sweet/issues/579))
 - [ ] `emitter.py` table-cell images have no cursor-advance handling — latent infinite loop if that code path is ever reached ([#509](https://github.com/khuisman/mcp-gee-sweet/issues/509))
 - [ ] Calendar ACL tools use a bare `except Exception` instead of the `HttpError` friendly-error pattern used elsewhere in `calendar.py` ([#459](https://github.com/khuisman/mcp-gee-sweet/issues/459))
-- [ ] `sync_folder`'s `convert_markdown` restamp-failure handling: quota-message gap, duplicated create()+update() try/except, test fixture isolation — companion to #420 ([#650](https://github.com/khuisman/mcp-gee-sweet/issues/650))
+- [x] `sync_folder`'s `convert_markdown` restamp-failure handling: quota-message gap, duplicated create()+update() try/except, test fixture isolation — companion to #420 (PR #669) ([#650](https://github.com/khuisman/mcp-gee-sweet/issues/650))
 - [ ] `sync_folder convert_markdown`'s `modifiedTime` restamp fires for all convert types (over-broad), and its create()+update() pattern is duplicated across two call sites ([#435](https://github.com/khuisman/mcp-gee-sweet/issues/435))
 - [ ] Harden `tests/integration`'s local-fs live QA harness — error surfacing on API failures, subprocess/handshake timeouts, cleanup-masking a real test failure, per-test subprocess overhead ([#648](https://github.com/khuisman/mcp-gee-sweet/issues/648))
 
