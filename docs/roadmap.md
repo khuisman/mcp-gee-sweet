@@ -189,6 +189,8 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [x] `sync_folder`'s `convert_markdown` restamp-failure handling: quota-message gap, duplicated create()+update() try/except, test fixture isolation — companion to #420 (PR #669) ([#650](https://github.com/khuisman/mcp-gee-sweet/issues/650))
 - [ ] `sync_folder convert_markdown`'s `modifiedTime` restamp fires for all convert types (over-broad), and its create()+update() pattern is duplicated across two call sites ([#435](https://github.com/khuisman/mcp-gee-sweet/issues/435))
 - [ ] Harden `tests/integration`'s local-fs live QA harness — error surfacing on API failures, subprocess/handshake timeouts, cleanup-masking a real test failure, per-test subprocess overhead ([#648](https://github.com/khuisman/mcp-gee-sweet/issues/648))
+- [ ] `_sync_level._run_one`'s outer catch-all leaks a raw `storageQuotaExceeded` message instead of the friendly `_SA_QUOTA_ERROR` used everywhere else — #669 follow-up, same friendly-error-consistency shape as #614/#459 ([#670](https://github.com/khuisman/mcp-gee-sweet/issues/670))
+- [ ] `sync_folder` reports "in sync" when mtimes match but content differs (an in-place rename that preserves mtime) — `use_checksum` doesn't catch it either ([#659](https://github.com/khuisman/mcp-gee-sweet/issues/659))
 
 **Infrastructure**
 - [ ] Interaction-log middleware for tool calls — structured, append-only JSONL log per call (inputs, duration, cache hit, error), opt-in ID redaction, swappable backend ([#646](https://github.com/khuisman/mcp-gee-sweet/issues/646))
@@ -196,6 +198,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] CI: dedupe lint/format-check and lockfile-check across the Python version matrix ([#619](https://github.com/khuisman/mcp-gee-sweet/issues/619))
 - [ ] Consolidate `uv lock --check` + `uv sync --frozen` into a single `uv sync --locked` step ([#536](https://github.com/khuisman/mcp-gee-sweet/issues/536))
 - [ ] Catch stale hardcoded tool counts in prose docs at commit time, instead of by hand each time drift is caught ([#308](https://github.com/khuisman/mcp-gee-sweet/issues/308))
+- [ ] Automate the mechanical `release.md` steps as GitHub Actions ([#660](https://github.com/khuisman/mcp-gee-sweet/issues/660))
 
 ### v0.9.2 — Comments as a first-class, cross-suite capability _(target: [v0.9.2](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2), before Tier 3 begins)_
 
