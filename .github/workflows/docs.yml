@@ -2,7 +2,9 @@ name: Docs
 
 on:
   push:
-    branches: ["main", "develop"]
+    branches: ["develop"]
+  release:
+    types: [published]
 
 permissions:
   contents: write  # needed for mike to push to gh-pages branch
@@ -34,12 +36,24 @@ jobs:
       - name: Fetch existing gh-pages
         run: git fetch origin gh-pages --depth=1 || true
 
-      - name: Deploy docs (main -> latest)
-        if: github.ref == 'refs/heads/main'
-        run: |
-          uv run mike deploy --push --update-aliases main latest
-          uv run mike set-default --push latest
-
-      - name: Deploy docs (develop)
-        if: github.ref == 'refs/heads/develop'
+      # develop push -> refresh the always-present "develop" dev-channel version.
+      # Not aliased to latest and not the default, so it never shadows a release.
+      - name: Deploy docs (develop channel)
+        if: github.event_name == 'push'
         run: uv run mike deploy --push develop
+
+      # Stable GitHub Release -> deploy under the bare version number, move the
+      # `latest` alias onto it, and repoint the site root at `latest`. Prior
+      # release versions stay browsable at their own /X.Y.Z/ path.
+      - name: Derive release version
+        if: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
+        id: ver
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"  # v0.8.1 -> 0.8.1; a bare tag passes through unchanged
+
+      - name: Deploy docs (release -> latest)
+        if: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
+        run: |
+          uv run mike deploy --push --update-aliases "${{ steps.ver.outputs.version }}" latest
+          uv run mike set-default --push latest
