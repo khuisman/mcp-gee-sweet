@@ -99,7 +99,7 @@ Per iteration, the two subagents rendezvous at a filesystem barrier so both `.ex
 - **Loop count:** N = 20–50. Transport/SSL corruption and WAL contention are intermittent; one clean pair proves nothing. Stop early and report if any iteration trips a check.
 - **Teardown:** Aziz `rm -rf /tmp/mcp-gee-sweet-qa-barrier` after collecting results.
 
-The subagent's job is to run the calls and write result files — **it must not edit any tracked repo file**. Only Aziz reads the `result-*` files back, diffs them, and writes the `**Result**` entries (`.claude/team-roles/aziz.md` step 8).
+The subagent's job is to run the calls and write result files — **it must not edit any tracked repo file**. Only Aziz reads the `result-*` files back, diffs them, and writes the `**Result**` entries (see `.claude/team-roles/aziz.md`, the Compile step).
 
 ### Per-TC checks
 
