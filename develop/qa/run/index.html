@@ -1086,6 +1086,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#running-true-concurrency-test-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running true-concurrency test cases
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running true-concurrency test cases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mechanism-two-subagents-one-server-a-mkdir-barrier" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mechanism: two subagents, one server, a mkdir barrier
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#per-tc-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-TC checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#subagent-prompt-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subagent prompt template
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#drive-fixture-folder-pollution" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1588,6 +1638,70 @@
 <li><strong>When it's not needed:</strong> a single-shard full run (no parallel agents) never contends with itself — skip the lock entirely in that case.</li>
 </ul>
 <p>Give each parallel shard's conductor prompt this protocol explicitly (path, acquire/release commands, backoff, staleness threshold) rather than assuming priority ordering or hoping timing works out.</p>
+<hr />
+<h2 id="running-true-concurrency-test-cases">Running true-concurrency test cases<a class="headerlink" href="#running-true-concurrency-test-cases" title="Permanent link">&para;</a></h2>
+<p>A single MCP client session awaits each tool result before issuing the next, so it can never hold two requests to one server process in flight at once. A handful of test cases need genuinely simultaneous requests and are otherwise perpetually skipped:</p>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>File</th>
+<th>What it needs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>TC-I24</strong></td>
+<td><code>tests/infra.md</code></td>
+<td>Two distinct <code>get_sheet_data</code> calls (different spreadsheets) firing at the same instant — checks the shared startup <code>httplib2</code> transport isn't corrupted across worker threads (issue #183)</td>
+</tr>
+<tr>
+<td><strong>TC-I02</strong></td>
+<td><code>tests/infra.md</code></td>
+<td>A write (<code>update_cells</code>) and a read (<code>get_sheet_data</code>) on the same spreadsheet firing at the same instant — checks SQLite WAL lets the read proceed during the write with no locking error (issue #234)</td>
+</tr>
+</tbody>
+</table>
+<p><code>TC-R36</code>/<code>TC-R37</code> (<code>tests/sheets_read.md</code>) look similar but are <strong>within-call</strong> concurrency (<code>get_multiple_sheet_data</code>/<code>get_multiple_spreadsheet_summary</code> <code>gather()</code> several <code>.execute()</code> calls inside one tool call) — a single session already exercises them. They don't need this procedure; just re-run them normally during the pass and record a fresh Result. Only the <strong>cross-session</strong> cases (TC-I24, TC-I02) need what follows.</p>
+<h3 id="mechanism-two-subagents-one-server-a-mkdir-barrier">Mechanism: two subagents, one server, a <code>mkdir</code> barrier<a class="headerlink" href="#mechanism-two-subagents-one-server-a-mkdir-barrier" title="Permanent link">&para;</a></h3>
+<p>Aziz (never a lane session — this runs during the release pass, see <code>.claude/team-roles/aziz.md</code>) spawns <strong>two <code>Agent</code>-tool subagents</strong> — real subagents, which inherit this session's already-connected MCP servers; <strong>not</strong> Agent-View spawns, which don't. Both subagents point at the <strong>same</strong> server prefix. Prefer <strong><code>mcp__mcp-gee-sweet-kai-sa__</code></strong> — it runs the main-checkout (release-candidate) code, not a worktree copy. A lane prefix (<code>mcp__mcp-gee-sweet-sky__</code> / <code>-kit__</code>) also works if the main-checkout server isn't available, but only after that worktree is reset to the release commit; note the substitution in the run file.</p>
+<p>Per iteration, the two subagents rendezvous at a filesystem barrier so both <code>.execute()</code> calls hit the wire within a few milliseconds of each other:</p>
+<ul>
+<li><strong>Barrier dir:</strong> <code>/tmp/mcp-gee-sweet-qa-barrier</code> (created once by Aziz before spawning; distinct from the Playwright lock). Markers are files inside it.</li>
+<li><strong>A background release watcher</strong> (Aziz starts one <code>run_in_background</code> shell loop before spawning the subagents) does, for each iteration <code>i</code> from 1 to N:</li>
+<li>wait until both <code>ready-a-&lt;i&gt;</code> and <code>ready-b-&lt;i&gt;</code> exist,</li>
+<li><code>touch go-&lt;i&gt;</code>,</li>
+<li>wait until both <code>done-a-&lt;i&gt;</code> and <code>done-b-&lt;i&gt;</code> exist, then continue to <code>i+1</code>.</li>
+<li><strong>Each subagent</strong> (<code>&lt;id&gt;</code> = <code>a</code> or <code>b</code>), per iteration <code>i</code>:</li>
+<li><code>touch /tmp/mcp-gee-sweet-qa-barrier/ready-&lt;id&gt;-&lt;i&gt;</code></li>
+<li>spin (<code>while [ ! -e .../go-&lt;i&gt; ]; do :; done</code> — a tight poll, no sleep) until <code>go-&lt;i&gt;</code> appears</li>
+<li><strong>immediately</strong> issue its one assigned tool call — no reasoning, no other tool call between the spin ending and the call</li>
+<li>append the raw result (full response, or the error text) to <code>/tmp/mcp-gee-sweet-qa-barrier/result-&lt;id&gt;-&lt;i&gt;.json</code></li>
+<li><code>touch /tmp/mcp-gee-sweet-qa-barrier/done-&lt;id&gt;-&lt;i&gt;</code></li>
+<li><strong>Loop count:</strong> N = 20–50. Transport/SSL corruption and WAL contention are intermittent; one clean pair proves nothing. Stop early and report if any iteration trips a check.</li>
+<li><strong>Teardown:</strong> Aziz <code>rm -rf /tmp/mcp-gee-sweet-qa-barrier</code> after collecting results.</li>
+</ul>
+<p>The subagent's job is to run the calls and write result files — <strong>it must not edit any tracked repo file</strong>. Only Aziz reads the <code>result-*</code> files back, diffs them, and writes the <code>**Result**</code> entries (see <code>.claude/team-roles/aziz.md</code>, the Compile step).</p>
+<h3 id="per-tc-checks">Per-TC checks<a class="headerlink" href="#per-tc-checks" title="Permanent link">&para;</a></h3>
+<p><strong>TC-I24</strong> — subagent <code>a</code> calls <code>get_sheet_data</code> on <code>{SPREADSHEET_ID}</code> / <code>Sales!A1:C3</code>; subagent <code>b</code> calls <code>get_sheet_data</code> on a <strong>second, distinct</strong> spreadsheet / range with different known values. Across all N iterations:
+- every <code>result-a-*</code> holds only <code>{SPREADSHEET_ID}</code>'s data, every <code>result-b-*</code> only the second spreadsheet's — no row from one appears in the other's file
+- no result is empty, truncated, or an SSL/connection error (<code>record layer failure</code>, <code>Connection reset by peer</code>, <code>Remote end closed connection</code> — the signature of the shared-transport bug this guards against)</p>
+<p><strong>TC-I02</strong> — subagent <code>a</code> calls <code>update_cells</code> writing a per-iteration sentinel (e.g. <code>QA-I02-&lt;i&gt;-&lt;timestamp&gt;</code>) to <code>{SPREADSHEET_ID}</code> / <code>Empty!A1</code>; subagent <code>b</code> calls <code>get_sheet_data</code> on <code>{SPREADSHEET_ID}</code> / <code>Sales!A1:C3</code> (a different sheet in the same spreadsheet, so both touch the same cache row). Across all N iterations:
+- no <code>result-b-*</code> is a <code>database is locked</code> / <code>SQLITE_BUSY</code> error, and none is empty or an SSL/connection error
+- every <code>result-a-*</code> reports the write succeeded
+- if the server's <code>LOG_FILE</code> is reachable (from <code>docs/qa/.env</code> or the team MCP config), grep it for <code>database is locked</code> / <code>OperationalError</code> over the run window — there should be none; if it isn't reachable, the response-level checks above still catch the failure mode (WAL contention surfaces as an error in the response, not just the log)</p>
+<h3 id="subagent-prompt-template">Subagent prompt template<a class="headerlink" href="#subagent-prompt-template" title="Permanent link">&para;</a></h3>
+<p>Give each of the two subagents a prompt of this shape (fill the bracketed parts; <code>&lt;id&gt;</code> is <code>a</code> for one, <code>b</code> for the other):</p>
+<blockquote>
+<p>You are one of two subagents running a true-concurrency QA iteration loop. Your worker id is <strong><code>&lt;id&gt;</code></strong>. Barrier dir: <code>/tmp/mcp-gee-sweet-qa-barrier</code>. Iterations: <strong><code>&lt;N&gt;</code></strong>.</p>
+<p>For <code>i</code> in 1..<code>&lt;N&gt;</code>, in order:
+1. <code>touch /tmp/mcp-gee-sweet-qa-barrier/ready-&lt;id&gt;-$i</code>
+2. Spin with a tight shell poll until <code>/tmp/mcp-gee-sweet-qa-barrier/go-$i</code> exists.
+3. The instant it exists, call <strong>exactly this tool, once</strong>: <code>[full tool name + params, e.g. mcp__mcp-gee-sweet-kai-sa__get_sheet_data(spreadsheet_id="…", range="Sales!A1:C3")]</code>. Do nothing else first — no other tool call, no reasoning step, between the spin ending and this call.
+4. Append the tool's full raw result (or, on error, the complete error text) as one JSON line to <code>/tmp/mcp-gee-sweet-qa-barrier/result-&lt;id&gt;-$i.json</code>.
+5. <code>touch /tmp/mcp-gee-sweet-qa-barrier/done-&lt;id&gt;-$i</code></p>
+<p>Call <strong>only</strong> <code>mcp__mcp-gee-sweet-kai-sa__*</code> tools. Do <strong>not</strong> edit, create, or delete any file inside the git repo — your only writes are to <code>/tmp/mcp-gee-sweet-qa-barrier/</code>. When the loop finishes, report back: for each <code>i</code>, whether the tool call returned data or an error, and the first ~200 chars of each result. Do not interpret pass/fail — just report what you observed.</p>
+</blockquote>
 <hr />
 <h2 id="drive-fixture-folder-pollution">Drive fixture-folder pollution<a class="headerlink" href="#drive-fixture-folder-pollution" title="Permanent link">&para;</a></h2>
 <p><code>TEST_FOLDER_ID</code> accumulates stray items across many creation/copy test categories that don't tear down after themselves (tracked in <a href="https://github.com/khuisman/mcp-gee-sweet/issues/304">#304</a> — dedicated QA account/cleanup sweep). As of 2026-07-17 it held ~15 duplicate leftovers (<code>Copy of mcp-gee-sweet-qa-fixtures</code> ×2, <code>QA-Cache-Check</code> ×2, <code>QA-Copy-Explicit</code>, <code>QA-Create-Explicit</code>, <code>QA-Doc-Copy</code>, <code>QA-DocCache</code>, <code>QA-HTML-Doc</code> ×2, <code>QA-Markdown-Doc</code> ×2, <code>QA-Table-Doc</code> ×2, loose <code>qa-notes.md</code>/<code>qa-upload.txt</code>, two leftover folders).</p>

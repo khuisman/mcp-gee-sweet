@@ -1489,6 +1489,7 @@
 - <strong>Pre-approved</strong> — no action; already covered or a documented non-testable limitation
 - <strong>Unit-tested</strong> — verified live against <code>tests/</code> to actually cover the case; safe to pre-approve
 - <strong>Environmental</strong> — needs a fixture/account change to un-skip; low-risk by inspection in the meantime
+- <strong>Procedure exists</strong> — was manual-only for lack of a way to run it; now has a documented procedure and <strong>must be executed during the pass</strong>, not skipped
 - <strong>Genuine gap</strong> — verified <em>not</em> covered anywhere; tracked as a follow-up issue, still counts as a live-run SKIP until closed</p>
 <table>
 <thead>
@@ -1507,10 +1508,10 @@
 <td>✅ <code>tests/test_cache.py</code></td>
 </tr>
 <tr>
-<td>TC-I02</td>
-<td>SQLite WAL concurrent reads — requires true concurrency</td>
-<td>Pre-approved</td>
-<td>Manual only</td>
+<td>TC-I02, TC-I24</td>
+<td>Cross-session concurrency — needs two simultaneous requests to one server, which a single client session can't produce</td>
+<td>Procedure exists</td>
+<td>Run via <code>run.md</code> §"Running true-concurrency test cases" (two-subagent <code>mkdir</code>-barrier procedure) during the release pass — no longer a standing SKIP (#673)</td>
 </tr>
 <tr>
 <td>TC-I04</td>
