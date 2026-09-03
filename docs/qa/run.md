@@ -68,6 +68,67 @@ Give each parallel shard's conductor prompt this protocol explicitly (path, acqu
 
 ---
 
+## Running true-concurrency test cases
+
+A single MCP client session awaits each tool result before issuing the next, so it can never hold two requests to one server process in flight at once. A handful of test cases need genuinely simultaneous requests and are otherwise perpetually skipped:
+
+| TC | File | What it needs |
+|---|---|---|
+| **TC-I24** | `tests/infra.md` | Two distinct `get_sheet_data` calls (different spreadsheets) firing at the same instant — checks the shared startup `httplib2` transport isn't corrupted across worker threads (issue #183) |
+| **TC-I02** | `tests/infra.md` | A write (`update_cells`) and a read (`get_sheet_data`) on the same spreadsheet firing at the same instant — checks SQLite WAL lets the read proceed during the write with no locking error (issue #234) |
+
+`TC-R36`/`TC-R37` (`tests/sheets_read.md`) look similar but are **within-call** concurrency (`get_multiple_sheet_data`/`get_multiple_spreadsheet_summary` `gather()` several `.execute()` calls inside one tool call) — a single session already exercises them. They don't need this procedure; just re-run them normally during the pass and record a fresh Result. Only the **cross-session** cases (TC-I24, TC-I02) need what follows.
+
+### Mechanism: two subagents, one server, a `mkdir` barrier
+
+Aziz (never a lane session — this runs during the release pass, see `.claude/team-roles/aziz.md`) spawns **two `Agent`-tool subagents** — real subagents, which inherit this session's already-connected MCP servers; **not** Agent-View spawns, which don't. Both subagents point at the **same** server prefix. Prefer **`mcp__mcp-gee-sweet-kai-sa__`** — it runs the main-checkout (release-candidate) code, not a worktree copy. A lane prefix (`mcp__mcp-gee-sweet-sky__` / `-kit__`) also works if the main-checkout server isn't available, but only after that worktree is reset to the release commit; note the substitution in the run file.
+
+Per iteration, the two subagents rendezvous at a filesystem barrier so both `.execute()` calls hit the wire within a few milliseconds of each other:
+
+- **Barrier dir:** `/tmp/mcp-gee-sweet-qa-barrier` (created once by Aziz before spawning; distinct from the Playwright lock). Markers are files inside it.
+- **A background release watcher** (Aziz starts one `run_in_background` shell loop before spawning the subagents) does, for each iteration `i` from 1 to N:
+  - wait until both `ready-a-<i>` and `ready-b-<i>` exist,
+  - `touch go-<i>`,
+  - wait until both `done-a-<i>` and `done-b-<i>` exist, then continue to `i+1`.
+- **Each subagent** (`<id>` = `a` or `b`), per iteration `i`:
+  1. `touch /tmp/mcp-gee-sweet-qa-barrier/ready-<id>-<i>`
+  2. spin (`while [ ! -e .../go-<i> ]; do :; done` — a tight poll, no sleep) until `go-<i>` appears
+  3. **immediately** issue its one assigned tool call — no reasoning, no other tool call between the spin ending and the call
+  4. append the raw result (full response, or the error text) to `/tmp/mcp-gee-sweet-qa-barrier/result-<id>-<i>.json`
+  5. `touch /tmp/mcp-gee-sweet-qa-barrier/done-<id>-<i>`
+- **Loop count:** N = 20–50. Transport/SSL corruption and WAL contention are intermittent; one clean pair proves nothing. Stop early and report if any iteration trips a check.
+- **Teardown:** Aziz `rm -rf /tmp/mcp-gee-sweet-qa-barrier` after collecting results.
+
+The subagent's job is to run the calls and write result files — **it must not edit any tracked repo file**. Only Aziz reads the `result-*` files back, diffs them, and writes the `**Result**` entries (`.claude/team-roles/aziz.md` step 8).
+
+### Per-TC checks
+
+**TC-I24** — subagent `a` calls `get_sheet_data` on `{SPREADSHEET_ID}` / `Sales!A1:C3`; subagent `b` calls `get_sheet_data` on a **second, distinct** spreadsheet / range with different known values. Across all N iterations:
+- every `result-a-*` holds only `{SPREADSHEET_ID}`'s data, every `result-b-*` only the second spreadsheet's — no row from one appears in the other's file
+- no result is empty, truncated, or an SSL/connection error (`record layer failure`, `Connection reset by peer`, `Remote end closed connection` — the signature of the shared-transport bug this guards against)
+
+**TC-I02** — subagent `a` calls `update_cells` writing a per-iteration sentinel (e.g. `QA-I02-<i>-<timestamp>`) to `{SPREADSHEET_ID}` / `Empty!A1`; subagent `b` calls `get_sheet_data` on `{SPREADSHEET_ID}` / `Sales!A1:C3` (a different sheet in the same spreadsheet, so both touch the same cache row). Across all N iterations:
+- no `result-b-*` is a `database is locked` / `SQLITE_BUSY` error, and none is empty or an SSL/connection error
+- every `result-a-*` reports the write succeeded
+- if the server's `LOG_FILE` is reachable (from `docs/qa/.env` or the team MCP config), grep it for `database is locked` / `OperationalError` over the run window — there should be none; if it isn't reachable, the response-level checks above still catch the failure mode (WAL contention surfaces as an error in the response, not just the log)
+
+### Subagent prompt template
+
+Give each of the two subagents a prompt of this shape (fill the bracketed parts; `<id>` is `a` for one, `b` for the other):
+
+> You are one of two subagents running a true-concurrency QA iteration loop. Your worker id is **`<id>`**. Barrier dir: `/tmp/mcp-gee-sweet-qa-barrier`. Iterations: **`<N>`**.
+>
+> For `i` in 1..`<N>`, in order:
+> 1. `touch /tmp/mcp-gee-sweet-qa-barrier/ready-<id>-$i`
+> 2. Spin with a tight shell poll until `/tmp/mcp-gee-sweet-qa-barrier/go-$i` exists.
+> 3. The instant it exists, call **exactly this tool, once**: `[full tool name + params, e.g. mcp__mcp-gee-sweet-kai-sa__get_sheet_data(spreadsheet_id="…", range="Sales!A1:C3")]`. Do nothing else first — no other tool call, no reasoning step, between the spin ending and this call.
+> 4. Append the tool's full raw result (or, on error, the complete error text) as one JSON line to `/tmp/mcp-gee-sweet-qa-barrier/result-<id>-$i.json`.
+> 5. `touch /tmp/mcp-gee-sweet-qa-barrier/done-<id>-$i`
+>
+> Call **only** `mcp__mcp-gee-sweet-kai-sa__*` tools. Do **not** edit, create, or delete any file inside the git repo — your only writes are to `/tmp/mcp-gee-sweet-qa-barrier/`. When the loop finishes, report back: for each `i`, whether the tool call returned data or an error, and the first ~200 chars of each result. Do not interpret pass/fail — just report what you observed.
+
+---
+
 ## Drive fixture-folder pollution
 
 `TEST_FOLDER_ID` accumulates stray items across many creation/copy test categories that don't tear down after themselves (tracked in [#304](https://github.com/khuisman/mcp-gee-sweet/issues/304) — dedicated QA account/cleanup sweep). As of 2026-07-17 it held ~15 duplicate leftovers (`Copy of mcp-gee-sweet-qa-fixtures` ×2, `QA-Cache-Check` ×2, `QA-Copy-Explicit`, `QA-Create-Explicit`, `QA-Doc-Copy`, `QA-DocCache`, `QA-HTML-Doc` ×2, `QA-Markdown-Doc` ×2, `QA-Table-Doc` ×2, loose `qa-notes.md`/`qa-upload.txt`, two leftover folders).
