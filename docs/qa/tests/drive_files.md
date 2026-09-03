@@ -833,6 +833,8 @@ fixture drive.
 - `query='name contains "mcp-gee"'` returns exactly the `SHARED_DRIVE_ID` fixture drive
 - A drive not matching the name is absent from results
 
+**Result (2026-09-02) ✅ PASS** — live via `mcp-gee-sweet-sky` (OAuth). `list_drives(query='name contains "Marketing"')` returned `[]`; `list_drives(query='name contains "mcp-gee"')` returned exactly one drive, `mcp-gee-sweet-shared`, whose `id` matches `.env`'s `SHARED_DRIVE_ID`. Unfiltered `list_drives()` returns that same single drive.
+
 ---
 
 ### TC-D122: max_results clamping
@@ -848,6 +850,8 @@ clamp-to-200 ceiling can't be exercised live with one drive; the clamp is inline
 **Checks**
 - `max_results=0` clamped to 1; at most 1 drive returned (not `[]`)
 - `max_results=300` clamped to 200 in the API call; returns the 1 available drive
+
+**Result (2026-09-02) ✅ PASS** — live via `mcp-gee-sweet-sky` (OAuth). `list_drives(max_results=0)` returned 1 drive (`mcp-gee-sweet-shared`), not `[]` — clamp-to-1 path confirmed. `list_drives(max_results=300)` returned the 1 available drive; the clamp-to-200 ceiling isn't directly observable with a single drive (matches this case's own note).
 
 ---
 

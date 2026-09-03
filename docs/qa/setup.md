@@ -11,8 +11,9 @@ that both the OAuth QA identity and the service account can read and write. (The
 Drive's own ID doubles as a fixture, `SHARED_DRIVE_ID`, for the `list_drives` /
 `empty_trash --drive_id` test cases.)
 
-Setup has three steps: make sure the required Google APIs are enabled, create the files
-in the Shared Drive, then run the seed prompt to populate them.
+Setup has four steps: make sure the required Google APIs are enabled, create the files
+in the Shared Drive, add the resulting IDs to `.env`, then run the seed prompt to
+populate them.
 
 ---
 
