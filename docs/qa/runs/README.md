@@ -68,12 +68,13 @@ Disposition of every SKIP from the v0.8.0 Full Regression run (44 total, `docs/q
 - **Pre-approved** — no action; already covered or a documented non-testable limitation
 - **Unit-tested** — verified live against `tests/` to actually cover the case; safe to pre-approve
 - **Environmental** — needs a fixture/account change to un-skip; low-risk by inspection in the meantime
+- **Procedure exists** — was manual-only for lack of a way to run it; now has a documented procedure and **must be executed during the pass**, not skipped
 - **Genuine gap** — verified *not* covered anywhere; tracked as a follow-up issue, still counts as a live-run SKIP until closed
 
 | TC | Reason | Category | Coverage / Action |
 |---|---|---|---|
 | TC-I01, I03 | Cache TTL / `CACHE_DB_PATH` — requires restart | Unit-tested | ✅ `tests/test_cache.py` |
-| TC-I02 | SQLite WAL concurrent reads — requires true concurrency | Pre-approved | Manual only |
+| TC-I02, TC-I24 | Cross-session concurrency — needs two simultaneous requests to one server, which a single client session can't produce | Procedure exists | Run via `run.md` §"Running true-concurrency test cases" (two-subagent `mkdir`-barrier procedure) during the release pass — no longer a standing SKIP (#673) |
 | TC-I04 | Cache persists across restart | Pre-approved | SQLite file persistence, trivially true by design |
 | TC-I13 | stdio transport — requires client config change | Pre-approved | Manual / verify once per environment |
 | TC-I15 | Hot reload with SSE | Pre-approved | Manual — known uvicorn + SSE limitation |
