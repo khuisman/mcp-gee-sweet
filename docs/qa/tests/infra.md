@@ -14,7 +14,7 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I04 (cache persistence across restart) | SQLite persistence is a property of the DB file, not the server — not worth a subprocess test |
 | TC-I05–I07 (tool filtering) | Unit-tested in `tests/test_server.py` — `_parse_enabled_tools()` is fully covered |
 | TC-I08–I12 (auth variants) | Unit tests tracked in #98 — mock `_service_account_creds`, `_oauth_creds`, and ADC |
-| TC-I02 (WAL concurrency) | Manual / live QA only — requires true concurrent requests |
+| TC-I02 (WAL concurrency), TC-I24 (cross-request transport) | Live QA via the two-subagent `mkdir`-barrier procedure in `docs/qa/run.md` §"Running true-concurrency test cases" — run during the release pass, not skipped (#673) |
 | TC-I13, I14 (transport) | ✅ Live-tested post-#175 mcp v2 migration — see Result entries below |
 | TC-I15 (hot reload) | Manual / live QA only — known uvicorn + SSE limitation, observe and note |
 | TC-I16–I20 (logging) | ✅ Already live-tested and passed — see Result entries below |
@@ -49,12 +49,12 @@ Set `CACHE_TTL=10` (10 seconds) in your server config, restart the server.
 ### TC-I02: SQLite WAL mode — concurrent reads during a write
 
 **Setup**
-This is a timing-dependent test. Issue a write (e.g. `update_cells`) and a read (`get_sheet_data`) as close to simultaneously as possible — two browser tabs or two terminal sessions both calling the MCP server.
+This is a timing-dependent test needing two genuinely simultaneous requests to one server, which a single client session can't produce. Run it via the two-subagent `mkdir`-barrier procedure in [`docs/qa/run.md`](../run.md) §"Running true-concurrency test cases" — subagent `a` issues the write (`update_cells` to `Empty!A1`), subagent `b` the read (`get_sheet_data` on `Sales!A1:C3`), both released from the barrier together, looped 20–50×.
 
 **Checks**
 - Read does not block or error while write is in progress
-- Both calls return valid responses
-- No SQLite locking error in logs
+- Both calls return valid responses on every iteration
+- No SQLite locking error (`database is locked` / `SQLITE_BUSY` / `OperationalError`) in any `result-b-*` file, and none in the server `LOG_FILE` over the run window if it's reachable
 
 ---
 
@@ -153,12 +153,12 @@ TC-I22/TC-I23 (issue #99) are the only mandatory live QA cases for this PR (see 
 
 **Background:** #183 converted the entire tool layer to `async def`, running each Google API call via `asyncio.to_thread()` so multiple calls can execute in real OS threads simultaneously — both within one gather()-restructured tool call and across two separate, simultaneous client requests. The shared `sheets_service`/`drive_service`/etc. objects built once at server startup carry a single `httplib2`-based transport that isn't safe for concurrent use by itself; the fix (`auth.thread_http()`) gives each thread its own transport, built from the shared credentials, passed via `execute(http=...)` at every call site. This is the one thing the mocked unit test suite structurally cannot verify — mocks don't exercise a real shared transport, so a regression here (e.g. someone reverts to the shared service objects' default transport "for simplicity") would pass every unit test and still corrupt live responses under load.
 
-**Prompt**
-> Issue two tool calls back-to-back with no wait between them, each targeting a distinct, identifiable spreadsheet: "Get the data from Sheet1 in {SPREADSHEET_ID}" and, immediately after (same turn or a rapid follow-up), "Get the data from Sheet1 in {a second, distinct spreadsheet ID}"
+**Setup**
+A single client session awaits each tool result before issuing the next, so it cannot hold two requests in flight — running both calls "back-to-back" in one session does **not** produce true concurrency. Run this via the two-subagent `mkdir`-barrier procedure in [`docs/qa/run.md`](../run.md) §"Running true-concurrency test cases": subagent `a` calls `get_sheet_data` on `{SPREADSHEET_ID}` / `Sales!A1:C3`, subagent `b` calls `get_sheet_data` on a **second, distinct** spreadsheet + range with different known values, both released from the barrier together, looped 20–50×.
 
 **Checks**
-- Each call's response contains data from *its own* requested spreadsheet, not the other one
-- No response is empty, truncated, or contains a mix of both spreadsheets' data (any of these would indicate the two concurrent `.execute()` calls interfered with each other's shared transport)
+- On every iteration, `result-a-*` contains only `{SPREADSHEET_ID}`'s data and `result-b-*` only the second spreadsheet's — no row from one appears in the other's file
+- No result on any iteration is empty, truncated, or an SSL/connection error (`record layer failure`, `Connection reset by peer`, `Remote end closed connection without response`) — any of these is the signature of the two concurrent `.execute()` calls interfering with a shared transport
 
 **Note:** also implicitly covered by TC-D176/TC-D177/TC-D178/TC-D179/TC-R36/TC-R37 above, each of which forces several genuinely concurrent `.execute()` calls within a single gather()-restructured tool and checks per-item attribution. This case adds the cross-request angle (two separate tool calls, not one batched call) that those don't cover.
 

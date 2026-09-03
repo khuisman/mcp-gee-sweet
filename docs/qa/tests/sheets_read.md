@@ -287,6 +287,8 @@ No fixture setup needed — query 5 different single-cell ranges from the `Sales
 
 **Result (2026-07-13) ✅ PASS (re-verified after fix)** Against the OAuth server (`mcp-gee-sweet-sky`), ran the identical 5-range prompt 3 times back-to-back after reconnecting to pick up the fix commit (18490d8). All 3 runs returned all 5 results with correct data and zero errors — `A1`→`Product`, `B1`→`Q1`, `C1`→`Q2`, `A2`→`Widget`, `B2`→`100`, matching the fixture exactly, in the requested order, every time. Previously reproduced 3/5 connection errors on 2/2 runs before the fix; now clean on 3/3 runs after. Confirms the `execute_in_thread()` fix resolves the live concurrency bug, not just the unit-test suite.
 
+**Release-pass note (#673):** this is **within-call** concurrency (`get_multiple_sheet_data` `gather()`s the 5 `.execute()` calls inside one tool call) — a single session exercises it, no barrier procedure needed. The v0.9.0 Full Regression pass re-runs this normally against the release-candidate server (`mcp-gee-sweet-kai-sa`) and records a fresh dated Result, superseding the 2026-07-12 `❌ FAIL` above (kept only as history of the `execute_in_thread` bug).
+
 ---
 
 ## `get_multiple_spreadsheet_summary`
