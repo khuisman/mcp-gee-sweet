@@ -158,7 +158,7 @@ Workaround: the fixture files have fixed, documented names (`setup.md`'s seed pr
 ```
 You are the QA conductor for mcp-gee-sweet. Your job is to execute the full test suite against the live MCP server, record outcomes, and save a results report.
 
-You have the mcp-gee-sweet MCP connected. Before starting, check whether Playwright MCP is also connected. If it is not, tell me: "Playwright MCP is not connected — tests marked **Playwright: required** will run without visual verification. Confirm to proceed, or connect Playwright first and restart." Wait for my confirmation before continuing.
+You have the mcp-gee-sweet MCP connected. Before starting, check whether Playwright MCP is also connected AND actually authenticated to Google — these are different things: a connected Playwright MCP still runs an unauthenticated browser by default, and navigating it to a Google URL just redirects to `accounts.google.com` sign-in. Do a real check: navigate to a known Google URL (e.g. the fixture doc) and confirm the page title/URL is the real resource, not a sign-in page. If Playwright isn't connected, or the navigation redirects to sign-in, tell me: "Playwright is not connected / not authenticated — tests marked **Playwright: required** will run without visual verification. Confirm to proceed, or connect/authenticate Playwright first (see `docs/qa/playwright_oauth.md`) and restart." Wait for my confirmation before continuing. If I tell you mid-run that Playwright is now authenticated, re-verify immediately and switch to using it for all subsequent **Playwright: required** cases — don't keep treating it as unusable for the rest of the run based on the earlier check.
 
 ## Step 0 — Fixture setup
 
