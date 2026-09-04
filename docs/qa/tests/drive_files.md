@@ -29,25 +29,31 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D03: Create without a folder (root of Drive) ⚠️ requires-oauth
+### TC-D03: Create without a folder — falls back to the configured default folder ⚠️ requires-oauth
 **Prompt**
 > "Create a new spreadsheet called 'QA-Create-Root' with no folder specified"
 
 **Checks**
-- Spreadsheet created at Drive root
-- No folder assignment in response
-- 🔍 **Note:** service account may not have access to personal Drive root — note error if seen
+- Spreadsheet created without error
+- With `DRIVE_FOLDER_ID` set (it is now — the `mcp-gee-sweet-shared` Shared Drive root), the new file lands in that folder: `get_file_metadata` on the returned ID shows `parents` containing the server's `DRIVE_FOLDER_ID`, not personal My-Drive root
+- 🔍 The "no parent → personal My-Drive root" behavior is only reachable on a `DRIVE_FOLDER_ID`-unset deployment; not testable in this run (#680)
+
+**Cleanup:** trash 'QA-Create-Root'.
 
 ---
 
 ### TC-D04: Service account Drive limitation
 
+**Background (#680):** now that `DRIVE_FOLDER_ID` points at the Shared Drive (SA is Content manager there), the *default* `create_spreadsheet` path **succeeds** for the service account — the personal-Drive quota limit only fires when an explicit personal-Drive destination is given. The test must force that.
+
 **Prompt**
-> "Create a spreadsheet called 'QA-SA-Limit' — I want to verify whether the service account can create in personal Drive"
+> "Create a spreadsheet called 'QA-SA-Limit' in folder `{PERSONAL_DRIVE_FOLDER_ID}` — I want to verify whether the service account can create in personal Drive"
+
+**Setup:** `{PERSONAL_DRIVE_FOLDER_ID}` = a folder in the OAuth user's personal My Drive that the service account has no write quota for (e.g. the pre-Shared-Drive `TEST_FOLDER_ID`, or any personal-Drive folder shared to the SA). If no such folder is available this run, record SKIP(environmental) — the unit-level equivalent (`tests/drive/test_files.py::TestQuotaErrors`) still covers the error path.
 
 **Checks**
-- 🔍 **Known limitation:** service account cannot create in personal Drive (only shared folders it has access to)
-- Note exact error if it fails — confirm it matches the documented limitation
+- Call returns `{"error": ...}` containing `_SA_QUOTA_ERROR` text: "Service accounts cannot create or copy files in personal Drive (no storage quota)…"
+- Run the same prompt with **no** folder (default → `DRIVE_FOLDER_ID` Shared Drive) and confirm it now **succeeds** for the SA — trash the result
 
 ---
 
@@ -140,14 +146,15 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 ---
 
-### TC-D27: List from root
+### TC-D27: List from root ⚠️ known tool gap (#680 → see filed bug)
 
 **Prompt**
 > "List folders at the root of my Drive"
 
 **Checks**
-- Returns top-level folders
-- Confirms `'root' in parents` filter is applied
+- `list_folders(parent_folder_id=None)` returns without error
+- ⚠️ **Confirmed tool gap:** `list_folders` hardcodes `q += " and 'root' in parents"` when no parent is given (`tools/drive/files.py`) — it does **not** consult `DRIVE_FOLDER_ID`. On a Shared-Drive deployment the OAuth user's personal My-Drive root is not where fixtures live, and for a pure service account there is no personal root at all, so `list_folders(None)` returns the wrong scope or nothing. Filed as a separate product bug (link in the run file). Record the observed behavior; PASS only means "returned without crashing", not "returned the right folders".
+- Explicit-parent form (`list_folders(parent_folder_id={SHARED_DRIVE_ID})`) is the working path — covered by TC-D25/D26.
 
 ---
 
@@ -382,20 +389,24 @@ convention and try/except-returns-`{"error": ...}` wrapping used for TC-D155/TC-
 
 **Checks**
 - Response includes a `folderId` and `name: 'QA-Folder-Test'`
-- `parent` matches `{FOLDER_ID}`
+- `parent` matches the server's configured `DRIVE_FOLDER_ID` (the `mcp-gee-sweet-shared` Shared Drive root, `{SHARED_DRIVE_ID}`) — **not** `{FOLDER_ID}` (#680: `DRIVE_FOLDER_ID` and `TEST_FOLDER_ID` used to be the same value; they no longer are — the tool resolves "default folder" from `lc.folder_id` = `DRIVE_FOLDER_ID`)
 - Folder visible in Drive
+
+**Cleanup:** trash 'QA-Folder-Test'.
 
 ---
 
-### TC-D59: Create at root (no parent) ⚠️ requires-oauth
+### TC-D59: Create with no parent — falls back to the configured default folder ⚠️ requires-oauth
 
 **Prompt**
 > "Create a folder called 'QA-Folder-Root' with no parent folder specified"
 
 **Checks**
 - Folder created without error
-- `parent` is `root` or omitted
-- 🔍 **Note:** service account may not have access to personal Drive root — record error if seen
+- With `DRIVE_FOLDER_ID` set (it is), `parent` matches the server's `DRIVE_FOLDER_ID` (`{SHARED_DRIVE_ID}`) — `create_folder` uses `parent_folder_id or lc.folder_id`, so "no parent" resolves to the configured default, not personal My-Drive root (#680)
+- 🔍 "no parent → personal My-Drive root" is only reachable on a `DRIVE_FOLDER_ID`-unset deployment; not testable in this run
+
+**Cleanup:** trash 'QA-Folder-Root'.
 
 ---
 
@@ -412,18 +423,18 @@ convention and try/except-returns-`{"error": ...}` wrapping used for TC-D155/TC-
 
 ## `move_file`
 
-### TC-D61: Move a file to another folder ⚠️ requires-oauth ⚠️ destructive
+### TC-D61: Move a file between two folders ⚠️ requires-oauth ⚠️ destructive
 
-**Setup:** Create a throwaway spreadsheet to move — do not use the fixture spreadsheet.
+**Setup:** Create a throwaway spreadsheet to move — do not use the fixture spreadsheet. Create two throwaway child folders (`QA-Move-Src`, `QA-Move-Dst`) under `{FOLDER_ID}` for the move endpoints — #680: moving "to the root of My Drive" forced cross-drive-move semantics (ownership transfer, the org's "members can move to My Drive" setting) now that fixtures live in a Shared Drive; the test only cares that the parent changes and both caches invalidate, so move between two ordinary folders instead.
 
 **Prompt**
-> "Create a new spreadsheet called 'QA-Move-Test' in folder {FOLDER_ID}, then move it to the root of My Drive, then confirm its new parent"
+> "Create a new spreadsheet called 'QA-Move-Test' in folder `{QA_MOVE_SRC_ID}`, then move it to folder `{QA_MOVE_DST_ID}`, then confirm its new parent"
 
 **Checks**
-- Response includes `fileId`, `name`, and updated `parent` no longer matching `{FOLDER_ID}`
-- Both old and new parent caches invalidated — subsequent `list_files` reflects the change
+- Response includes `fileId`, `name`, and updated `parent` = `{QA_MOVE_DST_ID}`, no longer `{QA_MOVE_SRC_ID}`
+- Both old and new parent caches invalidated — subsequent `list_files` on each folder reflects the change
 
-**Cleanup:** Trash 'QA-Move-Test' after the test.
+**Cleanup:** Trash 'QA-Move-Test' and both throwaway folders after the test.
 
 ---
 
@@ -1116,14 +1127,18 @@ try/except-returns-`{"error": ...}` wrapping.
 
 ### TC-D175: Service account Drive limitation
 
+**Background (#680):** as with TC-D04, the default create path now succeeds for the SA (destination is the Shared Drive). Force a personal-Drive destination to still see the quota error.
+
 **Prompt**
-> "Import `/tmp/qa-import.csv` into a new spreadsheet called 'QA-CSV-SA-Limit' — I want to verify whether the service account can create in personal Drive"
+> "Import `/tmp/qa-import.csv` into a new spreadsheet called 'QA-CSV-SA-Limit' in folder `{PERSONAL_DRIVE_FOLDER_ID}` — I want to verify whether the service account can create in personal Drive"
+
+**Setup:** `{PERSONAL_DRIVE_FOLDER_ID}` as in TC-D04. If unavailable this run, record SKIP(environmental) — `test_storage_quota_error_returns_helpful_message` covers the error path at unit level.
 
 **Checks**
-- 🔍 **Known limitation:** same as `create_spreadsheet` (TC-D04) — service account cannot create in personal Drive, only shared folders it has access to
-- Unit-level equivalent already covered: `test_storage_quota_error_returns_helpful_message`
+- 🔍 **Known limitation:** same as `create_spreadsheet` (TC-D04) — service account cannot create in personal Drive, only Shared Drives / shared folders it has access to
+- Call returns `{"error": ...}` with the `_SA_QUOTA_ERROR` text
 
-**Result (2026-07-05) ✅ PASS** Against the service-account server (`mcp-gee-sweet-sa`), the call returned `{"error": "Service accounts cannot create or copy files in personal Drive (no storage quota). Use OAuth or ADC auth for full Drive write access, or use a Shared Drive destination. Check server://auth-status for your current auth method and affected tools."}` — the same `_SA_QUOTA_ERROR` message `create_spreadsheet` returns, confirming the shared error path works for this tool too.
+**Result (2026-07-05) ✅ PASS — superseded (#680), re-run under the personal-Drive-destination method above.** _Prior run, when the default path still targeted personal Drive:_ against `mcp-gee-sweet-sa` the call returned `{"error": "Service accounts cannot create or copy files in personal Drive (no storage quota). Use OAuth or ADC auth for full Drive write access, or use a Shared Drive destination. Check server://auth-status for your current auth method and affected tools."}` — the shared `_SA_QUOTA_ERROR` path. Not valid for v0.9.0: the default destination is now a Shared Drive where the SA succeeds.
 
 ---
 

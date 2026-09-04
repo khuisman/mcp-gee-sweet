@@ -143,19 +143,22 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 ---
 
-### TC-DOC80: get_doc_content trips the response-size cap; cached path re-checks it too (issue #242)
+### TC-DOC80: get_doc_content trips the response-size cap; cached path re-checks it too (issue #242) ⚠️ low-cap override required
 
 **Background:** #242 generalized #235's response-size safety net to `get_doc_content`. `doc_cache` previously returned a cached result *before* any cap check ran, so a cached oversized doc would bypass the cap on repeat calls — fixed so the check runs on both the cache-hit and cache-miss paths.
 
-**Setup:** `TEST_LARGE_DOC_ID` (`mcp-gee-sweet-qa-large-doc`), grown from its original ~5,300-character seed content to ~49,700 characters by inserting repeated padding text (permanent fixture growth — this doc's whole purpose is being a large-content fixture, and it was never previously large enough to exceed any cap since none existed for this tool before now).
+**Run method (issue #678):** `MAX_TOOL_RESPONSE_CHARS` is read once at `tools/response_limits.py` import, and #519 raised its default from 40000 to 1,000,000. The `TEST_LARGE_DOC_ID` fixture (~54k chars, sized for TC-D48) is far under that default, so it cannot trip the cap on a normally-started server. This case is therefore **not** run through the shared shard server — instead run it against the low cap, one of:
+- a purpose-started server with `MAX_TOOL_RESPONSE_CHARS=40000` in its env, or
+- a direct script invocation: `MAX_TOOL_RESPONSE_CHARS=40000 uv run python3 -c "..."` from the repo root, calling the real `get_doc_content` tool function (import from `mcp_gee_sweet.tools.docs`) against `TEST_LARGE_DOC_ID` with a real OAuth `docs`/`drive` service (`mcp_gee_sweet.auth._oauth_creds()` + `googleapiclient.discovery.build`). This exercises the real code path and the real Docs API — record the Result as a live verification, noting it was script-driven rather than through the MCP tool wrapper.
+
+**Setup:** `TEST_LARGE_DOC_ID` (`mcp-gee-sweet-qa-large-doc`). Measure its current serialized `get_doc_content` size at run time and put the number in the Result — it just needs to exceed 40000, which it comfortably does at ~54k.
 
 **Checks**
-- First call (fetch path) raises `ValueError` mentioning the actual response size, the cap, and `MAX_TOOL_RESPONSE_CHARS`
-- Second call (cache-hit path, no `refresh_cache` in between) raises the *same* error — proves the cache-hit path re-checks the cap rather than returning the stale oversized cached result
-- Same call with `local_path` set succeeds, returns `{local_path, id, bytes_written}`, and the file on disk contains the full content
+- First call (fetch path), cap = 40000: raises `ValueError` naming the actual response size, the `40000`-character cap, and `MAX_TOOL_RESPONSE_CHARS`
+- Second call (cache-hit path, no `refresh_cache` in between): raises the *same* error — proves the cache-hit path re-checks the cap rather than returning the stale oversized cached result
+- Same call with `local_path` set: succeeds, returns `{local_path, id, bytes_written}`, and the file on disk contains the full content
 
-**Result (2026-07-03) ✅ PASS**
-Fetch-path call raised: `get_doc_content: the response is 49700 characters, over the 40000-character safety cap. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` Repeat call (served from `doc_cache`, confirmed via no additional Drive API round-trip) raised the identical error — confirms the cache-ordering fix. `local_path` call succeeded: `{"local_path":"/tmp/qa_doc_content_242.json","bytes_written":49700,"id":"{TEST_LARGE_DOC_ID}"}`; file verified then cleaned up.
+**Result (2026-07-03) ✅ PASS — superseded, needs re-run under the #678 method.** _Prior run, against the then-default 40000 cap with a ~49,700-char fixture:_ Fetch-path call raised `get_doc_content: the response is 49700 characters, over the 40000-character safety cap. …`; repeat call served from `doc_cache` (no extra Drive round-trip) raised the identical error; `local_path` call succeeded (`bytes_written: 49700`), file verified then cleaned up. Not valid for v0.9.0 — the cap default and fixture size both changed since; re-run per the Run method above.
 
 ---
 
