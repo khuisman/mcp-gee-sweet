@@ -986,15 +986,26 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#step-1-create-the-files-in-drive" class="md-nav__link">
+  <a href="#step-0-enable-the-required-google-apis" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Step 1 — Create the files in Drive
+        Step 0 — Enable the required Google APIs
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Step 1 — Create the files in Drive">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-1-create-the-files-in-the-shared-drive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1 — Create the files in the Shared Drive
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 1 — Create the files in the Shared Drive">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1065,6 +1076,34 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Calendar fixture setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#oauth-adc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth / ADC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#service-account" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Service account
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1493,64 +1532,137 @@
 
 <h1 id="fixture-setup">Fixture Setup<a class="headerlink" href="#fixture-setup" title="Permanent link">&para;</a></h1>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>QA fixtures are a spreadsheet and a doc that all test cases reference. Their IDs live in <code>.env</code> (gitignored) alongside your other server config.</p>
-<p>Setup has two steps: create the files in Drive, then run the seed prompt to populate them.</p>
+<p>QA fixtures are a spreadsheet, a doc, a large-content doc, a folder, and a calendar +
+event that test cases reference. Their IDs live in <code>.env</code> (gitignored) alongside your
+other server config.</p>
+<p>Fixtures are provisioned in the <strong><code>mcp-gee-sweet-shared</code> Shared Drive</strong> — common ground
+that both the OAuth QA identity and the service account can read and write. (The Shared
+Drive's own ID doubles as a fixture, <code>SHARED_DRIVE_ID</code>, for the <code>list_drives</code> /
+<code>empty_trash --drive_id</code> test cases.)</p>
+<p>Setup has four steps: make sure the required Google APIs are enabled, create the files
+in the Shared Drive, add the resulting IDs to <code>.env</code>, then run the seed prompt to
+populate them.</p>
 <hr />
-<h2 id="step-1-create-the-files-in-drive">Step 1 — Create the files in Drive<a class="headerlink" href="#step-1-create-the-files-in-drive" title="Permanent link">&para;</a></h2>
-<p>How you create the fixture files depends on your auth method.</p>
+<h2 id="step-0-enable-the-required-google-apis">Step 0 — Enable the required Google APIs<a class="headerlink" href="#step-0-enable-the-required-google-apis" title="Permanent link">&para;</a></h2>
+<p>The OAuth client's GCP project must have every API these tools call <strong>enabled</strong>, or the
+tool fails at call time with <code>HttpError 403 ... "&lt;API&gt; has not been used in project
+&lt;n&gt; before or it is disabled"</code> (<code>reason: SERVICE_DISABLED</code>). File creation still
+partly succeeds in that state (the file shell is made via the Drive API) while every
+content read/write fails — a confusing half-broken state, so enable all of these up
+front:</p>
+<table>
+<thead>
+<tr>
+<th>API</th>
+<th>Service name</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Google Drive</td>
+<td><code>drive.googleapis.com</code></td>
+<td>every Drive tool, and file creation for Sheets/Docs</td>
+</tr>
+<tr>
+<td>Google Sheets</td>
+<td><code>sheets.googleapis.com</code></td>
+<td>all sheet read/write tools</td>
+</tr>
+<tr>
+<td>Google Docs</td>
+<td><code>docs.googleapis.com</code></td>
+<td>all doc content tools</td>
+</tr>
+<tr>
+<td>Google Calendar</td>
+<td><code>calendar-json.googleapis.com</code></td>
+<td>all calendar tools</td>
+</tr>
+<tr>
+<td>Google Drive Activity</td>
+<td><code>driveactivity.googleapis.com</code></td>
+<td><code>list_file_activity</code></td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>gcloud services enable drive.googleapis.com sheets.googleapis.com docs.googleapis.com \
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  calendar-json.googleapis.com driveactivity.googleapis.com --project=&lt;your-project&gt;
+</code></pre></div>
+<p>or enable each from the API Library in the Cloud Console. Changes take ~1–3 minutes to
+propagate.</p>
+<hr />
+<h2 id="step-1-create-the-files-in-the-shared-drive">Step 1 — Create the files in the Shared Drive<a class="headerlink" href="#step-1-create-the-files-in-the-shared-drive" title="Permanent link">&para;</a></h2>
+<p>How you create the fixture files depends on your auth method. Either way the target is a
+folder <strong>inside the <code>mcp-gee-sweet-shared</code> Shared Drive</strong> (not personal My Drive) so the
+service account can reach them too.</p>
 <h3 id="oauth-application-default-credentials">OAuth / Application Default Credentials<a class="headerlink" href="#oauth-application-default-credentials" title="Permanent link">&para;</a></h3>
-<p>The AI can create the folder structure for you. In a Claude session with the MCP server connected, run the <code>setup_fixtures</code> operation (see <code>operations.yaml</code>) and it will create the spreadsheet and doc, write their IDs to <code>.env</code>, and populate the fixture data — all in one go. Skip to Step 3 when done.</p>
+<p>The AI can create the fixture set for you. In a Claude session with the MCP server
+connected, run the <code>setup_fixtures</code> operation (see <code>operations.yaml</code>) and it will create
+the folder, spreadsheet, doc, and large-content doc in the Shared Drive, write their IDs
+to <code>.env</code>, and populate the fixture data. Skip to Step 3 when done.</p>
 <h3 id="service-account-service_account_path-credentials_config">Service account (<code>SERVICE_ACCOUNT_PATH</code> / <code>CREDENTIALS_CONFIG</code>)<a class="headerlink" href="#service-account-service_account_path-credentials_config" title="Permanent link">&para;</a></h3>
-<p>Service accounts cannot create files in your personal Drive. You must create them manually:</p>
-<ol>
-<li>Create an empty spreadsheet and an empty Google Doc in any Drive folder.</li>
-<li>Share the folder (or both files) with the service account email. Find it in <code>service_account.json</code> → <code>client_email</code>.</li>
-<li>Continue to Step 2.</li>
-</ol>
+<p>A service account has no personal-Drive storage quota, but it <strong>can</strong> create files in a
+Shared Drive it's a member of. Add the service account (<code>service_account.json</code> →
+<code>client_email</code>) to the <code>mcp-gee-sweet-shared</code> Shared Drive as <strong>Content manager</strong>, then
+either run <code>setup_fixtures</code> or create an empty spreadsheet, Google Doc, and large-content
+Doc in a folder inside that Shared Drive by hand. Continue to Step 2.</p>
 <hr />
 <h2 id="step-2-add-ids-to-env">Step 2 — Add IDs to <code>.env</code><a class="headerlink" href="#step-2-add-ids-to-env" title="Permanent link">&para;</a></h2>
 <p>Add the following to your <code>.env</code> file (create it at the repo root if it doesn't exist):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a># QA test fixtures
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>TEST_SPREADSHEET_ID=&lt;your spreadsheet ID&gt;
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>TEST_DOC_ID=&lt;your doc ID&gt;
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>TEST_FOLDER_ID=&lt;the folder ID that contains both files&gt;
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>TEST_LARGE_DOC_ID=         # large-content doc for TC-D48; create via setup_fixtures or manually
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>TEST_CALENDAR_ID=          # leave blank until calendar fixtures are set up
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>TEST_EVENT_ID=             # leave blank until calendar fixtures are set up
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>TEST_PERMISSION_EMAIL=     # a second Google account email for permission add/remove tests (TC-D130)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a># Server default create-location — set to the Shared Drive&#39;s ID
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>DRIVE_FOLDER_ID=&lt;mcp-gee-sweet-shared Shared Drive ID&gt;
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a># QA test fixtures
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>TEST_SPREADSHEET_ID=&lt;spreadsheet ID&gt;
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>TEST_DOC_ID=&lt;doc ID&gt;
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>TEST_FOLDER_ID=&lt;the folder inside the Shared Drive that contains the fixture files&gt;
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>TEST_LARGE_DOC_ID=&lt;large-content doc ID for TC-D48; create via setup_fixtures or manually&gt;
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>TEST_CALENDAR_ID=&lt;see Calendar fixture setup below&gt;
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>TEST_EVENT_ID=&lt;see Calendar fixture setup below&gt;
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>TEST_PERMISSION_EMAIL=&lt;a second Google account email for permission add/remove tests (TC-D130)&gt;
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>SHARED_DRIVE_ID=&lt;mcp-gee-sweet-shared Shared Drive ID — same value as DRIVE_FOLDER_ID&gt;
 </code></pre></div>
+<p><code>SHARED_DRIVE_ID</code> and <code>DRIVE_FOLDER_ID</code> are the same value: a Shared Drive's ID is also
+its root folder ID. Get it from <code>list_drives</code>, or from the URL when the drive is open
+(<code>drive.google.com/drive/folders/&lt;ID&gt;</code>).</p>
 <p>File and folder IDs are in the URL when you open them in Drive:
 - Spreadsheet: <code>docs.google.com/spreadsheets/d/&lt;ID&gt;/edit</code>
 - Doc: <code>docs.google.com/document/d/&lt;ID&gt;/edit</code>
-- Folder: <code>drive.google.com/drive/folders/&lt;ID&gt;</code></p>
+- Folder / Shared Drive: <code>drive.google.com/drive/folders/&lt;ID&gt;</code></p>
 <hr />
 <h2 id="step-3-run-the-seed-prompt">Step 3 — Run the seed prompt<a class="headerlink" href="#step-3-run-the-seed-prompt" title="Permanent link">&para;</a></h2>
 <p>Paste the seed prompt below into a Claude session that has <strong>both the mcp-gee-sweet MCP server and the Playwright MCP connected</strong>. Claude will populate the spreadsheet and doc with the known fixture data, then open each file in Playwright to visually confirm the result.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Set up my QA fixtures for mcp-gee-sweet using these IDs from my .env:
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>- Spreadsheet: &lt;TEST_SPREADSHEET_ID&gt;
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>- Doc: &lt;TEST_DOC_ID&gt;
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>Please do all of the following in order:
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>1. Rename the spreadsheet to &quot;mcp-gee-sweet-qa-fixtures&quot;.
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>2. Rename the first sheet to &quot;Sales&quot; and populate it with:
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>   - Row 1 (headers): Product, Q1, Q2, Q3
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>   - Row 2: Widget, 100, 120, 140
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>   - Row 3: Gadget, 200, 180, 220
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>   - Row 4: Donut, 50, 60, 55
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>   - Row 5: Gizmo, 300, 310, 290
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>   - Row 6: Totals, =SUM(B2:B5), =SUM(C2:C5), =SUM(D2:D5)
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>3. Add a second sheet called &quot;Empty&quot; — leave it completely blank.
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>4. Add a third sheet called &quot;Notes &amp; Misc&quot; with:
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>   - Row 1 (headers): Date, Note
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>   - Row 2: =TODAY(), Setup complete
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>5. Rename the doc to &quot;mcp-gee-sweet-qa-fixtures-doc&quot; and write this content:
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>   &lt;h1&gt;Test Document&lt;/h1&gt;&lt;p&gt;This document is used for QA testing of mcp-gee-sweet.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Item one&lt;/li&gt;&lt;li&gt;Item two&lt;/li&gt;&lt;/ul&gt;
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>
-<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>Confirm when done.
-<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>
-<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>Then open https://docs.google.com/spreadsheets/d/&lt;TEST_SPREADSHEET_ID&gt;/edit in Playwright and take a snapshot to visually confirm the sheet names and data are correct. Do the same for the doc at https://docs.google.com/document/d/&lt;TEST_DOC_ID&gt;/edit.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Set up my QA fixtures for mcp-gee-sweet using these IDs from my .env:
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>- Spreadsheet: &lt;TEST_SPREADSHEET_ID&gt;
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>- Doc: &lt;TEST_DOC_ID&gt;
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>Please do all of the following in order:
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>1. Rename the spreadsheet to &quot;mcp-gee-sweet-qa-fixtures&quot;.
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>2. Rename the first sheet to &quot;Sales&quot; and populate it with:
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>   - Row 1 (headers): Product, Q1, Q2, Q3
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>   - Row 2: Widget, 100, 120, 140
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>   - Row 3: Gadget, 200, 180, 220
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>   - Row 4: Donut, 50, 60, 55
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>   - Row 5: Gizmo, 300, 310, 290
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>   - Row 6: Totals, =SUM(B2:B5), =SUM(C2:C5), =SUM(D2:D5)
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>3. Add a second sheet called &quot;Empty&quot; — leave it completely blank.
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>4. Add a third sheet called &quot;Notes &amp; Misc&quot; with:
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>   - Row 1 (headers): Date, Note
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>   - Row 2: =TODAY(), Setup complete
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>5. Rename the doc to &quot;mcp-gee-sweet-qa-fixtures-doc&quot; and write this content:
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>   &lt;h1&gt;Test Document&lt;/h1&gt;&lt;p&gt;This document is used for QA testing of mcp-gee-sweet.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Item one&lt;/li&gt;&lt;li&gt;Item two&lt;/li&gt;&lt;/ul&gt;
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>Confirm when done.
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>Then open https://docs.google.com/spreadsheets/d/&lt;TEST_SPREADSHEET_ID&gt;/edit in Playwright and take a snapshot to visually confirm the sheet names and data are correct. Do the same for the doc at https://docs.google.com/document/d/&lt;TEST_DOC_ID&gt;/edit.
 </code></pre></div>
+<p>The <strong>large-content doc</strong> (<code>TEST_LARGE_DOC_ID</code>, "mcp-gee-sweet-qa-large-doc") is padded
+past ~50,000 characters of filler text so <code>get_doc_content</code> returns a large response
+without timeout or truncation (TC-D48). <code>setup_fixtures</code> creates it; to build it by hand,
+<code>create_doc_from_file</code> a <code>.md</code> file of repeated lorem-ipsum paragraphs into the fixture
+folder.</p>
 <hr />
 <h2 id="known-fixture-state-after-seed">Known fixture state (after seed)<a class="headerlink" href="#known-fixture-state-after-seed" title="Permanent link">&para;</a></h2>
 <table>
@@ -1642,18 +1754,21 @@
 <p>Doc content: <code>&lt;h1&gt;Test Document&lt;/h1&gt;&lt;p&gt;This document is used for QA testing of mcp-gee-sweet.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Item one&lt;/li&gt;&lt;li&gt;Item two&lt;/li&gt;&lt;/ul&gt;</code></p>
 <hr />
 <h2 id="calendar-fixture-setup">Calendar fixture setup<a class="headerlink" href="#calendar-fixture-setup" title="Permanent link">&para;</a></h2>
-<p>Calendar tests require a calendar the service account can access.</p>
-<blockquote>
-<p><strong>Service account note:</strong> The service account cannot see calendars shared only with your personal Google account. You must subscribe the service account to the calendar via <code>calendarList().insert()</code>. See the <code>Calendar API setup</code> memory entry for the workaround, or skip calendar tests if you don't need them.</p>
-</blockquote>
-<p>Seed prompt (paste with MCP server connected):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Set up my calendar QA fixtures for mcp-gee-sweet:
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>1. Call list_calendars — if a calendar called &quot;mcp-gee-sweet-qa&quot; already appears, skip to step 3.
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>2. I will share my primary Google Calendar with the service account email manually in Google Calendar settings (Settings → Share with specific people). Tell me to proceed when ready.
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>3. Create a test event in that calendar: title &quot;QA Test Event&quot;, tomorrow at 10:00–11:00 AM in my local timezone.
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>4. Return the calendar ID and the event ID.
+<p>Calendar tests need a dedicated calendar plus one pre-existing event.</p>
+<h3 id="oauth-adc">OAuth / ADC<a class="headerlink" href="#oauth-adc" title="Permanent link">&para;</a></h3>
+<p><code>create_calendar</code> makes a secondary calendar owned by the authenticated account — no
+personal-calendar sharing needed. Seed prompt (paste with MCP server connected):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Set up my calendar QA fixtures for mcp-gee-sweet:
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>1. Call list_calendars — if a calendar called &quot;mcp-gee-sweet-qa&quot; already appears, use it and skip to step 3.
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>2. Call create_calendar with summary &quot;mcp-gee-sweet-qa&quot;.
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>3. Create an event in that calendar: title &quot;QA Test Event&quot;, tomorrow at 10:00–11:00 in the calendar&#39;s timezone.
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>4. Return the calendar ID and the event ID.
 </code></pre></div>
+<h3 id="service-account">Service account<a class="headerlink" href="#service-account" title="Permanent link">&para;</a></h3>
+<p>The service account cannot see a calendar shared only with a personal account — you must
+subscribe it via <code>calendarList().insert()</code>. See the <code>Calendar API setup</code> memory entry for
+the workaround, or skip calendar tests if you don't need them.</p>
 <p>Add the returned IDs to <code>.env</code> as <code>TEST_CALENDAR_ID</code> and <code>TEST_EVENT_ID</code>.</p>
 <hr />
 <h2 id="oauth-token-setup-for-requires-oauth-tests">OAuth token setup (for <code>⚠️ requires-oauth</code> tests)<a class="headerlink" href="#oauth-token-setup-for-requires-oauth-tests" title="Permanent link">&para;</a></h2>

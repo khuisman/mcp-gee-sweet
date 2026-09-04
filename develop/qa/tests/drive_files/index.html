@@ -1863,7 +1863,7 @@ convention and try/except-returns-<code>{"error": ...}</code> wrapping used for 
 <p><strong>Result (2026-07-21) skipped, by operator decision</strong> — unit tests (<code>test_empty_trash_defaults_to_my_drive_no_drive_id</code>, <code>test_empty_trash_api_error_propagates</code>) confirm the code path via mocks; operator chose to verify the real destructive My-Drive-wide effect through a different means rather than live here.</p>
 <hr />
 <h3 id="tc-d205-empty-trash-scoped-to-a-specific-shared-drive-destructive">TC-D205: Empty trash scoped to a specific Shared Drive ⚠️ destructive<a class="headerlink" href="#tc-d205-empty-trash-scoped-to-a-specific-shared-drive-destructive" title="Permanent link">&para;</a></h3>
-<p><strong>Requires a Shared Drive fixture the QA account has access to</strong> — get its ID via <code>list_drives</code>. If no Shared Drive is available in the current QA environment, skip this case and note it as such rather than fabricating a result.</p>
+<p><strong>Requires a Shared Drive fixture</strong> — use <code>SHARED_DRIVE_ID</code> from <code>.env</code> (the <code>mcp-gee-sweet-shared</code> Shared Drive, provisioned 2026-09-02). If for some reason no Shared Drive is available, skip this case and note it as such rather than fabricating a result.</p>
 <p><strong>⚠️ This empties every file in the <em>named Shared Drive's</em> trash</strong>, not just files created by this QA run, and does not touch My Drive's trash.</p>
 <p><strong>Setup:</strong> In the target Shared Drive, create a throwaway file and trash it.</p>
 <p><strong>Prompt</strong></p>
@@ -1874,7 +1874,8 @@ convention and try/except-returns-<code>{"error": ...}</code> wrapping used for 
 - Response: <code>{"action": "trash_emptied", "drive_id": "{SHARED_DRIVE_ID}"}</code>
 - The throwaway file from Setup is now permanently gone from that Shared Drive
 - My Drive's own trash (if it has unrelated trashed files) is unaffected</p>
-<p><strong>Result (2026-07-21) skipped</strong> — <code>list_drives</code> returned no Shared Drives accessible to this QA account. Unit test <code>test_empty_trash_with_drive_id_scopes_to_shared_drive</code> confirms the <code>driveId</code> passthrough via mock; no live Shared Drive fixture currently exists to verify end-to-end.</p>
+<p><strong>Result (2026-07-21) skipped</strong> — <code>list_drives</code> returned no Shared Drives accessible to this QA account. Unit test <code>test_empty_trash_with_drive_id_scopes_to_shared_drive</code> confirms the <code>driveId</code> passthrough via mock; no live Shared Drive fixture existed to verify end-to-end.</p>
+<p><strong>2026-09-02:</strong> blocker resolved — the <code>mcp-gee-sweet-shared</code> Shared Drive (<code>SHARED_DRIVE_ID</code>) now exists and the QA identity has full write access. This case is runnable; still needs a live destructive run against the fixed implementation.</p>
 <hr />
 <h2 id="search_files"><code>search_files</code><a class="headerlink" href="#search_files" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d75-search-by-name-across-all-mime-types">TC-D75: Search by name across all MIME types<a class="headerlink" href="#tc-d75-search-by-name-across-all-mime-types" title="Permanent link">&para;</a></h3>
@@ -1975,34 +1976,42 @@ convention and try/except-returns-<code>{"error": ...}</code> wrapping used for 
 - No error if zero shared drives accessible — returns <code>[]</code></p>
 <hr />
 <h3 id="tc-d121-filter-by-name">TC-D121: Filter by name<a class="headerlink" href="#tc-d121-filter-by-name" title="Permanent link">&para;</a></h3>
+<p><strong>Fixture:</strong> the QA environment has exactly one Shared Drive, <code>SHARED_DRIVE_ID</code>
+("mcp-gee-sweet-shared"). A <code>name contains "Marketing"</code> filter should therefore return
+<code>[]</code>; run a second call with <code>name contains "mcp-gee"</code> and confirm that one returns the
+fixture drive.</p>
 <p><strong>Prompt</strong></p>
 <blockquote>
-<p>"List shared drives whose name contains 'Marketing'"</p>
+<p>"List shared drives whose name contains 'Marketing'", then "List shared drives whose name contains 'mcp-gee'"</p>
 </blockquote>
 <p><strong>Checks</strong>
-- <code>query='name contains "Marketing"'</code> passed to API
-- Only drives matching the filter are returned
-- Drives not matching the name are absent from results</p>
+- <code>query='name contains "Marketing"'</code> passed to API; result is <code>[]</code>
+- <code>query='name contains "mcp-gee"'</code> returns exactly the <code>SHARED_DRIVE_ID</code> fixture drive
+- A drive not matching the name is absent from results</p>
+<p><strong>Result (2026-09-02) ✅ PASS</strong> — live via <code>mcp-gee-sweet-sky</code> (OAuth). <code>list_drives(query='name contains "Marketing"')</code> returned <code>[]</code>; <code>list_drives(query='name contains "mcp-gee"')</code> returned exactly one drive, <code>mcp-gee-sweet-shared</code>, whose <code>id</code> matches <code>.env</code>'s <code>SHARED_DRIVE_ID</code>. Unfiltered <code>list_drives()</code> returns that same single drive.</p>
 <hr />
 <h3 id="tc-d122-max_results-clamping">TC-D122: max_results clamping<a class="headerlink" href="#tc-d122-max_results-clamping" title="Permanent link">&para;</a></h3>
+<p><strong>Fixture:</strong> with exactly one Shared Drive in the environment (<code>SHARED_DRIVE_ID</code>),
+<code>max_results=0</code> exercises the clamp-to-1 path (returns the one drive, not zero). The
+clamp-to-200 ceiling can't be exercised live with one drive; the clamp is inline in
+<code>list_drives</code> (<code>max_results = min(max(1, max_results), 200)</code>), no dedicated unit test.</p>
 <p><strong>Prompt</strong></p>
 <blockquote>
 <p>"List shared drives with max_results=0" then "List shared drives with max_results=300"</p>
 </blockquote>
 <p><strong>Checks</strong>
-- <code>max_results=0</code> clamped to 1; at most 1 drive returned
-- <code>max_results=300</code> clamped to 200; no more than 200 drives returned</p>
+- <code>max_results=0</code> clamped to 1; at most 1 drive returned (not <code>[]</code>)
+- <code>max_results=300</code> clamped to 200 in the API call; returns the 1 available drive</p>
+<p><strong>Result (2026-09-02) ✅ PASS</strong> — live via <code>mcp-gee-sweet-sky</code> (OAuth). <code>list_drives(max_results=0)</code> returned 1 drive (<code>mcp-gee-sweet-shared</code>), not <code>[]</code> — clamp-to-1 path confirmed. <code>list_drives(max_results=300)</code> returned the 1 available drive; the clamp-to-200 ceiling isn't directly observable with a single drive (matches this case's own note).</p>
 <hr />
-<h3 id="tc-d123-pagination-across-multiple-pages">TC-D123: Pagination across multiple pages<a class="headerlink" href="#tc-d123-pagination-across-multiple-pages" title="Permanent link">&para;</a></h3>
-<p><strong>Setup:</strong> environment with more than 100 shared drives (or simulate via mock)</p>
-<p><strong>Prompt</strong></p>
-<blockquote>
-<p>"List all shared drives with max_results=150"</p>
-</blockquote>
-<p><strong>Checks</strong>
-- <code>nextPageToken</code> followed; second page fetched
-- Total results ≤ 150
-- No duplicate drives across pages</p>
+<h3 id="tc-d123-pagination-across-multiple-pages-permanently-skipped">TC-D123: Pagination across multiple pages — ⏭️ permanently skipped<a class="headerlink" href="#tc-d123-pagination-across-multiple-pages-permanently-skipped" title="Permanent link">&para;</a></h3>
+<p><strong>Not run live, by decision (#305).</strong> <code>list_drives</code> pagination only engages past 100
+Shared Drives; provisioning 100+ Shared Drives purely to exercise <code>nextPageToken</code> is not
+feasible for this project's QA account, and there is no way to force a smaller page size
+through the tool. Pagination is covered by unit test
+<code>TestListDrives::test_follows_next_page_token_across_pages</code> in <code>tests/drive/test_files.py</code>
+(mocked two-page <code>nextPageToken</code> response). Do not mark this SKIP-for-environment on each
+run — it is a standing decision, not a transient gap.</p>
 <hr />
 <h2 id="list_shared_with_me"><code>list_shared_with_me</code><a class="headerlink" href="#list_shared_with_me" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d152-list-all-files-shared-with-me">TC-D152: List all files shared with me<a class="headerlink" href="#tc-d152-list-all-files-shared-with-me" title="Permanent link">&para;</a></h3>
