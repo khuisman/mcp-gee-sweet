@@ -675,7 +675,7 @@ convention and try/except-returns-`{"error": ...}` wrapping used for TC-D155/TC-
 
 ### TC-D205: Empty trash scoped to a specific Shared Drive ⚠️ destructive
 
-**Requires a Shared Drive fixture the QA account has access to** — get its ID via `list_drives`. If no Shared Drive is available in the current QA environment, skip this case and note it as such rather than fabricating a result.
+**Requires a Shared Drive fixture** — use `SHARED_DRIVE_ID` from `.env` (the `mcp-gee-sweet-shared` Shared Drive, provisioned 2026-09-02). If for some reason no Shared Drive is available, skip this case and note it as such rather than fabricating a result.
 
 **⚠️ This empties every file in the *named Shared Drive's* trash**, not just files created by this QA run, and does not touch My Drive's trash.
 
@@ -689,7 +689,9 @@ convention and try/except-returns-`{"error": ...}` wrapping used for TC-D155/TC-
 - The throwaway file from Setup is now permanently gone from that Shared Drive
 - My Drive's own trash (if it has unrelated trashed files) is unaffected
 
-**Result (2026-07-21) skipped** — `list_drives` returned no Shared Drives accessible to this QA account. Unit test `test_empty_trash_with_drive_id_scopes_to_shared_drive` confirms the `driveId` passthrough via mock; no live Shared Drive fixture currently exists to verify end-to-end.
+**Result (2026-07-21) skipped** — `list_drives` returned no Shared Drives accessible to this QA account. Unit test `test_empty_trash_with_drive_id_scopes_to_shared_drive` confirms the `driveId` passthrough via mock; no live Shared Drive fixture existed to verify end-to-end.
+
+**2026-09-02:** blocker resolved — the `mcp-gee-sweet-shared` Shared Drive (`SHARED_DRIVE_ID`) now exists and the QA identity has full write access. This case is runnable; still needs a live destructive run against the fixed implementation.
 
 ---
 
@@ -818,38 +820,50 @@ convention and try/except-returns-`{"error": ...}` wrapping used for TC-D155/TC-
 
 ### TC-D121: Filter by name
 
+**Fixture:** the QA environment has exactly one Shared Drive, `SHARED_DRIVE_ID`
+("mcp-gee-sweet-shared"). A `name contains "Marketing"` filter should therefore return
+`[]`; run a second call with `name contains "mcp-gee"` and confirm that one returns the
+fixture drive.
+
 **Prompt**
-> "List shared drives whose name contains 'Marketing'"
+> "List shared drives whose name contains 'Marketing'", then "List shared drives whose name contains 'mcp-gee'"
 
 **Checks**
-- `query='name contains "Marketing"'` passed to API
-- Only drives matching the filter are returned
-- Drives not matching the name are absent from results
+- `query='name contains "Marketing"'` passed to API; result is `[]`
+- `query='name contains "mcp-gee"'` returns exactly the `SHARED_DRIVE_ID` fixture drive
+- A drive not matching the name is absent from results
+
+**Result (2026-09-02) ✅ PASS** — live via `mcp-gee-sweet-sky` (OAuth). `list_drives(query='name contains "Marketing"')` returned `[]`; `list_drives(query='name contains "mcp-gee"')` returned exactly one drive, `mcp-gee-sweet-shared`, whose `id` matches `.env`'s `SHARED_DRIVE_ID`. Unfiltered `list_drives()` returns that same single drive.
 
 ---
 
 ### TC-D122: max_results clamping
 
+**Fixture:** with exactly one Shared Drive in the environment (`SHARED_DRIVE_ID`),
+`max_results=0` exercises the clamp-to-1 path (returns the one drive, not zero). The
+clamp-to-200 ceiling can't be exercised live with one drive; the clamp is inline in
+`list_drives` (`max_results = min(max(1, max_results), 200)`), no dedicated unit test.
+
 **Prompt**
 > "List shared drives with max_results=0" then "List shared drives with max_results=300"
 
 **Checks**
-- `max_results=0` clamped to 1; at most 1 drive returned
-- `max_results=300` clamped to 200; no more than 200 drives returned
+- `max_results=0` clamped to 1; at most 1 drive returned (not `[]`)
+- `max_results=300` clamped to 200 in the API call; returns the 1 available drive
+
+**Result (2026-09-02) ✅ PASS** — live via `mcp-gee-sweet-sky` (OAuth). `list_drives(max_results=0)` returned 1 drive (`mcp-gee-sweet-shared`), not `[]` — clamp-to-1 path confirmed. `list_drives(max_results=300)` returned the 1 available drive; the clamp-to-200 ceiling isn't directly observable with a single drive (matches this case's own note).
 
 ---
 
-### TC-D123: Pagination across multiple pages
+### TC-D123: Pagination across multiple pages — ⏭️ permanently skipped
 
-**Setup:** environment with more than 100 shared drives (or simulate via mock)
-
-**Prompt**
-> "List all shared drives with max_results=150"
-
-**Checks**
-- `nextPageToken` followed; second page fetched
-- Total results ≤ 150
-- No duplicate drives across pages
+**Not run live, by decision (#305).** `list_drives` pagination only engages past 100
+Shared Drives; provisioning 100+ Shared Drives purely to exercise `nextPageToken` is not
+feasible for this project's QA account, and there is no way to force a smaller page size
+through the tool. Pagination is covered by unit test
+`TestListDrives::test_follows_next_page_token_across_pages` in `tests/drive/test_files.py`
+(mocked two-page `nextPageToken` response). Do not mark this SKIP-for-environment on each
+run — it is a standing decision, not a transient gap.
 
 ---
 

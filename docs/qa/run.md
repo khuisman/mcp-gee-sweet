@@ -166,7 +166,7 @@ Before running any tests:
 
 1. Record the start time (current timestamp).
 2. Read `.env` from the repo root. If the file does not exist or the TEST_* keys are missing, stop and say: ".env not found or TEST_* keys missing — follow docs/qa/setup.md to create your fixtures first."
-3. Extract TEST_SPREADSHEET_ID, TEST_DOC_ID, TEST_FOLDER_ID, TEST_CALENDAR_ID, TEST_EVENT_ID, TEST_LARGE_DOC_ID, TEST_PERMISSION_EMAIL.
+3. Extract TEST_SPREADSHEET_ID, TEST_DOC_ID, TEST_FOLDER_ID, TEST_CALENDAR_ID, TEST_EVENT_ID, TEST_LARGE_DOC_ID, TEST_PERMISSION_EMAIL, SHARED_DRIVE_ID.
 4. Verify the fixture spreadsheet with get_sheet_data: confirm sheet tabs Sales, Empty, Notes & Misc exist and Sales data has 6 rows (header + Widget/Gadget/Donut/Gizmo/Totals), columns A–D. If data is missing or in wrong order, use update_cells to restore known seed state (see docs/qa/setup.md §Known fixture state).
 5. Verify the fixture doc with get_doc_structure: confirm title "mcp-gee-sweet-qa-fixtures-doc" and body contains heading "Test Document", a paragraph, and a bullet list (Item one / Item two). If content is wrong, use write_doc_content to restore it.
 6. Tell me the fixture IDs, start time, and whether the fixture state looks correct, then wait for me to confirm before proceeding.
