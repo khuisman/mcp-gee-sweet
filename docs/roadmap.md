@@ -204,6 +204,8 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] Domain and public sharing tests (TC-D135–D139) — decision landed 2026-09-02: provision a real non-Google test email for external-share coverage; the `type=anyone` public-link tests stay unresolved (exposure risk not yet accepted) ([#49](https://github.com/khuisman/mcp-gee-sweet/issues/49))
 - [ ] Demo screenshot or GIF for the README — asset work with no owning role; how it gets produced is still open ([#589](https://github.com/khuisman/mcp-gee-sweet/issues/589))
 - [ ] QA `.env` has no single source of truth — `setup_team.sh` only copies `.env` into a worktree when absent, so fixture-ID changes never propagate (had to hand-sync 9 copies for #305); also `run.md` vs `setup.md` disagree on `docs/qa/.env` vs repo-root `.env`. Surfaced by PR #677, relates to [#648](https://github.com/khuisman/mcp-gee-sweet/issues/648) ([#679](https://github.com/khuisman/mcp-gee-sweet/issues/679))
+- [ ] `list_files`/`get_file_metadata` docstrings cite a stale `upload_local_file` `modifiedTime` caveat (fixed at the root by PR #472) and carry a broken self-referential contrast — from Bob's `docs/tools.md` docstring sweep; Dev/QA track, batches with #682/#683 ([#681](https://github.com/khuisman/mcp-gee-sweet/issues/681))
+- [ ] `create_doc` family docstrings name only the ~25MP inline-image limit; the ~50MB byte-size limit (#562) is equally enforced, and 3 deferring docstrings inherit the gap — from Bob's `docs/tools.md` docstring sweep ([#682](https://github.com/khuisman/mcp-gee-sweet/issues/682))
 
 ### v0.9.2 — Comments as a first-class, cross-suite capability _(target: [v0.9.2](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2), before Tier 3 begins)_
 
