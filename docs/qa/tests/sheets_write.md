@@ -28,7 +28,9 @@ Row 7 A–D = Test/A/B/C; 4 cells; rows 1–6 unchanged; no error
 ### TC-W02: Write a formula via USER_ENTERED ⚠️ destructive
 
 **Prompt**
-> "Write the formula =A2&' '&A3 into cell E2 of the Sales sheet in {SPREADSHEET_ID}"
+> "Write the formula =A2&\" \"&A3 into cell E2 of the Sales sheet in {SPREADSHEET_ID}"
+
+**Note (v0.9.0, TC-W02):** the prompt previously used single-quote string delimiters (`=A2&' '&A3`), which Google Sheets rejects (`#ERROR!` — Sheets formulas require double quotes for string literals). Fixed to the correct double-quote form; not a tool defect — `USER_ENTERED` mode itself was independently confirmed correct.
 
 **Checks**
 - E2 shows computed value "Widget Gadget" (formula evaluated, not stored as string)

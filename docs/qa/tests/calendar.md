@@ -725,13 +725,15 @@ list_events on 'invalid-cal-id@example.com' -> [{"error":"<HttpError 404 ... not
 
 ### TC-CAL16: Valid event — full details
 
+**Note (v0.9.0):** on a group/secondary calendar (the fixture `{CALENDAR_ID}`), `organizer` is the calendar's own ID string (email-shaped but not a person's mailbox), not a personal account's email — confirmed correct on both an SA-owned substitute calendar and the real fixture. Check reworded to not assume a personal-calendar shape.
+
 **Prompt**
 > "Get the details of event {EVENT_ID} from calendar {CALENDAR_ID}"
 
 **Checks**
 - Returns `id`, `summary`, `start`, `end`, `location`, `description`, `organizer`, `attendees`, `recurrence`, `html_link`, `status`, `created`, `updated`
 - `html_link` opens the event in Google Calendar UI
-- `organizer` is an email address string
+- `organizer` is a well-formed identifier string (a personal account's email on a personal calendar; the calendar's own ID string, email-shaped, on a group/secondary calendar)
 
 **Result (2026-09-04) ✅ PASS**
 No — confirms same organizer-is-calendar-ID finding on the real fixture

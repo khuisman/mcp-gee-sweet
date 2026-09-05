@@ -98,13 +98,15 @@ create_spreadsheet('Exact Title Test') response title exactly 'Exact Title Test'
 
 ### TC-D13: List from configured folder
 
+**Note (#680, v0.9.0):** `DRIVE_FOLDER_ID` now points at the `mcp-gee-sweet-shared` Shared Drive *root*, while the fixture spreadsheet lives in the `{FOLDER_ID}` *subfolder* under it — so "default folder" and "the folder the fixture lives in" are no longer the same place. Checks updated accordingly; this doesn't apply on a `DRIVE_FOLDER_ID`-unset deployment, where the fixture would need to live at the true default (My Drive root) instead.
+
 **Prompt**
 > "List all spreadsheets in my default Drive folder"
 
 **Checks**
-- Returns a list of spreadsheets
-- Includes 'mcp-gee-sweet-qa-fixtures' (created in setup)
+- Returns a list of spreadsheets without error
 - Each entry has a name and ID
+- 🔍 On this deployment, `mcp-gee-sweet-qa-fixtures` is **not** expected here — it lives in `{FOLDER_ID}`, not the `DRIVE_FOLDER_ID` root; see TC-D14 for the folder-scoped list that does include it
 
 **Result (2026-09-04) ❌ FAIL**
 list_spreadsheets(default) returns a valid list, each entry has name+ID. BUT does NOT include 'mcp-gee-sweet-qa-fixtures': default folder resolves to Shared Drive root (DRIVE_FOLDER_ID) and the fixtures spreadsheet lives in the FOLDER_ID subfolder, not the root. Stale TC post-#305 Shared-Drive migration. Ticket candidate.

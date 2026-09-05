@@ -143,14 +143,16 @@ Concurrent 5-recipient share: all 5 -> "File not found" (supportsAllDrives bug).
 
 ## `list_permissions`
 
-### TC-D124: List permissions on a file — owner entry present
+### TC-D124: List permissions on a file — top-level entry present
+
+**Note (v0.9.0):** on a Shared Drive item (the current fixture, post-#305), Drive reports no `owner` role at all (`owners: []`) — the top-level roles are `organizer`/`fileOrganizer` instead. Checks updated to match; on a personal-Drive file the original `owner`-role expectation still holds.
 
 **Prompt**
 > "List all permissions on {SPREADSHEET_ID}"
 
 **Checks**
-- Returns at least one entry (the owner)
-- Owner entry has `role: 'owner'` and `type: 'user'`
+- Returns at least one entry
+- 🔍 On a Shared Drive item: at least one entry has `role: 'organizer'` (the de-facto owner there); on a personal-Drive file: an entry has `role: 'owner'`
 - Each entry has `id`, `type`, `role` — no `KeyError` or missing fields
 
 **Result (2026-09-04) ❌ FAIL**
