@@ -1337,6 +1337,8 @@
 - No entries in <code>failures</code></p>
 <p><strong>Result (2026-09-04) ❌ FAIL</strong>
 share_spreadsheet writer on Shared Drive file -&gt; <code>{"successes":[],"failures":[{... "error":"Failed to share: File not found: &lt;id&gt;."}]}</code>. <code>share_spreadsheet._share_one</code> calls <code>permissions().create()</code> WITHOUT <code>supportsAllDrives=True</code> (sharing.py:69-77), unlike share_file (:364) and update/remove/transfer. Every Shared Drive file is invisible to it. Reproduced on throwaway file AND on real {SPREADSHEET_ID}.</p>
+<p><strong>Result (2026-09-05) ✅ PASS</strong> — re-verified against PR #695 (issue #687)
+share_spreadsheet writer on the real Shared Drive fixture -&gt; <code>{"successes":[{"email_address":"test-recipient@example.com","role":"writer",...}],"failures":[]}</code>. <code>supportsAllDrives=True</code> now set on the <code>permissions().create()</code> call; fix confirmed live. Test permission removed after verification.</p>
 <hr />
 <h3 id="tc-d19-share-as-reader">TC-D19: Share as reader<a class="headerlink" href="#tc-d19-share-as-reader" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1348,6 +1350,8 @@ share_spreadsheet writer on Shared Drive file -&gt; <code>{"successes":[],"failu
 - No <code>failures</code></p>
 <p><strong>Result (2026-09-04) ❌ FAIL</strong>
 Same supportsAllDrives bug — reader share returns "File not found".</p>
+<p><strong>Result (2026-09-05) ✅ PASS</strong> — re-verified against PR #695 (issue #687)
+Reader share on the real Shared Drive fixture succeeds -&gt; <code>{"successes":[{"email_address":"test-recipient2@example.com","role":"reader",...}],"failures":[]}</code>. Test permission removed after verification.</p>
 <hr />
 <h3 id="tc-d20-share-as-commenter">TC-D20: Share as commenter<a class="headerlink" href="#tc-d20-share-as-commenter" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1359,6 +1363,8 @@ Same supportsAllDrives bug — reader share returns "File not found".</p>
 - No <code>failures</code></p>
 <p><strong>Result (2026-09-04) ❌ FAIL</strong>
 Same supportsAllDrives bug — commenter share returns "File not found".</p>
+<p><strong>Result (2026-09-05) ✅ PASS</strong> — re-verified against PR #695 (issue #687)
+Commenter share on the real Shared Drive fixture succeeds -&gt; <code>{"successes":[{"email_address":"test-recipient3@example.com","role":"commenter",...}],"failures":[]}</code>. Test permission removed after verification.</p>
 <hr />
 <h3 id="tc-d21-invalid-role">TC-D21: Invalid role<a class="headerlink" href="#tc-d21-invalid-role" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1393,6 +1399,8 @@ Recipient with no email_address -&gt; failures:[{email_address:null, error:"Miss
 - Both results present in the same response</p>
 <p><strong>Result (2026-09-04) ❌ FAIL</strong>
 Mixed: invalid-role entry ('superuser') correctly routed to failures; valid@example.com writer entry ALSO in failures ("File not found") due to supportsAllDrives bug, not in successes. Partial-failure batching itself works; API-path recipient blocked.</p>
+<p><strong>Result (2026-09-05) ✅ PASS</strong> — re-verified against PR #695 (issue #687)
+valid@example.com writer -&gt; successes; invalid-role@example.com ('superuser') -&gt; failures with the same invalid-role message as before. Both results present in one response as expected. Test permission removed after verification.</p>
 <hr />
 <h3 id="tc-d24-send_notificationfalse">TC-D24: send_notification=False<a class="headerlink" href="#tc-d24-send_notificationfalse" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1404,6 +1412,8 @@ Mixed: invalid-role entry ('superuser') correctly routed to failures; valid@exam
 - No notification email sent (verify by using an email you control)</p>
 <p><strong>Result (2026-09-04) ❌ FAIL</strong>
 send_notification=False -&gt; API path -&gt; "File not found" (supportsAllDrives bug). Cannot verify notification suppression.</p>
+<p><strong>Result (2026-09-05) ⚠️ PASS (with test-case caveat)</strong> — re-verified against PR #695 (issue #687)
+The <code>supportsAllDrives</code> bug is fixed, but this test case's own <code>test@example.com</code> recipient can't validate it: with <code>send_notification=False</code>, Drive rejects a share to any email with no associated Google account ("you must check the Notify people box to invite this recipient") — a real, unrelated API constraint, not a regression. Re-ran against a real Google account (an email the tester controls) instead: share succeeded with <code>send_notification=False</code>, confirming the fix. Test-case prompt should be updated to use a real Google-account email rather than <code>test@example.com</code> to actually exercise this path in the future.</p>
 <hr />
 <h3 id="tc-d25-non-existent-spreadsheet-id">TC-D25: Non-existent spreadsheet ID<a class="headerlink" href="#tc-d25-non-existent-spreadsheet-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1430,6 +1440,8 @@ share_spreadsheet("invalidid123xyz", ...) -&gt; error routed to failures:[{error
 <code>remove_permission</code> for each of the 5 test recipients.</p>
 <p><strong>Result (2026-09-04) ❌ FAIL</strong>
 Concurrent 5-recipient share: all 5 -&gt; "File not found" (supportsAllDrives bug). Each failure entry echoes its own email/role correctly (no cross-attribution in the failure list), but the no-cross-attribution check requires successes, which cannot be produced. Blocked.</p>
+<p><strong>Result (2026-09-05) ✅ PASS</strong> — re-verified against PR #695 (issue #687)
+All 5 recipients -&gt; successes, none in failures. <code>list_permissions</code> cross-check confirmed exact attribution: recipient1=reader, recipient2=commenter, recipient3=writer, recipient4=reader, recipient5=writer — no cross-attribution. All 5 test permissions removed after verification (teardown complete).</p>
 <hr />
 <h2 id="list_permissions"><code>list_permissions</code><a class="headerlink" href="#list_permissions" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d124-list-permissions-on-a-file-top-level-entry-present">TC-D124: List permissions on a file — top-level entry present<a class="headerlink" href="#tc-d124-list-permissions-on-a-file-top-level-entry-present" title="Permanent link">&para;</a></h3>
