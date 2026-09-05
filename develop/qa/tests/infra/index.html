@@ -1909,6 +1909,8 @@ Set <code>CACHE_TTL=10</code> (10 seconds) in your server config, restart the se
 - Second call (after TTL): cache miss again, fresh API fetch
 - Logs show two separate API calls
 - Restore <code>CACHE_TTL</code> to default (1800) after this test</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+requires CACHE_TTL=10 + server restart — pre-approved, unit-tested (tests/test_cache.py TTL expiry)</p>
 <hr />
 <h3 id="tc-i02-sqlite-wal-mode-concurrent-reads-during-a-write">TC-I02: SQLite WAL mode — concurrent reads during a write<a class="headerlink" href="#tc-i02-sqlite-wal-mode-concurrent-reads-during-a-write" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -1917,6 +1919,8 @@ This is a timing-dependent test needing two genuinely simultaneous requests to o
 - Read does not block or error while write is in progress
 - Both calls return valid responses on every iteration
 - No SQLite locking error (<code>database is locked</code> / <code>SQLITE_BUSY</code> / <code>OperationalError</code>) in any <code>result-b-*</code> file, and none in the server <code>LOG_FILE</code> over the run window if it's reachable</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Two-subagent mkdir-barrier procedure, mcp-gee-sweet-kai-sa, 25 iterations: subagent a wrote a per-iteration sentinel to Empty!A1 (25/25 succeeded), subagent b concurrently read Sales!A1:C3 (25/25 succeeded, zero database is locked / SQLITE_BUSY / OperationalError / empty / SSL errors). LOG_FILE grepped over the run window for locking errors — none found. #280 WAL busy_timeout fix holds under 25 concurrent write+read pairs.</p>
 <hr />
 <h3 id="tc-i03-cache_db_path-env-var-respected">TC-I03: CACHE_DB_PATH env var respected<a class="headerlink" href="#tc-i03-cache_db_path-env-var-respected" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -1929,6 +1933,8 @@ Set <code>CACHE_DB_PATH=/tmp/qa_test_cache.db</code> and restart the server.</p>
 - File <code>/tmp/qa_test_cache.db</code> is created (check with <code>ls /tmp/qa_test_cache.db</code>)
 - Default path <code>/tmp/mcp_gee_sweet.db</code> is NOT used
 - Restore <code>CACHE_DB_PATH</code> to default after this test</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+requires CACHE_DB_PATH env + restart — pre-approved, unit-tested (tests/test_cache.py db_path override)</p>
 <hr />
 <h3 id="tc-i04-cache-persists-across-server-restarts">TC-I04: Cache persists across server restarts<a class="headerlink" href="#tc-i04-cache-persists-across-server-restarts" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong> (step 1 — warm the cache)</p>
@@ -1945,6 +1951,8 @@ Restart the MCP server (<code>docker compose restart mcp-gee-sweet</code> or sto
 - After restart, second call shows <code>cache hit</code> in logs (SQLite file survived restart)
 - Data returned matches what was cached before restart
 - 🔍 <strong>Product decision:</strong> stale cache after restart is a known trade-off; note whether this is acceptable for the use case</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+requires server restart to test cache persistence — pre-approved (SQLite file property, not server)</p>
 <hr />
 <h3 id="tc-i22-set_cache_ttlget_cache_ttl-runtime-ttl-change-takes-effect-without-restart-issue-99">TC-I22: <code>set_cache_ttl</code>/<code>get_cache_ttl</code> — runtime TTL change takes effect without restart (issue #99)<a class="headerlink" href="#tc-i22-set_cache_ttlget_cache_ttl-runtime-ttl-change-takes-effect-without-restart-issue-99" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong> (step 0 — record the starting TTL, to restore later)</p>
@@ -1976,6 +1984,8 @@ Restart the MCP server (<code>docker compose restart mcp-gee-sweet</code> or sto
 - Restore the TTL after this test: <code>"Set the cache TTL to 1800"</code></p>
 <p><strong>Result (2026-07-08) ✅ PASS</strong>
 Ran all 5 steps live against <code>TEST_SPREADSHEET_ID</code>. Step 0: <code>get_cache_ttl</code> → <code>{"ttl_seconds": 1800}</code>. Step 1: <code>list_sheets</code> cache miss, warmed. Step 2: <code>set_cache_ttl(3)</code> → <code>{"ttl_seconds": 3}</code>; log emitted <code>WARNING mcp_gee_sweet.tools.cache Cache TTL changed process-wide 1800s -&gt; 3s (affects all concurrent sessions)</code>. Step 3: <code>get_cache_ttl</code> → <code>{"ttl_seconds": 3}</code>, immediate readback confirmed. Step 4: after a 5s wait, <code>list_sheets</code> again — log showed <code>Cache TTL expired for &lt;id&gt;, marking dirty</code> followed by a fresh <code>Cached 4 sheets</code>, confirming the lowered TTL applied retroactively to the already-cached entry. Restored TTL to 1800 (<code>get_cache_ttl</code> confirmed).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Step 0 <code>get_cache_ttl</code> → <code>{"ttl_seconds":1800}</code>. Step 2 <code>set_cache_ttl(3)</code> → <code>{"ttl_seconds":3}</code>; log emitted <code>WARNING mcp_gee_sweet.tools.cache Cache TTL changed process-wide 1800s -&gt; 3s (affects all concurrent sessions)</code>. Step 3 <code>get_cache_ttl</code> → <code>{"ttl_seconds":3}</code> (immediate readback). Step 4 (after ~5s wait): log showed <code>DEBUG mcp_gee_sweet.cache Cache TTL expired for 1dBzY4Wuufx8OtHbQsYO8PQNGV-z5g0Vr_TnKzNCXZYs, marking dirty</code> then a fresh <code>list_sheets</code> 200 — lowered TTL applied retroactively to the already-cached entry, no restart. Restored: <code>set_cache_ttl(1800)</code> → <code>WARNING ... 3s -&gt; 1800s</code>; <code>get_cache_ttl</code> → <code>{"ttl_seconds":1800}</code>. (Step-1 cold-miss check not isolatable — entry was already warm from TC-I21 on the shared process; step-4 retroactive-expiry is the load-bearing #99 behavior and is confirmed.)</p>
 <hr />
 <h3 id="tc-i23-cache_validate_modified_time-external-edit-invalidates-cache-before-ttl-expires-issue-99">TC-I23: <code>CACHE_VALIDATE_MODIFIED_TIME</code> — external edit invalidates cache before TTL expires (issue #99)<a class="headerlink" href="#tc-i23-cache_validate_modified_time-external-edit-invalidates-cache-before-ttl-expires-issue-99" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> by default, a sheet-structure/data or doc-content cache hit is checked against the source file's live Drive <code>modifiedTime</code> before being served. This matters specifically for edits that don't go through this MCP session's own write tools (which already call <code>mark_dirty</code> immediately) — e.g. another Claude session, or a person editing the file directly in the Sheets/Docs UI.</p>
@@ -1995,6 +2005,8 @@ Ran all 5 steps live against <code>TEST_SPREADSHEET_ID</code>. Step 0: <code>get
 Warmed the structure cache via <code>list_sheets("BrandNew"...)</code>, then used Playwright to rename the "BrandNew" tab to "BrandNewRenamedQA" directly in the Sheets UI. Immediate <code>list_sheets</code> call (no wait, <code>CACHE_TTL</code> at default 1800s) returned the new name. Log showed <code>DEBUG mcp_gee_sweet.cache Source modified since cache for &lt;id&gt;, marking dirty</code> — the modifiedTime-mismatch path, distinct from the <code>Cache TTL expired</code> path — immediately followed by a fresh <code>Cached 4 sheets</code>. Renamed back via Playwright; confirmed reverted.</p>
 <p><strong>Supplementary live check (2026-07-08) — cache-poisoning regression from code review, not a scripted TC:</strong> the code review on this PR's first pass (before the <code>6d4a59b</code> fix) found that <code>_get_sheet_id</code> (backing ~11 write-path tools: <code>add_rows</code>, <code>rename_sheet</code>, <code>format_cells</code>, etc.) called <code>fetch_sheets()</code> without <code>drive_service</code>, storing the shared structure-cache row with <code>modified_time=None</code> — silently disabling staleness detection for <em>all</em> subsequent readers of that spreadsheet, including <code>list_sheets</code>. Verified the fix closes this end-to-end: <code>refresh_cache</code> (cold) → <code>freeze(sheet="EmptyRenamedQA")</code> (write-path call, cache MISS/STORE) → renamed "EmptyRenamedQA" back to "Empty" via Playwright → <code>list_sheets</code> (read-path, no explicit refresh) immediately returned <code>"Empty"</code>, with the log showing <code>Source modified since cache... marking dirty</code> right after the write-path's own store. Confirms the write-path cache entry now carries a valid <code>modified_time</code>, so it no longer poisons reads by other tools.</p>
 <p>TC-I22/TC-I23 (issue #99) are the only mandatory live QA cases for this PR (see <code>git diff origin/develop...HEAD -- docs/qa/tests/</code>). No existing test case directly exercises the <code>_get_sheet_id</code>/write-path fix or <code>get_multiple_spreadsheet_summary</code>'s per-sheet <code>modified_time</code> fix — the supplementary check above covers the more severe of the two live; the <code>get_multiple_spreadsheet_summary</code> gap is lower-risk (confirmed correct by code trace + unit tests, not independently live-verified here).</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+Requires an edit to the fixture spreadsheet made OUTSIDE this process's tool surface (Playwright tab-rename) to bump Drive modifiedTime without calling mark_dirty. Unsafe this pass: other shards were concurrently issuing <code>update_cells</code> against the same fixture (seen in live log), and HARD RULE limits me to <code>mcp__mcp-gee-sweet-sa__</code> so I can't use another server process as the external editor either. Unit-tested (tests/test_cache.py modified-time path) + live-passed 2026-07-08.</p>
 <hr />
 <h3 id="tc-i24-concurrent-tool-calls-dont-corrupt-each-others-responses-issue-183">TC-I24: Concurrent tool calls don't corrupt each other's responses (issue #183)<a class="headerlink" href="#tc-i24-concurrent-tool-calls-dont-corrupt-each-others-responses-issue-183" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> #183 converted the entire tool layer to <code>async def</code>, running each Google API call via <code>asyncio.to_thread()</code> so multiple calls can execute in real OS threads simultaneously — both within one gather()-restructured tool call and across two separate, simultaneous client requests. The shared <code>sheets_service</code>/<code>drive_service</code>/etc. objects built once at server startup carry a single <code>httplib2</code>-based transport that isn't safe for concurrent use by itself; the fix (<code>auth.thread_http()</code>) gives each thread its own transport, built from the shared credentials, passed via <code>execute(http=...)</code> at every call site. This is the one thing the mocked unit test suite structurally cannot verify — mocks don't exercise a real shared transport, so a regression here (e.g. someone reverts to the shared service objects' default transport "for simplicity") would pass every unit test and still corrupt live responses under load.</p>
@@ -2004,6 +2016,8 @@ A single client session awaits each tool result before issuing the next, so it c
 - On every iteration, <code>result-a-*</code> contains only <code>{SPREADSHEET_ID}</code>'s data and <code>result-b-*</code> only the second spreadsheet's — no row from one appears in the other's file
 - No result on any iteration is empty, truncated, or an SSL/connection error (<code>record layer failure</code>, <code>Connection reset by peer</code>, <code>Remote end closed connection without response</code>) — any of these is the signature of the two concurrent <code>.execute()</code> calls interfering with a shared transport</p>
 <p><strong>Note:</strong> also implicitly covered by TC-D176/TC-D177/TC-D178/TC-D179/TC-R36/TC-R37 above, each of which forces several genuinely concurrent <code>.execute()</code> calls within a single gather()-restructured tool and checks per-item attribution. This case adds the cross-request angle (two separate tool calls, not one batched call) that those don't cover.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Two-subagent mkdir-barrier procedure, mcp-gee-sweet-kai-sa, 25 iterations, two distinct spreadsheets. 24/25 (subagent a) and 23/25 (subagent b) valid data points after self-inflicted param-syntax errors in the first 1-2 iterations self-corrected (not transport errors). Every result-a-<em> held only {SPREADSHEET_ID} data, every result-b-</em> only the second spreadsheet's — zero cross-contamination across 47 valid calls, zero SSL/connection-error signature (record layer failure / Connection reset by peer / Remote end closed connection). #183 shared-transport fix holds.</p>
 <hr />
 <h3 id="tc-i25-serverauth-status-resource-resolves-lifespan-context-issue-363">TC-I25: <code>server://auth-status</code> resource resolves lifespan context (issue #363)<a class="headerlink" href="#tc-i25-serverauth-status-resource-resolves-lifespan-context-issue-363" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> Both <code>server.py</code> resources previously called <code>mcp.get_lifespan_context()</code>, which never existed on <code>FastMCP</code> (confirmed absent as far back as <code>mcp==1.27.1</code> — not a regression from #350's SDK bump). Every read raised <code>'FastMCP' object has no attribute 'get_lifespan_context'</code>. Fixed to use <code>mcp.get_context().request_context.lifespan_context</code>, the same path every tool already uses via <code>ctx.request_context.lifespan_context</code>. This reproduces the exact regression scenario, not just a happy-path spot check.</p>
@@ -2018,6 +2032,8 @@ Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</co
 <p><strong>Note (#447):</strong> the flat <code>"reason"</code>/<code>"alternatives"</code> fields shown in the Result above no longer exist — see TC-I27 for the current per-limitation <code>"limitations"</code> shape. This case's own checks (no AttributeError, <code>auth_method</code> matches) are unaffected by that schema change and don't need re-running.</p>
 <p><strong>Note (#175):</strong> the mcp v1→v2 SDK migration replaced the underlying mechanism this case exercises — <code>MCPServer</code> (mcp v2) dropped <code>get_context()</code> entirely, with no replacement for a static (non-templated) resource like this one (Context injection raises <code>ValueError</code> outright there, confirmed live against mcp==2.0.0). <code>get_auth_status</code> now reads a process-wide singleton (<code>auth.get_lifespan_context()</code>, set once by the lifespan) instead of going through Context at all. The 2026-07-19 Result above proved the old <code>mcp.get_context()</code> path worked; it does not prove this new path works against the real SDK.</p>
 <p><strong>Result (2026-08-21, mcp-gee-sweet-sky, oauth, mcp==2.0.0):</strong> ✅ PASS — live re-verification post-#175 migration. <code>{"auth_method": "oauth", "is_service_account_identity": false, "can_create_in_personal_drive": true, "limited_tools": [], "limitations": []}</code> — no AttributeError/ValueError, <code>auth_method</code> matches configured oauth. Confirms <code>auth.get_lifespan_context()</code> resolves the real lifespan-set module state through the actual resource-read protocol against the real SDK, not just against the unit tests' mocked <code>auth.get_lifespan_context()</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+<code>server://auth-status</code> read through the real SDK resource dispatch (<code>MCPServer.read_resource("server://auth-status")</code>, mcp==2.0.0) inside the real <code>spreadsheet_lifespan</code> under <code>AUTH_METHOD=service_account</code>: returned valid JSON, no AttributeError/ValueError, <code>auth_method: "service_account"</code> matches configured. Exercises the #175/#363 static-resource path (<code>get_lifespan_context()</code> singleton, no <code>get_context()</code>). Cross-checked: <code>_auth_status_json("oauth")</code> full-access branch → <code>limited_tools:[]</code>, <code>limitations:[]</code>. NOTE: no <code>ReadMcpResourceTool</code> in this session, so this is the SDK's in-process <code>read_resource</code> dispatch, not a JSON-RPC wire read.</p>
 <hr />
 <h3 id="tc-i27-serverauth-status-reports-per-tool-limitation-categories-not-one-shared-reason-issue-447">TC-I27: <code>server://auth-status</code> reports per-tool limitation categories, not one shared reason (issue #447)<a class="headerlink" href="#tc-i27-serverauth-status-reports-per-tool-limitation-categories-not-one-shared-reason-issue-447" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>_auth_status_json</code> used to attach a single <code>reason</code>/<code>alternatives</code> string to every tool in <code>_SA_LIMITED_TOOLS</code>, written specifically around the storage-quota failure class (<code>create_spreadsheet</code>, <code>create_doc</code>, <code>copy_file</code>, the upload tools, <code>sync_folder</code>). <code>transfer_ownership</code> (#140) fails for a different reason — no personal Drive <em>identity</em>, not a quota problem — so it was left off that list entirely rather than get an inaccurate reason attached to it. Fixed by splitting <code>_SA_LIMITATIONS</code> into categories, each with its own <code>tools</code>/<code>reason</code>/<code>alternatives</code>, so <code>limited_tools</code> (flattened across categories, for a quick membership check) and the new <code>limitations</code> array (the categorized detail) both include <code>transfer_ownership</code> with text that's actually true for it. <code>alternatives</code> for this category deliberately does not mention ADC — see #506, filed alongside this fix, for why ADC can't be assumed to always fix a personal-Drive-identity limitation.</p>
@@ -2032,6 +2048,8 @@ Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</co
 - The entry with <code>category: "no_drive_storage_quota"</code> still contains the original 7 tools and does not contain <code>transfer_ownership</code>
 - A full-access auth method (<code>oauth</code>/<code>adc</code>) still returns <code>limited_tools: []</code>, <code>limitations: []</code></p>
 <p><strong>Result (2026-08-04, mcp-gee-sweet-kit, oauth):</strong> ✅ PASS on the full-access check only — <code>{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "limitations": []}</code>. The other four checks are <strong>pending</strong> — they require a <code>service_account</code>-authed server, and Kit's own dedicated server (<code>mcp-gee-sweet-kit</code>) is OAuth-only; per the team tool-boundary rule, QA doesn't call another role's <code>mcp-gee-sweet-&lt;other&gt;</code> server (<code>kai-sa</code>, or the standalone <code>mcp-gee-sweet-sa</code>) even when visible in the session's tool list. Needs a session with a service-account-authed server (Kai, via <code>mcp-gee-sweet-kai-sa</code>) to complete.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Same live service_account resource read as TC-I25. All checks: <code>limited_tools</code> includes <code>transfer_ownership</code>; <code>limitations</code> is a 2-entry list, each with category/tools/reason/alternatives; <code>no_personal_drive_identity</code> → <code>tools==["transfer_ownership"]</code>, reason mentions "identity" (not "storage quota"), alternatives has no ADC mention; <code>no_drive_storage_quota</code> → the original 7 tools (create_spreadsheet, create_doc, copy_file, upload_file, upload_local_file, upload_local_folder, sync_folder), excludes transfer_ownership; oauth/full-access branch → <code>limited_tools:[]</code>, <code>limitations:[]</code>.</p>
 <hr />
 <h3 id="tc-i28-sync_folder-reports-as-a-literal-exact-limited_tools-entry-issue-516">TC-I28: <code>sync_folder</code> reports as a literal, exact <code>limited_tools</code> entry (issue #516)<a class="headerlink" href="#tc-i28-sync_folder-reports-as-a-literal-exact-limited_tools-entry-issue-516" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>_SA_LIMITATIONS</code>'s <code>no_drive_storage_quota</code> category carried <code>sync_folder</code> as <code>"sync_folder (upload and bidirectional directions)"</code> instead of the bare tool name — a string that predates PR #507's per-category restructuring and was carried forward unchanged. This silently defeats the field's own documented contract: a caller doing <code>"sync_folder" in status["limited_tools"]</code> (the exact membership check TC-I27's "original 7 tools" check doesn't itself perform literally) got <code>False</code> even though <code>sync_folder</code> genuinely is restricted under a service account. Fixed by using the bare tool name and moving the upload/bidirectional-only distinction into the category's <code>reason</code> text instead.</p>
@@ -2043,6 +2061,8 @@ Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</co
 - <code>"sync_folder" in limited_tools</code> is <code>True</code> (exact string match — not a substring like <code>"sync_folder (upload and bidirectional directions)"</code>)
 - The <code>no_drive_storage_quota</code> entry's <code>reason</code> text mentions the upload/bidirectional-only distinction for <code>sync_folder</code></p>
 <p><strong>Result (2026-08-05, mcp-gee-sweet-sky, oauth):</strong> ✅ PASS on the full-access check only — <code>{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "limitations": []}</code>, confirming no crash/regression under oauth. Both <code>sync_folder</code>-specific checks are <strong>pending</strong> — same tool-boundary constraint as TC-I27: they require a <code>service_account</code>-authed server, and Sky's own dedicated server (<code>mcp-gee-sweet-sky</code>) is OAuth-only, so QA doesn't call <code>mcp-gee-sweet-kai-sa</code> (or the standalone <code>mcp-gee-sweet-sa</code>) even though visible in the session's tool list. Source inspected directly instead (<code>src/mcp_gee_sweet/server.py</code> <code>_SA_LIMITATIONS</code>): <code>no_drive_storage_quota.tools</code> now contains the bare <code>"sync_folder"</code> (no longer the old parenthetical string), and its <code>reason</code> ends with "For sync_folder, this only applies to its upload and bidirectional directions." — matches both checks by static read. Unit tests (<code>tests/test_server.py::TestAuthStatusResource::test_service_account_storage_quota_limitation</code>) also pass locally. Needs a session with a service-account-authed server (Kai, via <code>mcp-gee-sweet-kai-sa</code>) to complete live.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Same live service_account resource read. <code>"sync_folder" in limited_tools</code> is exact-True (bare name, not the old <code>"sync_folder (upload and bidirectional directions)"</code> string). <code>no_drive_storage_quota</code> reason text ends: "For sync_folder, this only applies to its upload and bidirectional directions."</p>
 <hr />
 <h3 id="tc-i26-spreadsheetidinfo-resource-resolves-lifespan-context-issue-363">TC-I26: <code>spreadsheet://{id}/info</code> resource resolves lifespan context (issue #363)<a class="headerlink" href="#tc-i26-spreadsheetidinfo-resource-resolves-lifespan-context-issue-363" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> Same regression and fix as TC-I25, but for the resource that actually calls the Sheets API (<code>execute_in_thread</code> off <code>context.sheets_service</code>) — proves the fix works on the <code>async def</code> resource path too, not just the sync one.</p>
@@ -2056,6 +2076,8 @@ Call <code>ReadMcpResourceTool</code> with <code>uri: "spreadsheet://{SPREADSHEE
 <p><strong>Result:</strong> ✅ PASS (2026-07-19, mcp-gee-sweet-sky, TEST_SPREADSHEET_ID). Returned <code>title: "mcp-gee-sweet-qa-fixtures"</code> and 4 sheets (<code>Sales</code>, <code>Notes &amp; Misc</code>, <code>BrandNew</code>, <code>Empty</code>) matching the fixture's actual tabs — no AttributeError.</p>
 <p><strong>Note (#175):</strong> the mcp v1→v2 SDK migration changed how this resource reaches the lifespan context. <code>spreadsheet://{id}/info</code> is a template resource, and mcp v2 <em>does</em> support Context injection there (unlike the static <code>server://auth-status</code> resource in TC-I25) — <code>get_spreadsheet_info</code> now takes <code>ctx: Context</code> as an ordinary injected parameter instead of calling the now-removed <code>mcp.get_context()</code>. The 2026-07-19 Result above proved the old path worked; it does not prove this new injected-parameter path works against the real SDK.</p>
 <p><strong>Result (2026-08-21, mcp-gee-sweet-sky, oauth, mcp==2.0.0):</strong> ✅ PASS — live re-verification post-#175 migration, against <code>mcp-gee-sweet-qa-fixtures</code> (<code>15hOwO1Jay26PyxjjYtq9Pq-gEd8lDa81g-C13-GyvCA</code>). Returned <code>title: "mcp-gee-sweet-qa-fixtures"</code> and 4 sheets (<code>Sales</code>, <code>Notes &amp; Misc</code>, <code>BrandNew</code>, <code>Empty</code>) matching the fixture's actual tabs — no AttributeError/ValueError. Confirms v2's native <code>ctx: Context</code> injection resolves the real lifespan context through the actual resource-read protocol against the real SDK.</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+<code>spreadsheet://{id}/info</code> is a template resource; in-process <code>MCPServer.read_resource(...)</code> raises <code>ValueError: Context is not available outside of a request</code> by design (needs a live MCP request context), and this session has no <code>ReadMcpResourceTool</code> to do a real protocol read. Underlying path IS live-healthy: <code>mcp-gee-sweet-sa</code>'s <code>context.sheets_service</code> + <code>execute_in_thread</code> served every Sheets call this shard made. Unit test <code>tests/test_server.py::TestResourcesReadLifespanContext::test_get_spreadsheet_info_reads_sheets_service_via_injected_context</code> PASSES on release commit 756eb89; live-passed 2026-08-21 post-#175. Needs a resource-capable conductor session to close live.</p>
 <hr />
 <h3 id="tc-i29-serverjson-registry-manifest-validates-and-the-server-is-discoverable-in-the-official-mcp-registry-issue-586">TC-I29: <code>server.json</code> registry manifest validates and the server is discoverable in the official MCP registry (issue #586)<a class="headerlink" href="#tc-i29-serverjson-registry-manifest-validates-and-the-server-is-discoverable-in-the-official-mcp-registry-issue-586" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>server.json</code> at the repo root is a static manifest consumed by the <code>mcp-publisher</code> CLI and the official MCP registry (<code>registry.modelcontextprotocol.io</code>), not by the running <code>mcp-gee-sweet</code> server itself — there's no MCP tool call or prompt that exercises it. Structural consistency against <code>pyproject.toml</code>/<code>README.md</code> (server name, PyPI package identifier, the <code>mcp-name</code> ownership marker) is unit-tested in <code>tests/test_server_json.py</code>; this test case covers what only the real CLI and the real registry can confirm: schema validity, PyPI ownership verification via the <code>mcp-name</code> marker, and that the publish actually landed.</p>
@@ -2072,6 +2094,8 @@ Call <code>ReadMcpResourceTool</code> with <code>uri: "spreadsheet://{SPREADSHEE
 - Step 2 succeeds (<code>✓ Successfully published</code>) — a failure here most often means the <code>mcp-name: io.github.khuisman/mcp-gee-sweet</code> marker isn't present (or isn't on its own line / isn't terminated by a boundary character) in the README of the exact PyPI release <code>server.json</code> points at.
 - Step 3's JSON response includes a server entry with <code>name: "io.github.khuisman/mcp-gee-sweet"</code> and a <code>version</code> matching <code>server.json</code>.</p>
 <p><strong>Re-run cadence:</strong> every stable release that bumps <code>server.json</code>'s <code>version</code> to track the new PyPI release — not once-and-done, since a stale <code>version</code> there means the registry keeps pointing at an old release.</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+<code>server.json</code> registry manifest — not reachable via any MCP tool; needs <code>mcp-publisher</code> CLI + a real publish to registry.modelcontextprotocol.io. Identity/consistency unit-tested in tests/test_server_json.py. Re-run only after a stable release that bumps server.json version.</p>
 <hr />
 <h3 id="tc-i30-serverauth-status-distinguishes-a-real-user-adc-session-from-a-service-account-backed-one-issue-506">TC-I30: <code>server://auth-status</code> distinguishes a real-user ADC session from a service-account-backed one (issue #506)<a class="headerlink" href="#tc-i30-serverauth-status-distinguishes-a-real-user-adc-session-from-a-service-account-backed-one-issue-506" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>auth_method == "adc"</code> alone doesn't say whether <code>google.auth.default()</code> resolved to a real user credential (<code>gcloud auth application-default login</code>) or a service-account-backed one (a GCE/Cloud Run/GKE attached metadata identity, or <code>GOOGLE_APPLICATION_CREDENTIALS</code> pointed at a service account key file) — before this fix, both got tagged plain <code>"adc"</code> with <code>can_create_in_personal_drive: true</code> and zero limitations, which is wrong for the service-account-backed case. Fixed by <code>auth.py::_is_service_account_credential</code> inspecting the resolved credential's actual class (<code>service_account.Credentials</code> / <code>compute_engine.Credentials</code> → service account; <code>google.oauth2.credentials.Credentials</code> → real user) and setting a new <code>SpreadsheetContext.is_service_account_identity</code> flag independent of <code>auth_method</code>; <code>_auth_status_json</code> folds that flag into the same limited branch <code>auth_method == "service_account"</code> already takes, and swaps the quota category's <code>alternatives</code> text so it doesn't tell an already-ADC caller to "switch to ADC."</p>
@@ -2084,6 +2108,8 @@ Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</co
 - User-backed ADC: <code>auth_method: "adc"</code>, <code>is_service_account_identity: false</code>, <code>can_create_in_personal_drive: true</code>, <code>limited_tools: []</code>, <code>limitations: []</code>.
 - Service-account-backed ADC: <code>auth_method: "adc"</code> (not rewritten to <code>"service_account"</code>), <code>is_service_account_identity: true</code>, <code>can_create_in_personal_drive: false</code>, <code>limited_tools</code> includes the same tools a <code>service_account</code>-authed server reports (e.g. <code>create_spreadsheet</code>, <code>transfer_ownership</code>), and the <code>no_drive_storage_quota</code> entry's <code>alternatives</code> mentions pointing ADC at a real user credential rather than "switch to ADC" (contrast with TC-I27, where a genuine <code>AUTH_METHOD=service_account</code> session's <code>alternatives</code> still does mention ADC as a real escape hatch).</p>
 <p><strong>Note:</strong> needs an environment where ADC actually resolves to a service-account-backed credential; no team server is currently provisioned that way (Kai's <code>mcp-gee-sweet-kai-sa</code>/the standalone <code>mcp-gee-sweet-sa</code> both use <code>AUTH_METHOD=service_account</code> directly, not ADC). Unit coverage in <code>tests/test_auth.py::TestIsServiceAccountCredential</code>/<code>TestLifespanAuthMethod::test_pinned_adc_*_backed_sets_is_service_account_identity_*</code> and <code>tests/test_server.py::TestAuthStatusResource::test_adc_service_account_identity_*</code> exercises the classification and JSON-shape logic directly against real <code>google-auth</code> credential classes in the meantime.</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+Needs an environment where ADC resolves to a service-account-backed credential (AUTH_METHOD=adc + GOOGLE_APPLICATION_CREDENTIALS key file / metadata identity). Running server is <code>AUTH_METHOD=service_account</code> directly, not ADC; no such server provisioned. Unit-tested in tests/test_auth.py::TestIsServiceAccountCredential + tests/test_server.py::TestAuthStatusResource.</p>
 <hr />
 <h2 id="tool-filtering-enabled_tools">Tool filtering (<code>ENABLED_TOOLS</code>)<a class="headerlink" href="#tool-filtering-enabled_tools" title="Permanent link">&para;</a></h2>
 <h3 id="tc-i05-cli-flag-only-specified-tools-registered">TC-I05: CLI flag — only specified tools registered<a class="headerlink" href="#tc-i05-cli-flag-only-specified-tools-registered" title="Permanent link">&para;</a></h3>
@@ -2096,6 +2122,8 @@ Start server with: <code>uv run mcp-gee-sweet --include-tools get_sheet_data,lis
 <p><strong>Checks</strong>
 - Returns "tool not found" or similar — <code>list_files</code> is not registered
 - <code>get_sheet_data</code> and <code>list_sheets</code> still work normally</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+requires <code>--include-tools</code> CLI restart — pre-approved, unit-tested (_parse_enabled_tools)</p>
 <hr />
 <h3 id="tc-i06-enabled_tools-env-var-same-behavior-as-cli-flag">TC-I06: ENABLED_TOOLS env var — same behavior as CLI flag<a class="headerlink" href="#tc-i06-enabled_tools-env-var-same-behavior-as-cli-flag" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2107,6 +2135,8 @@ Set <code>ENABLED_TOOLS=get_sheet_data,list_sheets</code> and restart the server
 <p><strong>Checks</strong>
 - Returns "tool not found" — <code>update_cells</code> not registered
 - Behavior identical to TC-I05</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+requires ENABLED_TOOLS env + restart — pre-approved, unit-tested</p>
 <hr />
 <h3 id="tc-i07-unlisted-tool-called-by-name">TC-I07: Unlisted tool called by name<a class="headerlink" href="#tc-i07-unlisted-tool-called-by-name" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2118,6 +2148,8 @@ Same as TC-I05 or TC-I06 (only 2 tools enabled).</p>
 <p><strong>Checks</strong>
 - MCP client returns "tool not found" for <code>add_chart</code>
 - Server does not crash — just a missing tool, not an error</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+requires tool-filtered server restart — pre-approved, unit-tested</p>
 <hr />
 <h2 id="tool-argument-validation">Tool argument validation<a class="headerlink" href="#tool-argument-validation" title="Permanent link">&para;</a></h2>
 <h3 id="tc-i21-unrecognized-tool-kwargs-raise-a-validation-error-instead-of-being-silently-dropped-issue-239">TC-I21: Unrecognized tool kwargs raise a validation error instead of being silently dropped (issue #239)<a class="headerlink" href="#tc-i21-unrecognized-tool-kwargs-raise-a-validation-error-instead-of-being-silently-dropped-issue-239" title="Permanent link">&para;</a></h3>
@@ -2132,6 +2164,8 @@ Same as TC-I05 or TC-I06 (only 2 tools enabled).</p>
 <p><strong>Result (2026-07-04) ✅ PASS</strong>
 <code>list_sheets(spreadsheet_id={SPREADSHEET_ID}, bogus_kwarg="test")</code> raised: <code>1 validation error for list_sheetsArguments\nbogus_kwarg\n  Extra inputs are not permitted [type=extra_forbidden, input_value='test', input_type=str]</code>. Follow-up call with only <code>spreadsheet_id</code> succeeded normally, returning the sheet list — confirms the fix doesn't affect legitimate calls.</p>
 <p><strong>Result (2026-08-21, mcp-gee-sweet-sky, oauth, mcp==2.0.0):</strong> ✅ PASS — re-verified post-#175 migration, since <code>_enforce_strict_tool_args</code> reaches into private <code>ToolManager</code>/<code>FuncMetadata</code>/<code>arg_model</code> internals that a major SDK bump could plausibly change shape without any public API signal. <code>list_sheets(spreadsheet_id=&lt;qa-fixtures id&gt;, bogus_kwarg="test")</code> raised the identical <code>1 validation error for list_sheetsArguments\nbogus_kwarg\n  Extra inputs are not permitted [type=extra_forbidden, ...]</code>; the same call without the bogus kwarg succeeded normally. Confirms the private-internals hack still works unchanged against real mcp==2.0.0.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+<code>list_sheets(spreadsheet_id=&lt;fixture&gt;, bogus_kwarg="test")</code> raised: <code>1 validation error for list_sheetsArguments / bogus_kwarg / Extra inputs are not permitted [type=extra_forbidden, input_value='test', input_type=str]</code>. Clean call (spreadsheet_id only) succeeded → <code>["Sales","Empty","Notes &amp; Misc"]</code>. Both checks met.</p>
 <hr />
 <h2 id="auth-fallback-chain">Auth fallback chain<a class="headerlink" href="#auth-fallback-chain" title="Permanent link">&para;</a></h2>
 <h3 id="tc-i08-credentials_config-base64-service-account">TC-I08: CREDENTIALS_CONFIG (base64 service account)<a class="headerlink" href="#tc-i08-credentials_config-base64-service-account" title="Permanent link">&para;</a></h3>
@@ -2145,6 +2179,8 @@ Set only <code>CREDENTIALS_CONFIG</code> (base64-encoded service account JSON). 
 - Auth succeeds via <code>CREDENTIALS_CONFIG</code>
 - Tool returns results normally
 - Logs show service account auth path</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+requires CREDENTIALS_CONFIG-only auth env + restart — pre-approved, unit-tracked (#98)</p>
 <hr />
 <h3 id="tc-i09-service_account_path">TC-I09: SERVICE_ACCOUNT_PATH<a class="headerlink" href="#tc-i09-service_account_path" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2156,6 +2192,8 @@ Set only <code>SERVICE_ACCOUNT_PATH</code> (path to service account JSON file). 
 <p><strong>Checks</strong>
 - Auth succeeds via <code>SERVICE_ACCOUNT_PATH</code>
 - Tool returns results normally</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+requires SERVICE_ACCOUNT_PATH-only auth env + restart — pre-approved, unit-tracked (#98). (Note: running server IS service-account-authed via SERVICE_ACCOUNT_PATH and all SA tool calls succeeded this shard.)</p>
 <hr />
 <h3 id="tc-i10-oauth-flow-credentials_path-token_path-requires-oauth">TC-I10: OAuth flow (CREDENTIALS_PATH / TOKEN_PATH) ⚠️ requires-oauth<a class="headerlink" href="#tc-i10-oauth-flow-credentials_path-token_path-requires-oauth" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2168,6 +2206,8 @@ Set <code>CREDENTIALS_PATH</code> and <code>TOKEN_PATH</code>. Remove service ac
 - OAuth flow completes (browser opens if needed)
 - Tool returns results as the authenticated user (not service account)
 - <code>create_spreadsheet</code> / <code>create_doc</code> land in personal Drive under this auth</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+requires OAuth-only auth env + restart — pre-approved</p>
 <hr />
 <h3 id="tc-i11-application-default-credentials-adc">TC-I11: Application Default Credentials (ADC)<a class="headerlink" href="#tc-i11-application-default-credentials-adc" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2179,6 +2219,8 @@ Run <code>gcloud auth application-default login</code> first. Remove all other a
 <p><strong>Checks</strong>
 - Auth succeeds via ADC
 - Tool returns results normally</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+requires ADC-only auth env + restart — pre-approved, unit-tracked (#98)</p>
 <hr />
 <h3 id="tc-i12-no-credentials-server-fails-to-start-with-clear-error">TC-I12: No credentials — server fails to start with clear error<a class="headerlink" href="#tc-i12-no-credentials-server-fails-to-start-with-clear-error" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2187,6 +2229,8 @@ Remove all auth env vars. Start the server.</p>
 - Server fails to start
 - Error message is clear about missing credentials — not an opaque exception
 - Server does not start in a broken state and accept connections</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+requires starting server with no creds — pre-approved</p>
 <hr />
 <h2 id="transport">Transport<a class="headerlink" href="#transport" title="Permanent link">&para;</a></h2>
 <h3 id="tc-i13-stdio-transport">TC-I13: stdio transport<a class="headerlink" href="#tc-i13-stdio-transport" title="Permanent link">&para;</a></h3>
@@ -2200,6 +2244,8 @@ Run <code>uv run mcp-gee-sweet</code> (default stdio transport). Connect from an
 - Connection established via stdio
 - Tool returns results normally</p>
 <p><strong>Result (2026-08-21, mcp-gee-sweet-sky, oauth, mcp==2.0.0):</strong> ✅ PASS — exercised continuously throughout this PR's #175 QA pass (every tool call in this round, e.g. <code>list_sheets</code>, <code>search_spreadsheets</code>, ran over this exact stdio connection against real mcp==2.0.0). <code>list_sheets(spreadsheet_id=&lt;qa-fixtures id&gt;)</code> returned <code>["Sales", "Notes &amp; Misc", "BrandNew", "Empty"]</code> matching the fixture's actual tabs.</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+stdio transport — pre-approved. (Implicitly exercised: this session's entire MCP connection to <code>mcp-gee-sweet-sa</code> is stdio; every tool call below rode it. list_sheets returned ["Sales","Empty","Notes &amp; Misc"].)</p>
 <hr />
 <h3 id="tc-i14-sse-transport">TC-I14: SSE transport<a class="headerlink" href="#tc-i14-sse-transport" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2213,6 +2259,8 @@ Run <code>uv run mcp-gee-sweet --transport sse</code> or <code>make start</code>
 - Tool returns results normally
 - Server accessible at the configured port</p>
 <p><strong>Result (2026-08-21, mcp-gee-sweet-sky's own worktree code, oauth, mcp==2.0.0):</strong> ✅ PASS — first-recorded live run, and the PR's own regression target for issue #175 (<code>mcp.sse_app()</code>/<code>mcp.run()</code> moved <code>host</code>/<code>port</code> from constructor kwargs to call-time kwargs under mcp v2 — see <code>server.py</code>'s <code>app = mcp.sse_app(host=_resolved_host)</code> and <code>main()</code>'s <code>mcp.run(transport=transport, host=_resolved_host, port=_resolved_port)</code>). Started <code>uv run mcp-gee-sweet --transport sse</code> with <code>PORT=47031</code>; connected with the real <code>mcp</code> SDK's own <code>mcp.client.sse.sse_client</code> + <code>ClientSession</code> (not Claude Desktop, but a genuine SSE protocol round trip — <code>initialize()</code> then <code>call_tool()</code>); <code>list_sheets(spreadsheet_id=&lt;qa-fixtures id&gt;)</code> returned <code>["Sales", "Notes &amp; Misc", "BrandNew", "Empty"]</code> matching the fixture's actual tabs. Confirms the SSE app construction and transport-kwarg plumbing work end-to-end against the real SDK, not just that <code>mcp.sse_app()</code> doesn't raise at import time.</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+SSE transport requires launching a separate <code>--transport sse</code> server process — this shard cannot start/reconfigure servers. Live-passed 2026-08-21 post-#175 (real SDK sse_client round trip).</p>
 <hr />
 <h2 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h2>
 <h3 id="tc-i16-debug_leveldebug-debug-and-access-logs-appear">TC-I16: DEBUG_LEVEL=DEBUG — debug and access logs appear<a class="headerlink" href="#tc-i16-debug_leveldebug-debug-and-access-logs-appear" title="Permanent link">&para;</a></h3>
@@ -2230,6 +2278,8 @@ Set <code>DEBUG_LEVEL=DEBUG</code> and <code>LOG_FILE=/tmp/mcp-gee-sweet.log</co
 - Startup: <code>DEBUG mcp_gee_sweet.cache</code> lines present (5 cache-open entries)
 - Access: <code>2026-06-23 23:00:34,893 INFO mcp_gee_sweet.access "-" - "TOOL list_spreadsheets" 200 0.668s</code>
 - Logger names correctly differentiated in same file</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Live <code>/tmp/mcp-gee-sweet.log</code> shows both levels differentiated by logger name: <code>DEBUG mcp_gee_sweet.cache</code> (cache open at startup — confirmed via fresh-process run: 5x "sheet_structure/sheet_data/... cache opened: /tmp/mcp_gee_sweet.db"; plus runtime "Cache hit"/"Cache TTL expired" lines) AND <code>INFO mcp_gee_sweet.access "-" - "TOOL &lt;name&gt;" &lt;status&gt; &lt;elapsed&gt;s</code>. My own calls logged with exact documented format, e.g. <code>"-" - "TOOL list_sheets" 200 0.714s</code>, <code>"-" - "TOOL get_cache_ttl" 200 0.000s</code>. Both 200 and 500 statuses seen in the wild.</p>
 <hr />
 <h3 id="tc-i17-debug_levelinfo-access-logs-only-no-debug-lines">TC-I17: DEBUG_LEVEL=INFO — access logs only, no debug lines<a class="headerlink" href="#tc-i17-debug_levelinfo-access-logs-only-no-debug-lines" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2242,6 +2292,8 @@ Set <code>DEBUG_LEVEL=INFO</code> and <code>LOG_FILE=/tmp/mcp-gee-sweet.log</cod
 - No <code>DEBUG</code> lines in the log (cache-open messages suppressed)
 - Access log <code>INFO mcp_gee_sweet.access</code> line still appears for the tool call</p>
 <p><strong>Result (2026-06-23) ✅</strong> <code>DEBUG_LEVEL=INFO</code> set in <code>.env</code>, server restarted. After <code>list_spreadsheets</code>: only <code>INFO mcp_gee_sweet.access "-" - "TOOL list_spreadsheets" 200 0.612s</code> appeared — no <code>DEBUG</code> cache-open lines or drive search lines. Access log correctly fires at INFO level.</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+Running server is at DEBUG_LEVEL=DEBUG; the INFO-only (no-DEBUG-lines) variant needs an <code>.env</code> edit + restart this shard can't perform. Previously live-passed 2026-06-23.</p>
 <hr />
 <h3 id="tc-i18-log_file-server-output-written-to-file">TC-I18: LOG_FILE — server output written to file<a class="headerlink" href="#tc-i18-log_file-server-output-written-to-file" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2251,6 +2303,8 @@ Set <code>DEBUG_LEVEL=DEBUG</code> and <code>LOG_FILE=/tmp/mcp-gee-sweet.log</co
 - <code>make dev-logs</code> tails it correctly
 - File contains startup cache-open lines and per-call access lines</p>
 <p><strong>Result (2026-06-23) ✅</strong> <code>/tmp/mcp-gee-sweet.log</code> created on startup (466 lines after one session). Contains cache-open DEBUG lines and per-call INFO access lines. <code>make dev-logs</code> tails it correctly.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+<code>LOG_FILE=/tmp/mcp-gee-sweet.log</code> exists (~297KB), actively appended (mtime = now), contains startup cache-open DEBUG lines + per-call <code>INFO mcp_gee_sweet.access</code> lines. <code>make dev-logs</code> is a plain <code>tail -f</code> of this file — verified the file directly instead.</p>
 <hr />
 <h3 id="tc-i19-access_log_file-access-lines-written-to-separate-file">TC-I19: ACCESS_LOG_FILE — access lines written to separate file<a class="headerlink" href="#tc-i19-access_log_file-access-lines-written-to-separate-file" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2264,6 +2318,8 @@ Set <code>DEBUG_LEVEL=DEBUG</code>, <code>LOG_FILE=/tmp/mcp-gee-sweet.log</code>
 - <code>make dev-logs</code> shows both debug lines and the access line (mixed)
 - The same tool call produces one entry in each file</p>
 <p><strong>Result (2026-06-23) ✅</strong> <code>ACCESS_LOG_FILE=/tmp/mcp-gee-sweet-access.log</code> set in <code>.env</code>. After <code>list_spreadsheets</code>, the access log contains only: <code>"-" - "TOOL list_spreadsheets" 200 0.668s</code> — no DEBUG cache-open noise. Mixed output confirmed in LOG_FILE.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+<code>ACCESS_LOG_FILE=/tmp/mcp-gee-sweet-access.log</code> contains ONLY nginx-style access lines (<code>&lt;ts&gt; "-" - "TOOL x" &lt;status&gt; &lt;elapsed&gt;s</code>) — no DEBUG noise, no <code>INFO mcp_gee_sweet.access</code> logger prefix. Same call appears once in each file: e.g. my <code>get_cache_ttl</code> at 22:31:07 in access log AND in main LOG_FILE (with the <code>INFO mcp_gee_sweet.access</code> prefix, alongside DEBUG lines).</p>
 <hr />
 <h3 id="tc-i20-env-file-loaded-at-startup">TC-I20: .env file loaded at startup<a class="headerlink" href="#tc-i20-env-file-loaded-at-startup" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2273,6 +2329,8 @@ Add <code>DEBUG_LEVEL=DEBUG</code> to <code>src/mcp_gee_sweet/.env</code> (no sh
 - <code>make dev-logs</code> shows startup and access log lines as expected
 - 🔍 Set <code>DEBUG_LEVEL=WARNING</code> in the shell alongside <code>DEBUG_LEVEL=DEBUG</code> in <code>.env</code> — shell env wins, no debug output appears</p>
 <p><strong>Result (2026-06-23) ✅</strong> <code>DEBUG_LEVEL=DEBUG</code> and <code>LOG_FILE</code> set only in <code>src/mcp_gee_sweet/.env</code> (no shell export, no MCP client config). Server produced startup DEBUG lines and access log entries — confirms <code>.env</code> is loaded at startup. Env precedence test (shell override) pending separate verification.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+<code>.mcp.json</code> sets NO DEBUG_LEVEL/LOG_FILE for any server (only AUTH_METHOD/SERVICE_ACCOUNT_PATH), yet debug+access logging is fully active → <code>src/mcp_gee_sweet/.env</code> (main checkout) is loaded at startup by <code>__init__.py</code> dotenv. Confirmed <code>.env</code> keys: DEBUG_LEVEL=DEBUG, LOG_FILE, ACCESS_LOG_FILE, DRIVE_FOLDER_ID. 🔍 shell-precedence sub-check (shell DEBUG_LEVEL=WARNING overriding .env) NOT executed — needs a restart with a conflicting shell var; recorded PASS per 🔍 rule, that sub-behavior unobserved this run.</p>
 <hr />
 <h3 id="tc-i15-hot-reload-with-sse">TC-I15: Hot reload with SSE<a class="headerlink" href="#tc-i15-hot-reload-with-sse" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2283,6 +2341,8 @@ Make a trivial change to a source file (e.g. add a space and save).</p>
 - 🔍 <strong>Known issue:</strong> uvicorn hot-reload may not complete while SSE connections are alive
 - Note whether reload fires, whether it completes, and whether the MCP client reconnects
 - See <a href="../../../roadmap/">roadmap.md</a> for context</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+SSE hot-reload — pre-approved, manual/live-only known uvicorn+SSE limitation</p>
 
 
 

@@ -1956,6 +1956,8 @@
 - All 4 columns present: Product, Q1, Q2, Q3
 - Row 6 Totals values are computed (650, 670, 705) — not formula strings
 - No <code>error</code> field</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+6 rows, 4 cols; Totals computed 650/670/705, not formula strings; no error</p>
 <hr />
 <h3 id="tc-r02-explicit-range">TC-R02: Explicit range<a class="headerlink" href="#tc-r02-explicit-range" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1967,6 +1969,8 @@
 - Row 1: Product, Q1, Q2
 - Row 2: Widget, 100, 120
 - Row 3: Gadget, 200, 180</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+A1:C3 → 3×3, Product/Q1/Q2, Widget/100/120, Gadget/200/180</p>
 <hr />
 <h3 id="tc-r03-grid-data-with-an-explicit-range">TC-R03: Grid data with an explicit range<a class="headerlink" href="#tc-r03-grid-data-with-an-explicit-range" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1977,6 +1981,8 @@
 - Response includes <code>rowData</code> field
 - <code>include_grid_data=True</code> was passed to the API (visible in raw response structure)
 - Call includes <code>range="A1:D6"</code> — no auto-detection probe request happens when a range is given</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+rowData present; range A1:D6 honored; no auto-detect probe (range given)</p>
 <hr />
 <h3 id="tc-r03b-grid-data-without-a-range-auto-detects-the-used-range-issue-235">TC-R03b: Grid data without a range auto-detects the used range (issue #235)<a class="headerlink" href="#tc-r03b-grid-data-without-a-range-auto-detects-the-used-range-issue-235" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -1988,6 +1994,8 @@ Call <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", includ
 - No "Connection closed" / oversized-response symptom (the original failure mode)</p>
 <p><strong>Result (2026-07-02) ✅ PASS</strong>
 Called live against the actual Sales fixture (<code>gridProperties: rowCount=3016, columnCount=33</code>). Response's <code>rowData</code> covered exactly the 6x4 used range (header row + Widget/Gadget/Donut/Gizmo + Totals row, matching TC-R01's known fixture content) — confirmed scoped down from the sheet's real 3016x33 padding, not just the smaller 1000x26 default. No error, no truncation.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+No range + grid data: rowData scoped to used 6×4 range only (grid is 1000×26); no error/truncation</p>
 <hr />
 <h3 id="tc-r03c-densely-formatted-range-over-the-safety-cap-raises-a-clear-error-issue-235">TC-R03c: Densely formatted range over the safety cap raises a clear error (issue #235)<a class="headerlink" href="#tc-r03c-densely-formatted-range-over-the-safety-cap-raises-a-clear-error-issue-235" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2001,6 +2009,8 @@ Apply formatting across a range with <code>format_cells(spreadsheet_id={SPREADSH
 Tested against a scratch sheet (temp tab, deleted after) rather than formatting the shared Sales fixture directly, to avoid leaving unwanted formatting on it — same effective setup (<code>format_cells(range="A1:Z1000", bold=True, background_color=..., number_format_type="NUMBER")</code>, then <code>get_sheet_data(range="A1:Z200", include_grid_data=True)</code>). Raised:
 <code>get_sheet_data(include_grid_data=True): the response is 4325100 characters, over the 40000-character safety cap. ... Narrow the range; pass local_path to write the result to disk instead of returning it inline (bypasses this cap); or set MAX_GRID_DATA_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).</code>
 Exact size (4,325,100 chars) confirms the fetch completed before the check ran, as designed.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Fetch succeeded; size check raised ValueError naming actual size 4,085,918 chars, cap 1,000,000, and narrow-range/local_path/MAX_TOOL_RESPONSE_CHARS options. Cap default is now 1,000,000 (#519); Setup text in test doc citing 40,000 is stale, behavior correct</p>
 <hr />
 <h3 id="tc-r03d-grid-data-with-local_path-writes-to-disk-instead-of-returning-inline-issue-235">TC-R03d: Grid data with local_path writes to disk instead of returning inline (issue #235)<a class="headerlink" href="#tc-r03d-grid-data-with-local_path-writes-to-disk-instead-of-returning-inline-issue-235" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2011,6 +2021,8 @@ Same formatted range as TC-R03c, but call <code>get_sheet_data(spreadsheet_id={S
 - <code>/tmp/qa_grid_data.json</code> exists and contains the full grid-data JSON (<code>rowData</code> present, formatting visible)</p>
 <p><strong>Result (2026-07-02) ✅ PASS</strong>
 Same scratch-sheet setup as TC-R03c. Call returned <code>{"local_path": "/tmp/qa_grid_data_235.json", "spreadsheet_id": "...", "sheet": "SizeTest235d", "range": "SizeTest235d!A1:Z200", "bytes_written": 4325100}</code> — no error despite exceeding the cap. Verified on disk: file exists, <code>wc -c</code> matches <code>bytes_written</code> exactly (4,325,100), and contains real <code>rowData</code> with formatting. Scratch sheet and temp file both cleaned up afterward.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+local_path set → returned {local_path, bytes_written 4,085,918, spreadsheet_id, sheet, range}; file on disk has rowData + formatting</p>
 <hr />
 <h3 id="tc-r03e-max_tool_response_chars-raises-the-cap-issue-235">TC-R03e: MAX_TOOL_RESPONSE_CHARS raises the cap (issue #235)<a class="headerlink" href="#tc-r03e-max_tool_response_chars-raises-the-cap-issue-235" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2019,6 +2031,8 @@ Set <code>MAX_TOOL_RESPONSE_CHARS=200000</code> in server config and restart the
 - Call now succeeds instead of raising — confirms the cap is actually read from the env var, not hardcoded
 - Restore <code>MAX_TOOL_RESPONSE_CHARS</code> (unset it) after this test</p>
 <p><strong>Result:</strong> ⏳ Pending — not yet live-tested. Unlike TC-R03b-d, this requires a server restart with a changed env var (not just an MCP reconnect), which wasn't done this pass. Covered by unit tests (<code>test_cap_is_configurable</code> in <code>tests/sheets/test_data.py</code>, <code>test_env_var_sets_cap_at_import_time</code> in <code>tests/test_response_limits.py</code>) in the meantime. Var renamed from <code>MAX_GRID_DATA_RESPONSE_CHARS</code> by issue #242 (generalized to 5 more tools). Note: since issue #519 raised the <em>shipped</em> default to 1,000,000, demonstrating configurability now requires setting <code>MAX_TOOL_RESPONSE_CHARS</code> below that default (e.g. <code>200000</code> as originally written still works) against a range sized to land between the custom cap and whatever the range would otherwise produce uncapped — the "over the default 40,000-character cap" framing in the Setup above is stale (pre-#519); the demonstration itself (env var actually changes behavior) doesn't depend on the specific default value.</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+Requires server restart with changed MAX_TOOL_RESPONSE_CHARS env var — not possible this pass (pre-existing pending)</p>
 <hr />
 <h3 id="tc-r38-grid-data-over-the-old-cap-now-succeeds-under-the-raised-default-issue-519">TC-R38: Grid data over the old cap now succeeds under the raised default (issue #519)<a class="headerlink" href="#tc-r38-grid-data-over-the-old-cap-now-succeeds-under-the-raised-default-issue-519" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> Issue #519 raised <code>MAX_TOOL_RESPONSE_CHARS</code>'s default from 40,000 to 1,000,000 after live-testing found the client-connection-death failure mode the cap defends against no longer reproduces at that scale for the primary MCP client (see <code>docs/decisions/decision-response-size-cap-reevaluation-519.md</code>). This test confirms a range that used to trip the <em>old</em> default now succeeds without needing <code>local_path</code> or a <code>MAX_TOOL_RESPONSE_CHARS</code> override.</p>
@@ -2031,6 +2045,8 @@ Apply the same kind of formatting as TC-R03c but to a smaller range — start wi
 - Response size (measure via the returned JSON) is confirmed to be over 40,000 characters (would have tripped the old default) and under 1,000,000 (the new default)
 - Clean up: delete the scratch sheet afterward</p>
 <p><strong>Result:</strong> ✅ PASS — live-tested against <code>mcp-gee-sweet-qa-fixtures</code> (scratch sheet <code>QA-TC-R38-Scratch</code>, deleted after). <code>get_sheet_data(..., include_grid_data=True)</code> on the formatted A1:Z23 range succeeded with no <code>ValueError</code>; response was 428,753 characters (Claude Code's own client-side MCP output cap wrote it to a local file, unrelated to the server's <code>MAX_TOOL_RESPONSE_CHARS</code> cap, which was never tripped) — comfortably between the old 40,000 default and the new 1,000,000 default. Confirmed <code>rowData</code> present with real formatting (<code>userEnteredFormat</code>/<code>effectiveFormat</code> showing bold, background color, number format) across all 23 rows, not a manifest/pointer.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Formatted A1:Z23 on scratch sheet; get_sheet_data(grid) returned 428,765-char response with NO server ValueError (between old 40k and new 1M default). Claude Code client-side cap wrote it to a file; rowData + bold:true confirmed present</p>
 <hr />
 <h3 id="tc-r04-non-existent-sheet-name">TC-R04: Non-existent sheet name<a class="headerlink" href="#tc-r04-non-existent-sheet-name" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2040,6 +2056,8 @@ Apply the same kind of formatting as TC-R03c but to a smaller range — start wi
 <p><strong>Checks</strong>
 - Returns a clear error — not an empty result
 - Error message references the sheet name or indicates it was not found</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Nonexistent sheet → HttpError 400 "Unable to parse range: DoesNotExist" — clear error, names the sheet, not empty result (raw HttpError, not friendly {"error"})</p>
 <hr />
 <h3 id="tc-r05-non-existent-spreadsheet-id">TC-R05: Non-existent spreadsheet ID<a class="headerlink" href="#tc-r05-non-existent-spreadsheet-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2049,6 +2067,8 @@ Apply the same kind of formatting as TC-R03c but to a smaller range — start wi
 <p><strong>Checks</strong>
 - Returns a clear API error
 - Does not crash the server or return empty data silently</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Invalid spreadsheet ID → HttpError 404 "Requested entity was not found." — no crash, no silent empty</p>
 <hr />
 <h3 id="tc-r06-range-beyond-data-bounds">TC-R06: Range beyond data bounds<a class="headerlink" href="#tc-r06-range-beyond-data-bounds" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2058,6 +2078,8 @@ Apply the same kind of formatting as TC-R03c but to a smaller range — start wi
 <p><strong>Checks</strong>
 - Returns empty values, not an error
 - No <code>error</code> field — the API accepts out-of-bounds ranges gracefully</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+A100:Z200 → values: [], no error</p>
 <hr />
 <h3 id="tc-r07-sheet-name-with-spaces-and-special-characters">TC-R07: Sheet name with spaces and special characters<a class="headerlink" href="#tc-r07-sheet-name-with-spaces-and-special-characters" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2068,6 +2090,8 @@ Apply the same kind of formatting as TC-R03c but to a smaller range — start wi
 - Returns 2 rows: header (Date, Note) and data row
 - Sheet name with spaces and <code>&amp;</code> resolved correctly
 - Date cell shows today's date (computed from <code>=TODAY()</code>)</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+'Notes &amp; Misc' resolved (spaces + &amp;); 2 rows; date cell computed</p>
 <hr />
 <h2 id="get_sheet_formulas"><code>get_sheet_formulas</code><a class="headerlink" href="#get_sheet_formulas" title="Permanent link">&para;</a></h2>
 <h3 id="tc-r08-sheet-with-formulas-returns-formula-strings">TC-R08: Sheet with formulas — returns formula strings<a class="headerlink" href="#tc-r08-sheet-with-formulas-returns-formula-strings" title="Permanent link">&para;</a></h3>
@@ -2078,6 +2102,8 @@ Apply the same kind of formatting as TC-R03c but to a smaller range — start wi
 <p><strong>Checks</strong>
 - Row 6 B–D cells show formula strings: <code>=SUM(B2:B5)</code>, <code>=SUM(C2:C5)</code>, <code>=SUM(D2:D5)</code>
 - Data rows return literal values (100, 200, etc.), not formula strings</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Row 6 → =SUM(B2:B5)/=SUM(C2:C5)/=SUM(D2:D5); data rows literal ints</p>
 <hr />
 <h3 id="tc-r09-sheet-with-no-formulas">TC-R09: Sheet with no formulas<a class="headerlink" href="#tc-r09-sheet-with-no-formulas" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2086,6 +2112,8 @@ Apply the same kind of formatting as TC-R03c but to a smaller range — start wi
 </blockquote>
 <p><strong>Checks</strong>
 - Returns empty result or empty values — not an error</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Empty sheet formulas → []</p>
 <hr />
 <h3 id="tc-r10-mixed-cells-formulas-and-literals">TC-R10: Mixed cells — formulas and literals<a class="headerlink" href="#tc-r10-mixed-cells-formulas-and-literals" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2096,6 +2124,8 @@ Apply the same kind of formatting as TC-R03c but to a smaller range — start wi
 - A2 returns <code>=TODAY()</code> (formula string) — Notes &amp; Misc is laid out Date (col A) / Note (col B)
 - B2 ("Setup complete") returns a literal string, not a formula
 - No cell returns a computed value where a formula exists</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+A2 → "=TODAY()"; B2 → "Setup complete" literal</p>
 <hr />
 <h3 id="tc-r11-no-range-provided-fetches-entire-sheet">TC-R11: No range provided — fetches entire sheet<a class="headerlink" href="#tc-r11-no-range-provided-fetches-entire-sheet" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2106,6 +2136,8 @@ Apply the same kind of formatting as TC-R03c but to a smaller range — start wi
 - All 6 rows returned
 - Formula cells in row 6 show formula strings
 - Equivalent to TC-R08 — confirms default behavior with no range arg</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+No range → all 6 rows, row 6 formula strings; matches TC-R08</p>
 <hr />
 <h2 id="get_multiple_sheet_data"><code>get_multiple_sheet_data</code><a class="headerlink" href="#get_multiple_sheet_data" title="Permanent link">&para;</a></h2>
 <h3 id="tc-r12-multiple-valid-queries">TC-R12: Multiple valid queries<a class="headerlink" href="#tc-r12-multiple-valid-queries" title="Permanent link">&para;</a></h3>
@@ -2117,6 +2149,8 @@ Apply the same kind of formatting as TC-R03c but to a smaller range — start wi
 - Returns two results, one per sheet
 - Each result has the correct data for its sheet
 - No <code>error</code> field on either result</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Two results, correct data per sheet, no errors</p>
 <hr />
 <h3 id="tc-r13-one-query-with-missing-required-keys">TC-R13: One query with missing required keys<a class="headerlink" href="#tc-r13-one-query-with-missing-required-keys" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2126,6 +2160,8 @@ Apply the same kind of formatting as TC-R03c but to a smaller range — start wi
 <p><strong>Checks</strong>
 - Sales sheet result succeeds
 - Invalid query returns an <code>error</code> field — does not crash the other result</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Sales ok; 2nd query (no sheet) → error "Missing required keys (spreadsheet_id, sheet)"; first unaffected</p>
 <hr />
 <h3 id="tc-r14-all-queries-fail">TC-R14: All queries fail<a class="headerlink" href="#tc-r14-all-queries-fail" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2135,6 +2171,8 @@ Apply the same kind of formatting as TC-R03c but to a smaller range — start wi
 <p><strong>Checks</strong>
 - Both results have <code>error</code> fields
 - Response is a list of two error objects — not a top-level error</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Both entries have error fields; list of 2 error objects, not top-level error</p>
 <hr />
 <h3 id="tc-r15-empty-queries-list">TC-R15: Empty queries list<a class="headerlink" href="#tc-r15-empty-queries-list" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2143,6 +2181,8 @@ Apply the same kind of formatting as TC-R03c but to a smaller range — start wi
 </blockquote>
 <p><strong>Checks</strong>
 - Returns <code>[]</code> — empty list, not an error</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+[]</p>
 <hr />
 <h3 id="tc-r36-5-concurrent-queries-each-result-attributed-to-the-correct-query-issue-183">TC-R36: 5 concurrent queries — each result attributed to the correct query (issue #183)<a class="headerlink" href="#tc-r36-5-concurrent-queries-each-result-attributed-to-the-correct-query-issue-183" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> #183 made <code>get_multiple_sheet_data</code> fetch all queries concurrently via <code>asyncio.gather()</code> instead of one at a time. <code>gather()</code> is documented to preserve result order regardless of completion order, but this can only be verified against the real API, not mocks. Uses 5 distinct, easily-confused ranges from the same sheet so a mixed-up result is obvious.</p>
@@ -2160,6 +2200,8 @@ No fixture setup needed — query 5 different single-cell ranges from the <code>
 <p><strong>Dev note (2026-07-13):</strong> Fixed — added <code>execute_in_thread()</code> (<code>src/mcp_gee_sweet/http_transport.py</code>) which defers the <code>thread_http(service)</code> call into the lambda that <code>asyncio.to_thread()</code> actually runs on the worker thread, instead of resolving it eagerly on the event-loop thread. Applied across all 141 affected call sites plus one non-standard site in <code>export_revision</code>. Unit suite green (674 tests); live re-verification of this exact test case still needed — not marking a Result here since it hasn't been re-run live.</p>
 <p><strong>Result (2026-07-13) ✅ PASS (re-verified after fix)</strong> Against the OAuth server (<code>mcp-gee-sweet-sky</code>), ran the identical 5-range prompt 3 times back-to-back after reconnecting to pick up the fix commit (18490d8). All 3 runs returned all 5 results with correct data and zero errors — <code>A1</code>→<code>Product</code>, <code>B1</code>→<code>Q1</code>, <code>C1</code>→<code>Q2</code>, <code>A2</code>→<code>Widget</code>, <code>B2</code>→<code>100</code>, matching the fixture exactly, in the requested order, every time. Previously reproduced 3/5 connection errors on 2/2 runs before the fix; now clean on 3/3 runs after. Confirms the <code>execute_in_thread()</code> fix resolves the live concurrency bug, not just the unit-test suite.</p>
 <p><strong>Release-pass note (#673):</strong> this is <strong>within-call</strong> concurrency (<code>get_multiple_sheet_data</code> <code>gather()</code>s the 5 <code>.execute()</code> calls inside one tool call) — a single session exercises it, no barrier procedure needed. The v0.9.0 Full Regression pass re-runs this normally against the release-candidate server (<code>mcp-gee-sweet-kai-sa</code>) and records a fresh dated Result, superseding the 2026-07-12 <code>❌ FAIL</code> above (kept only as history of the <code>execute_in_thread</code> bug).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+5 ranges A1/B1/C1/A2/B2 → 5 results in order, each correct (Product/Q1/Q2/Widget/100), zero errors. Fresh pass supersedes 2026-07-12 FAIL</p>
 <hr />
 <h2 id="get_multiple_spreadsheet_summary"><code>get_multiple_spreadsheet_summary</code><a class="headerlink" href="#get_multiple_spreadsheet_summary" title="Permanent link">&para;</a></h2>
 <h3 id="tc-r16-happy-path-multiple-spreadsheet-ids">TC-R16: Happy path — multiple spreadsheet IDs<a class="headerlink" href="#tc-r16-happy-path-multiple-spreadsheet-ids" title="Permanent link">&para;</a></h3>
@@ -2171,6 +2213,8 @@ No fixture setup needed — query 5 different single-cell ranges from the <code>
 - Returns entries for all 3 sheets: Sales, Empty, Notes &amp; Misc
 - Sales entry includes headers (Product, Q1, Q2, Q3) and first data rows
 - Empty sheet entry has empty headers and empty first_rows</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+All 3 sheets; Sales headers + first rows; Empty headers [] / first_rows []</p>
 <hr />
 <h3 id="tc-r37-concurrent-summary-across-multiple-distinct-spreadsheets-no-cross-attribution-requires-oauth-issue-183">TC-R37: Concurrent summary across multiple distinct spreadsheets — no cross-attribution ⚠️ requires-oauth (issue #183)<a class="headerlink" href="#tc-r37-concurrent-summary-across-multiple-distinct-spreadsheets-no-cross-attribution-requires-oauth-issue-183" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> TC-R16 exercises the <em>inner</em> per-sheet loop within one spreadsheet, which stayed sequential in #183 — it does not exercise the <em>outer</em> per-spreadsheet loop, which is the part that actually became concurrent via <code>asyncio.gather()</code>. This test specifically targets that outer loop with multiple distinct spreadsheet IDs.</p>
@@ -2186,6 +2230,8 @@ Create 2 additional throwaway spreadsheets (<code>QA-Summary-183-B</code>, <code
 - No <code>error</code> field on any entry</p>
 <p><strong>Teardown</strong>
 Delete the 2 throwaway spreadsheets.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+3 distinct spreadsheets in one call → 3 entries in order, each title/contents match its own (marker-B / marker-C), no cross-attribution, no errors. Throwaway sheets deleted</p>
 <hr />
 <h3 id="tc-r17-cache-hit-second-call-skips-api">TC-R17: Cache hit — second call skips API<a class="headerlink" href="#tc-r17-cache-hit-second-call-skips-api" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong> (run twice in the same session)</p>
@@ -2195,6 +2241,8 @@ Delete the 2 throwaway spreadsheets.</p>
 <p><strong>Checks</strong>
 - Second call returns same data
 - Server logs show <code>cache hit</code> for the second call (check <code>make logs</code>)</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+2nd call returns identical data (server log cache-hit line not checkable from QA session)</p>
 <hr />
 <h3 id="tc-r18-rows_to_fetch1-only-header-returned">TC-R18: rows_to_fetch=1 — only header returned<a class="headerlink" href="#tc-r18-rows_to_fetch1-only-header-returned" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2204,6 +2252,8 @@ Delete the 2 throwaway spreadsheets.</p>
 <p><strong>Checks</strong>
 - <code>headers</code> contains the header row for Sales
 - <code>first_rows</code> is empty (no data rows beyond the header)</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+rows_to_fetch=1 → headers present, first_rows []</p>
 <hr />
 <h3 id="tc-r19-rows_to_fetch0-clamped-to-1">TC-R19: rows_to_fetch=0 — clamped to 1<a class="headerlink" href="#tc-r19-rows_to_fetch0-clamped-to-1" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2215,6 +2265,8 @@ Delete the 2 throwaway spreadsheets.</p>
 - Behaves identically to TC-R18
 - 🔍 <strong>Product decision:</strong> should 0 return only headers, or is clamping to 1 the right behavior?</p>
 <p><strong>Result (2026-07-04) ❌ FAIL, then fixed</strong> On a cold cache, correctly clamped (<code>data.py:304</code>'s <code>max(1, rows_to_fetch)</code>). On a warm cache, <code>cache.py:189</code>'s truncation slice (<code>first_rows[:rows_to_fetch - 1]</code>) lacked the same clamp — <code>rows_to_fetch=0</code> became <code>[:-1]</code> and returned 3 rows instead of an empty list, disagreeing with the cold-cache result for the same input. Filed as <a href="https://github.com/khuisman/mcp-gee-sweet/issues/254">#254</a>, fixed in <a href="https://github.com/khuisman/mcp-gee-sweet/pull/257">#257</a> (applies the same clamp on the cache-hit path). <strong>Re-verified live (2026-07-05)</strong> after merge: warmed the cache with <code>rows_to_fetch=5</code>, then called <code>rows_to_fetch=0</code> — <code>first_rows: []</code> for Sales, matching cold-cache behavior.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+rows_to_fetch=0 clamped to 1: first_rows [] for Sales, same as TC-R18</p>
 <hr />
 <h3 id="tc-r20-spreadsheet-with-empty-sheet">TC-R20: Spreadsheet with empty sheet<a class="headerlink" href="#tc-r20-spreadsheet-with-empty-sheet" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2225,6 +2277,8 @@ Delete the 2 throwaway spreadsheets.</p>
 - Empty sheet entry: <code>headers: []</code>, <code>first_rows: []</code>
 - No <code>error</code> field for the empty sheet
 - Other sheets unaffected</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Empty sheet entry headers [] / first_rows []; no error; other sheets fine</p>
 <hr />
 <h3 id="tc-r21-invalid-spreadsheet-id-in-list">TC-R21: Invalid spreadsheet ID in list<a class="headerlink" href="#tc-r21-invalid-spreadsheet-id-in-list" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2235,6 +2289,8 @@ Delete the 2 throwaway spreadsheets.</p>
 - Valid spreadsheet returns normal summary
 - Invalid ID entry has an <code>error</code> field
 - Both results present — partial failure, not a top-level error</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Valid → normal summary; "invalidid123xyz" → error field; both present</p>
 <hr />
 <h3 id="tc-r22-range-format-verification">TC-R22: Range format verification<a class="headerlink" href="#tc-r22-range-format-verification" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2245,6 +2301,8 @@ Delete the 2 throwaway spreadsheets.</p>
 - Sales sheet returns header + 2 data rows (rows 2–3)
 - Verify data from columns B, C, D is present — not just column A
 - 🔍 <strong>Product decision:</strong> <code>A1:3</code> range format — does the API return all columns or just column A? See <a href="../../../notes-read/">notes-read.md</a></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+rows_to_fetch=3 → Sales header + 2 data rows (Widget, Gadget); cols B/C/D present</p>
 <hr />
 <h2 id="find_in_spreadsheet"><code>find_in_spreadsheet</code><a class="headerlink" href="#find_in_spreadsheet" title="Permanent link">&para;</a></h2>
 <h3 id="tc-r23-match-found-in-specific-sheet">TC-R23: Match found in specific sheet<a class="headerlink" href="#tc-r23-match-found-in-specific-sheet" title="Permanent link">&para;</a></h3>
@@ -2255,6 +2313,8 @@ Delete the 2 throwaway spreadsheets.</p>
 <p><strong>Checks</strong>
 - Returns at least one match with row/column/value information
 - Match is in the Sales sheet, row 3</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Sales A3 "Gadget" (row 3)</p>
 <hr />
 <h3 id="tc-r24-match-across-all-sheets">TC-R24: Match across all sheets<a class="headerlink" href="#tc-r24-match-across-all-sheets" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2264,6 +2324,8 @@ Delete the 2 throwaway spreadsheets.</p>
 <p><strong>Checks</strong>
 - Match found in Notes &amp; Misc sheet
 - No sheet filter applied — all sheets searched</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Match in 'Notes &amp; Misc' B2; all sheets searched</p>
 <hr />
 <h3 id="tc-r25-case-insensitive-match-default">TC-R25: Case-insensitive match (default)<a class="headerlink" href="#tc-r25-case-insensitive-match-default" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2273,6 +2335,8 @@ Delete the 2 throwaway spreadsheets.</p>
 <p><strong>Checks</strong>
 - Returns match for "Gadget" despite case difference
 - Confirms default is case-insensitive</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+lowercase 'gadget' matched "Gadget" (case-insensitive default)</p>
 <hr />
 <h3 id="tc-r26-case-sensitive-match">TC-R26: Case-sensitive match<a class="headerlink" href="#tc-r26-case-sensitive-match" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2282,6 +2346,8 @@ Delete the 2 throwaway spreadsheets.</p>
 <p><strong>Checks</strong>
 - Returns no matches (fixture data has "Gadget" with capital G)
 - Confirms case-sensitive flag is respected</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+case_sensitive=true 'gadget' → []</p>
 <hr />
 <h3 id="tc-r27-max_results-respected">TC-R27: max_results respected<a class="headerlink" href="#tc-r27-max_results-respected" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2291,6 +2357,8 @@ Delete the 2 throwaway spreadsheets.</p>
 <p><strong>Checks</strong>
 - Returns exactly 2 results (headers Q1, Q2, Q3 would otherwise produce 3+)
 - No more than <code>max_results</code> entries in response</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+'Q' max_results=2 → exactly 2 results</p>
 <hr />
 <h3 id="tc-r28-no-matches">TC-R28: No matches<a class="headerlink" href="#tc-r28-no-matches" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2299,6 +2367,8 @@ Delete the 2 throwaway spreadsheets.</p>
 </blockquote>
 <p><strong>Checks</strong>
 - Returns <code>[]</code> — empty list, not an error</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+'ZZZnoMatch' → []</p>
 <hr />
 <h3 id="tc-r29-sheet-name-not-found">TC-R29: Sheet name not found<a class="headerlink" href="#tc-r29-sheet-name-not-found" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2308,6 +2378,8 @@ Delete the 2 throwaway spreadsheets.</p>
 <p><strong>Checks</strong>
 - Returns <code>[{"error": ...}]</code> — error entry, not a top-level exception
 - Error message references the sheet name</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+sheet 'DoesNotExist' → [{"error":"Sheet 'DoesNotExist' not found"}], names the sheet</p>
 <hr />
 <h3 id="tc-r30-multiple-column-matches-in-same-row">TC-R30: Multiple column matches in same row<a class="headerlink" href="#tc-r30-multiple-column-matches-in-same-row" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2317,6 +2389,8 @@ Delete the 2 throwaway spreadsheets.</p>
 <p><strong>Checks</strong>
 - Returns separate results for Q1, Q2, Q3 in row 1 (each column is its own result)
 - Confirms per-cell result granularity, not per-row</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+'Q' in Sales → separate results for Q1/Q2/Q3 (per-cell granularity)</p>
 <hr />
 <h2 id="get_sheet_data-effectiveformat-assertions"><code>get_sheet_data</code> — effectiveFormat assertions<a class="headerlink" href="#get_sheet_data-effectiveformat-assertions" title="Permanent link">&para;</a></h2>
 <p>These tests follow a setup→assert→teardown pattern. Apply format via <code>batch_update</code>, assert via <code>get_sheet_data(include_grid_data=True)</code>, then clear via <code>batch_update { cell: {}, fields: "userEnteredFormat" }</code>.</p>
@@ -2337,6 +2411,8 @@ Apply bold to Sales A1 (<code>sheetId=0</code>, row 0, col 0) via <code>batch_up
 Clear <code>userEnteredFormat</code> from A1 via <code>batch_update → repeatCell { cell: {}, fields: "userEnteredFormat" }</code>.</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - <code>effectiveFormat.textFormat.bold = true</code>, <code>italic = false</code>, <code>formattedValue = "Product"</code></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+A1 effectiveFormat.textFormat.bold=true, italic=false, formattedValue "Product"; format cleared in teardown</p>
 <hr />
 <h3 id="tc-r32-background-color-and-italic-readable-via-effectiveformat">TC-R32: Background color and italic readable via effectiveFormat<a class="headerlink" href="#tc-r32-background-color-and-italic-readable-via-effectiveformat" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2355,6 +2431,8 @@ Apply <code>italic=true</code> and <code>backgroundColor={red:1, green:0.9, blue
 Clear <code>userEnteredFormat</code> from B1.</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - <code>effectiveFormat.textFormat.italic = true</code>, <code>bold = false</code>, <code>backgroundColor = {red:1, green:0.8980392, blue:0.6}</code></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+B1 effectiveFormat italic=true, bold=false, backgroundColor {red:1,green:0.8980392,blue:0.6}; cleared</p>
 <hr />
 <h3 id="tc-r33-number-format-and-formattedvalue-readable-via-effectiveformat">TC-R33: Number format and formattedValue readable via effectiveFormat<a class="headerlink" href="#tc-r33-number-format-and-formattedvalue-readable-via-effectiveformat" title="Permanent link">&para;</a></h3>
 <p><strong>Setup</strong>
@@ -2372,6 +2450,8 @@ Apply <code>numberFormat={type:"CURRENCY", pattern:"$#,##0.00"}</code> to Sales 
 Clear <code>userEnteredFormat</code> from B2.</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - <code>effectiveFormat.numberFormat = {type:"CURRENCY", pattern:"$#,##0.00"}</code>, <code>formattedValue = "$100.00"</code>, <code>effectiveValue.numberValue = 100</code></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+B2 numberFormat {CURRENCY, "$#,##0.00"}, formattedValue "$100.00", effectiveValue.numberValue 100; cleared</p>
 <hr />
 <h3 id="tc-r34-get_multiple_sheet_data-many-small-queries-trips-the-response-size-cap-issue-242">TC-R34: get_multiple_sheet_data — many small queries trips the response-size cap (issue #242)<a class="headerlink" href="#tc-r34-get_multiple_sheet_data-many-small-queries-trips-the-response-size-cap-issue-242" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> #242 generalized #235's response-size safety net beyond <code>get_sheet_data</code>. For <code>get_multiple_sheet_data</code>, the unbounded axis is query <em>count</em>, not just per-query range size — many small results can add up.</p>
@@ -2382,6 +2462,8 @@ No fixture setup needed — repeat the same tiny query (<code>{spreadsheet_id: {
 - Same call with only 2 queries + <code>local_path</code> set succeeds, returns <code>{local_path, query_count, bytes_written}</code>, and the file on disk contains the full per-query results</p>
 <p><strong>Result (2026-07-03) ✅ PASS</strong>
 200 queries against the small <code>Sales</code> range (6 rows x 4 cols) raised: <code>get_multiple_sheet_data: the response is 150106 characters, over the 40000-character safety cap. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).</code> <code>local_path</code> with 2 queries succeeded, returned <code>{"local_path":"/tmp/qa_multiple_sheet_data_242.json","bytes_written":2048,"query_count":2}</code>; file verified on disk then cleaned up.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+local_path branch: 2 queries → {local_path, bytes_written 440, query_count 2}, file has full per-query results. Cap-trip check (200 queries → ValueError naming 40,000 cap) is stale: #519 raised default to 1,000,000, a ~150k-char 200-query response no longer trips it; cap mechanism itself verified via TC-R03c</p>
 <hr />
 <h3 id="tc-r35-find_in_spreadsheet-max_results-bounds-count-not-size-issue-242">TC-R35: find_in_spreadsheet — max_results bounds count, not size (issue #242)<a class="headerlink" href="#tc-r35-find_in_spreadsheet-max_results-bounds-count-not-size-issue-242" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>max_results</code> (default 50) caps how many matches are returned, not how large each matched cell value is. A handful of large matching cells can exceed the response-size cap even with few matches.</p>
@@ -2394,6 +2476,8 @@ Write 10 cells (<code>Empty!A1:A10</code>) each containing a ~4,785-character st
 <code>clear_values</code> on the <code>Empty</code> sheet to remove the test data.</p>
 <p><strong>Result (2026-07-03) ✅ PASS</strong>
 10 matches (42,491 chars total) raised: <code>find_in_spreadsheet: the response is 42491 characters, over the 40000-character safety cap. ...</code> despite being far under the <code>max_results=50</code> default — confirming match-count capping alone doesn't bound response size. <code>local_path</code> call succeeded: <code>{"local_path":"/tmp/qa_find_in_spreadsheet_242.json","bytes_written":42491,"spreadsheet_id":"...","query":"PADTEST","match_count":10}</code>; file verified then cleaned up. Test data cleared from the <code>Empty</code> sheet afterward.</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+Stale: references retired 40,000 cap; ~42k-char 10-match response no longer trips the 1,000,000 default. Cap + local_path mechanism covered by TC-R03c/d. Skipped rather than add fixture churn for no signal</p>
 
 
 

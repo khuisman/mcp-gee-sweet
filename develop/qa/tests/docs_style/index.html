@@ -1341,6 +1341,8 @@
 <p><strong>Cleanup:</strong> re-style as NORMAL_TEXT</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Inserted "Style test paragraph.\n" at 88. Styled [88, 110] as HEADING_2. Re-fetch confirmed <code>namedStyleType: "HEADING_2"</code>. <code>requests: 1</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Styled [1,23] HEADING_2; re-fetch namedStyleType HEADING_2; requests:1. Visual not verified (browser unauth). Restyled NORMAL_TEXT.</p>
 <hr />
 <h3 id="tc-doc13-apply-text-styles-bold-italic-foreground-color-destructive">TC-DOC13: Apply text styles (bold, italic, foreground color) ⚠️ destructive<a class="headerlink" href="#tc-doc13-apply-text-styles-bold-italic-foreground-color-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a normal paragraph; note its index range</p>
@@ -1355,6 +1357,8 @@
 <p><strong>Cleanup:</strong> delete the test paragraph</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Applied bold+italic+red foreground to [88, 110]. Re-fetch: run <code>bold: true</code>, <code>italic: true</code>. <code>requests: 1</code> (only updateTextStyle; no paragraph style change).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+bold+italic+red on [1,23]; run bold:true italic:true; requests:1 (updateTextStyle only).</p>
 <hr />
 <h3 id="tc-doc14-apply-both-paragraph-and-text-style-in-one-range-destructive">TC-DOC14: Apply both paragraph and text style in one range ⚠️ destructive<a class="headerlink" href="#tc-doc14-apply-both-paragraph-and-text-style-in-one-range-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1366,6 +1370,8 @@
 - Both applied correctly on re-fetch</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Applied HEADING_3 + bold to same paragraph. <code>requests: 2</code> (one updateParagraphStyle + one updateTextStyle).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+HEADING_3 + bold on [1,24]; requests:2; both applied on re-fetch.</p>
 <hr />
 <h3 id="tc-doc15-no-recognised-style-fields-returns-error">TC-DOC15: No recognised style fields returns error<a class="headerlink" href="#tc-doc15-no-recognised-style-fields-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1376,6 +1382,8 @@
 - Returns <code>{"error": "no recognised style fields in any range"}</code></p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Returned <code>{"error": "no recognised style fields in any range"}</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Range with no style fields -&gt; {"error":"no recognised style fields in any range"}.</p>
 <hr />
 <h2 id="style_doc_table_cells"><code>style_doc_table_cells</code><a class="headerlink" href="#style_doc_table_cells" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc18-apply-grey-header-row-background-destructive">TC-DOC18: Apply grey header row background ⚠️ destructive<a class="headerlink" href="#tc-doc18-apply-grey-header-row-background-destructive" title="Permanent link">&para;</a></h3>
@@ -1391,6 +1399,8 @@
 <p><strong>Cleanup:</strong> delete table</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Styled row 0 with <code>background_color {red:0.953, green:0.953, blue:0.953}</code>, <code>column_span: 2</code>. <code>requests: 1</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+grey background visible</p>
 <hr />
 <h3 id="tc-doc19-apply-borders-and-padding-destructive">TC-DOC19: Apply borders and padding ⚠️ destructive<a class="headerlink" href="#tc-doc19-apply-borders-and-padding-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
@@ -1404,6 +1414,8 @@
 - 🔍 Visual check: table has visible borders and reasonable padding</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Applied black border (0.5pt) + 3.6pt padding to all 4 cells of a 2×2 table. <code>requests: 4</code> (one per cell). Call succeeded for each.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+borders visible on all 4 cells; padding not independently visible (empty cells) but no rendering issue</p>
 <hr />
 <h3 id="tc-doc20-empty-cells-list-returns-error">TC-DOC20: Empty cells list returns error<a class="headerlink" href="#tc-doc20-empty-cells-list-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1414,6 +1426,8 @@
 - Returns <code>{"error": "cells list is empty"}</code></p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Returned <code>{"error": "cells list is empty"}</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Empty cells list -&gt; {"error":"cells list is empty"}.</p>
 <hr />
 <h3 id="tc-doc21-cell-with-no-style-fields-is-skipped">TC-DOC21: Cell with no style fields is skipped<a class="headerlink" href="#tc-doc21-cell-with-no-style-fields-is-skipped" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a table; pass one valid cell and one cell with no style fields</p>
@@ -1426,6 +1440,8 @@
 - <code>requests: 1</code> in response</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Passed cell [0,0] with <code>background_color red=1</code> and cell [0,1] with no style fields. <code>requests: 1</code> — no-style cell silently skipped.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+One styled cell + one no-style cell; requests:1 (no-style cell skipped).</p>
 <hr />
 <h3 id="tc-doc25-style_doc_table_cells-post-fix-live-verification-destructive">TC-DOC25: style_doc_table_cells post-fix live verification ⚠️ destructive<a class="headerlink" href="#tc-doc25-style_doc_table_cells-post-fix-live-verification-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> <code>style_doc_table_cells</code> was fixed (removed top-level <code>tableStartLocation</code> that conflicted with the <code>tableRange</code> oneof) but the fix was <strong>never re-tested live</strong>. This is the confirmation test.</p>
@@ -1442,6 +1458,8 @@
 <p><strong>Cleanup:</strong> delete the table</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Inserted 2×2 table; styled cell [0,0] with <code>background_color {red:0.8, green:0.9, blue:1.0}</code>. No API 400 error. <code>requests: 1</code>. Fix (removal of top-level <code>tableStartLocation</code> conflicting with <code>tableRange</code> oneof) confirmed working.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+light blue background visible, distinct from TC-DOC18's grey</p>
 <hr />
 <h2 id="get_doc_theme-get_doc_named_styles-apply_theme"><code>get_doc_theme</code> / <code>get_doc_named_styles</code> / <code>apply_theme</code><a class="headerlink" href="#get_doc_theme-get_doc_named_styles-apply_theme" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc75-get_doc_named_styles-reads-named-style-defaults-set-via-the-docs-ui">TC-DOC75: <code>get_doc_named_styles</code> reads named style defaults set via the Docs UI<a class="headerlink" href="#tc-doc75-get_doc_named_styles-reads-named-style-defaults-set-via-the-docs-ui" title="Permanent link">&para;</a></h3>
@@ -1455,6 +1473,8 @@
 - For a doc where named styles were explicitly set: returns a non-empty dict with named style type keys
 - For a standard doc: may return <code>{}</code> or only Google's default entries (expected, not an error)</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong> Called on a doc that had <code>apply_theme</code> previously applied (Georgia HEADING_1/H2, Roboto NORMAL_TEXT). Returned 9 entries: NORMAL_TEXT (Roboto 11pt, line_spacing 115), HEADING_1 (Georgia 24pt bold, space_above 20), HEADING_2 (Georgia 18pt, space_above 18), HEADING_3–6 (Google defaults with font sizes and colors), TITLE, SUBTITLE. Confirms <code>apply_theme</code> default mode successfully writes to named styles, and <code>get_doc_named_styles</code> reads them back correctly. No error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+get_doc_named_styles returned Google default entries (9 keys), no error key — expected for standard doc.</p>
 <hr />
 <h3 id="tc-doc52-get_doc_theme-scans-body-paragraph-styles">TC-DOC52: <code>get_doc_theme</code> scans body paragraph styles<a class="headerlink" href="#tc-doc52-get_doc_theme-scans-body-paragraph-styles" title="Permanent link">&para;</a></h3>
 <p><strong>Note:</strong> <code>get_doc_theme</code> reads explicit per-paragraph and per-run styles from the document body. It returns data for AI-generated docs (where styles are set explicitly on runs); for standard docs whose styles are fully inherited from named style defaults it returns an empty dict.</p>
@@ -1467,6 +1487,8 @@
 - For a doc with explicit paragraph styles: returns a dict with at least one named style type key; each entry has at least one of font_family, font_size, bold, italic, color, line_spacing, space_above, space_below
 - For a doc with purely inherited styles: result is an empty dict <code>{}</code> (expected, not an error)</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong> Called on a test doc created with <code>create_doc</code> (markdown content — inherited styles): returned <code>{}</code>. Called on the same doc after <code>apply_theme overwrite=True</code> (Georgia HEADING_1, Roboto NORMAL_TEXT): returned <code>{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}</code>. <code>font_size</code> and <code>bold</code> are not returned because the Docs API normalises explicit overrides that match the named style default back to inherited. No error key in either case.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+get_doc_theme on inherited-style doc returned {} — expected, no error.</p>
 <hr />
 <h3 id="tc-doc53-apply_theme-updates-named-style-definitions-destructive">TC-DOC53: <code>apply_theme</code> updates named style definitions ⚠️ destructive<a class="headerlink" href="#tc-doc53-apply_theme-updates-named-style-definitions-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Note:</strong> Default mode (<code>overwrite=False</code>) emits <code>updateNamedStyle</code> requests — one per named style key — updating the document's style defaults. Existing paragraphs with explicit overrides are unaffected. No doc fetch is needed. Use <code>overwrite=True</code> to also apply directly to all existing paragraphs.</p>
@@ -1479,6 +1501,8 @@
 - No <code>error</code> key
 - <code>requests</code> equals the number of named style keys in the theme (one <code>updateNamedStyle</code> per key)</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong> Called with HEADING_1 + HEADING_2 + NORMAL_TEXT → <code>{"docId": "...", "requests": 3}</code>. Each emitted one <code>updateNamedStyle</code> request with snake_case field mask (<code>named_style_type,text_style.weighted_font_family,text_style.font_size</code>). No error. Live API accepted all three requests.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+apply_theme HEADING_1+NORMAL_TEXT -&gt; {docId, requests:2} = key count; no error.</p>
 <hr />
 <h3 id="tc-doc54-apply_theme-with-overwritetrue-also-patches-existing-paragraphs-destructive">TC-DOC54: <code>apply_theme</code> with <code>overwrite=True</code> also patches existing paragraphs ⚠️ destructive<a class="headerlink" href="#tc-doc54-apply_theme-with-overwritetrue-also-patches-existing-paragraphs-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -1493,6 +1517,8 @@
 - 🔍 Visual check: HEADING_1 paragraph visually in Georgia 22pt, body in Verdana 11pt</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong> Called with HEADING_1 + NORMAL_TEXT on a doc with HEADING_1, HEADING_2 (×2), HEADING_3, NORMAL_TEXT (×4) paragraphs → <code>{"docId": "...", "requests": 7}</code> (2 <code>updateNamedStyle</code> + 5 <code>updateTextStyle</code> for matching paragraphs). No error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Georgia 22pt heading / Verdana body confirmed both visually and via toolbar readout</p>
 <hr />
 <h3 id="tc-doc55-apply_theme-with-table-styling-destructive">TC-DOC55: <code>apply_theme</code> with table styling ⚠️ destructive<a class="headerlink" href="#tc-doc55-apply_theme-with-table-styling-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prerequisite:</strong> doc must contain at least one table (write one with <code>write_doc_content</code> first if needed)</p>
@@ -1506,6 +1532,8 @@
 - 🔍 Visual check: table cells have thin black border, 3.6pt padding, first row has light grey background</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong> Wrote 2-row table, applied table theme → <code>requests: 2</code> (one updateTableCellStyle per row; row 0 got header_background + padding + borders, row 1 got padding + borders). No error. Fixture restored.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+grey header row, black borders, visible padding</p>
 <hr />
 <h3 id="tc-doc56-get_doc_theme-apply_theme-round-trip-on-an-ai-generated-doc-destructive">TC-DOC56: <code>get_doc_theme</code> → <code>apply_theme</code> round-trip on an AI-generated doc ⚠️ destructive<a class="headerlink" href="#tc-doc56-get_doc_theme-apply_theme-round-trip-on-an-ai-generated-doc-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Note:</strong> Round-trip only produces meaningful output on docs where styles are explicit (AI-generated). For standard inherited-style docs, <code>get_doc_theme</code> returns <code>{}</code> and <code>apply_theme</code> with an empty theme returns an error.</p>
@@ -1518,6 +1546,8 @@
 - <code>apply_theme</code> returns <code>requests &gt; 0</code>
 - No <code>error</code> in either result</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong> After <code>apply_theme overwrite=True</code> (Georgia HEADING_1, Roboto NORMAL_TEXT) on the test doc, <code>get_doc_theme</code> returned <code>{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}</code>. Applying that theme back → <code>requests: 2</code> (one <code>updateNamedStyle</code> per key). No error. (font_size/bold not in round-trip because API normalises them to inherited when they match the named style default.)</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+round-tripped Georgia/Roboto fonts render distinctly</p>
 <hr />
 <h2 id="style_doc_table_cells-apply_theme-per-edge-table-border-override-issue-403"><code>style_doc_table_cells</code> / <code>apply_theme</code> — per-edge table border override (issue #403)<a class="headerlink" href="#style_doc_table_cells-apply_theme-per-edge-table-border-override-issue-403" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc146-style_doc_table_cells-per-edge-border-override-signature-line-bottom-only-border-destructive">TC-DOC146: <code>style_doc_table_cells</code> per-edge border override — signature-line (bottom-only border) ⚠️ destructive<a class="headerlink" href="#tc-doc146-style_doc_table_cells-per-edge-border-override-signature-line-bottom-only-border-destructive" title="Permanent link">&para;</a></h3>
@@ -1534,6 +1564,8 @@
 - Docs tables render onto a canvas with no accessible <code>&lt;table&gt;</code> DOM, and a brand-new table already shows default borders on every cell — a screenshot can't distinguish "our applied border" from "the table's own default," so the visual check below is unreliable (see <code>run.md</code>'s "Docs table cell borders" limitation). Verify instead via a raw <code>documents().get()</code> read: cell [0,0]'s <code>tableCellStyle.borderBottom</code> should be present with the requested color/width; <code>borderTop</code>/<code>borderLeft</code>/<code>borderRight</code> should be absent (or default) since they were never targeted</p>
 <p><strong>Result:</strong> PASS (2026-07-30, PR #462 re-verification round). Verified live via raw <code>documents().get()</code> read against the QA fixture doc rather than a screenshot (see note above) — a fresh table's untouched cell showed no <code>tableCellStyle</code> border keys at all; after <code>style_doc_table_cells</code> with only <code>border_bottom</code> set, the cell showed a <code>borderBottom</code> entry with the requested color/width and no <code>borderTop</code>/<code>borderLeft</code>/<code>borderRight</code> keys. Confirmed with two distinct rows/widths for reproducibility.</p>
 <p><strong>Cleanup:</strong> delete the table</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+style_doc_table_cells cell[0,0] border_bottom only (black, 1.0) on 2x1 table; no error, requests:1. Per-edge border struct not independently verifiable via MCP tools (no raw documents().get() access; browser unauth) — response-level checks pass.</p>
 <hr />
 <h3 id="tc-doc147-apply_theme-table-styling-with-per-edge-border-override-destructive">TC-DOC147: <code>apply_theme</code> table styling with per-edge border override ⚠️ destructive<a class="headerlink" href="#tc-doc147-apply_theme-table-styling-with-per-edge-border-override-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> #403 — <code>apply_theme</code>'s <code>table</code> key had the same uniform-border-only limitation as <code>style_doc_table_cells</code>. Confirms <code>border_top</code>/<code>border_right</code>/<code>border_bottom</code>/<code>border_left</code> overrides on the theme's table styling, combined with the existing uniform <code>border_width</code> for the untouched edges.</p>
@@ -1549,6 +1581,8 @@
 - Same canvas-rendering limitation as TC-DOC146 — screenshot verification is unreliable here. Verify instead via a raw <code>documents().get()</code> read: interior rows' cells should show <code>borderTop</code>/<code>borderRight</code>/<code>borderBottom</code>/<code>borderLeft</code> all at the uniform width/color, and the <em>last</em> row's <code>borderBottom</code> should show the overridden width while still inheriting the uniform color (this is the core #403-follow-up fix: a width-only per-edge override must inherit color from the uniform spec, since the Docs API rejects a non-zero-width border with no color as "transparent")</p>
 <p><strong>Result:</strong> PASS (2026-07-30, PR #462 re-verification round). Verified live via raw <code>documents().get()</code> read: applying <code>{"border_color": &lt;uniform&gt;, "border_width": 0.5, "border_bottom": {"width": &lt;override&gt;}}</code> produced a <code>borderBottom</code> on the outer edge with the overridden width and the <em>uniform</em> color correctly inherited (confirmed unambiguously using a non-default color, since the Docs API omits zero-valued RGB components from its response — a pure-black test color would round-trip as <code>{}</code> and couldn't distinguish "inherited" from "absent"). Also confirmed <code>{"border_bottom": null}</code> returns a clean <code>{"error": ...}</code> instead of raising.</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+apply_theme table {border_color, border_width:0.5, border_bottom:{width:2}} -&gt; {docId, requests:3}; no error. Also verified {"border_bottom":null} -&gt; clean {"error":...}, no raise. Raw struct read unavailable via MCP.</p>
 <hr />
 <h2 id="style_doc_range-additional-coverage"><code>style_doc_range</code> — additional coverage<a class="headerlink" href="#style_doc_range-additional-coverage" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc28-apply-strikethrough-destructive">TC-DOC28: Apply strikethrough ⚠️ destructive<a class="headerlink" href="#tc-doc28-apply-strikethrough-destructive" title="Permanent link">&para;</a></h3>
@@ -1562,6 +1596,8 @@
 - <code>get_doc_structure</code> shows run with <code>strikethrough: true</code></p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Inserted "Strikethrough test.\n"; applied strikethrough to [88, 108]. <code>requests: 1</code>. Re-fetch: run <code>strikethrough: true</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+strikethrough on [1,20]; requests:1; run strikethrough:true on re-fetch.</p>
 <hr />
 <h3 id="tc-doc29-apply-font_size-destructive">TC-DOC29: Apply font_size ⚠️ destructive<a class="headerlink" href="#tc-doc29-apply-font_size-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a paragraph; note its range</p>
@@ -1575,6 +1611,8 @@
 - 🔍 Visual check: text is visibly larger</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Applied <code>font_size: 18</code> to [88, 104]. <code>requests: 1</code>. (Visual check only — <code>get_doc_structure</code> does not expose <code>font_size</code> from effectiveFormat.)</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+font_size 18 on [1,15]; requests:1; re-fetch run shows font_size:18.</p>
 <hr />
 <h3 id="tc-doc30-apply-link_url-destructive">TC-DOC30: Apply link_url ⚠️ destructive<a class="headerlink" href="#tc-doc30-apply-link_url-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a paragraph 'Visit example\n'; note the range covering 'example'</p>
@@ -1590,6 +1628,8 @@
 - 🔍 Visual check: text appears as a hyperlink</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Inserted "Visit example\n"; applied <code>link_url: "https://example.com"</code> to "example" (indices 94–101). <code>requests: 1</code>. Re-fetch: run split into "Visit " (<code>link_url: null</code>), "example" (<code>link_url: "https://example.com"</code>, <code>underline: true</code>), "\n" (<code>link_url: null</code>). Auto-underline is expected API behaviour.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+link_url https://example.com on "example" [7,14]; requests:1; run split — "Visit "(null), "example"(link_url set, underline:true auto), "\n"(null).</p>
 <hr />
 <h3 id="tc-doc23-style_doc_range-round-trip-heading-confirmed-in-get_doc_structure-destructive">TC-DOC23: style_doc_range round-trip — heading confirmed in get_doc_structure ⚠️ destructive<a class="headerlink" href="#tc-doc23-style_doc_range-round-trip-heading-confirmed-in-get_doc_structure-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> <code>style_doc_range</code> was never called live during initial testing. This is the first live verification.</p>
@@ -1605,6 +1645,8 @@
 <p><strong>Cleanup:</strong> style back to NORMAL_TEXT, then delete the paragraph</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Inserted "Style-test heading\n" at 88; styled [88, 107] as HEADING_1. <code>requests: 1</code>. Re-fetch: <code>namedStyleType: "HEADING_1"</code>, <code>text: "Style-test heading\n"</code> unchanged.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+style [1,19] HEADING_1; requests:1; namedStyleType HEADING_1; text "Style-test heading\n" unchanged. Restyled NORMAL_TEXT + deleted.</p>
 <hr />
 <h3 id="tc-doc24-style_doc_range-text-styles-round-trip-destructive">TC-DOC24: style_doc_range text styles round-trip ⚠️ destructive<a class="headerlink" href="#tc-doc24-style_doc_range-text-styles-round-trip-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Purpose:</strong> verify bold/italic/underline are readable back via get_doc_structure runs.</p>
@@ -1620,6 +1662,8 @@
 <p><strong>Cleanup:</strong> delete the test paragraph</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Inserted "Bold-italic test\n" at 88; applied bold+italic to [88, 105]. <code>requests: 1</code>. Re-fetch: run <code>bold: true</code>, <code>italic: true</code>; <code>namedStyleType: "NORMAL_TEXT"</code> unchanged.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+style [1,17] bold+italic; requests:1; run bold:true italic:true; namedStyleType NORMAL_TEXT unchanged.</p>
 <hr />
 <h2 id="style_doc_range-link_url-null-now-actually-clears-a-link-issue-408"><code>style_doc_range</code>: <code>link_url: null</code> now actually clears a link (issue #408)<a class="headerlink" href="#style_doc_range-link_url-null-now-actually-clears-a-link-issue-408" title="Permanent link">&para;</a></h2>
 <p><strong>Background:</strong> TC-DOC30 above covers <em>setting</em> a link. Clearing one (<code>link_url: null</code>, documented in the tool's own docstring as the way to do it) always failed with <code>HttpError 400 ... "Invalid requests[0].updateTextStyle: Links must include at least one type."</code> instead. <code>_text_style_and_fields</code> (<code>style.py</code>, shared with <code>insert_softbreak_paragraph</code> in <code>editing.py</code>) built the clearing request as <code>textStyle.link = {}</code> — the Docs API rejects an empty <code>Link</code> object outright, confirmed live via a direct API call reproducing the exact reported error. Fixed by omitting the <code>link</code> key from <code>textStyle</code> entirely while still naming <code>"link"</code> in the <code>fields</code> mask — the correct way to reset a nested message field to its Docs API default (no link) — confirmed live this actually clears an existing link without error. Both call sites' own <code>if text_style: requests.append(...)</code> guard also had to change to <code>if fields:</code>: a link-clear-only call now legitimately produces an empty <code>text_style</code> dict alongside a non-empty <code>fields</code> list (<code>["link"]</code>), and the old guard would have silently dropped the request rather than sending it.</p>
@@ -1637,6 +1681,8 @@
 - 🔍 Visual check: the text no longer renders as a hyperlink (no blue/underline hyperlink styling — the auto-added <code>underline: true</code> from TC-DOC30 is a separate, independent style field and is not expected to be cleared by this call, since <code>link_url</code> and <code>underline</code> are unrelated fields in the request)</p>
 <p><strong>Cleanup:</strong> delete the test paragraph</p>
 <p><strong>Result:</strong> PASS (2026-07-27, live via <code>mcp-gee-sweet-kit</code>, <code>mcp-gee-sweet-qa-fixtures-doc</code> <code>1-whiEVwvnSOABaK9qgpzdVaGUOMRvJdQhDmCURqx4fA</code>). Inserted "Visit example\n", linked "example" (indices 94–101) to <code>https://example.com</code>, then cleared it via <code>style_doc_range(..., link_url=null)</code> — no <code>HttpError 400</code>, <code>requests: 1</code>. <code>get_doc_structure</code> confirmed "example" split into its own run with <code>link_url: null</code> (previously carried the link). Visual/Playwright check not performed (no browser session in this pass); cleared status confirmed via the API's own structural response instead. Test paragraph deleted after.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+link_url:null clear on [7,14]; no HttpError 400; requests:1; "example" run link_url:null on re-fetch. Visual not verified.</p>
 <hr />
 <h3 id="tc-doc140-insert_softbreak_paragraphs-link_url-null-also-clears-rather-than-erroring-shared-helper">TC-DOC140: <code>insert_softbreak_paragraph</code>'s <code>link_url: null</code> also clears rather than erroring (shared helper)<a class="headerlink" href="#tc-doc140-insert_softbreak_paragraphs-link_url-null-also-clears-rather-than-erroring-shared-helper" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> none — the line is inserted fresh by the call under test.</p>
@@ -1650,6 +1696,8 @@
 - <code>get_doc_structure</code> shows the inserted run has <code>link_url: null</code></p>
 <p><strong>Cleanup:</strong> delete the inserted paragraph</p>
 <p><strong>Result:</strong> PASS (2026-07-27, live via <code>mcp-gee-sweet-kit</code>, same fixture doc). <code>insert_softbreak_paragraph(index=1, lines=[{"text": "plain text, no link", "link_url": null}])</code> completed without error, returned <code>line_ranges: [{"start_index": 1, "end_index": 20}]</code>. <code>get_doc_structure</code> confirmed the inserted run's <code>link_url: null</code>. Note: since <code>named_style_type</code> wasn't passed, the call's documented "covers the entire paragraph touched by the insert" behavior downgraded the existing "Test Document" HEADING_1 paragraph to NORMAL_TEXT (expected, not a defect) — restored via an explicit <code>style_doc_range</code> call after cleanup, fixture doc left in its original state.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+insert_softbreak_paragraph index 1, line link_url:null; no error; line_ranges 1 entry; inserted run link_url:null.</p>
 <hr />
 <h2 id="paragraph-bullet-inspection-and-repair-get_doc_structures-bullet-field-create_paragraph_bulletsdelete_paragraph_bullets-issue-334">Paragraph bullet inspection and repair — <code>get_doc_structure</code>'s <code>bullet</code> field, <code>create_paragraph_bullets</code>/<code>delete_paragraph_bullets</code> (issue #334)<a class="headerlink" href="#paragraph-bullet-inspection-and-repair-get_doc_structures-bullet-field-create_paragraph_bulletsdelete_paragraph_bullets-issue-334" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc155-get_doc_structure-surfaces-bulletlistidbulletnestinglevel-for-list-paragraphs-destructive">TC-DOC155: <code>get_doc_structure</code> surfaces <code>bullet.listId</code>/<code>bullet.nestingLevel</code> for list paragraphs ⚠️ destructive<a class="headerlink" href="#tc-doc155-get_doc_structure-surfaces-bulletlistidbulletnestinglevel-for-list-paragraphs-destructive" title="Permanent link">&para;</a></h3>
@@ -1665,6 +1713,8 @@
 - "Nested item"'s <code>bullet.nestingLevel</code> is <code>1</code></p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
 <p><strong>Result (2026-08-06) ❌ FAIL as originally written, ✅ PASS after test-case fix — run live against PR #524 (issue #334).</strong> The prompt originally used a 2-space indent (<code>"- Top level item\n  - Nested item\n"</code>), which this codebase's <code>_md_to_html</code> (<code>sane_lists</code> extension, same as plain <code>python-markdown</code>) does not recognize as nested — both items render as a single flat <code>&lt;ul&gt;</code> with no nesting, so "Nested item" correctly reported <code>nestingLevel: 0</code> given that input; not a product bug, a test-case bug (<code>sane_lists</code>/<code>markdown</code> requires 4-space indent to nest a list). Fixed the prompt above to 4-space indent and re-ran: both items share one <code>listId</code>, "Top level item" is <code>nestingLevel: 0</code>, "Nested item" is <code>nestingLevel: 1</code> — PASS.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+write md (4-space nested); both list items bullet non-null, share listId kix.io6il1p3p40e; "Top level" nestingLevel 0, "Nested" nestingLevel 1.</p>
 <hr />
 <h3 id="tc-doc156-create_paragraph_bullets-fixes-a-markdown-flattened-nested-list-by-promoting-specific-paragraphs-to-a-deeper-nesting-level-334s-original-repro-destructive">TC-DOC156: <code>create_paragraph_bullets</code> fixes a markdown-flattened nested list by promoting specific paragraphs to a deeper nesting level (#334's original repro) ⚠️ destructive<a class="headerlink" href="#tc-doc156-create_paragraph_bullets-fixes-a-markdown-flattened-nested-list-by-promoting-specific-paragraphs-to-a-deeper-nesting-level-334s-original-repro-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> issue #334 — <code>create_doc</code>'s markdown-to-Doc conversion flattens an indented sub-list under a numbered item into the SAME single-level list (the six settings in the issue's own repro became items 3-8 of one flat list instead of a nested sub-list under item 2), and until now there was no way to fix this after the fact short of delete-and-retype as plain text. This test exercises the fix: <code>get_doc_structure</code>'s new <code>bullet</code> field to detect the flattening, then <code>create_paragraph_bullets</code> to repair it.</p>
@@ -1686,6 +1736,8 @@
 <p><strong>Result (2026-08-06) ❌ FAIL — run live against PR #524 (issue #334).</strong> First <code>get_doc_structure</code> call matches expectations (all 6 items share one <code>listId</code> at <code>nestingLevel: 0</code>, confirming the flattening). The repair step fails: after <code>create_paragraph_bullets(ranges=[{"start_index": 45, "end_index": 114, "nesting_level": 1}])</code> (single range spanning all three contiguous settings paragraphs — the tool's own documented "safe" pattern), a second <code>get_doc_structure</code> shows <strong>all three settings paragraphs still at <code>nestingLevel: 0</code></strong> — the promotion had no effect. Worse, the leading tab character the tool inserts to signal depth was never consumed by the Docs API: "Instance identifier"'s own <code>text</code> field literally reads <code>"\t   - Instance identifier\n"</code>, tab included — contradicting this test's own third check ("no visible tab character leaked into text") and the tool's docstring claim that the API "consumes (removing)" the tab once applied. This is the PR's own flagship, headline use case (#334's original repro) and it does not work at all as implemented. Sent back to Dev (PR #524 comment) rather than approved.</p>
 <p><strong>Result (2026-08-06, round 2) ❌ FAIL — re-verified live against fix commit <code>a36f1c7</code>.</strong> The <code>nestingLevel</code>/tab-leak failure from round 1 is fixed: the second <code>get_doc_structure</code> call now shows "Instance identifier"/"Instance class"/"Storage encryption" correctly at <code>nestingLevel: 1</code> sharing the sibling <code>listId</code>, with no leaked tab in <code>text</code>. However, this test's own 🔍 visual check now fails for a new reason: a Playwright screenshot of the result shows the <strong>entire list rendered as unordered bullets (●/○) instead of numbers</strong> — "Click Restore" is a bullet, not "3.". Confirmed via a control doc (identical markdown, no <code>create_paragraph_bullets</code> call) that the pre-repair list renders correctly numbered 1–6, so the repair call itself is what strips the numbering. Root cause: the fix's fixed algorithm applies one <code>bullet_preset</code> to the entire merged run (the requested paragraphs plus every already-listed neighbor it sweeps in as context) — since this test's own documented tool call doesn't pass <code>bullet_preset</code> (defaults to <code>BULLET_DISC_CIRCLE_SQUARE</code>), it silently overwrites the numbering of "Select the snapshot"/"Configure the instance"/"Click Restore" even though the caller never asked to touch those paragraphs' preset. The round 1 code-review's two non-blocking findings (uncaught <code>KeyError</code> on a malformed range, unvalidated negative <code>nesting_level</code>) are both fixed and confirmed live; the original multi-range-fragmentation finding is also fixed and confirmed live (3 single-paragraph ranges at depths 0/1/0 now correctly share one <code>listId</code>). Sent back to Dev (PR #524 comment) rather than approved.</p>
 <p><strong>Result (2026-08-06, round 3) ✅ PASS — re-verified live against fix commit <code>9ae16ee</code>.</strong> Round 2's numbering regression is fixed: <code>create_paragraph_bullets</code> now reads the existing list's own glyph info from the document's <code>lists</code> map (<code>infer_preset</code>) when the caller doesn't pass <code>bullet_preset</code> explicitly, instead of defaulting to unordered bullets. Re-ran this test's exact documented call (no <code>bullet_preset</code>) — a Playwright screenshot confirms the list renders correctly: "1./2./3." for the top-level items, "a./b./c." for the promoted settings paragraphs, "Click Restore" still "3." All of this test's own checks pass. Also spot-checked the fix's new conflicting-preset validation: two directly-adjacent ranges with different explicit <code>bullet_preset</code>s split cleanly into two separate lists (no error, reasonable default); a mediated 3-paragraph case (two explicit, conflicting presets bridged by an already-listed paragraph with no explicit preset) correctly returns <code>{"error": "conflicting bullet_preset values among contiguous paragraphs..."}</code> as the docstring describes — the docstring's phrasing ("two explicitly-requested contiguous paragraphs") is a little imprecise about requiring same-run membership rather than literal adjacency in the caller's <code>ranges</code> list, but the behavior itself is correct and safe; noted as a non-blocking documentation nit, not filed as a ticket. Re-confirmed no regression on the original multi-range-fragmentation repro (3 single-paragraph ranges at depths 0/1/0 still land in one shared <code>listId</code> with correct depths). <code>qa-approved</code> applied.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+1./2./3. + nested a./b./c., "Click Restore" still "3." — #334 fix holds</p>
 <hr />
 <h3 id="tc-doc157-delete_paragraph_bullets-removes-list-membership-from-a-range-leaving-paragraph-text-untouched-destructive">TC-DOC157: <code>delete_paragraph_bullets</code> removes list membership from a range, leaving paragraph text untouched ⚠️ destructive<a class="headerlink" href="#tc-doc157-delete_paragraph_bullets-removes-list-membership-from-a-range-leaving-paragraph-text-untouched-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> none — list created fresh by the call under test.</p>
@@ -1702,6 +1754,8 @@
 - "Second item"'s <code>text</code> is still exactly "Second item\n" (unchanged)</p>
 <p><strong>Cleanup:</strong> write fixture content back</p>
 <p><strong>Result (2026-08-06) ✅ PASS — run live against PR #524 (issue #334).</strong> All three checks confirmed exactly as specified: "First item"/"Third item" kept their <code>bullet</code> field and shared <code>listId</code>, "Second item"'s <code>bullet</code> became <code>null</code>, and its <code>text</code> was unchanged.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+3-item list; delete_paragraph_bullets "Second item" [12,24] -&gt; requests:1; First/Third keep bullet, Second bullet:null, Second text "Second item\n" unchanged.</p>
 <hr />
 
 

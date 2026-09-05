@@ -1344,6 +1344,8 @@
 <p><strong>Cleanup:</strong> delete <code>[precedingParagraphIndex, tableEndIndex]</code> in one range — this removes both the required preceding paragraph and the table body together</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Inserted 2×3 table at N=88. Response: <code>precedingParagraphIndex=88</code>, <code>tableStartIndex=89</code> (=N+1), <code>tableEndIndex=105</code>, <code>rows: 2</code>, <code>columns: 3</code>, 6 cells. All <code>paragraphStartIndex = startIndex + 1</code>. Re-fetch confirmed table at index 89.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+insert 2x3 table at N=1: precedingParagraphIndex=1, tableStartIndex=2 (=N+1), tableEndIndex=18, rows:2, columns:3, 6 cells each with row/col/startIndex/endIndex/paragraphStartIndex. Re-fetch: empty para at 1, table at 2.</p>
 <hr />
 <h3 id="tc-doc17-cell-indices-usable-for-insert_doc_text-destructive">TC-DOC17: Cell indices usable for insert_doc_text ⚠️ destructive<a class="headerlink" href="#tc-doc17-cell-indices-usable-for-insert_doc_text-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a table (TC-DOC16); use the returned <code>cells[0].paragraphStartIndex</code></p>
@@ -1357,6 +1359,8 @@
 <p><strong>Cleanup:</strong> delete table</p>
 <p><strong>Result (2026-06-20) ✅ PASS</strong>
 - Used <code>cells[0].paragraphStartIndex = 92</code> from TC-DOC16. Inserted "Cell content" at index 92. Re-fetch: cell [0,0] <code>text: "Cell content"</code>. No index errors.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+insert "Cell content" at cells[0].paragraphStartIndex=5; re-fetch cell[0,0] text "Cell content"; no index errors.</p>
 <hr />
 <h2 id="insert_table_row-delete_table_row-insert_table_column-delete_table_column-146"><code>insert_table_row</code> / <code>delete_table_row</code> / <code>insert_table_column</code> / <code>delete_table_column</code> (#146)<a class="headerlink" href="#insert_table_row-delete_table_row-insert_table_column-delete_table_column-146" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc61-insert-a-row-below-an-existing-row-destructive">TC-DOC61: Insert a row below an existing row ⚠️ destructive<a class="headerlink" href="#tc-doc61-insert-a-row-below-an-existing-row-destructive" title="Permanent link">&para;</a></h3>
@@ -1372,6 +1376,8 @@
 - Re-fetch <code>get_doc_structure</code> shows the table now has 3 rows</p>
 <p><strong>Cleanup:</strong> delete the table</p>
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Inserted 2×2 table; called <code>insert_table_row(row_index=0, insert_below=True)</code>. Response: <code>{docId, table_start_index, row_index: 0}</code>. Re-fetched structure showed 3 rows.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+insert_table_row row_index=0 insert_below=True on 2x2 -&gt; {docId, table_start_index:2, row_index:0}; re-fetch 3 rows.</p>
 <hr />
 <h3 id="tc-doc62-insert-a-row-above-an-existing-row-destructive">TC-DOC62: Insert a row above an existing row ⚠️ destructive<a class="headerlink" href="#tc-doc62-insert-a-row-above-an-existing-row-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
@@ -1386,6 +1392,8 @@
 - New row appears at row 1 (between original rows 0 and 1)</p>
 <p><strong>Cleanup:</strong> delete the table</p>
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Inserted 2×2 table; called <code>insert_table_row(row_index=1, insert_below=False)</code>. Re-fetched structure showed 3 rows.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+insert_table_row row_index=1 insert_below=False on 2x2; re-fetch 3 rows.</p>
 <hr />
 <h3 id="tc-doc63-delete-a-row-destructive">TC-DOC63: Delete a row ⚠️ destructive<a class="headerlink" href="#tc-doc63-delete-a-row-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 3-row table; note its <code>tableStartIndex</code></p>
@@ -1400,6 +1408,8 @@
 - Re-fetch shows the table has 2 rows</p>
 <p><strong>Cleanup:</strong> delete the table</p>
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Inserted 3-row table; called <code>delete_table_row(row_index=1)</code>. Response: <code>{docId, table_start_index, row_index: 1}</code>. Re-fetched structure showed 2 rows.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+delete_table_row row_index=1 on 3-row -&gt; {docId, table_start_index:2, row_index:1}; re-fetch 2 rows.</p>
 <hr />
 <h3 id="tc-doc64-insert-a-column-to-the-right-destructive">TC-DOC64: Insert a column to the right ⚠️ destructive<a class="headerlink" href="#tc-doc64-insert-a-column-to-the-right-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
@@ -1414,6 +1424,8 @@
 - Re-fetch shows the table has 3 columns</p>
 <p><strong>Cleanup:</strong> delete the table</p>
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Inserted 2×2 table; called <code>insert_table_column(column_index=0, insert_right=True)</code>. Response: <code>{docId, table_start_index, column_index: 0}</code>. Re-fetched structure showed 3 columns.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+insert_table_column column_index=0 insert_right=True on 2x2 -&gt; {docId, table_start_index:2, column_index:0}; re-fetch 3 columns.</p>
 <hr />
 <h3 id="tc-doc65-insert-a-column-to-the-left-destructive">TC-DOC65: Insert a column to the left ⚠️ destructive<a class="headerlink" href="#tc-doc65-insert-a-column-to-the-left-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
@@ -1427,6 +1439,8 @@
 - Re-fetch shows the table has 3 columns</p>
 <p><strong>Cleanup:</strong> delete the table</p>
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Inserted 2×2 table; called <code>insert_table_column(column_index=1, insert_right=False)</code>. Re-fetched structure showed 3 columns.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+insert_table_column column_index=1 insert_right=False on 2x2; re-fetch 3 columns.</p>
 <hr />
 <h3 id="tc-doc66-delete-a-column-destructive">TC-DOC66: Delete a column ⚠️ destructive<a class="headerlink" href="#tc-doc66-delete-a-column-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×3 table; note its <code>tableStartIndex</code></p>
@@ -1441,6 +1455,8 @@
 - Re-fetch shows the table has 2 columns</p>
 <p><strong>Cleanup:</strong> delete the table</p>
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Inserted 2×3 table; called <code>delete_table_column(column_index=1)</code>. Response: <code>{docId, table_start_index, column_index: 1}</code>. Re-fetched structure showed 2 columns.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+delete_table_column column_index=1 on 2x3 -&gt; {docId, table_start_index:2, column_index:1}; re-fetch 2 columns.</p>
 <hr />
 <h3 id="tc-doc67-api-error-returned-gracefully-out-of-bounds-row">TC-DOC67: API error returned gracefully (out of bounds row)<a class="headerlink" href="#tc-doc67-api-error-returned-gracefully-out-of-bounds-row" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
@@ -1452,6 +1468,8 @@
 - Returns <code>{"error": "..."}</code> — does not raise an exception
 - Error message references an API failure</p>
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>delete_table_row(row_index=99)</code> on a 2×2 table. Returned <code>{"error": "..."}</code> with an API error message referencing an invalid row index. No exception raised.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+delete_table_row row_index=99 -&gt; {"error":"<HttpError 400 ... row index 99 should be less than the total number of rows 2>"}; no exception.</p>
 <hr />
 <h2 id="merge_table_cells-150"><code>merge_table_cells</code> (#150)<a class="headerlink" href="#merge_table_cells-150" title="Permanent link">&para;</a></h2>
 <h3 id="tc-doc91-merge-a-horizontal-range-of-cells-colspan-destructive">TC-DOC91: Merge a horizontal range of cells (colspan) ⚠️ destructive<a class="headerlink" href="#tc-doc91-merge-a-horizontal-range-of-cells-colspan-destructive" title="Permanent link">&para;</a></h3>
@@ -1468,6 +1486,8 @@
 - Re-fetch <code>get_doc_structure</code> still reports 3 physical columns in row 0 (merge doesn't delete the covered cell, it only changes rendering)</p>
 <p><strong>Cleanup:</strong> delete the table</p>
 <p><strong>Result (2026-07-14) ✅ PASS</strong> Inserted a 2×3 table, called <code>merge_table_cells(table_start_index, row_index=0, column_index=0, row_span=1, column_span=2)</code>. Response matched exactly: <code>{"docId", "table_start_index", "row_index": 0, "column_index": 0, "row_span": 1, "column_span": 2}</code>. Playwright screenshot confirmed row 0's first two columns render as one wide cell while row 1 kept three separate cells. Re-fetched <code>get_doc_structure</code>: table still reported 3 physical columns in row 0 (cells at col 0, 1, 2 all present with distinct indices). Table deleted via <code>delete_doc_range</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+merge_table_cells row0/col0 span 1x2 on 2x3 -&gt; response matches exactly; re-fetch row 0 still 3 physical cells (distinct indices). Visual 🔍 not verified (browser unauth).</p>
 <h3 id="tc-doc92-merge-a-vertical-range-of-cells-rowspan-destructive">TC-DOC92: Merge a vertical range of cells (rowspan) ⚠️ destructive<a class="headerlink" href="#tc-doc92-merge-a-vertical-range-of-cells-rowspan-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 3×2 table; note its <code>tableStartIndex</code></p>
 <p><strong>Prompt</strong>
@@ -1481,6 +1501,8 @@
 - 🔍 Visual check in Google Docs: column 0's first two rows render as one tall cell; column 1 is unaffected in both rows</p>
 <p><strong>Cleanup:</strong> delete the table</p>
 <p><strong>Result (2026-07-14) ✅ PASS</strong> Inserted a 3×2 table, called <code>merge_table_cells(table_start_index, row_index=0, column_index=0, row_span=2, column_span=1)</code>. Response matched exactly: <code>{"docId", "table_start_index", "row_index": 0, "column_index": 0, "row_span": 2, "column_span": 1}</code>. Playwright screenshot confirmed column 0's first two rows render as one tall cell while column 1 kept two separate cells across the same rows; row 2 unaffected. Table deleted via <code>delete_doc_range</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+merge_table_cells row0/col0 span 2x1 on 3x2 -&gt; response matches exactly. Visual 🔍 not verified.</p>
 <h3 id="tc-doc93-api-error-returned-gracefully-merge-range-exceeds-table-bounds">TC-DOC93: API error returned gracefully (merge range exceeds table bounds)<a class="headerlink" href="#tc-doc93-api-error-returned-gracefully-merge-range-exceeds-table-bounds" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> insert a 2×2 table; note its <code>tableStartIndex</code></p>
 <p><strong>Prompt</strong></p>
@@ -1492,6 +1514,8 @@
 - Error message references an API failure</p>
 <p><strong>Cleanup:</strong> delete the table</p>
 <p><strong>Result (2026-07-14) ✅ PASS</strong> Inserted a 2×2 table, called <code>merge_table_cells(row_index=0, column_index=0, row_span=1, column_span=99)</code>. Returned <code>{"error": "&lt;HttpError 400 ... Invalid requests[0].mergeTableCells: The table range extends outside the bounds of the table.&gt;"}</code>. No exception raised. Table deleted via <code>delete_doc_range</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+merge_table_cells span 1x99 -&gt; {"error":"<HttpError 400 ... table range extends outside the bounds of the table>"}; no exception.</p>
 <hr />
 
 

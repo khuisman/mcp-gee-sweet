@@ -2582,6 +2582,8 @@
 - Each item has <code>id</code>, <code>summary</code>, <code>time_zone</code>, <code>access_role</code>, <code>primary</code>
 - The service account's own calendar (or the primary shared calendar) is present</p>
 <p><strong>Result (2026-08-18) ✅</strong> — PR #625 (issue #466) refactor round: <code>list_calendars</code> now routes through the shared <code>_get_cached_calendar_list</code> helper. Called live; returned 11 calendars, each with <code>id</code>/<code>summary</code>/<code>time_zone</code>/<code>access_role</code>/<code>primary</code> populated, one entry with <code>primary: true</code>. Output shape unchanged from pre-refactor. <code>list_events</code>/<code>get_event</code>/<code>list_all_events</code> (also touched by this PR's <code>_shape_event</code> extraction) were spot-checked live in the same round with matching, unchanged output shapes — see PR comment for the round's full write-up.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_calendars returned [] initially (SA has zero subscriptions); after create_calendar it returns 1 entry with id/summary/time_zone/access_role/primary. Fixture {CALENDAR_ID} not shared with SA so used SA-owned cal.</p>
 <hr />
 <h3 id="tc-cal02-primary-flag">TC-CAL02: primary flag<a class="headerlink" href="#tc-cal02-primary-flag" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2592,6 +2594,8 @@
 - Exactly one calendar has <code>primary: true</code>
 - All others have <code>primary: false</code>
 - 🔍 <strong>Service account note:</strong> service accounts may have no primary calendar — <code>primary</code> may be <code>false</code> on all entries; note what is observed</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+No calendar has primary:true; SACAL primary:false. Matches 🔍 SA note "service accounts may have no primary calendar".</p>
 <hr />
 <h3 id="tc-cal03-cache-hit-on-second-call">TC-CAL03: Cache hit on second call<a class="headerlink" href="#tc-cal03-cache-hit-on-second-call" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong> (run twice)</p>
@@ -2601,6 +2605,8 @@
 <p><strong>Checks</strong>
 - Second call returns same results
 - Logs show <code>Calendar list cache hit</code></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Two list_calendars calls returned byte-identical results. Cache-hit log not observable from this harness.</p>
 <hr />
 <h3 id="tc-cal04-empty-subscription-list">TC-CAL04: Empty subscription list<a class="headerlink" href="#tc-cal04-empty-subscription-list" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> a service account with no calendar subscriptions</p>
@@ -2611,6 +2617,8 @@
 <p><strong>Checks</strong>
 - Returns <code>[]</code> — not an error
 - 🔍 <strong>Hard to test without a fresh service account</strong> — note if observed</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+First-ever list_calendars (before any subscription) returned {"result":[]} — empty list, not an error. Matches TC-CAL04 (normally hard to test).</p>
 <hr />
 <h2 id="get_calendar"><code>get_calendar</code><a class="headerlink" href="#get_calendar" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal05-valid-calendar-id">TC-CAL05: Valid calendar ID<a class="headerlink" href="#tc-cal05-valid-calendar-id" title="Permanent link">&para;</a></h3>
@@ -2622,6 +2630,8 @@
 - Returns <code>id</code>, <code>summary</code>, <code>description</code>, <code>time_zone</code>, <code>access_role</code>, <code>primary</code>
 - <code>time_zone</code> is a valid IANA name (e.g. <code>America/Los_Angeles</code>)
 - No <code>error</code> field</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+No (shape matches)</p>
 <hr />
 <h3 id="tc-cal06-calendar_idprimary">TC-CAL06: calendar_id='primary'<a class="headerlink" href="#tc-cal06-calendar_idprimary" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2631,6 +2641,8 @@
 <p><strong>Checks</strong>
 - Returns calendar metadata for the service account's primary calendar
 - 🔍 <strong>Service account note:</strong> service accounts may not have a primary calendar — if so, expect <code>{"error": ...}</code>; note the actual response</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+get_calendar('primary') -&gt; {"error":"HttpError 404 ... notFound"}. Matches 🔍 SA note "service accounts may not have a primary calendar; expect error".</p>
 <hr />
 <h3 id="tc-cal07-cache-hit-on-second-call">TC-CAL07: Cache hit on second call<a class="headerlink" href="#tc-cal07-cache-hit-on-second-call" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong> (run twice)</p>
@@ -2640,6 +2652,8 @@
 <p><strong>Checks</strong>
 - Second call returns same result
 - Logs show <code>Calendar cache hit: {CALENDAR_ID}</code></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Two get_calendar calls on SACAL returned identical results. Cache-hit log not observable. Fixture-ID variant 404s under SA.</p>
 <hr />
 <h3 id="tc-cal08-non-existent-calendar-id">TC-CAL08: Non-existent calendar ID<a class="headerlink" href="#tc-cal08-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2649,6 +2663,8 @@
 <p><strong>Checks</strong>
 - Returns <code>{"error": "..."}</code> — not a top-level exception
 - Error message is from the Calendar API</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+get_calendar('totally-invalid-cal-id@example.com') -&gt; {"error":"<HttpError 404 ... 'reason': 'notFound' ...>"}, not a top-level exception.</p>
 <hr />
 <h2 id="create_calendar"><code>create_calendar</code><a class="headerlink" href="#create_calendar" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal44-create-a-secondary-calendar-destructive">TC-CAL44: Create a secondary calendar ⚠️ destructive<a class="headerlink" href="#tc-cal44-create-a-secondary-calendar-destructive" title="Permanent link">&para;</a></h3>
@@ -2662,6 +2678,8 @@
 - <code>time_zone</code> is <code>America/Los_Angeles</code>
 - The new calendar appears in a follow-up <code>list_calendars</code> call (cache invalidated)</p>
 <p><strong>Result (2026-07-05) ✅</strong> — Created via OAuth; response had <code>summary</code>, <code>description</code>, and <code>time_zone: "America/Los_Angeles"</code> exactly as requested. Confirmed present in a follow-up <code>list_calendars</code> call.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_calendar -&gt; id, summary=mcp-gee-sweet-qa-lifecycle-test, description="QA scratch calendar", time_zone=America/Los_Angeles. Appeared in follow-up list_calendars (cache invalidated). SA CAN own calendars. SACAL id b9e74820...a4313@group.calendar.google.com</p>
 <hr />
 <h3 id="tc-cal45-create-with-only-summary">TC-CAL45: Create with only summary<a class="headerlink" href="#tc-cal45-create-with-only-summary" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2673,6 +2691,8 @@
 - <code>description</code> is <code>null</code>/absent
 - <code>time_zone</code> reflects the account default</p>
 <p><strong>Result (2026-07-05) ✅</strong> — Created with only <code>summary</code> provided. <code>description: null</code>. <code>time_zone: "UTC"</code> (account default rather than the creator's local timezone — noted for documentation purposes). Confirmed present in a follow-up <code>list_calendars</code> call.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_calendar summary-only -&gt; id, summary=mcp-gee-sweet-qa-minimal, description=null, time_zone="UTC" (account default). MINCAL id 41a5983c...30c1@group.calendar.google.com</p>
 <hr />
 <h2 id="update_calendar"><code>update_calendar</code><a class="headerlink" href="#update_calendar" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal46-rename-and-change-timezone-destructive">TC-CAL46: Rename and change timezone ⚠️ destructive<a class="headerlink" href="#tc-cal46-rename-and-change-timezone-destructive" title="Permanent link">&para;</a></h3>
@@ -2687,6 +2707,8 @@
 - <code>description</code> unchanged from TC-CAL44
 - <code>get_calendar</code> on the same ID reflects the new values</p>
 <p><strong>Result (2026-07-05) ✅</strong> — Patched with <code>summary: "mcp-gee-sweet-qa-renamed"</code> and <code>timezone: "America/New_York"</code>. Response reflected both changes; <code>description</code> unchanged from TC-CAL44 (<code>"QA scratch calendar"</code>).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_calendar summary+timezone on SACAL -&gt; summary=mcp-gee-sweet-qa-renamed, time_zone=America/New_York, description unchanged. get_calendar confirms new values.</p>
 <hr />
 <h3 id="tc-cal47-change-color-only-destructive">TC-CAL47: Change color only ⚠️ destructive<a class="headerlink" href="#tc-cal47-change-color-only-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> use the calendar from TC-CAL44/46</p>
@@ -2699,6 +2721,8 @@
 - <code>summary</code>/<code>description</code>/<code>time_zone</code> unchanged (verify with <code>get_calendar</code>)
 - Confirms the color patch goes through <code>calendarList().patch()</code>, not <code>calendars().patch()</code></p>
 <p><strong>Result (2026-07-05) ✅</strong> — Patched <code>color_id="5"</code> only (no summary/description/timezone). Response had <code>color_id: "5"</code> with <code>summary</code>, <code>description</code>, <code>time_zone</code> all unchanged from TC-CAL46 — confirms the tool fell back to <code>calendars().get()</code> for the base fields and routed color through <code>calendarList().patch()</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_calendar color_id="5" only -&gt; response color_id="5"; summary/description/time_zone unchanged from CAL46. Color routed via calendarList().patch().</p>
 <hr />
 <h3 id="tc-cal48-no-fields-provided">TC-CAL48: No fields provided<a class="headerlink" href="#tc-cal48-no-fields-provided" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2710,6 +2734,8 @@
 - <code>color_id</code> is <code>null</code> (no color patch attempted)
 - No API error</p>
 <p><strong>Result (2026-07-05) ✅</strong> — Called with <code>calendar_id="primary"</code> and no other fields. Returned the account's real primary calendar summary/timezone unchanged, <code>color_id: null</code>. Confirms the no-op path uses <code>calendars().get()</code> without issuing any patch.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_calendar with no fields on SACAL -&gt; current metadata unchanged, color_id=null (no-op path uses calendars().get(), no patch), no API error.</p>
 <hr />
 <h3 id="tc-cal49-non-existent-calendar-id">TC-CAL49: Non-existent calendar ID<a class="headerlink" href="#tc-cal49-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2719,6 +2745,8 @@
 <p><strong>Checks</strong>
 - Returns <code>{"error": "..."}</code> — not a top-level exception</p>
 <p><strong>Result (2026-07-05) ✅</strong> — Returned <code>{"error": "&lt;HttpError 404 ... 'reason': 'notFound' ...&gt;"}</code>. No exception raised.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_calendar on invalid ID -&gt; {"error":"<HttpError 404 ... notFound ...>"}, no top-level exception.</p>
 <hr />
 <h2 id="delete_calendar"><code>delete_calendar</code><a class="headerlink" href="#delete_calendar" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal50-delete-a-calendar-destructive">TC-CAL50: Delete a calendar ⚠️ destructive<a class="headerlink" href="#tc-cal50-delete-a-calendar-destructive" title="Permanent link">&para;</a></h3>
@@ -2732,6 +2760,8 @@
 - Calendar no longer appears in a follow-up <code>list_calendars</code> call
 - <code>get_calendar</code> on the deleted ID returns an error</p>
 <p><strong>Result (2026-07-05) ✅</strong> — Returned <code>{"calendar_id": "...", "action": "deleted"}</code>. Confirmed absent from a follow-up <code>list_calendars</code> call. <code>get_calendar</code> on the deleted ID returned a 404 <code>notFound</code> error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+delete_calendar SACAL -&gt; {"calendar_id":...,"action":"deleted"}. Absent from follow-up list_calendars (now []). get_calendar on deleted ID -&gt; HttpError 404 notFound.</p>
 <hr />
 <h3 id="tc-cal51-delete-the-minimal-test-calendar-destructive">TC-CAL51: Delete the minimal test calendar ⚠️ destructive<a class="headerlink" href="#tc-cal51-delete-the-minimal-test-calendar-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> use the calendar created in TC-CAL45</p>
@@ -2743,6 +2773,8 @@
 - Returns <code>{"calendar_id": "...", "action": "deleted"}</code>
 - Cleans up the fixture so it doesn't linger in the account's calendar list</p>
 <p><strong>Result (2026-07-05) ✅</strong> — Returned <code>{"calendar_id": "...", "action": "deleted"}</code>. Confirmed removed from the account's <code>list_calendars</code> output alongside TC-CAL50's cleanup.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+delete_calendar MINCAL -&gt; {"calendar_id":...,"action":"deleted"}. list_calendars now [] — fixture cleaned up.</p>
 <hr />
 <h3 id="tc-cal52-non-existent-calendar-id">TC-CAL52: Non-existent calendar ID<a class="headerlink" href="#tc-cal52-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2753,6 +2785,8 @@
 - Returns <code>{"error": "..."}</code> — not a top-level exception
 - No side effects</p>
 <p><strong>Result (2026-07-05) ✅</strong> — Returned <code>{"error": "&lt;HttpError 404 ... 'reason': 'notFound' ...&gt;"}</code>. No side effects.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+delete_calendar 'totally-invalid-cal-id@example.com' -&gt; {"error":"<HttpError 404 ... notFound ...>"}, not a top-level exception, no side effects.</p>
 <hr />
 <h2 id="add_calendar_to_list"><code>add_calendar_to_list</code><a class="headerlink" href="#add_calendar_to_list" title="Permanent link">&para;</a></h2>
 <blockquote>
@@ -2768,6 +2802,8 @@
 - Returns <code>id</code>, <code>summary</code>, <code>time_zone</code>, <code>access_role</code>, <code>primary</code>, <code>color_id</code>
 - Calendar now appears in a follow-up <code>list_calendars</code> call (cache invalidated)</p>
 <p><strong>Result (2026-07-05) ✅</strong> — Response had <code>summary: "Holidays in Japan"</code>, <code>access_role: "reader"</code>, <code>color_id: "8"</code> (Google's default color for this public calendar). Confirmed present in a follow-up <code>list_calendars</code> call.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+add_calendar_to_list en.japanese#holiday -&gt; id/summary="Holidays in Japan"/time_zone/access_role="reader"/primary=false/color_id="8". Present in follow-up list_calendars.</p>
 <hr />
 <h3 id="tc-cal54-subscribe-with-a-color-destructive">TC-CAL54: Subscribe with a color ⚠️ destructive<a class="headerlink" href="#tc-cal54-subscribe-with-a-color-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> another public calendar not yet in your list, e.g. <code>en.canadian#holiday@group.v.calendar.google.com</code> (Holidays in Canada)</p>
@@ -2779,6 +2815,8 @@
 - <code>color_id</code> in the response is <code>7</code>
 - Calendar appears in <code>list_calendars</code></p>
 <p><strong>Result (2026-07-05) ✅</strong> — Response had <code>color_id: "7"</code> and <code>summary: "Holidays in Canada"</code>. Confirmed present in <code>list_calendars</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+add_calendar_to_list en.canadian#holiday color_id="7" -&gt; color_id="7", summary="Holidays in Canada". Present in list_calendars.</p>
 <hr />
 <h3 id="tc-cal55-non-existent-calendar-id">TC-CAL55: Non-existent calendar ID<a class="headerlink" href="#tc-cal55-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2789,6 +2827,8 @@
 - Returns <code>{"error": "..."}</code> — not a top-level exception
 - No entry added to the calendar list</p>
 <p><strong>Result (2026-07-05) ✅</strong> — Returned <code>{"error": "&lt;HttpError 404 ... 'reason': 'notFound' ...&gt;"}</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+add_calendar_to_list invalid ID -&gt; {"error":"<HttpError 404 ... notFound ...>"}, no top-level exception; no entry added.</p>
 <hr />
 <h2 id="remove_calendar_from_list"><code>remove_calendar_from_list</code><a class="headerlink" href="#remove_calendar_from_list" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal56-unsubscribe-from-a-calendar-destructive">TC-CAL56: Unsubscribe from a calendar ⚠️ destructive<a class="headerlink" href="#tc-cal56-unsubscribe-from-a-calendar-destructive" title="Permanent link">&para;</a></h3>
@@ -2801,6 +2841,8 @@
 - Returns <code>{"calendar_id": "...", "action": "removed_from_list"}</code>
 - Calendar no longer appears in a follow-up <code>list_calendars</code> call</p>
 <p><strong>Result (2026-07-05) ✅</strong> — Returned <code>{"calendar_id": "en.japanese#holiday@group.v.calendar.google.com", "action": "removed_from_list"}</code>. Confirmed absent from a follow-up <code>list_calendars</code> call (the still-subscribed "Holidays in Canada" from TC-CAL54 remained, confirming only the targeted subscription was removed).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+remove_calendar_from_list en.japanese#holiday -&gt; {"calendar_id":...,"action":"removed_from_list"}. Absent from follow-up list_calendars; Canada subscription retained.</p>
 <hr />
 <h3 id="tc-cal57-unsubscribing-does-not-delete-the-calendar-destructive">TC-CAL57: Unsubscribing does not delete the calendar ⚠️ destructive<a class="headerlink" href="#tc-cal57-unsubscribing-does-not-delete-the-calendar-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> the calendar removed from the list in TC-CAL56</p>
@@ -2812,6 +2854,8 @@
 - <code>add_calendar_to_list</code> succeeds and returns the same <code>summary</code> as TC-CAL53
 - Confirms <code>remove_calendar_from_list</code> only removed the subscription — the underlying calendar was never affected and is still fully subscribable</p>
 <p><strong>Result (2026-07-05) ✅</strong> — Re-subscribed successfully; response had the identical <code>summary: "Holidays in Japan"</code> as TC-CAL53. Confirms <code>remove_calendar_from_list</code> does not touch the calendar resource itself.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Re-subscribed to en.japanese#holiday -&gt; identical summary "Holidays in Japan". Confirms remove_calendar_from_list left calendar resource untouched.</p>
 <hr />
 <h3 id="tc-cal58-non-existent-calendar-id">TC-CAL58: Non-existent calendar ID<a class="headerlink" href="#tc-cal58-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2822,6 +2866,8 @@
 - Returns <code>{"error": "..."}</code> — not a top-level exception
 - No side effects</p>
 <p><strong>Result (2026-07-05) ✅</strong> — Returned <code>{"error": "&lt;HttpError 404 ... 'reason': 'notFound' ...&gt;"}</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+remove_calendar_from_list invalid ID -&gt; {"error":"<HttpError 404 ... notFound ...>"}, no top-level exception, no side effects.</p>
 <hr />
 <h3 id="tc-cal59-cannot-unsubscribe-from-a-calendar-you-own">TC-CAL59: Cannot unsubscribe from a calendar you own<a class="headerlink" href="#tc-cal59-cannot-unsubscribe-from-a-calendar-you-own" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> a calendar owned by the authenticated user (e.g. a fresh calendar from <code>create_calendar</code>)</p>
@@ -2833,6 +2879,8 @@
 - Returns <code>{"error": "..."}</code> — not a top-level exception
 - The error message is actionable and names <code>delete_calendar</code> as the correct tool — <code>remove_calendar_from_list</code> detects the <code>cannotUnsubscribeFromOwnedCalendar</code> reason specifically and substitutes a friendly message instead of passing through the raw <code>HttpError</code> repr</p>
 <p><strong>Result (2026-07-05) ✅</strong> — First pass (before the friendly-message special-case was added) returned the raw passthrough: <code>{"error": "&lt;HttpError 403 ... 'reason': 'cannotUnsubscribeFromOwnedCalendar', 'message': 'The data owner of a calendar cannot remove such a calendar from their calendar list.' ...&gt;"}</code>. After adding the special-case (reviewer feedback on #269), re-ran against a freshly created owned calendar and got <code>{"error": "Google does not allow removing a calendar you own from your own calendar list (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to permanently delete it."}</code> — confirms the friendlier message is live and correctly names the fix.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+remove_calendar_from_list on SA-owned MINCAL -&gt; {"error":"Google does not allow removing a calendar you own from your own calendar list (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to permanently delete it."} — friendly, actionable, names delete_calendar.</p>
 <hr />
 <h2 id="list_calendar_acl"><code>list_calendar_acl</code><a class="headerlink" href="#list_calendar_acl" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal60-list-acl-rules-on-a-calendar">TC-CAL60: List ACL rules on a calendar<a class="headerlink" href="#tc-cal60-list-acl-rules-on-a-calendar" title="Permanent link">&para;</a></h3>
@@ -2844,6 +2892,8 @@
 - Returns a list with at least one rule (typically the owner's own <code>user</code> rule with <code>role: owner</code>)
 - Each item has <code>id</code>, <code>role</code>, <code>scope_type</code>, <code>scope_value</code></p>
 <p><strong>Result:</strong> PASS (live, disposable calendar, 2026-07-29). Re-verified PASS (live, 2026-08-16, PR #612 issue #460) — returned 4 rules on <code>kevin.huisman@gmail.com</code>, each with all four fields.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+No (same shape, different rule count since real fixture is narrowly shared)</p>
 <hr />
 <h3 id="tc-cal61-non-existent-calendar-id">TC-CAL61: Non-existent calendar ID<a class="headerlink" href="#tc-cal61-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2853,6 +2903,8 @@
 <p><strong>Checks</strong>
 - Returns <code>[{"error": "..."}]</code> — not a top-level exception</p>
 <p><strong>Result:</strong> PASS (live, 2026-07-29). Re-verified PASS (live, 2026-08-16, PR #612 issue #460) — invalid ID against the now-paginated tool still returns <code>[{"error": "&lt;HttpError 404 ...&gt;"}]</code>, not a top-level exception.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_calendar_acl(invalid id) -&gt; [{"error":"<HttpError 404 ... notFound ...>"}], not a top-level exception.</p>
 <hr />
 <h3 id="tc-cal76-pagination-a-calendar-with-more-acl-rules-than-one-page-must-not-be-truncated-issue-460">TC-CAL76: Pagination — a calendar with more ACL rules than one page must not be truncated (issue #460)<a class="headerlink" href="#tc-cal76-pagination-a-calendar-with-more-acl-rules-than-one-page-must-not-be-truncated-issue-460" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> requires a calendar with more than one page of ACL rules (Calendar API pages <code>acl().list()</code> at up to 100 items per page). If no such fixture calendar exists in this account, SKIP and record as environmental — this behavior is covered by <code>tests/test_calendar.py::TestListCalendarAcl::test_follows_next_page_token_across_pages</code> at the unit level, which mocks two pages directly.</p>
@@ -2865,6 +2917,8 @@
 - The returned list's length matches the calendar's actual total rule count (cross-check against the Google Calendar sharing UI or <code>gcloud</code>/API count), not capped at 100
 - No duplicate <code>id</code> values across the returned list (would indicate a page was re-fetched instead of advancing <code>pageToken</code>)</p>
 <p><strong>Result:</strong> SKIP (environmental, 2026-08-16, PR #612) — no calendar in this account's fixture set has more than one page (100+) of ACL rules; <code>list_calendars</code> shows only a handful of personal/family calendars with at most a few shares each. Covered at the unit level by <code>tests/test_calendar.py::TestListCalendarAcl::test_follows_next_page_token_across_pages</code>, confirmed passing (<code>uv run python -m pytest tests/test_calendar.py -k TestListCalendarAcl</code> — 3 passed; full file — 74 passed).</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+No calendar in reach has 100+ ACL rules (SA owns 2 fresh calendars only). Covered by unit test test_calendar.py::TestListCalendarAcl::test_follows_next_page_token_across_pages. Same as prior runs.</p>
 <hr />
 <h2 id="add_calendar_acl"><code>add_calendar_acl</code><a class="headerlink" href="#add_calendar_acl" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal62-add-a-reader-rule-for-a-user-destructive">TC-CAL62: Add a reader rule for a user ⚠️ destructive<a class="headerlink" href="#tc-cal62-add-a-reader-rule-for-a-user-destructive" title="Permanent link">&para;</a></h3>
@@ -2878,6 +2932,8 @@
 - The rule appears in a follow-up <code>list_calendar_acl</code> call</p>
 <p><strong>Cleanup:</strong> remove the rule via <code>remove_calendar_acl</code> if not reused by TC-CAL67.</p>
 <p><strong>Result:</strong> PASS (live, 2026-07-29).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+No</p>
 <hr />
 <h3 id="tc-cal63-add-a-public-default-scope-rule-destructive">TC-CAL63: Add a public (default-scope) rule ⚠️ destructive<a class="headerlink" href="#tc-cal63-add-a-public-default-scope-rule-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> a disposable test calendar (e.g. from <code>create_calendar</code>) — do not use a real personal calendar, since <code>scope_type='default'</code> makes the calendar's free/busy or event details public on the internet</p>
@@ -2890,6 +2946,8 @@
 - <code>id</code> is <code>"default"</code>
 - <code>scope_value</code> is not required when <code>scope_type='default'</code></p>
 <p><strong>Result:</strong> PASS with a corrected expectation (live, 2026-07-29) — the live API returns <code>scope_value: "__public_principal__@public.calendar.google.com"</code> for a default-scope rule, not <code>null</code> as originally written here. That's a Calendar API quirk (its documented sentinel for the public principal), not a tool defect — <code>add_calendar_acl</code>'s own docstring never promises a <code>null</code>/omitted <code>scope_value</code> for <code>default</code>, only that <code>scope_value</code> isn't <em>required</em> as an input, which held. Corrected the check above to drop the <code>scope_value: null</code> claim.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+add_calendar_acl freeBusyReader/default, no scope_value on SACAL -&gt; id="default", role=freeBusyReader, scope_type=default, scope_value="<strong>public_principal</strong>@public.calendar.google.com" (documented API sentinel; matches corrected expectation). Rule removed in cleanup.</p>
 <hr />
 <h3 id="tc-cal77-scope_value-rejected-when-scope_type-is-default-issue-458">TC-CAL77: scope_value rejected when scope_type is 'default' (issue #458)<a class="headerlink" href="#tc-cal77-scope_value-rejected-when-scope_type-is-default-issue-458" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2901,6 +2959,8 @@
 - Returns <code>{"error": "..."}</code> naming <code>scope_value</code> and <code>'default'</code> — not a silently-accepted rule with the value ignored (the prior behavior)
 - No new rule appears in a follow-up <code>list_calendar_acl</code> call</p>
 <p><strong>Result:</strong> PASS (live, 2026-08-16) — <code>add_calendar_acl(calendar_id="primary", role="freeBusyReader", scope_type="default", scope_value="someone@example.com")</code> returned <code>{"error": "scope_value must not be set when scope_type is 'default'."}</code>. Follow-up <code>list_calendar_acl(calendar_id="primary")</code> showed no new rule — the 4 existing rules were unchanged. No dedicated QA fixture calendar exists yet (tracked under #304); tested against <code>primary</code> instead, which is safe here since the validation short-circuits before any Calendar API call is made.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+add_calendar_acl default + scope_value="someone@example.com" -&gt; {"error":"scope_value must not be set when scope_type is 'default'."} Names scope_value and 'default'. No rule added (validation short-circuits before API).</p>
 <hr />
 <h3 id="tc-cal64-invalid-role-rejected-without-calling-the-api">TC-CAL64: Invalid role rejected without calling the API<a class="headerlink" href="#tc-cal64-invalid-role-rejected-without-calling-the-api" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2911,6 +2971,8 @@
 - Returns <code>{"error": "..."}</code> naming the invalid role and listing the valid ones
 - No new rule appears in a follow-up <code>list_calendar_acl</code> call — confirms the invalid role is rejected before any API call</p>
 <p><strong>Result:</strong> PASS (live, 2026-07-29).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+add_calendar_acl role="admin" -&gt; {"error":"Invalid role 'admin'. Must be one of: reader, writer, owner, freeBusyReader"} — names invalid role + lists valid ones. No rule added (confirmed via later list_calendar_acl).</p>
 <hr />
 <h3 id="tc-cal65-scope_value-required-for-a-non-default-scope_type">TC-CAL65: scope_value required for a non-default scope_type<a class="headerlink" href="#tc-cal65-scope_value-required-for-a-non-default-scope_type" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2921,6 +2983,8 @@
 - Returns <code>{"error": "..."}</code> naming <code>scope_value</code> as required
 - No new rule appears in a follow-up <code>list_calendar_acl</code> call</p>
 <p><strong>Result:</strong> PASS (live, 2026-07-29).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+add_calendar_acl scope_type="user", no scope_value -&gt; {"error":"scope_value is required when scope_type is 'user'."} No rule added.</p>
 <hr />
 <h3 id="tc-cal66-non-existent-calendar-id">TC-CAL66: Non-existent calendar ID<a class="headerlink" href="#tc-cal66-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2930,6 +2994,8 @@
 <p><strong>Checks</strong>
 - Returns <code>{"error": "..."}</code> — not a top-level exception</p>
 <p><strong>Result:</strong> PASS (live, 2026-07-29).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+add_calendar_acl on invalid calendar ID -&gt; {"error":"<HttpError 404 ... notFound ...>"}, not a top-level exception.</p>
 <hr />
 <h2 id="remove_calendar_acl"><code>remove_calendar_acl</code><a class="headerlink" href="#remove_calendar_acl" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal67-remove-an-acl-rule-destructive">TC-CAL67: Remove an ACL rule ⚠️ destructive<a class="headerlink" href="#tc-cal67-remove-an-acl-rule-destructive" title="Permanent link">&para;</a></h3>
@@ -2942,6 +3008,8 @@
 - Returns <code>{"calendar_id": "...", "rule_id": "...", "action": "removed"}</code>
 - The rule no longer appears in a follow-up <code>list_calendar_acl</code> call</p>
 <p><strong>Result:</strong> PASS (live, 2026-07-29).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+No</p>
 <hr />
 <h3 id="tc-cal68-non-existent-rule-id">TC-CAL68: Non-existent rule ID<a class="headerlink" href="#tc-cal68-non-existent-rule-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2951,6 +3019,8 @@
 <p><strong>Checks</strong>
 - Returns <code>{"error": "..."}</code> — not a top-level exception</p>
 <p><strong>Result:</strong> PASS (live, 2026-07-29) — API returns 400 "Invalid resource id value" (malformed ID), correctly surfaced as <code>{"error": ...}</code> rather than a top-level exception. A well-formed but nonexistent rule ID would presumably 404 the same clean way, not separately exercised.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+remove_calendar_acl rule_id="totally-invalid-rule-id" -&gt; {"error":"<HttpError 400 ... 'Invalid resource id value.' ...>"}, not a top-level exception.</p>
 <hr />
 <h2 id="list_events"><code>list_events</code><a class="headerlink" href="#list_events" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal09-no-time-filters-upcoming-events">TC-CAL09: No time filters — upcoming events<a class="headerlink" href="#tc-cal09-no-time-filters-upcoming-events" title="Permanent link">&para;</a></h3>
@@ -2962,6 +3032,8 @@
 - Returns events ordered by start time
 - Events are from now onward (no past events)
 - Each event has <code>id</code>, <code>summary</code>, <code>start</code>, <code>end</code>, <code>status</code></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_events no time filter on SACAL -&gt; {"result":[]} (all seeded events are before "now" 2026-09-04, correctly excluded — confirms default time_min=now, no past events). Field/ordering checks validated via July-windowed call: 3 events correctly ordered by start, each with id/summary/start/end/status.</p>
 <hr />
 <h3 id="tc-cal10-time_min-time_max-window">TC-CAL10: time_min + time_max window<a class="headerlink" href="#tc-cal10-time_min-time_max-window" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2972,6 +3044,8 @@
 - All returned events fall within the specified window
 - Events outside the window are absent
 - Empty list returned if no events exist in that window — not an error</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_events 2026-06-01..2026-06-30 window -&gt; {"result":[]} — July events absent, empty not an error.</p>
 <hr />
 <h3 id="tc-cal11-query-string-search">TC-CAL11: query string search<a class="headerlink" href="#tc-cal11-query-string-search" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2982,6 +3056,8 @@
 - Returns only events whose summary, description, or location contains 'dinner'
 - Non-matching events excluded
 - Empty list if nothing matches — not an error</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_events query="dinner" -&gt; {"result":[]} — no matches, empty not an error.</p>
 <hr />
 <h3 id="tc-cal12-all-day-event-format">TC-CAL12: All-day event format<a class="headerlink" href="#tc-cal12-all-day-event-format" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> a calendar containing at least one all-day event</p>
@@ -2992,6 +3068,8 @@
 <p><strong>Checks</strong>
 - All-day event <code>start</code> and <code>end</code> are date strings (<code>YYYY-MM-DD</code>), not datetime strings
 - No <code>T</code> or timezone offset in the date values</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+QA-AllDay-Test in list_events: start="2026-07-02", end="2026-07-03" — date strings, no "T"/offset. Confirms date field used.</p>
 <hr />
 <h3 id="tc-cal13-timed-event-format">TC-CAL13: Timed event format<a class="headerlink" href="#tc-cal13-timed-event-format" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3001,6 +3079,8 @@
 <p><strong>Checks</strong>
 - Timed event <code>start</code> and <code>end</code> are RFC 3339 datetime strings (contain <code>T</code>)
 - Timezone offset or <code>Z</code> is present</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+QA-Timed-Test in list_events: start="2026-07-01T13:00:00-04:00" — contains "T", has timezone offset.</p>
 <hr />
 <h3 id="tc-cal14-max_results-clamped">TC-CAL14: max_results clamped<a class="headerlink" href="#tc-cal14-max_results-clamped" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3010,6 +3090,8 @@
 <p><strong>Checks</strong>
 - <code>max_results=0</code> → clamped to 1; at most 1 event returned
 - <code>max_results=3000</code> → clamped to 2500; no more than 2500 events returned</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+max_results=0 -&gt; exactly 1 event returned (clamped to 1). max_results=3000 -&gt; all 3 events, no error (&lt;=2500; exact 2500 cap not reproducible w/o 2500+ events).</p>
 <hr />
 <h3 id="tc-cal15-non-existent-calendar-id">TC-CAL15: Non-existent calendar ID<a class="headerlink" href="#tc-cal15-non-existent-calendar-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3019,9 +3101,12 @@
 <p><strong>Checks</strong>
 - Returns <code>[{"error": "..."}]</code> — not a top-level exception
 - Error message is from the Calendar API</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_events on 'invalid-cal-id@example.com' -&gt; [{"error":"<HttpError 404 ... notFound ...>"}], not a top-level exception, message from Calendar API.</p>
 <hr />
 <h2 id="get_event"><code>get_event</code><a class="headerlink" href="#get_event" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal16-valid-event-full-details">TC-CAL16: Valid event — full details<a class="headerlink" href="#tc-cal16-valid-event-full-details" title="Permanent link">&para;</a></h3>
+<p><strong>Note (v0.9.0):</strong> on a group/secondary calendar (the fixture <code>{CALENDAR_ID}</code>), <code>organizer</code> is the calendar's own ID string (email-shaped but not a person's mailbox), not a personal account's email — confirmed correct on both an SA-owned substitute calendar and the real fixture. Check reworded to not assume a personal-calendar shape.</p>
 <p><strong>Prompt</strong></p>
 <blockquote>
 <p>"Get the details of event {EVENT_ID} from calendar {CALENDAR_ID}"</p>
@@ -3029,7 +3114,9 @@
 <p><strong>Checks</strong>
 - Returns <code>id</code>, <code>summary</code>, <code>start</code>, <code>end</code>, <code>location</code>, <code>description</code>, <code>organizer</code>, <code>attendees</code>, <code>recurrence</code>, <code>html_link</code>, <code>status</code>, <code>created</code>, <code>updated</code>
 - <code>html_link</code> opens the event in Google Calendar UI
-- <code>organizer</code> is an email address string</p>
+- <code>organizer</code> is a well-formed identifier string (a personal account's email on a personal calendar; the calendar's own ID string, email-shaped, on a group/secondary calendar)</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+No — confirms same organizer-is-calendar-ID finding on the real fixture</p>
 <hr />
 <h3 id="tc-cal17-attendees-populated">TC-CAL17: Attendees populated<a class="headerlink" href="#tc-cal17-attendees-populated" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> an event with at least one attendee</p>
@@ -3040,6 +3127,8 @@
 <p><strong>Checks</strong>
 - <code>attendees</code> is a non-empty list
 - Each attendee has <code>email</code> and <code>response</code> (e.g. <code>accepted</code>, <code>needsAction</code>)</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+<strong>YES</strong> — SA SKIPped (couldn't invite attendees); OAuth succeeds cleanly</p>
 <hr />
 <h3 id="tc-cal18-recurring-event-instance">TC-CAL18: Recurring event instance<a class="headerlink" href="#tc-cal18-recurring-event-instance" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> a recurring event in the calendar</p>
@@ -3050,6 +3139,8 @@
 <p><strong>Checks</strong>
 - <code>recurrence</code> is a non-null list (e.g. <code>["RRULE:FREQ=WEEKLY;..."]</code>)
 - Single (non-recurring) events have <code>recurrence: null</code></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Instance get_event (dmp5oe7...q_20260713T160000Z) -&gt; recurrence: null. Master get_event -&gt; recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO"] (non-null list). One-off QA-OneOff -&gt; recurrence: null.</p>
 <hr />
 <h3 id="tc-cal19-non-existent-event-id">TC-CAL19: Non-existent event ID<a class="headerlink" href="#tc-cal19-non-existent-event-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3059,6 +3150,8 @@
 <p><strong>Checks</strong>
 - Returns <code>{"error": "..."}</code> — not a top-level exception
 - Error message references the bad event ID</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+get_event event_id='invalidEventId999xyz' -&gt; {"error":"<HttpError 404 ... notFound ...>"}, not a top-level exception; URL/message references the bad event ID.</p>
 <hr />
 <h2 id="create_event"><code>create_event</code><a class="headerlink" href="#create_event" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal20-timed-event-destructive">TC-CAL20: Timed event ⚠️ destructive<a class="headerlink" href="#tc-cal20-timed-event-destructive" title="Permanent link">&para;</a></h3>
@@ -3073,6 +3166,8 @@
 - <code>html_link</code> is present and opens the event in Google Calendar
 - <code>status</code> is <code>confirmed</code>
 - <code>calendar_cache.mark_dirty</code> called — next <code>list_events</code> re-fetches</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_event timed on SACAL -&gt; id, start/end RFC3339 w/ offset (2026-07-01T13:00:00-04:00, rendered in cal tz America/New_York = 10-11am PT), html_link present, status=confirmed, recurrence=null. Follow-up windowed list_events re-fetched and showed it (mark_dirty proxy). Playwright: OAuth-logged-in browser cannot see SA-owned-calendar events (cal not shared to/listed by OAuth user) — API used per shard fallback. EVENT_TIMED=dcfqjj57pv7kb1tpee7e61v65c</p>
 <hr />
 <h3 id="tc-cal21-all-day-event-destructive">TC-CAL21: All-day event ⚠️ destructive<a class="headerlink" href="#tc-cal21-all-day-event-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -3084,6 +3179,8 @@
 - <code>start</code> and <code>end</code> in response are date strings (<code>2026-07-02</code>, <code>2026-07-03</code>)
 - No <code>T</code> in the date values — confirms <code>date</code> field used, not <code>dateTime</code>
 - Event appears in <code>list_events</code> for that day</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_event all-day -&gt; start="2026-07-02", end="2026-07-03", no "T" (date fields). Appears in windowed list_events for that day. EVENT_ALLDAY=9m4dfmdjnjl9742ui2hnt7oqm8</p>
 <hr />
 <h3 id="tc-cal22-with-description-location-and-attendees-destructive">TC-CAL22: With description, location, and attendees ⚠️ destructive<a class="headerlink" href="#tc-cal22-with-description-location-and-attendees-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -3096,6 +3193,8 @@
 - <code>attendees</code> contains <code>test@example.com</code>
 - <code>location</code> is <code>Conference Room A</code>
 - <code>description</code> is <code>QA test event</code></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+<strong>YES</strong> — SA got <code>403 forbiddenForServiceAccounts</code>; OAuth succeeds cleanly, verified live + Playwright</p>
 <hr />
 <h3 id="tc-cal23-invalid-calendar-id">TC-CAL23: Invalid calendar ID<a class="headerlink" href="#tc-cal23-invalid-calendar-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3105,6 +3204,8 @@
 <p><strong>Checks</strong>
 - Returns <code>{"error": "..."}</code> — not a top-level exception
 - No event created</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_event on 'invalid-cal@example.com' -&gt; {"error":"<HttpError 404 ... notFound ...>"}, no event created.</p>
 <hr />
 <h2 id="update_event"><code>update_event</code><a class="headerlink" href="#update_event" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal24-update-summary-only-destructive">TC-CAL24: Update summary only ⚠️ destructive<a class="headerlink" href="#tc-cal24-update-summary-only-destructive" title="Permanent link">&para;</a></h3>
@@ -3117,6 +3218,8 @@
 - <code>summary</code> in response is <code>QA-Timed-Updated</code>
 - <code>start</code>, <code>end</code>, <code>location</code>, <code>description</code> unchanged (verify with <code>get_event</code>)
 - <code>calendar_cache.mark_dirty</code> called</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_event summary -&gt; "QA-Timed-Updated"; start/end unchanged (13:00-14:00-04:00); location/description still null.</p>
 <hr />
 <h3 id="tc-cal25-update-start-and-end-destructive">TC-CAL25: Update start and end ⚠️ destructive<a class="headerlink" href="#tc-cal25-update-start-and-end-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -3127,6 +3230,8 @@
 <p><strong>Checks</strong>
 - <code>start</code> and <code>end</code> reflect the new times
 - <code>summary</code> and other fields unchanged</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_event start/end -&gt; 17:00-18:00-04:00 (2pm-3pm PT); summary unchanged.</p>
 <hr />
 <h3 id="tc-cal26-update-description-and-location-destructive">TC-CAL26: Update description and location ⚠️ destructive<a class="headerlink" href="#tc-cal26-update-description-and-location-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -3138,6 +3243,8 @@
 - <code>description</code> is <code>Updated desc</code>
 - <code>location</code> is <code>Room B</code>
 - Other fields (<code>summary</code>, <code>attendees</code>) unchanged</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_event description="Updated desc", location="Room B". get_event confirms both; summary ("QA-Full-Test") and attendees ([]) unchanged.</p>
 <hr />
 <h3 id="tc-cal27-non-existent-event-id">TC-CAL27: Non-existent event ID<a class="headerlink" href="#tc-cal27-non-existent-event-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3146,6 +3253,8 @@
 </blockquote>
 <p><strong>Checks</strong>
 - Returns <code>{"error": "..."}</code> — not a top-level exception</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_event on 'invalidEventId999xyz' -&gt; {"error":"<HttpError 404 ... notFound ...>"}, not a top-level exception.</p>
 <hr />
 <h2 id="delete_event"><code>delete_event</code><a class="headerlink" href="#delete_event" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal28-delete-an-existing-event-destructive">TC-CAL28: Delete an existing event ⚠️ destructive<a class="headerlink" href="#tc-cal28-delete-an-existing-event-destructive" title="Permanent link">&para;</a></h3>
@@ -3158,6 +3267,8 @@
 - Returns <code>{"calendar_id": "...", "event_id": "...", "action": "deleted"}</code>
 - Event no longer appears in <code>list_events</code> for that date
 - <code>calendar_cache.mark_dirty</code> called</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+delete_event -&gt; {"calendar_id":...,"event_id":"9m4dfmdjnjl9742ui2hnt7oqm8","action":"deleted"}. Absent from follow-up windowed list_events (empty).</p>
 <hr />
 <h3 id="tc-cal29-non-existent-event-id">TC-CAL29: Non-existent event ID<a class="headerlink" href="#tc-cal29-non-existent-event-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3167,6 +3278,8 @@
 <p><strong>Checks</strong>
 - Returns <code>{"error": "..."}</code> — not a top-level exception
 - No side effects</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+delete_event on 'invalidEventId999xyz' -&gt; {"error":"<HttpError 404 ... notFound ...>"}, not a top-level exception, no side effects.</p>
 <hr />
 <h2 id="find_free_slots"><code>find_free_slots</code><a class="headerlink" href="#find_free_slots" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal30-single-calendar-no-events-in-window">TC-CAL30: Single calendar — no events in window<a class="headerlink" href="#tc-cal30-single-calendar-no-events-in-window" title="Permanent link">&para;</a></h3>
@@ -3177,6 +3290,8 @@
 <p><strong>Checks</strong>
 - <code>busy[{CALENDAR_ID}]</code> is an empty list
 - <code>free_slots</code> covers the entire window as one slot: <code>[{start: time_min, end: time_max}]</code></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+find_free_slots SACAL 2026-07-04 full-day, no events -&gt; busy[SACAL]=[], free_slots=[{2026-07-04T00:00:00Z .. 2026-07-04T23:59:59Z}] (whole window one slot).</p>
 <hr />
 <h3 id="tc-cal31-single-calendar-events-in-window">TC-CAL31: Single calendar — events in window<a class="headerlink" href="#tc-cal31-single-calendar-events-in-window" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3187,6 +3302,8 @@
 - <code>busy[{CALENDAR_ID}]</code> contains the event's <code>start</code> and <code>end</code> times
 - <code>free_slots</code> shows the gaps before, between, and after busy periods
 - <code>free_slots</code> start/end values are RFC 3339 strings</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+find_free_slots SACAL 2026-07-01 16:00-00:00Z (9am-5pm PT) -&gt; busy[SACAL]=[{21:00:00Z..22:00:00Z}] (the CAL25 event); free_slots gaps before {16:00-21:00Z} and after {22:00-00:00Z}, all RFC3339.</p>
 <hr />
 <h3 id="tc-cal32-multiple-calendar-ids">TC-CAL32: Multiple calendar IDs<a class="headerlink" href="#tc-cal32-multiple-calendar-ids" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> two calendars the service account has access to</p>
@@ -3198,6 +3315,8 @@
 - <code>busy</code> has a key for each calendar ID
 - <code>free_slots</code> reflects the union of all busy times — a slot is free only when all calendars are free
 - No error if one calendar has no events (that calendar's busy list is just empty)</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+find_free_slots [SACAL, MINCAL] same window -&gt; busy has a key per calendar; MINCAL busy=[] (no events, no error); free_slots = union (only SACAL busy considered).</p>
 <hr />
 <h3 id="tc-cal33-invalid-calendar-id-in-list">TC-CAL33: Invalid calendar ID in list<a class="headerlink" href="#tc-cal33-invalid-calendar-id-in-list" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3208,6 +3327,8 @@
 - <code>busy["invalid-cal@example.com"]</code> contains an <code>error</code> entry (Calendar API errors-per-calendar)
 - <code>busy[{CALENDAR_ID}]</code> is still populated correctly
 - Top-level response is not an error — partial results returned</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+find_free_slots [SACAL, 'invalid-cal@example.com'] -&gt; busy["invalid-cal@example.com"]=[{"error":"notFound"}], busy[SACAL] still populated, top-level not an error (partial results).</p>
 <hr />
 <h3 id="tc-cal34-free_slots-covers-full-window-when-no-busy-times">TC-CAL34: free_slots covers full window when no busy times<a class="headerlink" href="#tc-cal34-free_slots-covers-full-window-when-no-busy-times" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3217,6 +3338,8 @@
 <p><strong>Checks</strong>
 - <code>free_slots</code> is exactly <code>[{"start": "2026-07-10T00:00:00Z", "end": "2026-07-10T01:00:00Z"}]</code>
 - Confirms the complement logic handles the empty-busy case</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+find_free_slots SACAL 2026-07-10T00:00:00Z..01:00:00Z, no events -&gt; free_slots exactly [{"start":"2026-07-10T00:00:00Z","end":"2026-07-10T01:00:00Z"}].</p>
 <hr />
 <h3 id="tc-cal35-contiguous-busy-periods-merged-in-free_slots">TC-CAL35: Contiguous busy periods merged in free_slots<a class="headerlink" href="#tc-cal35-contiguous-busy-periods-merged-in-free_slots" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> two back-to-back events with no gap (or overlapping events)</p>
@@ -3228,6 +3351,8 @@
 - The two busy periods are merged in the free slot calculation
 - <code>free_slots</code> does not include a zero-length or negative-length gap between them
 - Confirms the interval merge logic in <code>find_free_slots</code></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -&gt; busy merged to single {14:00:00Z..16:00:00Z}; free_slots {13:00-14:00Z} and {16:00-17:00Z}, no zero/negative gap between. Interval-merge confirmed. (adjacent events cleaned up)</p>
 <hr />
 <h2 id="create_event-recurrence-support"><code>create_event</code> — recurrence support<a class="headerlink" href="#create_event-recurrence-support" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal36-create-a-weekly-recurring-event-destructive">TC-CAL36: Create a weekly recurring event ⚠️ destructive<a class="headerlink" href="#tc-cal36-create-a-weekly-recurring-event-destructive" title="Permanent link">&para;</a></h3>
@@ -3243,6 +3368,8 @@
 - Verify with <code>get_event</code> that the master event's <code>recurrence</code> field is non-null
 - Follow-up: <code>list_events(expand_recurring=True)</code> shows multiple Monday instances</p>
 <p><strong>Result (2026-06-24) ✅</strong> — Event created with <code>id: 3n4mjvi13au7fg1ce0np9ca73k</code>, <code>recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO"]</code>, <code>status: confirmed</code>, <code>html_link</code> present. Confirmed master ID has no date suffix.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_event recurring weekly -&gt; id dmp5oe7qd342n5odt7a0hqmnhk (no date suffix), recurrence ["RRULE:FREQ=WEEKLY;BYDAY=MO"], status confirmed, html_link present. get_event(master) recurrence non-null. list_events(expand=True) Jul7-28 -&gt; 4 instances (Jul 7 [DTSTART], 13, 20, 27).</p>
 <hr />
 <h3 id="tc-cal37-create-a-daily-recurring-event-with-count-limit-destructive">TC-CAL37: Create a daily recurring event with COUNT limit ⚠️ destructive<a class="headerlink" href="#tc-cal37-create-a-daily-recurring-event-with-count-limit-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -3255,6 +3382,8 @@
 - <code>list_events</code> with <code>expand_recurring=True</code> and appropriate time window returns exactly 5 instances
 - No events appear after the 5th occurrence</p>
 <p><strong>Result (2026-06-24) ✅</strong> — Created with <code>recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]</code>. <code>list_events(expand_recurring=True)</code> for Jul 14–19 returned exactly 5 instances (Jul 14–18). No Jul 19+ instances returned. Each instance had <code>recurrence: null</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_event daily COUNT=5 -&gt; recurrence ["RRULE:FREQ=DAILY;COUNT=5"]. list_events(expand=True) Jul14-25 -&gt; exactly 5 instances (Jul 14-18), none after. Each instance recurrence: null.</p>
 <hr />
 <h3 id="tc-cal38-recurrence-absent-when-not-provided">TC-CAL38: Recurrence absent when not provided<a class="headerlink" href="#tc-cal38-recurrence-absent-when-not-provided" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -3267,6 +3396,8 @@
 - <code>list_events(expand_recurring=False)</code> does not include this event as a recurring series
 - Confirms non-recurring events are unaffected</p>
 <p><strong>Result (2026-06-24) ✅</strong> — Created with <code>recurrence: null</code>. Appears in <code>list_events(expand_recurring=False)</code> with <code>recurrence: null</code> — confirms one-off events are unaffected by recurrence logic.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_event one-off QA-OneOff -&gt; recurrence: null. list_events(expand_recurring=False) shows it with recurrence: null, single entry (not a series).</p>
 <hr />
 <h2 id="list_events-expand_recurring"><code>list_events</code> — expand_recurring<a class="headerlink" href="#list_events-expand_recurring" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal39-expand_recurringfalse-returns-master-events">TC-CAL39: expand_recurring=False returns master events<a class="headerlink" href="#tc-cal39-expand_recurringfalse-returns-master-events" title="Permanent link">&para;</a></h3>
@@ -3282,6 +3413,8 @@
 - The master event <code>id</code> does not contain an underscore + date suffix (instance IDs do)
 - Non-recurring events also appear (one entry each)</p>
 <p><strong>Result (2026-06-24) ✅</strong> — <code>list_events(expand_recurring=False, query="QA-")</code> returned 3 items: QA-Weekly-Standup (recurrence: WEEKLY/MO), QA-Daily-5x (recurrence: DAILY/COUNT=5), QA-OneOff (recurrence: null). All master IDs had no date suffix. Confirms <code>singleEvents=False</code> path works correctly.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_events(expand_recurring=False, query="QA-") -&gt; masters QA-Weekly-Standup (WEEKLY/MO), QA-Daily-5x (DAILY/COUNT=5), QA-OneOff (null), plus non-recurring QA-Timed-Updated &amp; QA-Full-Test. All master IDs suffix-free; no instance IDs present.</p>
 <hr />
 <h3 id="tc-cal40-expand_recurringtrue-default-expands-instances">TC-CAL40: expand_recurring=True (default) expands instances<a class="headerlink" href="#tc-cal40-expand_recurringtrue-default-expands-instances" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> use the recurring event created in TC-CAL36</p>
@@ -3295,6 +3428,8 @@
 - Each instance <code>id</code> contains the base event ID plus a date suffix
 - <code>recurrence</code> field is <code>null</code> on individual instances (it lives on the master)</p>
 <p><strong>Result (2026-06-24) ✅</strong> — Returned 4 instances (Jul 7, 13, 20, 27). Each ID had the <code>_YYYYMMDDTHHMMSSZ</code> suffix. <code>recurrence: null</code> on all instances. Note: Jul 7 is the original start date (Tuesday); the API kept it as the first instance and subsequent occurrences fell on Mondays per BYDAY=MO.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_events(expand_recurring=True default) Jul7-28 for QA-Weekly-Standup -&gt; 4 individual instances, each id ends <code>_YYYYMMDDTHHMMSSZ</code>, recurrence: null on each.</p>
 <hr />
 <h2 id="update_event-recurrence-support"><code>update_event</code> — recurrence support<a class="headerlink" href="#update_event-recurrence-support" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal41-update-rrule-on-a-master-event-destructive">TC-CAL41: Update RRULE on a master event ⚠️ destructive<a class="headerlink" href="#tc-cal41-update-rrule-on-a-master-event-destructive" title="Permanent link">&para;</a></h3>
@@ -3308,6 +3443,8 @@
 - <code>list_events(expand_recurring=True)</code> for a 4-week window now returns 2 instances (not 4)
 - Other fields (<code>summary</code>, <code>start</code>, <code>end</code>) are unchanged</p>
 <p><strong>Result (2026-06-24) ✅</strong> — Patched master with <code>recurrence: ["RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO"]</code>. Response echoed the new RRULE. <code>list_events(expand_recurring=True)</code> for Jul 7–28 returned 2 instances (Jul 7 and Jul 20) vs 4 previously. <code>summary</code> and <code>start</code>/<code>end</code> unchanged.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_event(master, recurrence=["RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO"]) -&gt; response echoes new RRULE. list_events(expand=True) Jul7-28 -&gt; 2 instances (Jul 7, Jul 20) vs 4 before. summary/start/end unchanged.</p>
 <hr />
 <h3 id="tc-cal42-remove-recurrence-by-passing-an-empty-list-destructive">TC-CAL42: Remove recurrence by passing an empty list ⚠️ destructive<a class="headerlink" href="#tc-cal42-remove-recurrence-by-passing-an-empty-list-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> use the weekly recurring event from TC-CAL36 (master event ID)</p>
@@ -3320,6 +3457,8 @@
 - Event no longer appears as a series in <code>list_events(expand_recurring=False)</code>
 - Only a single instance exists at the original start date</p>
 <p><strong>Result (2026-06-24) ✅</strong> — Patched master with <code>recurrence: []</code>. Response returned <code>recurrence: null</code>. <code>list_events(expand_recurring=False)</code> showed QA-Weekly-Standup with <code>recurrence: null</code> — one entry, no series. Only the Jul 7 occurrence remains.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_event(master, recurrence=[]) -&gt; response recurrence: null. list_events(expand_recurring=False) -&gt; QA-Weekly-Standup single entry, recurrence: null, no series. Only Jul 7 occurrence remains.</p>
 <hr />
 <h3 id="tc-cal43-update-a-single-instance-without-affecting-the-series-destructive">TC-CAL43: Update a single instance without affecting the series ⚠️ destructive<a class="headerlink" href="#tc-cal43-update-a-single-instance-without-affecting-the-series-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> use the recurring event from TC-CAL37; get an instance event ID (contains date suffix) via <code>list_events(expand_recurring=True)</code></p>
@@ -3333,6 +3472,8 @@
 - The master event <code>summary</code> is unchanged (verify with <code>get_event</code> on the master ID)
 - Confirms instance-level patching creates an exception override, not a series update</p>
 <p><strong>Result (2026-06-24) ✅</strong> — Patched instance <code>9lrphvbvegq03163gjh7fu35qo_20260714T150000Z</code> with <code>summary: 'QA-Daily-5x (Modified)'</code>. Jul 15–18 instances still returned <code>summary: 'QA-Daily-5x'</code>. <code>get_event</code> on master <code>9lrphvbvegq03163gjh7fu35qo</code> returned <code>summary: 'QA-Daily-5x'</code> and <code>recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]</code> unchanged. Instance-level exception confirmed.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_event(instance jkk1ai0c..._20260714T150000Z, summary="QA-Daily-5x (Modified)") -&gt; that instance renamed; Jul 15-18 instances still "QA-Daily-5x"; get_event(master jkk1ai0cv78e92jdf3qa6ts130) summary "QA-Daily-5x", recurrence ["RRULE:FREQ=DAILY;COUNT=5"] unchanged. Instance-level exception override confirmed.</p>
 <hr />
 <h2 id="list_all_events"><code>list_all_events</code><a class="headerlink" href="#list_all_events" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal69-defaults-to-every-subscribed-calendar-and-returns-a-flat-list">TC-CAL69: Defaults to every subscribed calendar and returns a flat list<a class="headerlink" href="#tc-cal69-defaults-to-every-subscribed-calendar-and-returns-a-flat-list" title="Permanent link">&para;</a></h3>
@@ -3347,6 +3488,8 @@
 - Every returned event has both <code>calendar_id</code> and <code>calendar_summary</code> populated
 - Confirms omitting <code>calendar_ids</code> fans out across the full <code>list_calendars</code> result, not just one calendar</p>
 <p><strong>Result (2026-07-30) ⚠️ partial</strong> — This worktree's connected account has no <code>mcp-gee-sweet-qa</code>/<code>QA-Timed-Test</code> fixtures set up (real OAuth personal account, no scratch calendar present). Ran with no <code>calendar_ids</code> and a 1-day window instead: response was a flat <code>list</code>, every returned event had both <code>calendar_id</code> and <code>calendar_summary</code> populated correctly, sourced from more than one calendar. The specific 'QA-Timed-Test' fixture assertion could not be checked. Structural behavior confirmed; named-fixture assertion blocked on missing fixtures, not a PR defect.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_all_events no calendar_ids, 2026-07-01..02 -&gt; flat list; QA-Timed-Updated present with calendar_id=SACAL, calendar_summary="mcp-gee-sweet-qa-renamed" (SACAL's real summary); every event has both fields; fanned out across full list_calendars (MINCAL empty in window, correctly absent). (Event is the CAL24/25-renamed 'QA-Timed-Test'.)</p>
 <hr />
 <h3 id="tc-cal70-explicit-calendar_ids-restricts-the-fan-out">TC-CAL70: Explicit calendar_ids restricts the fan-out<a class="headerlink" href="#tc-cal70-explicit-calendar_ids-restricts-the-fan-out" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3357,6 +3500,8 @@
 - Every event in the response has <code>calendar_id: "{CALENDAR_ID}"</code> — no event from <code>{CALENDAR_ID_2}</code> or any other subscribed calendar appears, even if it has events in the same window
 - Confirms <code>calendar_ids</code> narrows the query instead of always hitting every subscribed calendar</p>
 <p><strong>Result (2026-07-30) ✅</strong> — Called with two explicit <code>calendar_ids</code> (real subscribed calendars, no shared/duplicate <code>summary</code> between them) and a narrow window (both empty in that window). Response was an empty flat list — no third calendar's events leaked in. Confirms <code>calendar_ids</code> restricts the fan-out.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_all_events calendar_ids=[SACAL] -&gt; only SACAL's event; QA-MinCal-Event (on MINCAL, same window) absent. Fan-out restricted.</p>
 <hr />
 <h3 id="tc-cal71-group_by_calendartrue-groups-by-calendar-summary">TC-CAL71: group_by_calendar=True groups by calendar summary<a class="headerlink" href="#tc-cal71-group_by_calendartrue-groups-by-calendar-summary" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> same fixtures as TC-CAL69 — both calendars have at least one event in the window.</p>
@@ -3371,6 +3516,8 @@
 - If two calendars share an identical <code>summary</code>, both are still present — disambiguated as <code>"{summary} ({calendar_id})"</code> — instead of one silently overwriting the other</p>
 <p><strong>Fixed (round 2):</strong> <code>grouped</code> was keyed by bare <code>calendar_summary</code>, so two calendars sharing a summary collided and the second overwrote the first with no error. Now keyed via <code>_group_key</code>, which appends <code>" ({calendar_id})"</code> whenever more than one queried calendar shares that summary. No live fixture pair with a duplicate <code>summary</code> was available in this environment to reproduce the collision end-to-end (per round 1's Result below) or reconfirm the fix live — covered by <code>test_group_by_calendar_disambiguates_colliding_summaries</code> in <code>tests/test_calendar.py</code> only. Documented scoping decision, not an oversight.</p>
 <p><strong>Result (2026-07-30) ⚠️ passed but confirms a live defect</strong> — Ran with two calendars whose real <code>summary</code> values happened to differ, and grouping worked correctly for that case. However, reading the implementation (<code>calendar.py:1001</code>, <code>grouped[key] = ...</code> keyed by <code>calendar_summary</code>) confirms <code>/code-review high</code>'s finding: two calendars sharing an identical <code>summary</code> will silently collide — the second overwrites the first in <code>grouped</code>, with the first calendar's entire event list dropped and no error/warning. No live fixture pair with a duplicate summary was available in this environment to reproduce it end-to-end, but the code path is unambiguous. <strong>Sending back to Dev — see PR comment.</strong></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+group_by_calendar=true, [SACAL, MINCAL] -&gt; dict keyed by summary ("mcp-gee-sweet-qa-renamed", "mcp-gee-sweet-qa-minimal"); each key holds only that calendar's events; events' calendar_id/summary match their key. Duplicate-summary disambiguation not reproducible (no colliding pair) — covered by unit test, matches prior runs.</p>
 <hr />
 <h3 id="tc-cal72-one-invalid-calendar_id-does-not-abort-the-batch-flat-list">TC-CAL72: One invalid calendar_id does not abort the batch (flat list)<a class="headerlink" href="#tc-cal72-one-invalid-calendar_id-does-not-abort-the-batch-flat-list" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3383,6 +3530,8 @@
 - <code>{CALENDAR_ID}</code>'s real events (e.g. 'QA-Timed-Test') are still present in the same list, unaffected by the other calendar's failure
 - Confirms per-calendar failures are inlined rather than failing the whole call (the <code>asyncio.gather(..., return_exceptions=True)</code> fan-out pattern from #183)</p>
 <p><strong>Result (2026-07-30) ✅</strong> — Called with one real calendar_id plus <code>invalid-cal@example.com</code>, narrow window. Response was a flat list with exactly one entry for the invalid ID: <code>{"calendar_id": "invalid-cal@example.com", "calendar_summary": "invalid-cal@example.com", "error": "&lt;HttpError 404 ... notFound ...&gt;"}</code>. No top-level error, no exception. Confirms per-calendar failure inlining.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+[SACAL, invalid-cal@example.com] flat -&gt; flat list; exactly one entry {calendar_id:"invalid-cal@example.com", calendar_summary:"invalid-cal@example.com", error:"<HttpError 404 notFound>"} with no event fields; SACAL event still present; no top-level error.</p>
 <hr />
 <h3 id="tc-cal73-one-invalid-calendar_id-does-not-abort-the-batch-group_by_calendartrue">TC-CAL73: One invalid calendar_id does not abort the batch (group_by_calendar=True)<a class="headerlink" href="#tc-cal73-one-invalid-calendar_id-does-not-abort-the-batch-group_by_calendartrue" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3395,6 +3544,8 @@
 <p><strong>Fixed (round 2):</strong> the grouped error entry previously carried only <code>{"error": ...}</code>, recoverable only via the dict key — which per TC-CAL71's collision defect could itself be ambiguous. Now includes <code>calendar_id</code> explicitly, matching the flat-list error shape (TC-CAL72). Covered by <code>test_one_calendar_erroring_in_group_by_calendar_mode</code> in <code>tests/test_calendar.py</code>; round 1's Result below predates this shape and needs re-verification live.</p>
 <p><strong>Result (2026-07-30, round 1) — superseded, see round 2 below.</strong></p>
 <p><strong>Result (2026-07-30, round 2) ✅</strong> — Re-ran against <code>481f13d4</code> after a fresh <code>/mcp reconnect</code> (the first post-fix attempt was caught still serving pre-fix code — see PR comment). <code>result["invalid-cal@example.com"]</code> was <code>{"error": "&lt;HttpError 404 ... notFound ...&gt;", "calendar_id": "invalid-cal@example.com"}</code> — <code>calendar_id</code> now present, confirming the fix live.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+[SACAL, invalid-cal@example.com] group_by_calendar=true -&gt; result["invalid-cal@example.com"] = {"error":"<HttpError 404 notFound>", "calendar_id":"invalid-cal@example.com"} (calendar_id present — round-2 fix). SACAL summary key -&gt; normal event list, unaffected.</p>
 <hr />
 <h3 id="tc-cal74-query-is-forwarded-to-every-calendar-in-the-fan-out">TC-CAL74: query is forwarded to every calendar in the fan-out<a class="headerlink" href="#tc-cal74-query-is-forwarded-to-every-calendar-in-the-fan-out" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> 'QA-Timed-Test' (TC-CAL20) exists in <code>{CALENDAR_ID}</code>; <code>{CALENDAR_ID_2}</code> has no event matching the query text.</p>
@@ -3406,6 +3557,8 @@
 - 'QA-Timed-Test' is returned from <code>{CALENDAR_ID}</code>
 - No events are returned from <code>{CALENDAR_ID_2}</code> (confirms <code>query</code> was passed as <code>q</code> to that calendar's <code>events().list()</code> too, not just the first)</p>
 <p><strong>Result (2026-07-30) ⏭️ SKIP</strong> — No 'QA-Timed-Test' fixture event exists in this worktree's connected account (fixture calendar/event not set up here). Not run; not a PR defect.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+[SACAL, MINCAL], full-year window, query="QA-Timed-Updated" -&gt; event returned from SACAL only; nothing from MINCAL. Confirms query forwarded as q to every calendar. (Used renamed event name; fixture 'QA-Timed-Test' n/a under SA.)</p>
 <hr />
 <h3 id="tc-cal75-expand_recurringfalse-returns-master-events-across-every-queried-calendar">TC-CAL75: expand_recurring=False returns master events across every queried calendar<a class="headerlink" href="#tc-cal75-expand_recurringfalse-returns-master-events-across-every-queried-calendar" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> use the recurring event created in TC-CAL36 (in <code>{CALENDAR_ID}</code>).</p>
@@ -3417,6 +3570,8 @@
 - 'QA-Weekly-Standup' appears once as its master event (recurrence field populated with RRULE), not expanded into individual instances
 - Confirms <code>expand_recurring=False</code> is applied per-calendar in the fan-out, matching <code>list_events</code>' own <code>singleEvents</code>/<code>orderBy</code> behavior</p>
 <p><strong>Result (2026-07-30) ⏭️ SKIP</strong> — TC-CAL36's recurring-event fixture is not present in this worktree's connected account. Not run; not a PR defect.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+[SACAL], expand_recurring=false, query="QA-" -&gt; QA-Daily-5x once as master (recurrence ["RRULE:FREQ=DAILY;COUNT=5"] populated), not expanded to 5. NOTE: CAL43's instance-override singleton also listed (expected). QA-Weekly-Standup recurrence:null (removed in CAL42). Confirms expand_recurring=False per-calendar in fan-out.</p>
 <hr />
 <p><strong>Round 2 fixes not covered by a live test case above:</strong>
 - The calendar-list fetch backing <code>summary_by_id</code> (<code>calendar.py</code>, before <code>_fetch_one</code>) had no try/except and could abort the whole batch on a transient failure even when <code>calendar_ids</code> was given explicitly (so the fetch was only needed for display names). Now caught: with explicit <code>calendar_ids</code>, the call proceeds using the bare IDs as display names; with no <code>calendar_ids</code> (so there's no other way to know what to query), it returns a single top-level <code>{"error": ...}</code> instead of raising. Forcing a live <code>calendarList().list()</code> failure isn't something QA can safely trigger against a real account — covered by <code>test_calendar_list_fetch_failure_with_explicit_calendar_ids_does_not_abort</code> and <code>test_calendar_list_fetch_failure_without_calendar_ids_returns_top_level_error</code> in <code>tests/test_calendar.py</code> only. Documented scoping decision, not an oversight.

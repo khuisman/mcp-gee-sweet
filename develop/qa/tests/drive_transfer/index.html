@@ -1336,6 +1336,8 @@
 - Response <code>encoding</code> is <code>utf-8</code>
 - <code>content</code> is a plain text string matching the doc's text
 - <code>format</code> is <code>txt</code></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+txt export: encoding utf-8, format txt, content matches doc body ("Test Document\r\n...Item one/Item two")</p>
 <hr />
 <h3 id="tc-d84-export-google-doc-as-html">TC-D84: Export Google Doc as HTML<a class="headerlink" href="#tc-d84-export-google-doc-as-html" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1346,6 +1348,8 @@
 - Response <code>encoding</code> is <code>utf-8</code>
 - <code>content</code> is an HTML string with <code>&lt;html&gt;</code> tags
 - Headings and lists from the doc visible as HTML elements</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+html export: encoding utf-8, <code>&lt;html&gt;</code> tags present, <code>&lt;h1&gt;Test Document&lt;/h1&gt;</code> + <code>&lt;ul&gt;&lt;li&gt;Item one&lt;/li&gt;...</code> present</p>
 <hr />
 <h3 id="tc-d85-export-google-doc-as-pdf-binary">TC-D85: Export Google Doc as PDF (binary)<a class="headerlink" href="#tc-d85-export-google-doc-as-pdf-binary" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1356,6 +1360,8 @@
 - Response <code>encoding</code> is <code>base64</code>
 - <code>content</code> is a non-empty base64 string
 - Decoding it produces a valid PDF (starts with <code>%PDF</code>)</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+pdf export: encoding base64, non-empty, decodes to <code>%PDF-1.4</code> header (JVBERi0xLjQ...)</p>
 <hr />
 <h3 id="tc-d86-export-google-sheet-as-csv">TC-D86: Export Google Sheet as CSV<a class="headerlink" href="#tc-d86-export-google-sheet-as-csv" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1365,6 +1371,8 @@
 <p><strong>Checks</strong>
 - Response <code>encoding</code> is <code>utf-8</code>
 - <code>content</code> is comma-separated text matching the sheet's data</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Re-checked after Sheets shard restored {SPREADSHEET_ID} to seed: export_file(csv) and download_file(csv) now return byte-identical clean seed content. Earlier apparent discrepancy vs TC-D104 was transient cross-shard write interference (Sheets shard mid-mutation during a concurrent export read), not a product bug.</p>
 <hr />
 <h3 id="tc-d87-unknown-export-format">TC-D87: Unknown export format<a class="headerlink" href="#tc-d87-unknown-export-format" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1374,6 +1382,8 @@
 <p><strong>Checks</strong>
 - Returns a <code>ValueError</code> with a message listing valid formats
 - Not a server crash</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Unknown format 'xyz' returns ValueError "Unknown export_format 'xyz'. Valid options: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx, raw"; no crash</p>
 <hr />
 <h3 id="tc-d167-export_file-trips-the-response-size-cap-on-base64-inflated-content-issue-242">TC-D167: export_file trips the response-size cap on base64-inflated content (issue #242)<a class="headerlink" href="#tc-d167-export_file-trips-the-response-size-cap-on-base64-inflated-content-issue-242" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> #242 generalized #235's response-size safety net to <code>export_file</code>. Unlike the other capped tools, <code>export_file</code> has no <code>local_path</code> param — its base64 output written to a JSON file would be a worse artifact than <code>download_file</code> (pre-existing tool) already produces, so the error points there instead.</p>
@@ -1385,6 +1395,8 @@
 - Call raises <code>ValueError</code> mentioning the actual response size, the 40,000-character cap, base64's ~33% inflation, and <code>download_file</code> as the recommended alternative — must NOT mention <code>local_path</code> (this tool doesn't have that param)</p>
 <p><strong>Result (2026-07-03) ✅ PASS</strong>
 Exporting even the small QA fixture spreadsheet as <code>xlsx</code> immediately exceeded the cap: <code>export_file: the response is 54280 characters, over the 40000-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead, or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).</code> Confirms <code>export_file</code>'s cap trips far more readily than the other capped tools given base64 inflation — <code>download_file</code> is the practical default for anything but tiny files.</p>
+<p><strong>Result (2026-09-04) ❌ FAIL</strong>
+Expected ValueError re: 40,000-char response cap on xlsx export. Actual: call SUCCEEDED, returned full base64 xlsx (~9KB) inline, no error. Root cause: issue #519 raised MAX_TOOL_RESPONSE_CHARS well above the ~54KB this fixture's xlsx produced — the TC premise (small fixture trips 40k cap) is stale post-#519. Not a product regression; TC needs updating.</p>
 <hr />
 <h2 id="upload_file"><code>upload_file</code><a class="headerlink" href="#upload_file" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d88-upload-plain-text-file-requires-oauth">TC-D88: Upload plain text file ⚠️ requires-oauth<a class="headerlink" href="#tc-d88-upload-plain-text-file-requires-oauth" title="Permanent link">&para;</a></h3>
@@ -1396,6 +1408,8 @@ Exporting even the small QA fixture spreadsheet as <code>xlsx</code> immediately
 - File appears in <code>{FOLDER_ID}</code> with <code>mimeType: text/plain</code>
 - <code>name</code> is 'qa-upload.txt'
 - Folder cache invalidated — <code>list_files</code> shows the new file</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+upload_file qa-upload.txt to scratch folder (sub-substituted for {FOLDER_ID}): mimeType text/plain, name qa-upload.txt, list_files shows it (cache invalidated).</p>
 <hr />
 <h3 id="tc-d89-upload-markdown-as-raw-file-no-conversion-requires-oauth">TC-D89: Upload Markdown as raw file (no conversion) ⚠️ requires-oauth<a class="headerlink" href="#tc-d89-upload-markdown-as-raw-file-no-conversion-requires-oauth" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1406,6 +1420,8 @@ Exporting even the small QA fixture spreadsheet as <code>xlsx</code> immediately
 - File created with <code>mimeType: text/markdown</code> (or <code>text/plain</code> — note whichever)
 - Markdown syntax is preserved as literal text — no conversion
 - <code>convert_to_doc</code> was <code>False</code></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+upload_file qa-notes.md (source_format default 'text', convert_to_doc=false): mimeType text/plain (not text/markdown), raw export returns literal "# Heading\n\n- item 1\n- item 2" — no conversion. NOTE: an initial call with source_format='markdown' produced mimeType text/html (markdown→HTML happens regardless of convert_to_doc); by-design per docstring but a footgun for "raw .md" intent.</p>
 <hr />
 <h3 id="tc-d90-upload-markdown-and-convert-to-google-doc-destructive">TC-D90: Upload Markdown and convert to Google Doc ⚠️ destructive<a class="headerlink" href="#tc-d90-upload-markdown-and-convert-to-google-doc-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -1420,6 +1436,8 @@ Exporting even the small QA fixture spreadsheet as <code>xlsx</code> immediately
 - Bullet A and B render as a list
 - <strong>bold</strong> renders as bold text
 - 'link' is a hyperlink to https://example.com</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+heading, sub-heading, bullets, bold, hyperlink all render correctly</p>
 <hr />
 <h3 id="tc-d91-upload-html-and-convert-to-google-doc-requires-oauth">TC-D91: Upload HTML and convert to Google Doc ⚠️ requires-oauth<a class="headerlink" href="#tc-d91-upload-html-and-convert-to-google-doc-requires-oauth" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -1431,6 +1449,8 @@ Exporting even the small QA fixture spreadsheet as <code>xlsx</code> immediately
 - Google Doc created with formatted content
 - Heading and list visible in browser
 - <code>source_format</code> was <code>html</code>, <code>convert_to_doc</code> was <code>True</code></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+heading, paragraph, bulleted list render correctly</p>
 <hr />
 <h3 id="tc-d92-upload-markdown-with-table-requires-oauth">TC-D92: Upload Markdown with table ⚠️ requires-oauth<a class="headerlink" href="#tc-d92-upload-markdown-with-table-requires-oauth" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -1442,6 +1462,8 @@ Exporting even the small QA fixture spreadsheet as <code>xlsx</code> immediately
 - Google Doc created
 - Open in browser: a 2×2 table is visible under the heading
 - Confirms <code>markdown[extra]</code> extension handles GFM tables</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+heading + real 2×2 table render correctly</p>
 <hr />
 <h2 id="upload_local_file"><code>upload_local_file</code><a class="headerlink" href="#upload_local_file" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d93-upload-a-binary-file-local-filesystem">TC-D93: Upload a binary file ⚠️ local-filesystem<a class="headerlink" href="#tc-d93-upload-a-binary-file-local-filesystem" title="Permanent link">&para;</a></h3>
@@ -1672,6 +1694,8 @@ Delete the converted file(s) from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa
 - File written to <code>/tmp/qa-downloads/&lt;drive_name&gt;</code>
 - <code>size_bytes</code> matches the Drive file size
 - File is a valid PNG (can be opened)</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+No PNG fixture (TC-D93 is local-filesystem, skipped) — used qa-upload.txt as the non-Google file. download_file to /tmp/qa-downloads/ (real dir): written to /tmp/qa-downloads/qa-upload.txt, size_bytes 13 == Drive size, content "Hello from QA" intact. PNG-validity check N/A.</p>
 <hr />
 <h3 id="tc-d102-export-google-doc-as-plain-text-local-filesystem">TC-D102: Export Google Doc as plain text ⚠️ local-filesystem<a class="headerlink" href="#tc-d102-export-google-doc-as-plain-text-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1682,6 +1706,8 @@ Delete the converted file(s) from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa
 - File written as <code>&lt;doc_name&gt;.txt</code>
 - Content is readable plain text matching the doc body
 - <code>encoding</code> for the response is not relevant here — file is on disk</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+download {DOC_ID} export_format=txt to /tmp/qa-downloads/: file mcp-gee-sweet-qa-fixtures-doc.txt, content matches doc body ("Test Document / ... / * Item one / * Item two").</p>
 <hr />
 <h3 id="tc-d103-export-google-doc-as-pdf-local-filesystem">TC-D103: Export Google Doc as PDF ⚠️ local-filesystem<a class="headerlink" href="#tc-d103-export-google-doc-as-pdf-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1692,6 +1718,8 @@ Delete the converted file(s) from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa
 - File written as <code>&lt;doc_name&gt;.pdf</code>
 - File opens as a valid PDF (<code>%PDF</code> header)
 - <code>size_bytes</code> &gt; 0</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+download {DOC_ID} export_format=pdf: file mcp-gee-sweet-qa-fixtures-doc.pdf, <code>%PDF-</code> header, size_bytes 20152 &gt; 0.</p>
 <hr />
 <h3 id="tc-d104-export-google-sheet-as-csv-local-filesystem">TC-D104: Export Google Sheet as CSV ⚠️ local-filesystem<a class="headerlink" href="#tc-d104-export-google-sheet-as-csv-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1701,6 +1729,8 @@ Delete the converted file(s) from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa
 <p><strong>Checks</strong>
 - CSV file written locally
 - Content matches the spreadsheet's first sheet data</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+See TC-D86 — re-checked clean after Sheets fixture restoration; export_file and download_file agree exactly.</p>
 <hr />
 <h3 id="tc-d105-workspace-file-without-export_format-local-filesystem">TC-D105: Workspace file without export_format ⚠️ local-filesystem<a class="headerlink" href="#tc-d105-workspace-file-without-export_format-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1710,6 +1740,8 @@ Delete the converted file(s) from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa
 <p><strong>Checks</strong>
 - <code>ValueError</code> raised mentioning that <code>export_format</code> is required
 - No file written</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+download {DOC_ID} with no export_format: ValueError "export_format is required for Google Workspace file 'mcp-gee-sweet-qa-fixtures-doc'. Valid options: ...", no file written.</p>
 <hr />
 <h3 id="tc-d106-local_path-as-exact-file-path-local-filesystem">TC-D106: local_path as exact file path ⚠️ local-filesystem<a class="headerlink" href="#tc-d106-local_path-as-exact-file-path-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1719,6 +1751,8 @@ Delete the converted file(s) from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa
 <p><strong>Checks</strong>
 - File written to exactly <code>/tmp/qa-specific-name.png</code>, not into a subdirectory
 - Parent directory created if it didn't exist</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+No PNG fixture — used qa-upload.txt → local_path="/tmp/qa-specific-name.txt": written to exactly that path (not a subdir), content "Hello from QA" intact, 13 bytes. Parent dir already existed.</p>
 <hr />
 <h2 id="download_folder"><code>download_folder</code><a class="headerlink" href="#download_folder" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d107-download-folder-with-mixed-content-local-filesystem">TC-D107: Download folder with mixed content ⚠️ local-filesystem<a class="headerlink" href="#tc-d107-download-folder-with-mixed-content-local-filesystem" title="Permanent link">&para;</a></h3>
@@ -1730,6 +1764,8 @@ Delete the converted file(s) from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa
 - All non-Workspace files written to the local directory
 - Workspace files (Docs, Sheets) listed in <code>skipped</code> — not exported without <code>export_format</code>
 - <code>downloaded</code> list matches non-Workspace filenames</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+download_folder scratch→/tmp/qa-folder-download/: downloaded=["qa-notes.md","qa-upload.txt"], skipped=["QA-HTML-Doc","QA-Markdown-Doc","QA-Table-Doc"] (Workspace, no export_format), failed=[]. Files on disk correct.</p>
 <hr />
 <h3 id="tc-d108-download-folder-with-export_format-local-filesystem">TC-D108: Download folder with export_format ⚠️ local-filesystem<a class="headerlink" href="#tc-d108-download-folder-with-export_format-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1740,6 +1776,8 @@ Delete the converted file(s) from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa
 - Non-Workspace files downloaded as-is
 - Workspace files exported as <code>.pdf</code> and included in <code>downloaded</code>
 - All resulting files have <code>.pdf</code> extension or original extension</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+download_folder scratch→/tmp/qa-folder-export/ export_format=pdf: downloaded = 2 raw files + QA-HTML-Doc.pdf/QA-Markdown-Doc.pdf/QA-Table-Doc.pdf (all <code>%PDF-</code> header). Non-Workspace as-is. failed=[].</p>
 <hr />
 <h3 id="tc-d109-skip_if_existstrue-skips-existing-local-files-local-filesystem">TC-D109: skip_if_exists=True skips existing local files ⚠️ local-filesystem<a class="headerlink" href="#tc-d109-skip_if_existstrue-skips-existing-local-files-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong> (run twice)</p>
@@ -1749,6 +1787,8 @@ Delete the converted file(s) from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa
 <p><strong>Checks</strong>
 - Files already present locally appear in <code>skipped</code>
 - <code>downloaded</code> is empty (or contains only new Drive files)</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Re-ran download_folder against /tmp/qa-folder-download/: downloaded=[], skipped=all 5 (qa-notes.md/qa-upload.txt as already-present; 3 Docs as Workspace-skip). No re-download.</p>
 <hr />
 <h3 id="tc-d110-mime_type_filter-local-filesystem">TC-D110: mime_type_filter ⚠️ local-filesystem<a class="headerlink" href="#tc-d110-mime_type_filter-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1758,6 +1798,8 @@ Delete the converted file(s) from <code>{FOLDER_ID}</code>. Remove <code>/tmp/qa
 <p><strong>Checks</strong>
 - Only <code>application/vnd.google-apps.document</code> files exported
 - Other file types absent from the output directory</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+download_folder mime_type_filter=application/vnd.google-apps.document, export_format=txt → /tmp/qa-docs-only/: only the 3 Docs exported as .txt; qa-notes.md/qa-upload.txt absent from output dir.</p>
 <hr />
 <h2 id="sync_folder"><code>sync_folder</code><a class="headerlink" href="#sync_folder" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d111-dry_run-shows-full-action-plan-local-filesystem">TC-D111: dry_run shows full action plan ⚠️ local-filesystem<a class="headerlink" href="#tc-d111-dry_run-shows-full-action-plan-local-filesystem" title="Permanent link">&para;</a></h3>
@@ -2092,6 +2134,8 @@ Delete both <code>notes.md</code> files from <code>{FOLDER_ID}</code>. Remove <c
 - Prompt 2 returns <code>{"error": "Unknown export_format 'bogus'. Valid: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx"}</code> — not a raised exception
 - Neither makes a Drive API call (rejected before any upload/download work)</p>
 <p><strong>Result (2026-08-10) ✅ PASS</strong> — Re-verified against fix commit <code>4b5eb33</code>. <code>sync_folder(folder_id=&lt;qa-fixtures folder&gt;, local_path=&lt;scratch dir&gt;, direction='mirror', dry_run=true)</code> returned exactly <code>{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}</code>. <code>sync_folder(..., export_format='bogus', dry_run=true)</code> now also returns <code>{"error": "Unknown export_format 'bogus'. Valid: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx"}</code> — no raised exception, matches <code>direction</code>'s shape. Both prompts pass, no Drive API calls made for either.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+sync_folder direction='mirror' → <code>{"error":"Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}</code> (dict, not raise, not no-op). export_format='bogus' → <code>{"error":"Unknown export_format 'bogus'. Valid: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx"}</code>. Both fail-fast. (#488/PR #563 confirmed.)</p>
 <hr />
 <h3 id="tc-d178-concurrent-mixed-uploaddownload-batch-no-cross-attribution-or-corruption-destructive-local-filesystem-issue-183">TC-D178: Concurrent mixed upload/download batch — no cross-attribution or corruption ⚠️ destructive ⚠️ local-filesystem (issue #183)<a class="headerlink" href="#tc-d178-concurrent-mixed-uploaddownload-batch-no-cross-attribution-or-corruption-destructive-local-filesystem-issue-183" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> #183 made <code>sync_folder</code>'s per-file transfers run concurrently via <code>asyncio.gather()</code> instead of one at a time, including simultaneous uploads and downloads in the same call. Mocked unit tests can't catch a genuine race against the real Drive API — this exercises enough distinct, identifiable files at once (each with unique content) to surface any result attributed to the wrong file, or file content written to the wrong destination, under real concurrency.</p>
@@ -2214,6 +2258,8 @@ Delete <code>nested-sub</code> from <code>{FOLDER_ID}</code>. Remove <code>/tmp/
 - Error message offers <code>result_local_path</code> as a bypass (not bare <code>local_path</code> — <code>sync_folder</code>'s own <code>local_path</code> param already means the sync destination, not a dump target for the oversized response)
 - Error message suggests narrowing scope (folder, direction, or non-recursive) instead</p>
 <p><em>(A 20+ subfolder / 200+ file live fixture is impractical to construct/tear down for a scoped QA pass — this case is deterministically unit-tested instead: <code>TestSyncFolderResponseSizeCap::test_oversized_result_raises</code>, <code>test_error_points_to_result_local_path_not_local_path</code>.)</em></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+<code>TestSyncFolderResponseSizeCap::test_oversized_result_raises</code> + <code>test_error_points_to_result_local_path_not_local_path</code> pass. (Large-fixture live repro impractical — unit-tested per TC text.)</p>
 <hr />
 <h3 id="tc-d244-dry_runs-flat-lists-stay-empty-actions-alone-is-the-complete-non-redundant-preview-issue-512-local-filesystem">TC-D244: dry_run's flat lists stay empty — <code>actions</code> alone is the complete, non-redundant preview (issue #512) ⚠️ local-filesystem<a class="headerlink" href="#tc-d244-dry_runs-flat-lists-stay-empty-actions-alone-is-the-complete-non-redundant-preview-issue-512-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>sync_folder(dry_run=True)</code> used to duplicate every <code>skip</code>/<code>conflict</code> name into both a flat list (<code>skipped</code>/<code>conflicts</code>) and a full <code>{name, action, reason}</code> entry in <code>actions</code> — for a folder that's mostly already in sync, this roughly doubled the response for no new information, deterministically tripping the 40,000-character response-size cap on a moderately-sized folder (reported: 303 local / 280 Drive files, only 24 new/changed). Fixed by leaving the flat lists empty during <code>dry_run</code> — <code>actions</code> was already a complete picture (name + action-type + reason for every item considered, including upload/download entries the flat lists never populated during dry_run even before this fix) — and relying on it exclusively instead of duplicating a subset of it into a second structure.</p>
@@ -2247,6 +2293,8 @@ Delete the 5 Drive files. Remove <code>/tmp/qa-512/</code>.</p>
 <p><strong>Teardown</strong>
 Remove <code>/tmp/qa-512b/</code> and <code>/tmp/qa-512b-result/</code>.</p>
 <p><strong>Result (2026-08-04) ✅ PASS</strong> — Reusing TC-D244's scratch fixture, <code>sync_folder(..., dry_run=true, result_local_path=&lt;result dir&gt;/)</code> returned only <code>{local_path, bytes_written, folder_id, dry_run: true}</code> (no inline <code>uploaded</code>/<code>actions</code>/etc.). Reading the written JSON file reproduced the exact same shape/values the inline call in TC-D244 returned. <strong>Live-confirmed a related correctness gap while running this case — see the PR comment: <code>result_local_path</code> has no guard against pointing inside the sync's own <code>local_path</code>, so the written manifest file gets picked up as a spurious local-only file on the next sync.</strong></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+sync_folder(scratch folder, /tmp/qa-512b/, dry_run=true, result_local_path=/tmp/qa-512b-result/): returned manifest {local_path: .../1-Wqp3..._sync_result.json, bytes_written:294, folder_id, dry_run:true} — no inline sync keys. Written JSON has full shape (uploaded/downloaded/skipped/conflicts/failed/folders_skipped/size_bytes/dry_run/actions).</p>
 <hr />
 <h3 id="tc-d246-result_local_path-pointing-at-or-inside-local_path-is-rejected-up-front-pr-518-review-finding-issue-512">TC-D246: <code>result_local_path</code> pointing at or inside <code>local_path</code> is rejected up front (PR #518 review finding, issue #512)<a class="headerlink" href="#tc-d246-result_local_path-pointing-at-or-inside-local_path-is-rejected-up-front-pr-518-review-finding-issue-512" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> TC-D245's live pass caught this: <code>local_path</code> is scanned as sync input on every call, unlike every other capped tool's <code>local_path</code>/<code>result_local_path</code> (pure output destinations) — writing the result manifest inside it made the manifest file itself show up as a new local-only entry on the very next sync, and would get uploaded to Drive on a real (non-dry_run) run. Fixed by rejecting the call up front (before any Drive API call) when <code>result_local_path</code> resolves to <code>local_path</code> itself or a path inside it.</p>
@@ -2262,6 +2310,8 @@ Remove <code>/tmp/qa-512b/</code> and <code>/tmp/qa-512b-result/</code>.</p>
 <p><strong>Teardown</strong>
 Remove <code>/tmp/qa-512c/</code> and <code>/tmp/qa-512c-result/</code>.</p>
 <p><strong>Result (2026-08-04) ✅ PASS</strong> — Reproduced against a scratch fixture. Both invalid calls (<code>result_local_path</code> equal to <code>local_path</code>, and nested inside it) raised <code>ValueError: result_local_path (...) must not be local_path (...) or a path inside it...</code> with no Drive API call made and no file created under <code>local_path</code> either time. The sibling-directory control call succeeded normally, writing the manifest under the separate result dir (regression-checked against TC-D245). <code>uv run python -m pytest tests/drive/test_transfer.py -k result_local_path</code> also passes (5/5).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+result_local_path == local_path AND nested (/tmp/qa-512c/nested/out.json) both raise ValueError "result_local_path (...) must not be local_path (...) or a path inside it — ... Use a separate directory." /tmp/qa-512c/ stayed empty (no manifest, no nested dir). Sibling-dir control (/tmp/qa-512c-result/) succeeded — manifest written.</p>
 <hr />
 <h3 id="tc-d197-recursivetrue-sibling-subfolders-sync-correctly-with-no-cross-attribution-under-concurrent-descent-pr-328-review-destructive-local-filesystem">TC-D197: <code>recursive=True</code> — sibling subfolders sync correctly with no cross-attribution under concurrent descent (PR #328 review) ⚠️ destructive ⚠️ local-filesystem<a class="headerlink" href="#tc-d197-recursivetrue-sibling-subfolders-sync-correctly-with-no-cross-attribution-under-concurrent-descent-pr-328-review-destructive-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> CLAUDE.md names <code>sync_folder</code> among the tools that parallelize per-item work via <code>asyncio.gather(..., return_exceptions=True)</code>. The recursive descent into sibling subfolders originally awaited each one sequentially instead, right next to the file-level loop in the same function that does use <code>gather</code> — wall-clock time scaled with the sum of subfolder round-trips instead of the max. Fixed by gathering sibling <code>_sync_level</code> calls the same way. Genuine concurrency (not just correctness) is unit-tested via a real-thread synchronization barrier (<code>tests/drive/test_transfer.py::TestSyncFolderRecursive::test_recursive_sibling_subfolders_descend_concurrently</code>); this live check confirms correctness under real concurrent Drive API calls — a mocked test can't catch a genuine race the way #183's TC-D178 (this file) / <code>drive_files.md</code> TC-D179 precedent established.</p>
@@ -2312,6 +2362,8 @@ In <code>{FOLDER_ID}</code>, ensure at least 5 files exist.</p>
 <p><strong>Follow-up (2026-07-17, commit <code>3ad523c</code>) ✅ FIXED</strong> — both call sites now wrap <code>ctx.report_progress(...)</code> in try/except, logging at debug level and letting the transfer's own already-computed result stand regardless of notification-channel failure. Confirmed via new unit tests (<code>test_report_progress_failure_does_not_demote_a_successful_upload</code>/<code>_download</code>, both inject a <code>RuntimeError</code> via <code>ctx.report_progress.side_effect</code> and assert the item still lands in <code>uploaded</code>/<code>downloaded</code>, not <code>failed</code>) — full suite passes (767 tests). <code>download_folder</code>'s message now also includes the outcome suffix (<code>f"{completed}/{total}: {name}: {kind}"</code>), matching its docstring example and closing the doc/code mismatch flagged in code review.</p>
 <p><strong>Teardown</strong>
 Remove <code>/tmp/qa-progress-316/</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+download_folder scratch→/tmp/qa-progress-316/ export_format=txt completed normally: downloaded=5, failed=[]. Progress-notification visibility not testable in this client (no progressToken set) — consistent with the TC's own caveat; substantive check (call completes, downloaded correct) passes.</p>
 <hr />
 <h3 id="tc-d200-download_folder-two-drive-files-with-the-same-name-no-longer-race-or-double-count-pr-351-review-local-filesystem">TC-D200: <code>download_folder</code> — two Drive files with the same name no longer race or double-count (PR #351 review) ⚠️ local-filesystem<a class="headerlink" href="#tc-d200-download_folder-two-drive-files-with-the-same-name-no-longer-race-or-double-count-pr-351-review-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> QA's TC-D198 pass live-reproduced a correctness bug in the concurrency fix: <code>download_folder</code>'s candidate-collection loop checked <code>skip_if_exists</code> against the pre-transfer filesystem state for every Drive file before any download started. Drive allows two files with the same name (distinct IDs) in one folder — the local filesystem doesn't — so two same-named files both passed the check and were queued into the same concurrent batch, racing to write the identical local path. The prior sequential implementation was accidentally safe here (each file's existence check ran only after the previous file had fully written). Fixed by deduping candidates by destination path as they're collected: the first file claims the path, later files with the same destination are recorded under <code>failed</code> with an explanatory "duplicate filename" error instead of being queued to write. Unit-tested deterministically (<code>tests/drive/test_transfer.py::TestDownloadFolder::test_duplicate_drive_filenames_do_not_race_or_double_count</code>); this live check confirms the fix against the exact fixture-drift scenario QA's TC-D198 run hit.</p>
@@ -2381,6 +2433,8 @@ Remove <code>/tmp/qa-239/</code>.</p>
 - <code>tests/drive/test_transfer.py::TestSyncFolderConvertMarkdown::test_restamp_failure_after_successful_create_reports_orphan_fileId</code> — with <code>create()</code> succeeding and the follow-up metadata-only <code>update()</code> raising, <code>sync_folder(convert_markdown=true)</code> reports the file under <code>failed</code> with <code>{name, error, fileId}</code> — the <code>fileId</code> matching the file <code>create()</code> actually made in Drive — rather than a bare <code>{name, error}</code> with no way to find the orphan. A sibling <code>create()</code>-itself-fails case (<code>tests/drive/test_transfer.py::TestUploadLocalFileConvert::test_create_failure_returns_error_with_no_fileId</code>) confirms no <code>fileId</code> is reported when nothing was actually created. The same test also asserts <code>drive_folder_cache.mark_dirty("root")</code> was called exactly once — round 1's fix landed the <code>fileId</code>-carrying failure entry in the same branch every other <code>*_fail</code> kind uses, which never set <code>level_changed</code>, so <code>create()</code> genuinely changing the folder went uncounted for cache-invalidation purposes (PR #645 QA round 1).</p>
 <p><strong>Result (2026-08-22) ✅ PASS (round 1)</strong> — ran <code>uv run python -m pytest tests/drive/test_transfer.py -k "restamp or orphan or fileId or ConvertMarkdown or UploadLocalFileConvert"</code>; both cited tests pass, along with the rest of <code>TestSyncFolderConvertMarkdown</code>/<code>TestUploadLocalFileConvert</code> (35 total). Full <code>tests/</code> suite (1307 tests) also green — no regressions. Note: a real correctness gap was found in the <em>surrounding</em> cache-invalidation logic this fix's new <code>fileId</code>-carrying failure entries pass through (<code>_sync_level</code>'s <code>level_changed</code> gating and both tool wrappers' <code>mark_dirty</code> gates) — see PR #645 comment; it's a defect in code adjacent to this fix, not in the behavior this test case checks.</p>
 <p><strong>Result (2026-08-23) ✅ PASS (round 2)</strong> — verified fix commit <code>3487a45</code> (<code>git show</code>) directly against source: <code>_run_one</code>'s new orphan branch now sets <code>level_changed = True</code> before <code>failed.append(entry)</code>, and the new assertion in <code>test_restamp_failure_after_successful_create_reports_orphan_fileId</code> confirms <code>mark_dirty("root")</code> is called exactly once. Ran <code>uv run python -m pytest tests/drive/test_transfer.py -k "mark_dirty or CacheInvalidation or restamp or orphan or fileId or ConvertMarkdown or UploadLocalFileConvert or UploadLocalFolder"</code> (52 passed) and the full suite (1311 passed, +4 from round 1's 1307 — the new regression-guard tests). Cache-invalidation gap closed.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+<code>TestSyncFolderConvertMarkdown::test_restamp_failure_after_successful_create_reports_orphan_fileId</code> + <code>TestUploadLocalFileConvert::test_create_failure_returns_error_with_no_fileId</code> pass (also within the broader 64-test transfer run).</p>
 <hr />
 <h3 id="tc-d250-upload_local_fileupload_local_folder-the-identical-restamp-failure-orphan-fileid-fix-for-the-twin-createupdate-pair-issue-420-unit-test">TC-D250: <code>upload_local_file</code>/<code>upload_local_folder</code> — the identical restamp-failure orphan-fileId fix, for the twin create()+update() pair (issue #420) (unit test)<a class="headerlink" href="#tc-d250-upload_local_fileupload_local_folder-the-identical-restamp-failure-orphan-fileid-fix-for-the-twin-createupdate-pair-issue-420-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>_upload_local_file</code>'s own <code>convert=True</code> create()+update() pair is explicitly documented as mirroring <code>_sync_level._run_one</code>'s (see #422 finding #1) — it had the identical gap: a restamp failure after a successful <code>create()</code> returned a bare <code>{"error": ...}</code> with no <code>fileId</code>, again losing the ID of a Doc that genuinely exists in Drive. Fixed alongside TC-D249's fix rather than left for a later QA round to rediscover in the sibling path (per this repo's own retro guidance on auditing every code path a docstring claims shares a mechanism). <code>upload_local_folder</code>'s own <code>failed</code>-list aggregation (<code>transfer.py</code>, around where <code>"error" in result</code> is checked) also had the same key-dropping gap as <code>sync_folder</code>'s aggregation and is covered by the same fix. Not reliably reproducible live for the same reason as TC-D249; verified by unit test.</p>
@@ -2392,6 +2446,8 @@ Remove <code>/tmp/qa-239/</code>.</p>
 <p><strong>Result (2026-08-22) ✅ PASS (round 1)</strong> — both cited tests pass (same run as TC-D249 above). Same cache-invalidation caveat applies: <code>upload_local_file</code>'s <code>mark_dirty</code> gate (<code>if "error" not in result</code>) and <code>upload_local_folder</code>'s (<code>if uploaded:</code>) both skip invalidating the folder cache for this fix's new orphan-with-fileId case, even though <code>create()</code> genuinely succeeded — see PR #645 comment.</p>
 <p><strong>Result (2026-08-23) ✅ PASS (round 2)</strong> — verified fix commit <code>3487a45</code> directly: <code>upload_local_file</code>'s gate is now <code>("error" not in result and not skipped) or orphaned</code>, where <code>orphaned = "error" in result and "fileId" in result</code> — correctly distinct from a skip result, which also carries <code>fileId</code> (the pre-existing file's) but no <code>error</code> key, so it's excluded. <code>upload_local_folder</code> now tracks <code>any_created</code> (set on both the plain-success <code>else</code> branch and the new orphan branch) instead of gating on <code>if uploaded</code>. All 3 new regression tests (<code>TestUploadLocalFileToolCacheInvalidation</code>'s three cases, <code>TestUploadLocalFolder::test_restamp_failure_orphan_still_marks_folder_cache_dirty</code>) pass; full suite green (1311 passed). Cache-invalidation gap closed at both sites.</p>
 <p><strong>Result (2026-08-22) ✅ PASS</strong> — both cited tests pass (same run as TC-D249 above). Same cache-invalidation caveat applies: <code>upload_local_file</code>'s <code>mark_dirty</code> gate (<code>if "error" not in result</code>) and <code>upload_local_folder</code>'s (<code>if uploaded:</code>) both skip invalidating the folder cache for this fix's new orphan-with-fileId case, even though <code>create()</code> genuinely succeeded — see PR #645 comment.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+<code>TestUploadLocalFileConvert::test_convert_modified_time_restamp_failure_returns_clean_error_not_raise</code>, <code>test_create_failure_returns_error_with_no_fileId</code>, <code>TestUploadLocalFileToolCacheInvalidation</code> (3), <code>TestUploadLocalFolder::test_restamp_failure_orphan_still_marks_folder_cache_dirty</code> all pass.</p>
 <hr />
 <h3 id="tc-d251-restamp-failure-handling-quota-message-gap-closed-two-branches-share-one-helper-issue-650-unit-test">TC-D251: restamp-failure handling — quota-message gap closed, two branches share one helper (issue #650) (unit test)<a class="headerlink" href="#tc-d251-restamp-failure-handling-quota-message-gap-closed-two-branches-share-one-helper-issue-650-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> follow-up cleanup of three non-blocking findings from PR #645's (#420) review of the create()+restamp-<code>update()</code> pair in <code>transfer.py</code>. (1) The restamp <code>try</code>/<code>except</code> in both <code>_upload_local_file</code> and <code>_sync_level._run_one</code> caught bare <code>Exception</code> and rendered a <code>storageQuotaExceeded</code> <code>HttpError</code> there as raw <code>str(e)</code>, unlike the <code>create()</code> except right above it (and every other quota-error site in the file), which uses the shared <code>_SA_QUOTA_ERROR</code> text. (2) The two restamp-failure branches were near-identical, differing only in return-dict shape. (3) <code>_RestampFailsFakeDriveFS</code> in <code>tests/drive/test_transfer.py</code> distinguished the metadata-only restamp <code>update()</code> from a real re-import <code>update()</code> purely by the absence of <code>media_body</code>, but the test fixture (<code>{"root": []}</code>, no pre-existing files) never exercised the media-carrying <code>update()</code> path, so that discriminator was unverified against the case it claims to tell apart. Fixed by a module-level <code>_restamp_failure_result(file_id, exc)</code> (builds the shared <code>{"error": ..., "fileId": ...}</code>, applying <code>_SA_QUOTA_ERROR</code> for a quota <code>HttpError</code>); <code>_run_one</code> spreads it and adds its own <code>kind</code>/<code>name</code> keys. Same not-reliably-reproducible-live reason as TC-D249/TC-D250 — a quota error confined to the metadata-only restamp window is even harder to force than a generic transient one; verified by unit test.</p>
@@ -2401,6 +2457,8 @@ Remove <code>/tmp/qa-239/</code>.</p>
 - <code>tests/drive/test_transfer.py::TestSyncFolderConvertMarkdown::test_restamp_fixture_lets_existing_file_reimport_through</code> — closes finding 3: with a converted Doc already in Drive and a newer local <code>.md</code>, the in-place re-import <code>update()</code> (which carries <code>media_body</code>) passes straight through <code>_RestampFailsFakeDriveFS</code> to the parent <code>_update</code> and the sync reports <code>uploaded == ["notes.md"]</code> with no <code>failed</code> entry — proving the <code>media_body</code>-absence discriminator against the case it distinguishes from.
 - <code>tests/drive/test_transfer.py::TestSyncFolderConvertMarkdown::test_restamp_failure_after_successful_create_reports_orphan_fileId</code> (TC-D249's existing test, unchanged behavior) — still passes with the local <code>_RestampFailsFakeDriveFS</code> class promoted to module scope and reused.</p>
 <p><strong>Result (2026-08-29) ✅ PASS (round 1)</strong> — full <code>tests/drive/test_transfer.py</code> suite green (119 passed); the four cited tests pass by name. <code>_restamp_failure_result</code>'s quota check (<code>isinstance(exc, HttpError) and exc.resp.status == 403 and b"storageQuotaExceeded" in (exc.content or b"")</code>) matches the two existing quota sites (transfer.py:227, :1351), with the added <code>isinstance</code> guard being correct since the restamp <code>except</code> catches bare <code>Exception</code>; the failure message is byte-identical to the prior inline versions and the <code>**_restamp_failure_result(...)</code> spread does not clobber <code>_run_one</code>'s <code>kind</code>/<code>name</code> keys. Unit-test-only per the case's stated live-repro constraint — no live tool call applicable. Non-blocking adjacent gap noted in <code>/code-review</code> and filed separately: <code>_run_one</code>'s outer catch-all <code>except Exception</code> (transfer.py:784) still renders a <code>storageQuotaExceeded</code> <code>HttpError</code> from its <code>create()</code>/re-import <code>update()</code> as raw <code>str(e)</code>, not <code>_SA_QUOTA_ERROR</code> — pre-existing, out of this PR's scope.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+<code>TestUploadLocalFileConvert::test_convert_restamp_quota_error_uses_friendly_message</code>, <code>TestSyncFolderConvertMarkdown::test_restamp_quota_failure_uses_friendly_message</code>, <code>test_restamp_fixture_lets_existing_file_reimport_through</code>, <code>test_restamp_failure_after_successful_create_reports_orphan_fileId</code> all pass.</p>
 <hr />
 <h2 id="list_revisions"><code>list_revisions</code><a class="headerlink" href="#list_revisions" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d146-list-revisions-for-a-spreadsheet">TC-D146: List revisions for a spreadsheet<a class="headerlink" href="#tc-d146-list-revisions-for-a-spreadsheet" title="Permanent link">&para;</a></h3>
@@ -2413,6 +2471,8 @@ Remove <code>/tmp/qa-239/</code>.</p>
 - Each entry has <code>revisionId</code>, <code>modifiedTime</code>, <code>modifiedBy</code>, <code>keepForever</code>
 - Most recent revision appears last
 - <code>modifiedTime</code> values are ISO 8601 timestamps</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_revisions on {SPREADSHEET_ID}: 3 revisions, each with revisionId/modifiedTime/modifiedBy/keepForever; chronological ascending (rev 1 → 8 → 31), ISO-8601 timestamps.</p>
 <hr />
 <h3 id="tc-d147-list-revisions-for-a-non-existent-file">TC-D147: List revisions for a non-existent file<a class="headerlink" href="#tc-d147-list-revisions-for-a-non-existent-file" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2421,6 +2481,8 @@ Remove <code>/tmp/qa-239/</code>.</p>
 </blockquote>
 <p><strong>Checks</strong>
 - Returns a clear API error (404), not an unhandled exception</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_revisions('invalid_file_id_xyz') → HttpError 404 "File not found: invalid_file_id_xyz.", surfaced as a clean tool error, no unhandled exception.</p>
 <hr />
 <h2 id="export_revision"><code>export_revision</code><a class="headerlink" href="#export_revision" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d148-export-a-revision-and-read-a-cell-range">TC-D148: Export a revision and read a cell range<a class="headerlink" href="#tc-d148-export-a-revision-and-read-a-cell-range" title="Permanent link">&para;</a></h3>
@@ -2440,6 +2502,8 @@ Remove <code>/tmp/qa-239/</code>.</p>
 - Returns <code>values</code> with "QA-BEFORE" in A1
 - <code>sheet</code> matches the first sheet name
 - <code>modifiedTime</code> matches the revision timestamp from <code>list_revisions</code></p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+SKIP(environmental — Drive revision coalescing). Setup: created scratch spreadsheet QA-v090-transfer-rev-test, wrote "QA-BEFORE" to Sheet1!A1:B5, waited 40s, wrote "QA-AFTER" to A1 (~69s after first write). list_revisions still only cut rev 1 (empty baseline) and rev 4 (post-"QA-AFTER") — no revision isolates the "QA-BEFORE" intermediate state, so the "values has QA-BEFORE in A1" check is unverifiable. Matches the TC's own known-limitation clause. The export_revision mechanism itself is confirmed working by TC-D149/D150 below (rev 1 exports as empty, rev 6 exports the populated grid).</p>
 <hr />
 <h3 id="tc-d149-export-revision-with-explicit-sheet-name">TC-D149: Export revision with explicit sheet name<a class="headerlink" href="#tc-d149-export-revision-with-explicit-sheet-name" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2450,6 +2514,8 @@ Remove <code>/tmp/qa-239/</code>.</p>
 - Returns data from Sheet2, not the first sheet
 - Range is respected — only rows/columns within A1:B5 returned
 - Handles multi-sheet files correctly</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Added Sheet2 (A1:C7 filled S2-*), new rev 6. export_revision(rev 6, sheet="Sheet2", range="A1:B5") → sheet="Sheet2", values = 5×2 grid [["S2-A1","S2-B1"]..["S2-A5","S2-B5"]] — data from Sheet2 not the first sheet, range respected (C column / rows 6-7 excluded), multi-sheet handled.</p>
 <hr />
 <h3 id="tc-d150-export-revision-no-range-returns-all-data">TC-D150: Export revision — no range returns all data<a class="headerlink" href="#tc-d150-export-revision-no-range-returns-all-data" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2459,6 +2525,8 @@ Remove <code>/tmp/qa-239/</code>.</p>
 <p><strong>Checks</strong>
 - Returns all rows and columns of the first sheet
 - No error from omitting the range parameter</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+export_revision(rev 6, no range) → sheet="Sheet1", range=null, values = full 5×2 grid [["QA-AFTER","x1"]..["r5c1","r5c2"]]. All rows/cols of first sheet returned, no error from omitting range.</p>
 <hr />
 <h3 id="tc-d151-export-revision-of-a-non-sheets-file">TC-D151: Export revision of a non-Sheets file<a class="headerlink" href="#tc-d151-export-revision-of-a-non-sheets-file" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2468,6 +2536,8 @@ Remove <code>/tmp/qa-239/</code>.</p>
 <p><strong>Checks</strong>
 - Returns a clear error: "No XLSX export available for this revision"
 - Does not crash</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+export_revision({DOC_ID}, rev 3) → error "No XLSX export available for revision 3. The file may not be a Google Sheets file." Clear error, no crash.</p>
 <hr />
 
 

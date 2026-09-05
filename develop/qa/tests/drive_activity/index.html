@@ -1339,6 +1339,8 @@
 - <code>action</code> is one of: edit, create, move, rename, delete, restore, permission_change, comment, settings_change, system_event, unknown
 - No <code>error</code> key in result</p>
 <p><strong>Result (2026-06-24) ✅ PASS</strong> 52 activities returned. All entries have <code>timestamp</code>, <code>action</code>, and <code>actors</code>. Actions observed: <code>edit</code>, <code>rename</code>, <code>permission_change</code>, <code>create</code>. Actor types include <code>user</code> (known, <code>is_current_user: true/false</code>) and <code>system</code>. No <code>error</code> key.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_file_activity({DOC_ID}) -&gt; file_id matches; activities is a list of 5; every entry has timestamp/action/actors; actions observed: edit, move, create (all in allowed set); no <code>error</code> key. drive.activity.readonly scope is granted.</p>
 <hr />
 <h3 id="tc-d164-known-user-actor-structure">TC-D164: Known-user actor structure<a class="headerlink" href="#tc-d164-known-user-actor-structure" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1350,6 +1352,8 @@
 - That actor has a <code>person_name</code> field (e.g. <code>"people/12345"</code>)
 - <code>is_current_user</code> is a boolean</p>
 <p><strong>Result (2026-06-24) ✅ PASS</strong> Multiple user actors returned. Current-user entries have <code>person_name: "people/101951097007377611160"</code>, <code>is_current_user: true</code>. A second user (<code>people/114161724974780080071</code>, <code>is_current_user: false</code>) also appears. A <code>system</code> actor appears on the <code>permission_change</code> entry with <code>event: null</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Each actor: type:"user", person_name:"people/108427788683920971958", is_current_user:true (boolean). At least one user actor with a person_name field present. (All activity on this fixture is by the current user; no second/system actor in the current 5-entry window.)</p>
 <hr />
 <h3 id="tc-d165-pagination-next_page_token-present-when-results-exceed-page_size">TC-D165: Pagination — next_page_token present when results exceed page_size<a class="headerlink" href="#tc-d165-pagination-next_page_token-present-when-results-exceed-page_size" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1360,15 +1364,21 @@
 - At least 1 activity in <code>activities</code> (the Drive Activity API treats page_size as a hint and may return slightly more due to activity grouping — do not assert exactly 1)
 - <code>next_page_token</code> is present in the response</p>
 <p><strong>Result (2026-06-24) ✅ PASS</strong> <code>page_size=1</code> returned 2 activities (Drive Activity API groups related events and does not hard-clip to the requested count). <code>next_page_token</code> present. Confirmed pagination works.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_file_activity({DOC_ID}, page_size=1) -&gt; 2 activities returned (Drive Activity API groups related events, does not hard-clip to 1) and <code>next_page_token</code> present.</p>
 <hr />
 <h3 id="tc-d166-invalid-file-id-returns-error-unit-test">TC-D166: Invalid file ID returns error (unit test)<a class="headerlink" href="#tc-d166-invalid-file-id-returns-error-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
 - When the Drive Activity API returns an HTTP 403 or 404, the tool returns <code>{"error": "..."}</code> rather than raising an exception</p>
 <p><strong>Result (2026-06-24) ✅</strong> Unit test <code>test_http_error_returns_error_dict</code> confirms HTTP errors are caught and returned as <code>{"error": str(e)}</code>.</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+Unit-test-only check (HTTP 403/404 -&gt; {"error": ...}); no live fixture that is readable-but-activity-forbidden. Separately, live HttpError propagation for the sibling sharing tools was confirmed clean in TC-D126/D129/D131/D235.</p>
 <hr />
 <h3 id="tc-d168-list_file_activity-response-size-cap-code-path-only-no-dedicated-live-fixture-issue-242">TC-D168: list_file_activity response-size cap — code path only, no dedicated live fixture (issue #242)<a class="headerlink" href="#tc-d168-list_file_activity-response-size-cap-code-path-only-no-dedicated-live-fixture-issue-242" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> <code>list_file_activity</code> is already Drive-API-paginated (<code>page_size</code> clamped 1–100) and low per-item size — the only realistic exposure is a single activity's <code>actors</code> list ballooning on a file with many collaborators. Per the #242 decision doc, this tool intentionally did NOT get a dedicated live-fixture verification (reproducing hundreds of real Drive Activity events isn't cheaply reproducible) — the cap was added for defense-in-depth only, verified by unit tests (<code>tests/drive/test_activity.py::TestListFileActivity::test_oversized_result_raises</code>, <code>test_error_points_to_page_size_not_local_path</code>).</p>
 <p><strong>Result (2026-07-03) ✅ N/A (by design)</strong> — sanity-checked live that the tool still functions normally post-change (<code>list_file_activity(file_id={SPREADSHEET_ID}, page_size=5)</code> returned a normal activity list, no regression). Cap-triggering behavior covered by unit tests only, not live-verified — documented scoping decision, not an oversight.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+N/A by design (#242 decision doc). Sanity: list_file_activity({SPREADSHEET_ID}, page_size=5) returned a normal 8-entry activity list, no cap ValueError, no regression. Cap-trigger path is unit-tested only.</p>
 <hr />
 
 

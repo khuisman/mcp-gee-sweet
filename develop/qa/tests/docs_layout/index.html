@@ -1339,6 +1339,8 @@
 - 🔍 Visual check in Google Docs: document shows a header section</p>
 <p><strong>Cleanup:</strong> none needed (headers persist; restore fixture doc if desired)</p>
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>create_header(doc_id=fixture)</code> (no content). Returned <code>{"docId": ..., "headerId": "kix.xxxxxxxxxx"}</code>. Header section visible in Google Docs. Note: on first call after a prior session created the header (due to index=1 bug), the "already exists" 400 error was caught and the ID was retrieved from <code>documentStyle.defaultHeaderId</code> — this is the expected fallback path.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_header (no content) -&gt; {docId, headerId:"kix.4yrlc2k9cy3n"} non-empty; no error. Visual 🔍 not verified (browser unauth; headers also not visible in body snapshot per run.md limitation).</p>
 <hr />
 <h3 id="tc-doc69-create-a-header-with-content-destructive">TC-DOC69: Create a header with content ⚠️ destructive<a class="headerlink" href="#tc-doc69-create-a-header-with-content-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -1352,6 +1354,8 @@
 - 🔍 Visual check: header text "Confidential — Internal Only" appears in the document header</p>
 <p><strong>Cleanup:</strong> none needed</p>
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>create_header(doc_id=temp_doc, content="Confidential — Internal Only")</code>. Returned <code>{"docId": ..., "headerId": "kix.xxxxxxxxxx"}</code> with no <code>warning</code> key — both header creation (via <code>documentStyle</code> fallback) and content insertion at <code>index=0</code> succeeded.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_header content "Confidential — Internal Only" -&gt; {docId, headerId} (same id via documentStyle fallback since header already existed); no error/warning key. Visual 🔍 not verified.</p>
 <hr />
 <h3 id="tc-doc70-create-a-default-page-footer-destructive">TC-DOC70: Create a default page footer ⚠️ destructive<a class="headerlink" href="#tc-doc70-create-a-default-page-footer-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -1364,6 +1368,8 @@
 - 🔍 Visual check: document shows a footer section</p>
 <p><strong>Cleanup:</strong> none needed</p>
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>create_footer(doc_id=fixture)</code>. Returned <code>{"docId": ..., "footerId": "kix.xxxxxxxxxx"}</code>. Footer section visible in Google Docs.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_footer (no content) -&gt; {docId, footerId:"kix.khcu7s4gsbju"} non-empty; no error. Visual 🔍 not verified.</p>
 <hr />
 <h3 id="tc-doc71-create-a-footer-with-content-destructive">TC-DOC71: Create a footer with content ⚠️ destructive<a class="headerlink" href="#tc-doc71-create-a-footer-with-content-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -1376,6 +1382,8 @@
 - 🔍 Visual check: footer shows "Page 1"</p>
 <p><strong>Cleanup:</strong> none needed</p>
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>create_footer(doc_id=temp_doc, content="Page 1")</code>. Returned <code>{"docId": ..., "footerId": "kix.xxxxxxxxxx"}</code> with no <code>warning</code> key — footer created and content inserted at <code>index=0</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_footer content "Page 1" -&gt; {docId, footerId}; no error/warning. Visual 🔍 not verified.</p>
 <hr />
 <h3 id="tc-doc72-invalid-header_type-returns-error">TC-DOC72: Invalid header_type returns error<a class="headerlink" href="#tc-doc72-invalid-header_type-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1385,6 +1393,8 @@
 <p><strong>Checks</strong>
 - Returns <code>{"error": "Invalid header_type 'INVALID'..."}</code></p>
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Returned <code>{"error": "Invalid header_type 'INVALID'. Use DEFAULT or FIRST_PAGE_HEADER"}</code>. No API call made.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_header header_type='INVALID' -&gt; {"error":"Invalid header_type 'INVALID'. Use DEFAULT or FIRST_PAGE_HEADER"}; no API call.</p>
 <hr />
 <h3 id="tc-doc73-invalid-footer_type-returns-error">TC-DOC73: Invalid footer_type returns error<a class="headerlink" href="#tc-doc73-invalid-footer_type-returns-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1394,6 +1404,8 @@
 <p><strong>Checks</strong>
 - Returns <code>{"error": "Invalid footer_type 'INVALID'..."}</code></p>
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Returned <code>{"error": "Invalid footer_type 'BOGUS'. Use DEFAULT or FIRST_PAGE_FOOTER"}</code>. No API call made.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_footer footer_type='INVALID' -&gt; {"error":"Invalid footer_type 'INVALID'. Use DEFAULT or FIRST_PAGE_FOOTER"}; no API call.</p>
 <hr />
 <h3 id="tc-doc74-insert_doc_text-with-segment_id-writes-into-header-destructive">TC-DOC74: insert_doc_text with segment_id writes into header ⚠️ destructive<a class="headerlink" href="#tc-doc74-insert_doc_text-with-segment_id-writes-into-header-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> call <code>create_header</code> first to get a <code>headerId</code></p>
@@ -1408,6 +1420,8 @@
 - Response contains <code>insertions: 1</code>
 - 🔍 Visual check: "Header text via insert_doc_text" appears in the document header</p>
 <p><strong>Result (2026-06-22) ✅ PASS</strong> Called <code>insert_doc_text</code> with <code>[{index: 0, text: "QA Test Header", segment_id: "kix.xxxxxxxxxx"}]</code>. Response: <code>{"docId": ..., "insertions": 1}</code>. Text "QA Test Header" appeared in fixture doc header. Same mechanism also confirmed for footer segment insertion (segment_id: "kix.xxxxxxxxxx", text: "Page 1").</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+insert_doc_text index 0, segment_id headerId -&gt; {docId, insertions:1}; no API error. Visual 🔍 not verified.</p>
 <hr />
 
 
