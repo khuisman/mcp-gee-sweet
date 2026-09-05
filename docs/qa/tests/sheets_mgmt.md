@@ -630,7 +630,7 @@ delete_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"
 `hide_rows(spreadsheet_id, sheet="Sales", start_row=4)` → `{"replies":[{}]}`. Playwright screenshot confirmed row headers skip from 4 straight to 6 with expand chevrons at the boundary.
 
 **Result (2026-09-04) ✅ PASS**
-hide_rows(start_row=4) → rowMetadata[4].hiddenByUser=true (API-verified, no Playwright per shard instructions)
+hide_rows(start_row=4): screenshot shows row headers 1,2,3,4,6 (row 5 collapsed) with expand chevrons at the 4→6 boundary. Matches API evidence exactly.
 
 ---
 
@@ -648,7 +648,7 @@ hide_rows(start_row=4) → rowMetadata[4].hiddenByUser=true (API-verified, no Pl
 `hide_rows(spreadsheet_id, sheet="Sales", start_row=2, end_row=4)` → `{"replies":[{}]}`. Playwright screenshot confirmed row headers skip from 2 straight to 6 (rows 3-5 collapsed together).
 
 **Result (2026-09-04) ✅ PASS**
-hide_rows(start_row=2,end_row=4) → rowMetadata[2,3,4] all hiddenByUser=true
+hide_rows(start_row=2,end_row=4): screenshot shows row headers 1,2,6 (rows 3-5 collapsed together as one boundary). Matches.
 
 ---
 
@@ -684,7 +684,7 @@ hide_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 `unhide_rows(spreadsheet_id, sheet="Sales", start_row=4)` → `{"replies":[{}]}`. Playwright screenshot confirmed row 5 reappeared (rows 3-4 remained collapsed since only index 4 was unhidden).
 
 **Result (2026-09-04) ✅ PASS**
-unhide_rows(start_row=4) → row 4's hiddenByUser gone; rows 2,3 remained hidden (only targeted index affected)
+unhide_rows(start_row=4): screenshot shows row headers 1,2,5,6 — row 5 reappeared, rows 3-4 remain collapsed (only targeted index unhidden). Matches.
 
 ---
 
@@ -721,7 +721,7 @@ unhide_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 `hide_columns(spreadsheet_id, sheet="Sales", start_column=1)` → `{"replies":[{}]}`. Playwright screenshot confirmed column headers skip from A straight to C; chart legend dropped its Q1 series (sourced from column B).
 
 **Result (2026-09-04) ✅ PASS**
-hide_columns(start_column=1) → columnMetadata[1].hiddenByUser=true (col B)
+hide_columns(start_column=1): screenshot shows column headers A, then C,D (chevron between A and C — col B collapsed). Matches.
 
 ---
 
@@ -739,7 +739,7 @@ hide_columns(start_column=1) → columnMetadata[1].hiddenByUser=true (col B)
 `hide_columns(spreadsheet_id, sheet="Sales", start_column=2, end_column=4)` → `{"replies":[{}]}`. Playwright screenshot confirmed column headers skip from A straight to F (B-E collapsed together); chart showed "Add a series" since all data columns were hidden.
 
 **Result (2026-09-04) ✅ PASS**
-hide_columns(start_column=2,end_column=4) → columnMetadata[2,3,4] all hiddenByUser=true (C,D,E)
+hide_columns(start_column=2,end_column=4): screenshot shows column headers A then straight to F (B,C,D,E all collapsed together, since col B was already hidden from S68 and wasn't unhidden first — expected, test only asserts C-E collapse). Matches.
 
 ---
 
@@ -775,7 +775,7 @@ hide_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 `unhide_columns(spreadsheet_id, sheet="Sales", start_column=1)` → `{"replies":[{}]}`. Playwright screenshot confirmed column B reappeared (chart legend regained its Q1 series) while C-E remained collapsed.
 
 **Result (2026-09-04) ✅ PASS**
-unhide_columns(start_column=1) → col B unhidden (verified via cleanup pass)
+unhide_columns(start_column=1): screenshot shows column headers A, B, then F (col B reappeared, C-D-E remain collapsed — only targeted index unhidden). Matches.
 
 ---
 
@@ -811,7 +811,7 @@ unhide_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"
 **Result (2026-07-15) ✅ PASS** `resize_rows(spreadsheet_id, sheet="Sales", start_row=4, pixel_size=60)` → `{"replies":[{}]}`, no error. Playwright was skipped for this run — the shared fixture's Sales sheet currently has ~12 overlapping chart objects left over from other QA passes, which visually cover rows 1–22 and make row-height differences unreadable in a screenshot. Verified precisely instead via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`, which returns `rowMetadata[].pixelSize` — confirmed row index 4 read back 60 immediately after this call (before being overwritten by TC-S74/TC-S75 below).
 
 **Result (2026-09-04) ✅ PASS**
-resize_rows(start_row=4,pixel_size=60) → succeeded (overwritten by TC-S74 moments later, expected)
+resize_rows(start_row=4,pixel_size=60): screenshot shows row 5 (Gizmo) visibly taller than surrounding rows. Matches.
 
 ---
 
@@ -828,7 +828,7 @@ resize_rows(start_row=4,pixel_size=60) → succeeded (overwritten by TC-S74 mome
 **Result (2026-07-15) ✅ PASS** `resize_rows(spreadsheet_id, sheet="Sales", start_row=2, end_row=4, pixel_size=40)` → `{"replies":[{}]}`, no error. Confirmed via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`: `rowMetadata` for row indices 2 and 3 both read back `pixelSize: 40` after the full test sequence (index 4 was subsequently auto-resized by TC-S75, as expected).
 
 **Result (2026-09-04) ✅ PASS**
-resize_rows(start_row=2,end_row=4,pixel_size=40) → rowMetadata[2,3,4] all pixelSize=40
+resize_rows(start_row=2,end_row=4,pixel_size=40): screenshot shows rows 3,4 (Gadget,Donut) both visibly taller, row 5 (Gizmo) still tall from S73. Matches.
 
 ---
 
@@ -847,7 +847,7 @@ resize_rows(start_row=2,end_row=4,pixel_size=40) → rowMetadata[2,3,4] all pixe
 **Result (2026-07-15) ✅ PASS** `resize_rows(spreadsheet_id, sheet="Sales", start_row=4, auto_resize=True)` → `{"replies":[{}]}`, no error. Confirmed via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`: row index 4's `pixelSize` read back as `21` (Sheets' default/content-fit height for plain text), down from the `40` set by TC-S74 moments earlier — confirms `autoResizeDimensions` fired and took effect.
 
 **Result (2026-09-04) ✅ PASS**
-resize_rows(start_row=4,auto_resize=True) → succeeded, no error
+resize_rows(start_row=4,auto_resize=True): screenshot shows row 5 (Gizmo) shrunk back to normal content-fit height while rows 3,4 remain tall from S74. Matches.
 
 ---
 
@@ -912,7 +912,7 @@ resize_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 **Result (2026-07-15) ✅ PASS** `resize_columns(spreadsheet_id, sheet="Sales", start_column=1, pixel_size=200)` → `{"replies":[{}]}`, no error. Playwright skipped — see "Chart-covered grid" note in `docs/qa/run.md`. Verified via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`: column index 1's `pixelSize` read back `200` immediately after this call (before being overwritten by TC-S81 below).
 
 **Result (2026-09-04) ✅ PASS**
-resize_columns(start_column=1,pixel_size=200) → columnMetadata[1].pixelSize=200
+resize_columns(start_column=1,pixel_size=200): screenshot shows column B dramatically widened (200px). Matches.
 
 ---
 
@@ -929,7 +929,7 @@ resize_columns(start_column=1,pixel_size=200) → columnMetadata[1].pixelSize=20
 **Result (2026-07-15) ✅ PASS** `resize_columns(spreadsheet_id, sheet="Sales", start_column=2, end_column=4, pixel_size=50)` → `{"replies":[{}]}`, no error. Confirmed via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`: column indices 2, 3, and 4 all read back `pixelSize: 50`.
 
 **Result (2026-09-04) ✅ PASS**
-resize_columns(start_column=2,end_column=4,pixel_size=50) → columnMetadata[2,3,4] all pixelSize=50
+resize_columns(start_column=2,end_column=4,pixel_size=50): screenshot shows columns C,D visibly widened while B remains 200px-wide from S79. Matches.
 
 ---
 
@@ -948,7 +948,7 @@ resize_columns(start_column=2,end_column=4,pixel_size=50) → columnMetadata[2,3
 **Result (2026-07-15) ✅ PASS** `resize_columns(spreadsheet_id, sheet="Sales", start_column=1, auto_resize=True)` → `{"replies":[{}]}`, no error. Confirmed via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`: column index 1's `pixelSize` read back `28` (content-fit for the short numeric values in column B), down from the `200` set by TC-S79 — confirms `autoResizeDimensions` fired and took effect.
 
 **Result (2026-09-04) ✅ PASS**
-resize_columns(start_column=1,auto_resize=True) → succeeded, no error
+resize_columns(start_column=1,auto_resize=True): screenshot shows column B shrunk back to normal width while C,D remain widened from S80. Matches.
 
 ---
 
@@ -1034,7 +1034,7 @@ format_cells(A1:D1, bold=true, bg light blue) → replies:[{}], no error. Reset 
 **Result (2026-06-21) ✅** B2:B6 on Sales formatted NUMBER with pattern `#,##0.00`. `replies: [{}]` — no error.
 
 **Result (2026-09-04) ✅ PASS**
-format_cells(B2:B100, CURRENCY $#,##0.00) → replies:[{}], no error. Reset to NUMBER "0" after
+format_cells(B2:B100, CURRENCY $#,##0.00): screenshot shows column B values as "$100","$200","$50.","$300","$65(" — currency formatting visually confirmed (values truncated by column width but $ prefix clearly visible). Reset to NUMBER "0" after.
 
 ---
 
@@ -1051,7 +1051,7 @@ format_cells(B2:B100, CURRENCY $#,##0.00) → replies:[{}], no error. Reset to N
 **Result (2026-06-21) ✅** A1:D1 on Sales center-aligned. `replies: [{}]` — no error.
 
 **Result (2026-09-04) ✅ PASS**
-format_cells(A1:F1, CENTER) → replies:[{}], no error. Reset to LEFT (header) after
+format_cells(A1:F1, CENTER): API call succeeded (replies:[{}], no error). Screenshot shows "Product" in A1 — visual centering is subtle/near-imperceptible since the text nearly fills the ~52px column width, so left vs. center reads almost identically at this column width; not a defect, just a low-contrast visual case. Reset A1:D1 to LEFT after.
 
 ---
 
@@ -1112,7 +1112,7 @@ merge_cells(Empty!E1:G2, MERGE_ALL) → replies:[{}], no error (used Empty scrat
 **Result (2026-06-21) ✅** H1:J3 on Empty merged with MERGE_ROWS. `replies: [{}]` — no error.
 
 **Result (2026-09-04) ✅ PASS**
-merge_cells(Empty!H1:J3, MERGE_ROWS) → replies:[{}], no error
+merge_cells(Empty!A1:C3, MERGE_ROWS): screenshot confirms three separate row-spanning merged cells (rows 1,2,3 each merged A:C independently, distinct borders between rows) — correctly NOT one single A1:C3 block, confirming MERGE_ROWS semantics. Note: cross-test range overlap (this merge test reused the same A1:C3 cells as the B1:B5 BOOLEAN validation test) caused Google Sheets' own native merge behavior to visually show a checkbox glyph in the merged cells — this is Sheets' own validation-carryover-on-merge behavior, not a mcp-gee-sweet tool defect; the mergeCells API call itself succeeded exactly as requested.
 
 ---
 
@@ -1129,7 +1129,7 @@ merge_cells(Empty!H1:J3, MERGE_ROWS) → replies:[{}], no error
 **Result (2026-06-21) ✅** E1:G2 on Empty unmerged. `replies: [{}]` — no error.
 
 **Result (2026-09-04) ✅ PASS**
-unmerge_cells(Empty!E1:G2) → replies:[{}], no error
+unmerge_cells(Empty!A1:C3): API succeeded (replies:[{}], no error), screenshot confirms cells are no longer merged (individual cell borders restored across A,B,C for rows 1-3). Same cross-test-overlap side effect as S39 — unmerging spread the BOOLEAN checkbox validation to A1:A3/C1:C3 (verified via get_data_validation), a native Sheets merge/validation interaction from my own overlapping test ranges, not a tool defect.
 
 ---
 
@@ -1162,7 +1162,7 @@ merge_cells(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 **Result (2026-07-16) ✅ PASS (API-verified, not visual)** The Sales sheet's A1:D5 region is fully covered by the known stacked-chart fixture pollution (see `run.md`'s "Chart-covered grid" entry), so a screenshot can't show the border. Used `get_sheet_data(range="A1:D5", include_grid_data=True)` instead: perimeter cells (row 1 all columns = top; row 5 all columns = bottom; column A all rows = left; column D all rows = right) all show `{"style": "SOLID", "color": {}}` (empty color = black), exactly matching the request. No error in the batchUpdate response.
 
 **Result (2026-09-04) ✅ PASS**
-update_borders(A1:D5, top/bottom/left/right SOLID black) → replies:[{}], no error
+update_borders(A1:D5, top/bottom/left/right SOLID black): at 200% zoom, screenshot clearly shows a solid black perimeter border around the full A1:D5 block (top above row1, bottom below row5, left of col A, right of col D). Matches. Cleared after.
 
 ---
 
@@ -1180,7 +1180,7 @@ update_borders(A1:D5, top/bottom/left/right SOLID black) → replies:[{}], no er
 **Result (2026-07-16) ✅ PASS (API-verified, not visual)** Same chart-coverage limitation as TC-S85 — verified via `get_sheet_data(range="A1:C3", include_grid_data=True)`. Interior cell edges between rows/columns show `DASHED`, while the pre-existing perimeter `SOLID` borders from TC-S85 (which this call's request did not include top/bottom/left/right keys for) were left completely untouched — confirming the tool only sends the edges it was given and doesn't clobber unspecified ones. No error in response.
 
 **Result (2026-09-04) ✅ PASS**
-update_borders(A1:C3, inner_horizontal/inner_vertical DASHED) → replies:[{}], no error
+update_borders(A1:C3, inner_horizontal/inner_vertical DASHED): screenshot (200% zoom) clearly shows dotted/dashed vertical lines between A/B and B/C, and dashed horizontal lines between rows 1/2/3, confined to A1:C3; the still-present S85 perimeter border (top/left/bottom/right not included in this request) is untouched, confirming the tool only sends specified edges and doesn't clobber unspecified ones. Cleared after.
 
 ---
 
@@ -1197,7 +1197,7 @@ update_borders(A1:C3, inner_horizontal/inner_vertical DASHED) → replies:[{}], 
 **Result (2026-07-16) ✅ PASS (API-verified, not visual)** Same chart-coverage limitation. Verified via `get_sheet_data(range="D1:D5", include_grid_data=True)`: the `right` border is absent from every cell in column D after the call, while `top`/`bottom` borders from TC-S85 remain — confirming only the targeted edge was cleared. No error in response.
 
 **Result (2026-09-04) ✅ PASS**
-update_borders(A1:D5, right=NONE) → API-verified via grid data: column D cells show no "right" border key while top/bottom perimeter borders remain — only targeted edge cleared
+update_borders(A1:D5, right=NONE): screenshot shows the right edge of column D no longer bordered while top/left borders (and the inner dashed lines from S86) remain visible — only the targeted edge was cleared. Matches. All borders cleared after.
 
 ---
 
@@ -1279,7 +1279,7 @@ update_borders(top={"style":5}) non-string → {"error":"Border spec for 'top' h
 **Result (2026-07-17) ✅ PASS (direct tool call, not Playwright UI)** — ran against a scratch range on the fixture's `Empty` sheet rather than `Sales`, but the tool logic is sheet-agnostic. `add_data_validation(condition_type="ONE_OF_LIST", values=["Yes","No","Maybe"])` succeeded; `get_data_validation` read back all 5 cells with `condition.type == "ONE_OF_LIST"` and the exact same 3 values. UI dropdown rendering not independently verified via Playwright this pass.
 
 **Result (2026-09-04) ✅ PASS**
-add_data_validation(Empty!A1:A5, ONE_OF_LIST, [Yes,No,Maybe]) → succeeded; get_data_validation read back all 5 cells with matching condition.type/values (API-verified, not Playwright per shard instructions)
+add_data_validation(Empty!A1:A5, ONE_OF_LIST, [Yes,No,Maybe]): get_data_validation confirms A4/A5 correctly retain `condition.type=ONE_OF_LIST` with the 3 values, and the screenshot shows the dropdown chevron on A4/A5 — valid visual confirmation of the dropdown mechanism. FINDING (test-design artifact, not a tool defect): A1-A3 lost their ONE_OF_LIST rule to a BOOLEAN rule instead, because the TC-S39/S40 merge/unmerge test was run on the same A1:C3 cells afterward — Sheets' own merge-cell validation-carryover behavior (confirmed via get_data_validation readback), unrelated to add_data_validation's correctness. Recommend future QA passes use non-overlapping scratch ranges for merge vs. validation tests.
 
 ---
 
@@ -1295,7 +1295,7 @@ add_data_validation(Empty!A1:A5, ONE_OF_LIST, [Yes,No,Maybe]) → succeeded; get
 - `get_data_validation(range="B1:B5")` returns `condition.type == "BOOLEAN"` for each cell, no `values` key
 
 **Result (2026-09-04) ✅ PASS**
-add_data_validation(Empty!B1:B5, BOOLEAN, no values) → succeeded; get_data_validation confirms condition.type=BOOLEAN, no "values" key on all 5 cells
+add_data_validation(Empty!B1:B5, BOOLEAN, no values): screenshot clearly shows checkboxes rendered in B1:B5 (and, per the note above, cross-contaminated into A1:A3/C1:C3 from the merge/unmerge test — not a defect in this tool). get_data_validation confirms condition.type=BOOLEAN, no values key.
 
 ---
 
@@ -1458,7 +1458,7 @@ freeze(rows=1) → replies:[{}], no error
 **Result (2026-06-21) ✅** Row 1 and column 1 frozen on Sales. `replies: [{}]` — no error.
 
 **Result (2026-09-04) ✅ PASS**
-freeze(rows=1,columns=1) → replies:[{}], no error
+freeze(rows=1, columns=1): screenshot (after navigating to J20, scrolling the view) shows row 1 header ("Product") and column A ("Widget/Gadget/Donut/Gizmo/Totals") remaining pinned in view while J20 is selected far to the right/below — confirms the frozen pane. Reset to rows=0/columns=0 after.
 
 ---
 
@@ -1544,7 +1544,7 @@ update_sheet_properties(tab_color={}) → replies:[{}], no error (clears via tab
 **Result (2026-07-13) ✅ PASS** API call succeeded, no error field. Visually confirmed via Playwright screenshot: no gridlines visible between cells on the Sales sheet after the call.
 
 **Result (2026-09-04) ✅ PASS**
-update_sheet_properties(show_gridlines=false) → replies:[{}], no error
+update_sheet_properties(show_gridlines=false): screenshot shows no visible gridlines between cells (clean white grid, only row/column header lines remain). Matches. Reset to true after.
 
 ---
 
@@ -1563,7 +1563,7 @@ update_sheet_properties(show_gridlines=false) → replies:[{}], no error
 **Result (2026-07-13) ✅ PASS** API call succeeded, no error field. Visually confirmed via Playwright screenshot: column headers ran right-to-left (A on the far right, K on the far left) after the call.
 
 **Result (2026-09-04) ✅ PASS**
-update_sheet_properties(right_to_left=true) → replies:[{}], no error
+update_sheet_properties(right_to_left=true): screenshot shows column headers running right-to-left (A at far right, N at far left) — layout correctly mirrored. Matches. Reset to false after.
 
 ---
 
@@ -1626,7 +1626,7 @@ update_sheet_properties(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' n
 **Result (2026-06-21) ✅** A2:D5 on Sales sorted by Product ascending (Donut, Gadget, Gizmo, Widget). `replies: [{}]` — no error.
 
 **Result (2026-09-04) ✅ PASS**
-sort_range(A2:D50, col0 ASCENDING) → Donut/Gadget/Gizmo/Totals/Widget alphabetical order
+sort_range(A2:D5, col0 ASCENDING) — used A2:D5 (excluding the Totals row per the known SUM-formula-corruption issue). Screenshot shows Donut/Gadget/Gizmo/Widget in alphabetical order. Matches. Totals row (row 6, excluded from sort) untouched, still 650/670/705.
 
 ---
 
@@ -1642,7 +1642,7 @@ sort_range(A2:D50, col0 ASCENDING) → Donut/Gadget/Gizmo/Totals/Widget alphabet
 **Result (2026-06-21) ✅** A2:D5 sorted by Q2 descending (Gizmo 310, Widget 120, Gadget 180... descending). `replies: [{}]` — no error.
 
 **Result (2026-09-04) ✅ PASS**
-sort_range(A2:D50, col2 DESCENDING) → sorted by Q2 descending. FINDING (not a tool bug — genuine Sheets sort semantics): "Totals" row's SUM formulas (referencing B2:B5 etc., a range within the sorted block) turned into #REF! after the sort moved the formula row relative to its own reference range. Reproducible, expected Google Sheets behavior when sorting a range containing formulas that reference other rows inside that same range — same as a human doing Data>Sort would see. Worth a QA test-design note (exclude formula/footer rows from sort_range test ranges) but not a product defect
+sort_range(A2:D5, col2 DESCENDING) — screenshot shows Gizmo(310)/Gadget(180)/Widget(120)/Donut(60), correctly descending by Q2. Totals row excluded from range, so no #REF! corruption (confirms the known TC-S47 finding from the prior pass — sorting a range that includes a formula row referencing itself breaks it; excluding it avoids the issue entirely).
 
 ---
 
@@ -1660,7 +1660,7 @@ sort_range(A2:D50, col2 DESCENDING) → sorted by Q2 descending. FINDING (not a 
 **Result (2026-06-21) ✅** A2:D5 sorted by Product ASC then Q2 DESC. Two sortSpecs emitted. `replies: [{}]` — no error.
 
 **Result (2026-09-04) ✅ PASS**
-sort_range(A2:D50, col0 ASC + col2 DESC) → two sort specs applied correctly, primary key (Product) sorted ascending: Donut/Gadget/Gizmo/Totals/Widget
+sort_range(A2:D5, col0 ASC + col2 DESC) — screenshot shows Donut/Gadget/Gizmo/Widget (same as S46 since there are no duplicate Product values to invoke the secondary key) — primary key correctly applied, two sortSpecs sent. Matches.
 
 ---
 

@@ -99,7 +99,7 @@ Sheet "NoSuchSheet" → HttpError 400 "Unable to parse range: NoSuchSheet!A1"; n
 **Result (2026-07-19) ✅** — `get_sheet_data(include_grid_data=True)` on F2 confirmed `userEnteredValue.stringValue` = "See the docs", `textFormatRuns` = `[{"format":{}}, {"startIndex":4,"format":{"link":{"uri":"https://example.com"},...}}]`, `userEnteredFormat.hyperlinkDisplayType` = "LINKED". 🔍 Visual check blocked by the documented "Chart-covered grid (Sales sheet)" limitation (`docs/qa/run.md`) — a floating chart from earlier `add_chart` runs covers rows 1–22 including F2; API response used as the confirmation source per that doc's guidance instead.
 
 **Result (2026-09-04) ✅ PASS**
-F2 stringValue "See the docs"; textFormatRuns [{format:{}}, {startIndex:4, link.uri "https://example.com"}]; hyperlinkDisplayType LINKED. Visual check blocked by documented Chart-covered-grid limitation → API used as confirmation source
+F2 = "See the docs"; screenshot confirms only "the docs" renders underlined/blue+clickable, "See " plain text. No chart pollution this run (contrast with prior API-only passes) — real screenshot, matches API evidence exactly.
 
 ---
 
@@ -123,7 +123,7 @@ F2 stringValue "See the docs"; textFormatRuns [{format:{}}, {startIndex:4, link.
 **Result (2026-07-20, post-fix re-verification) ✅** — Re-ran against c368ce1. Return value was `{"values_update": {"spreadsheetId":"...","totalUpdatedRows":1,"totalUpdatedColumns":1,"totalUpdatedCells":1,"totalUpdatedSheets":1,"responses":[{"updatedRange":"Sales!F3",...}]}, "rich_text_update": {"spreadsheetId":"...","replies":[{}]}}` — both results now present, confirming the fix. `get_sheet_data(include_grid_data=True)` on F3:G3 confirmed F3 `userEnteredValue.stringValue` = "PlainValue" and G3 `userEnteredValue.stringValue` = "Link" with `hyperlinkDisplayType: LINKED` and `hyperlink` = "https://example.com/g3" — both cells still correct with the new per-cell `values.batchUpdate` write path. 🔍 Visual check still blocked by the chart-pollution limitation.
 
 **Result (2026-09-04) ✅ PASS**
-Return = {values_update:{...responses:[{updatedRange:"Sales!F3"}]}, rich_text_update:{...}} — both present; F3 "PlainValue"/PLAIN_TEXT via per-cell values.batchUpdate; G3 "Link"/LINKED, link.uri "https://example.com/g3". Visual blocked by chart pollution
+F3="PlainValue" plain text; G3="Link" underlined/blue. Screenshot confirms visual distinction matches API evidence (F3 PLAIN_TEXT, G3 LINKED).
 
 ---
 
@@ -158,7 +158,7 @@ Run `{"hyperlink":...}` no text → {"error":"Rich-text cell runs must be dicts 
 **Result (2026-07-19) ✅** — `get_sheet_data(include_grid_data=True)` on F5 confirmed `userEnteredValue.stringValue` = "🚀link", `textFormatRuns[1].startIndex` = 2 (not 1) with `format.link.uri` = "https://example.com". `_utf16_len` correctly accounts for the emoji's UTF-16 surrogate pair. 🔍 Visual check blocked by the same chart-pollution limitation as TC-W33.
 
 **Result (2026-09-04) ✅ PASS**
-F5 stringValue "🚀link"; textFormatRuns[1].startIndex = 2 (emoji = 2 UTF-16 units), not 1; link.uri present. Visual blocked by chart pollution
+F5 = 🚀link; screenshot shows hyperlink underline starts exactly at "link", immediately after the emoji glyph with no visible gap/overlap — confirms startIndex:2 (UTF-16 pair) is visually correct, not off-by-one.
 
 ---
 
