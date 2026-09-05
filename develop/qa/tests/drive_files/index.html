@@ -1601,6 +1601,8 @@ list_files(FOLDER_ID, mime_type=document) returned only the 2 Google Docs; sprea
 - Logs show <code>cache hit</code> for the second call</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 Two consecutive list_files(FOLDER_ID) calls returned byte-identical results (cache hit). CAVEAT: see TC-D40 — folder cache key omits max_results, so a prior small-max_results fetch poisoned the cache and both calls returned a truncated 2-item list until refresh_cache.</p>
+<p><strong>Result (2026-09-05) ✅ PASS</strong> — re-verified against PR #697 (issue #688)
+Caveat resolved — see TC-D40. Two consecutive list_files(FOLDER_ID) calls with no intervening small-max_results fetch still return byte-identical results.</p>
 <hr />
 <h3 id="tc-d39-mime_typenone-cache-key">TC-D39: mime_type=None cache key<a class="headerlink" href="#tc-d39-mime_typenone-cache-key" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1623,6 +1625,8 @@ list_files(FOLDER_ID) with mime_type=None called twice returned identical result
 - Confirms <code>max_results</code> clamped to 1–1000</p>
 <p><strong>Result (2026-09-04) ❌ FAIL</strong>
 On a FRESH fetch, list_files(FOLDER_ID, max_results=2) returns exactly 2 — clamp works. BUT the first attempt returned 5 items: the folder-listing cache key does NOT include max_results, so a cache hit from an earlier default-max_results call ignored max_results=2. Worse, a subsequent small-max_results fetch then stores a truncated list that later default-max_results calls receive in full. Reproduced twice. Bug: max_results absent from folder cache key -&gt; silently ignored on cache hit + cache poisoning. Ticket candidate.</p>
+<p><strong>Result (2026-09-05) ✅ PASS</strong> — re-verified against PR #697 (issue #688)
+Both scenarios re-tested against the real fixture folder (3 items): (1) fresh default fetch (3 items, cached), then max_results=2 -&gt; correctly sliced to exactly 2 (not the prior bug's full 3), then default fetch again -&gt; still 3 (no poisoning). (2) fresh max_results=1 fetch (cached), then default fetch -&gt; correctly treated as a cache miss and returned all 3 (not truncated to 1). <code>DriveFolderCache</code> now tracks <code>rows_fetched</code> per entry and only serves a cache hit when the prior fetch size was &gt;= the current request, mirroring <code>SheetDataCache</code>'s existing sufficiency check. 3 new unit tests added in <code>tests/test_cache.py</code>; all 84 cache tests pass.</p>
 <hr />
 <h3 id="tc-d41-pagination-limit">TC-D41: Pagination limit<a class="headerlink" href="#tc-d41-pagination-limit" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
