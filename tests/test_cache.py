@@ -254,59 +254,78 @@ class TestDriveFolderCache:
         self.files = [{"id": "f1", "name": "doc.docx"}]
 
     def test_miss_returns_none(self):
-        assert self.cache.get("folder", None) is None
+        assert self.cache.get("folder", None, 100) is None
 
     def test_store_and_hit(self):
-        self.cache.store("folder", None, self.files)
-        result = self.cache.get("folder", None)
+        self.cache.store("folder", None, self.files, 100)
+        result = self.cache.get("folder", None, 100)
         assert result == self.files
 
     def test_mime_type_differentiates_keys(self):
-        self.cache.store("folder", "application/pdf", [{"id": "pdf"}])
-        self.cache.store("folder", None, [{"id": "all"}])
-        assert self.cache.get("folder", "application/pdf") == [{"id": "pdf"}]
-        assert self.cache.get("folder", None) == [{"id": "all"}]
+        self.cache.store("folder", "application/pdf", [{"id": "pdf"}], 100)
+        self.cache.store("folder", None, [{"id": "all"}], 100)
+        assert self.cache.get("folder", "application/pdf", 100) == [{"id": "pdf"}]
+        assert self.cache.get("folder", None, 100) == [{"id": "all"}]
 
     def test_dirty_flag_causes_miss(self):
-        self.cache.store("folder", None, self.files)
+        self.cache.store("folder", None, self.files, 100)
         self.cache.mark_dirty("folder")
-        assert self.cache.get("folder", None) is None
+        assert self.cache.get("folder", None, 100) is None
 
     def test_mark_dirty_invalidates_all_mime_types_for_folder(self):
-        self.cache.store("folder", None, self.files)
-        self.cache.store("folder", "image/png", [{"id": "img"}])
+        self.cache.store("folder", None, self.files, 100)
+        self.cache.store("folder", "image/png", [{"id": "img"}], 100)
         self.cache.mark_dirty("folder")
-        assert self.cache.get("folder", None) is None
-        assert self.cache.get("folder", "image/png") is None
+        assert self.cache.get("folder", None, 100) is None
+        assert self.cache.get("folder", "image/png", 100) is None
 
     def test_mark_dirty_leaves_other_folder_intact(self):
-        self.cache.store("f1", None, self.files)
-        self.cache.store("f2", None, [{"id": "other"}])
+        self.cache.store("f1", None, self.files, 100)
+        self.cache.store("f2", None, [{"id": "other"}], 100)
         self.cache.mark_dirty("f1")
-        assert self.cache.get("f1", None) is None
-        assert self.cache.get("f2", None) is not None
+        assert self.cache.get("f1", None, 100) is None
+        assert self.cache.get("f2", None, 100) is not None
 
     def test_mark_all_dirty(self):
-        self.cache.store("f1", None, self.files)
-        self.cache.store("f2", None, self.files)
+        self.cache.store("f1", None, self.files, 100)
+        self.cache.store("f2", None, self.files, 100)
         self.cache.mark_all_dirty()
-        assert self.cache.get("f1", None) is None
-        assert self.cache.get("f2", None) is None
+        assert self.cache.get("f1", None, 100) is None
+        assert self.cache.get("f2", None, 100) is None
 
     def test_ttl_expiry(self):
         cache = DriveFolderCache(db_path=DB, ttl=0)
-        cache.store("folder", None, self.files)
+        cache.store("folder", None, self.files, 100)
         time.sleep(0.01)
-        assert cache.get("folder", None) is None
+        assert cache.get("folder", None, 100) is None
 
     def test_set_ttl_shortens_window_for_existing_entry(self):
-        self.cache.store("folder", None, self.files)
+        self.cache.store("folder", None, self.files, 100)
         self.cache.set_ttl(0)
         time.sleep(0.01)
-        assert self.cache.get("folder", None) is None
+        assert self.cache.get("folder", None, 100) is None
 
     def test_close(self):
         self.cache.close()
+
+    def test_smaller_max_results_request_does_not_ignore_its_own_limit(self):
+        # issue #688 bug 1: a cached larger fetch must be sliced down, not
+        # returned unsliced and over the caller's own requested limit.
+        five_files = [{"id": f"f{i}"} for i in range(5)]
+        self.cache.store("folder", None, five_files, 100)
+        result = self.cache.get("folder", None, 2)
+        assert result == five_files[:2]
+
+    def test_larger_max_results_request_after_smaller_cached_fetch_is_a_miss(self):
+        # issue #688 bug 2: a small-max_results fetch must not poison the
+        # cache for a later, larger request — that's a miss, not a truncated hit.
+        self.cache.store("folder", None, [{"id": "f0"}, {"id": "f1"}], 2)
+        assert self.cache.get("folder", None, 100) is None
+
+    def test_sufficient_prior_fetch_size_hits_and_slices(self):
+        five_files = [{"id": f"f{i}"} for i in range(5)]
+        self.cache.store("folder", None, five_files, 10)
+        assert self.cache.get("folder", None, 5) == five_files
 
 
 class TestDocContentCache:

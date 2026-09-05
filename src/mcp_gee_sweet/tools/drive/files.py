@@ -492,7 +492,7 @@ def register(tool):
         folder_cache = lc.drive_folder_cache
         max_results = min(max(1, max_results), 1000)
 
-        cached = folder_cache.get(folder_id, mime_type)
+        cached = folder_cache.get(folder_id, mime_type, max_results)
         if cached is not None:
             return cached
 
@@ -528,7 +528,7 @@ def register(tool):
                 }
                 for f in results.get("files", [])
             ]
-            folder_cache.store(folder_id, mime_type, files)
+            folder_cache.store(folder_id, mime_type, files, max_results)
             return files
         except Exception as e:
             return [{"error": f"List files failed: {e!s}"}]
