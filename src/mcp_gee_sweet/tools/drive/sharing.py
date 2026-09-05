@@ -72,6 +72,7 @@ def register(tool):
                         fileId=spreadsheet_id,
                         body={"type": "user", "role": role, "emailAddress": email_address},
                         sendNotificationEmail=send_notification,
+                        supportsAllDrives=True,
                         fields="id",
                     )
                     .execute,

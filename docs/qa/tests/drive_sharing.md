@@ -20,6 +20,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Result (2026-09-04) ❌ FAIL**
 share_spreadsheet writer on Shared Drive file -> `{"successes":[],"failures":[{... "error":"Failed to share: File not found: <id>."}]}`. `share_spreadsheet._share_one` calls `permissions().create()` WITHOUT `supportsAllDrives=True` (sharing.py:69-77), unlike share_file (:364) and update/remove/transfer. Every Shared Drive file is invisible to it. Reproduced on throwaway file AND on real {SPREADSHEET_ID}.
 
+**Result (2026-09-05) ✅ PASS** — re-verified against PR #695 (issue #687)
+share_spreadsheet writer on the real Shared Drive fixture -> `{"successes":[{"email_address":"test-recipient@example.com","role":"writer",...}],"failures":[]}`. `supportsAllDrives=True` now set on the `permissions().create()` call; fix confirmed live. Test permission removed after verification.
+
 ---
 
 ### TC-D19: Share as reader
@@ -34,6 +37,9 @@ share_spreadsheet writer on Shared Drive file -> `{"successes":[],"failures":[{.
 **Result (2026-09-04) ❌ FAIL**
 Same supportsAllDrives bug — reader share returns "File not found".
 
+**Result (2026-09-05) ✅ PASS** — re-verified against PR #695 (issue #687)
+Reader share on the real Shared Drive fixture succeeds -> `{"successes":[{"email_address":"test-recipient2@example.com","role":"reader",...}],"failures":[]}`. Test permission removed after verification.
+
 ---
 
 ### TC-D20: Share as commenter
@@ -47,6 +53,9 @@ Same supportsAllDrives bug — reader share returns "File not found".
 
 **Result (2026-09-04) ❌ FAIL**
 Same supportsAllDrives bug — commenter share returns "File not found".
+
+**Result (2026-09-05) ✅ PASS** — re-verified against PR #695 (issue #687)
+Commenter share on the real Shared Drive fixture succeeds -> `{"successes":[{"email_address":"test-recipient3@example.com","role":"commenter",...}],"failures":[]}`. Test permission removed after verification.
 
 ---
 
@@ -91,6 +100,9 @@ Recipient with no email_address -> failures:[{email_address:null, error:"Missing
 **Result (2026-09-04) ❌ FAIL**
 Mixed: invalid-role entry ('superuser') correctly routed to failures; valid@example.com writer entry ALSO in failures ("File not found") due to supportsAllDrives bug, not in successes. Partial-failure batching itself works; API-path recipient blocked.
 
+**Result (2026-09-05) ✅ PASS** — re-verified against PR #695 (issue #687)
+valid@example.com writer -> successes; invalid-role@example.com ('superuser') -> failures with the same invalid-role message as before. Both results present in one response as expected. Test permission removed after verification.
+
 ---
 
 ### TC-D24: send_notification=False
@@ -104,6 +116,9 @@ Mixed: invalid-role entry ('superuser') correctly routed to failures; valid@exam
 
 **Result (2026-09-04) ❌ FAIL**
 send_notification=False -> API path -> "File not found" (supportsAllDrives bug). Cannot verify notification suppression.
+
+**Result (2026-09-05) ⚠️ PASS (with test-case caveat)** — re-verified against PR #695 (issue #687)
+The `supportsAllDrives` bug is fixed, but this test case's own `test@example.com` recipient can't validate it: with `send_notification=False`, Drive rejects a share to any email with no associated Google account ("you must check the Notify people box to invite this recipient") — a real, unrelated API constraint, not a regression. Re-ran against a real Google account (an email the tester controls) instead: share succeeded with `send_notification=False`, confirming the fix. Test-case prompt should be updated to use a real Google-account email rather than `test@example.com` to actually exercise this path in the future.
 
 ---
 
@@ -138,6 +153,9 @@ share_spreadsheet("invalidid123xyz", ...) -> error routed to failures:[{error:"F
 
 **Result (2026-09-04) ❌ FAIL**
 Concurrent 5-recipient share: all 5 -> "File not found" (supportsAllDrives bug). Each failure entry echoes its own email/role correctly (no cross-attribution in the failure list), but the no-cross-attribution check requires successes, which cannot be produced. Blocked.
+
+**Result (2026-09-05) ✅ PASS** — re-verified against PR #695 (issue #687)
+All 5 recipients -> successes, none in failures. `list_permissions` cross-check confirmed exact attribution: recipient1=reader, recipient2=commenter, recipient3=writer, recipient4=reader, recipient5=writer — no cross-attribution. All 5 test permissions removed after verification (teardown complete).
 
 ---
 
