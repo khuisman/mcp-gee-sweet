@@ -177,7 +177,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [x] `CLAUDE.md`'s `convert_markdown` note overstates its download-branch guard as reachable — round-2 review moved that case earlier in the plan-building loop, where it's now classified `conflict`, not `failed`; the guard described is dead defensive code, not live behavior. Found during PR #414's round-3 review, routed to Amy ([#423](https://github.com/khuisman/mcp-gee-sweet/issues/423)) (PR #492)
 
 **v0.9.0 Full Regression QA pass (2026-09-04)** — 623 PASS / 12 FAIL / 38 SKIP / 1 N/A across 674 TCs; see `docs/qa/runs/v0.9.0.md` for the full sign-off. Two real bugs found, both routed to lane B and gating the tag:
-- [ ] `share_spreadsheet` fails with "File not found" on any Shared Drive file — missing `supportsAllDrives=True` on its `permissions().create()` call, the only one in `sharing.py` without it (`ready-for-development`, `lane-b`) ([#687](https://github.com/khuisman/mcp-gee-sweet/issues/687))
+- [x] `share_spreadsheet` fails with "File not found" on any Shared Drive file — missing `supportsAllDrives=True` on its `permissions().create()` call, the only one in `sharing.py` without it (`ready-for-development`, `lane-b`) ([#687](https://github.com/khuisman/mcp-gee-sweet/issues/687)) (PR #695)
 - [ ] Folder-listing cache key omits `max_results` — silent truncation on a cache hit, and a small-limit fetch poisons the cache for later larger-limit calls (`ready-for-development`, `lane-b`) ([#688](https://github.com/khuisman/mcp-gee-sweet/issues/688))
 
 ### v0.9.1 — Post-release defect fixes & infrastructure addons _(target: [v0.9.1](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1), before Tier 3 begins)_
