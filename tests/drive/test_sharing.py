@@ -142,6 +142,20 @@ class TestShareSpreadsheet:
         assert "not-a-dict" in entries
         assert ["also", "not", "a", "dict"] in entries
 
+    async def test_create_call_sets_supports_all_drives(self):
+        """The permissions().create() call must pass supportsAllDrives=True, or
+        sharing fails with 'File not found' on any Shared Drive item — every other
+        permission-mutating call in this module already sets it (issue #687)."""
+        drive = self._drive_svc()
+        ctx = _make_ctx(drive_service=drive)
+        await _sharing_tools["share_spreadsheet"](
+            spreadsheet_id="ss1",
+            recipients=[{"email_address": "alice@example.com", "role": "writer"}],
+            ctx=ctx,
+        )
+        _, kwargs = drive.permissions.return_value.create.call_args
+        assert kwargs["supportsAllDrives"] is True
+
 
 class TestListPermissions:
     """list_permissions maps Drive API camelCase field names to snake_case output."""
