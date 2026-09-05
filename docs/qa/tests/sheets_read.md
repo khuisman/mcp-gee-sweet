@@ -19,6 +19,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Row 6 Totals values are computed (650, 670, 705) — not formula strings
 - No `error` field
 
+**Result (2026-09-04) ✅ PASS**
+6 rows, 4 cols; Totals computed 650/670/705, not formula strings; no error
+
 ---
 
 ### TC-R02: Explicit range
@@ -32,6 +35,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Row 2: Widget, 100, 120
 - Row 3: Gadget, 200, 180
 
+**Result (2026-09-04) ✅ PASS**
+A1:C3 → 3×3, Product/Q1/Q2, Widget/100/120, Gadget/200/180
+
 ---
 
 ### TC-R03: Grid data with an explicit range
@@ -43,6 +49,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Response includes `rowData` field
 - `include_grid_data=True` was passed to the API (visible in raw response structure)
 - Call includes `range="A1:D6"` — no auto-detection probe request happens when a range is given
+
+**Result (2026-09-04) ✅ PASS**
+rowData present; range A1:D6 honored; no auto-detect probe (range given)
 
 ---
 
@@ -59,6 +68,9 @@ Call `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", include_gri
 
 **Result (2026-07-02) ✅ PASS**
 Called live against the actual Sales fixture (`gridProperties: rowCount=3016, columnCount=33`). Response's `rowData` covered exactly the 6x4 used range (header row + Widget/Gadget/Donut/Gizmo + Totals row, matching TC-R01's known fixture content) — confirmed scoped down from the sheet's real 3016x33 padding, not just the smaller 1000x26 default. No error, no truncation.
+
+**Result (2026-09-04) ✅ PASS**
+No range + grid data: rowData scoped to used 6×4 range only (grid is 1000×26); no error/truncation
 
 ---
 
@@ -79,6 +91,9 @@ Tested against a scratch sheet (temp tab, deleted after) rather than formatting 
 `get_sheet_data(include_grid_data=True): the response is 4325100 characters, over the 40000-character safety cap. ... Narrow the range; pass local_path to write the result to disk instead of returning it inline (bypasses this cap); or set MAX_GRID_DATA_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).`
 Exact size (4,325,100 chars) confirms the fetch completed before the check ran, as designed.
 
+**Result (2026-09-04) ✅ PASS**
+Fetch succeeded; size check raised ValueError naming actual size 4,085,918 chars, cap 1,000,000, and narrow-range/local_path/MAX_TOOL_RESPONSE_CHARS options. Cap default is now 1,000,000 (#519); Setup text in test doc citing 40,000 is stale, behavior correct
+
 ---
 
 ### TC-R03d: Grid data with local_path writes to disk instead of returning inline (issue #235)
@@ -94,6 +109,9 @@ Same formatted range as TC-R03c, but call `get_sheet_data(spreadsheet_id={SPREAD
 **Result (2026-07-02) ✅ PASS**
 Same scratch-sheet setup as TC-R03c. Call returned `{"local_path": "/tmp/qa_grid_data_235.json", "spreadsheet_id": "...", "sheet": "SizeTest235d", "range": "SizeTest235d!A1:Z200", "bytes_written": 4325100}` — no error despite exceeding the cap. Verified on disk: file exists, `wc -c` matches `bytes_written` exactly (4,325,100), and contains real `rowData` with formatting. Scratch sheet and temp file both cleaned up afterward.
 
+**Result (2026-09-04) ✅ PASS**
+local_path set → returned {local_path, bytes_written 4,085,918, spreadsheet_id, sheet, range}; file on disk has rowData + formatting
+
 ---
 
 ### TC-R03e: MAX_TOOL_RESPONSE_CHARS raises the cap (issue #235)
@@ -106,6 +124,9 @@ Set `MAX_TOOL_RESPONSE_CHARS=200000` in server config and restart the server (e.
 - Restore `MAX_TOOL_RESPONSE_CHARS` (unset it) after this test
 
 **Result:** ⏳ Pending — not yet live-tested. Unlike TC-R03b-d, this requires a server restart with a changed env var (not just an MCP reconnect), which wasn't done this pass. Covered by unit tests (`test_cap_is_configurable` in `tests/sheets/test_data.py`, `test_env_var_sets_cap_at_import_time` in `tests/test_response_limits.py`) in the meantime. Var renamed from `MAX_GRID_DATA_RESPONSE_CHARS` by issue #242 (generalized to 5 more tools). Note: since issue #519 raised the *shipped* default to 1,000,000, demonstrating configurability now requires setting `MAX_TOOL_RESPONSE_CHARS` below that default (e.g. `200000` as originally written still works) against a range sized to land between the custom cap and whatever the range would otherwise produce uncapped — the "over the default 40,000-character cap" framing in the Setup above is stale (pre-#519); the demonstration itself (env var actually changes behavior) doesn't depend on the specific default value.
+
+**Result (2026-09-04) ⏭️ SKIP**
+Requires server restart with changed MAX_TOOL_RESPONSE_CHARS env var — not possible this pass (pre-existing pending)
 
 ---
 
@@ -126,6 +147,9 @@ If the measured response lands outside the 40,000–1,000,000 band (formatting d
 
 **Result:** ✅ PASS — live-tested against `mcp-gee-sweet-qa-fixtures` (scratch sheet `QA-TC-R38-Scratch`, deleted after). `get_sheet_data(..., include_grid_data=True)` on the formatted A1:Z23 range succeeded with no `ValueError`; response was 428,753 characters (Claude Code's own client-side MCP output cap wrote it to a local file, unrelated to the server's `MAX_TOOL_RESPONSE_CHARS` cap, which was never tripped) — comfortably between the old 40,000 default and the new 1,000,000 default. Confirmed `rowData` present with real formatting (`userEnteredFormat`/`effectiveFormat` showing bold, background color, number format) across all 23 rows, not a manifest/pointer.
 
+**Result (2026-09-04) ✅ PASS**
+Formatted A1:Z23 on scratch sheet; get_sheet_data(grid) returned 428,765-char response with NO server ValueError (between old 40k and new 1M default). Claude Code client-side cap wrote it to a file; rowData + bold:true confirmed present
+
 ---
 
 ### TC-R04: Non-existent sheet name
@@ -136,6 +160,9 @@ If the measured response lands outside the 40,000–1,000,000 band (formatting d
 **Checks**
 - Returns a clear error — not an empty result
 - Error message references the sheet name or indicates it was not found
+
+**Result (2026-09-04) ✅ PASS**
+Nonexistent sheet → HttpError 400 "Unable to parse range: DoesNotExist" — clear error, names the sheet, not empty result (raw HttpError, not friendly {"error"})
 
 ---
 
@@ -148,6 +175,9 @@ If the measured response lands outside the 40,000–1,000,000 band (formatting d
 - Returns a clear API error
 - Does not crash the server or return empty data silently
 
+**Result (2026-09-04) ✅ PASS**
+Invalid spreadsheet ID → HttpError 404 "Requested entity was not found." — no crash, no silent empty
+
 ---
 
 ### TC-R06: Range beyond data bounds
@@ -158,6 +188,9 @@ If the measured response lands outside the 40,000–1,000,000 band (formatting d
 **Checks**
 - Returns empty values, not an error
 - No `error` field — the API accepts out-of-bounds ranges gracefully
+
+**Result (2026-09-04) ✅ PASS**
+A100:Z200 → values: [], no error
 
 ---
 
@@ -170,6 +203,9 @@ If the measured response lands outside the 40,000–1,000,000 band (formatting d
 - Returns 2 rows: header (Date, Note) and data row
 - Sheet name with spaces and `&` resolved correctly
 - Date cell shows today's date (computed from `=TODAY()`)
+
+**Result (2026-09-04) ✅ PASS**
+'Notes & Misc' resolved (spaces + &); 2 rows; date cell computed
 
 ---
 
@@ -184,6 +220,9 @@ If the measured response lands outside the 40,000–1,000,000 band (formatting d
 - Row 6 B–D cells show formula strings: `=SUM(B2:B5)`, `=SUM(C2:C5)`, `=SUM(D2:D5)`
 - Data rows return literal values (100, 200, etc.), not formula strings
 
+**Result (2026-09-04) ✅ PASS**
+Row 6 → =SUM(B2:B5)/=SUM(C2:C5)/=SUM(D2:D5); data rows literal ints
+
 ---
 
 ### TC-R09: Sheet with no formulas
@@ -193,6 +232,9 @@ If the measured response lands outside the 40,000–1,000,000 band (formatting d
 
 **Checks**
 - Returns empty result or empty values — not an error
+
+**Result (2026-09-04) ✅ PASS**
+Empty sheet formulas → []
 
 ---
 
@@ -206,6 +248,9 @@ If the measured response lands outside the 40,000–1,000,000 band (formatting d
 - B2 ("Setup complete") returns a literal string, not a formula
 - No cell returns a computed value where a formula exists
 
+**Result (2026-09-04) ✅ PASS**
+A2 → "=TODAY()"; B2 → "Setup complete" literal
+
 ---
 
 ### TC-R11: No range provided — fetches entire sheet
@@ -217,6 +262,9 @@ If the measured response lands outside the 40,000–1,000,000 band (formatting d
 - All 6 rows returned
 - Formula cells in row 6 show formula strings
 - Equivalent to TC-R08 — confirms default behavior with no range arg
+
+**Result (2026-09-04) ✅ PASS**
+No range → all 6 rows, row 6 formula strings; matches TC-R08
 
 ---
 
@@ -232,6 +280,9 @@ If the measured response lands outside the 40,000–1,000,000 band (formatting d
 - Each result has the correct data for its sheet
 - No `error` field on either result
 
+**Result (2026-09-04) ✅ PASS**
+Two results, correct data per sheet, no errors
+
 ---
 
 ### TC-R13: One query with missing required keys
@@ -242,6 +293,9 @@ If the measured response lands outside the 40,000–1,000,000 band (formatting d
 **Checks**
 - Sales sheet result succeeds
 - Invalid query returns an `error` field — does not crash the other result
+
+**Result (2026-09-04) ✅ PASS**
+Sales ok; 2nd query (no sheet) → error "Missing required keys (spreadsheet_id, sheet)"; first unaffected
 
 ---
 
@@ -254,6 +308,9 @@ If the measured response lands outside the 40,000–1,000,000 band (formatting d
 - Both results have `error` fields
 - Response is a list of two error objects — not a top-level error
 
+**Result (2026-09-04) ✅ PASS**
+Both entries have error fields; list of 2 error objects, not top-level error
+
 ---
 
 ### TC-R15: Empty queries list
@@ -263,6 +320,9 @@ If the measured response lands outside the 40,000–1,000,000 band (formatting d
 
 **Checks**
 - Returns `[]` — empty list, not an error
+
+**Result (2026-09-04) ✅ PASS**
+[]
 
 ---
 
@@ -289,6 +349,9 @@ No fixture setup needed — query 5 different single-cell ranges from the `Sales
 
 **Release-pass note (#673):** this is **within-call** concurrency (`get_multiple_sheet_data` `gather()`s the 5 `.execute()` calls inside one tool call) — a single session exercises it, no barrier procedure needed. The v0.9.0 Full Regression pass re-runs this normally against the release-candidate server (`mcp-gee-sweet-kai-sa`) and records a fresh dated Result, superseding the 2026-07-12 `❌ FAIL` above (kept only as history of the `execute_in_thread` bug).
 
+**Result (2026-09-04) ✅ PASS**
+5 ranges A1/B1/C1/A2/B2 → 5 results in order, each correct (Product/Q1/Q2/Widget/100), zero errors. Fresh pass supersedes 2026-07-12 FAIL
+
 ---
 
 ## `get_multiple_spreadsheet_summary`
@@ -302,6 +365,9 @@ No fixture setup needed — query 5 different single-cell ranges from the `Sales
 - Returns entries for all 3 sheets: Sales, Empty, Notes & Misc
 - Sales entry includes headers (Product, Q1, Q2, Q3) and first data rows
 - Empty sheet entry has empty headers and empty first_rows
+
+**Result (2026-09-04) ✅ PASS**
+All 3 sheets; Sales headers + first rows; Empty headers [] / first_rows []
 
 ---
 
@@ -323,6 +389,9 @@ Create 2 additional throwaway spreadsheets (`QA-Summary-183-B`, `QA-Summary-183-
 **Teardown**
 Delete the 2 throwaway spreadsheets.
 
+**Result (2026-09-04) ✅ PASS**
+3 distinct spreadsheets in one call → 3 entries in order, each title/contents match its own (marker-B / marker-C), no cross-attribution, no errors. Throwaway sheets deleted
+
 ---
 
 ### TC-R17: Cache hit — second call skips API
@@ -334,6 +403,9 @@ Delete the 2 throwaway spreadsheets.
 - Second call returns same data
 - Server logs show `cache hit` for the second call (check `make logs`)
 
+**Result (2026-09-04) ✅ PASS**
+2nd call returns identical data (server log cache-hit line not checkable from QA session)
+
 ---
 
 ### TC-R18: rows_to_fetch=1 — only header returned
@@ -344,6 +416,9 @@ Delete the 2 throwaway spreadsheets.
 **Checks**
 - `headers` contains the header row for Sales
 - `first_rows` is empty (no data rows beyond the header)
+
+**Result (2026-09-04) ✅ PASS**
+rows_to_fetch=1 → headers present, first_rows []
 
 ---
 
@@ -359,6 +434,9 @@ Delete the 2 throwaway spreadsheets.
 
 **Result (2026-07-04) ❌ FAIL, then fixed** On a cold cache, correctly clamped (`data.py:304`'s `max(1, rows_to_fetch)`). On a warm cache, `cache.py:189`'s truncation slice (`first_rows[:rows_to_fetch - 1]`) lacked the same clamp — `rows_to_fetch=0` became `[:-1]` and returned 3 rows instead of an empty list, disagreeing with the cold-cache result for the same input. Filed as [#254](https://github.com/khuisman/mcp-gee-sweet/issues/254), fixed in [#257](https://github.com/khuisman/mcp-gee-sweet/pull/257) (applies the same clamp on the cache-hit path). **Re-verified live (2026-07-05)** after merge: warmed the cache with `rows_to_fetch=5`, then called `rows_to_fetch=0` — `first_rows: []` for Sales, matching cold-cache behavior.
 
+**Result (2026-09-04) ✅ PASS**
+rows_to_fetch=0 clamped to 1: first_rows [] for Sales, same as TC-R18
+
 ---
 
 ### TC-R20: Spreadsheet with empty sheet
@@ -370,6 +448,9 @@ Delete the 2 throwaway spreadsheets.
 - Empty sheet entry: `headers: []`, `first_rows: []`
 - No `error` field for the empty sheet
 - Other sheets unaffected
+
+**Result (2026-09-04) ✅ PASS**
+Empty sheet entry headers [] / first_rows []; no error; other sheets fine
 
 ---
 
@@ -383,6 +464,9 @@ Delete the 2 throwaway spreadsheets.
 - Invalid ID entry has an `error` field
 - Both results present — partial failure, not a top-level error
 
+**Result (2026-09-04) ✅ PASS**
+Valid → normal summary; "invalidid123xyz" → error field; both present
+
 ---
 
 ### TC-R22: Range format verification
@@ -394,6 +478,9 @@ Delete the 2 throwaway spreadsheets.
 - Sales sheet returns header + 2 data rows (rows 2–3)
 - Verify data from columns B, C, D is present — not just column A
 - 🔍 **Product decision:** `A1:3` range format — does the API return all columns or just column A? See [notes-read.md](../../notes-read.md)
+
+**Result (2026-09-04) ✅ PASS**
+rows_to_fetch=3 → Sales header + 2 data rows (Widget, Gadget); cols B/C/D present
 
 ---
 
@@ -408,6 +495,9 @@ Delete the 2 throwaway spreadsheets.
 - Returns at least one match with row/column/value information
 - Match is in the Sales sheet, row 3
 
+**Result (2026-09-04) ✅ PASS**
+Sales A3 "Gadget" (row 3)
+
 ---
 
 ### TC-R24: Match across all sheets
@@ -418,6 +508,9 @@ Delete the 2 throwaway spreadsheets.
 **Checks**
 - Match found in Notes & Misc sheet
 - No sheet filter applied — all sheets searched
+
+**Result (2026-09-04) ✅ PASS**
+Match in 'Notes & Misc' B2; all sheets searched
 
 ---
 
@@ -430,6 +523,9 @@ Delete the 2 throwaway spreadsheets.
 - Returns match for "Gadget" despite case difference
 - Confirms default is case-insensitive
 
+**Result (2026-09-04) ✅ PASS**
+lowercase 'gadget' matched "Gadget" (case-insensitive default)
+
 ---
 
 ### TC-R26: Case-sensitive match
@@ -440,6 +536,9 @@ Delete the 2 throwaway spreadsheets.
 **Checks**
 - Returns no matches (fixture data has "Gadget" with capital G)
 - Confirms case-sensitive flag is respected
+
+**Result (2026-09-04) ✅ PASS**
+case_sensitive=true 'gadget' → []
 
 ---
 
@@ -452,6 +551,9 @@ Delete the 2 throwaway spreadsheets.
 - Returns exactly 2 results (headers Q1, Q2, Q3 would otherwise produce 3+)
 - No more than `max_results` entries in response
 
+**Result (2026-09-04) ✅ PASS**
+'Q' max_results=2 → exactly 2 results
+
 ---
 
 ### TC-R28: No matches
@@ -461,6 +563,9 @@ Delete the 2 throwaway spreadsheets.
 
 **Checks**
 - Returns `[]` — empty list, not an error
+
+**Result (2026-09-04) ✅ PASS**
+'ZZZnoMatch' → []
 
 ---
 
@@ -473,6 +578,9 @@ Delete the 2 throwaway spreadsheets.
 - Returns `[{"error": ...}]` — error entry, not a top-level exception
 - Error message references the sheet name
 
+**Result (2026-09-04) ✅ PASS**
+sheet 'DoesNotExist' → [{"error":"Sheet 'DoesNotExist' not found"}], names the sheet
+
 ---
 
 ### TC-R30: Multiple column matches in same row
@@ -483,6 +591,9 @@ Delete the 2 throwaway spreadsheets.
 **Checks**
 - Returns separate results for Q1, Q2, Q3 in row 1 (each column is its own result)
 - Confirms per-cell result granularity, not per-row
+
+**Result (2026-09-04) ✅ PASS**
+'Q' in Sales → separate results for Q1/Q2/Q3 (per-cell granularity)
 
 ---
 
@@ -513,6 +624,9 @@ Clear `userEnteredFormat` from A1 via `batch_update → repeatCell { cell: {}, f
 **Result (2026-06-20) ✅ PASS**
 - `effectiveFormat.textFormat.bold = true`, `italic = false`, `formattedValue = "Product"`
 
+**Result (2026-09-04) ✅ PASS**
+A1 effectiveFormat.textFormat.bold=true, italic=false, formattedValue "Product"; format cleared in teardown
+
 ---
 
 ### TC-R32: Background color and italic readable via effectiveFormat
@@ -536,6 +650,9 @@ Clear `userEnteredFormat` from B1.
 **Result (2026-06-20) ✅ PASS**
 - `effectiveFormat.textFormat.italic = true`, `bold = false`, `backgroundColor = {red:1, green:0.8980392, blue:0.6}`
 
+**Result (2026-09-04) ✅ PASS**
+B1 effectiveFormat italic=true, bold=false, backgroundColor {red:1,green:0.8980392,blue:0.6}; cleared
+
 ---
 
 ### TC-R33: Number format and formattedValue readable via effectiveFormat
@@ -558,6 +675,9 @@ Clear `userEnteredFormat` from B2.
 **Result (2026-06-20) ✅ PASS**
 - `effectiveFormat.numberFormat = {type:"CURRENCY", pattern:"$#,##0.00"}`, `formattedValue = "$100.00"`, `effectiveValue.numberValue = 100`
 
+**Result (2026-09-04) ✅ PASS**
+B2 numberFormat {CURRENCY, "$#,##0.00"}, formattedValue "$100.00", effectiveValue.numberValue 100; cleared
+
 ---
 
 ### TC-R34: get_multiple_sheet_data — many small queries trips the response-size cap (issue #242)
@@ -573,6 +693,9 @@ No fixture setup needed — repeat the same tiny query (`{spreadsheet_id: {SPREA
 
 **Result (2026-07-03) ✅ PASS**
 200 queries against the small `Sales` range (6 rows x 4 cols) raised: `get_multiple_sheet_data: the response is 150106 characters, over the 40000-character safety cap. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` `local_path` with 2 queries succeeded, returned `{"local_path":"/tmp/qa_multiple_sheet_data_242.json","bytes_written":2048,"query_count":2}`; file verified on disk then cleaned up.
+
+**Result (2026-09-04) ✅ PASS**
+local_path branch: 2 queries → {local_path, bytes_written 440, query_count 2}, file has full per-query results. Cap-trip check (200 queries → ValueError naming 40,000 cap) is stale: #519 raised default to 1,000,000, a ~150k-char 200-query response no longer trips it; cap mechanism itself verified via TC-R03c
 
 ---
 
@@ -592,3 +715,7 @@ Write 10 cells (`Empty!A1:A10`) each containing a ~4,785-character string with a
 
 **Result (2026-07-03) ✅ PASS**
 10 matches (42,491 chars total) raised: `find_in_spreadsheet: the response is 42491 characters, over the 40000-character safety cap. ...` despite being far under the `max_results=50` default — confirming match-count capping alone doesn't bound response size. `local_path` call succeeded: `{"local_path":"/tmp/qa_find_in_spreadsheet_242.json","bytes_written":42491,"spreadsheet_id":"...","query":"PADTEST","match_count":10}`; file verified then cleaned up. Test data cleared from the `Empty` sheet afterward.
+
+**Result (2026-09-04) ⏭️ SKIP**
+Stale: references retired 40,000 cap; ~42k-char 10-match response no longer trips the 1,000,000 default. Cap + local_path mechanism covered by TC-R03c/d. Skipped rather than add fixture churn for no signal
+

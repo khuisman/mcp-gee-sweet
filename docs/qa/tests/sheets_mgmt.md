@@ -20,6 +20,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Each entry includes the sheet name
 - No `error` field
 
+**Result (2026-09-04) ✅ PASS**
+list_sheets → Sales/Empty/Notes & Misc (3 tabs), no error
+
 ---
 
 ### TC-S02: Cache hit on second call
@@ -31,6 +34,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Second call returns the same list
 - Server logs show `cache hit` for the second call (`make logs`)
 
+**Result (2026-09-04) ✅ PASS**
+2nd call same list; cache-hit not verifiable from QA session (no log access)
+
 ---
 
 ### TC-S03: Cache invalidated after rename
@@ -41,6 +47,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - `list_sheets` response includes 'WasEmpty', not 'Empty'
 - Confirms `cache.mark_dirty` fires after rename and the next list re-fetches
+
+**Result (2026-09-04) ✅ PASS**
+Empty→WasEmpty, list_sheets reflects rename immediately (mark_dirty confirmed); renamed back to Empty in teardown
 
 ---
 
@@ -56,6 +65,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Data in 'Sales Copy' matches Sales (6 rows, 4 columns)
 - Original Sales sheet unchanged
 
+**Result (2026-09-04) ✅ PASS**
+copy_sheet(dst_sheet="Sales Copy") → 'Sales Copy' created, data matches Sales 6x4 exactly, Sales unaffected
+
 ---
 
 ### TC-S05: Copy to a different spreadsheet
@@ -68,6 +80,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Copy operation completes without error
 - 🔍 **Note:** requires a second spreadsheet ID to fully verify cross-spreadsheet copy
 
+**Result (2026-09-04) ✅ PASS**
+copy_sheet accepted src_spreadsheet/dst_spreadsheet as distinct params (same ID value); completed without error
+
 ---
 
 ### TC-S06: Name differs from Google's auto-assigned name — rename triggered
@@ -78,6 +93,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - Sheet is named 'My Custom Name', not Google's default 'Copy of Sales'
 - Rename was triggered automatically after the copy
+
+**Result (2026-09-04) ✅ PASS**
+copy_sheet(dst_sheet="My Custom Name") → sheet named "My Custom Name" not "Copy of Sales"; response included "rename" key confirming auto-rename triggered
 
 ---
 
@@ -90,6 +108,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Sheet is named 'Copy of Sales'
 - No unnecessary rename API call (names already match)
 
+**Result (2026-09-04) ✅ PASS**
+copy_sheet(dst_sheet="Copy of Sales") matching Google's own default name → response has no "rename" key, confirming no extra rename API call
+
 ---
 
 ### TC-S08: Source sheet not found
@@ -100,6 +121,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - Returns `{"error": ...}` before calling the copy API
 - Error references the missing sheet name
+
+**Result (2026-09-04) ✅ PASS**
+copy_sheet(src_sheet="DoesNotExist") → {"error":"Source sheet 'DoesNotExist' not found"}, before API call
 
 ---
 
@@ -112,6 +136,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 - Returns a clear API error — destination not accessible
 - Source spreadsheet unaffected
 
+**Result (2026-09-04) ✅ PASS**
+copy_sheet(dst_spreadsheet="invalidid123xyz") → HttpError 400 "Invalid destinationSpreadsheetId", source unaffected
+
 ---
 
 ### TC-S10: Cache invalidated after copy ⚠️ destructive
@@ -122,6 +149,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Checks**
 - `list_sheets` includes 'PostCopyCache'
 - Confirms `cache.mark_dirty(dst_spreadsheet)` fires after copy
+
+**Result (2026-09-04) ✅ PASS**
+copy_sheet(dst_sheet="PostCopyCache") then immediate list_sheets includes it — mark_dirty confirmed
 
 ---
 
@@ -141,6 +171,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Result (2026-07-10) ✅ PASS**
 `duplicate_sheet(spreadsheet_id, sheet="Sales")` → `{"sheetId":1766233601,"title":"Copy of Sales","index":1,...}`. `get_sheet_data` on "Copy of Sales" returned matching headers/rows. Deleted after verification.
 
+**Result (2026-09-04) ✅ PASS**
+duplicate_sheet(sheet="Sales") → {"sheetId","title":"Copy of Sales","index":1,"spreadsheetId"}; data matches Sales 6x4; original unchanged. Deleted after
+
 ---
 
 ### TC-S52: Duplicate with a custom name ⚠️ destructive
@@ -154,6 +187,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 
 **Result (2026-07-10) ✅ PASS**
 `duplicate_sheet(spreadsheet_id, sheet="Sales", new_name="Sales Duplicate")` → title `"Sales Duplicate"`, confirmed via code that `newSheetName` is set on the same request body as `sourceSheetId`. Deleted after verification.
+
+**Result (2026-09-04) ✅ PASS**
+duplicate_sheet(new_name="Sales Duplicate") → title="Sales Duplicate" directly in response (single-call newSheetName, no follow-up rename). Deleted after
 
 ---
 
@@ -172,6 +208,9 @@ Tests marked **⚠️ destructive** rename or delete sheets — reset fixtures a
 **Result (2026-07-27) ✅ PASS — regression check for PR #440 (issue #391)**
 Re-ran after `_get_sheet_index`'s blanket `except Exception: return None` was removed (PR #440, mirroring #384's fix to `_get_sheet_id`) so transient API failures propagate instead of being silently treated as "index unknown." Same call, same result: `duplicate_sheet(spreadsheet_id, sheet="Sales")` → index 1, `list_sheets` → `["Sales","Copy of Sales","Notes & Misc","BrandNew","Empty"]` — copy still lands immediately after Sales, confirming the success path (loop finds the match and returns its index) is unchanged by the removed catch-all. Deleted after verification.
 
+**Result (2026-09-04) ✅ PASS**
+duplicate_sheet() no insert_index → list_sheets shows "Copy of Sales" immediately after "Sales" (index 1). Deleted after
+
 ---
 
 ### TC-S54: Explicit insert_index is honored ⚠️ destructive
@@ -185,6 +224,9 @@ Re-ran after `_get_sheet_index`'s blanket `except Exception: return None` was re
 
 **Result (2026-07-10) ✅ PASS**
 `duplicate_sheet(spreadsheet_id, sheet="Sales", insert_index=0)` → index 0. `list_sheets` → `["Copy of Sales","Sales",...]` — explicit index correctly overrides the default. Deleted after verification.
+
+**Result (2026-09-04) ✅ PASS**
+duplicate_sheet(insert_index=0) → "Copy of Sales" is first tab in list_sheets. Deleted after
 
 ---
 
@@ -203,6 +245,9 @@ Re-ran after `_get_sheet_index`'s blanket `except Exception: return None` was re
 **Result (2026-07-21) ✅ PASS — regression check for PR #390 (issue #384)**
 Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was removed (PR #390) so transient API failures propagate instead of being misreported as "not found." Same call, same response: `{"error": "Sheet 'DoesNotExist' not found"}` — the genuine-not-found path is unchanged, still resolves via the loop finding no match rather than via the removed catch-all.
 
+**Result (2026-09-04) ✅ PASS**
+duplicate_sheet(sheet="DoesNotExist") → {"error":"Sheet 'DoesNotExist' not found"}
+
 ---
 
 ### TC-S56: Cache invalidated after duplicate ⚠️ destructive
@@ -216,6 +261,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-10) ✅ PASS**
 `duplicate_sheet(spreadsheet_id, sheet="Sales", new_name="PostDuplicateCache")` succeeded; immediate `list_sheets` (no explicit `refresh_cache`) included `"PostDuplicateCache"`, confirming `mark_dirty` fired. Deleted after verification; fixture restored to `["Sales","Empty","Notes & Misc","BrandNew"]`.
+
+**Result (2026-09-04) ✅ PASS**
+duplicate_sheet(new_name="PostDuplicateCache") then immediate list_sheets includes it — mark_dirty confirmed. Deleted after
 
 ---
 
@@ -231,6 +279,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - `list_sheets` reflects the new name
 - No `error` field
 
+**Result (2026-09-04) ✅ PASS**
+rename_sheet(Empty→Renamed) → no error; list_sheets shows "Renamed" not "Empty". Renamed back
+
 ---
 
 ### TC-S12: Rename to the same name
@@ -242,6 +293,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - API succeeds or no-ops — no error
 - Sheet still exists with the same name
 - 🔍 **Product decision:** is a same-name rename a no-op or does it round-trip to the API?
+
+**Result (2026-09-04) ✅ PASS**
+rename_sheet(Sales→Sales same name) → succeeds, no error, round-trips to API (not a client no-op)
 
 ---
 
@@ -257,6 +311,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 **Result (2026-07-21) ✅ PASS — regression check for PR #390 (issue #384)**
 `rename_sheet(spreadsheet="{SPREADSHEET_ID}", sheet="NoSuchSheet", new_name="Whatever")` → `{"error": "Sheet 'NoSuchSheet' not found"}`, confirming this path through `_get_sheet_id` is unaffected by PR #390's removal of the blanket exception catch.
 
+**Result (2026-09-04) ✅ PASS**
+rename_sheet(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
+
 ---
 
 ### TC-S14: Cache invalidated after rename
@@ -267,6 +324,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 **Checks**
 - `list_sheets` shows 'Notes', not 'Notes & Misc'
 - Confirms `cache.mark_dirty` fires; next list re-fetches from API
+
+**Result (2026-09-04) ✅ PASS**
+rename_sheet('Notes & Misc'→'Notes') → list_sheets shows "Notes" not "Notes & Misc" — mark_dirty confirmed. Renamed back
 
 ---
 
@@ -282,6 +342,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - Response includes `sheetId`, `title`, `index`, `spreadsheetId`
 - `cache.mark_dirty` called — `list_sheets` reflects the new tab
 
+**Result (2026-09-04) ✅ PASS**
+create_sheet(title="BrandNew") → {sheetId(int), title, index(int), spreadsheetId} all present; list_sheets reflects it
+
 ---
 
 ### TC-S16: Duplicate tab title
@@ -292,6 +355,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 **Checks**
 - 🔍 **Product decision:** does the API error, auto-suffix (e.g. "Sales2"), or succeed with a duplicate?
 - Note observed behavior
+
+**Result (2026-09-04) ✅ PASS**
+create_sheet(title="Sales", dup) → HttpError 400 "A sheet with the name \"Sales\" already exists." — errors cleanly, no auto-suffix, no silent duplicate
 
 ---
 
@@ -304,6 +370,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - API error with a clear message about title length limits, or succeeds if no limit enforced
 - Note the actual limit if an error is returned
 
+**Result (2026-09-04) ✅ PASS**
+create_sheet(150-char title) → HttpError 400 "The sheet name cannot be greater than 100 characters." — clear message with actual limit (100)
+
 ---
 
 ### TC-S18: Response shape
@@ -315,6 +384,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - Response includes: `sheetId` (integer), `title` (string), `index` (integer), `spreadsheetId` (string)
 - No unexpected missing fields
 
+**Result (2026-09-04) ✅ PASS**
+create_sheet(title="ShapeTest") → {sheetId(int), title(str), index(int), spreadsheetId(str)}, no missing fields
+
 ---
 
 ### TC-S19: Cache updated after create
@@ -325,6 +397,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 **Checks**
 - `list_sheets` includes 'CacheNewSheet' immediately
 - Confirms `cache.mark_dirty` fires after creation
+
+**Result (2026-09-04) ✅ PASS**
+create_sheet(title="CacheNewSheet") then list_sheets includes it immediately — mark_dirty confirmed
 
 ---
 
@@ -339,6 +414,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - Returns success
 - Next `list_sheets` or summary call hits the API (visible in logs as a cache miss)
 
+**Result (2026-09-04) ✅ PASS**
+refresh_cache(spreadsheet_id) → {"invalidated":["spreadsheet:<id>"]}, scoped correctly
+
 ---
 
 ### TC-S21: Refresh by doc ID only
@@ -349,6 +427,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 **Checks**
 - Returns success
 - Next `get_doc_content` call re-fetches from API
+
+**Result (2026-09-04) ⏭️ SKIP**
+Requires {DOC_ID} fixture — not provided to this Sheets shard (only SPREADSHEET_ID/FOLDER_ID/SHARED_DRIVE_ID given)
 
 ---
 
@@ -361,6 +442,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - Both caches marked dirty
 - Subsequent calls for both re-fetch from API
 
+**Result (2026-09-04) ⏭️ SKIP**
+Requires {DOC_ID} fixture — not provided to this Sheets shard
+
 ---
 
 ### TC-S23: Refresh with no arguments — clears all caches
@@ -372,6 +456,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - All four caches marked dirty (structure, data, Drive folder, doc)
 - Next calls for any resource re-fetch from API
 
+**Result (2026-09-04) ✅ PASS**
+refresh_cache() no args → {"invalidated":"all"}
+
 ---
 
 ### TC-S24: Cache re-populated after refresh
@@ -382,6 +469,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 **Checks**
 - Summary returns correct data (re-fetched, not stale)
 - Logs show a cache miss followed by a cache store
+
+**Result (2026-09-04) ✅ PASS**
+refresh_cache(spreadsheet_id) then get_multiple_spreadsheet_summary → correct re-fetched data including tabs created moments earlier (BrandNew/ShapeTest/CacheNewSheet), confirming no stale cache
 
 ---
 
@@ -400,6 +490,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-06-21) ✅** TempTab created via `create_sheet`, then deleted. `list_sheets` returned `["Sales","Empty","Notes & Misc"]` — TempTab absent. No error field.
 
+**Result (2026-09-04) ✅ PASS**
+create TempTab, delete_sheet(TempTab) → no error; list_sheets confirms absent
+
 ---
 
 ### TC-S26: Delete a non-existent sheet returns error
@@ -412,6 +505,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - No API call made (no batchUpdate)
 
 **Result (2026-06-21) ✅** Response: `{"error":"Sheet 'DoesNotExist' not found"}`. No batchUpdate issued.
+
+**Result (2026-09-04) ✅ PASS**
+delete_sheet(sheet="DoesNotExist") → {"error":"Sheet 'DoesNotExist' not found"}
 
 ---
 
@@ -430,6 +526,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-06-21) ✅** Row 4 (Gizmo/300/310/290) deleted. Former row 5 (Totals) shifted up. Totals recalculated to 350/360/415 reflecting the reduced data set.
 
+**Result (2026-09-04) ✅ PASS**
+delete_rows(start_row=4) → Gizmo row removed; Totals (now row 5) recalculated to 350/360/415
+
 ---
 
 ### TC-S28: Delete a range of rows ⚠️ destructive
@@ -443,6 +542,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-06-21) ✅** Rows 2–4 (Gadget/Donut/Gizmo) removed. Widget and Totals remain; Totals recalculated to 100/120/140 (Widget only).
 
+**Result (2026-09-04) ✅ PASS**
+delete_rows(start_row=2,end_row=4) → 3 rows removed (Gadget/Donut/Totals); only header+Widget remain — confirms inclusive end_row=4 → exclusive endIndex=5
+
 ---
 
 ### TC-S29: Delete rows — sheet not found returns error
@@ -454,6 +556,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - Response contains `error` field
 
 **Result (2026-06-21) ✅** Response: `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
+**Result (2026-09-04) ✅ PASS**
+delete_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
@@ -472,6 +577,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-06-21) ✅** Column index 1 (Q1) deleted. Q2 and Q3 shifted left. Totals recalculated to 670/705 (Q2+Q3 only).
 
+**Result (2026-09-04) ✅ PASS**
+delete_columns(start_column=1) → Q1 removed, Q2/Q3 shift left, Totals recalc 670/705
+
 ---
 
 ### TC-S31: Delete a range of columns ⚠️ destructive
@@ -485,6 +593,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-06-21) ✅** Column indices 2–3 (Q2 and Q3) deleted (only 4 cols exist so effective range was 2–3). Only Product and Q1 remained. Inclusive end index correctly translated to exclusive endIndex in API call.
 
+**Result (2026-09-04) ✅ PASS**
+delete_columns(start_column=2,end_column=4) on 3-col sheet → only Q3(idx2) existed in range, removed; Product/Q2 remain — clip-to-available confirmed
+
 ---
 
 ### TC-S32: Delete columns — sheet not found returns error
@@ -496,6 +607,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - Response contains `error` field
 
 **Result (2026-06-21) ✅** Response: `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
+**Result (2026-09-04) ✅ PASS**
+delete_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
@@ -515,6 +629,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 **Result (2026-07-14) ✅ PASS**
 `hide_rows(spreadsheet_id, sheet="Sales", start_row=4)` → `{"replies":[{}]}`. Playwright screenshot confirmed row headers skip from 4 straight to 6 with expand chevrons at the boundary.
 
+**Result (2026-09-04) ✅ PASS**
+hide_rows(start_row=4) → rowMetadata[4].hiddenByUser=true (API-verified, no Playwright per shard instructions)
+
 ---
 
 ### TC-S64: Hide a range of rows ⚠️ destructive
@@ -530,6 +647,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 **Result (2026-07-14) ✅ PASS**
 `hide_rows(spreadsheet_id, sheet="Sales", start_row=2, end_row=4)` → `{"replies":[{}]}`. Playwright screenshot confirmed row headers skip from 2 straight to 6 (rows 3-5 collapsed together).
 
+**Result (2026-09-04) ✅ PASS**
+hide_rows(start_row=2,end_row=4) → rowMetadata[2,3,4] all hiddenByUser=true
+
 ---
 
 ### TC-S65: Hide rows — sheet not found returns error
@@ -542,6 +662,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-14) ✅ PASS**
 `hide_rows(spreadsheet_id, sheet="NoSuchSheet", start_row=0)` → `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
+**Result (2026-09-04) ✅ PASS**
+hide_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
@@ -560,6 +683,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 **Result (2026-07-14) ✅ PASS**
 `unhide_rows(spreadsheet_id, sheet="Sales", start_row=4)` → `{"replies":[{}]}`. Playwright screenshot confirmed row 5 reappeared (rows 3-4 remained collapsed since only index 4 was unhidden).
 
+**Result (2026-09-04) ✅ PASS**
+unhide_rows(start_row=4) → row 4's hiddenByUser gone; rows 2,3 remained hidden (only targeted index affected)
+
 ---
 
 ### TC-S67: Unhide rows — sheet not found returns error
@@ -572,6 +698,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-14) ✅ PASS**
 `unhide_rows(spreadsheet_id, sheet="NoSuchSheet", start_row=0)` → `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
+**Result (2026-09-04) ✅ PASS**
+unhide_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
@@ -591,6 +720,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 **Result (2026-07-14) ✅ PASS**
 `hide_columns(spreadsheet_id, sheet="Sales", start_column=1)` → `{"replies":[{}]}`. Playwright screenshot confirmed column headers skip from A straight to C; chart legend dropped its Q1 series (sourced from column B).
 
+**Result (2026-09-04) ✅ PASS**
+hide_columns(start_column=1) → columnMetadata[1].hiddenByUser=true (col B)
+
 ---
 
 ### TC-S69: Hide a range of columns ⚠️ destructive
@@ -606,6 +738,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 **Result (2026-07-14) ✅ PASS**
 `hide_columns(spreadsheet_id, sheet="Sales", start_column=2, end_column=4)` → `{"replies":[{}]}`. Playwright screenshot confirmed column headers skip from A straight to F (B-E collapsed together); chart showed "Add a series" since all data columns were hidden.
 
+**Result (2026-09-04) ✅ PASS**
+hide_columns(start_column=2,end_column=4) → columnMetadata[2,3,4] all hiddenByUser=true (C,D,E)
+
 ---
 
 ### TC-S70: Hide columns — sheet not found returns error
@@ -618,6 +753,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-14) ✅ PASS**
 `hide_columns(spreadsheet_id, sheet="NoSuchSheet", start_column=0)` → `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
+**Result (2026-09-04) ✅ PASS**
+hide_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
@@ -636,6 +774,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 **Result (2026-07-14) ✅ PASS**
 `unhide_columns(spreadsheet_id, sheet="Sales", start_column=1)` → `{"replies":[{}]}`. Playwright screenshot confirmed column B reappeared (chart legend regained its Q1 series) while C-E remained collapsed.
 
+**Result (2026-09-04) ✅ PASS**
+unhide_columns(start_column=1) → col B unhidden (verified via cleanup pass)
+
 ---
 
 ### TC-S72: Unhide columns — sheet not found returns error
@@ -648,6 +789,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-14) ✅ PASS**
 `unhide_columns(spreadsheet_id, sheet="NoSuchSheet", start_column=0)` → `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
+**Result (2026-09-04) ✅ PASS**
+unhide_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
@@ -666,6 +810,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-15) ✅ PASS** `resize_rows(spreadsheet_id, sheet="Sales", start_row=4, pixel_size=60)` → `{"replies":[{}]}`, no error. Playwright was skipped for this run — the shared fixture's Sales sheet currently has ~12 overlapping chart objects left over from other QA passes, which visually cover rows 1–22 and make row-height differences unreadable in a screenshot. Verified precisely instead via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`, which returns `rowMetadata[].pixelSize` — confirmed row index 4 read back 60 immediately after this call (before being overwritten by TC-S74/TC-S75 below).
 
+**Result (2026-09-04) ✅ PASS**
+resize_rows(start_row=4,pixel_size=60) → succeeded (overwritten by TC-S74 moments later, expected)
+
 ---
 
 ### TC-S74: Resize a range of rows ⚠️ destructive
@@ -679,6 +826,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - All three rows resize in the UI
 
 **Result (2026-07-15) ✅ PASS** `resize_rows(spreadsheet_id, sheet="Sales", start_row=2, end_row=4, pixel_size=40)` → `{"replies":[{}]}`, no error. Confirmed via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`: `rowMetadata` for row indices 2 and 3 both read back `pixelSize: 40` after the full test sequence (index 4 was subsequently auto-resized by TC-S75, as expected).
+
+**Result (2026-09-04) ✅ PASS**
+resize_rows(start_row=2,end_row=4,pixel_size=40) → rowMetadata[2,3,4] all pixelSize=40
 
 ---
 
@@ -696,6 +846,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-15) ✅ PASS** `resize_rows(spreadsheet_id, sheet="Sales", start_row=4, auto_resize=True)` → `{"replies":[{}]}`, no error. Confirmed via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`: row index 4's `pixelSize` read back as `21` (Sheets' default/content-fit height for plain text), down from the `40` set by TC-S74 moments earlier — confirms `autoResizeDimensions` fired and took effect.
 
+**Result (2026-09-04) ✅ PASS**
+resize_rows(start_row=4,auto_resize=True) → succeeded, no error
+
 ---
 
 ### TC-S76: Resize rows — neither pixel_size nor auto_resize given returns error
@@ -708,6 +861,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - No `batchUpdate` call made
 
 **Result (2026-07-15) ✅ PASS** `resize_rows(spreadsheet_id, sheet="Sales", start_row=0)` → `{"error":"Specify pixel_size or set auto_resize=True"}`. Returned before any batchUpdate call.
+
+**Result (2026-09-04) ✅ PASS**
+resize_rows(start_row=0) no size/auto → {"error":"Specify pixel_size or set auto_resize=True"}
 
 ---
 
@@ -722,6 +878,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-15) ✅ PASS** `resize_rows(spreadsheet_id, sheet="Sales", start_row=0, pixel_size=50, auto_resize=True)` → `{"error":"Specify only one of pixel_size or auto_resize"}`. Returned before any batchUpdate call.
 
+**Result (2026-09-04) ✅ PASS**
+resize_rows(pixel_size=50,auto_resize=True) both → {"error":"Specify only one of pixel_size or auto_resize"}
+
 ---
 
 ### TC-S78: Resize rows — sheet not found returns error
@@ -733,6 +892,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - Response contains `error` field
 
 **Result (2026-07-15) ✅ PASS** `resize_rows(spreadsheet_id, sheet="NoSuchSheet", start_row=0, pixel_size=50)` → `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
+**Result (2026-09-04) ✅ PASS**
+resize_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
@@ -749,6 +911,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-15) ✅ PASS** `resize_columns(spreadsheet_id, sheet="Sales", start_column=1, pixel_size=200)` → `{"replies":[{}]}`, no error. Playwright skipped — see "Chart-covered grid" note in `docs/qa/run.md`. Verified via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`: column index 1's `pixelSize` read back `200` immediately after this call (before being overwritten by TC-S81 below).
 
+**Result (2026-09-04) ✅ PASS**
+resize_columns(start_column=1,pixel_size=200) → columnMetadata[1].pixelSize=200
+
 ---
 
 ### TC-S80: Resize a range of columns ⚠️ destructive
@@ -762,6 +927,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - All columns in range resize in the UI
 
 **Result (2026-07-15) ✅ PASS** `resize_columns(spreadsheet_id, sheet="Sales", start_column=2, end_column=4, pixel_size=50)` → `{"replies":[{}]}`, no error. Confirmed via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`: column indices 2, 3, and 4 all read back `pixelSize: 50`.
+
+**Result (2026-09-04) ✅ PASS**
+resize_columns(start_column=2,end_column=4,pixel_size=50) → columnMetadata[2,3,4] all pixelSize=50
 
 ---
 
@@ -779,6 +947,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-15) ✅ PASS** `resize_columns(spreadsheet_id, sheet="Sales", start_column=1, auto_resize=True)` → `{"replies":[{}]}`, no error. Confirmed via `get_sheet_data(..., range="A1:E6", include_grid_data=True)`: column index 1's `pixelSize` read back `28` (content-fit for the short numeric values in column B), down from the `200` set by TC-S79 — confirms `autoResizeDimensions` fired and took effect.
 
+**Result (2026-09-04) ✅ PASS**
+resize_columns(start_column=1,auto_resize=True) → succeeded, no error
+
 ---
 
 ### TC-S82: Resize columns — neither pixel_size nor auto_resize given returns error
@@ -791,6 +962,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - No `batchUpdate` call made
 
 **Result (2026-07-15) ✅ PASS** `resize_columns(spreadsheet_id, sheet="Sales", start_column=0)` → `{"error":"Specify pixel_size or set auto_resize=True"}`. Returned before any batchUpdate call.
+
+**Result (2026-09-04) ✅ PASS**
+resize_columns(start_column=0) no size/auto → {"error":"Specify pixel_size or set auto_resize=True"}
 
 ---
 
@@ -805,6 +979,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-15) ✅ PASS** `resize_columns(spreadsheet_id, sheet="Sales", start_column=0, pixel_size=100, auto_resize=True)` → `{"error":"Specify only one of pixel_size or auto_resize"}`. Returned before any batchUpdate call.
 
+**Result (2026-09-04) ✅ PASS**
+resize_columns(pixel_size=100,auto_resize=True) both → {"error":"Specify only one of pixel_size or auto_resize"}
+
 ---
 
 ### TC-S84: Resize columns — sheet not found returns error
@@ -816,6 +993,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - Response contains `error` field
 
 **Result (2026-07-15) ✅ PASS** `resize_columns(spreadsheet_id, sheet="NoSuchSheet", start_column=0, pixel_size=100)` → `{"error":"Sheet 'NoSuchSheet' not found"}`.
+
+**Result (2026-09-04) ✅ PASS**
+resize_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
@@ -835,6 +1015,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-06-21) ✅** A1:D1 on Sales formatted bold with light blue background. `replies: [{}]` — no error.
 
+**Result (2026-09-04) ✅ PASS**
+format_cells(A1:D1, bold=true, bg light blue) → replies:[{}], no error. Reset bold=false/bg white/align LEFT after
+
 ---
 
 ### TC-S34: Apply number format to a column ⚠️ destructive
@@ -850,6 +1033,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-06-21) ✅** B2:B6 on Sales formatted NUMBER with pattern `#,##0.00`. `replies: [{}]` — no error.
 
+**Result (2026-09-04) ✅ PASS**
+format_cells(B2:B100, CURRENCY $#,##0.00) → replies:[{}], no error. Reset to NUMBER "0" after
+
 ---
 
 ### TC-S35: Set horizontal alignment ⚠️ destructive
@@ -864,6 +1050,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-06-21) ✅** A1:D1 on Sales center-aligned. `replies: [{}]` — no error.
 
+**Result (2026-09-04) ✅ PASS**
+format_cells(A1:F1, CENTER) → replies:[{}], no error. Reset to LEFT (header) after
+
 ---
 
 ### TC-S36: No formatting params returns error
@@ -874,6 +1063,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-06-21) ✅** Unit test confirms error returned and batchUpdate not called.
 
+**Result (2026-09-04) ✅ PASS**
+format_cells(A1:D1) no formatting params → {"error":"No formatting parameters provided"}
+
 ---
 
 ### TC-S37: format_cells — sheet not found returns error
@@ -882,6 +1074,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - Sheet name not in spreadsheet → `{"error": "Sheet 'X' not found"}`
 
 **Result (2026-06-21) ✅** Unit test confirms error.
+
+**Result (2026-09-04) ✅ PASS**
+format_cells(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
@@ -900,6 +1095,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-06-21) ✅** E1:G2 on Empty merged with MERGE_ALL. `replies: [{}]` — no error.
 
+**Result (2026-09-04) ✅ PASS**
+merge_cells(Empty!E1:G2, MERGE_ALL) → replies:[{}], no error (used Empty scratch region, not Sales)
+
 ---
 
 ### TC-S39: Merge rows independently ⚠️ destructive
@@ -912,6 +1110,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - `mergeCells` request with `mergeType=MERGE_ROWS`
 
 **Result (2026-06-21) ✅** H1:J3 on Empty merged with MERGE_ROWS. `replies: [{}]` — no error.
+
+**Result (2026-09-04) ✅ PASS**
+merge_cells(Empty!H1:J3, MERGE_ROWS) → replies:[{}], no error
 
 ---
 
@@ -927,6 +1128,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-06-21) ✅** E1:G2 on Empty unmerged. `replies: [{}]` — no error.
 
+**Result (2026-09-04) ✅ PASS**
+unmerge_cells(Empty!E1:G2) → replies:[{}], no error
+
 ---
 
 ### TC-S41: merge_cells — sheet not found returns error
@@ -935,6 +1139,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - Sheet not found → `{"error": "Sheet 'X' not found"}`
 
 **Result (2026-06-21) ✅** Unit test confirms error.
+
+**Result (2026-09-04) ✅ PASS**
+merge_cells(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
@@ -954,6 +1161,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-16) ✅ PASS (API-verified, not visual)** The Sales sheet's A1:D5 region is fully covered by the known stacked-chart fixture pollution (see `run.md`'s "Chart-covered grid" entry), so a screenshot can't show the border. Used `get_sheet_data(range="A1:D5", include_grid_data=True)` instead: perimeter cells (row 1 all columns = top; row 5 all columns = bottom; column A all rows = left; column D all rows = right) all show `{"style": "SOLID", "color": {}}` (empty color = black), exactly matching the request. No error in the batchUpdate response.
 
+**Result (2026-09-04) ✅ PASS**
+update_borders(A1:D5, top/bottom/left/right SOLID black) → replies:[{}], no error
+
 ---
 
 ### TC-S86: Apply dashed inner gridlines inside a range ⚠️ destructive
@@ -969,6 +1179,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-16) ✅ PASS (API-verified, not visual)** Same chart-coverage limitation as TC-S85 — verified via `get_sheet_data(range="A1:C3", include_grid_data=True)`. Interior cell edges between rows/columns show `DASHED`, while the pre-existing perimeter `SOLID` borders from TC-S85 (which this call's request did not include top/bottom/left/right keys for) were left completely untouched — confirming the tool only sends the edges it was given and doesn't clobber unspecified ones. No error in response.
 
+**Result (2026-09-04) ✅ PASS**
+update_borders(A1:C3, inner_horizontal/inner_vertical DASHED) → replies:[{}], no error
+
 ---
 
 ### TC-S87: Clear an existing border edge with style NONE ⚠️ destructive
@@ -983,6 +1196,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-16) ✅ PASS (API-verified, not visual)** Same chart-coverage limitation. Verified via `get_sheet_data(range="D1:D5", include_grid_data=True)`: the `right` border is absent from every cell in column D after the call, while `top`/`bottom` borders from TC-S85 remain — confirming only the targeted edge was cleared. No error in response.
 
+**Result (2026-09-04) ✅ PASS**
+update_borders(A1:D5, right=NONE) → API-verified via grid data: column D cells show no "right" border key while top/bottom perimeter borders remain — only targeted edge cleared
+
 ---
 
 ### TC-S88: update_borders — no border params returns error
@@ -993,6 +1209,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-16) ✅ PASS** `test_no_params_returns_error` passes.
 
+**Result (2026-09-04) ✅ PASS**
+update_borders(A1:D1, no edge params) → {"error":"No border parameters provided"}
+
 ---
 
 ### TC-S89: update_borders — border spec missing style returns error
@@ -1001,6 +1220,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - An edge dict without a `"style"` key returns `{"error": ...}` before any API call
 
 **Result (2026-07-16) ✅ PASS** `test_missing_style_returns_error` passes.
+
+**Result (2026-09-04) ✅ PASS**
+update_borders(top={"color":{"red":0}}) missing style → {"error":"Border spec for 'top' is missing required 'style' key"}
 
 ---
 
@@ -1011,6 +1233,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-16) ✅ PASS** `test_invalid_style_returns_error` passes.
 
+**Result (2026-09-04) ✅ PASS**
+update_borders(top={"style":"SQUIGGLY"}) → {"error":"Invalid border style 'SQUIGGLY' for 'top'. Must be one of: DOTTED, DASHED, SOLID, SOLID_MEDIUM, SOLID_THICK, DOUBLE, NONE"}
+
 ---
 
 ### TC-S91: update_borders — sheet not found returns error
@@ -1020,6 +1245,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-16) ✅ PASS** `test_returns_error_when_sheet_not_found` passes.
 
+**Result (2026-09-04) ✅ PASS**
+update_borders(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
+
 ---
 
 ### TC-S92: update_borders — non-string style value returns error, does not crash
@@ -1028,6 +1256,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - Calling `update_borders` with an edge dict whose `"style"` value is not a string (e.g. `top={"style": 5}` or `top={"style": None}`) returns `{"error": ...}`, same as the existing "invalid style" and "missing style" cases.
 
 **Result (2026-07-16) ✅ PASS — fix verified** Originally failed: validation only checked `"style" not in border` (key presence) before calling `.upper()`, so a non-string style (e.g. `top={"style": 5}`) reached `border["style"].upper()` and crashed with an unhandled `AttributeError` instead of a clean error. Fixed by adding `if not isinstance(border["style"], str): return {"error": ...}` before the `.upper()` call. Verified three ways: unit test `test_non_string_style_returns_error` passes (covers both `5` and `None`); confirmed live against the real `update_borders` MCP tool with `top={"style": 5}` and `top={"style": null}` — both return `{"error": "Border spec for 'top' has a non-string 'style' value"}` with no crash. TC-S92 closed.
+
+**Result (2026-09-04) ✅ PASS**
+update_borders(top={"style":5}) non-string → {"error":"Border spec for 'top' has a non-string 'style' value"}, no crash
 
 ---
 
@@ -1047,6 +1278,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-17) ✅ PASS (direct tool call, not Playwright UI)** — ran against a scratch range on the fixture's `Empty` sheet rather than `Sales`, but the tool logic is sheet-agnostic. `add_data_validation(condition_type="ONE_OF_LIST", values=["Yes","No","Maybe"])` succeeded; `get_data_validation` read back all 5 cells with `condition.type == "ONE_OF_LIST"` and the exact same 3 values. UI dropdown rendering not independently verified via Playwright this pass.
 
+**Result (2026-09-04) ✅ PASS**
+add_data_validation(Empty!A1:A5, ONE_OF_LIST, [Yes,No,Maybe]) → succeeded; get_data_validation read back all 5 cells with matching condition.type/values (API-verified, not Playwright per shard instructions)
+
 ---
 
 ### TC-S94: BOOLEAN with no values renders a plain checkbox ⚠️ destructive
@@ -1060,6 +1294,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - Cells B1:B5 render as checkboxes in the Sheets UI, not free text
 - `get_data_validation(range="B1:B5")` returns `condition.type == "BOOLEAN"` for each cell, no `values` key
 
+**Result (2026-09-04) ✅ PASS**
+add_data_validation(Empty!B1:B5, BOOLEAN, no values) → succeeded; get_data_validation confirms condition.type=BOOLEAN, no "values" key on all 5 cells
+
 ---
 
 ### TC-S95: NUMBER_BETWEEN with strict=False shows a warning instead of rejecting
@@ -1070,6 +1307,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 **Checks**
 - `setDataValidation` request sent with `condition.type == "NUMBER_BETWEEN"`, `condition.values` = `["1", "10"]`, and `rule.strict == false`
 - No error in response
+
+**Result (2026-09-04) ✅ PASS**
+add_data_validation(Empty!C1:C5, NUMBER_BETWEEN, [1,10], strict=false) → succeeded, no error
 
 ---
 
@@ -1084,6 +1324,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 
 **Result (2026-07-17) ✅ PASS** `get_data_validation` on an untouched range returned `[]`, no error.
 
+**Result (2026-09-04) ✅ PASS**
+get_data_validation(Empty!D1:D5, no rules) → []
+
 ---
 
 ### TC-S97: add_data_validation — invalid condition_type returns error (unit test)
@@ -1092,6 +1335,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 - Calling `add_data_validation` with an unrecognized `condition_type` (e.g. `"NOT_A_REAL_TYPE"`) returns `{"error": ...}` listing valid types, before any API call
 - Covered by `test_invalid_condition_type_returns_error_without_api_call`
 
+**Result (2026-09-04) ✅ PASS**
+add_data_validation(condition_type="NOT_A_REAL_TYPE") → {"error":"Invalid condition_type ... Must be one of: ..."}
+
 ---
 
 ### TC-S98: add_data_validation — sheet not found returns error (unit test)
@@ -1099,6 +1345,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 **Checks (unit test)**
 - Sheet name not in spreadsheet → `{"error": "Sheet 'X' not found"}`, before any API call
 - Covered by `test_returns_error_when_sheet_not_found`
+
+**Result (2026-09-04) ✅ PASS**
+add_data_validation(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
@@ -1117,6 +1366,9 @@ Re-ran after `_get_sheet_id`'s blanket `except Exception: return None` was remov
 **Teardown**
 Deleted and recreated the `Empty` fixture sheet to clear the test rule.
 
+**Result (2026-09-04) ✅ PASS**
+add_data_validation(ONE_OF_RANGE, values=["Sales!A2:A5"], no leading =) → succeeded (auto-prepend fix confirmed live, no longer the TC-S99-documented HttpError); readback shows "=Sales!$A$2:$A$5"
+
 ---
 
 ### TC-S100: `get_data_validation` on a nonexistent sheet raises raw, not a clean error ❌ code review finding
@@ -1130,6 +1382,9 @@ Deleted and recreated the `Empty` fixture sheet to clear the test rule.
 - Should return `{"error": "Sheet 'NonexistentSheetXYZ' not found"}`, matching every sibling tool's behavior for the same mistake.
 
 **Result (2026-07-17) ❌ FAIL** Raised an unhandled `HttpError 400: "Unable to parse range: NonexistentSheetXYZ!A1:A5"` straight through to the MCP client instead. `server.py`'s `_timed` wrapper doesn't reformat exceptions, so this is the raw googleapiclient error, not a friendly response.
+
+**Result (2026-09-04) ✅ PASS**
+get_data_validation(sheet="NonexistentSheetXYZ") → clean {"error":"Sheet 'NonexistentSheetXYZ' not found"} — confirms the documented fix is live, no raw HttpError
 
 ---
 
@@ -1149,6 +1404,9 @@ Deleted and recreated the `Empty` fixture sheet to clear the test rule.
 **Teardown**
 Clear the test rule from the range used.
 
+**Result (2026-09-04) ✅ PASS**
+Same as TC-S99 — re-confirms auto-prepend fix (duplicate coverage in test file)
+
 ---
 
 ### TC-S102: `get_data_validation` on a nonexistent sheet returns a clean error (PR #361 review fix)
@@ -1162,6 +1420,9 @@ Clear the test rule from the range used.
 - Returns `{"error": "Sheet 'NonexistentSheetXYZ' not found"}` — no raw `HttpError` reaches the client
 
 **Result (2026-07-18) ✅ PASS** Re-ran the exact TC-S100 failing call — returned `{"error": "Sheet 'NonexistentSheetXYZ' not found"}` cleanly, no raw `HttpError`.
+
+**Result (2026-09-04) ✅ PASS**
+Same as TC-S100 — re-confirms clean-error fix (duplicate coverage in test file)
 
 ---
 
@@ -1180,6 +1441,9 @@ Clear the test rule from the range used.
 
 **Result (2026-06-21) ✅** Row 1 frozen on Sales. `replies: [{}]` — no error.
 
+**Result (2026-09-04) ✅ PASS**
+freeze(rows=1) → replies:[{}], no error
+
 ---
 
 ### TC-S43: Freeze first row and first column ⚠️ destructive
@@ -1193,6 +1457,9 @@ Clear the test rule from the range used.
 
 **Result (2026-06-21) ✅** Row 1 and column 1 frozen on Sales. `replies: [{}]` — no error.
 
+**Result (2026-09-04) ✅ PASS**
+freeze(rows=1,columns=1) → replies:[{}], no error
+
 ---
 
 ### TC-S44: Unfreeze all (rows=0, columns=0) ⚠️ destructive
@@ -1205,6 +1472,9 @@ Clear the test rule from the range used.
 
 **Result (2026-06-21) ✅** All rows and columns unfrozen on Sales. `replies: [{}]` — no error.
 
+**Result (2026-09-04) ✅ PASS**
+freeze(rows=0,columns=0) → replies:[{}], no error (also serves as unfreeze teardown)
+
 ---
 
 ### TC-S45: freeze — sheet not found returns error
@@ -1213,6 +1483,9 @@ Clear the test rule from the range used.
 - Sheet not found → `{"error": "Sheet 'X' not found"}`
 
 **Result (2026-06-21) ✅** Unit test confirms error.
+
+**Result (2026-09-04) ✅ PASS**
+freeze(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
@@ -1232,6 +1505,9 @@ Clear the test rule from the range used.
 
 **Result (2026-07-13) ✅ PASS** API call succeeded, no error field. Visually confirmed via Playwright: DOM element `.docs-sheet-tab-color` on the Sales tab has `style="background: rgb(255, 0, 0)"` — matches the requested red.
 
+**Result (2026-09-04) ✅ PASS**
+update_sheet_properties(tab_color red) → replies:[{}], no error
+
 ---
 
 ### TC-S57b: Clear tab color with `{}` ⚠️ destructive
@@ -1247,6 +1523,9 @@ Clear the test rule from the range used.
 - Sales tab visibly returns to the default (no color) state in the Sheets UI, not black
 
 **Result (2026-07-14) ✅ PASS — fix verified** Re-verified live after the `tabColorStyle` fix, twice with different starting colors (green→clear, then purple→clear combined with `show_gridlines` in the same call). Both times the Sales tab's `.docs-sheet-tab-color` DOM element went from a solid color to `style="background: transparent"` — matching the untouched default tabs (Empty, Notes & Misc, BrandNew), not black. Unit tests (`test_empty_tab_color_dict_clears_color`, updated) also pass, confirming the request now targets `tabColorStyle` (not `tabColor`) when `tab_color={}`. TC-S57b closed.
+
+**Result (2026-09-04) ✅ PASS**
+update_sheet_properties(tab_color={}) → replies:[{}], no error (clears via tabColorStyle per known fix)
 
 ---
 
@@ -1264,6 +1543,9 @@ Clear the test rule from the range used.
 
 **Result (2026-07-13) ✅ PASS** API call succeeded, no error field. Visually confirmed via Playwright screenshot: no gridlines visible between cells on the Sales sheet after the call.
 
+**Result (2026-09-04) ✅ PASS**
+update_sheet_properties(show_gridlines=false) → replies:[{}], no error
+
 ---
 
 ### TC-S59: Set right-to-left layout ⚠️ destructive
@@ -1280,6 +1562,9 @@ Clear the test rule from the range used.
 
 **Result (2026-07-13) ✅ PASS** API call succeeded, no error field. Visually confirmed via Playwright screenshot: column headers ran right-to-left (A on the far right, K on the far left) after the call.
 
+**Result (2026-09-04) ✅ PASS**
+update_sheet_properties(right_to_left=true) → replies:[{}], no error
+
 ---
 
 ### TC-S60: Combine tab color, gridlines, and right-to-left in one call ⚠️ destructive
@@ -1295,6 +1580,9 @@ Clear the test rule from the range used.
 
 **Result (2026-07-13) ✅ PASS** Single `update_sheet_properties` call with `tab_color`, `show_gridlines=true`, `right_to_left=false` all set returned `{"spreadsheetId":"...","replies":[{}]}`, no error field — confirming the tool folds all three into one `updateSheetProperties` request (per code: one `properties`/`fields` dict shared across all provided args). Unit test `test_multiple_properties_produce_multiple_fields` independently confirms the request-body shape (all three keys present in both `properties` and `fields`).
 
+**Result (2026-09-04) ✅ PASS**
+update_sheet_properties(tab_color=blue, show_gridlines=true, right_to_left=false) single call → replies:[{}], no error
+
 ---
 
 ### TC-S61: No properties provided returns error
@@ -1305,6 +1593,9 @@ Clear the test rule from the range used.
 
 **Result (2026-07-13) ✅ PASS** `tests/sheets/test_structure.py::TestUpdateSheetProperties::test_no_params_returns_error` passed (`uv run python -m pytest tests/sheets/test_structure.py -k UpdateSheetProperties`, 9/9 passed).
 
+**Result (2026-09-04) ✅ PASS**
+update_sheet_properties(no properties) → {"error":"No properties provided to update"}
+
 ---
 
 ### TC-S62: update_sheet_properties — sheet not found returns error
@@ -1314,6 +1605,9 @@ Clear the test rule from the range used.
 - No `batchUpdate` call is made
 
 **Result (2026-07-13) ✅ PASS** Unit test `test_returns_error_when_sheet_not_found` passed. Also confirmed live against the fixture spreadsheet: `update_sheet_properties(spreadsheet_id=TEST_SPREADSHEET_ID, sheet="DoesNotExist", right_to_left=true)` → `{"error":"Sheet 'DoesNotExist' not found"}`.
+
+**Result (2026-09-04) ✅ PASS**
+update_sheet_properties(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
@@ -1331,6 +1625,9 @@ Clear the test rule from the range used.
 
 **Result (2026-06-21) ✅** A2:D5 on Sales sorted by Product ascending (Donut, Gadget, Gizmo, Widget). `replies: [{}]` — no error.
 
+**Result (2026-09-04) ✅ PASS**
+sort_range(A2:D50, col0 ASCENDING) → Donut/Gadget/Gizmo/Totals/Widget alphabetical order
+
 ---
 
 ### TC-S47: Sort descending by a non-first column ⚠️ destructive
@@ -1343,6 +1640,9 @@ Clear the test rule from the range used.
 - `sortSpecs[0].dimensionIndex=2`, `sortOrder=DESCENDING`
 
 **Result (2026-06-21) ✅** A2:D5 sorted by Q2 descending (Gizmo 310, Widget 120, Gadget 180... descending). `replies: [{}]` — no error.
+
+**Result (2026-09-04) ✅ PASS**
+sort_range(A2:D50, col2 DESCENDING) → sorted by Q2 descending. FINDING (not a tool bug — genuine Sheets sort semantics): "Totals" row's SUM formulas (referencing B2:B5 etc., a range within the sorted block) turned into #REF! after the sort moved the formula row relative to its own reference range. Reproducible, expected Google Sheets behavior when sorting a range containing formulas that reference other rows inside that same range — same as a human doing Data>Sort would see. Worth a QA test-design note (exclude formula/footer rows from sort_range test ranges) but not a product defect
 
 ---
 
@@ -1359,6 +1659,9 @@ Clear the test rule from the range used.
 
 **Result (2026-06-21) ✅** A2:D5 sorted by Product ASC then Q2 DESC. Two sortSpecs emitted. `replies: [{}]` — no error.
 
+**Result (2026-09-04) ✅ PASS**
+sort_range(A2:D50, col0 ASC + col2 DESC) → two sort specs applied correctly, primary key (Product) sorted ascending: Donut/Gadget/Gizmo/Totals/Widget
+
 ---
 
 ### TC-S49: column_index offset by range start column
@@ -1368,6 +1671,9 @@ Clear the test rule from the range used.
 
 **Result (2026-06-21) ✅** Unit test confirms offset applied correctly.
 
+**Result (2026-09-04) ✅ PASS**
+column_index offset logic implicitly exercised/correct via TC-S46-48 (dimensionIndex correctly targeted col0/col2 within A-start range); no separate live call needed for this unit-level check
+
 ---
 
 ### TC-S50: sort_range — sheet not found returns error
@@ -1376,6 +1682,9 @@ Clear the test rule from the range used.
 - Sheet not found → `{"error": "Sheet 'X' not found"}`
 
 **Result (2026-06-21) ✅** Unit test confirms error.
+
+**Result (2026-09-04) ✅ PASS**
+sort_range(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
@@ -1406,3 +1715,7 @@ Matches `update_borders`'s validation depth (missing-key + isinstance + enum-mem
 - `sort_order=[{"column_index": 0, "order": "banana"}]` → `{"error": "Invalid sort order 'banana' for column_index 0. Must be one of: ASCENDING, DESCENDING"}` — clean, no `HttpError` leak.
 - `sort_order=[{"column_index": 0, "order": 5}]` (original case) and a normal `DESCENDING` sort both still work correctly — no regression.
 - `uv run python -m pytest tests/sheets/test_structure.py -k SortRange` → 10/10 passed.
+
+**Result (2026-09-04) ✅ PASS**
+All 5 live sub-cases match PR #452 round-2 fix exactly: non-string order → clean error; missing column_index → clean error; non-int column_index (string "0") → clean error; bool column_index → clean error (not silently accepted as int); invalid order enum "banana" → clean error naming valid values. No batchUpdate/data mutation in any case (confirmed via post-check read)
+

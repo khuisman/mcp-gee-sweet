@@ -17,6 +17,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Returns success for that recipient
 - No entries in `failures`
 
+**Result (2026-09-04) ❌ FAIL**
+share_spreadsheet writer on Shared Drive file -> `{"successes":[],"failures":[{... "error":"Failed to share: File not found: <id>."}]}`. `share_spreadsheet._share_one` calls `permissions().create()` WITHOUT `supportsAllDrives=True` (sharing.py:69-77), unlike share_file (:364) and update/remove/transfer. Every Shared Drive file is invisible to it. Reproduced on throwaway file AND on real {SPREADSHEET_ID}.
+
 ---
 
 ### TC-D19: Share as reader
@@ -27,6 +30,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Checks**
 - Permission granted as reader
 - No `failures`
+
+**Result (2026-09-04) ❌ FAIL**
+Same supportsAllDrives bug — reader share returns "File not found".
 
 ---
 
@@ -39,6 +45,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Permission granted as commenter
 - No `failures`
 
+**Result (2026-09-04) ❌ FAIL**
+Same supportsAllDrives bug — commenter share returns "File not found".
+
 ---
 
 ### TC-D21: Invalid role
@@ -50,6 +59,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Entry goes to `failures` list (invalid role)
 - Returns a message indicating the role is not accepted
 
+**Result (2026-09-04) ✅ PASS**
+Invalid role 'owner' -> failures:[{error:"Invalid role 'owner'. Must be 'reader', 'commenter', or 'writer'."}], no exception. Client-side validation, fires before API call so unaffected by the bug.
+
 ---
 
 ### TC-D22: Missing email address key
@@ -60,6 +72,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Checks**
 - Entry goes to `failures` with `None` email
 - Does not throw an unhandled exception
+
+**Result (2026-09-04) ✅ PASS**
+Recipient with no email_address -> failures:[{email_address:null, error:"Missing email_address in recipient entry."}], no exception.
 
 ---
 
@@ -73,6 +88,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Invalid role entry in `failures`
 - Both results present in the same response
 
+**Result (2026-09-04) ❌ FAIL**
+Mixed: invalid-role entry ('superuser') correctly routed to failures; valid@example.com writer entry ALSO in failures ("File not found") due to supportsAllDrives bug, not in successes. Partial-failure batching itself works; API-path recipient blocked.
+
 ---
 
 ### TC-D24: send_notification=False
@@ -84,6 +102,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Share succeeds
 - No notification email sent (verify by using an email you control)
 
+**Result (2026-09-04) ❌ FAIL**
+send_notification=False -> API path -> "File not found" (supportsAllDrives bug). Cannot verify notification suppression.
+
 ---
 
 ### TC-D25: Non-existent spreadsheet ID
@@ -94,6 +115,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Checks**
 - API error goes to `failures` list — not a top-level exception
 - 🔍 **Danger check:** no ownership validation before sharing — note that any accessible spreadsheet ID can be shared
+
+**Result (2026-09-04) ✅ PASS**
+share_spreadsheet("invalidid123xyz", ...) -> error routed to failures:[{error:"Failed to share: File not found: invalidid123xyz."}], NOT a top-level exception. 🔍 Danger check confirmed: no ownership validation before sharing — any accessible spreadsheet ID is shareable.
 
 ---
 
@@ -112,19 +136,27 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Teardown**
 `remove_permission` for each of the 5 test recipients.
 
+**Result (2026-09-04) ❌ FAIL**
+Concurrent 5-recipient share: all 5 -> "File not found" (supportsAllDrives bug). Each failure entry echoes its own email/role correctly (no cross-attribution in the failure list), but the no-cross-attribution check requires successes, which cannot be produced. Blocked.
+
 ---
 
 ## `list_permissions`
 
-### TC-D124: List permissions on a file — owner entry present
+### TC-D124: List permissions on a file — top-level entry present
+
+**Note (v0.9.0):** on a Shared Drive item (the current fixture, post-#305), Drive reports no `owner` role at all (`owners: []`) — the top-level roles are `organizer`/`fileOrganizer` instead. Checks updated to match; on a personal-Drive file the original `owner`-role expectation still holds.
 
 **Prompt**
 > "List all permissions on {SPREADSHEET_ID}"
 
 **Checks**
-- Returns at least one entry (the owner)
-- Owner entry has `role: 'owner'` and `type: 'user'`
+- Returns at least one entry
+- 🔍 On a Shared Drive item: at least one entry has `role: 'organizer'` (the de-facto owner there); on a personal-Drive file: an entry has `role: 'owner'`
 - Each entry has `id`, `type`, `role` — no `KeyError` or missing fields
+
+**Result (2026-09-04) ❌ FAIL**
+list_permissions on {SPREADSHEET_ID} returns 2 well-formed entries (all have id/type/role, no KeyError). But NO entry has role:'owner' — fixture is now a Shared Drive file (owners:[]), roles are 'organizer' (kevin@mcpsuite.io) and 'fileOrganizer' (SA). "Owner entry has role:'owner' and type:'user'" check not met. Tool is correct; test-case assumption is stale post-#305 Shared-Drive migration.
 
 ---
 
@@ -139,6 +171,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - The test user's email appears with `role: 'reader'`
 - Their `permission_id` is present for use in update/remove tests
 
+**Result (2026-09-04) ✅ PASS**
+(adapted to throwaway QA-v090-share-sheet) After share_file reader grant, list_permissions shows huismanfamily01@gmail.com role:'reader' with permission_id 17827006775376940548 present for later update/remove use.
+
 ---
 
 ### TC-D126: Non-existent file ID
@@ -148,6 +183,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 **Checks**
 - API error propagates — not a silent empty list or server crash
+
+**Result (2026-09-04) ✅ PASS**
+list_permissions("invalidid123xyz") -> HttpError 404 "File not found: invalidid123xyz." propagates as tool error; not a silent empty list or crash. URL confirms supportsAllDrives=true is sent.
 
 ---
 
@@ -164,6 +202,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Response `role` is `reader`
 - Follow-up `list_permissions` confirms the same permission ID now has `role: 'reader'`
 
+**Result (2026-09-04) ✅ PASS**
+update_permission(throwaway, 03150678215290859261, "reader") on a writer entry -> {"permissionId":"03150678215290859261","role":"reader"}; follow-up list_permissions confirms that id now role:'reader'.
+
 ---
 
 ### TC-D128: Invalid role value
@@ -175,6 +216,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Returns `{"error": "Invalid role 'owner'..."}` — not an exception
 - No API call made (validation fires client-side before Drive API)
 
+**Result (2026-09-04) ✅ PASS**
+update_permission(..., role="owner") -> {"error":"Invalid role 'owner'. Must be one of: reader, commenter, writer"} — not an exception; client-side validation, no API call.
+
 ---
 
 ### TC-D129: Non-existent permission ID
@@ -185,6 +229,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Checks**
 - Drive API error propagates — not a server crash
 - Error message references the invalid permission ID
+
+**Result (2026-09-04) ✅ PASS**
+update_permission(..., "fakepermid999", "reader") -> HttpError 404 "Permission not found: fakepermid999." propagates; message references the bad permission id; no crash.
 
 ---
 
@@ -201,6 +248,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Response: `{"fileId": ..., "permissionId": ..., "action": "removed"}`
 - Follow-up `list_permissions` no longer shows that permission ID
 
+**Result (2026-09-04) ✅ PASS**
+remove_permission(throwaway, 12400478166082616858) -> {"fileId":"15wb2N6...","permissionId":"12400478166082616858","action":"removed"}; follow-up list_permissions no longer shows that id.
+
 ---
 
 ### TC-D131: Non-existent permission ID
@@ -210,6 +260,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 **Checks**
 - Drive API error propagates — not a silent success or server crash
+
+**Result (2026-09-04) ✅ PASS**
+remove_permission(..., "fakepermid999") -> HttpError 404 "Permission not found: fakepermid999." propagates; not a silent success or crash.
 
 ---
 
@@ -233,6 +286,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Result (2026-07-27) ⏭️ SKIP — environmental**
 `docs/qa/.env` doesn't exist in this scoped role-worktree pass (a known gap — see `docs/qa/run.md`), so `TEST_PERMISSION_EMAIL` isn't available. Skipped rather than risk an irreversible transfer with a placeholder address, since this is the one case here with no API path to undo a mistake. Needs a full conductor-prompt run with real fixtures.
 
+**Result (2026-09-04) ⏭️ SKIP**
+environmental — no second Workspace user + Shared-Drive-only fixture. transfer_ownership(new QA spreadsheet, huismanfamily01@gmail.com) -> HttpError 403 "Owner role is invalid for shared drive items." (reason: ownerOnTeamDriveItemNotSupported). Every file this env creates lands in {SHARED_DRIVE_ID}; {PERMISSION_EMAIL} is a personal Gmail, not in the mcpsuite.io org. Cannot complete; needs a My-Drive disposable file + real in-org receiver. Tool surfaced the API error cleanly (no crash).
+
 ---
 
 ### TC-D234: Service account cannot transfer ownership
@@ -247,6 +303,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Result (2026-07-27) ⏭️ SKIP — environmental**
 The `mcp-gee-sweet-sa` server available in this role worktree is a separate long-running process not tracking this PR's branch — `transfer_ownership` isn't registered on it even after `/mcp reconnect`, so the tool doesn't exist to call yet on that connection. Not a product defect; needs re-running once this PR's code reaches wherever that server's process is pointed (e.g. post-merge).
 
+**Result (2026-09-04) ⏭️ SKIP**
+out of shard scope — requires the mcp-gee-sweet-sa server; this shard is restricted to the mcp__mcp-gee-sweet-kit__ (OAuth) prefix only.
+
 ---
 
 ### TC-D235: Non-existent file ID
@@ -259,6 +318,9 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 
 **Result (2026-07-27) ✅ PASS**
 `transfer_ownership(file_id="fakefileid999", new_owner_email="qa-nonexistent-placeholder@example.com")` → `HttpError 404: "File not found: fakefileid999."` propagates as a tool error, not a silent success. Non-destructive, no fixture needed.
+
+**Result (2026-09-04) ✅ PASS**
+transfer_ownership("fakefileid999", ...) -> HttpError 404 "File not found: fakefileid999." propagates; not a silent success.
 
 ---
 
@@ -276,6 +338,9 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 - `failures` is empty
 - Follow-up `list_permissions` confirms the new entry
 
+**Result (2026-09-04) ✅ PASS**
+share_file(throwaway, [{type:user, email:huismanfamily01@gmail.com, role:reader}]) -> successes:[{type:'user', role:'reader', permissionId:'17827006775376940548', email_address:'huismanfamily01@gmail.com'}], failures:[]. Follow-up list_permissions confirms the entry.
+
 ---
 
 ### TC-D133: Missing email_address for type=user
@@ -288,6 +353,9 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 - No API call attempted for that entry
 - Does not throw an unhandled exception
 
+**Result (2026-09-04) ✅ PASS**
+share_file with type='user' role='reader', no email_address -> failures:[{error:"'email_address' required for type='user'"}], successes:[], no exception.
+
 ---
 
 ### TC-D134: Invalid role
@@ -298,6 +366,9 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 **Checks**
 - Entry goes to `failures` with a message about the invalid role
 - `successes` is empty
+
+**Result (2026-09-04) ✅ PASS**
+share_file with role='superuser' -> failures:[{error:"Invalid role 'superuser'. Must be one of: reader, commenter, writer"}], successes:[].
 
 ---
 
@@ -312,6 +383,9 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 - Response `successes` contains an entry with `type: 'domain'` and `domain: '{GWS_DOMAIN}'`
 - Follow-up `list_permissions` shows the domain permission entry
 
+**Result (2026-09-04) ✅ PASS**
+share_file type='domain' domain='mcpsuite.io' (real GWS domain) role='reader' -> successes:[{type:'domain', role:'reader', permissionId:'09502084656447390423', domain:'mcpsuite.io'}]; list_permissions shows the domain entry (display_name "MCPSuite").
+
 ---
 
 ### TC-D136: Share with type=anyone (public link)
@@ -324,6 +398,9 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 - Response `successes` contains `type: 'anyone'`, `role: 'reader'`
 - Follow-up `list_permissions` shows an `anyone` entry
 - File accessible via its `web_link` without authentication (verify in incognito browser)
+
+**Result (2026-09-04) ✅ PASS**
+share_file type='anyone' role='reader' -> successes:[{type:'anyone', role:'reader', permissionId:'anyoneWithLink'}]; list_permissions shows the 'anyone' entry. Incognito web_link check NOT performed — the Playwright browser session is authenticated as kevin@mcpsuite.io, so it cannot verify unauthenticated access (documented run.md limitation for permission tests); API is the confirmation source.
 
 ---
 
@@ -338,6 +415,9 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 - `list_permissions` on the folder shows the new permission
 - A child file's own Share dialog in Drive UI shows the inherited access — `list_permissions` on the child itself does not surface a folder-level grant (confirmed live: the Drive API's `permissions.list` only returns permissions granted directly on the queried resource, not ones inherited from an ancestor folder), so this genuinely has no API alternative
 
+**Result (2026-09-04) ✅ PASS**
+share_file(folder QA-v090-share-folder, [{type:user, email:huismanfamily01@gmail.com, role:writer}]) -> successes:[{...permissionId:'17827006775376940548'}], failures:[]; list_permissions on the folder confirms role:'writer'. Child-file inherited-access via Drive UI Share dialog NOT checked (test-case itself states this has no API alternative; requires the Share dialog).
+
 ---
 
 ### TC-D138: Mixed success and failure in one call
@@ -348,6 +428,9 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 **Checks**
 - First entry in `successes`, second entry in `failures`
 - Both present in the same response — partial failure does not abort the batch
+
+**Result (2026-09-04) ✅ PASS**
+share_file with [{type:user, email:qa-mixed-recipient@example.com, role:reader}, {type:user, role:writer (no email)}] -> first in successes (permissionId 12400478166082616858), second in failures ("'email_address' required for type='user'"). Both in one response; batch not aborted. (First attempt used test@example.com which Google's own address validation rejected with "There's a problem with this email or domain" — environmental Google quirk, retried with a clean address.)
 
 ---
 
@@ -362,6 +445,9 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 - `send_notification=False` confirmed — `sendNotificationEmail=False` passed to the API
 
 > ⚠️ **Note:** Drive requires `sendNotificationEmail=True` when sharing with non-Google Workspace accounts. If `TEST_PERMISSION_EMAIL` is a personal Gmail, this test may fail with a Drive API restriction — record as environmental, not a tool bug.
+
+**Result (2026-09-04) ✅ PASS**
+share_file(throwaway, huismanfamily01@gmail.com reader, send_notification=false) -> successes populated (permissionId 17827006775376940548), failures:[]. No Drive restriction hit despite personal Gmail (test-case's env warning did not materialize). Inbox non-delivery not independently verified.
 
 ---
 
@@ -379,5 +465,8 @@ The `mcp-gee-sweet-sa` server available in this role worktree is a separate long
 
 **Teardown**
 `remove_permission` for each of the 4 test permissions.
+
+**Result (2026-09-04) ✅ PASS**
+share_file concurrent 4-permission call (3 users + 1 domain). All 4 in successes, none in failures. Attribution cross-checked individually against list_permissions: qa177-recipient1=reader (17860759509164023546), qa177-recipient2=writer (03150678215290859261), qa177-recipient3=commenter (13827627058833662749), domain mcpsuite.io=reader (09502084656447390423). No cross-attribution.
 
 ---

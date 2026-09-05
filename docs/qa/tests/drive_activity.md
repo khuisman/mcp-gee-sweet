@@ -22,6 +22,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 **Result (2026-06-24) ✅ PASS** 52 activities returned. All entries have `timestamp`, `action`, and `actors`. Actions observed: `edit`, `rename`, `permission_change`, `create`. Actor types include `user` (known, `is_current_user: true/false`) and `system`. No `error` key.
 
+**Result (2026-09-04) ✅ PASS**
+list_file_activity({DOC_ID}) -> file_id matches; activities is a list of 5; every entry has timestamp/action/actors; actions observed: edit, move, create (all in allowed set); no `error` key. drive.activity.readonly scope is granted.
+
 ---
 
 ### TC-D164: Known-user actor structure
@@ -36,6 +39,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 **Result (2026-06-24) ✅ PASS** Multiple user actors returned. Current-user entries have `person_name: "people/101951097007377611160"`, `is_current_user: true`. A second user (`people/114161724974780080071`, `is_current_user: false`) also appears. A `system` actor appears on the `permission_change` entry with `event: null`.
 
+**Result (2026-09-04) ✅ PASS**
+Each actor: type:"user", person_name:"people/108427788683920971958", is_current_user:true (boolean). At least one user actor with a person_name field present. (All activity on this fixture is by the current user; no second/system actor in the current 5-entry window.)
+
 ---
 
 ### TC-D165: Pagination — next_page_token present when results exceed page_size
@@ -49,6 +55,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 **Result (2026-06-24) ✅ PASS** `page_size=1` returned 2 activities (Drive Activity API groups related events and does not hard-clip to the requested count). `next_page_token` present. Confirmed pagination works.
 
+**Result (2026-09-04) ✅ PASS**
+list_file_activity({DOC_ID}, page_size=1) -> 2 activities returned (Drive Activity API groups related events, does not hard-clip to 1) and `next_page_token` present.
+
 ---
 
 ### TC-D166: Invalid file ID returns error (unit test)
@@ -58,6 +67,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 **Result (2026-06-24) ✅** Unit test `test_http_error_returns_error_dict` confirms HTTP errors are caught and returned as `{"error": str(e)}`.
 
+**Result (2026-09-04) ⏭️ SKIP**
+Unit-test-only check (HTTP 403/404 -> {"error": ...}); no live fixture that is readable-but-activity-forbidden. Separately, live HttpError propagation for the sibling sharing tools was confirmed clean in TC-D126/D129/D131/D235.
+
 ---
 
 ### TC-D168: list_file_activity response-size cap — code path only, no dedicated live fixture (issue #242)
@@ -65,5 +77,8 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Background:** `list_file_activity` is already Drive-API-paginated (`page_size` clamped 1–100) and low per-item size — the only realistic exposure is a single activity's `actors` list ballooning on a file with many collaborators. Per the #242 decision doc, this tool intentionally did NOT get a dedicated live-fixture verification (reproducing hundreds of real Drive Activity events isn't cheaply reproducible) — the cap was added for defense-in-depth only, verified by unit tests (`tests/drive/test_activity.py::TestListFileActivity::test_oversized_result_raises`, `test_error_points_to_page_size_not_local_path`).
 
 **Result (2026-07-03) ✅ N/A (by design)** — sanity-checked live that the tool still functions normally post-change (`list_file_activity(file_id={SPREADSHEET_ID}, page_size=5)` returned a normal activity list, no regression). Cap-triggering behavior covered by unit tests only, not live-verified — documented scoping decision, not an oversight.
+
+**Result (2026-09-04) ✅ PASS**
+N/A by design (#242 decision doc). Sanity: list_file_activity({SPREADSHEET_ID}, page_size=5) returned a normal 8-entry activity list, no cap ValueError, no regression. Cap-trigger path is unit-tested only.
 
 ---
