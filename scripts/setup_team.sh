@@ -7,11 +7,13 @@
 # off `team/<name>` into `feat/<name>/issue-<n>` per ticket; QA slots stay on
 # `team/<name>` forever and get reset to whatever PR branch they're
 # verifying (see `/team-member`). Aziz, Amy, Joy, and Bob are also persistent
-# `team/<name>` slots but don't get a dedicated MCP server process — Aziz
-# borrows Sky's/Kit's at release-QA time, Amy just needs a worktree to write
-# docs PRs from, Joy just needs one for ad-hoc architecture work
-# (see `.claude/team-roles/joy.md`), and Bob just needs one to review other
-# roles' self-edited process files (see `.claude/team-roles/bob.md`).
+# `team/<name>` slots but don't get a dedicated MCP server process — during a
+# release QA pass Aziz uses every mcp-gee-sweet-* slot already provisioned
+# here (all four lanes, kai-oauth/-sa, plus the standalone oauth/sa slots
+# below), Amy just needs a worktree to write docs PRs from, Joy just needs
+# one for ad-hoc architecture work (see `.claude/team-roles/joy.md`), and Bob
+# just needs one to review other roles' self-edited process files (see
+# `.claude/team-roles/bob.md`).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -82,6 +84,25 @@ $(role_server mcp-gee-sweet-kit "$REPO_ROOT/.claude/worktrees/kit"),
       }
     },
     "mcp-gee-sweet-kai-sa": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--directory", "$REPO_ROOT", "mcp-gee-sweet"],
+      "env": {
+        "AUTH_METHOD": "service_account",
+        "SERVICE_ACCOUNT_PATH": "$REPO_ROOT/service_account.json"
+      }
+    },
+    "mcp-gee-sweet-oauth": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--directory", "$REPO_ROOT", "mcp-gee-sweet"],
+      "env": {
+        "AUTH_METHOD": "oauth",
+        "CREDENTIALS_PATH": "$REPO_ROOT/credentials.json",
+        "TOKEN_PATH": "$REPO_ROOT/token.json"
+      }
+    },
+    "mcp-gee-sweet-sa": {
       "type": "stdio",
       "command": "uv",
       "args": ["run", "--directory", "$REPO_ROOT", "mcp-gee-sweet"],
