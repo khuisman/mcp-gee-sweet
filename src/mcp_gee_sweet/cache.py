@@ -405,6 +405,16 @@ class DriveFolderCache(_BaseCache):
 
     No modifiedTime-based validation: a folder's own modifiedTime does not
     change when children are added/removed, so it can't detect staleness here.
+
+    `max_results` is deliberately not part of the cache key — mirrors
+    SheetDataCache's own `rows_fetched` sufficiency check instead of keying on
+    the requested count directly. A cached entry records how many results the
+    fetch that produced it asked for; a later request is a hit only if that's
+    >= what it's asking for now (then sliced to size), otherwise it's treated
+    as a miss and refetched at the larger size. Without this, a small-
+    max_results call could either silently ignore its own limit (served a
+    larger prior cached result unsliced) or poison the cache for a later
+    larger-max_results call with its own truncated result (issue #688).
     """
 
     _NS = "drive_folder"
@@ -412,33 +422,44 @@ class DriveFolderCache(_BaseCache):
     def _key(self, folder_id: str, mime_type: str | None) -> str:
         return f"{folder_id}:{mime_type or ''}"
 
-    def _get_valid(self, folder_id: str, mime_type: str | None) -> sqlite3.Row | None:
+    def _get_valid(
+        self, folder_id: str, mime_type: str | None, max_results: int
+    ) -> sqlite3.Row | None:
         key = self._key(folder_id, mime_type)
         row = _safe_fetchone(
             self._conn,
-            "SELECT value, fetched_at, dirty FROM cache WHERE namespace=? AND key=?",
+            "SELECT value, fetched_at, dirty, rows_fetched FROM cache WHERE namespace=? AND key=?",
             (self._NS, key),
         )
         if row is None or row["dirty"]:
             return None
         if not self._check_ttl(row["fetched_at"], key):
             return None
+        if (row["rows_fetched"] or 0) < max_results:
+            return None
         return row
 
-    def get(self, folder_id: str, mime_type: str | None) -> list | None:
-        """Returns cached file list, or None on miss/dirty/expired."""
-        row = self._get_valid(folder_id, mime_type)
+    def get(self, folder_id: str, mime_type: str | None, max_results: int) -> list | None:
+        """Returns cached file list (sliced to max_results), or None on miss/dirty/
+        expired/insufficient prior fetch size."""
+        row = self._get_valid(folder_id, mime_type, max_results)
         if row is None:
             return None
         logger.debug("Drive folder cache hit: %s (mime=%s)", folder_id, mime_type)
-        return json.loads(row["value"])
+        return json.loads(row["value"])[:max_results]
 
-    def store(self, folder_id: str, mime_type: str | None, files: list):
+    def store(self, folder_id: str, mime_type: str | None, files: list, max_results: int):
         _safe_write(
             self._conn,
-            "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty)"
-            " VALUES (?,?,?,?,0)",
-            (self._NS, self._key(folder_id, mime_type), json.dumps(files), time.time()),
+            "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty, rows_fetched)"
+            " VALUES (?,?,?,?,0,?)",
+            (
+                self._NS,
+                self._key(folder_id, mime_type),
+                json.dumps(files),
+                time.time(),
+                max_results,
+            ),
         )
         logger.debug("Cached %d files for folder %s (mime=%s)", len(files), folder_id, mime_type)
 
