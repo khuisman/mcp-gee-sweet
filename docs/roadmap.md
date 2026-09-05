@@ -176,6 +176,10 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 - [x] Markdown-support documentation gaps — README/`docs/tools.md`/`docs/known-limitations.md`/`docs/design/markdown-support.md` never caught up to the Docs markdown-input pipeline shipped via #102/#103/#104/#248; consolidates #297/#298/#299/#302 (PR #482) ([#303](https://github.com/khuisman/mcp-gee-sweet/issues/303))
 - [x] `CLAUDE.md`'s `convert_markdown` note overstates its download-branch guard as reachable — round-2 review moved that case earlier in the plan-building loop, where it's now classified `conflict`, not `failed`; the guard described is dead defensive code, not live behavior. Found during PR #414's round-3 review, routed to Amy ([#423](https://github.com/khuisman/mcp-gee-sweet/issues/423)) (PR #492)
 
+**v0.9.0 Full Regression QA pass (2026-09-04)** — 623 PASS / 12 FAIL / 38 SKIP / 1 N/A across 674 TCs; see `docs/qa/runs/v0.9.0.md` for the full sign-off. Two real bugs found, both routed to lane B and gating the tag:
+- [ ] `share_spreadsheet` fails with "File not found" on any Shared Drive file — missing `supportsAllDrives=True` on its `permissions().create()` call, the only one in `sharing.py` without it (`ready-for-development`, `lane-b`) ([#687](https://github.com/khuisman/mcp-gee-sweet/issues/687))
+- [ ] Folder-listing cache key omits `max_results` — silent truncation on a cache hit, and a small-limit fetch poisons the cache for later larger-limit calls (`ready-for-development`, `lane-b`) ([#688](https://github.com/khuisman/mcp-gee-sweet/issues/688))
+
 ### v0.9.1 — Post-release defect fixes & infrastructure addons _(target: [v0.9.1](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1), before Tier 3 begins)_
 
 No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped, plus a handful of infrastructure/tooling additions that don't belong to any specific tool tier. Started because v0.9.0's own scope kept growing past its original Tier 2 definition; splitting this out keeps that pattern from repeating indefinitely.
@@ -191,6 +195,11 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] Harden `tests/integration`'s local-fs live QA harness — error surfacing on API failures, subprocess/handshake timeouts, cleanup-masking a real test failure, per-test subprocess overhead ([#648](https://github.com/khuisman/mcp-gee-sweet/issues/648))
 - [ ] `_sync_level._run_one`'s outer catch-all leaks a raw `storageQuotaExceeded` message instead of the friendly `_SA_QUOTA_ERROR` used everywhere else — #669 follow-up, same friendly-error-consistency shape as #614/#459 ([#670](https://github.com/khuisman/mcp-gee-sweet/issues/670))
 - [ ] `sync_folder` reports "in sync" when mtimes match but content differs (an in-place rename that preserves mtime) — `use_checksum` doesn't catch it either ([#659](https://github.com/khuisman/mcp-gee-sweet/issues/659))
+- [ ] `list_folders` with no parent hardcodes `'root' in parents`, ignoring `DRIVE_FOLDER_ID` — wrong scope on any Shared-Drive deployment / no results for a pure service account. Found in the v0.9.0 QA pass (TC-D27), has an explicit-parent workaround ([#689](https://github.com/khuisman/mcp-gee-sweet/issues/689))
+- [ ] `download_file` with a non-existent trailing-slash directory creates a clobbering file instead of the directory. Found in the v0.9.0 QA pass ([#690](https://github.com/khuisman/mcp-gee-sweet/issues/690))
+- [ ] `find_free_slots`'s per-calendar error shape is less detailed than `list_all_events`'s for the same failure mode. Found in the v0.9.0 QA pass ([#691](https://github.com/khuisman/mcp-gee-sweet/issues/691))
+- [ ] A bare `-` marker alone on its line isn't recognized as a list item by python-markdown regardless of indentation — distinct from the tracked `sane_lists` threshold bug. Found in the v0.9.0 QA pass, may end up a documented limitation rather than a fix ([#692](https://github.com/khuisman/mcp-gee-sweet/issues/692))
+- [ ] `create_spreadsheet`/`import_csv_to_sheet` response has no web link, unlike sibling create/copy tools — enhancement or fix TC-D01's expectation instead, still open. Found in the v0.9.0 QA pass ([#693](https://github.com/khuisman/mcp-gee-sweet/issues/693))
 
 **Infrastructure**
 - [ ] Interaction-log middleware for tool calls — structured, append-only JSONL log per call (inputs, duration, cache hit, error), opt-in ID redaction, swappable backend ([#646](https://github.com/khuisman/mcp-gee-sweet/issues/646))
