@@ -29,6 +29,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Result (2026-06-20) ✅ PASS**
 - Inserted 2×3 table at N=88. Response: `precedingParagraphIndex=88`, `tableStartIndex=89` (=N+1), `tableEndIndex=105`, `rows: 2`, `columns: 3`, 6 cells. All `paragraphStartIndex = startIndex + 1`. Re-fetch confirmed table at index 89.
 
+**Result (2026-09-04) ✅ PASS**
+insert 2x3 table at N=1: precedingParagraphIndex=1, tableStartIndex=2 (=N+1), tableEndIndex=18, rows:2, columns:3, 6 cells each with row/col/startIndex/endIndex/paragraphStartIndex. Re-fetch: empty para at 1, table at 2.
+
 ---
 
 ### TC-DOC17: Cell indices usable for insert_doc_text ⚠️ destructive
@@ -45,6 +48,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-06-20) ✅ PASS**
 - Used `cells[0].paragraphStartIndex = 92` from TC-DOC16. Inserted "Cell content" at index 92. Re-fetch: cell [0,0] `text: "Cell content"`. No index errors.
+
+**Result (2026-09-04) ✅ PASS**
+insert "Cell content" at cells[0].paragraphStartIndex=5; re-fetch cell[0,0] text "Cell content"; no index errors.
 
 ---
 
@@ -66,6 +72,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-06-22) ✅ PASS** Inserted 2×2 table; called `insert_table_row(row_index=0, insert_below=True)`. Response: `{docId, table_start_index, row_index: 0}`. Re-fetched structure showed 3 rows.
 
+**Result (2026-09-04) ✅ PASS**
+insert_table_row row_index=0 insert_below=True on 2x2 -> {docId, table_start_index:2, row_index:0}; re-fetch 3 rows.
+
 ---
 
 ### TC-DOC62: Insert a row above an existing row ⚠️ destructive
@@ -83,6 +92,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Cleanup:** delete the table
 
 **Result (2026-06-22) ✅ PASS** Inserted 2×2 table; called `insert_table_row(row_index=1, insert_below=False)`. Re-fetched structure showed 3 rows.
+
+**Result (2026-09-04) ✅ PASS**
+insert_table_row row_index=1 insert_below=False on 2x2; re-fetch 3 rows.
 
 ---
 
@@ -102,6 +114,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-06-22) ✅ PASS** Inserted 3-row table; called `delete_table_row(row_index=1)`. Response: `{docId, table_start_index, row_index: 1}`. Re-fetched structure showed 2 rows.
 
+**Result (2026-09-04) ✅ PASS**
+delete_table_row row_index=1 on 3-row -> {docId, table_start_index:2, row_index:1}; re-fetch 2 rows.
+
 ---
 
 ### TC-DOC64: Insert a column to the right ⚠️ destructive
@@ -120,6 +135,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-06-22) ✅ PASS** Inserted 2×2 table; called `insert_table_column(column_index=0, insert_right=True)`. Response: `{docId, table_start_index, column_index: 0}`. Re-fetched structure showed 3 columns.
 
+**Result (2026-09-04) ✅ PASS**
+insert_table_column column_index=0 insert_right=True on 2x2 -> {docId, table_start_index:2, column_index:0}; re-fetch 3 columns.
+
 ---
 
 ### TC-DOC65: Insert a column to the left ⚠️ destructive
@@ -136,6 +154,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Cleanup:** delete the table
 
 **Result (2026-06-22) ✅ PASS** Inserted 2×2 table; called `insert_table_column(column_index=1, insert_right=False)`. Re-fetched structure showed 3 columns.
+
+**Result (2026-09-04) ✅ PASS**
+insert_table_column column_index=1 insert_right=False on 2x2; re-fetch 3 columns.
 
 ---
 
@@ -155,6 +176,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-06-22) ✅ PASS** Inserted 2×3 table; called `delete_table_column(column_index=1)`. Response: `{docId, table_start_index, column_index: 1}`. Re-fetched structure showed 2 columns.
 
+**Result (2026-09-04) ✅ PASS**
+delete_table_column column_index=1 on 2x3 -> {docId, table_start_index:2, column_index:1}; re-fetch 2 columns.
+
 ---
 
 ### TC-DOC67: API error returned gracefully (out of bounds row)
@@ -168,6 +192,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - Error message references an API failure
 
 **Result (2026-06-22) ✅ PASS** Called `delete_table_row(row_index=99)` on a 2×2 table. Returned `{"error": "..."}` with an API error message referencing an invalid row index. No exception raised.
+
+**Result (2026-09-04) ✅ PASS**
+delete_table_row row_index=99 -> {"error":"<HttpError 400 ... row index 99 should be less than the total number of rows 2>"}; no exception.
 
 ---
 
@@ -190,6 +217,10 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-07-14) ✅ PASS** Inserted a 2×3 table, called `merge_table_cells(table_start_index, row_index=0, column_index=0, row_span=1, column_span=2)`. Response matched exactly: `{"docId", "table_start_index", "row_index": 0, "column_index": 0, "row_span": 1, "column_span": 2}`. Playwright screenshot confirmed row 0's first two columns render as one wide cell while row 1 kept three separate cells. Re-fetched `get_doc_structure`: table still reported 3 physical columns in row 0 (cells at col 0, 1, 2 all present with distinct indices). Table deleted via `delete_doc_range`.
 
+
+**Result (2026-09-04) ✅ PASS**
+merge_table_cells row0/col0 span 1x2 on 2x3 -> response matches exactly; re-fetch row 0 still 3 physical cells (distinct indices). Visual 🔍 not verified (browser unauth).
+
 ### TC-DOC92: Merge a vertical range of cells (rowspan) ⚠️ destructive
 **Setup:** insert a 3×2 table; note its `tableStartIndex`
 
@@ -206,6 +237,10 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-07-14) ✅ PASS** Inserted a 3×2 table, called `merge_table_cells(table_start_index, row_index=0, column_index=0, row_span=2, column_span=1)`. Response matched exactly: `{"docId", "table_start_index", "row_index": 0, "column_index": 0, "row_span": 2, "column_span": 1}`. Playwright screenshot confirmed column 0's first two rows render as one tall cell while column 1 kept two separate cells across the same rows; row 2 unaffected. Table deleted via `delete_doc_range`.
 
+
+**Result (2026-09-04) ✅ PASS**
+merge_table_cells row0/col0 span 2x1 on 3x2 -> response matches exactly. Visual 🔍 not verified.
+
 ### TC-DOC93: API error returned gracefully (merge range exceeds table bounds)
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
@@ -219,5 +254,8 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Cleanup:** delete the table
 
 **Result (2026-07-14) ✅ PASS** Inserted a 2×2 table, called `merge_table_cells(row_index=0, column_index=0, row_span=1, column_span=99)`. Returned `{"error": "<HttpError 400 ... Invalid requests[0].mergeTableCells: The table range extends outside the bounds of the table.>"}`. No exception raised. Table deleted via `delete_doc_range`.
+
+**Result (2026-09-04) ✅ PASS**
+merge_table_cells span 1x99 -> {"error":"<HttpError 400 ... table range extends outside the bounds of the table>"}; no exception.
 
 ---

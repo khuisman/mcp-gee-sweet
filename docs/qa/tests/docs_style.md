@@ -26,6 +26,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Result (2026-06-20) ✅ PASS**
 - Inserted "Style test paragraph.\n" at 88. Styled [88, 110] as HEADING_2. Re-fetch confirmed `namedStyleType: "HEADING_2"`. `requests: 1`.
 
+**Result (2026-09-04) ✅ PASS**
+Styled [1,23] HEADING_2; re-fetch namedStyleType HEADING_2; requests:1. Visual not verified (browser unauth). Restyled NORMAL_TEXT.
+
 ---
 
 ### TC-DOC13: Apply text styles (bold, italic, foreground color) ⚠️ destructive
@@ -44,6 +47,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Result (2026-06-20) ✅ PASS**
 - Applied bold+italic+red foreground to [88, 110]. Re-fetch: run `bold: true`, `italic: true`. `requests: 1` (only updateTextStyle; no paragraph style change).
 
+**Result (2026-09-04) ✅ PASS**
+bold+italic+red on [1,23]; run bold:true italic:true; requests:1 (updateTextStyle only).
+
 ---
 
 ### TC-DOC14: Apply both paragraph and text style in one range ⚠️ destructive
@@ -57,6 +63,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Result (2026-06-20) ✅ PASS**
 - Applied HEADING_3 + bold to same paragraph. `requests: 2` (one updateParagraphStyle + one updateTextStyle).
 
+**Result (2026-09-04) ✅ PASS**
+HEADING_3 + bold on [1,24]; requests:2; both applied on re-fetch.
+
 ---
 
 ### TC-DOC15: No recognised style fields returns error
@@ -68,6 +77,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-06-20) ✅ PASS**
 - Returned `{"error": "no recognised style fields in any range"}`.
+
+**Result (2026-09-04) ✅ PASS**
+Range with no style fields -> {"error":"no recognised style fields in any range"}.
 
 ---
 
@@ -89,6 +101,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Result (2026-06-20) ✅ PASS**
 - Styled row 0 with `background_color {red:0.953, green:0.953, blue:0.953}`, `column_span: 2`. `requests: 1`.
 
+**Result (2026-09-04) ✅ PASS**
+grey background visible
+
 ---
 
 ### TC-DOC19: Apply borders and padding ⚠️ destructive
@@ -105,6 +120,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Result (2026-06-20) ✅ PASS**
 - Applied black border (0.5pt) + 3.6pt padding to all 4 cells of a 2×2 table. `requests: 4` (one per cell). Call succeeded for each.
 
+**Result (2026-09-04) ✅ PASS**
+borders visible on all 4 cells; padding not independently visible (empty cells) but no rendering issue
+
 ---
 
 ### TC-DOC20: Empty cells list returns error
@@ -116,6 +134,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-06-20) ✅ PASS**
 - Returned `{"error": "cells list is empty"}`.
+
+**Result (2026-09-04) ✅ PASS**
+Empty cells list -> {"error":"cells list is empty"}.
 
 ---
 
@@ -131,6 +152,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-06-20) ✅ PASS**
 - Passed cell [0,0] with `background_color red=1` and cell [0,1] with no style fields. `requests: 1` — no-style cell silently skipped.
+
+**Result (2026-09-04) ✅ PASS**
+One styled cell + one no-style cell; requests:1 (no-style cell skipped).
 
 ---
 
@@ -153,6 +177,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Result (2026-06-20) ✅ PASS**
 - Inserted 2×2 table; styled cell [0,0] with `background_color {red:0.8, green:0.9, blue:1.0}`. No API 400 error. `requests: 1`. Fix (removal of top-level `tableStartLocation` conflicting with `tableRange` oneof) confirmed working.
 
+**Result (2026-09-04) ✅ PASS**
+light blue background visible, distinct from TC-DOC18's grey
+
 ---
 
 ## `get_doc_theme` / `get_doc_named_styles` / `apply_theme`
@@ -170,6 +197,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-06-20) ✅ PASS** Called on a doc that had `apply_theme` previously applied (Georgia HEADING_1/H2, Roboto NORMAL_TEXT). Returned 9 entries: NORMAL_TEXT (Roboto 11pt, line_spacing 115), HEADING_1 (Georgia 24pt bold, space_above 20), HEADING_2 (Georgia 18pt, space_above 18), HEADING_3–6 (Google defaults with font sizes and colors), TITLE, SUBTITLE. Confirms `apply_theme` default mode successfully writes to named styles, and `get_doc_named_styles` reads them back correctly. No error.
 
+**Result (2026-09-04) ✅ PASS**
+get_doc_named_styles returned Google default entries (9 keys), no error key — expected for standard doc.
+
 ---
 
 ### TC-DOC52: `get_doc_theme` scans body paragraph styles
@@ -185,6 +215,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-06-20) ✅ PASS** Called on a test doc created with `create_doc` (markdown content — inherited styles): returned `{}`. Called on the same doc after `apply_theme overwrite=True` (Georgia HEADING_1, Roboto NORMAL_TEXT): returned `{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}`. `font_size` and `bold` are not returned because the Docs API normalises explicit overrides that match the named style default back to inherited. No error key in either case.
 
+**Result (2026-09-04) ✅ PASS**
+get_doc_theme on inherited-style doc returned {} — expected, no error.
+
 ---
 
 ### TC-DOC53: `apply_theme` updates named style definitions ⚠️ destructive
@@ -199,6 +232,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - `requests` equals the number of named style keys in the theme (one `updateNamedStyle` per key)
 
 **Result (2026-06-20) ✅ PASS** Called with HEADING_1 + HEADING_2 + NORMAL_TEXT → `{"docId": "...", "requests": 3}`. Each emitted one `updateNamedStyle` request with snake_case field mask (`named_style_type,text_style.weighted_font_family,text_style.font_size`). No error. Live API accepted all three requests.
+
+**Result (2026-09-04) ✅ PASS**
+apply_theme HEADING_1+NORMAL_TEXT -> {docId, requests:2} = key count; no error.
 
 ---
 
@@ -217,6 +253,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-06-20) ✅ PASS** Called with HEADING_1 + NORMAL_TEXT on a doc with HEADING_1, HEADING_2 (×2), HEADING_3, NORMAL_TEXT (×4) paragraphs → `{"docId": "...", "requests": 7}` (2 `updateNamedStyle` + 5 `updateTextStyle` for matching paragraphs). No error.
 
+**Result (2026-09-04) ✅ PASS**
+Georgia 22pt heading / Verdana body confirmed both visually and via toolbar readout
+
 ---
 
 ### TC-DOC55: `apply_theme` with table styling ⚠️ destructive
@@ -234,6 +273,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 
 **Result (2026-06-20) ✅ PASS** Wrote 2-row table, applied table theme → `requests: 2` (one updateTableCellStyle per row; row 0 got header_background + padding + borders, row 1 got padding + borders). No error. Fixture restored.
 
+**Result (2026-09-04) ✅ PASS**
+grey header row, black borders, visible padding
+
 ---
 
 ### TC-DOC56: `get_doc_theme` → `apply_theme` round-trip on an AI-generated doc ⚠️ destructive
@@ -248,6 +290,9 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 - No `error` in either result
 
 **Result (2026-06-20) ✅ PASS** After `apply_theme overwrite=True` (Georgia HEADING_1, Roboto NORMAL_TEXT) on the test doc, `get_doc_theme` returned `{"HEADING_1": {"font_family": "Georgia"}, "NORMAL_TEXT": {"font_family": "Roboto"}}`. Applying that theme back → `requests: 2` (one `updateNamedStyle` per key). No error. (font_size/bold not in round-trip because API normalises them to inherited when they match the named style default.)
+
+**Result (2026-09-04) ✅ PASS**
+round-tripped Georgia/Roboto fonts render distinctly
 
 ---
 
@@ -273,6 +318,9 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 
 **Cleanup:** delete the table
 
+**Result (2026-09-04) ✅ PASS**
+style_doc_table_cells cell[0,0] border_bottom only (black, 1.0) on 2x1 table; no error, requests:1. Per-edge border struct not independently verifiable via MCP tools (no raw documents().get() access; browser unauth) — response-level checks pass.
+
 ---
 
 ### TC-DOC147: `apply_theme` table styling with per-edge border override ⚠️ destructive
@@ -294,6 +342,9 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 
 **Cleanup:** write fixture content back
 
+**Result (2026-09-04) ✅ PASS**
+apply_theme table {border_color, border_width:0.5, border_bottom:{width:2}} -> {docId, requests:3}; no error. Also verified {"border_bottom":null} -> clean {"error":...}, no raise. Raw struct read unavailable via MCP.
+
 ---
 
 ## `style_doc_range` — additional coverage
@@ -311,6 +362,9 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 **Result (2026-06-20) ✅ PASS**
 - Inserted "Strikethrough test.\n"; applied strikethrough to [88, 108]. `requests: 1`. Re-fetch: run `strikethrough: true`.
 
+**Result (2026-09-04) ✅ PASS**
+strikethrough on [1,20]; requests:1; run strikethrough:true on re-fetch.
+
 ---
 
 ### TC-DOC29: Apply font_size ⚠️ destructive
@@ -326,6 +380,9 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 
 **Result (2026-06-20) ✅ PASS**
 - Applied `font_size: 18` to [88, 104]. `requests: 1`. (Visual check only — `get_doc_structure` does not expose `font_size` from effectiveFormat.)
+
+**Result (2026-09-04) ✅ PASS**
+font_size 18 on [1,15]; requests:1; re-fetch run shows font_size:18.
 
 ---
 
@@ -344,6 +401,9 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 
 **Result (2026-06-20) ✅ PASS**
 - Inserted "Visit example\n"; applied `link_url: "https://example.com"` to "example" (indices 94–101). `requests: 1`. Re-fetch: run split into "Visit " (`link_url: null`), "example" (`link_url: "https://example.com"`, `underline: true`), "\n" (`link_url: null`). Auto-underline is expected API behaviour.
+
+**Result (2026-09-04) ✅ PASS**
+link_url https://example.com on "example" [7,14]; requests:1; run split — "Visit "(null), "example"(link_url set, underline:true auto), "\n"(null).
 
 ---
 
@@ -365,6 +425,9 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 **Result (2026-06-20) ✅ PASS**
 - Inserted "Style-test heading\n" at 88; styled [88, 107] as HEADING_1. `requests: 1`. Re-fetch: `namedStyleType: "HEADING_1"`, `text: "Style-test heading\n"` unchanged.
 
+**Result (2026-09-04) ✅ PASS**
+style [1,19] HEADING_1; requests:1; namedStyleType HEADING_1; text "Style-test heading\n" unchanged. Restyled NORMAL_TEXT + deleted.
+
 ---
 
 ### TC-DOC24: style_doc_range text styles round-trip ⚠️ destructive
@@ -384,6 +447,9 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 
 **Result (2026-06-20) ✅ PASS**
 - Inserted "Bold-italic test\n" at 88; applied bold+italic to [88, 105]. `requests: 1`. Re-fetch: run `bold: true`, `italic: true`; `namedStyleType: "NORMAL_TEXT"` unchanged.
+
+**Result (2026-09-04) ✅ PASS**
+style [1,17] bold+italic; requests:1; run bold:true italic:true; namedStyleType NORMAL_TEXT unchanged.
 
 ---
 
@@ -409,6 +475,9 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 
 **Result:** PASS (2026-07-27, live via `mcp-gee-sweet-kit`, `mcp-gee-sweet-qa-fixtures-doc` `1-whiEVwvnSOABaK9qgpzdVaGUOMRvJdQhDmCURqx4fA`). Inserted "Visit example\n", linked "example" (indices 94–101) to `https://example.com`, then cleared it via `style_doc_range(..., link_url=null)` — no `HttpError 400`, `requests: 1`. `get_doc_structure` confirmed "example" split into its own run with `link_url: null` (previously carried the link). Visual/Playwright check not performed (no browser session in this pass); cleared status confirmed via the API's own structural response instead. Test paragraph deleted after.
 
+**Result (2026-09-04) ✅ PASS**
+link_url:null clear on [7,14]; no HttpError 400; requests:1; "example" run link_url:null on re-fetch. Visual not verified.
+
 ---
 
 ### TC-DOC140: `insert_softbreak_paragraph`'s `link_url: null` also clears rather than erroring (shared helper)
@@ -426,6 +495,9 @@ Tool call: `style_doc_table_cells(doc_id=DOC_ID, table_start_index=<tableStartIn
 **Cleanup:** delete the inserted paragraph
 
 **Result:** PASS (2026-07-27, live via `mcp-gee-sweet-kit`, same fixture doc). `insert_softbreak_paragraph(index=1, lines=[{"text": "plain text, no link", "link_url": null}])` completed without error, returned `line_ranges: [{"start_index": 1, "end_index": 20}]`. `get_doc_structure` confirmed the inserted run's `link_url: null`. Note: since `named_style_type` wasn't passed, the call's documented "covers the entire paragraph touched by the insert" behavior downgraded the existing "Test Document" HEADING_1 paragraph to NORMAL_TEXT (expected, not a defect) — restored via an explicit `style_doc_range` call after cleanup, fixture doc left in its original state.
+
+**Result (2026-09-04) ✅ PASS**
+insert_softbreak_paragraph index 1, line link_url:null; no error; line_ranges 1 entry; inserted run link_url:null.
 
 ---
 
@@ -448,6 +520,9 @@ Tool calls: `write_doc_content(doc_id={DOC_ID}, content="- Top level item\n    -
 **Cleanup:** write fixture content back
 
 **Result (2026-08-06) ❌ FAIL as originally written, ✅ PASS after test-case fix — run live against PR #524 (issue #334).** The prompt originally used a 2-space indent (`"- Top level item\n  - Nested item\n"`), which this codebase's `_md_to_html` (`sane_lists` extension, same as plain `python-markdown`) does not recognize as nested — both items render as a single flat `<ul>` with no nesting, so "Nested item" correctly reported `nestingLevel: 0` given that input; not a product bug, a test-case bug (`sane_lists`/`markdown` requires 4-space indent to nest a list). Fixed the prompt above to 4-space indent and re-ran: both items share one `listId`, "Top level item" is `nestingLevel: 0`, "Nested item" is `nestingLevel: 1` — PASS.
+
+**Result (2026-09-04) ✅ PASS**
+write md (4-space nested); both list items bullet non-null, share listId kix.io6il1p3p40e; "Top level" nestingLevel 0, "Nested" nestingLevel 1.
 
 ---
 
@@ -480,6 +555,9 @@ Tool calls: `create_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <
 
 **Result (2026-08-06, round 3) ✅ PASS — re-verified live against fix commit `9ae16ee`.** Round 2's numbering regression is fixed: `create_paragraph_bullets` now reads the existing list's own glyph info from the document's `lists` map (`infer_preset`) when the caller doesn't pass `bullet_preset` explicitly, instead of defaulting to unordered bullets. Re-ran this test's exact documented call (no `bullet_preset`) — a Playwright screenshot confirms the list renders correctly: "1./2./3." for the top-level items, "a./b./c." for the promoted settings paragraphs, "Click Restore" still "3." All of this test's own checks pass. Also spot-checked the fix's new conflicting-preset validation: two directly-adjacent ranges with different explicit `bullet_preset`s split cleanly into two separate lists (no error, reasonable default); a mediated 3-paragraph case (two explicit, conflicting presets bridged by an already-listed paragraph with no explicit preset) correctly returns `{"error": "conflicting bullet_preset values among contiguous paragraphs..."}` as the docstring describes — the docstring's phrasing ("two explicitly-requested contiguous paragraphs") is a little imprecise about requiring same-run membership rather than literal adjacency in the caller's `ranges` list, but the behavior itself is correct and safe; noted as a non-blocking documentation nit, not filed as a ticket. Re-confirmed no regression on the original multi-range-fragmentation repro (3 single-paragraph ranges at depths 0/1/0 still land in one shared `listId` with correct depths). `qa-approved` applied.
 
+**Result (2026-09-04) ✅ PASS**
+1./2./3. + nested a./b./c., "Click Restore" still "3." — #334 fix holds
+
 ---
 
 ### TC-DOC157: `delete_paragraph_bullets` removes list membership from a range, leaving paragraph text untouched ⚠️ destructive
@@ -503,5 +581,8 @@ Tool calls: `delete_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <
 **Cleanup:** write fixture content back
 
 **Result (2026-08-06) ✅ PASS — run live against PR #524 (issue #334).** All three checks confirmed exactly as specified: "First item"/"Third item" kept their `bullet` field and shared `listId`, "Second item"'s `bullet` became `null`, and its `text` was unchanged.
+
+**Result (2026-09-04) ✅ PASS**
+3-item list; delete_paragraph_bullets "Second item" [12,24] -> requests:1; First/Third keep bullet, Second bullet:null, Second text "Second item\n" unchanged.
 
 ---

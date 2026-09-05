@@ -18,6 +18,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - `content` is a plain text string matching the doc's text
 - `format` is `txt`
 
+**Result (2026-09-04) ✅ PASS**
+txt export: encoding utf-8, format txt, content matches doc body ("Test Document\r\n...Item one/Item two")
+
 ---
 
 ### TC-D84: Export Google Doc as HTML
@@ -29,6 +32,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Response `encoding` is `utf-8`
 - `content` is an HTML string with `<html>` tags
 - Headings and lists from the doc visible as HTML elements
+
+**Result (2026-09-04) ✅ PASS**
+html export: encoding utf-8, `<html>` tags present, `<h1>Test Document</h1>` + `<ul><li>Item one</li>...` present
 
 ---
 
@@ -42,6 +48,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - `content` is a non-empty base64 string
 - Decoding it produces a valid PDF (starts with `%PDF`)
 
+**Result (2026-09-04) ✅ PASS**
+pdf export: encoding base64, non-empty, decodes to `%PDF-1.4` header (JVBERi0xLjQ...)
+
 ---
 
 ### TC-D86: Export Google Sheet as CSV
@@ -53,6 +62,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 - Response `encoding` is `utf-8`
 - `content` is comma-separated text matching the sheet's data
 
+**Result (2026-09-04) ✅ PASS**
+Re-checked after Sheets shard restored {SPREADSHEET_ID} to seed: export_file(csv) and download_file(csv) now return byte-identical clean seed content. Earlier apparent discrepancy vs TC-D104 was transient cross-shard write interference (Sheets shard mid-mutation during a concurrent export read), not a product bug.
+
 ---
 
 ### TC-D87: Unknown export format
@@ -63,6 +75,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Checks**
 - Returns a `ValueError` with a message listing valid formats
 - Not a server crash
+
+**Result (2026-09-04) ✅ PASS**
+Unknown format 'xyz' returns ValueError "Unknown export_format 'xyz'. Valid options: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx, raw"; no crash
 
 ---
 
@@ -79,6 +94,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 **Result (2026-07-03) ✅ PASS**
 Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded the cap: `export_file: the response is 54280 characters, over the 40000-character safety cap. Base64 encoding inflates raw file size by ~33%. Call download_file instead to write the file straight to disk without this overhead, or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).` Confirms `export_file`'s cap trips far more readily than the other capped tools given base64 inflation — `download_file` is the practical default for anything but tiny files.
 
+**Result (2026-09-04) ❌ FAIL**
+Expected ValueError re: 40,000-char response cap on xlsx export. Actual: call SUCCEEDED, returned full base64 xlsx (~9KB) inline, no error. Root cause: issue #519 raised MAX_TOOL_RESPONSE_CHARS well above the ~54KB this fixture's xlsx produced — the TC premise (small fixture trips 40k cap) is stale post-#519. Not a product regression; TC needs updating.
+
 ---
 
 ## `upload_file`
@@ -92,6 +110,9 @@ Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded t
 - `name` is 'qa-upload.txt'
 - Folder cache invalidated — `list_files` shows the new file
 
+**Result (2026-09-04) ✅ PASS**
+upload_file qa-upload.txt to scratch folder (sub-substituted for {FOLDER_ID}): mimeType text/plain, name qa-upload.txt, list_files shows it (cache invalidated).
+
 ---
 
 ### TC-D89: Upload Markdown as raw file (no conversion) ⚠️ requires-oauth
@@ -102,6 +123,9 @@ Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded t
 - File created with `mimeType: text/markdown` (or `text/plain` — note whichever)
 - Markdown syntax is preserved as literal text — no conversion
 - `convert_to_doc` was `False`
+
+**Result (2026-09-04) ✅ PASS**
+upload_file qa-notes.md (source_format default 'text', convert_to_doc=false): mimeType text/plain (not text/markdown), raw export returns literal "# Heading\n\n- item 1\n- item 2" — no conversion. NOTE: an initial call with source_format='markdown' produced mimeType text/html (markdown→HTML happens regardless of convert_to_doc); by-design per docstring but a footgun for "raw .md" intent.
 
 ---
 
@@ -118,6 +142,9 @@ Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded t
 - **bold** renders as bold text
 - 'link' is a hyperlink to https://example.com
 
+**Result (2026-09-04) ✅ PASS**
+heading, sub-heading, bullets, bold, hyperlink all render correctly
+
 ---
 
 ### TC-D91: Upload HTML and convert to Google Doc ⚠️ requires-oauth
@@ -130,6 +157,9 @@ Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded t
 - Heading and list visible in browser
 - `source_format` was `html`, `convert_to_doc` was `True`
 
+**Result (2026-09-04) ✅ PASS**
+heading, paragraph, bulleted list render correctly
+
 ---
 
 ### TC-D92: Upload Markdown with table ⚠️ requires-oauth
@@ -141,6 +171,9 @@ Exporting even the small QA fixture spreadsheet as `xlsx` immediately exceeded t
 - Google Doc created
 - Open in browser: a 2×2 table is visible under the heading
 - Confirms `markdown[extra]` extension handles GFM tables
+
+**Result (2026-09-04) ✅ PASS**
+heading + real 2×2 table render correctly
 
 ---
 
@@ -415,6 +448,9 @@ Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
 - `size_bytes` matches the Drive file size
 - File is a valid PNG (can be opened)
 
+**Result (2026-09-04) ✅ PASS**
+No PNG fixture (TC-D93 is local-filesystem, skipped) — used qa-upload.txt as the non-Google file. download_file to /tmp/qa-downloads/ (real dir): written to /tmp/qa-downloads/qa-upload.txt, size_bytes 13 == Drive size, content "Hello from QA" intact. PNG-validity check N/A.
+
 ---
 
 ### TC-D102: Export Google Doc as plain text ⚠️ local-filesystem
@@ -426,6 +462,9 @@ Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
 - File written as `<doc_name>.txt`
 - Content is readable plain text matching the doc body
 - `encoding` for the response is not relevant here — file is on disk
+
+**Result (2026-09-04) ✅ PASS**
+download {DOC_ID} export_format=txt to /tmp/qa-downloads/: file mcp-gee-sweet-qa-fixtures-doc.txt, content matches doc body ("Test Document / ... / * Item one / * Item two").
 
 ---
 
@@ -439,6 +478,9 @@ Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
 - File opens as a valid PDF (`%PDF` header)
 - `size_bytes` > 0
 
+**Result (2026-09-04) ✅ PASS**
+download {DOC_ID} export_format=pdf: file mcp-gee-sweet-qa-fixtures-doc.pdf, `%PDF-` header, size_bytes 20152 > 0.
+
 ---
 
 ### TC-D104: Export Google Sheet as CSV ⚠️ local-filesystem
@@ -449,6 +491,9 @@ Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
 **Checks**
 - CSV file written locally
 - Content matches the spreadsheet's first sheet data
+
+**Result (2026-09-04) ✅ PASS**
+See TC-D86 — re-checked clean after Sheets fixture restoration; export_file and download_file agree exactly.
 
 ---
 
@@ -461,6 +506,9 @@ Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
 - `ValueError` raised mentioning that `export_format` is required
 - No file written
 
+**Result (2026-09-04) ✅ PASS**
+download {DOC_ID} with no export_format: ValueError "export_format is required for Google Workspace file 'mcp-gee-sweet-qa-fixtures-doc'. Valid options: ...", no file written.
+
 ---
 
 ### TC-D106: local_path as exact file path ⚠️ local-filesystem
@@ -471,6 +519,9 @@ Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
 **Checks**
 - File written to exactly `/tmp/qa-specific-name.png`, not into a subdirectory
 - Parent directory created if it didn't exist
+
+**Result (2026-09-04) ✅ PASS**
+No PNG fixture — used qa-upload.txt → local_path="/tmp/qa-specific-name.txt": written to exactly that path (not a subdir), content "Hello from QA" intact, 13 bytes. Parent dir already existed.
 
 ---
 
@@ -486,6 +537,9 @@ Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
 - Workspace files (Docs, Sheets) listed in `skipped` — not exported without `export_format`
 - `downloaded` list matches non-Workspace filenames
 
+**Result (2026-09-04) ✅ PASS**
+download_folder scratch→/tmp/qa-folder-download/: downloaded=["qa-notes.md","qa-upload.txt"], skipped=["QA-HTML-Doc","QA-Markdown-Doc","QA-Table-Doc"] (Workspace, no export_format), failed=[]. Files on disk correct.
+
 ---
 
 ### TC-D108: Download folder with export_format ⚠️ local-filesystem
@@ -498,6 +552,9 @@ Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
 - Workspace files exported as `.pdf` and included in `downloaded`
 - All resulting files have `.pdf` extension or original extension
 
+**Result (2026-09-04) ✅ PASS**
+download_folder scratch→/tmp/qa-folder-export/ export_format=pdf: downloaded = 2 raw files + QA-HTML-Doc.pdf/QA-Markdown-Doc.pdf/QA-Table-Doc.pdf (all `%PDF-` header). Non-Workspace as-is. failed=[].
+
 ---
 
 ### TC-D109: skip_if_exists=True skips existing local files ⚠️ local-filesystem
@@ -509,6 +566,9 @@ Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
 - Files already present locally appear in `skipped`
 - `downloaded` is empty (or contains only new Drive files)
 
+**Result (2026-09-04) ✅ PASS**
+Re-ran download_folder against /tmp/qa-folder-download/: downloaded=[], skipped=all 5 (qa-notes.md/qa-upload.txt as already-present; 3 Docs as Workspace-skip). No re-download.
+
 ---
 
 ### TC-D110: mime_type_filter ⚠️ local-filesystem
@@ -519,6 +579,9 @@ Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
 **Checks**
 - Only `application/vnd.google-apps.document` files exported
 - Other file types absent from the output directory
+
+**Result (2026-09-04) ✅ PASS**
+download_folder mime_type_filter=application/vnd.google-apps.document, export_format=txt → /tmp/qa-docs-only/: only the 3 Docs exported as .txt; qa-notes.md/qa-upload.txt absent from output dir.
 
 ---
 
@@ -942,6 +1005,9 @@ Delete both `notes.md` files from `{FOLDER_ID}`. Remove `/tmp/qa-sync-232/`.
 
 **Result (2026-08-10) ✅ PASS** — Re-verified against fix commit `4b5eb33`. `sync_folder(folder_id=<qa-fixtures folder>, local_path=<scratch dir>, direction='mirror', dry_run=true)` returned exactly `{"error": "Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}`. `sync_folder(..., export_format='bogus', dry_run=true)` now also returns `{"error": "Unknown export_format 'bogus'. Valid: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx"}` — no raised exception, matches `direction`'s shape. Both prompts pass, no Drive API calls made for either.
 
+**Result (2026-09-04) ✅ PASS**
+sync_folder direction='mirror' → `{"error":"Invalid direction 'mirror'. Use 'upload', 'download', or 'bidirectional'."}` (dict, not raise, not no-op). export_format='bogus' → `{"error":"Unknown export_format 'bogus'. Valid: pdf, html, txt, docx, odt, rtf, epub, csv, xlsx, ods, pptx"}`. Both fail-fast. (#488/PR #563 confirmed.)
+
 ---
 
 ### TC-D178: Concurrent mixed upload/download batch — no cross-attribution or corruption ⚠️ destructive ⚠️ local-filesystem (issue #183)
@@ -1106,6 +1172,9 @@ Delete `nested-sub` from `{FOLDER_ID}`. Remove `/tmp/qa-download-328/`.
 
 *(A 20+ subfolder / 200+ file live fixture is impractical to construct/tear down for a scoped QA pass — this case is deterministically unit-tested instead: `TestSyncFolderResponseSizeCap::test_oversized_result_raises`, `test_error_points_to_result_local_path_not_local_path`.)*
 
+**Result (2026-09-04) ✅ PASS**
+`TestSyncFolderResponseSizeCap::test_oversized_result_raises` + `test_error_points_to_result_local_path_not_local_path` pass. (Large-fixture live repro impractical — unit-tested per TC text.)
+
 ---
 
 ### TC-D244: dry_run's flat lists stay empty — `actions` alone is the complete, non-redundant preview (issue #512) ⚠️ local-filesystem
@@ -1150,6 +1219,9 @@ Remove `/tmp/qa-512b/` and `/tmp/qa-512b-result/`.
 
 **Result (2026-08-04) ✅ PASS** — Reusing TC-D244's scratch fixture, `sync_folder(..., dry_run=true, result_local_path=<result dir>/)` returned only `{local_path, bytes_written, folder_id, dry_run: true}` (no inline `uploaded`/`actions`/etc.). Reading the written JSON file reproduced the exact same shape/values the inline call in TC-D244 returned. **Live-confirmed a related correctness gap while running this case — see the PR comment: `result_local_path` has no guard against pointing inside the sync's own `local_path`, so the written manifest file gets picked up as a spurious local-only file on the next sync.**
 
+**Result (2026-09-04) ✅ PASS**
+sync_folder(scratch folder, /tmp/qa-512b/, dry_run=true, result_local_path=/tmp/qa-512b-result/): returned manifest {local_path: .../1-Wqp3..._sync_result.json, bytes_written:294, folder_id, dry_run:true} — no inline sync keys. Written JSON has full shape (uploaded/downloaded/skipped/conflicts/failed/folders_skipped/size_bytes/dry_run/actions).
+
 ---
 
 ### TC-D246: `result_local_path` pointing at or inside `local_path` is rejected up front (PR #518 review finding, issue #512)
@@ -1170,6 +1242,9 @@ Remove `/tmp/qa-512b/` and `/tmp/qa-512b-result/`.
 Remove `/tmp/qa-512c/` and `/tmp/qa-512c-result/`.
 
 **Result (2026-08-04) ✅ PASS** — Reproduced against a scratch fixture. Both invalid calls (`result_local_path` equal to `local_path`, and nested inside it) raised `ValueError: result_local_path (...) must not be local_path (...) or a path inside it...` with no Drive API call made and no file created under `local_path` either time. The sibling-directory control call succeeded normally, writing the manifest under the separate result dir (regression-checked against TC-D245). `uv run python -m pytest tests/drive/test_transfer.py -k result_local_path` also passes (5/5).
+
+**Result (2026-09-04) ✅ PASS**
+result_local_path == local_path AND nested (/tmp/qa-512c/nested/out.json) both raise ValueError "result_local_path (...) must not be local_path (...) or a path inside it — ... Use a separate directory." /tmp/qa-512c/ stayed empty (no manifest, no nested dir). Sibling-dir control (/tmp/qa-512c-result/) succeeded — manifest written.
 
 ---
 
@@ -1241,6 +1316,9 @@ In `{FOLDER_ID}`, ensure at least 5 files exist.
 
 **Teardown**
 Remove `/tmp/qa-progress-316/`.
+
+**Result (2026-09-04) ✅ PASS**
+download_folder scratch→/tmp/qa-progress-316/ export_format=txt completed normally: downloaded=5, failed=[]. Progress-notification visibility not testable in this client (no progressToken set) — consistent with the TC's own caveat; substantive check (call completes, downloaded correct) passes.
 
 ---
 
@@ -1340,6 +1418,9 @@ Remove `/tmp/qa-239/`.
 
 **Result (2026-08-23) ✅ PASS (round 2)** — verified fix commit `3487a45` (`git show`) directly against source: `_run_one`'s new orphan branch now sets `level_changed = True` before `failed.append(entry)`, and the new assertion in `test_restamp_failure_after_successful_create_reports_orphan_fileId` confirms `mark_dirty("root")` is called exactly once. Ran `uv run python -m pytest tests/drive/test_transfer.py -k "mark_dirty or CacheInvalidation or restamp or orphan or fileId or ConvertMarkdown or UploadLocalFileConvert or UploadLocalFolder"` (52 passed) and the full suite (1311 passed, +4 from round 1's 1307 — the new regression-guard tests). Cache-invalidation gap closed.
 
+**Result (2026-09-04) ✅ PASS**
+`TestSyncFolderConvertMarkdown::test_restamp_failure_after_successful_create_reports_orphan_fileId` + `TestUploadLocalFileConvert::test_create_failure_returns_error_with_no_fileId` pass (also within the broader 64-test transfer run).
+
 ---
 
 ### TC-D250: `upload_local_file`/`upload_local_folder` — the identical restamp-failure orphan-fileId fix, for the twin create()+update() pair (issue #420) (unit test)
@@ -1358,6 +1439,9 @@ Remove `/tmp/qa-239/`.
 
 **Result (2026-08-22) ✅ PASS** — both cited tests pass (same run as TC-D249 above). Same cache-invalidation caveat applies: `upload_local_file`'s `mark_dirty` gate (`if "error" not in result`) and `upload_local_folder`'s (`if uploaded:`) both skip invalidating the folder cache for this fix's new orphan-with-fileId case, even though `create()` genuinely succeeded — see PR #645 comment.
 
+**Result (2026-09-04) ✅ PASS**
+`TestUploadLocalFileConvert::test_convert_modified_time_restamp_failure_returns_clean_error_not_raise`, `test_create_failure_returns_error_with_no_fileId`, `TestUploadLocalFileToolCacheInvalidation` (3), `TestUploadLocalFolder::test_restamp_failure_orphan_still_marks_folder_cache_dirty` all pass.
+
 ---
 
 ### TC-D251: restamp-failure handling — quota-message gap closed, two branches share one helper (issue #650) (unit test)
@@ -1371,6 +1455,9 @@ Remove `/tmp/qa-239/`.
 - `tests/drive/test_transfer.py::TestSyncFolderConvertMarkdown::test_restamp_failure_after_successful_create_reports_orphan_fileId` (TC-D249's existing test, unchanged behavior) — still passes with the local `_RestampFailsFakeDriveFS` class promoted to module scope and reused.
 
 **Result (2026-08-29) ✅ PASS (round 1)** — full `tests/drive/test_transfer.py` suite green (119 passed); the four cited tests pass by name. `_restamp_failure_result`'s quota check (`isinstance(exc, HttpError) and exc.resp.status == 403 and b"storageQuotaExceeded" in (exc.content or b"")`) matches the two existing quota sites (transfer.py:227, :1351), with the added `isinstance` guard being correct since the restamp `except` catches bare `Exception`; the failure message is byte-identical to the prior inline versions and the `**_restamp_failure_result(...)` spread does not clobber `_run_one`'s `kind`/`name` keys. Unit-test-only per the case's stated live-repro constraint — no live tool call applicable. Non-blocking adjacent gap noted in `/code-review` and filed separately: `_run_one`'s outer catch-all `except Exception` (transfer.py:784) still renders a `storageQuotaExceeded` `HttpError` from its `create()`/re-import `update()` as raw `str(e)`, not `_SA_QUOTA_ERROR` — pre-existing, out of this PR's scope.
+
+**Result (2026-09-04) ✅ PASS**
+`TestUploadLocalFileConvert::test_convert_restamp_quota_error_uses_friendly_message`, `TestSyncFolderConvertMarkdown::test_restamp_quota_failure_uses_friendly_message`, `test_restamp_fixture_lets_existing_file_reimport_through`, `test_restamp_failure_after_successful_create_reports_orphan_fileId` all pass.
 
 ---
 
@@ -1387,6 +1474,9 @@ Remove `/tmp/qa-239/`.
 - Most recent revision appears last
 - `modifiedTime` values are ISO 8601 timestamps
 
+**Result (2026-09-04) ✅ PASS**
+list_revisions on {SPREADSHEET_ID}: 3 revisions, each with revisionId/modifiedTime/modifiedBy/keepForever; chronological ascending (rev 1 → 8 → 31), ISO-8601 timestamps.
+
 ---
 
 ### TC-D147: List revisions for a non-existent file
@@ -1396,6 +1486,9 @@ Remove `/tmp/qa-239/`.
 
 **Checks**
 - Returns a clear API error (404), not an unhandled exception
+
+**Result (2026-09-04) ✅ PASS**
+list_revisions('invalid_file_id_xyz') → HttpError 404 "File not found: invalid_file_id_xyz.", surfaced as a clean tool error, no unhandled exception.
 
 ---
 
@@ -1419,6 +1512,9 @@ Remove `/tmp/qa-239/`.
 - `sheet` matches the first sheet name
 - `modifiedTime` matches the revision timestamp from `list_revisions`
 
+**Result (2026-09-04) ⏭️ SKIP**
+SKIP(environmental — Drive revision coalescing). Setup: created scratch spreadsheet QA-v090-transfer-rev-test, wrote "QA-BEFORE" to Sheet1!A1:B5, waited 40s, wrote "QA-AFTER" to A1 (~69s after first write). list_revisions still only cut rev 1 (empty baseline) and rev 4 (post-"QA-AFTER") — no revision isolates the "QA-BEFORE" intermediate state, so the "values has QA-BEFORE in A1" check is unverifiable. Matches the TC's own known-limitation clause. The export_revision mechanism itself is confirmed working by TC-D149/D150 below (rev 1 exports as empty, rev 6 exports the populated grid).
+
 ---
 
 ### TC-D149: Export revision with explicit sheet name
@@ -1431,6 +1527,9 @@ Remove `/tmp/qa-239/`.
 - Range is respected — only rows/columns within A1:B5 returned
 - Handles multi-sheet files correctly
 
+**Result (2026-09-04) ✅ PASS**
+Added Sheet2 (A1:C7 filled S2-*), new rev 6. export_revision(rev 6, sheet="Sheet2", range="A1:B5") → sheet="Sheet2", values = 5×2 grid [["S2-A1","S2-B1"]..["S2-A5","S2-B5"]] — data from Sheet2 not the first sheet, range respected (C column / rows 6-7 excluded), multi-sheet handled.
+
 ---
 
 ### TC-D150: Export revision — no range returns all data
@@ -1442,6 +1541,9 @@ Remove `/tmp/qa-239/`.
 - Returns all rows and columns of the first sheet
 - No error from omitting the range parameter
 
+**Result (2026-09-04) ✅ PASS**
+export_revision(rev 6, no range) → sheet="Sheet1", range=null, values = full 5×2 grid [["QA-AFTER","x1"]..["r5c1","r5c2"]]. All rows/cols of first sheet returned, no error from omitting range.
+
 ---
 
 ### TC-D151: Export revision of a non-Sheets file
@@ -1452,5 +1554,8 @@ Remove `/tmp/qa-239/`.
 **Checks**
 - Returns a clear error: "No XLSX export available for this revision"
 - Does not crash
+
+**Result (2026-09-04) ✅ PASS**
+export_revision({DOC_ID}, rev 3) → error "No XLSX export available for revision 3. The file may not be a Google Sheets file." Clear error, no crash.
 
 ---

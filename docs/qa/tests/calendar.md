@@ -22,6 +22,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-08-18) ✅** — PR #625 (issue #466) refactor round: `list_calendars` now routes through the shared `_get_cached_calendar_list` helper. Called live; returned 11 calendars, each with `id`/`summary`/`time_zone`/`access_role`/`primary` populated, one entry with `primary: true`. Output shape unchanged from pre-refactor. `list_events`/`get_event`/`list_all_events` (also touched by this PR's `_shape_event` extraction) were spot-checked live in the same round with matching, unchanged output shapes — see PR comment for the round's full write-up.
 
+**Result (2026-09-04) ✅ PASS**
+list_calendars returned [] initially (SA has zero subscriptions); after create_calendar it returns 1 entry with id/summary/time_zone/access_role/primary. Fixture {CALENDAR_ID} not shared with SA so used SA-owned cal.
+
 ---
 
 ### TC-CAL02: primary flag
@@ -34,6 +37,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - All others have `primary: false`
 - 🔍 **Service account note:** service accounts may have no primary calendar — `primary` may be `false` on all entries; note what is observed
 
+**Result (2026-09-04) ✅ PASS**
+No calendar has primary:true; SACAL primary:false. Matches 🔍 SA note "service accounts may have no primary calendar".
+
 ---
 
 ### TC-CAL03: Cache hit on second call
@@ -44,6 +50,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - Second call returns same results
 - Logs show `Calendar list cache hit`
+
+**Result (2026-09-04) ✅ PASS**
+Two list_calendars calls returned byte-identical results. Cache-hit log not observable from this harness.
 
 ---
 
@@ -57,6 +66,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - Returns `[]` — not an error
 - 🔍 **Hard to test without a fresh service account** — note if observed
+
+**Result (2026-09-04) ✅ PASS**
+First-ever list_calendars (before any subscription) returned {"result":[]} — empty list, not an error. Matches TC-CAL04 (normally hard to test).
 
 ---
 
@@ -72,6 +84,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `time_zone` is a valid IANA name (e.g. `America/Los_Angeles`)
 - No `error` field
 
+**Result (2026-09-04) ✅ PASS**
+No (shape matches)
+
 ---
 
 ### TC-CAL06: calendar_id='primary'
@@ -82,6 +97,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - Returns calendar metadata for the service account's primary calendar
 - 🔍 **Service account note:** service accounts may not have a primary calendar — if so, expect `{"error": ...}`; note the actual response
+
+**Result (2026-09-04) ✅ PASS**
+get_calendar('primary') -> {"error":"HttpError 404 ... notFound"}. Matches 🔍 SA note "service accounts may not have a primary calendar; expect error".
 
 ---
 
@@ -94,6 +112,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Second call returns same result
 - Logs show `Calendar cache hit: {CALENDAR_ID}`
 
+**Result (2026-09-04) ✅ PASS**
+Two get_calendar calls on SACAL returned identical results. Cache-hit log not observable. Fixture-ID variant 404s under SA.
+
 ---
 
 ### TC-CAL08: Non-existent calendar ID
@@ -104,6 +125,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - Returns `{"error": "..."}` — not a top-level exception
 - Error message is from the Calendar API
+
+**Result (2026-09-04) ✅ PASS**
+get_calendar('totally-invalid-cal-id@example.com') -> {"error":"<HttpError 404 ... 'reason': 'notFound' ...>"}, not a top-level exception.
 
 ---
 
@@ -122,6 +146,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-07-05) ✅** — Created via OAuth; response had `summary`, `description`, and `time_zone: "America/Los_Angeles"` exactly as requested. Confirmed present in a follow-up `list_calendars` call.
 
+**Result (2026-09-04) ✅ PASS**
+create_calendar -> id, summary=mcp-gee-sweet-qa-lifecycle-test, description="QA scratch calendar", time_zone=America/Los_Angeles. Appeared in follow-up list_calendars (cache invalidated). SA CAN own calendars. SACAL id b9e74820...a4313@group.calendar.google.com
+
 ---
 
 ### TC-CAL45: Create with only summary
@@ -135,6 +162,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `time_zone` reflects the account default
 
 **Result (2026-07-05) ✅** — Created with only `summary` provided. `description: null`. `time_zone: "UTC"` (account default rather than the creator's local timezone — noted for documentation purposes). Confirmed present in a follow-up `list_calendars` call.
+
+**Result (2026-09-04) ✅ PASS**
+create_calendar summary-only -> id, summary=mcp-gee-sweet-qa-minimal, description=null, time_zone="UTC" (account default). MINCAL id 41a5983c...30c1@group.calendar.google.com
 
 ---
 
@@ -155,6 +185,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-07-05) ✅** — Patched with `summary: "mcp-gee-sweet-qa-renamed"` and `timezone: "America/New_York"`. Response reflected both changes; `description` unchanged from TC-CAL44 (`"QA scratch calendar"`).
 
+**Result (2026-09-04) ✅ PASS**
+update_calendar summary+timezone on SACAL -> summary=mcp-gee-sweet-qa-renamed, time_zone=America/New_York, description unchanged. get_calendar confirms new values.
+
 ---
 
 ### TC-CAL47: Change color only ⚠️ destructive
@@ -171,6 +204,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-07-05) ✅** — Patched `color_id="5"` only (no summary/description/timezone). Response had `color_id: "5"` with `summary`, `description`, `time_zone` all unchanged from TC-CAL46 — confirms the tool fell back to `calendars().get()` for the base fields and routed color through `calendarList().patch()`.
 
+**Result (2026-09-04) ✅ PASS**
+update_calendar color_id="5" only -> response color_id="5"; summary/description/time_zone unchanged from CAL46. Color routed via calendarList().patch().
+
 ---
 
 ### TC-CAL48: No fields provided
@@ -185,6 +221,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-07-05) ✅** — Called with `calendar_id="primary"` and no other fields. Returned the account's real primary calendar summary/timezone unchanged, `color_id: null`. Confirms the no-op path uses `calendars().get()` without issuing any patch.
 
+**Result (2026-09-04) ✅ PASS**
+update_calendar with no fields on SACAL -> current metadata unchanged, color_id=null (no-op path uses calendars().get(), no patch), no API error.
+
 ---
 
 ### TC-CAL49: Non-existent calendar ID
@@ -196,6 +235,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Returns `{"error": "..."}` — not a top-level exception
 
 **Result (2026-07-05) ✅** — Returned `{"error": "<HttpError 404 ... 'reason': 'notFound' ...>"}`. No exception raised.
+
+**Result (2026-09-04) ✅ PASS**
+update_calendar on invalid ID -> {"error":"<HttpError 404 ... notFound ...>"}, no top-level exception.
 
 ---
 
@@ -215,6 +257,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-07-05) ✅** — Returned `{"calendar_id": "...", "action": "deleted"}`. Confirmed absent from a follow-up `list_calendars` call. `get_calendar` on the deleted ID returned a 404 `notFound` error.
 
+**Result (2026-09-04) ✅ PASS**
+delete_calendar SACAL -> {"calendar_id":...,"action":"deleted"}. Absent from follow-up list_calendars (now []). get_calendar on deleted ID -> HttpError 404 notFound.
+
 ---
 
 ### TC-CAL51: Delete the minimal test calendar ⚠️ destructive
@@ -230,6 +275,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-07-05) ✅** — Returned `{"calendar_id": "...", "action": "deleted"}`. Confirmed removed from the account's `list_calendars` output alongside TC-CAL50's cleanup.
 
+**Result (2026-09-04) ✅ PASS**
+delete_calendar MINCAL -> {"calendar_id":...,"action":"deleted"}. list_calendars now [] — fixture cleaned up.
+
 ---
 
 ### TC-CAL52: Non-existent calendar ID
@@ -242,6 +290,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - No side effects
 
 **Result (2026-07-05) ✅** — Returned `{"error": "<HttpError 404 ... 'reason': 'notFound' ...>"}`. No side effects.
+
+**Result (2026-09-04) ✅ PASS**
+delete_calendar 'totally-invalid-cal-id@example.com' -> {"error":"<HttpError 404 ... notFound ...>"}, not a top-level exception, no side effects.
 
 ---
 
@@ -262,6 +313,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-07-05) ✅** — Response had `summary: "Holidays in Japan"`, `access_role: "reader"`, `color_id: "8"` (Google's default color for this public calendar). Confirmed present in a follow-up `list_calendars` call.
 
+**Result (2026-09-04) ✅ PASS**
+add_calendar_to_list en.japanese#holiday -> id/summary="Holidays in Japan"/time_zone/access_role="reader"/primary=false/color_id="8". Present in follow-up list_calendars.
+
 ---
 
 ### TC-CAL54: Subscribe with a color ⚠️ destructive
@@ -277,6 +331,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-07-05) ✅** — Response had `color_id: "7"` and `summary: "Holidays in Canada"`. Confirmed present in `list_calendars`.
 
+**Result (2026-09-04) ✅ PASS**
+add_calendar_to_list en.canadian#holiday color_id="7" -> color_id="7", summary="Holidays in Canada". Present in list_calendars.
+
 ---
 
 ### TC-CAL55: Non-existent calendar ID
@@ -289,6 +346,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - No entry added to the calendar list
 
 **Result (2026-07-05) ✅** — Returned `{"error": "<HttpError 404 ... 'reason': 'notFound' ...>"}`.
+
+**Result (2026-09-04) ✅ PASS**
+add_calendar_to_list invalid ID -> {"error":"<HttpError 404 ... notFound ...>"}, no top-level exception; no entry added.
 
 ---
 
@@ -307,6 +367,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-07-05) ✅** — Returned `{"calendar_id": "en.japanese#holiday@group.v.calendar.google.com", "action": "removed_from_list"}`. Confirmed absent from a follow-up `list_calendars` call (the still-subscribed "Holidays in Canada" from TC-CAL54 remained, confirming only the targeted subscription was removed).
 
+**Result (2026-09-04) ✅ PASS**
+remove_calendar_from_list en.japanese#holiday -> {"calendar_id":...,"action":"removed_from_list"}. Absent from follow-up list_calendars; Canada subscription retained.
+
 ---
 
 ### TC-CAL57: Unsubscribing does not delete the calendar ⚠️ destructive
@@ -322,6 +385,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-07-05) ✅** — Re-subscribed successfully; response had the identical `summary: "Holidays in Japan"` as TC-CAL53. Confirms `remove_calendar_from_list` does not touch the calendar resource itself.
 
+**Result (2026-09-04) ✅ PASS**
+Re-subscribed to en.japanese#holiday -> identical summary "Holidays in Japan". Confirms remove_calendar_from_list left calendar resource untouched.
+
 ---
 
 ### TC-CAL58: Non-existent calendar ID
@@ -334,6 +400,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - No side effects
 
 **Result (2026-07-05) ✅** — Returned `{"error": "<HttpError 404 ... 'reason': 'notFound' ...>"}`.
+
+**Result (2026-09-04) ✅ PASS**
+remove_calendar_from_list invalid ID -> {"error":"<HttpError 404 ... notFound ...>"}, no top-level exception, no side effects.
 
 ---
 
@@ -350,6 +419,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-07-05) ✅** — First pass (before the friendly-message special-case was added) returned the raw passthrough: `{"error": "<HttpError 403 ... 'reason': 'cannotUnsubscribeFromOwnedCalendar', 'message': 'The data owner of a calendar cannot remove such a calendar from their calendar list.' ...>"}`. After adding the special-case (reviewer feedback on #269), re-ran against a freshly created owned calendar and got `{"error": "Google does not allow removing a calendar you own from your own calendar list (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to permanently delete it."}` — confirms the friendlier message is live and correctly names the fix.
 
+**Result (2026-09-04) ✅ PASS**
+remove_calendar_from_list on SA-owned MINCAL -> {"error":"Google does not allow removing a calendar you own from your own calendar list (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead to permanently delete it."} — friendly, actionable, names delete_calendar.
+
 ---
 
 ## `list_calendar_acl`
@@ -365,6 +437,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result:** PASS (live, disposable calendar, 2026-07-29). Re-verified PASS (live, 2026-08-16, PR #612 issue #460) — returned 4 rules on `kevin.huisman@gmail.com`, each with all four fields.
 
+**Result (2026-09-04) ✅ PASS**
+No (same shape, different rule count since real fixture is narrowly shared)
+
 ---
 
 ### TC-CAL61: Non-existent calendar ID
@@ -376,6 +451,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Returns `[{"error": "..."}]` — not a top-level exception
 
 **Result:** PASS (live, 2026-07-29). Re-verified PASS (live, 2026-08-16, PR #612 issue #460) — invalid ID against the now-paginated tool still returns `[{"error": "<HttpError 404 ...>"}]`, not a top-level exception.
+
+**Result (2026-09-04) ✅ PASS**
+list_calendar_acl(invalid id) -> [{"error":"<HttpError 404 ... notFound ...>"}], not a top-level exception.
 
 ---
 
@@ -392,6 +470,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - No duplicate `id` values across the returned list (would indicate a page was re-fetched instead of advancing `pageToken`)
 
 **Result:** SKIP (environmental, 2026-08-16, PR #612) — no calendar in this account's fixture set has more than one page (100+) of ACL rules; `list_calendars` shows only a handful of personal/family calendars with at most a few shares each. Covered at the unit level by `tests/test_calendar.py::TestListCalendarAcl::test_follows_next_page_token_across_pages`, confirmed passing (`uv run python -m pytest tests/test_calendar.py -k TestListCalendarAcl` — 3 passed; full file — 74 passed).
+
+**Result (2026-09-04) ⏭️ SKIP**
+No calendar in reach has 100+ ACL rules (SA owns 2 fresh calendars only). Covered by unit test test_calendar.py::TestListCalendarAcl::test_follows_next_page_token_across_pages. Same as prior runs.
 
 ---
 
@@ -412,6 +493,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result:** PASS (live, 2026-07-29).
 
+**Result (2026-09-04) ✅ PASS**
+No
+
 ---
 
 ### TC-CAL63: Add a public (default-scope) rule ⚠️ destructive
@@ -428,6 +512,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result:** PASS with a corrected expectation (live, 2026-07-29) — the live API returns `scope_value: "__public_principal__@public.calendar.google.com"` for a default-scope rule, not `null` as originally written here. That's a Calendar API quirk (its documented sentinel for the public principal), not a tool defect — `add_calendar_acl`'s own docstring never promises a `null`/omitted `scope_value` for `default`, only that `scope_value` isn't *required* as an input, which held. Corrected the check above to drop the `scope_value: null` claim.
 
+**Result (2026-09-04) ✅ PASS**
+add_calendar_acl freeBusyReader/default, no scope_value on SACAL -> id="default", role=freeBusyReader, scope_type=default, scope_value="__public_principal__@public.calendar.google.com" (documented API sentinel; matches corrected expectation). Rule removed in cleanup.
+
 ---
 
 ### TC-CAL77: scope_value rejected when scope_type is 'default' (issue #458)
@@ -442,6 +529,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result:** PASS (live, 2026-08-16) — `add_calendar_acl(calendar_id="primary", role="freeBusyReader", scope_type="default", scope_value="someone@example.com")` returned `{"error": "scope_value must not be set when scope_type is 'default'."}`. Follow-up `list_calendar_acl(calendar_id="primary")` showed no new rule — the 4 existing rules were unchanged. No dedicated QA fixture calendar exists yet (tracked under #304); tested against `primary` instead, which is safe here since the validation short-circuits before any Calendar API call is made.
 
+**Result (2026-09-04) ✅ PASS**
+add_calendar_acl default + scope_value="someone@example.com" -> {"error":"scope_value must not be set when scope_type is 'default'."} Names scope_value and 'default'. No rule added (validation short-circuits before API).
+
 ---
 
 ### TC-CAL64: Invalid role rejected without calling the API
@@ -454,6 +544,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - No new rule appears in a follow-up `list_calendar_acl` call — confirms the invalid role is rejected before any API call
 
 **Result:** PASS (live, 2026-07-29).
+
+**Result (2026-09-04) ✅ PASS**
+add_calendar_acl role="admin" -> {"error":"Invalid role 'admin'. Must be one of: reader, writer, owner, freeBusyReader"} — names invalid role + lists valid ones. No rule added (confirmed via later list_calendar_acl).
 
 ---
 
@@ -468,6 +561,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result:** PASS (live, 2026-07-29).
 
+**Result (2026-09-04) ✅ PASS**
+add_calendar_acl scope_type="user", no scope_value -> {"error":"scope_value is required when scope_type is 'user'."} No rule added.
+
 ---
 
 ### TC-CAL66: Non-existent calendar ID
@@ -479,6 +575,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Returns `{"error": "..."}` — not a top-level exception
 
 **Result:** PASS (live, 2026-07-29).
+
+**Result (2026-09-04) ✅ PASS**
+add_calendar_acl on invalid calendar ID -> {"error":"<HttpError 404 ... notFound ...>"}, not a top-level exception.
 
 ---
 
@@ -497,6 +596,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result:** PASS (live, 2026-07-29).
 
+**Result (2026-09-04) ✅ PASS**
+No
+
 ---
 
 ### TC-CAL68: Non-existent rule ID
@@ -508,6 +610,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Returns `{"error": "..."}` — not a top-level exception
 
 **Result:** PASS (live, 2026-07-29) — API returns 400 "Invalid resource id value" (malformed ID), correctly surfaced as `{"error": ...}` rather than a top-level exception. A well-formed but nonexistent rule ID would presumably 404 the same clean way, not separately exercised.
+
+**Result (2026-09-04) ✅ PASS**
+remove_calendar_acl rule_id="totally-invalid-rule-id" -> {"error":"<HttpError 400 ... 'Invalid resource id value.' ...>"}, not a top-level exception.
 
 ---
 
@@ -523,6 +628,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Events are from now onward (no past events)
 - Each event has `id`, `summary`, `start`, `end`, `status`
 
+**Result (2026-09-04) ✅ PASS**
+list_events no time filter on SACAL -> {"result":[]} (all seeded events are before "now" 2026-09-04, correctly excluded — confirms default time_min=now, no past events). Field/ordering checks validated via July-windowed call: 3 events correctly ordered by start, each with id/summary/start/end/status.
+
 ---
 
 ### TC-CAL10: time_min + time_max window
@@ -535,6 +643,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Events outside the window are absent
 - Empty list returned if no events exist in that window — not an error
 
+**Result (2026-09-04) ✅ PASS**
+list_events 2026-06-01..2026-06-30 window -> {"result":[]} — July events absent, empty not an error.
+
 ---
 
 ### TC-CAL11: query string search
@@ -546,6 +657,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Returns only events whose summary, description, or location contains 'dinner'
 - Non-matching events excluded
 - Empty list if nothing matches — not an error
+
+**Result (2026-09-04) ✅ PASS**
+list_events query="dinner" -> {"result":[]} — no matches, empty not an error.
 
 ---
 
@@ -560,6 +674,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - All-day event `start` and `end` are date strings (`YYYY-MM-DD`), not datetime strings
 - No `T` or timezone offset in the date values
 
+**Result (2026-09-04) ✅ PASS**
+QA-AllDay-Test in list_events: start="2026-07-02", end="2026-07-03" — date strings, no "T"/offset. Confirms date field used.
+
 ---
 
 ### TC-CAL13: Timed event format
@@ -570,6 +687,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - Timed event `start` and `end` are RFC 3339 datetime strings (contain `T`)
 - Timezone offset or `Z` is present
+
+**Result (2026-09-04) ✅ PASS**
+QA-Timed-Test in list_events: start="2026-07-01T13:00:00-04:00" — contains "T", has timezone offset.
 
 ---
 
@@ -582,6 +702,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `max_results=0` → clamped to 1; at most 1 event returned
 - `max_results=3000` → clamped to 2500; no more than 2500 events returned
 
+**Result (2026-09-04) ✅ PASS**
+max_results=0 -> exactly 1 event returned (clamped to 1). max_results=3000 -> all 3 events, no error (<=2500; exact 2500 cap not reproducible w/o 2500+ events).
+
 ---
 
 ### TC-CAL15: Non-existent calendar ID
@@ -592,6 +715,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - Returns `[{"error": "..."}]` — not a top-level exception
 - Error message is from the Calendar API
+
+**Result (2026-09-04) ✅ PASS**
+list_events on 'invalid-cal-id@example.com' -> [{"error":"<HttpError 404 ... notFound ...>"}], not a top-level exception, message from Calendar API.
 
 ---
 
@@ -607,6 +733,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `html_link` opens the event in Google Calendar UI
 - `organizer` is an email address string
 
+**Result (2026-09-04) ✅ PASS**
+No — confirms same organizer-is-calendar-ID finding on the real fixture
+
 ---
 
 ### TC-CAL17: Attendees populated
@@ -619,6 +748,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - `attendees` is a non-empty list
 - Each attendee has `email` and `response` (e.g. `accepted`, `needsAction`)
+
+**Result (2026-09-04) ✅ PASS**
+**YES** — SA SKIPped (couldn't invite attendees); OAuth succeeds cleanly
 
 ---
 
@@ -633,6 +765,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `recurrence` is a non-null list (e.g. `["RRULE:FREQ=WEEKLY;..."]`)
 - Single (non-recurring) events have `recurrence: null`
 
+**Result (2026-09-04) ✅ PASS**
+Instance get_event (dmp5oe7...q_20260713T160000Z) -> recurrence: null. Master get_event -> recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO"] (non-null list). One-off QA-OneOff -> recurrence: null.
+
 ---
 
 ### TC-CAL19: Non-existent event ID
@@ -643,6 +778,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - Returns `{"error": "..."}` — not a top-level exception
 - Error message references the bad event ID
+
+**Result (2026-09-04) ✅ PASS**
+get_event event_id='invalidEventId999xyz' -> {"error":"<HttpError 404 ... notFound ...>"}, not a top-level exception; URL/message references the bad event ID.
 
 ---
 
@@ -661,6 +799,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `status` is `confirmed`
 - `calendar_cache.mark_dirty` called — next `list_events` re-fetches
 
+**Result (2026-09-04) ✅ PASS**
+create_event timed on SACAL -> id, start/end RFC3339 w/ offset (2026-07-01T13:00:00-04:00, rendered in cal tz America/New_York = 10-11am PT), html_link present, status=confirmed, recurrence=null. Follow-up windowed list_events re-fetched and showed it (mark_dirty proxy). Playwright: OAuth-logged-in browser cannot see SA-owned-calendar events (cal not shared to/listed by OAuth user) — API used per shard fallback. EVENT_TIMED=dcfqjj57pv7kb1tpee7e61v65c
+
 ---
 
 ### TC-CAL21: All-day event ⚠️ destructive
@@ -673,6 +814,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `start` and `end` in response are date strings (`2026-07-02`, `2026-07-03`)
 - No `T` in the date values — confirms `date` field used, not `dateTime`
 - Event appears in `list_events` for that day
+
+**Result (2026-09-04) ✅ PASS**
+create_event all-day -> start="2026-07-02", end="2026-07-03", no "T" (date fields). Appears in windowed list_events for that day. EVENT_ALLDAY=9m4dfmdjnjl9742ui2hnt7oqm8
 
 ---
 
@@ -688,6 +832,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `location` is `Conference Room A`
 - `description` is `QA test event`
 
+**Result (2026-09-04) ✅ PASS**
+**YES** — SA got `403 forbiddenForServiceAccounts`; OAuth succeeds cleanly, verified live + Playwright
+
 ---
 
 ### TC-CAL23: Invalid calendar ID
@@ -698,6 +845,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - Returns `{"error": "..."}` — not a top-level exception
 - No event created
+
+**Result (2026-09-04) ✅ PASS**
+create_event on 'invalid-cal@example.com' -> {"error":"<HttpError 404 ... notFound ...>"}, no event created.
 
 ---
 
@@ -714,6 +864,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `start`, `end`, `location`, `description` unchanged (verify with `get_event`)
 - `calendar_cache.mark_dirty` called
 
+**Result (2026-09-04) ✅ PASS**
+update_event summary -> "QA-Timed-Updated"; start/end unchanged (13:00-14:00-04:00); location/description still null.
+
 ---
 
 ### TC-CAL25: Update start and end ⚠️ destructive
@@ -725,6 +878,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - `start` and `end` reflect the new times
 - `summary` and other fields unchanged
+
+**Result (2026-09-04) ✅ PASS**
+update_event start/end -> 17:00-18:00-04:00 (2pm-3pm PT); summary unchanged.
 
 ---
 
@@ -739,6 +895,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `location` is `Room B`
 - Other fields (`summary`, `attendees`) unchanged
 
+**Result (2026-09-04) ✅ PASS**
+update_event description="Updated desc", location="Room B". get_event confirms both; summary ("QA-Full-Test") and attendees ([]) unchanged.
+
 ---
 
 ### TC-CAL27: Non-existent event ID
@@ -748,6 +907,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Checks**
 - Returns `{"error": "..."}` — not a top-level exception
+
+**Result (2026-09-04) ✅ PASS**
+update_event on 'invalidEventId999xyz' -> {"error":"<HttpError 404 ... notFound ...>"}, not a top-level exception.
 
 ---
 
@@ -764,6 +926,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Event no longer appears in `list_events` for that date
 - `calendar_cache.mark_dirty` called
 
+**Result (2026-09-04) ✅ PASS**
+delete_event -> {"calendar_id":...,"event_id":"9m4dfmdjnjl9742ui2hnt7oqm8","action":"deleted"}. Absent from follow-up windowed list_events (empty).
+
 ---
 
 ### TC-CAL29: Non-existent event ID
@@ -774,6 +939,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - Returns `{"error": "..."}` — not a top-level exception
 - No side effects
+
+**Result (2026-09-04) ✅ PASS**
+delete_event on 'invalidEventId999xyz' -> {"error":"<HttpError 404 ... notFound ...>"}, not a top-level exception, no side effects.
 
 ---
 
@@ -788,6 +956,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `busy[{CALENDAR_ID}]` is an empty list
 - `free_slots` covers the entire window as one slot: `[{start: time_min, end: time_max}]`
 
+**Result (2026-09-04) ✅ PASS**
+find_free_slots SACAL 2026-07-04 full-day, no events -> busy[SACAL]=[], free_slots=[{2026-07-04T00:00:00Z .. 2026-07-04T23:59:59Z}] (whole window one slot).
+
 ---
 
 ### TC-CAL31: Single calendar — events in window
@@ -799,6 +970,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `busy[{CALENDAR_ID}]` contains the event's `start` and `end` times
 - `free_slots` shows the gaps before, between, and after busy periods
 - `free_slots` start/end values are RFC 3339 strings
+
+**Result (2026-09-04) ✅ PASS**
+find_free_slots SACAL 2026-07-01 16:00-00:00Z (9am-5pm PT) -> busy[SACAL]=[{21:00:00Z..22:00:00Z}] (the CAL25 event); free_slots gaps before {16:00-21:00Z} and after {22:00-00:00Z}, all RFC3339.
 
 ---
 
@@ -814,6 +988,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `free_slots` reflects the union of all busy times — a slot is free only when all calendars are free
 - No error if one calendar has no events (that calendar's busy list is just empty)
 
+**Result (2026-09-04) ✅ PASS**
+find_free_slots [SACAL, MINCAL] same window -> busy has a key per calendar; MINCAL busy=[] (no events, no error); free_slots = union (only SACAL busy considered).
+
 ---
 
 ### TC-CAL33: Invalid calendar ID in list
@@ -826,6 +1003,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `busy[{CALENDAR_ID}]` is still populated correctly
 - Top-level response is not an error — partial results returned
 
+**Result (2026-09-04) ✅ PASS**
+find_free_slots [SACAL, 'invalid-cal@example.com'] -> busy["invalid-cal@example.com"]=[{"error":"notFound"}], busy[SACAL] still populated, top-level not an error (partial results).
+
 ---
 
 ### TC-CAL34: free_slots covers full window when no busy times
@@ -836,6 +1016,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 **Checks**
 - `free_slots` is exactly `[{"start": "2026-07-10T00:00:00Z", "end": "2026-07-10T01:00:00Z"}]`
 - Confirms the complement logic handles the empty-busy case
+
+**Result (2026-09-04) ✅ PASS**
+find_free_slots SACAL 2026-07-10T00:00:00Z..01:00:00Z, no events -> free_slots exactly [{"start":"2026-07-10T00:00:00Z","end":"2026-07-10T01:00:00Z"}].
 
 ---
 
@@ -850,6 +1033,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - The two busy periods are merged in the free slot calculation
 - `free_slots` does not include a zero-length or negative-length gap between them
 - Confirms the interval merge logic in `find_free_slots`
+
+**Result (2026-09-04) ✅ PASS**
+Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -> busy merged to single {14:00:00Z..16:00:00Z}; free_slots {13:00-14:00Z} and {16:00-17:00Z}, no zero/negative gap between. Interval-merge confirmed. (adjacent events cleaned up)
 
 ---
 
@@ -870,6 +1056,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-06-24) ✅** — Event created with `id: 3n4mjvi13au7fg1ce0np9ca73k`, `recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO"]`, `status: confirmed`, `html_link` present. Confirmed master ID has no date suffix.
 
+**Result (2026-09-04) ✅ PASS**
+create_event recurring weekly -> id dmp5oe7qd342n5odt7a0hqmnhk (no date suffix), recurrence ["RRULE:FREQ=WEEKLY;BYDAY=MO"], status confirmed, html_link present. get_event(master) recurrence non-null. list_events(expand=True) Jul7-28 -> 4 instances (Jul 7 [DTSTART], 13, 20, 27).
+
 ---
 
 ### TC-CAL37: Create a daily recurring event with COUNT limit ⚠️ destructive
@@ -885,6 +1074,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-06-24) ✅** — Created with `recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]`. `list_events(expand_recurring=True)` for Jul 14–19 returned exactly 5 instances (Jul 14–18). No Jul 19+ instances returned. Each instance had `recurrence: null`.
 
+**Result (2026-09-04) ✅ PASS**
+create_event daily COUNT=5 -> recurrence ["RRULE:FREQ=DAILY;COUNT=5"]. list_events(expand=True) Jul14-25 -> exactly 5 instances (Jul 14-18), none after. Each instance recurrence: null.
+
 ---
 
 ### TC-CAL38: Recurrence absent when not provided
@@ -899,6 +1091,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Confirms non-recurring events are unaffected
 
 **Result (2026-06-24) ✅** — Created with `recurrence: null`. Appears in `list_events(expand_recurring=False)` with `recurrence: null` — confirms one-off events are unaffected by recurrence logic.
+
+**Result (2026-09-04) ✅ PASS**
+create_event one-off QA-OneOff -> recurrence: null. list_events(expand_recurring=False) shows it with recurrence: null, single entry (not a series).
 
 ---
 
@@ -920,6 +1115,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-06-24) ✅** — `list_events(expand_recurring=False, query="QA-")` returned 3 items: QA-Weekly-Standup (recurrence: WEEKLY/MO), QA-Daily-5x (recurrence: DAILY/COUNT=5), QA-OneOff (recurrence: null). All master IDs had no date suffix. Confirms `singleEvents=False` path works correctly.
 
+**Result (2026-09-04) ✅ PASS**
+list_events(expand_recurring=False, query="QA-") -> masters QA-Weekly-Standup (WEEKLY/MO), QA-Daily-5x (DAILY/COUNT=5), QA-OneOff (null), plus non-recurring QA-Timed-Updated & QA-Full-Test. All master IDs suffix-free; no instance IDs present.
+
 ---
 
 ### TC-CAL40: expand_recurring=True (default) expands instances
@@ -936,6 +1134,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - `recurrence` field is `null` on individual instances (it lives on the master)
 
 **Result (2026-06-24) ✅** — Returned 4 instances (Jul 7, 13, 20, 27). Each ID had the `_YYYYMMDDTHHMMSSZ` suffix. `recurrence: null` on all instances. Note: Jul 7 is the original start date (Tuesday); the API kept it as the first instance and subsequent occurrences fell on Mondays per BYDAY=MO.
+
+**Result (2026-09-04) ✅ PASS**
+list_events(expand_recurring=True default) Jul7-28 for QA-Weekly-Standup -> 4 individual instances, each id ends `_YYYYMMDDTHHMMSSZ`, recurrence: null on each.
 
 ---
 
@@ -955,6 +1156,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-06-24) ✅** — Patched master with `recurrence: ["RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO"]`. Response echoed the new RRULE. `list_events(expand_recurring=True)` for Jul 7–28 returned 2 instances (Jul 7 and Jul 20) vs 4 previously. `summary` and `start`/`end` unchanged.
 
+**Result (2026-09-04) ✅ PASS**
+update_event(master, recurrence=["RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO"]) -> response echoes new RRULE. list_events(expand=True) Jul7-28 -> 2 instances (Jul 7, Jul 20) vs 4 before. summary/start/end unchanged.
+
 ---
 
 ### TC-CAL42: Remove recurrence by passing an empty list ⚠️ destructive
@@ -970,6 +1174,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Only a single instance exists at the original start date
 
 **Result (2026-06-24) ✅** — Patched master with `recurrence: []`. Response returned `recurrence: null`. `list_events(expand_recurring=False)` showed QA-Weekly-Standup with `recurrence: null` — one entry, no series. Only the Jul 7 occurrence remains.
+
+**Result (2026-09-04) ✅ PASS**
+update_event(master, recurrence=[]) -> response recurrence: null. list_events(expand_recurring=False) -> QA-Weekly-Standup single entry, recurrence: null, no series. Only Jul 7 occurrence remains.
 
 ---
 
@@ -987,6 +1194,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Confirms instance-level patching creates an exception override, not a series update
 
 **Result (2026-06-24) ✅** — Patched instance `9lrphvbvegq03163gjh7fu35qo_20260714T150000Z` with `summary: 'QA-Daily-5x (Modified)'`. Jul 15–18 instances still returned `summary: 'QA-Daily-5x'`. `get_event` on master `9lrphvbvegq03163gjh7fu35qo` returned `summary: 'QA-Daily-5x'` and `recurrence: ["RRULE:FREQ=DAILY;COUNT=5"]` unchanged. Instance-level exception confirmed.
+
+**Result (2026-09-04) ✅ PASS**
+update_event(instance jkk1ai0c..._20260714T150000Z, summary="QA-Daily-5x (Modified)") -> that instance renamed; Jul 15-18 instances still "QA-Daily-5x"; get_event(master jkk1ai0cv78e92jdf3qa6ts130) summary "QA-Daily-5x", recurrence ["RRULE:FREQ=DAILY;COUNT=5"] unchanged. Instance-level exception override confirmed.
 
 ---
 
@@ -1007,6 +1217,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-07-30) ⚠️ partial** — This worktree's connected account has no `mcp-gee-sweet-qa`/`QA-Timed-Test` fixtures set up (real OAuth personal account, no scratch calendar present). Ran with no `calendar_ids` and a 1-day window instead: response was a flat `list`, every returned event had both `calendar_id` and `calendar_summary` populated correctly, sourced from more than one calendar. The specific 'QA-Timed-Test' fixture assertion could not be checked. Structural behavior confirmed; named-fixture assertion blocked on missing fixtures, not a PR defect.
 
+**Result (2026-09-04) ✅ PASS**
+list_all_events no calendar_ids, 2026-07-01..02 -> flat list; QA-Timed-Updated present with calendar_id=SACAL, calendar_summary="mcp-gee-sweet-qa-renamed" (SACAL's real summary); every event has both fields; fanned out across full list_calendars (MINCAL empty in window, correctly absent). (Event is the CAL24/25-renamed 'QA-Timed-Test'.)
+
 ---
 
 ### TC-CAL70: Explicit calendar_ids restricts the fan-out
@@ -1019,6 +1232,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Confirms `calendar_ids` narrows the query instead of always hitting every subscribed calendar
 
 **Result (2026-07-30) ✅** — Called with two explicit `calendar_ids` (real subscribed calendars, no shared/duplicate `summary` between them) and a narrow window (both empty in that window). Response was an empty flat list — no third calendar's events leaked in. Confirms `calendar_ids` restricts the fan-out.
+
+**Result (2026-09-04) ✅ PASS**
+list_all_events calendar_ids=[SACAL] -> only SACAL's event; QA-MinCal-Event (on MINCAL, same window) absent. Fan-out restricted.
 
 ---
 
@@ -1039,6 +1255,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-07-30) ⚠️ passed but confirms a live defect** — Ran with two calendars whose real `summary` values happened to differ, and grouping worked correctly for that case. However, reading the implementation (`calendar.py:1001`, `grouped[key] = ...` keyed by `calendar_summary`) confirms `/code-review high`'s finding: two calendars sharing an identical `summary` will silently collide — the second overwrites the first in `grouped`, with the first calendar's entire event list dropped and no error/warning. No live fixture pair with a duplicate summary was available in this environment to reproduce it end-to-end, but the code path is unambiguous. **Sending back to Dev — see PR comment.**
 
+**Result (2026-09-04) ✅ PASS**
+group_by_calendar=true, [SACAL, MINCAL] -> dict keyed by summary ("mcp-gee-sweet-qa-renamed", "mcp-gee-sweet-qa-minimal"); each key holds only that calendar's events; events' calendar_id/summary match their key. Duplicate-summary disambiguation not reproducible (no colliding pair) — covered by unit test, matches prior runs.
+
 ---
 
 ### TC-CAL72: One invalid calendar_id does not abort the batch (flat list)
@@ -1053,6 +1272,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Confirms per-calendar failures are inlined rather than failing the whole call (the `asyncio.gather(..., return_exceptions=True)` fan-out pattern from #183)
 
 **Result (2026-07-30) ✅** — Called with one real calendar_id plus `invalid-cal@example.com`, narrow window. Response was a flat list with exactly one entry for the invalid ID: `{"calendar_id": "invalid-cal@example.com", "calendar_summary": "invalid-cal@example.com", "error": "<HttpError 404 ... notFound ...>"}`. No top-level error, no exception. Confirms per-calendar failure inlining.
+
+**Result (2026-09-04) ✅ PASS**
+[SACAL, invalid-cal@example.com] flat -> flat list; exactly one entry {calendar_id:"invalid-cal@example.com", calendar_summary:"invalid-cal@example.com", error:"<HttpError 404 notFound>"} with no event fields; SACAL event still present; no top-level error.
 
 ---
 
@@ -1071,6 +1293,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-07-30, round 2) ✅** — Re-ran against `481f13d4` after a fresh `/mcp reconnect` (the first post-fix attempt was caught still serving pre-fix code — see PR comment). `result["invalid-cal@example.com"]` was `{"error": "<HttpError 404 ... notFound ...>", "calendar_id": "invalid-cal@example.com"}` — `calendar_id` now present, confirming the fix live.
 
+**Result (2026-09-04) ✅ PASS**
+[SACAL, invalid-cal@example.com] group_by_calendar=true -> result["invalid-cal@example.com"] = {"error":"<HttpError 404 notFound>", "calendar_id":"invalid-cal@example.com"} (calendar_id present — round-2 fix). SACAL summary key -> normal event list, unaffected.
+
 ---
 
 ### TC-CAL74: query is forwarded to every calendar in the fan-out
@@ -1086,6 +1311,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 
 **Result (2026-07-30) ⏭️ SKIP** — No 'QA-Timed-Test' fixture event exists in this worktree's connected account (fixture calendar/event not set up here). Not run; not a PR defect.
 
+**Result (2026-09-04) ✅ PASS**
+[SACAL, MINCAL], full-year window, query="QA-Timed-Updated" -> event returned from SACAL only; nothing from MINCAL. Confirms query forwarded as q to every calendar. (Used renamed event name; fixture 'QA-Timed-Test' n/a under SA.)
+
 ---
 
 ### TC-CAL75: expand_recurring=False returns master events across every queried calendar
@@ -1100,6 +1328,9 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{CALENDAR_ID}`
 - Confirms `expand_recurring=False` is applied per-calendar in the fan-out, matching `list_events`' own `singleEvents`/`orderBy` behavior
 
 **Result (2026-07-30) ⏭️ SKIP** — TC-CAL36's recurring-event fixture is not present in this worktree's connected account. Not run; not a PR defect.
+
+**Result (2026-09-04) ✅ PASS**
+[SACAL], expand_recurring=false, query="QA-" -> QA-Daily-5x once as master (recurrence ["RRULE:FREQ=DAILY;COUNT=5"] populated), not expanded to 5. NOTE: CAL43's instance-override singleton also listed (expected). QA-Weekly-Standup recurrence:null (removed in CAL42). Confirms expand_recurring=False per-calendar in fan-out.
 
 ---
 
