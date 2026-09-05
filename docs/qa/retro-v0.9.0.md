@@ -55,9 +55,9 @@ The main-checkout `token.json`'s refresh token started failing (`invalid_grant`)
 ### Process (aziz.md / run.md)
 - [x] Playwright-auth pre-flight verification, done once centrally before spawning shards (PR #686)
 - [x] All-slots server access codified, not just borrowed Sky/Kit (PR #685)
-- [ ] Add an explicit `SendMessage`-correction step to `aziz.md`: before messaging a live subagent, re-verify its agentId against its own task/description (e.g. via `ListAgents`), every time — don't rely on call-order memory
-- [ ] Add a shard-planning note to `aziz.md`/`run.md`: a shard that's the sole writer of a shared fixture makes that fixture unsafe for a *different* shard's read-for-comparison use at the same time — sequence or isolate, don't assume "read-only" is safe
-- [ ] Add a scratch-range note to `run.md`: independent TCs sharing one scratch sheet within a run should use disjoint ranges
+- [x] `aziz.md` step 4 now requires re-verifying a live subagent's agentId against its own task (`ListAgents`) before sending a mid-pass `SendMessage` correction (PR #699)
+- [x] `aziz.md` step 5 now states a fixture with a designated sole-writer shard is unsafe for another concurrent shard to read for comparison — sequence or isolate (PR #699)
+- [x] `run.md` note: independent TCs sharing one scratch sheet within a subagent run should use disjoint ranges (PR #699)
 
 ### Follow-up not yet a ticket
 - [ ] Investigate why the Aziz worktree's git index picked up a stale/reverting staged state mid-session after multiple branch switches — no repro attempted yet, only worked around
