@@ -356,6 +356,9 @@ list_files(FOLDER_ID, mime_type=document) returned only the 2 Google Docs; sprea
 **Result (2026-09-04) ✅ PASS**
 Two consecutive list_files(FOLDER_ID) calls returned byte-identical results (cache hit). CAVEAT: see TC-D40 — folder cache key omits max_results, so a prior small-max_results fetch poisoned the cache and both calls returned a truncated 2-item list until refresh_cache.
 
+**Result (2026-09-05) ✅ PASS** — re-verified against PR #697 (issue #688)
+Caveat resolved — see TC-D40. Two consecutive list_files(FOLDER_ID) calls with no intervening small-max_results fetch still return byte-identical results.
+
 ---
 
 ### TC-D39: mime_type=None cache key
@@ -383,6 +386,9 @@ list_files(FOLDER_ID) with mime_type=None called twice returned identical result
 
 **Result (2026-09-04) ❌ FAIL**
 On a FRESH fetch, list_files(FOLDER_ID, max_results=2) returns exactly 2 — clamp works. BUT the first attempt returned 5 items: the folder-listing cache key does NOT include max_results, so a cache hit from an earlier default-max_results call ignored max_results=2. Worse, a subsequent small-max_results fetch then stores a truncated list that later default-max_results calls receive in full. Reproduced twice. Bug: max_results absent from folder cache key -> silently ignored on cache hit + cache poisoning. Ticket candidate.
+
+**Result (2026-09-05) ✅ PASS** — re-verified against PR #697 (issue #688)
+Both scenarios re-tested against the real fixture folder (3 items): (1) fresh default fetch (3 items, cached), then max_results=2 -> correctly sliced to exactly 2 (not the prior bug's full 3), then default fetch again -> still 3 (no poisoning). (2) fresh max_results=1 fetch (cached), then default fetch -> correctly treated as a cache miss and returned all 3 (not truncated to 1). `DriveFolderCache` now tracks `rows_fetched` per entry and only serves a cache hit when the prior fetch size was >= the current request, mirroring `SheetDataCache`'s existing sufficiency check. 3 new unit tests added in `tests/test_cache.py`; all 84 cache tests pass.
 
 ---
 
