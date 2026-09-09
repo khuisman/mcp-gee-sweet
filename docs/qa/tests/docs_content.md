@@ -3503,3 +3503,20 @@ Verification: fix diff is tightly scoped to the two named findings (no `/code-re
 - The isolated ordered sub-run is fixed the same way: Case 1's "Ordered child B1"/"B2" report `bullet.nestingLevel == 1` (glyph "a."/"b.", `NUMBERED_DECIMAL_ALPHA_ROMAN` level 1), not `nestingLevel 0` ("1."/"2." decimal)
 
 **Cleanup:** write fixture content back
+
+**Result (2026-09-08) ✅ PASS — run live against PR #711 (commit `a3d9baf`), script-driven `documents().get()` + Playwright visual check.** Wrote the fixture HTML to the fixtures doc via `write_doc_content` (batchUpdate accepted, no atomic-batch rejection). Live `documents().get()`:
+- Case 2 "Bare-nested child C1"/"C2" → `bullet.nestingLevel == 1`, `lists[listId].listProperties.nestingLevels[1].glyphSymbol == '○'` (circle) — the identical glyph symbol reported for Case 1's "Child A1"/"Child A2". **Not** `nestingLevel 0` / disc. Both items of the run correct (no first-item-merges-into-anchor regression).
+- Case 1 isolated ordered sub-run "Ordered child B1"/"B2" → `nestingLevel == 1`, `glyphType 'ALPHA'` / `glyphFormat '%1.'` ("a."/"b."). Not `nestingLevel 0` decimal.
+- Case 1 anchored nesting unchanged: Parent A/B `●` L0, Child A1/A2 `○` L1, Grandchild A2a `■` L2 — 3 distinct levels.
+- Case 3 unchanged: "Top ordered 1"/"Top ordered 2" both `nestingLevel 0` DECIMAL on one shared `listId` (continuous numbering), "Nested ordered 1.1"/"1.2" `nestingLevel 1` ALPHA.
+
+Playwright (fixtures doc temp-shared reader to the browser's Google identity for the screenshot, revoked immediately after — public `anyone` share is classifier-blocked; the browser profile authenticates as a different Google account than the QA MCP server, so it can't open server-owned fixture docs otherwise): "Bare-nested child C1"/"C2" visually render the hollow-circle glyph, indented one level, matching Case 1's A1/A2. B1/B2 render "a."/"b.". Three visible indent tiers in Case 1 (●/○/■). Case 3 numbers 1→(2)→3 with nested a./b.
+
+Pre-existing noise (not caused by this PR, already documented under TC-DOC104 round-1 result 2026-07-16 line ~1799 and TC-DOC106): the raw-HTML fixture's interstitial whitespace between `</li>` and `<ul>` produces standalone `nestingLevel 0` disc paragraphs containing only spaces ("    "). Reproduces identically on develop; TC-DOC106's markdown fixture has none. Out of scope for #439.
+
+Extra probes run live (fresh scratch docs, trashed after) to check the code-review's correctness hypotheses — all refuted:
+- Single-item isolated run `<ul><li><ul><li>only</li></ul></li></ul>` → `nestingLevel 1`, circle (not a no-op).
+- Isolated run as the *only* doc content → batchUpdate accepted; items `nestingLevel 1` circle; the terminal empty paragraph carries no bullet (no stray bullet on the segment-end newline).
+- Blockquote wrapping an isolated run → **both** items keep `borderLeft` + `indentStart` (blockquote style not stripped from the first item).
+- Isolated run immediately followed by a `<table>` → table lands at the same index it would with an ordinary depth-0-anchored run (anchor insert/delete are position-neutral).
+- `min_depth == 2` isolated run (`<ul><li><ul><li><ul><li>D2a</li>…`) → renders at absolute `nestingLevel 2` (square glyph, 108pt indent), i.e. two indent tiers with no visible parents. This is a deliberate behavior change from the pre-#711 prose ("still renders correctly one level deep") — arguably more faithful, but only `min_depth == 1` is exercised by the checks above; flagged non-blocking in the PR comment.
