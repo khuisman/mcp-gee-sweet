@@ -1,0 +1,2149 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/0.9.0/roadmap/">
+      
+      
+        <link rel="prev" href="../decisions/decision-publishing/">
+      
+      
+        <link rel="next" href="../qa/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Roadmap - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#feature-roadmap" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Roadmap
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#whats-implemented" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's implemented
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#release-cadence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release cadence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#roadmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Roadmap
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Roadmap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tier-1-high-value-frequently-needed-target-v080" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tier 1 — High value, frequently needed (target: v0.8.0)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#v081-defect-documentation-cleanup-target-v081-before-tier-2-begins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v0.8.1 — Defect &amp; documentation cleanup (target: v0.8.1, before Tier 2 begins)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tier-2-useful-for-structured-work-plus-defects-surfaced-since-v081-target-v090" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tier 2 — Useful for structured work, plus defects surfaced since v0.8.1 (target: v0.9.0)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#v091-post-release-defect-fixes-infrastructure-addons-target-v091-before-tier-3-begins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v0.9.1 — Post-release defect fixes &amp; infrastructure addons (target: v0.9.1, before Tier 3 begins)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#v092-comments-as-a-first-class-cross-suite-capability-target-v092-before-tier-3-begins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v0.9.2 — Comments as a first-class, cross-suite capability (target: v0.9.2, before Tier 3 begins)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tier-3-advanced-occasionally-needed-target-v100" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tier 3 — Advanced / occasionally needed (target: v1.0.0)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tier-4-nice-to-have-niche-no-assigned-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tier 4 — Nice to have / niche (no assigned version)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decisions-needed-blocking-backlog-no-assigned-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decisions Needed — blocking backlog (no assigned version)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bugs-found-in-phase-1-qa-run-2026-06-02" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bugs found in Phase 1 QA run (2026-06-02)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Bugs found in Phase 1 QA run (2026-06-02)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#add_chart-multi-column-range-fails-bug-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_chart — multi-column range fails (BUG-1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add_chart-histogram-wrong-api-spec-bug-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_chart HISTOGRAM — wrong API spec (BUG-2)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add_chart-bar-wrong-series-target-axis-bug-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_chart BAR — wrong series target axis (BUG-3)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add_chart-combo-no-per-series-type-specified-bug-4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_chart COMBO — no per-series type specified (BUG-4)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w03-test-case-assumption-wrong" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W03 — test case assumption wrong
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#unit-tests-456-passing-as-of-2026-06-24" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unit tests (456 passing as of 2026-06-24)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#live-qa-ai-driven-test-cases-in-docsqatests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live QA (AI-driven test cases in docs/qa/tests/)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#infrastructure-internal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Infrastructure / internal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#future-domains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Future domains
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Future domains">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tasks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gmail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gmail
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#potential-under-consideration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Potential / under consideration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspiration-and-credits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspiration and credits
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qa/tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="feature-roadmap">Feature Roadmap<a class="headerlink" href="#feature-roadmap" title="Permanent link">&para;</a></h1>
+<p>This doc is a high-level orientation — feature ideas, architectural direction, and historical context. <strong>Active work is tracked in <a href="https://github.com/khuisman/mcp-gee-sweet/issues">GitHub Issues</a>.</strong> When a roadmap item is scheduled, an issue is opened; the checkbox here stays as a reference.</p>
+<p>Features are ordered by practical priority within each tier, cross-domain. Items marked with a source were identified by auditing competing projects — see <a href="../decisions/decision-fork/">decision-fork.md</a> for full credits.</p>
+<h2 id="whats-implemented">What's implemented<a class="headerlink" href="#whats-implemented" title="Permanent link">&para;</a></h2>
+<p>Sheets, Drive, Docs, and Calendar are all covered — see <a href="../tools/">Tools</a> for the full, auto-generated, per-domain list of every tool and its parameters. That list is regenerated from the source tool registry on every commit, so it's never out of sync the way a hand-maintained enumeration here would be.</p>
+<hr />
+<h2 id="release-cadence">Release cadence<a class="headerlink" href="#release-cadence" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Version</th>
+<th>Scope</th>
+<th>Signal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.7"><strong>v0.7.0</strong></a></td>
+<td>✅ First stable PyPI release — 63 tools across Sheets, Drive, Docs, Calendar</td>
+<td>Published 2026-06-21</td>
+</tr>
+<tr>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8"><strong>v0.8.0</strong></a></td>
+<td>✅ Tier 1 complete — all "frequently needed" items across all domains (84 tools)</td>
+<td>Published 2026-06-29</td>
+</tr>
+<tr>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8.1"><strong>v0.8.1</strong></a></td>
+<td>Defect &amp; documentation cleanup — no new tools, ships the QA/refactor work already on <code>develop</code> plus fixes for #235, #242, #213, #239, #236</td>
+<td>Stabilizes before Tier 2 feature work begins</td>
+</tr>
+<tr>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9"><strong>v0.9.0</strong></a></td>
+<td>Tier 2 complete — power-user and structured-work layer (~20 tools), plus defects that surfaced after v0.8.1 shipped (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/248">#248</a>)</td>
+<td>Covers most real workflows</td>
+</tr>
+<tr>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1"><strong>v0.9.1</strong></a></td>
+<td>Post-release defect fixes &amp; infrastructure addons — no new tools, same shape as v0.8.1</td>
+<td>Stabilizes before Tier 3 begins</td>
+</tr>
+<tr>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2"><strong>v0.9.2</strong></a></td>
+<td>Comments as a first-class, cross-suite capability — generalize + complete the Drive <code>comments</code>/<code>replies</code> surface (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/661">#661</a>); ships a breaking rename</td>
+<td>Closes out the comments story before Tier 3</td>
+</tr>
+<tr>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0"><strong>v1.0.0</strong></a></td>
+<td>API stability declaration — Tier 3 items that make the cut + any breaking cleanups from v0.8–0.9</td>
+<td>Backwards-compatibility commitment</td>
+</tr>
+<tr>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22v1.1%2B%22"><strong>v1.1.0+</strong></a></td>
+<td>Future domains — Tasks, Gmail (separate minor releases, each needs a new API client)</td>
+<td>Expanded scope</td>
+</tr>
+</tbody>
+</table>
+<p>Tier 4 items remain backlog with no assigned version.</p>
+<hr />
+<h2 id="roadmap">Roadmap<a class="headerlink" href="#roadmap" title="Permanent link">&para;</a></h2>
+<h3 id="tier-1-high-value-frequently-needed-target-v080">Tier 1 — High value, frequently needed <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8">v0.8.0</a>)</em><a class="headerlink" href="#tier-1-high-value-frequently-needed-target-v080" title="Permanent link">&para;</a></h3>
+<p><strong>Infrastructure</strong>
+- [x] PyPI publish — OIDC trusted publishing (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/55">#55</a>) — v0.7.0 stable live; <code>uvx mcp-gee-sweet</code> works</p>
+<p><strong>Sheets</strong>
+- [x] <code>delete_sheet</code> — delete a tab by name or sheetId (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/115">#115</a>) <em>(freema/mcp-gsheets)</em>
+- [x] <code>clear_values</code> — clear cell content in a range without touching formatting (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/116">#116</a>) <em>(freema/mcp-gsheets)</em>
+- [x] <code>delete_rows</code> / <code>delete_columns</code> — remove rows or columns by index (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/117">#117</a>) <em>(freema/mcp-gsheets)</em>
+- [x] <code>format_cells</code> — background color, font, alignment, number format on a range (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/118">#118</a>) <em>(freema/mcp-gsheets)</em>
+- [x] <code>merge_cells</code> / <code>unmerge_cells</code> — merge a range into one cell (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/119">#119</a>) <em>(freema/mcp-gsheets)</em>
+- [x] <code>freeze</code> — freeze rows and/or columns (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/120">#120</a>)
+- [x] <code>sort_range</code> — sort a range by one or more columns (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/121">#121</a>)</p>
+<p><strong>Calendar</strong>
+- [x] Recurring events — RRULE support in <code>create_event</code> and <code>update_event</code>; <code>expand_recurring</code> in <code>list_events</code>; instance vs master scope documented (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/155">#155</a>)</p>
+<p><strong>Docs</strong>
+- [x] <code>insert_inline_image</code> — insert an image at a document index (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/145">#145</a>)
+- [x] Table structural ops — <code>insert_table_row</code>, <code>delete_table_row</code>, <code>insert_table_column</code>, <code>delete_table_column</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/146">#146</a>)
+- [x] <code>create_header</code> / <code>create_footer</code> — page headers and footers (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/147">#147</a>)</p>
+<p><strong>Drive</strong>
+- [x] <code>list_shared_with_me</code> — files explicitly shared with the authenticated user (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/135">#135</a>)
+- [x] <code>list_recent_files</code> — files recently accessed or modified (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/136">#136</a>)
+- [x] <code>get_storage_quota</code> — Drive storage usage and limits (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/137">#137</a>)</p>
+<h3 id="v081-defect-documentation-cleanup-target-v081-before-tier-2-begins">v0.8.1 — Defect &amp; documentation cleanup <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8.1">v0.8.1</a>, before Tier 2 begins)</em><a class="headerlink" href="#v081-defect-documentation-cleanup-target-v081-before-tier-2-begins" title="Permanent link">&para;</a></h3>
+<p>No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature work.</p>
+<p><strong>Already on <code>develop</code>, awaiting release</strong>
+- [x] Playwright per-test tagging policy, conductor prompt improvements (PR #228)
+- [x] QA test case fixes — <code>share_file</code> fixtures, TC-D148 setup, Playwright tags (PR #229)
+- [x] SQLite cache defensive recovery from read-only/corrupted DB files at connect time (PR #230)
+- [x] <code>tools/docs/__init__.py</code> split into <code>content.py</code>/<code>tables.py</code>/<code>style.py</code>/<code>layout.py</code> (PR #232)</p>
+<p><strong>Remaining defects to fix before cutting the release</strong>
+- [x] <code>get_sheet_data(include_grid_data=True)</code> without a range fetches the full padded grid instead of the used range (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/235">#235</a>)
+- [x] Generalize the #235 response-size safety net (post-fetch size check + configurable cap + <code>local_path</code> bypass) to other tools that can return large responses — <code>export_file</code>, <code>get_doc_content</code>, <code>get_multiple_sheet_data</code>, <code>find_in_spreadsheet</code>, <code>list_file_activity</code>. Oversized responses silently kill the MCP session today (client-side output cap, e.g. Claude Code's <code>MAX_MCP_OUTPUT_TOKENS</code>), requiring a server restart to recover — confirmed live, not hypothetical. Renamed <code>MAX_GRID_DATA_RESPONSE_CHARS</code> to <code>MAX_TOOL_RESPONSE_CHARS</code> (single global cap); live-verified thresholds per tool (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/242">#242</a>)
+- [x] <code>create_doc_from_file</code> markdown <code>$</code> escape renders as literal backslash+dollar in the doc — Python-Markdown's default <code>ESCAPED_CHARS</code> omitted <code>$</code> (unlike CommonMark); fixed via a small extension adding it, respecting code-span/fenced-code protection (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/213">#213</a>)
+- [x] Unknown tool parameters are silently dropped instead of raising a validation error — FastMCP's generated pydantic arg models default to ignoring extra fields, so a typo'd kwarg (e.g. <code>parent_id</code> instead of <code>parent_folder_id</code>) silently falls back to default behavior instead of erroring. Fixed centrally in the <code>tool()</code> decorator (applies to all ~84 tools uniformly) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/239">#239</a>)
+- [x] Auto-generate <code>docs/tools.md</code> from tool source as a pre-commit hook — makes the manual tools.md backfill in #236 unnecessary (PR #240) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/94">#94</a>)
+- [x] Correct <code>docs/roadmap.md</code>'s own tool catalog counts, <code>known-limitations.md</code>'s <code>list_all_events</code> entry, and rework README's/<code>docs/client-setup.md</code>'s Configuration examples to lead with OAuth (not service account) for local/dev quick-start — currently mismatches the project's own auth priority order and PyPI's page inherits it verbatim (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/236">#236</a>)
+- [x] Rewrite <code>CONTRIBUTING.md</code> — fix broken links to removed README anchors, fix stale "Available Tool Names" and <code>bug</code>-label references, add better local-dev setup examples including observability (<code>DEBUG_LEVEL</code>/<code>LOG_FILE</code>/<code>ACCESS_LOG_FILE</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/95">#95</a>)
+- [ ] Define and document community PR expectations — template, testing bar for non-tool PRs, scope/size convention, CLA/DCO/code-of-conduct decision, review turnaround (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/237">#237</a>)</p>
+<h3 id="tier-2-useful-for-structured-work-plus-defects-surfaced-since-v081-target-v090">Tier 2 — Useful for structured work, plus defects surfaced since v0.8.1 <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9">v0.9.0</a>)</em><a class="headerlink" href="#tier-2-useful-for-structured-work-plus-defects-surfaced-since-v081-target-v090" title="Permanent link">&para;</a></h3>
+<p><strong>Defects</strong> <em>(found after v0.8.1 shipped; too late for that release, don't warrant a standalone patch)</em>
+- [x] Dev prereleases become unreachable once the base version's stable release ships — <code>format-jinja</code> never bumps past the last tag, so <code>X.Y.Z.devN</code> is a PEP 440 pre-release of the already-published <code>X.Y.Z</code> and always loses precedence to it; fix is <code>bump = true</code> in <code>[tool.uv-dynamic-versioning]</code> (PR #318) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/317">#317</a>)
+- [x] <code>sync_folder</code> doesn't recurse into subfolders — one-level-only Drive query silently reports a clean "in sync" result while ignoring every nested file (confirmed live: 225 files across 22 subfolders ignored, only the root-level file seen) (PR #328) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/315">#315</a>)
+- [x] <code>download_folder</code>'s file loop is genuinely sequential (<code>for f in ...: await asyncio.to_thread(...)</code>) — the one multi-file transfer path missed when the <code>asyncio.gather</code> pattern was established (#183); <code>sync_folder</code>'s own transfer step already uses it correctly (PR #351) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/316">#316</a>)
+- [x] <code>sync_folder</code> re-uploads every file after its first download — download never sets the local file's mtime to match Drive's <code>modifiedTime</code>, so any real time gap past the 5s tolerance makes the local copy look "locally newer" on the next sync; confirmed live during #315/#328 QA, reproduces on both new and long-standing files, unrelated to recursion (PR #357) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/346">#346</a>)
+- [x] Bare URLs in markdown content aren't autolinked — Python-Markdown's built-in autolink only fires on <code>&lt;https://...&gt;</code> or <code>[text](url)</code>, not a bare URL (PR #265) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/248">#248</a>)
+- [x] <code>zip(doc_tables, ast_tables)</code> in <code>emitter.py</code> silently cross-pairs tables when one is skipped (zero-row/zero-col table), misapplying fill/merge/style requests to the wrong table — surfaced during #276's review (PR #282) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/277">#277</a>)
+- [x] Nested <code>&lt;li&gt;</code> silently deletes the parent list item's own text (HTML and Markdown paths) — <code>handle_starttag</code> clobbers the outer block's in-progress run buffer with no save/restore; found by Aziz auditing the markdown/HTML-to-Doc pipeline (PR #369) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/335">#335</a>)
+- [x] Nested bullet/numbered list depth is computed correctly but never emitted as Docs indentation — every list renders flat regardless of source nesting; <code>ast_to_requests</code> never reads <code>BulletItem.depth</code>; found alongside #335 — was held back until #360 merged (both rewrite the same <code>ast_to_requests</code> bullet-handling logic in <code>emitter.py</code>); #360 shipped 2026-07-24, so <code>ready-for-development</code>/<code>lane-b</code> again, queued behind #402 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/336">#336</a>) (PR #432)
+- [x] <code>emitter.py</code> computes Docs API insertion offsets via Python <code>len()</code> instead of UTF-16 code units — wrong for any astral-plane character (most emoji, some CJK/math symbols); fixed via external contributor PR #360, live-verified in PR #407 — unblocks #372's <code>content.py</code> split (PR #360) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/358">#358</a>)
+- [x] <code>spreadsheet://{id}/info</code> MCP resource throws <code>'FastMCP' object has no attribute 'get_lifespan_context'</code> — discovered live during #361's QA, possibly a regression from the mcp SDK bump (#349/#350) (PR #368) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/363">#363</a>)
+- [x] Plain-text content (no wrapping tag) silently produces an empty doc body (PR #385) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/343">#343</a>)
+- [x] <code>_get_sheet_id</code> catches all exceptions from the sheet-lookup fetch and returns <code>None</code>, the same value it returns when the sheet genuinely doesn't exist — every caller (24 call sites) then misreports a transient API error as "sheet not found"; flagged during #380/#89's QA (PR #390) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/384">#384</a>)
+- [x] <code>_AstParser.handle_endtag</code> pops <code>_list_ordered</code> only on a matching close tag — a mismatched <code>&lt;ol&gt;</code>/<code>&lt;ul&gt;</code> pair leaves it permanently desynced, corrupting nesting depth for every subsequent list in the document; pre-existing, confirmed live during #369/#335's review — <code>ready-for-development</code>/<code>lane-b</code> re-added now that #401/#402 (both shipped) are no longer blocking it, queued behind #408/#409 (PR #449) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/382">#382</a>)
+- [x] When the markdown-to-Doc converter can't represent a construct (unsupported image path, thematic break <code>---</code>, or anything else unhandled), it deletes that construct's entire paragraph rather than leaving an empty block — breaks fidelity with how every CommonMark viewer degrades (paragraph boundaries hold even when an inline element fails to resolve); confirmed live across 21 real policy documents converted via <code>create_doc_from_file</code>, every one needed manual <code>insert_doc_text</code> patches to restore lost paragraph breaks. General fix, not image-specific; doesn't require #333's image rendering to land first (PR #406) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/401">#401</a>)
+- [x] Paragraphs containing only whitespace/<code>&amp;nbsp;</code> are silently dropped — distinct root cause from #401 (this is an ordinary, fully-understood HTML character reference, not an unsupported construct; likely an empty-after-strip check skipping emission), but same silent-collapse symptom and same real-document discovery session (PR #441) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/402">#402</a>)
+- [x] <code>style_doc_range</code> rejects <code>link_url=null</code> with "Links must include at least one type" instead of clearing an existing hyperlink — found while trying to strip a dead <code>#slug</code> anchor link left over from markdown conversion (see #409) (PR #446) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/408">#408</a>)
+- [x] Markdown-to-Doc conversion keeps GitHub/GitLab-style <code>#slug</code> heading-anchor links as dead hyperlinks instead of resolving them to Docs-native internal links (<code>createNamedRange</code>/bookmark targets) — links render correctly on the source Markdown host but go nowhere once converted. Depends on #408 (need working link-clearing/rewriting first). (PR #453) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/409">#409</a>)
+- [x] <code>_get_sheet_index</code> has the identical catch-and-swallow bug <code>_get_sheet_id</code> was just fixed for (#384/PR #390) — misreports transient API failures as "sheet not found" to its only caller, <code>duplicate_sheet</code>'s <code>insert_index</code> default. Same fix shape as #384, same file family (sheets, not docs) as #384's own fix (PR #440) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/391">#391</a>)
+- [x] Thematic breaks (<code>---</code>) are silently dropped during markdown conversion with zero trace, worse than <code>docs/design/markdown-support.md</code> anticipated (that doc only discusses front-matter incidentally rendering as an <code>&lt;hr&gt;</code> paragraph, not vanishing entirely); confirmed resolved as a side effect of #401's general fix (PR #406) — closed as duplicate, no separate PR (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/399">#399</a>)
+- [x] <code>html_parser.py</code>: mismatched <code>&lt;ol&gt;</code>/<code>&lt;ul&gt;</code> close can leave a stale block-interruption frame that a later, unrelated list closes by coincidence — pre-existing, confirmed live during #382's own review round, distinct from #382's own fix (PR #478) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/450">#450</a>)
+- [x] <code>html_parser.py</code>: whitespace-only <code>&lt;pre&gt;</code> resumed-block flush doesn't get the fresh-vs-resumed gate #402's fix gave other block tags — found during #402's own review round, pre-existing, confirmed live. Docs domain, sequence behind lane-b's current queue (PR #515) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/443">#443</a>)
+- [x] Neither the AST schema nor <code>html_parser.py</code> has any concept of a blockquote — <code>&lt;blockquote&gt;</code>/<code>&gt; quoted text</code> silently converts to a plain, visually indistinguishable <code>Paragraph</code>, no indent or styling of any kind. Docs domain, same conversion-pipeline surface as #334 (lane-b's current ticket) — sequence behind it rather than run in parallel (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/476">#476</a>) (PR #546)
+- [x] Inline-image pre-validation (#400) only checks Google's 25-megapixel ceiling, not its 50MB file-size ceiling — a large, low-compressibility image under the megapixel limit passes <code>check_image_bytes</code> silently and only fails later at the real Docs API call; <code>auto_downscale=True</code> also has no effect for this case, since the downscale path only triggers off a <code>check_image_bytes</code> error. Confirmed live during #400/PR #554's QA round 2. (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/562">#562</a>, PR #580)
+- [x] <code>list_calendar_acl</code> doesn't handle pagination (<code>nextPageToken</code>) — silently returns only the first page for a calendar with enough sharing entries to paginate. Calendar domain, found during #158's review round (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/460">#460</a>) (PR #612)
+- [x] <code>add_calendar_acl</code> silently ignores <code>scope_value</code> when <code>scope_type='default'</code> instead of rejecting it — docstring implies it's optional/ignored but the real behavior is undocumented silent acceptance of a value that has no effect; live-verified. Calendar domain, found during #158's review round (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/458">#458</a>) (PR #616)
+- [x] Three <code>convert_markdown</code> matching/status-reporting edge cases found during PR #414's round-3 review — <code>drive_map</code> has no collision guard between a plain file and a converted Doc sharing the same name; <code>_upload_local_file</code> never stamps <code>modifiedTime</code> on a converted Doc, so it falls outside the sync tolerance and reports <code>conflict</code> instead of <code>skipped</code> on almost every first re-sync after <code>upload_local_file(convert=True)</code>; a drive-only converted Doc always reports <code>conflict</code> even when <code>direction='upload'</code>. Two of the three confirmed live. <code>ready-for-development</code>/<code>lane-a</code> — scoped entirely to <code>transfer.py</code>, distinct from lane-b's docs-emitter defect chain, so it runs in parallel rather than queuing behind it (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/422">#422</a>) (PR #433)</p>
+<p><strong>Sheets</strong>
+- [x] <code>update_borders</code> — border style, width, color on a range (PR #325) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/122">#122</a>) <em>(freema/mcp-gsheets)</em>
+- [x] <code>hide_rows</code> / <code>hide_columns</code> / unhide — toggle row or column visibility (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/123">#123</a>) <em>(freema/mcp-gsheets)</em> (PR #311)
+- [x] <code>resize_rows</code> / <code>resize_columns</code> — set pixel height/width, or auto-fit to content (PR #321) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/124">#124</a>) <em>(freema/mcp-gsheets)</em>
+- [x] <code>add_data_validation</code> / <code>get_data_validation</code> — dropdowns, checkboxes, value constraints (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/125">#125</a>) <em>(freema/mcp-gsheets)</em> (PR #361)
+- [x] <code>update_sheet_properties</code> — tab color, hide/show gridlines (PR #301) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/126">#126</a>) <em>(freema/mcp-gsheets)</em>
+- [x] <code>duplicate_sheet</code> — copy a sheet within the same spreadsheet (PR #286) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/127">#127</a>)
+- [x] Partial (rich-text) hyperlinks in <code>update_cells</code> (PR #380) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/89">#89</a>)
+- [x] <code>import_csv_to_sheet</code> — populate a spreadsheet from a local CSV file (PR #272) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/187">#187</a>)</p>
+<p><strong>Calendar</strong>
+- [x] <code>create_calendar</code> / <code>update_calendar</code> / <code>delete_calendar</code> — calendar lifecycle (PR #266) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/156">#156</a>)
+- [x] <code>add_calendar_to_list</code> / <code>remove_calendar_from_list</code> — subscribe/unsubscribe (PR #269) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/157">#157</a>)
+- [x] Calendar ACL — share a calendar with users or groups (PR #455) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/158">#158</a>)
+- [x] <code>list_all_events</code> — query all subscribed calendars in parallel, reusing the <code>asyncio.gather</code>/<code>execute_in_thread</code> pattern #183 established and the inline-per-item-error convention already used by <code>get_multiple_sheet_data</code>/<code>share_spreadsheet</code>/<code>share_file</code> (both open questions resolved; no longer decision-blocked) <code>ready-for-development</code>/<code>lane-a</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/194">#194</a>) (PR #464)
+- [x] Non-blocking follow-ups from #194/PR #464's review: <code>scripts/gen_tool_docs.py</code>'s "Calendar only" <code>SUBSETS</code> entry omits <code>list_all_events</code>, shaping code duplicated with <code>list_events</code>, no concurrency cap on the parallel fan-out. No lane assignment yet (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/466">#466</a>) (PR #625)</p>
+<p><strong>Docs</strong>
+- [x] <code>insert_page_break</code> — explicit page break at an index (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/148">#148</a>) (PR #314)
+- [x] <code>merge_table_cells</code> — merge cells in an existing table (distinct from write-time colspan) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/150">#150</a>) (PR #310)
+- [x] Comments API — list, add, resolve doc comments (PR #324) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/151">#151</a>)
+- [x] <code>create_named_range</code> / <code>create_bookmark</code> — anchor points for internal links (PR #337) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/152">#152</a>)
+- [x] Rowspan emitter — closed as duplicate, already implemented via #100 (rowspan support) and PR #287 (nested-table colspan/rowspan) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/195">#195</a>)
+- [x] Warn/error on mixed text + nested table in same cell — shipped as the fuller <code>Cell.children: list[Run | Table]</code> ordered model, also fixing trailing-text-after-nested-table ordering (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/275">#275</a>) in the same PR (PR #276) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/108">#108</a>)
+- [x] colspan/rowspan inside nested tables (PR #287) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/109">#109</a>)
+- [x] <code>find_in_doc</code> — search doc text and return match locations, parallel to <code>find_in_spreadsheet</code>; removes the manual index math currently needed to retrofit links (or any style) onto text already in a doc, raised while fixing #248 (PR #353) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/262">#262</a>)
+- [x] Markdown-to-Doc image support — <code>![alt](path)</code> silently dropped today; local file path, <code>drive:&lt;id&gt;</code>, or HTTPS URL should all resolve to an inline image at the right position — deprioritized behind formatting fixes (#401/#402/#399, #403/#404) per user request; no lane assignment yet (PR #502) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/333">#333</a>)
+- [x] <code>insert_inline_image</code> fails with the raw Google Docs API error ("The provided image is too large") for images over ~25 megapixels — no upfront size check, no mention of the actual limit or the image's own megapixel count; diagnosing required external tooling (<code>sips</code>) and prior knowledge of Google's ceiling. Same image codepath as #333, which has since shipped (PR #502) — no longer blocked. (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/400">#400</a>) (PR #554)
+- [x] Expose paragraph list/nesting info in <code>get_doc_structure</code>, plus a tool to set/change bullet membership and nesting level on an existing range (<code>createParagraphBullets</code>/<code>deleteParagraphBullets</code> equivalent) — markdown converter currently flattens indented sub-lists into the parent list with no way to detect or fix it after the fact (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/334">#334</a>) (PR #524)
+- [x] Soft-break paragraph helper (single paragraph, multiple lines joined by soft breaks, explicit named style) + document <code>delete_doc_range</code>'s paragraph-merge-inherits-neighbor-style behavior (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/332">#332</a>) (PR #362)
+- [x] <code>update_doc_from_file</code> — update an existing Doc in place from a local <code>.md</code>/<code>.html</code> file, reading server-side like <code>create_doc_from_file</code> instead of round-tripping full content through the caller's context; real friction confirmed live — reporter had to fake this via delete-then-recreate. Wants #401/#402 landed first so the same paragraph-collapse defects don't just resurface via the update path (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/341">#341</a>) (PR #564)
+- [x] <code>style_doc_table_cells</code> applies <code>border_color</code>/<code>border_width</code>/<code>border_dash_style</code> uniformly to all four cell edges — no per-edge control (top/bottom/left/right independently), even though the Docs API's own <code>TableCellBorder</code> supports it; blocks the classic "signature line" (bottom-border-only) cell pattern. Queued for lane-b behind #409/#382's remaining defect chain (defect-before-enhancement precedent) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/403">#403</a>) (PR #462)
+- [x] No way to set custom paragraph tab stops — Docs API supports <code>tabStops</code> on <code>paragraphStyle</code> directly, wrapper doesn't expose it; needed for form-style label/value column alignment without building a full table. Closed as infeasible — <code>ParagraphStyle.tabStops</code> is read-only in the Docs API, confirmed via live discovery-schema check (PR #471); follow-up #473 documented the borderless-table workaround (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/404">#404</a>)
+- [x] Markdown export for Google Docs — <code>get_doc_content</code> (and/or <code>export_file</code>) has no markdown output, only plain-text; the write side already has a full HTML→AST→emitter markdown pipeline, but nothing mirrors it on read. Real competitive gap (taylorwilsdon's server has this). No lane assignment yet (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/300">#300</a>) (PR #591)
+- [x] Extract <code>named_ranges.py</code> from <code>content.py</code> — <code>create_named_range</code>/<code>create_bookmark</code> share one private helper and have no dependency on anything else in the file; zero-risk mechanical move, do first, unblocks #339/#340 to be built directly against the new module (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/371">#371</a>) (PR #570)
+- [x] Split remaining <code>content.py</code> responsibilities into <code>editing.py</code> (range-mutation tools) and <code>images.py</code> (image insertion), relocate the shared <code>_collect_doc_paragraphs</code>/<code>_utf16_units</code> offset helpers into <code>ast.py</code>, drop dead <code>_html_to_text</code> — sequenced after #360 merges, since that PR touches the exact helpers being relocated (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/372">#372</a>, PR #576)</p>
+<p><strong>Drive</strong>
+- [x] <code>restore_file</code> / <code>empty_trash</code> — undelete or permanently purge trashed files (PR #386) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/138">#138</a>)
+- [x] <code>star_file</code> / <code>unstar_file</code> — mark files with a star for easy retrieval (PR #387) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/139">#139</a>)
+- [x] <code>transfer_ownership</code> — transfer a file to another user (PR #445) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/140">#140</a>)
+- [x] <code>create_shortcut</code> — create a Drive shortcut to a file (PR #405) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/141">#141</a>)
+- [x] <code>sync_folder</code> — option to convert markdown files to Google Docs on upload (PR #414) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/211">#211</a>)
+- [x] <code>upload_local_file</code> with Drive format conversion (CSV→Sheets, MD→Docs) (PR #410) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/188">#188</a>)
+- [x] Expose <code>md5Checksum</code> in <code>list_files</code>/<code>get_file_metadata</code> for real content-diffing, and let <code>sync_folder</code> diff by checksum instead of/in addition to <code>modifiedTime</code> — mtime is unreliable across in-place overwrites, <code>upload_local_file</code>'s "now" stamp, and content-preserving regenerations; related to #239 (PR #472) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/274">#274</a>)
+- [x] Drive Activity API — file change history (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/72">#72</a>)
+- [x] <code>upload_local_folder</code> doesn't route through <code>_upload_local_file</code>, so the <code>convert</code> capability (#188) is unreachable from bulk folder uploads — no way to bulk-import a folder of CSV/DOCX/PPTX into native Workspace formats. Same domain as #274, candidate for lane-a once #274 ships (PR #505) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/411">#411</a>)
+- [x] Reconcile the two independent Drive-conversion mechanisms — <code>_upload_local_file</code>'s <code>_CONVERT_MIME</code> map and <code>upload_file</code>'s <code>convert_to_doc</code> param do the same thing (source mimetype upload + destination-metadata mimeType override) with no cross-reference; risk of drift as more conversion paths get added. Related to #411 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/412">#412</a>, PR #543)
+- [ ] <code>sync_folder</code>'s <code>convert_markdown</code> upload path: two Drive files sharing the same <code>geeSweetConvertMarkdownSource</code> property (e.g. a Drive-UI copy of a converted Doc) collide as the same <code>drive_map</code> key — the later one in iteration order silently wins with no error. Narrow trigger, flagged non-blocking during PR #414's round 2 QA review (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/419">#419</a>)
+- [x] <code>sync_folder</code>'s <code>convert_markdown</code> upload path: <code>create()</code> and its metadata-only <code>update()</code> re-stamp share one <code>try</code>/<code>except</code> — a transient failure in the second call after a successful <code>create()</code> reports <code>upload_fail</code> even though the Doc now exists in Drive, leaving an untracked orphan with no ID recorded. Same code path as #419 — candidate for one PR fixing both (PR #645) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/420">#420</a>)</p>
+<p><strong>Infrastructure</strong>
+- [x] Harden concurrent-session access — fail-open on cache read/write errors, <code>busy_timeout</code> (PR #280) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/234">#234</a>)
+- [x] Cache reliability &amp; configurability — runtime-configurable TTL, smarter invalidation for shared files (PR #284) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/99">#99</a>)
+- [x] Async tool execution — <code>asyncio.gather()</code> for parallel Google API calls; establishes the project's parallel-call pattern, which <a href="https://github.com/khuisman/mcp-gee-sweet/issues/194">#194</a> should reuse rather than introducing its own <code>ThreadPoolExecutor</code> (PR #293) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/183">#183</a>)
+- [x] Log the running <code>mcp-gee-sweet</code> package version at startup — <code>server.py::main()</code> logs tool-filtering state but never the version, which is dynamic (<code>uv-dynamic-versioning</code>) so needs an <code>importlib.metadata.version()</code> lookup rather than a static string (PR #479) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/356">#356</a>)
+- [x] <code>server.py::main()</code>'s new version-logging call (#356) has no fallback for <code>importlib.metadata.PackageNotFoundError</code> — a broken/repackaged install or invoking <code>main()</code> directly without the package installed crashes the whole server before any tool-filtering log or transport startup, instead of degrading gracefully. Found during #356's own QA (PR #483) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/481">#481</a>)
+- [x] <code>transfer_ownership</code> missing from <code>server://auth-status</code>'s <code>_SA_LIMITED_TOOLS</code> despite its own docstring documenting the OAuth-only restriction — found during #140's review. Needed a design call on generalizing <code>_auth_status_json</code>'s failure-reason schema (storage-quota vs. no-Drive-identity are different failure classes), so routed to Joy instead of Amy. (PR #507) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/447">#447</a>)
+- [x] <code>server://auth-status</code>'s <code>auth_method: "adc"</code> can't distinguish a real user credential from a service-account-backed one (GCE/Cloud Run/GKE metadata identity, or <code>GOOGLE_APPLICATION_CREDENTIALS</code> pointed at a key file) — both get tagged plain <code>"adc"</code> with <code>can_create_in_personal_drive: true</code> and zero limitations, which is wrong whenever ADC resolves to a service account. Found during #447's design work; not blocking it. <code>ready-for-development</code> (on deck, no lane yet) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/506">#506</a>) (PR #613)
+- [x] Dependabot's <code>pip</code>-ecosystem config doesn't always regenerate <code>uv.lock</code> for a version bump (confirmed on 2 of 7 PRs in the same batch) — silently defeats every <code>--frozen</code> CI/release install, which doesn't validate lock-vs-manifest consistency. Immediate drift fixed by hand 2026-08-06; switched to native <code>uv</code> ecosystem config and added a lockfile-sync CI guard (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/528">#528</a>, PR #533)
+- [x] Migrate <code>mcp.server.fastmcp</code> → <code>mcp.server.mcpserver</code> (mcp SDK v2) — was held as a watch-item while v2 was alpha; <code>mcp</code> hit 2.0.0 stable 2026-08-20, live-confirmed <code>fastmcp</code> is fully removed (not deprecated) and <code>mcpserver.MCPServer</code> exists as expected (PR #642) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/175">#175</a>)
+- [x] Docs version switcher never renders and each release's <code>mike deploy</code> overwrites the previous version instead of versioning alongside it — the <code>latest</code>/<code>develop</code> split from #267 isn't actually working — config/workflow fix in PR #668; post-merge <code>gh-pages</code> ops (purged the stale pre-<code>mike</code> tree, <code>mike set-default develop</code>) done + live-verified: root redirects to <code>/develop/</code>, switcher renders, stale paths 404 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/667">#667</a>)</p>
+<p><strong>Documentation</strong>
+- [x] Tool-count figures have drifted out of sync across README/<code>docs/roadmap.md</code>/<code>docs/tools.md</code> (the only auto-generated one, authoritative at 122) — generate the hand-maintained ones instead of manually recounting each time this is caught. Routed to Amy (PR #550) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/467">#467</a>)
+- [x] Document <code>transfer_ownership</code>'s <code>server://auth-status</code> limitation once #447's schema work lands — the tool's own docstring already promises discoverability via that resource. Delivered as part of #447's own PR (<code>docs/auth.md</code>'s limitation bullet, <code>decision-auth-status-limitation-categories.md</code>, and QA's TC-I27) rather than as separate follow-up work; audited and confirmed complete, no additional doc changes needed. (PR #507) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/503">#503</a>)
+- [x] Rewrite positioning/differentiation in README and <code>docs/index.md</code> — official Google MCP servers are now in developer preview, which undercuts the current "no official alternative exists" framing; lead with concrete differentiators (tool breadth, stability/QA gate, design philosophy) instead, checked against what the official servers actually cover (PR #306) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/263">#263</a>)
+- [x] Markdown-support documentation gaps — README/<code>docs/tools.md</code>/<code>docs/known-limitations.md</code>/<code>docs/design/markdown-support.md</code> never caught up to the Docs markdown-input pipeline shipped via #102/#103/#104/#248; consolidates #297/#298/#299/#302 (PR #482) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/303">#303</a>)
+- [x] <code>CLAUDE.md</code>'s <code>convert_markdown</code> note overstates its download-branch guard as reachable — round-2 review moved that case earlier in the plan-building loop, where it's now classified <code>conflict</code>, not <code>failed</code>; the guard described is dead defensive code, not live behavior. Found during PR #414's round-3 review, routed to Amy (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/423">#423</a>) (PR #492)</p>
+<p><strong>v0.9.0 Full Regression QA pass (2026-09-04)</strong> — 623 PASS / 12 FAIL / 38 SKIP / 1 N/A across 674 TCs (effective 630 PASS / 5 FAIL after the two fixes below); see <code>docs/qa/runs/v0.9.0.md</code> for the full sign-off. Unconditional sign-off finalized in PR #703 — cleared to tag. Two real bugs found, both routed to lane B and now shipped:
+- [x] <code>share_spreadsheet</code> fails with "File not found" on any Shared Drive file — missing <code>supportsAllDrives=True</code> on its <code>permissions().create()</code> call, the only one in <code>sharing.py</code> without it (<code>ready-for-development</code>, <code>lane-b</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/687">#687</a>) (PR #695)
+- [x] Folder-listing cache key omits <code>max_results</code> — silent truncation on a cache hit, and a small-limit fetch poisons the cache for later larger-limit calls (<code>ready-for-development</code>, <code>lane-b</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/688">#688</a>) (PR #697)</p>
+<h3 id="v091-post-release-defect-fixes-infrastructure-addons-target-v091-before-tier-3-begins">v0.9.1 — Post-release defect fixes &amp; infrastructure addons <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1">v0.9.1</a>, before Tier 3 begins)</em><a class="headerlink" href="#v091-post-release-defect-fixes-infrastructure-addons-target-v091-before-tier-3-begins" title="Permanent link">&para;</a></h3>
+<p>No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped, plus a handful of infrastructure/tooling additions that don't belong to any specific tool tier. Started because v0.9.0's own scope kept growing past its original Tier 2 definition; splitting this out keeps that pattern from repeating indefinitely.</p>
+<p><strong>Defects</strong>
+- [ ] Isolated depth&gt;0 bullet run renders the wrong glyph (disc instead of circle) despite correct indentation (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/439">#439</a>)
+- [ ] <code>_auth_status_json</code> silently overrides a caller passing an inconsistent <code>is_service_account_identity</code> instead of erroring or reconciling (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/614">#614</a>)
+- [ ] <code>_timed</code> logs a <code>200</code> status for tool calls that catch their own exception and return <code>{error: ...}</code> — observability reports success for a call that actually failed (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/579">#579</a>)
+- [ ] <code>emitter.py</code> table-cell images have no cursor-advance handling — latent infinite loop if that code path is ever reached (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/509">#509</a>)
+- [ ] Calendar ACL tools use a bare <code>except Exception</code> instead of the <code>HttpError</code> friendly-error pattern used elsewhere in <code>calendar.py</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/459">#459</a>)
+- [x] <code>sync_folder</code>'s <code>convert_markdown</code> restamp-failure handling: quota-message gap, duplicated create()+update() try/except, test fixture isolation — companion to #420 (PR #669) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/650">#650</a>)
+- [ ] <code>sync_folder convert_markdown</code>'s <code>modifiedTime</code> restamp fires for all convert types (over-broad), and its create()+update() pattern is duplicated across two call sites (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/435">#435</a>)
+- [ ] Harden <code>tests/integration</code>'s local-fs live QA harness — error surfacing on API failures, subprocess/handshake timeouts, cleanup-masking a real test failure, per-test subprocess overhead (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/648">#648</a>)
+- [ ] <code>_sync_level._run_one</code>'s outer catch-all leaks a raw <code>storageQuotaExceeded</code> message instead of the friendly <code>_SA_QUOTA_ERROR</code> used everywhere else — #669 follow-up, same friendly-error-consistency shape as #614/#459 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/670">#670</a>)
+- [ ] <code>sync_folder</code> reports "in sync" when mtimes match but content differs (an in-place rename that preserves mtime) — <code>use_checksum</code> doesn't catch it either (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/659">#659</a>)
+- [ ] <code>list_folders</code> with no parent hardcodes <code>'root' in parents</code>, ignoring <code>DRIVE_FOLDER_ID</code> — wrong scope on any Shared-Drive deployment / no results for a pure service account. Found in the v0.9.0 QA pass (TC-D27), has an explicit-parent workaround (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/689">#689</a>)
+- [ ] <code>download_file</code> with a non-existent trailing-slash directory creates a clobbering file instead of the directory. Found in the v0.9.0 QA pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/690">#690</a>)
+- [ ] <code>find_free_slots</code>'s per-calendar error shape is less detailed than <code>list_all_events</code>'s for the same failure mode. Found in the v0.9.0 QA pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/691">#691</a>)
+- [ ] A bare <code>-</code> marker alone on its line isn't recognized as a list item by python-markdown regardless of indentation — distinct from the tracked <code>sane_lists</code> threshold bug. Found in the v0.9.0 QA pass, may end up a documented limitation rather than a fix (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/692">#692</a>)
+- [ ] <code>create_spreadsheet</code>/<code>import_csv_to_sheet</code> response has no web link, unlike sibling create/copy tools — enhancement or fix TC-D01's expectation instead, still open. Found in the v0.9.0 QA pass (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/693">#693</a>)</p>
+<p><strong>Infrastructure</strong>
+- [ ] Interaction-log middleware for tool calls — structured, append-only JSONL log per call (inputs, duration, cache hit, error), opt-in ID redaction, swappable backend (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/646">#646</a>)
+- [ ] Automated tooling for dependency-bump security review — today's manual skim can miss a well-disguised supply-chain compromise (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/520">#520</a>)
+- [ ] CI: dedupe lint/format-check and lockfile-check across the Python version matrix (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/619">#619</a>)
+- [ ] Consolidate <code>uv lock --check</code> + <code>uv sync --frozen</code> into a single <code>uv sync --locked</code> step (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/536">#536</a>)
+- [ ] Catch stale hardcoded tool counts in prose docs at commit time, instead of by hand each time drift is caught (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/308">#308</a>)
+- [ ] Automate the mechanical <code>release.md</code> steps as GitHub Actions (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/660">#660</a>)</p>
+<p><strong>QA &amp; docs</strong> <em>(moved out of v0.9.0 2026-09-02 so they don't gate the release; see <a href="https://github.com/khuisman/mcp-gee-sweet/issues/629">#629</a>, closed)</em>
+- [ ] Domain and public sharing tests (TC-D135–D139) — decision landed 2026-09-02: provision a real non-Google test email for external-share coverage; the <code>type=anyone</code> public-link tests stay unresolved (exposure risk not yet accepted) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/49">#49</a>)
+- [ ] Demo screenshot or GIF for the README — asset work with no owning role; how it gets produced is still open (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/589">#589</a>)
+- [ ] QA <code>.env</code> has no single source of truth — <code>setup_team.sh</code> only copies <code>.env</code> into a worktree when absent, so fixture-ID changes never propagate (had to hand-sync 9 copies for #305); also <code>run.md</code> vs <code>setup.md</code> disagree on <code>docs/qa/.env</code> vs repo-root <code>.env</code>. Surfaced by PR #677, relates to <a href="https://github.com/khuisman/mcp-gee-sweet/issues/648">#648</a> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/679">#679</a>)
+- [ ] <code>list_files</code>/<code>get_file_metadata</code> docstrings cite a stale <code>upload_local_file</code> <code>modifiedTime</code> caveat (fixed at the root by PR #472) and carry a broken self-referential contrast — from Bob's <code>docs/tools.md</code> docstring sweep; Dev/QA track, batches with #682/#683 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/681">#681</a>)
+- [ ] <code>create_doc</code> family docstrings name only the ~25MP inline-image limit; the ~50MB byte-size limit (#562) is equally enforced, and 3 deferring docstrings inherit the gap — from Bob's <code>docs/tools.md</code> docstring sweep (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/682">#682</a>)</p>
+<h3 id="v092-comments-as-a-first-class-cross-suite-capability-target-v092-before-tier-3-begins">v0.9.2 — Comments as a first-class, cross-suite capability <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2">v0.9.2</a>, before Tier 3 begins)</em><a class="headerlink" href="#v092-comments-as-a-first-class-cross-suite-capability-target-v092-before-tier-3-begins" title="Permanent link">&para;</a></h3>
+<p>Follows the design in <a href="../decisions/decision-comments-first-class/"><code>docs/decisions/decision-comments-first-class.md</code></a> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/661">#661</a>): the Drive <code>comments</code>/<code>replies</code> resource is one generic, file-type-agnostic capability, but the codebase only ships a Docs-named <code>list</code>/<code>add</code>/<code>resolve</code> subset (#151). This release generalizes and completes it. Ships a breaking rename — no alias/deprecation mechanism exists in this codebase, so it must be called out explicitly in the release notes.</p>
+<ul>
+<li>[ ] Generalize the three comment tools to <code>tools/drive/comments.py</code> and rename <code>list_doc_comments</code>/<code>add_doc_comment</code>/<code>resolve_doc_comment</code> → <code>list_file_comments</code>/<code>add_file_comment</code>/<code>resolve_comment</code> (param <code>doc_id</code> → <code>file_id</code>); retire <code>tools/docs/comments.py</code>. Breaking change. (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/663">#663</a>)</li>
+<li>[ ] Full <code>comments</code>/<code>replies</code> CRUD parity — <code>get</code>/<code>update</code>/<code>delete</code> for comments; plain <code>reply</code>/<code>reopen</code>/<code>update</code>/<code>delete</code>/<code>list</code> for replies. Depends on #663. (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/664">#664</a>)</li>
+<li>[ ] Fix the stale Tier 4 "zero comment tooling on Docs today" line; close or re-scope #142 (asks for what #151 already shipped under different naming). (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/662">#662</a>)</li>
+<li>[ ] <strong>Decision needed:</strong> deprecate <code>share_spreadsheet</code> in favor of <code>share_file</code> (a strict superset over the same <code>permissions()</code> resource), or keep both and document why. Same pattern as #151/#142, with a longer compatibility tail. (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/665">#665</a>)</li>
+</ul>
+<h3 id="tier-3-advanced-occasionally-needed-target-v100">Tier 3 — Advanced / occasionally needed <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0">v1.0.0</a>)</em><a class="headerlink" href="#tier-3-advanced-occasionally-needed-target-v100" title="Permanent link">&para;</a></h3>
+<p><strong>Sheets</strong>
+- [ ] <code>add_conditional_formatting</code> / <code>delete_conditional_formatting</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/129">#129</a>) <em>(freema/mcp-gsheets)</em>
+- [ ] <code>add_named_range</code> / <code>delete_named_range</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/130">#130</a>) <em>(piotr-agier/google-drive-mcp)</em>
+- [ ] <code>protect_sheet</code> / <code>protect_range</code> — lock a sheet or range against edits (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/128">#128</a>) <em>(piotr-agier/google-drive-mcp)</em>
+- [ ] <code>set_basic_filter</code> / <code>clear_basic_filter</code> — toggle autofilter on a range (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/196">#196</a>) <em>(freema/mcp-gsheets)</em></p>
+<p><strong>Calendar</strong>
+- [ ] <code>quick_add</code> — create an event from a natural language string (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/159">#159</a>)
+- [ ] Event color coding — <code>colorId</code> on create/update (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/160">#160</a>)
+- [ ] Conference data — auto-create Google Meet link (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/161">#161</a>)
+- [ ] Event attachments — link Drive files to events (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/162">#162</a>)
+- [ ] Reminders — per-event override reminders (email, popup, minutes before) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/163">#163</a>)</p>
+<p><strong>Docs</strong>
+- [ ] <code>create_footnote</code> — footnote at a run index (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/149">#149</a>)
+- [ ] <code>create_table_of_contents</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/153">#153</a>)
+- [ ] <code>insert_section_break</code> — section breaks for per-section column/margin layout (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/154">#154</a>)</p>
+<p><strong>Drive</strong>
+- [ ] File comments — list and add comments on Drive files (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/142">#142</a>)
+- [ ] Watch notifications — webhook push on file changes (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/143">#143</a>)
+- [ ] Labels API — custom metadata labels on Drive files (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/144">#144</a>)
+- [ ] <code>empty_trash</code> — optional fan-out across all accessible Shared Drives in one call, instead of one call per drive; considered and deliberately deferred during #386's review (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/389">#389</a>)</p>
+<h3 id="tier-4-nice-to-have-niche-no-assigned-version">Tier 4 — Nice to have / niche <em>(no assigned version)</em><a class="headerlink" href="#tier-4-nice-to-have-niche-no-assigned-version" title="Permanent link">&para;</a></h3>
+<p><strong>Sheets</strong>
+- [ ] <code>get_sheet_dimensions</code> — read column widths, row heights, frozen counts (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/132">#132</a>) <em>(freema/mcp-gsheets)</em>
+- [ ] <code>add_note</code> / <code>clear_note</code> — cell notes (distinct from comments) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/131">#131</a>) <em>(freema/mcp-gsheets)</em>
+- [ ] Pivot tables — create and update pivot table specs via batchUpdate (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/133">#133</a>)
+- [ ] Developer metadata — key-value metadata attached to rows, columns, or ranges (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/134">#134</a>)
+- [ ] Sheet comments and cell notes (add/get/list/reply/resolve/delete) — we have zero comment tooling on Sheets today <em>(a-bonus/google-docs-mcp)</em>
+- [ ] Conditional formatting rules — add/get/delete <em>(a-bonus/google-docs-mcp)</em>
+- [ ] Protected ranges — protect/unprotect a range <em>(a-bonus/google-docs-mcp)</em>
+- [ ] Dropdown / data validation on a range <em>(a-bonus/google-docs-mcp)</em>
+- [ ] Row grouping (outline/collapse) — group/ungroup rows <em>(a-bonus/google-docs-mcp)</em>
+- [ ] Auto-resize columns/rows to fit content <em>(a-bonus/google-docs-mcp)</em>
+- [ ] Write-side column widths / row heights — companion to the read-only <code>get_sheet_dimensions</code> above (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/132">#132</a>) <em>(a-bonus/google-docs-mcp)</em>
+- [ ] Native Sheets "Tables" object support (create/list/get/delete/update a structured Table, distinct from a plain range) — a newer Sheets API feature we don't touch at all <em>(a-bonus/google-docs-mcp)</em>
+- [ ] Copy formatting only, without values (paste-special-style) <em>(a-bonus/google-docs-mcp)</em></p>
+<p><strong>Docs</strong>
+- [ ] Doc comments (add/get/list/reply/resolve/delete) — we have zero comment tooling on Docs today <em>(a-bonus/google-docs-mcp)</em>
+- [ ] Multi-tab document support (list/add/rename tabs) — Google Docs' newer per-document tabs feature <em>(a-bonus/google-docs-mcp)</em>
+- [ ] Smart chips — date chips, person chips, rich links; <code>list_smart_chips</code> to enumerate existing ones <em>(a-bonus/google-docs-mcp)</em>
+- [ ] Section breaks and per-section page styling <em>(a-bonus/google-docs-mcp)</em>
+- [ ] Page breaks <em>(a-bonus/google-docs-mcp)</em>
+- [ ] Table structure discovery and cloning (read a table's row/column structure; clone an existing table) <em>(a-bonus/google-docs-mcp)</em>
+- [ ] Finer-grained table styling — per-border, per-column-width, per-row-height table styling beyond what <code>style_doc_table_cells</code> currently exposes <em>(a-bonus/google-docs-mcp)</em>
+- [ ] Footnote management <em>(piotr-agier/google-drive-mcp)</em></p>
+<p><strong>Calendar</strong>
+- [ ] Working location / OOO / Focus time events (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/164">#164</a>)
+- [ ] Watch notifications — webhook push on calendar or event changes (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/165">#165</a>)</p>
+<p><strong>Infrastructure</strong>
+- [x] <code>notifications/progress</code> feedback for long-running transfer calls (<code>download_folder</code>, <code>sync_folder</code>) — no tool uses MCP progress reporting today, would establish a new pattern; split from #316 (PR #351) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/319">#319</a>)</p>
+<h3 id="decisions-needed-blocking-backlog-no-assigned-version">Decisions Needed — blocking backlog <em>(no assigned version)</em><a class="headerlink" href="#decisions-needed-blocking-backlog-no-assigned-version" title="Permanent link">&para;</a></h3>
+<p>Design questions raised during Phase 1 QA that need a deliberate product/API decision rather than just code. Each blocks whichever tool it names until resolved — pick these up opportunistically alongside the tool they affect, or dedicate a pass to clear the backlog.</p>
+<ul>
+<li>[ ] <code>get_sheet_data</code> on an unknown sheet — exception vs structured error (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/31">#31</a>)</li>
+<li>[ ] <code>batch_update_cells</code> empty input — validation error vs silent no-op (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/32">#32</a>)</li>
+<li>[ ] <code>add_rows</code> count cap — accept unlimited or enforce a maximum (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/33">#33</a>)</li>
+<li>[ ] <code>rename_sheet</code> same-name — skip the API call or always round-trip (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/34">#34</a>)</li>
+<li>[ ] <code>create_sheet</code> duplicate title — API error or auto-suffix (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/35">#35</a>)</li>
+<li>[ ] Hide Drive-create tools from the toolset when service account auth is detected (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/36">#36</a>)</li>
+<li>[ ] <code>list_spreadsheets</code> with no folder — all accessible or Drive root (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/37">#37</a>)</li>
+<li>[ ] Validate ownership before <code>share_spreadsheet</code> / <code>share_file</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/38">#38</a>)</li>
+<li>[ ] <code>search_spreadsheets</code> empty query — return all or require non-empty input (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/39">#39</a>)</li>
+<li>[ ] <code>get_file_metadata</code> size field for Workspace files — normalize or document (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/40">#40</a>)</li>
+<li>[ ] <code>rows_to_fetch=0</code> — clamp to 1 or return all rows (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/78">#78</a>)</li>
+</ul>
+<hr />
+<h2 id="bugs-found-in-phase-1-qa-run-2026-06-02">Bugs found in Phase 1 QA run (2026-06-02)<a class="headerlink" href="#bugs-found-in-phase-1-qa-run-2026-06-02" title="Permanent link">&para;</a></h2>
+<h3 id="add_chart-multi-column-range-fails-bug-1"><code>add_chart</code> — multi-column range fails (BUG-1)<a class="headerlink" href="#add_chart-multi-column-range-fails-bug-1" title="Permanent link">&para;</a></h3>
+<p><strong>Severity:</strong> High — affects all practical chart use cases.
+The tool passes the full data range (e.g. <code>A1:D5</code>) as a single <code>ChartSourceRange</code>. The Sheets API requires separate source range objects per column — one for the domain (X axis / categories) and one per series. Fix: parse the A1 range, split into domain (first column) and series (remaining columns), pass as separate entries in <code>sources</code>. ✅ Fixed.</p>
+<h3 id="add_chart-histogram-wrong-api-spec-bug-2"><code>add_chart</code> HISTOGRAM — wrong API spec (BUG-2)<a class="headerlink" href="#add_chart-histogram-wrong-api-spec-bug-2" title="Permanent link">&para;</a></h3>
+<p><strong>Severity:</strong> Medium — HISTOGRAM specifically broken even after BUG-1 fixed.
+<code>HISTOGRAM</code> is not a valid <code>BasicChartType</code> enum value. The Sheets API uses a <code>histogramChart</code> spec field rather than <code>basicChart.chartType</code>. Fix: detect <code>chart_type == "HISTOGRAM"</code> and build a <code>histogramChart</code> spec instead. ✅ Fixed.</p>
+<h3 id="add_chart-bar-wrong-series-target-axis-bug-3"><code>add_chart</code> BAR — wrong series target axis (BUG-3)<a class="headerlink" href="#add_chart-bar-wrong-series-target-axis-bug-3" title="Permanent link">&para;</a></h3>
+<p><strong>Severity:</strong> Medium — BAR charts fail with "series may only target the BOTTOM_AXIS".
+BAR charts (horizontal) have a horizontal value axis. Series must target <code>BOTTOM_AXIS</code>, not <code>LEFT_AXIS</code>. Fix: detect <code>chart_type == "BAR"</code> and set <code>targetAxis</code> accordingly. ✅ Fixed.</p>
+<h3 id="add_chart-combo-no-per-series-type-specified-bug-4"><code>add_chart</code> COMBO — no per-series type specified (BUG-4)<a class="headerlink" href="#add_chart-combo-no-per-series-type-specified-bug-4" title="Permanent link">&para;</a></h3>
+<p><strong>Severity:</strong> Medium — COMBO charts fail with "No basic chart type specified".
+The Sheets API requires each series in a COMBO chart to declare its own <code>type</code>. Fix: when <code>chart_type == "COMBO"</code>, add <code>type: COLUMN</code> to all series except the last, which gets <code>type: LINE</code>. ✅ Fixed.</p>
+<h3 id="tc-w03-test-case-assumption-wrong">TC-W03 — test case assumption wrong<a class="headerlink" href="#tc-w03-test-case-assumption-wrong" title="Permanent link">&para;</a></h3>
+<p>The test expected the API to silently truncate a 2D array that's wider than the target range. The API actually rejects it with a 400 error. The test case needs to be updated to reflect correct API behaviour. ✅ Fixed.</p>
+<hr />
+<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
+<h3 id="unit-tests-456-passing-as-of-2026-06-24">Unit tests (456 passing as of 2026-06-24)<a class="headerlink" href="#unit-tests-456-passing-as-of-2026-06-24" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] Add <code>pytest</code> and <code>pytest-cov</code> as dev dependencies</li>
+<li>[x] Cache logic — TTL expiry, dirty flag, partial invalidation for all five cache classes; in-memory SQLite</li>
+<li>[x] A1 notation helpers — <code>_parse_a1_notation</code>, <code>_column_index_to_letter</code>, <code>_letter_to_column_index</code></li>
+<li>[x] Tool filtering — tools excluded when not in <code>ENABLED_TOOLS</code></li>
+<li>[x] Service account quota error handling — structured error on 403 quota exceeded; non-quota 403s raise</li>
+<li>[x] <code>server://auth-status</code> resource — correct capabilities for service_account, oauth, and adc</li>
+<li>[x] Docs AST pipeline — <code>html_to_ast</code>, <code>ast_to_requests</code>, <code>fill_tables</code>, nested table emitter, cell style emitter, run style Phase 3 fields</li>
+<li>[x] Docs tools — <code>write_doc_content</code>, <code>style_doc_range</code>, <code>style_doc_table_cells</code>, <code>get_doc_theme</code>, <code>get_doc_named_styles</code>, <code>apply_theme</code></li>
+<li>[x] Fix BUG-1–4: <code>add_chart</code> multi-column ranges, HISTOGRAM spec, BAR axis, COMBO per-series types</li>
+<li>[x] Update TC-W03 test case — API rejects oversized 2D arrays, does not silently truncate</li>
+</ul>
+<h3 id="live-qa-ai-driven-test-cases-in-docsqatests">Live QA (AI-driven test cases in <code>docs/qa/tests/</code>)<a class="headerlink" href="#live-qa-ai-driven-test-cases-in-docsqatests" title="Permanent link">&para;</a></h3>
+<ul>
+<li>[x] Sheets read, write, management, charts — <code>sheets_read.md</code>, <code>sheets_write.md</code>, <code>sheets_mgmt.md</code>, <code>sheets_charts.md</code></li>
+<li>[x] Drive files and sharing — <code>drive.md</code></li>
+<li>[x] Google Docs tools (all 13) — <code>docs.md</code></li>
+<li>[x] Calendar tools — <code>calendar.md</code></li>
+<li>[x] Infrastructure — <code>infra.md</code></li>
+<li>[ ] QA gaps targeted for v0.9 — disposition of v0.8.0 SKIP entries, done, triaged the rest below ([x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/227">#227</a>, PR #493); dedicated QA Google account + calendar + pollution root-cause fixes, consolidates #225/#226/#249 — deferred out of v0.9.0 (2026-09-02, paid-account cost not justified for the volume); revisit via alternate OAuth client configs (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/304">#304</a>); second Drive folder + shared drive fixtures, consolidates #44/#48 — done as a full fixture-set re-provision into the <code>mcp-gee-sweet-shared</code> Shared Drive (Workspace-org migration overtook the original scope); <code>TEST_FOLDER_2_ID</code> half retired, TC-D123 permanently skipped ([x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/305">#305</a>, PR #677); two Aziz-routed test-doc fixups surfaced by PR #677's fixture re-provisioning, both to be handled during Full Regression pass prep — TC-DOC80 can no longer trip the response cap post-#519, needs a per-case low-cap override (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/678">#678</a>); several <code>drive_files.md</code> cases assume My-Drive semantics now that fixtures live in a Shared Drive (TC-D58/D61/D03/D59/D27/D04/D175), and TC-D27 may expose a real <code>list_folders</code> Shared-Drive tool gap (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/680">#680</a>); domain/public sharing coverage — moved to v0.9.1 (2026-09-02) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/49">#49</a>); local-filesystem coverage ([x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/50">#50</a>, PR #644); environment-constraint coverage — closed 2026-09-02 as duplicate, untangled into #305 (shared drives) / #49 (external + public sharing) / #304 (second account, deferred) / #673 (concurrent-session procedure) ([x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/53">#53</a>); concurrent-session test procedure — 2 subagents + <code>mkdir</code> barrier against a main-checkout server, split from #53 — procedure + pre-approved-SKIP retirement via PR #675, <code>aziz.md</code> release-pass wiring via PR #674; live TC-I24/TC-I02/TC-R36 runs happen in the v0.9.0 Full Regression pass (tracked in <code>docs/qa/runs/v0.9.0.md</code>), not a standalone issue ([x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/673">#673</a>, PRs #674/#675); split <code>drive.md</code>/<code>docs.md</code> test files by submodule, do before #264/#224 to avoid a file-rename conflict ([x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/233">#233</a>, PR #582); Playwright tag consistency audit + formalize the required/spot-check/skip tiers, raised while fixing #248, sequenced after #233 ([x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/264">#264</a>, PR #592, #598); image fixtures for <code>insert_inline_image</code>, sequenced after #233 ([x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/224">#224</a>, PR #639); dedicated screenshots folder, independent of the rest ([x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/231">#231</a>, PR #583); <code>add_chart</code> test cases leave charts behind with no teardown, polluting the shared Sales fixture across every QA run — same pollution-cluster shape as #304/#305 ([x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/322">#322</a>, PR #633); plus 7 small unit-test-coverage gaps filed 2026-08-02/08, each self-contained/ad hoc pickup — [x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/487">#487</a> (PR #559), [x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/488">#488</a> (PR #563), [x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/489">#489</a> (PR #569), [x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/490">#490</a> (PR #572), [x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/491">#491</a> (PR #575), [x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/494">#494</a> (PR #577), [x] <a href="https://github.com/khuisman/mcp-gee-sweet/issues/495">#495</a> (PR #634)</li>
+<li>See <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Aqa">GitHub Issues (label: qa)</a> for open QA gaps and fixture issues</li>
+</ul>
+<hr />
+<h2 id="infrastructure-internal">Infrastructure / internal<a class="headerlink" href="#infrastructure-internal" title="Permanent link">&para;</a></h2>
+<ul>
+<li>[x] Migrate cache persistence — replaced four <code>/tmp/*.json</code> files with a single SQLite DB (<code>/tmp/mcp_gee_sweet.db</code>, configurable via <code>CACHE_DB_PATH</code>); one table, four namespaces; WAL mode</li>
+<li>[x] Open PR to xing5 from <code>upstream-observability</code> branch (structured logging, per-tool timing, <code>cache_discovery=False</code>) — <a href="https://github.com/xing5/mcp-google-sheets/pull/79">PR #79</a></li>
+<li>[x] Fork repo and rename to <code>mcp-gee-sweet</code>; README credits xing5, freema, and piotr-agier</li>
+<li>[x] PyPI publish — v0.7.0 stable on PyPI; dev track publishes <code>0.7.0.devN</code> on every push to <code>develop</code></li>
+<li>[ ] Live QA system — fixture setup, per-release run files (<code>docs/qa/runs/vX.Y.Z.md</code>), Playwright OAuth automation (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/173">#173</a>) <em>(gate for v0.8.0)</em></li>
+<li>See <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=label%3Ainfrastructure">GitHub Issues (label: infrastructure)</a> for open infrastructure work</li>
+</ul>
+<hr />
+<h2 id="future-domains">Future domains<a class="headerlink" href="#future-domains" title="Permanent link">&para;</a></h2>
+<h3 id="tasks">Tasks<a class="headerlink" href="#tasks" title="Permanent link">&para;</a></h3>
+<p>Requires <code>tasks/v1</code> client and <code>https://www.googleapis.com/auth/tasks</code> scope. Add <code>tasks_service</code> to <code>SpreadsheetContext</code> and wire up in <code>auth.py</code> lifespan alongside the existing clients.</p>
+<p><strong>Task lists</strong>
+- [ ] <code>list_task_lists</code> — list all task lists for the authenticated user
+- [ ] <code>get_task_list</code> — fetch metadata for a single task list
+- [ ] <code>create_task_list</code> — create a new task list
+- [ ] <code>delete_task_list</code> — delete a task list and all its tasks</p>
+<p><strong>Tasks</strong>
+- [ ] <code>list_tasks</code> — list tasks in a task list with optional due date filter and completed/hidden flags
+- [ ] <code>get_task</code> — fetch a single task by task list ID + task ID
+- [ ] <code>create_task</code> — create a task (title, notes, due date, parent for subtasks)
+- [ ] <code>update_task</code> — update fields on an existing task (<code>tasks().patch()</code>)
+- [ ] <code>delete_task</code> — delete a task
+- [ ] <code>complete_task</code> — mark a task as completed (shortcut for <code>update_task</code> with <code>status='completed'</code>)
+- [ ] <code>clear_completed</code> — delete all completed tasks from a list (<code>tasks().clear()</code>)</p>
+<h3 id="gmail">Gmail<a class="headerlink" href="#gmail" title="Permanent link">&para;</a></h3>
+<p>Requires <code>gmail/v1</code> client and <code>https://www.googleapis.com/auth/gmail.modify</code> scope (or narrower <code>gmail.readonly</code> / <code>gmail.send</code> scopes where appropriate). Add <code>gmail_service</code> to <code>SpreadsheetContext</code> and wire up in <code>auth.py</code> lifespan.</p>
+<p><strong>Reading</strong>
+- [ ] <code>list_messages</code> — list messages with optional query string (same syntax as Gmail search), label filter, and pagination
+- [ ] <code>get_message</code> — fetch a single message by ID; return headers, body (plain text + HTML), and attachment metadata
+- [ ] <code>list_threads</code> — list conversation threads with optional query and label filter
+- [ ] <code>get_thread</code> — fetch all messages in a thread
+- [ ] <code>list_labels</code> — list all labels (system and user-defined)</p>
+<p><strong>Sending and drafts</strong>
+- [ ] <code>send_message</code> — send an email (to, cc, bcc, subject, body, optional attachments)
+- [ ] <code>create_draft</code> — create a draft without sending
+- [ ] <code>send_draft</code> — send an existing draft by ID
+- [ ] <code>reply_to_message</code> — send a reply in an existing thread</p>
+<p><strong>Organization</strong>
+- [ ] <code>modify_labels</code> — add or remove labels from a message or thread (covers archive, mark read/unread, star, etc.)
+- [ ] <code>trash_message</code> — move a message to trash
+- [ ] <code>delete_message</code> — permanently delete a message</p>
+<hr />
+<h2 id="potential-under-consideration">Potential / under consideration<a class="headerlink" href="#potential-under-consideration" title="Permanent link">&para;</a></h2>
+<ul>
+<li>
+<p><strong>Google Keep</strong> — philosophically in scope (Workspace productivity tool) but the Keep API v1 is read-only for most operations and was historically restricted to Workspace Business/Enterprise accounts. Creating and editing notes via an officially supported third-party API is not currently possible. Revisit if Google opens the API further.</p>
+</li>
+<li>
+<p><strong>SQLite cache encryption at rest</strong> — the cache DB (<code>/tmp/mcp_gee_sweet.db</code>) stores Google Sheets data in plaintext. For deployments that handle sensitive data, consider <a href="https://www.zetetic.net/sqlcipher/">SQLCipher</a> (open-source, AES-256, mostly API-compatible with standard SQLite) or rely on filesystem-level encryption (FileVault, LUKS, BitLocker). The official SQLite Encryption Extension (SEE) is an alternative but is commercial/proprietary. Not needed for typical local-dev use.</p>
+</li>
+</ul>
+<hr />
+<h2 id="inspiration-and-credits">Inspiration and credits<a class="headerlink" href="#inspiration-and-credits" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="https://github.com/xing5/mcp-google-sheets">xing5/mcp-google-sheets</a> — original upstream this project was forked from</li>
+<li><a href="https://github.com/freema/mcp-gsheets">freema/mcp-gsheets</a> — most comprehensive Sheets-specific MCP server; primary source for formatting, validation, and sheet property roadmap items</li>
+<li><a href="https://github.com/piotr-agier/google-drive-mcp">piotr-agier/google-drive-mcp</a> — full Workspace suite; primary source for Drive file operations, permissions, and named/protected range roadmap items</li>
+<li><a href="https://github.com/a-bonus/google-docs-mcp">a-bonus/google-docs-mcp</a> — source-verified ~44 Sheets tools / ~39 Docs tools (one-file-per-operation style, exceeds its own README's claimed counts); primary source for the Sheets comments/conditional-formatting/protected-ranges/validation/grouping cluster and the Docs comments/tabs/smart-chips/section-breaks cluster added 2026-07-14</li>
+<li><a href="https://github.com/taylorwilsdon/google_workspace_mcp">taylorwilsdon/google_workspace_mcp</a> — 12-service, source-verified 115-tool server; only project reviewed with a confirmed Markdown <em>export</em> tool (<code>get_doc_as_markdown</code>, see <a href="https://github.com/khuisman/mcp-gee-sweet/issues/300">#300</a>) — our Markdown support is currently input-only</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

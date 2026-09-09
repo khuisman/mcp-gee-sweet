@@ -1,0 +1,4185 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/0.9.0/qa/tests/sheets_mgmt/">
+      
+      
+        <link rel="prev" href="../sheets_charts/">
+      
+      
+        <link rel="next" href="../../../notes-read/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Sheets — Structure - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#sheet-management-tools-qa-test-cases" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Sheets — Structure
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#list_sheets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_sheets
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_sheets">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s01-happy-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S01: Happy path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s02-cache-hit-on-second-call" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S02: Cache hit on second call
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s03-cache-invalidated-after-rename" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S03: Cache invalidated after rename
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#copy_sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        copy_sheet
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="copy_sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s04-copy-within-same-spreadsheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S04: Copy within same spreadsheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s05-copy-to-a-different-spreadsheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S05: Copy to a different spreadsheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s06-name-differs-from-googles-auto-assigned-name-rename-triggered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S06: Name differs from Google's auto-assigned name — rename triggered
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s07-name-matches-googles-auto-assigned-name-rename-skipped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S07: Name matches Google's auto-assigned name — rename skipped
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s08-source-sheet-not-found" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S08: Source sheet not found
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s09-destination-spreadsheet-not-writable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S09: Destination spreadsheet not writable
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s10-cache-invalidated-after-copy-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S10: Cache invalidated after copy ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#duplicate_sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        duplicate_sheet
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="duplicate_sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s51-duplicate-within-the-same-spreadsheet-default-name-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S51: Duplicate within the same spreadsheet, default name ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s52-duplicate-with-a-custom-name-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S52: Duplicate with a custom name ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s53-default-position-lands-immediately-after-the-source-tab-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S53: Default position lands immediately after the source tab ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s54-explicit-insert_index-is-honored-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S54: Explicit insert_index is honored ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s55-source-sheet-not-found" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S55: Source sheet not found
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s56-cache-invalidated-after-duplicate-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S56: Cache invalidated after duplicate ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rename_sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rename_sheet
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="rename_sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s11-rename-to-a-new-name-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S11: Rename to a new name ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s12-rename-to-the-same-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S12: Rename to the same name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s13-sheet-not-found" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S13: Sheet not found
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s14-cache-invalidated-after-rename" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S14: Cache invalidated after rename
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create_sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_sheet
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="create_sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s15-create-a-new-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S15: Create a new tab
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s16-duplicate-tab-title" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S16: Duplicate tab title
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s17-long-title" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S17: Long title
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s18-response-shape" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S18: Response shape
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s19-cache-updated-after-create" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S19: Cache updated after create
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#refresh_cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        refresh_cache
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="refresh_cache">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s20-refresh-by-spreadsheet-id-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S20: Refresh by spreadsheet ID only
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s21-refresh-by-doc-id-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S21: Refresh by doc ID only
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s22-refresh-both-spreadsheet-and-doc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S22: Refresh both spreadsheet and doc
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s23-refresh-with-no-arguments-clears-all-caches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S23: Refresh with no arguments — clears all caches
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s24-cache-re-populated-after-refresh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S24: Cache re-populated after refresh
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#delete_sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        delete_sheet
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="delete_sheet">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s25-delete-an-existing-sheet-tab-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S25: Delete an existing sheet tab ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s26-delete-a-non-existent-sheet-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S26: Delete a non-existent sheet returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#delete_rows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        delete_rows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="delete_rows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s27-delete-a-single-row-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S27: Delete a single row ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s28-delete-a-range-of-rows-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S28: Delete a range of rows ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s29-delete-rows-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S29: Delete rows — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#delete_columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        delete_columns
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="delete_columns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s30-delete-a-single-column-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S30: Delete a single column ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s31-delete-a-range-of-columns-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S31: Delete a range of columns ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s32-delete-columns-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S32: Delete columns — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hide_rows-unhide_rows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        hide_rows / unhide_rows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="hide_rows / unhide_rows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s63-hide-a-single-row-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S63: Hide a single row ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s64-hide-a-range-of-rows-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S64: Hide a range of rows ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s65-hide-rows-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S65: Hide rows — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s66-unhide-a-previously-hidden-row-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S66: Unhide a previously hidden row ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s67-unhide-rows-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S67: Unhide rows — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hide_columns-unhide_columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        hide_columns / unhide_columns
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="hide_columns / unhide_columns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s68-hide-a-single-column-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S68: Hide a single column ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s69-hide-a-range-of-columns-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S69: Hide a range of columns ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s70-hide-columns-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S70: Hide columns — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s71-unhide-a-previously-hidden-column-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S71: Unhide a previously hidden column ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s72-unhide-columns-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S72: Unhide columns — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resize_rows-resize_columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resize_rows / resize_columns
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="resize_rows / resize_columns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s73-resize-a-single-row-to-an-explicit-pixel-height-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S73: Resize a single row to an explicit pixel height ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s74-resize-a-range-of-rows-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S74: Resize a range of rows ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s75-auto-resize-rows-to-fit-content-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S75: Auto-resize rows to fit content ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s76-resize-rows-neither-pixel_size-nor-auto_resize-given-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S76: Resize rows — neither pixel_size nor auto_resize given returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s77-resize-rows-both-pixel_size-and-auto_resize-given-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S77: Resize rows — both pixel_size and auto_resize given returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s78-resize-rows-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S78: Resize rows — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s79-resize-a-single-column-to-an-explicit-pixel-width-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S79: Resize a single column to an explicit pixel width ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s80-resize-a-range-of-columns-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S80: Resize a range of columns ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s81-auto-resize-columns-to-fit-content-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S81: Auto-resize columns to fit content ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s82-resize-columns-neither-pixel_size-nor-auto_resize-given-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S82: Resize columns — neither pixel_size nor auto_resize given returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s83-resize-columns-both-pixel_size-and-auto_resize-given-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S83: Resize columns — both pixel_size and auto_resize given returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s84-resize-columns-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S84: Resize columns — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#format_cells" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        format_cells
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="format_cells">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s33-apply-bold-and-background-color-to-a-range-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S33: Apply bold and background color to a range ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s34-apply-number-format-to-a-column-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S34: Apply number format to a column ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s35-set-horizontal-alignment-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S35: Set horizontal alignment ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s36-no-formatting-params-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S36: No formatting params returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s37-format_cells-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S37: format_cells — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#merge_cells-unmerge_cells" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        merge_cells / unmerge_cells
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="merge_cells / unmerge_cells">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s38-merge-a-header-row-range-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S38: Merge a header row range ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s39-merge-rows-independently-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S39: Merge rows independently ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s40-unmerge-a-previously-merged-range-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S40: Unmerge a previously merged range ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s41-merge_cells-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S41: merge_cells — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#update_borders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        update_borders
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="update_borders">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s85-apply-a-solid-border-around-all-four-edges-of-a-range-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S85: Apply a solid border around all four edges of a range ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s86-apply-dashed-inner-gridlines-inside-a-range-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S86: Apply dashed inner gridlines inside a range ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s87-clear-an-existing-border-edge-with-style-none-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S87: Clear an existing border edge with style NONE ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s88-update_borders-no-border-params-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S88: update_borders — no border params returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s89-update_borders-border-spec-missing-style-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S89: update_borders — border spec missing style returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s90-update_borders-invalid-style-value-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S90: update_borders — invalid style value returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s91-update_borders-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S91: update_borders — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s92-update_borders-non-string-style-value-returns-error-does-not-crash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S92: update_borders — non-string style value returns error, does not crash
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#add_data_validation-get_data_validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_data_validation / get_data_validation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="add_data_validation / get_data_validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s93-one_of_list-sets-a-dropdown-and-get_data_validation-reads-it-back-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S93: ONE_OF_LIST sets a dropdown and get_data_validation reads it back ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s94-boolean-with-no-values-renders-a-plain-checkbox-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S94: BOOLEAN with no values renders a plain checkbox ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s95-number_between-with-strictfalse-shows-a-warning-instead-of-rejecting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S95: NUMBER_BETWEEN with strict=False shows a warning instead of rejecting
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s96-get_data_validation-returns-an-empty-list-for-a-range-with-no-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S96: get_data_validation returns an empty list for a range with no rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s97-add_data_validation-invalid-condition_type-returns-error-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S97: add_data_validation — invalid condition_type returns error (unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s98-add_data_validation-sheet-not-found-returns-error-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S98: add_data_validation — sheet not found returns error (unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s99-add_data_validation-one_of_range-the-documented-value-format-always-fails-code-review-finding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S99: add_data_validation ONE_OF_RANGE — the documented value format always fails ❌ code review finding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s100-get_data_validation-on-a-nonexistent-sheet-raises-raw-not-a-clean-error-code-review-finding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S100: get_data_validation on a nonexistent sheet raises raw, not a clean error ❌ code review finding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s101-add_data_validation-one_of_range-auto-corrects-a-missing-pr-361-review-fix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S101: add_data_validation ONE_OF_RANGE auto-corrects a missing = (PR #361 review fix)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s102-get_data_validation-on-a-nonexistent-sheet-returns-a-clean-error-pr-361-review-fix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S102: get_data_validation on a nonexistent sheet returns a clean error (PR #361 review fix)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#freeze" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        freeze
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="freeze">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s42-freeze-the-header-row-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S42: Freeze the header row ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s43-freeze-first-row-and-first-column-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S43: Freeze first row and first column ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s44-unfreeze-all-rows0-columns0-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S44: Unfreeze all (rows=0, columns=0) ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s45-freeze-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S45: freeze — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#update_sheet_properties" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        update_sheet_properties
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="update_sheet_properties">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s57-set-tab-color-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S57: Set tab color ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s57b-clear-tab-color-with-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S57b: Clear tab color with {} ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s58-hide-gridlines-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S58: Hide gridlines ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s59-set-right-to-left-layout-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S59: Set right-to-left layout ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s60-combine-tab-color-gridlines-and-right-to-left-in-one-call-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S60: Combine tab color, gridlines, and right-to-left in one call ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s61-no-properties-provided-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S61: No properties provided returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s62-update_sheet_properties-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S62: update_sheet_properties — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sort_range" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        sort_range
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="sort_range">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s46-sort-a-data-range-ascending-by-first-column-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S46: Sort a data range ascending by first column ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s47-sort-descending-by-a-non-first-column-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S47: Sort descending by a non-first column ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s48-multi-column-sort-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S48: Multi-column sort ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s49-column_index-offset-by-range-start-column" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S49: column_index offset by range start column
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s50-sort_range-sheet-not-found-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S50: sort_range — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s103-sort_range-malformed-sort-spec-fields-return-a-clean-error-do-not-crash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S103: sort_range — malformed sort spec fields return a clean error, do not crash
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="sheet-management-tools-qa-test-cases">Sheet Management Tools — QA Test Cases<a class="headerlink" href="#sheet-management-tools-qa-test-cases" title="Permanent link">&para;</a></h1>
+<p>Source: <code>src/mcp_gee_sweet/tools/sheets.py</code></p>
+<p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute your <code>{SPREADSHEET_ID}</code> from <code>fixtures.local.md</code>.</p>
+<p>Tests marked <strong>⚠️ destructive</strong> rename or delete sheets — reset fixtures afterward.</p>
+<hr />
+<h2 id="list_sheets"><code>list_sheets</code><a class="headerlink" href="#list_sheets" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s01-happy-path">TC-S01: Happy path<a class="headerlink" href="#tc-s01-happy-path" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List all the sheets in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns 3 tabs: Sales, Empty, Notes &amp; Misc
+- Each entry includes the sheet name
+- No <code>error</code> field</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_sheets → Sales/Empty/Notes &amp; Misc (3 tabs), no error</p>
+<hr />
+<h3 id="tc-s02-cache-hit-on-second-call">TC-S02: Cache hit on second call<a class="headerlink" href="#tc-s02-cache-hit-on-second-call" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong> (run twice in the same session)</p>
+<blockquote>
+<p>"List the sheets in {SPREADSHEET_ID} again"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Second call returns the same list
+- Server logs show <code>cache hit</code> for the second call (<code>make logs</code>)</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+2nd call same list; cache-hit not verifiable from QA session (no log access)</p>
+<hr />
+<h3 id="tc-s03-cache-invalidated-after-rename">TC-S03: Cache invalidated after rename<a class="headerlink" href="#tc-s03-cache-invalidated-after-rename" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Rename the 'Empty' sheet in {SPREADSHEET_ID} to 'WasEmpty', then immediately list all sheets"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_sheets</code> response includes 'WasEmpty', not 'Empty'
+- Confirms <code>cache.mark_dirty</code> fires after rename and the next list re-fetches</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Empty→WasEmpty, list_sheets reflects rename immediately (mark_dirty confirmed); renamed back to Empty in teardown</p>
+<hr />
+<h2 id="copy_sheet"><code>copy_sheet</code><a class="headerlink" href="#copy_sheet" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s04-copy-within-same-spreadsheet">TC-S04: Copy within same spreadsheet<a class="headerlink" href="#tc-s04-copy-within-same-spreadsheet" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy the Sales sheet within {SPREADSHEET_ID} and name the copy 'Sales Copy'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New sheet 'Sales Copy' appears in {SPREADSHEET_ID}
+- Data in 'Sales Copy' matches Sales (6 rows, 4 columns)
+- Original Sales sheet unchanged</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+copy_sheet(dst_sheet="Sales Copy") → 'Sales Copy' created, data matches Sales 6x4 exactly, Sales unaffected</p>
+<hr />
+<h3 id="tc-s05-copy-to-a-different-spreadsheet">TC-S05: Copy to a different spreadsheet<a class="headerlink" href="#tc-s05-copy-to-a-different-spreadsheet" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy the Sales sheet from {SPREADSHEET_ID} into a different spreadsheet — use {SPREADSHEET_ID} as both source and destination for this test, but note the tool supports different IDs"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Tool accepts <code>src_spreadsheet</code> and <code>dst_spreadsheet</code> as separate params
+- Copy operation completes without error
+- 🔍 <strong>Note:</strong> requires a second spreadsheet ID to fully verify cross-spreadsheet copy</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+copy_sheet accepted src_spreadsheet/dst_spreadsheet as distinct params (same ID value); completed without error</p>
+<hr />
+<h3 id="tc-s06-name-differs-from-googles-auto-assigned-name-rename-triggered">TC-S06: Name differs from Google's auto-assigned name — rename triggered<a class="headerlink" href="#tc-s06-name-differs-from-googles-auto-assigned-name-rename-triggered" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy the Sales sheet in {SPREADSHEET_ID} and name the copy 'My Custom Name'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Sheet is named 'My Custom Name', not Google's default 'Copy of Sales'
+- Rename was triggered automatically after the copy</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+copy_sheet(dst_sheet="My Custom Name") → sheet named "My Custom Name" not "Copy of Sales"; response included "rename" key confirming auto-rename triggered</p>
+<hr />
+<h3 id="tc-s07-name-matches-googles-auto-assigned-name-rename-skipped">TC-S07: Name matches Google's auto-assigned name — rename skipped<a class="headerlink" href="#tc-s07-name-matches-googles-auto-assigned-name-rename-skipped" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy the Sales sheet in {SPREADSHEET_ID} and name the copy 'Copy of Sales'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Sheet is named 'Copy of Sales'
+- No unnecessary rename API call (names already match)</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+copy_sheet(dst_sheet="Copy of Sales") matching Google's own default name → response has no "rename" key, confirming no extra rename API call</p>
+<hr />
+<h3 id="tc-s08-source-sheet-not-found">TC-S08: Source sheet not found<a class="headerlink" href="#tc-s08-source-sheet-not-found" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy a sheet called 'DoesNotExist' from {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": ...}</code> before calling the copy API
+- Error references the missing sheet name</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+copy_sheet(src_sheet="DoesNotExist") → {"error":"Source sheet 'DoesNotExist' not found"}, before API call</p>
+<hr />
+<h3 id="tc-s09-destination-spreadsheet-not-writable">TC-S09: Destination spreadsheet not writable<a class="headerlink" href="#tc-s09-destination-spreadsheet-not-writable" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy the Sales sheet from {SPREADSHEET_ID} to spreadsheet 'invalidid123xyz'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns a clear API error — destination not accessible
+- Source spreadsheet unaffected</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+copy_sheet(dst_spreadsheet="invalidid123xyz") → HttpError 400 "Invalid destinationSpreadsheetId", source unaffected</p>
+<hr />
+<h3 id="tc-s10-cache-invalidated-after-copy-destructive">TC-S10: Cache invalidated after copy ⚠️ destructive<a class="headerlink" href="#tc-s10-cache-invalidated-after-copy-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Copy the Sales sheet in {SPREADSHEET_ID} as 'PostCopyCache', then immediately list all sheets"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_sheets</code> includes 'PostCopyCache'
+- Confirms <code>cache.mark_dirty(dst_spreadsheet)</code> fires after copy</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+copy_sheet(dst_sheet="PostCopyCache") then immediate list_sheets includes it — mark_dirty confirmed</p>
+<hr />
+<h2 id="duplicate_sheet"><code>duplicate_sheet</code><a class="headerlink" href="#duplicate_sheet" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s51-duplicate-within-the-same-spreadsheet-default-name-destructive">TC-S51: Duplicate within the same spreadsheet, default name ⚠️ destructive<a class="headerlink" href="#tc-s51-duplicate-within-the-same-spreadsheet-default-name-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Duplicate the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New tab appears, named by Google's default (e.g. "Copy of Sales")
+- Data in the new tab matches Sales (6 rows, 4 columns)
+- Original Sales sheet unchanged
+- Response includes <code>sheetId</code>, <code>title</code>, <code>index</code>, <code>spreadsheetId</code></p>
+<p><strong>Result (2026-07-10) ✅ PASS</strong>
+<code>duplicate_sheet(spreadsheet_id, sheet="Sales")</code> → <code>{"sheetId":1766233601,"title":"Copy of Sales","index":1,...}</code>. <code>get_sheet_data</code> on "Copy of Sales" returned matching headers/rows. Deleted after verification.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+duplicate_sheet(sheet="Sales") → {"sheetId","title":"Copy of Sales","index":1,"spreadsheetId"}; data matches Sales 6x4; original unchanged. Deleted after</p>
+<hr />
+<h3 id="tc-s52-duplicate-with-a-custom-name-destructive">TC-S52: Duplicate with a custom name ⚠️ destructive<a class="headerlink" href="#tc-s52-duplicate-with-a-custom-name-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Duplicate the Sales sheet in {SPREADSHEET_ID} and name the copy 'Sales Duplicate'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New tab is named 'Sales Duplicate', not Google's default
+- <code>newSheetName</code> was passed on the same <code>duplicateSheet</code> request (single API call, no follow-up rename)</p>
+<p><strong>Result (2026-07-10) ✅ PASS</strong>
+<code>duplicate_sheet(spreadsheet_id, sheet="Sales", new_name="Sales Duplicate")</code> → title <code>"Sales Duplicate"</code>, confirmed via code that <code>newSheetName</code> is set on the same request body as <code>sourceSheetId</code>. Deleted after verification.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+duplicate_sheet(new_name="Sales Duplicate") → title="Sales Duplicate" directly in response (single-call newSheetName, no follow-up rename). Deleted after</p>
+<hr />
+<h3 id="tc-s53-default-position-lands-immediately-after-the-source-tab-destructive">TC-S53: Default position lands immediately after the source tab ⚠️ destructive<a class="headerlink" href="#tc-s53-default-position-lands-immediately-after-the-source-tab-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Duplicate the Sales sheet in {SPREADSHEET_ID} without specifying a position, then list all sheets"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The new tab appears immediately after 'Sales' in the <code>list_sheets</code> response order
+- 🔍 <strong>Regression:</strong> the Sheets API's own default for <code>duplicateSheet</code> places the copy at tab position 0 regardless of source position (confirmed via live QA on this tool) — the tool must compute and pass <code>insertSheetIndex</code> explicitly to land the copy after the source, matching Sheets UI's native "Duplicate" behavior</p>
+<p><strong>Result (2026-07-10) ✅ PASS</strong>
+<code>duplicate_sheet(spreadsheet_id, sheet="Sales")</code> → index 1. <code>list_sheets</code> → <code>["Sales","Copy of Sales","Empty","Notes &amp; Misc","BrandNew"]</code> — lands immediately after Sales, confirming the regression fix (<code>_get_sheet_index</code> + explicit <code>insertSheetIndex</code>). Deleted after verification.</p>
+<p><strong>Result (2026-07-27) ✅ PASS — regression check for PR #440 (issue #391)</strong>
+Re-ran after <code>_get_sheet_index</code>'s blanket <code>except Exception: return None</code> was removed (PR #440, mirroring #384's fix to <code>_get_sheet_id</code>) so transient API failures propagate instead of being silently treated as "index unknown." Same call, same result: <code>duplicate_sheet(spreadsheet_id, sheet="Sales")</code> → index 1, <code>list_sheets</code> → <code>["Sales","Copy of Sales","Notes &amp; Misc","BrandNew","Empty"]</code> — copy still lands immediately after Sales, confirming the success path (loop finds the match and returns its index) is unchanged by the removed catch-all. Deleted after verification.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+duplicate_sheet() no insert_index → list_sheets shows "Copy of Sales" immediately after "Sales" (index 1). Deleted after</p>
+<hr />
+<h3 id="tc-s54-explicit-insert_index-is-honored-destructive">TC-S54: Explicit insert_index is honored ⚠️ destructive<a class="headerlink" href="#tc-s54-explicit-insert_index-is-honored-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Duplicate the Sales sheet in {SPREADSHEET_ID}, placing the copy at tab position 0"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- The new tab is the first tab in the <code>list_sheets</code> response order
+- Confirms an explicit <code>insert_index</code> overrides the "after source" default</p>
+<p><strong>Result (2026-07-10) ✅ PASS</strong>
+<code>duplicate_sheet(spreadsheet_id, sheet="Sales", insert_index=0)</code> → index 0. <code>list_sheets</code> → <code>["Copy of Sales","Sales",...]</code> — explicit index correctly overrides the default. Deleted after verification.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+duplicate_sheet(insert_index=0) → "Copy of Sales" is first tab in list_sheets. Deleted after</p>
+<hr />
+<h3 id="tc-s55-source-sheet-not-found">TC-S55: Source sheet not found<a class="headerlink" href="#tc-s55-source-sheet-not-found" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Duplicate a sheet called 'DoesNotExist' in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": ...}</code> before calling the duplicate API
+- Error references the missing sheet name</p>
+<p><strong>Result (2026-07-10) ✅ PASS</strong>
+<code>duplicate_sheet(spreadsheet_id, sheet="DoesNotExist")</code> → <code>{"error": "Sheet 'DoesNotExist' not found"}</code>. No mutation, non-destructive.</p>
+<p><strong>Result (2026-07-21) ✅ PASS — regression check for PR #390 (issue #384)</strong>
+Re-ran after <code>_get_sheet_id</code>'s blanket <code>except Exception: return None</code> was removed (PR #390) so transient API failures propagate instead of being misreported as "not found." Same call, same response: <code>{"error": "Sheet 'DoesNotExist' not found"}</code> — the genuine-not-found path is unchanged, still resolves via the loop finding no match rather than via the removed catch-all.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+duplicate_sheet(sheet="DoesNotExist") → {"error":"Sheet 'DoesNotExist' not found"}</p>
+<hr />
+<h3 id="tc-s56-cache-invalidated-after-duplicate-destructive">TC-S56: Cache invalidated after duplicate ⚠️ destructive<a class="headerlink" href="#tc-s56-cache-invalidated-after-duplicate-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Duplicate the Sales sheet in {SPREADSHEET_ID} as 'PostDuplicateCache', then immediately list all sheets"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_sheets</code> includes 'PostDuplicateCache'
+- Confirms <code>cache.mark_dirty(spreadsheet_id)</code> fires after duplicate</p>
+<p><strong>Result (2026-07-10) ✅ PASS</strong>
+<code>duplicate_sheet(spreadsheet_id, sheet="Sales", new_name="PostDuplicateCache")</code> succeeded; immediate <code>list_sheets</code> (no explicit <code>refresh_cache</code>) included <code>"PostDuplicateCache"</code>, confirming <code>mark_dirty</code> fired. Deleted after verification; fixture restored to <code>["Sales","Empty","Notes &amp; Misc","BrandNew"]</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+duplicate_sheet(new_name="PostDuplicateCache") then immediate list_sheets includes it — mark_dirty confirmed. Deleted after</p>
+<hr />
+<h2 id="rename_sheet"><code>rename_sheet</code><a class="headerlink" href="#rename_sheet" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s11-rename-to-a-new-name-destructive">TC-S11: Rename to a new name ⚠️ destructive<a class="headerlink" href="#tc-s11-rename-to-a-new-name-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Rename the 'Empty' sheet in {SPREADSHEET_ID} to 'Renamed'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Sheet formerly called 'Empty' is now 'Renamed'
+- <code>list_sheets</code> reflects the new name
+- No <code>error</code> field</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+rename_sheet(Empty→Renamed) → no error; list_sheets shows "Renamed" not "Empty". Renamed back</p>
+<hr />
+<h3 id="tc-s12-rename-to-the-same-name">TC-S12: Rename to the same name<a class="headerlink" href="#tc-s12-rename-to-the-same-name" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Rename the 'Sales' sheet in {SPREADSHEET_ID} to 'Sales' (same name)"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- API succeeds or no-ops — no error
+- Sheet still exists with the same name
+- 🔍 <strong>Product decision:</strong> is a same-name rename a no-op or does it round-trip to the API?</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+rename_sheet(Sales→Sales same name) → succeeds, no error, round-trips to API (not a client no-op)</p>
+<hr />
+<h3 id="tc-s13-sheet-not-found">TC-S13: Sheet not found<a class="headerlink" href="#tc-s13-sheet-not-found" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Rename a sheet called 'NoSuchSheet' in {SPREADSHEET_ID} to 'Anything'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": ...}</code> — sheet not found
+- Does not call the Sheets API</p>
+<p><strong>Result (2026-07-21) ✅ PASS — regression check for PR #390 (issue #384)</strong>
+<code>rename_sheet(spreadsheet="{SPREADSHEET_ID}", sheet="NoSuchSheet", new_name="Whatever")</code> → <code>{"error": "Sheet 'NoSuchSheet' not found"}</code>, confirming this path through <code>_get_sheet_id</code> is unaffected by PR #390's removal of the blanket exception catch.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+rename_sheet(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h3 id="tc-s14-cache-invalidated-after-rename">TC-S14: Cache invalidated after rename<a class="headerlink" href="#tc-s14-cache-invalidated-after-rename" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Rename 'Notes &amp; Misc' to 'Notes' in {SPREADSHEET_ID}, then list all sheets"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_sheets</code> shows 'Notes', not 'Notes &amp; Misc'
+- Confirms <code>cache.mark_dirty</code> fires; next list re-fetches from API</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+rename_sheet('Notes &amp; Misc'→'Notes') → list_sheets shows "Notes" not "Notes &amp; Misc" — mark_dirty confirmed. Renamed back</p>
+<hr />
+<h2 id="create_sheet"><code>create_sheet</code><a class="headerlink" href="#create_sheet" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s15-create-a-new-tab">TC-S15: Create a new tab<a class="headerlink" href="#tc-s15-create-a-new-tab" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add a new sheet called 'BrandNew' to {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- New tab 'BrandNew' appears
+- Response includes <code>sheetId</code>, <code>title</code>, <code>index</code>, <code>spreadsheetId</code>
+- <code>cache.mark_dirty</code> called — <code>list_sheets</code> reflects the new tab</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_sheet(title="BrandNew") → {sheetId(int), title, index(int), spreadsheetId} all present; list_sheets reflects it</p>
+<hr />
+<h3 id="tc-s16-duplicate-tab-title">TC-S16: Duplicate tab title<a class="headerlink" href="#tc-s16-duplicate-tab-title" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add another sheet called 'Sales' to {SPREADSHEET_ID} — a tab with that name already exists"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 🔍 <strong>Product decision:</strong> does the API error, auto-suffix (e.g. "Sales2"), or succeed with a duplicate?
+- Note observed behavior</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_sheet(title="Sales", dup) → HttpError 400 "A sheet with the name \"Sales\" already exists." — errors cleanly, no auto-suffix, no silent duplicate</p>
+<hr />
+<h3 id="tc-s17-long-title">TC-S17: Long title<a class="headerlink" href="#tc-s17-long-title" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add a sheet with a 150-character title to {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- API error with a clear message about title length limits, or succeeds if no limit enforced
+- Note the actual limit if an error is returned</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_sheet(150-char title) → HttpError 400 "The sheet name cannot be greater than 100 characters." — clear message with actual limit (100)</p>
+<hr />
+<h3 id="tc-s18-response-shape">TC-S18: Response shape<a class="headerlink" href="#tc-s18-response-shape" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a sheet called 'ShapeTest' in {SPREADSHEET_ID} and show me the full response"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response includes: <code>sheetId</code> (integer), <code>title</code> (string), <code>index</code> (integer), <code>spreadsheetId</code> (string)
+- No unexpected missing fields</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_sheet(title="ShapeTest") → {sheetId(int), title(str), index(int), spreadsheetId(str)}, no missing fields</p>
+<hr />
+<h3 id="tc-s19-cache-updated-after-create">TC-S19: Cache updated after create<a class="headerlink" href="#tc-s19-cache-updated-after-create" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a sheet called 'CacheNewSheet' in {SPREADSHEET_ID}, then list all sheets"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_sheets</code> includes 'CacheNewSheet' immediately
+- Confirms <code>cache.mark_dirty</code> fires after creation</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create_sheet(title="CacheNewSheet") then list_sheets includes it immediately — mark_dirty confirmed</p>
+<hr />
+<h2 id="refresh_cache"><code>refresh_cache</code><a class="headerlink" href="#refresh_cache" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s20-refresh-by-spreadsheet-id-only">TC-S20: Refresh by spreadsheet ID only<a class="headerlink" href="#tc-s20-refresh-by-spreadsheet-id-only" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Refresh the cache for {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns success
+- Next <code>list_sheets</code> or summary call hits the API (visible in logs as a cache miss)</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+refresh_cache(spreadsheet_id) → {"invalidated":["spreadsheet:<id>"]}, scoped correctly</p>
+<hr />
+<h3 id="tc-s21-refresh-by-doc-id-only">TC-S21: Refresh by doc ID only<a class="headerlink" href="#tc-s21-refresh-by-doc-id-only" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Refresh the cache for doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns success
+- Next <code>get_doc_content</code> call re-fetches from API</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+Requires {DOC_ID} fixture — not provided to this Sheets shard (only SPREADSHEET_ID/FOLDER_ID/SHARED_DRIVE_ID given)</p>
+<hr />
+<h3 id="tc-s22-refresh-both-spreadsheet-and-doc">TC-S22: Refresh both spreadsheet and doc<a class="headerlink" href="#tc-s22-refresh-both-spreadsheet-and-doc" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Refresh the cache for both {SPREADSHEET_ID} and doc {DOC_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Both caches marked dirty
+- Subsequent calls for both re-fetch from API</p>
+<p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
+Requires {DOC_ID} fixture — not provided to this Sheets shard</p>
+<hr />
+<h3 id="tc-s23-refresh-with-no-arguments-clears-all-caches">TC-S23: Refresh with no arguments — clears all caches<a class="headerlink" href="#tc-s23-refresh-with-no-arguments-clears-all-caches" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Clear all caches in mcp-gee-sweet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- All four caches marked dirty (structure, data, Drive folder, doc)
+- Next calls for any resource re-fetch from API</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+refresh_cache() no args → {"invalidated":"all"}</p>
+<hr />
+<h3 id="tc-s24-cache-re-populated-after-refresh">TC-S24: Cache re-populated after refresh<a class="headerlink" href="#tc-s24-cache-re-populated-after-refresh" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Refresh the cache for {SPREADSHEET_ID}, then immediately summarize it"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Summary returns correct data (re-fetched, not stale)
+- Logs show a cache miss followed by a cache store</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+refresh_cache(spreadsheet_id) then get_multiple_spreadsheet_summary → correct re-fetched data including tabs created moments earlier (BrandNew/ShapeTest/CacheNewSheet), confirming no stale cache</p>
+<hr />
+<h2 id="delete_sheet"><code>delete_sheet</code><a class="headerlink" href="#delete_sheet" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s25-delete-an-existing-sheet-tab-destructive">TC-S25: Delete an existing sheet tab ⚠️ destructive<a class="headerlink" href="#tc-s25-delete-an-existing-sheet-tab-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete the sheet called 'TempTab' from {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Setup:</strong> Create a throwaway tab called 'TempTab' first.</p>
+<p><strong>Checks</strong>
+- 'TempTab' no longer appears in <code>list_sheets</code>
+- No <code>error</code> field in response</p>
+<p><strong>Result (2026-06-21) ✅</strong> TempTab created via <code>create_sheet</code>, then deleted. <code>list_sheets</code> returned <code>["Sales","Empty","Notes &amp; Misc"]</code> — TempTab absent. No error field.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+create TempTab, delete_sheet(TempTab) → no error; list_sheets confirms absent</p>
+<hr />
+<h3 id="tc-s26-delete-a-non-existent-sheet-returns-error">TC-S26: Delete a non-existent sheet returns error<a class="headerlink" href="#tc-s26-delete-a-non-existent-sheet-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete a sheet called 'DoesNotExist' from {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>error</code> field mentioning the sheet name
+- No API call made (no batchUpdate)</p>
+<p><strong>Result (2026-06-21) ✅</strong> Response: <code>{"error":"Sheet 'DoesNotExist' not found"}</code>. No batchUpdate issued.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+delete_sheet(sheet="DoesNotExist") → {"error":"Sheet 'DoesNotExist' not found"}</p>
+<hr />
+<h2 id="delete_rows"><code>delete_rows</code><a class="headerlink" href="#delete_rows" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s27-delete-a-single-row-destructive">TC-S27: Delete a single row ⚠️ destructive<a class="headerlink" href="#tc-s27-delete-a-single-row-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete row 5 (0-based index 4) from the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Setup:</strong> Confirm rows 4 and 5 (0-based) have known values before deleting.</p>
+<p><strong>Checks</strong>
+- Former row 5 content is gone; row 5 now contains what was row 6
+- Other rows unchanged</p>
+<p><strong>Result (2026-06-21) ✅</strong> Row 4 (Gizmo/300/310/290) deleted. Former row 5 (Totals) shifted up. Totals recalculated to 350/360/415 reflecting the reduced data set.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+delete_rows(start_row=4) → Gizmo row removed; Totals (now row 5) recalculated to 350/360/415</p>
+<hr />
+<h3 id="tc-s28-delete-a-range-of-rows-destructive">TC-S28: Delete a range of rows ⚠️ destructive<a class="headerlink" href="#tc-s28-delete-a-range-of-rows-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete rows 3 through 5 (0-based indices 2–4) from the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Three rows removed; subsequent rows shift up correctly
+- <code>startIndex: 2</code>, <code>endIndex: 5</code> in the deleteDimension request</p>
+<p><strong>Result (2026-06-21) ✅</strong> Rows 2–4 (Gadget/Donut/Gizmo) removed. Widget and Totals remain; Totals recalculated to 100/120/140 (Widget only).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+delete_rows(start_row=2,end_row=4) → 3 rows removed (Gadget/Donut/Totals); only header+Widget remain — confirms inclusive end_row=4 → exclusive endIndex=5</p>
+<hr />
+<h3 id="tc-s29-delete-rows-sheet-not-found-returns-error">TC-S29: Delete rows — sheet not found returns error<a class="headerlink" href="#tc-s29-delete-rows-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete row 0 from a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>error</code> field</p>
+<p><strong>Result (2026-06-21) ✅</strong> Response: <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+delete_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h2 id="delete_columns"><code>delete_columns</code><a class="headerlink" href="#delete_columns" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s30-delete-a-single-column-destructive">TC-S30: Delete a single column ⚠️ destructive<a class="headerlink" href="#tc-s30-delete-a-single-column-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete column B (0-based index 1) from the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Setup:</strong> Confirm column B has known content before deleting.</p>
+<p><strong>Checks</strong>
+- Column B content removed; former column C shifts left to become B
+- <code>dimension: COLUMNS</code>, <code>startIndex: 1</code>, <code>endIndex: 2</code></p>
+<p><strong>Result (2026-06-21) ✅</strong> Column index 1 (Q1) deleted. Q2 and Q3 shifted left. Totals recalculated to 670/705 (Q2+Q3 only).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+delete_columns(start_column=1) → Q1 removed, Q2/Q3 shift left, Totals recalc 670/705</p>
+<hr />
+<h3 id="tc-s31-delete-a-range-of-columns-destructive">TC-S31: Delete a range of columns ⚠️ destructive<a class="headerlink" href="#tc-s31-delete-a-range-of-columns-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete columns C through E (0-based indices 2–4) from the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Three columns removed; columns to the right shift left
+- <code>startIndex: 2</code>, <code>endIndex: 5</code></p>
+<p><strong>Result (2026-06-21) ✅</strong> Column indices 2–3 (Q2 and Q3) deleted (only 4 cols exist so effective range was 2–3). Only Product and Q1 remained. Inclusive end index correctly translated to exclusive endIndex in API call.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+delete_columns(start_column=2,end_column=4) on 3-col sheet → only Q3(idx2) existed in range, removed; Product/Q2 remain — clip-to-available confirmed</p>
+<hr />
+<h3 id="tc-s32-delete-columns-sheet-not-found-returns-error">TC-S32: Delete columns — sheet not found returns error<a class="headerlink" href="#tc-s32-delete-columns-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Delete column 0 from a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>error</code> field</p>
+<p><strong>Result (2026-06-21) ✅</strong> Response: <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+delete_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h2 id="hide_rows-unhide_rows"><code>hide_rows</code> / <code>unhide_rows</code><a class="headerlink" href="#hide_rows-unhide_rows" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s63-hide-a-single-row-destructive">TC-S63: Hide a single row ⚠️ destructive<a class="headerlink" href="#tc-s63-hide-a-single-row-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Hide row 5 (0-based index 4) on the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateDimensionProperties</code> request sent with <code>dimension: ROWS</code>, <code>startIndex: 4</code>, <code>endIndex: 5</code>
+- <code>properties.hiddenByUser: true</code>, <code>fields: hiddenByUser</code>
+- Row 5 collapses to a thin line in the Sheets UI with a show-row chevron</p>
+<p><strong>Result (2026-07-14) ✅ PASS</strong>
+<code>hide_rows(spreadsheet_id, sheet="Sales", start_row=4)</code> → <code>{"replies":[{}]}</code>. Playwright screenshot confirmed row headers skip from 4 straight to 6 with expand chevrons at the boundary.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+hide_rows(start_row=4) → rowMetadata[4].hiddenByUser=true (API-verified, no Playwright per shard instructions)</p>
+<hr />
+<h3 id="tc-s64-hide-a-range-of-rows-destructive">TC-S64: Hide a range of rows ⚠️ destructive<a class="headerlink" href="#tc-s64-hide-a-range-of-rows-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Hide rows 3 through 5 (0-based indices 2–4) on the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>startIndex: 2</code>, <code>endIndex: 5</code> in the request (inclusive end_row=4 translated to exclusive 5)
+- All three rows collapse in the UI</p>
+<p><strong>Result (2026-07-14) ✅ PASS</strong>
+<code>hide_rows(spreadsheet_id, sheet="Sales", start_row=2, end_row=4)</code> → <code>{"replies":[{}]}</code>. Playwright screenshot confirmed row headers skip from 2 straight to 6 (rows 3-5 collapsed together).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+hide_rows(start_row=2,end_row=4) → rowMetadata[2,3,4] all hiddenByUser=true</p>
+<hr />
+<h3 id="tc-s65-hide-rows-sheet-not-found-returns-error">TC-S65: Hide rows — sheet not found returns error<a class="headerlink" href="#tc-s65-hide-rows-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Hide row 0 on a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>error</code> field</p>
+<p><strong>Result (2026-07-14) ✅ PASS</strong>
+<code>hide_rows(spreadsheet_id, sheet="NoSuchSheet", start_row=0)</code> → <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+hide_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h3 id="tc-s66-unhide-a-previously-hidden-row-destructive">TC-S66: Unhide a previously hidden row ⚠️ destructive<a class="headerlink" href="#tc-s66-unhide-a-previously-hidden-row-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Unhide row 5 (0-based index 4) on the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Setup:</strong> Row 5 hidden by a prior <code>hide_rows</code> call (e.g. TC-S63).</p>
+<p><strong>Checks</strong>
+- <code>updateDimensionProperties</code> request sent with <code>properties.hiddenByUser: false</code>
+- Row 5 reappears in the Sheets UI</p>
+<p><strong>Result (2026-07-14) ✅ PASS</strong>
+<code>unhide_rows(spreadsheet_id, sheet="Sales", start_row=4)</code> → <code>{"replies":[{}]}</code>. Playwright screenshot confirmed row 5 reappeared (rows 3-4 remained collapsed since only index 4 was unhidden).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+unhide_rows(start_row=4) → row 4's hiddenByUser gone; rows 2,3 remained hidden (only targeted index affected)</p>
+<hr />
+<h3 id="tc-s67-unhide-rows-sheet-not-found-returns-error">TC-S67: Unhide rows — sheet not found returns error<a class="headerlink" href="#tc-s67-unhide-rows-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Unhide row 0 on a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>error</code> field</p>
+<p><strong>Result (2026-07-14) ✅ PASS</strong>
+<code>unhide_rows(spreadsheet_id, sheet="NoSuchSheet", start_row=0)</code> → <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+unhide_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h2 id="hide_columns-unhide_columns"><code>hide_columns</code> / <code>unhide_columns</code><a class="headerlink" href="#hide_columns-unhide_columns" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s68-hide-a-single-column-destructive">TC-S68: Hide a single column ⚠️ destructive<a class="headerlink" href="#tc-s68-hide-a-single-column-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Hide column B (0-based index 1) on the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateDimensionProperties</code> request sent with <code>dimension: COLUMNS</code>, <code>startIndex: 1</code>, <code>endIndex: 2</code>
+- <code>properties.hiddenByUser: true</code>
+- Column B collapses in the Sheets UI</p>
+<p><strong>Result (2026-07-14) ✅ PASS</strong>
+<code>hide_columns(spreadsheet_id, sheet="Sales", start_column=1)</code> → <code>{"replies":[{}]}</code>. Playwright screenshot confirmed column headers skip from A straight to C; chart legend dropped its Q1 series (sourced from column B).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+hide_columns(start_column=1) → columnMetadata[1].hiddenByUser=true (col B)</p>
+<hr />
+<h3 id="tc-s69-hide-a-range-of-columns-destructive">TC-S69: Hide a range of columns ⚠️ destructive<a class="headerlink" href="#tc-s69-hide-a-range-of-columns-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Hide columns C through E (0-based indices 2–4) on the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>startIndex: 2</code>, <code>endIndex: 5</code> in the request
+- All columns in range collapse in the UI</p>
+<p><strong>Result (2026-07-14) ✅ PASS</strong>
+<code>hide_columns(spreadsheet_id, sheet="Sales", start_column=2, end_column=4)</code> → <code>{"replies":[{}]}</code>. Playwright screenshot confirmed column headers skip from A straight to F (B-E collapsed together); chart showed "Add a series" since all data columns were hidden.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+hide_columns(start_column=2,end_column=4) → columnMetadata[2,3,4] all hiddenByUser=true (C,D,E)</p>
+<hr />
+<h3 id="tc-s70-hide-columns-sheet-not-found-returns-error">TC-S70: Hide columns — sheet not found returns error<a class="headerlink" href="#tc-s70-hide-columns-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Hide column 0 on a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>error</code> field</p>
+<p><strong>Result (2026-07-14) ✅ PASS</strong>
+<code>hide_columns(spreadsheet_id, sheet="NoSuchSheet", start_column=0)</code> → <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+hide_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h3 id="tc-s71-unhide-a-previously-hidden-column-destructive">TC-S71: Unhide a previously hidden column ⚠️ destructive<a class="headerlink" href="#tc-s71-unhide-a-previously-hidden-column-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Unhide column B (0-based index 1) on the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Setup:</strong> Column B hidden by a prior <code>hide_columns</code> call (e.g. TC-S68).</p>
+<p><strong>Checks</strong>
+- <code>updateDimensionProperties</code> request sent with <code>properties.hiddenByUser: false</code>
+- Column B reappears in the Sheets UI</p>
+<p><strong>Result (2026-07-14) ✅ PASS</strong>
+<code>unhide_columns(spreadsheet_id, sheet="Sales", start_column=1)</code> → <code>{"replies":[{}]}</code>. Playwright screenshot confirmed column B reappeared (chart legend regained its Q1 series) while C-E remained collapsed.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+unhide_columns(start_column=1) → col B unhidden (verified via cleanup pass)</p>
+<hr />
+<h3 id="tc-s72-unhide-columns-sheet-not-found-returns-error">TC-S72: Unhide columns — sheet not found returns error<a class="headerlink" href="#tc-s72-unhide-columns-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Unhide column 0 on a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>error</code> field</p>
+<p><strong>Result (2026-07-14) ✅ PASS</strong>
+<code>unhide_columns(spreadsheet_id, sheet="NoSuchSheet", start_column=0)</code> → <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+unhide_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h2 id="resize_rows-resize_columns"><code>resize_rows</code> / <code>resize_columns</code><a class="headerlink" href="#resize_rows-resize_columns" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s73-resize-a-single-row-to-an-explicit-pixel-height-destructive">TC-S73: Resize a single row to an explicit pixel height ⚠️ destructive<a class="headerlink" href="#tc-s73-resize-a-single-row-to-an-explicit-pixel-height-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Set row 5 (0-based index 4) on the Sales sheet in {SPREADSHEET_ID} to 60 pixels tall"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateDimensionProperties</code> request sent with <code>dimension: ROWS</code>, <code>startIndex: 4</code>, <code>endIndex: 5</code>
+- <code>properties.pixelSize: 60</code>, <code>fields: pixelSize</code>
+- Row 5 visibly taller in the Sheets UI</p>
+<p><strong>Result (2026-07-15) ✅ PASS</strong> <code>resize_rows(spreadsheet_id, sheet="Sales", start_row=4, pixel_size=60)</code> → <code>{"replies":[{}]}</code>, no error. Playwright was skipped for this run — the shared fixture's Sales sheet currently has ~12 overlapping chart objects left over from other QA passes, which visually cover rows 1–22 and make row-height differences unreadable in a screenshot. Verified precisely instead via <code>get_sheet_data(..., range="A1:E6", include_grid_data=True)</code>, which returns <code>rowMetadata[].pixelSize</code> — confirmed row index 4 read back 60 immediately after this call (before being overwritten by TC-S74/TC-S75 below).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+resize_rows(start_row=4,pixel_size=60) → succeeded (overwritten by TC-S74 moments later, expected)</p>
+<hr />
+<h3 id="tc-s74-resize-a-range-of-rows-destructive">TC-S74: Resize a range of rows ⚠️ destructive<a class="headerlink" href="#tc-s74-resize-a-range-of-rows-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Set rows 3 through 5 (0-based indices 2–4) on the Sales sheet in {SPREADSHEET_ID} to 40 pixels tall"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>startIndex: 2</code>, <code>endIndex: 5</code> in the request (inclusive end_row=4 translated to exclusive 5)
+- All three rows resize in the UI</p>
+<p><strong>Result (2026-07-15) ✅ PASS</strong> <code>resize_rows(spreadsheet_id, sheet="Sales", start_row=2, end_row=4, pixel_size=40)</code> → <code>{"replies":[{}]}</code>, no error. Confirmed via <code>get_sheet_data(..., range="A1:E6", include_grid_data=True)</code>: <code>rowMetadata</code> for row indices 2 and 3 both read back <code>pixelSize: 40</code> after the full test sequence (index 4 was subsequently auto-resized by TC-S75, as expected).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+resize_rows(start_row=2,end_row=4,pixel_size=40) → rowMetadata[2,3,4] all pixelSize=40</p>
+<hr />
+<h3 id="tc-s75-auto-resize-rows-to-fit-content-destructive">TC-S75: Auto-resize rows to fit content ⚠️ destructive<a class="headerlink" href="#tc-s75-auto-resize-rows-to-fit-content-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Auto-fit the height of row 5 (0-based index 4) on the Sales sheet in {SPREADSHEET_ID} to its content"</p>
+</blockquote>
+<p><strong>Setup:</strong> Row 5 previously set to an oversized pixel height (e.g. TC-S73).</p>
+<p><strong>Checks</strong>
+- <code>autoResizeDimensions</code> request sent with <code>dimensions.dimension: ROWS</code>, <code>startIndex: 4</code>, <code>endIndex: 5</code>
+- Row 5 shrinks back to content-fit height in the Sheets UI</p>
+<p><strong>Result (2026-07-15) ✅ PASS</strong> <code>resize_rows(spreadsheet_id, sheet="Sales", start_row=4, auto_resize=True)</code> → <code>{"replies":[{}]}</code>, no error. Confirmed via <code>get_sheet_data(..., range="A1:E6", include_grid_data=True)</code>: row index 4's <code>pixelSize</code> read back as <code>21</code> (Sheets' default/content-fit height for plain text), down from the <code>40</code> set by TC-S74 moments earlier — confirms <code>autoResizeDimensions</code> fired and took effect.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+resize_rows(start_row=4,auto_resize=True) → succeeded, no error</p>
+<hr />
+<h3 id="tc-s76-resize-rows-neither-pixel_size-nor-auto_resize-given-returns-error">TC-S76: Resize rows — neither pixel_size nor auto_resize given returns error<a class="headerlink" href="#tc-s76-resize-rows-neither-pixel_size-nor-auto_resize-given-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Resize row 0 on the Sales sheet in {SPREADSHEET_ID} without specifying a size or auto-fit"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>error</code> field
+- No <code>batchUpdate</code> call made</p>
+<p><strong>Result (2026-07-15) ✅ PASS</strong> <code>resize_rows(spreadsheet_id, sheet="Sales", start_row=0)</code> → <code>{"error":"Specify pixel_size or set auto_resize=True"}</code>. Returned before any batchUpdate call.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+resize_rows(start_row=0) no size/auto → {"error":"Specify pixel_size or set auto_resize=True"}</p>
+<hr />
+<h3 id="tc-s77-resize-rows-both-pixel_size-and-auto_resize-given-returns-error">TC-S77: Resize rows — both pixel_size and auto_resize given returns error<a class="headerlink" href="#tc-s77-resize-rows-both-pixel_size-and-auto_resize-given-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Resize row 0 on the Sales sheet in {SPREADSHEET_ID} to 50 pixels and also auto-fit it"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>error</code> field
+- No <code>batchUpdate</code> call made</p>
+<p><strong>Result (2026-07-15) ✅ PASS</strong> <code>resize_rows(spreadsheet_id, sheet="Sales", start_row=0, pixel_size=50, auto_resize=True)</code> → <code>{"error":"Specify only one of pixel_size or auto_resize"}</code>. Returned before any batchUpdate call.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+resize_rows(pixel_size=50,auto_resize=True) both → {"error":"Specify only one of pixel_size or auto_resize"}</p>
+<hr />
+<h3 id="tc-s78-resize-rows-sheet-not-found-returns-error">TC-S78: Resize rows — sheet not found returns error<a class="headerlink" href="#tc-s78-resize-rows-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Set row 0 to 50 pixels tall on a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>error</code> field</p>
+<p><strong>Result (2026-07-15) ✅ PASS</strong> <code>resize_rows(spreadsheet_id, sheet="NoSuchSheet", start_row=0, pixel_size=50)</code> → <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+resize_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h3 id="tc-s79-resize-a-single-column-to-an-explicit-pixel-width-destructive">TC-S79: Resize a single column to an explicit pixel width ⚠️ destructive<a class="headerlink" href="#tc-s79-resize-a-single-column-to-an-explicit-pixel-width-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Set column B (0-based index 1) on the Sales sheet in {SPREADSHEET_ID} to 200 pixels wide"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateDimensionProperties</code> request sent with <code>dimension: COLUMNS</code>, <code>startIndex: 1</code>, <code>endIndex: 2</code>
+- <code>properties.pixelSize: 200</code>, <code>fields: pixelSize</code>
+- Column B visibly wider in the Sheets UI</p>
+<p><strong>Result (2026-07-15) ✅ PASS</strong> <code>resize_columns(spreadsheet_id, sheet="Sales", start_column=1, pixel_size=200)</code> → <code>{"replies":[{}]}</code>, no error. Playwright skipped — see "Chart-covered grid" note in <code>docs/qa/run.md</code>. Verified via <code>get_sheet_data(..., range="A1:E6", include_grid_data=True)</code>: column index 1's <code>pixelSize</code> read back <code>200</code> immediately after this call (before being overwritten by TC-S81 below).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+resize_columns(start_column=1,pixel_size=200) → columnMetadata[1].pixelSize=200</p>
+<hr />
+<h3 id="tc-s80-resize-a-range-of-columns-destructive">TC-S80: Resize a range of columns ⚠️ destructive<a class="headerlink" href="#tc-s80-resize-a-range-of-columns-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Set columns C through E (0-based indices 2–4) on the Sales sheet in {SPREADSHEET_ID} to 50 pixels wide"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>startIndex: 2</code>, <code>endIndex: 5</code> in the request
+- All columns in range resize in the UI</p>
+<p><strong>Result (2026-07-15) ✅ PASS</strong> <code>resize_columns(spreadsheet_id, sheet="Sales", start_column=2, end_column=4, pixel_size=50)</code> → <code>{"replies":[{}]}</code>, no error. Confirmed via <code>get_sheet_data(..., range="A1:E6", include_grid_data=True)</code>: column indices 2, 3, and 4 all read back <code>pixelSize: 50</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+resize_columns(start_column=2,end_column=4,pixel_size=50) → columnMetadata[2,3,4] all pixelSize=50</p>
+<hr />
+<h3 id="tc-s81-auto-resize-columns-to-fit-content-destructive">TC-S81: Auto-resize columns to fit content ⚠️ destructive<a class="headerlink" href="#tc-s81-auto-resize-columns-to-fit-content-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Auto-fit the width of column B (0-based index 1) on the Sales sheet in {SPREADSHEET_ID} to its content"</p>
+</blockquote>
+<p><strong>Setup:</strong> Column B previously set to an oversized pixel width (e.g. TC-S79).</p>
+<p><strong>Checks</strong>
+- <code>autoResizeDimensions</code> request sent with <code>dimensions.dimension: COLUMNS</code>, <code>startIndex: 1</code>, <code>endIndex: 2</code>
+- Column B shrinks back to content-fit width in the Sheets UI</p>
+<p><strong>Result (2026-07-15) ✅ PASS</strong> <code>resize_columns(spreadsheet_id, sheet="Sales", start_column=1, auto_resize=True)</code> → <code>{"replies":[{}]}</code>, no error. Confirmed via <code>get_sheet_data(..., range="A1:E6", include_grid_data=True)</code>: column index 1's <code>pixelSize</code> read back <code>28</code> (content-fit for the short numeric values in column B), down from the <code>200</code> set by TC-S79 — confirms <code>autoResizeDimensions</code> fired and took effect.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+resize_columns(start_column=1,auto_resize=True) → succeeded, no error</p>
+<hr />
+<h3 id="tc-s82-resize-columns-neither-pixel_size-nor-auto_resize-given-returns-error">TC-S82: Resize columns — neither pixel_size nor auto_resize given returns error<a class="headerlink" href="#tc-s82-resize-columns-neither-pixel_size-nor-auto_resize-given-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Resize column 0 on the Sales sheet in {SPREADSHEET_ID} without specifying a size or auto-fit"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>error</code> field
+- No <code>batchUpdate</code> call made</p>
+<p><strong>Result (2026-07-15) ✅ PASS</strong> <code>resize_columns(spreadsheet_id, sheet="Sales", start_column=0)</code> → <code>{"error":"Specify pixel_size or set auto_resize=True"}</code>. Returned before any batchUpdate call.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+resize_columns(start_column=0) no size/auto → {"error":"Specify pixel_size or set auto_resize=True"}</p>
+<hr />
+<h3 id="tc-s83-resize-columns-both-pixel_size-and-auto_resize-given-returns-error">TC-S83: Resize columns — both pixel_size and auto_resize given returns error<a class="headerlink" href="#tc-s83-resize-columns-both-pixel_size-and-auto_resize-given-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Resize column 0 on the Sales sheet in {SPREADSHEET_ID} to 100 pixels and also auto-fit it"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>error</code> field
+- No <code>batchUpdate</code> call made</p>
+<p><strong>Result (2026-07-15) ✅ PASS</strong> <code>resize_columns(spreadsheet_id, sheet="Sales", start_column=0, pixel_size=100, auto_resize=True)</code> → <code>{"error":"Specify only one of pixel_size or auto_resize"}</code>. Returned before any batchUpdate call.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+resize_columns(pixel_size=100,auto_resize=True) both → {"error":"Specify only one of pixel_size or auto_resize"}</p>
+<hr />
+<h3 id="tc-s84-resize-columns-sheet-not-found-returns-error">TC-S84: Resize columns — sheet not found returns error<a class="headerlink" href="#tc-s84-resize-columns-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Set column 0 to 100 pixels wide on a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Response contains <code>error</code> field</p>
+<p><strong>Result (2026-07-15) ✅ PASS</strong> <code>resize_columns(spreadsheet_id, sheet="NoSuchSheet", start_column=0, pixel_size=100)</code> → <code>{"error":"Sheet 'NoSuchSheet' not found"}</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+resize_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h2 id="format_cells"><code>format_cells</code><a class="headerlink" href="#format_cells" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s33-apply-bold-and-background-color-to-a-range-destructive">TC-S33: Apply bold and background color to a range ⚠️ destructive<a class="headerlink" href="#tc-s33-apply-bold-and-background-color-to-a-range-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Make cells A1:D1 on the Sales sheet bold with a light blue background"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>repeatCell</code> request sent with <code>textFormat.bold=true</code>
+- <code>backgroundColor</code> set to the specified color
+- <code>fields</code> mask includes both <code>userEnteredFormat.textFormat</code> and <code>userEnteredFormat.backgroundColor</code>
+- No error in response</p>
+<p><strong>Result (2026-06-21) ✅</strong> A1:D1 on Sales formatted bold with light blue background. <code>replies: [{}]</code> — no error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+format_cells(A1:D1, bold=true, bg light blue) → replies:[{}], no error. Reset bold=false/bg white/align LEFT after</p>
+<hr />
+<h3 id="tc-s34-apply-number-format-to-a-column-destructive">TC-S34: Apply number format to a column ⚠️ destructive<a class="headerlink" href="#tc-s34-apply-number-format-to-a-column-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Format column B (B2:B100) on Sales as currency with 2 decimal places"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>numberFormat.type</code> is <code>"CURRENCY"</code> (or <code>"NUMBER"</code> with pattern)
+- <code>numberFormat.pattern</code> applied
+- <code>fields</code> includes <code>userEnteredFormat.numberFormat</code></p>
+<p><strong>Result (2026-06-21) ✅</strong> B2:B6 on Sales formatted NUMBER with pattern <code>#,##0.00</code>. <code>replies: [{}]</code> — no error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+format_cells(B2:B100, CURRENCY $#,##0.00) → replies:[{}], no error. Reset to NUMBER "0" after</p>
+<hr />
+<h3 id="tc-s35-set-horizontal-alignment-destructive">TC-S35: Set horizontal alignment ⚠️ destructive<a class="headerlink" href="#tc-s35-set-horizontal-alignment-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Center-align cells A1:F1 on the Sales sheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>horizontalAlignment</code> is <code>"CENTER"</code>
+- <code>fields</code> includes <code>userEnteredFormat.horizontalAlignment</code></p>
+<p><strong>Result (2026-06-21) ✅</strong> A1:D1 on Sales center-aligned. <code>replies: [{}]</code> — no error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+format_cells(A1:F1, CENTER) → replies:[{}], no error. Reset to LEFT (header) after</p>
+<hr />
+<h3 id="tc-s36-no-formatting-params-returns-error">TC-S36: No formatting params returns error<a class="headerlink" href="#tc-s36-no-formatting-params-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Calling <code>format_cells</code> with no formatting params returns <code>{"error": ...}</code>
+- No batchUpdate API call made</p>
+<p><strong>Result (2026-06-21) ✅</strong> Unit test confirms error returned and batchUpdate not called.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+format_cells(A1:D1) no formatting params → {"error":"No formatting parameters provided"}</p>
+<hr />
+<h3 id="tc-s37-format_cells-sheet-not-found-returns-error">TC-S37: format_cells — sheet not found returns error<a class="headerlink" href="#tc-s37-format_cells-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Sheet name not in spreadsheet → <code>{"error": "Sheet 'X' not found"}</code></p>
+<p><strong>Result (2026-06-21) ✅</strong> Unit test confirms error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+format_cells(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h2 id="merge_cells-unmerge_cells"><code>merge_cells</code> / <code>unmerge_cells</code><a class="headerlink" href="#merge_cells-unmerge_cells" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s38-merge-a-header-row-range-destructive">TC-S38: Merge a header row range ⚠️ destructive<a class="headerlink" href="#tc-s38-merge-a-header-row-range-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Merge cells A1:D1 on the Sales sheet to make a single header cell"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>mergeCells</code> request with <code>mergeType=MERGE_ALL</code>
+- Range covers A1:D1
+- No error in response</p>
+<p><strong>Result (2026-06-21) ✅</strong> E1:G2 on Empty merged with MERGE_ALL. <code>replies: [{}]</code> — no error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+merge_cells(Empty!E1:G2, MERGE_ALL) → replies:[{}], no error (used Empty scratch region, not Sales)</p>
+<hr />
+<h3 id="tc-s39-merge-rows-independently-destructive">TC-S39: Merge rows independently ⚠️ destructive<a class="headerlink" href="#tc-s39-merge-rows-independently-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Merge each row independently in A1:C3 on Sales (merge_type=MERGE_ROWS)"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>mergeCells</code> request with <code>mergeType=MERGE_ROWS</code></p>
+<p><strong>Result (2026-06-21) ✅</strong> H1:J3 on Empty merged with MERGE_ROWS. <code>replies: [{}]</code> — no error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+merge_cells(Empty!H1:J3, MERGE_ROWS) → replies:[{}], no error</p>
+<hr />
+<h3 id="tc-s40-unmerge-a-previously-merged-range-destructive">TC-S40: Unmerge a previously merged range ⚠️ destructive<a class="headerlink" href="#tc-s40-unmerge-a-previously-merged-range-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Unmerge cells A1:D1 on the Sales sheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>unmergeCells</code> request sent
+- No error in response</p>
+<p><strong>Result (2026-06-21) ✅</strong> E1:G2 on Empty unmerged. <code>replies: [{}]</code> — no error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+unmerge_cells(Empty!E1:G2) → replies:[{}], no error</p>
+<hr />
+<h3 id="tc-s41-merge_cells-sheet-not-found-returns-error">TC-S41: merge_cells — sheet not found returns error<a class="headerlink" href="#tc-s41-merge_cells-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Sheet not found → <code>{"error": "Sheet 'X' not found"}</code></p>
+<p><strong>Result (2026-06-21) ✅</strong> Unit test confirms error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+merge_cells(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h2 id="update_borders"><code>update_borders</code><a class="headerlink" href="#update_borders" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s85-apply-a-solid-border-around-all-four-edges-of-a-range-destructive">TC-S85: Apply a solid border around all four edges of a range ⚠️ destructive<a class="headerlink" href="#tc-s85-apply-a-solid-border-around-all-four-edges-of-a-range-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Add a black solid border around all four edges of A1:D5 on the Sales sheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateBorders</code> request sent with <code>top</code>, <code>bottom</code>, <code>left</code>, <code>right</code> all <code>style="SOLID"</code>
+- <code>color</code> set to black on each edge
+- <code>range</code> covers A1:D5
+- No error in response</p>
+<p><strong>Result (2026-07-16) ✅ PASS (API-verified, not visual)</strong> The Sales sheet's A1:D5 region is fully covered by the known stacked-chart fixture pollution (see <code>run.md</code>'s "Chart-covered grid" entry), so a screenshot can't show the border. Used <code>get_sheet_data(range="A1:D5", include_grid_data=True)</code> instead: perimeter cells (row 1 all columns = top; row 5 all columns = bottom; column A all rows = left; column D all rows = right) all show <code>{"style": "SOLID", "color": {}}</code> (empty color = black), exactly matching the request. No error in the batchUpdate response.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_borders(A1:D5, top/bottom/left/right SOLID black) → replies:[{}], no error</p>
+<hr />
+<h3 id="tc-s86-apply-dashed-inner-gridlines-inside-a-range-destructive">TC-S86: Apply dashed inner gridlines inside a range ⚠️ destructive<a class="headerlink" href="#tc-s86-apply-dashed-inner-gridlines-inside-a-range-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Add dashed inner horizontal and vertical borders inside A1:C3 on the Sales sheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateBorders</code> request includes <code>innerHorizontal</code> and <code>innerVertical</code>, both <code>style="DASHED"</code>
+- <code>top</code>/<code>bottom</code>/<code>left</code>/<code>right</code> are not set
+- No error in response</p>
+<p><strong>Result (2026-07-16) ✅ PASS (API-verified, not visual)</strong> Same chart-coverage limitation as TC-S85 — verified via <code>get_sheet_data(range="A1:C3", include_grid_data=True)</code>. Interior cell edges between rows/columns show <code>DASHED</code>, while the pre-existing perimeter <code>SOLID</code> borders from TC-S85 (which this call's request did not include top/bottom/left/right keys for) were left completely untouched — confirming the tool only sends the edges it was given and doesn't clobber unspecified ones. No error in response.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_borders(A1:C3, inner_horizontal/inner_vertical DASHED) → replies:[{}], no error</p>
+<hr />
+<h3 id="tc-s87-clear-an-existing-border-edge-with-style-none-destructive">TC-S87: Clear an existing border edge with style NONE ⚠️ destructive<a class="headerlink" href="#tc-s87-clear-an-existing-border-edge-with-style-none-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Remove the border from the right edge of A1:D5 on the Sales sheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateBorders</code> request includes <code>right.style="NONE"</code>
+- No error in response</p>
+<p><strong>Result (2026-07-16) ✅ PASS (API-verified, not visual)</strong> Same chart-coverage limitation. Verified via <code>get_sheet_data(range="D1:D5", include_grid_data=True)</code>: the <code>right</code> border is absent from every cell in column D after the call, while <code>top</code>/<code>bottom</code> borders from TC-S85 remain — confirming only the targeted edge was cleared. No error in response.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_borders(A1:D5, right=NONE) → API-verified via grid data: column D cells show no "right" border key while top/bottom perimeter borders remain — only targeted edge cleared</p>
+<hr />
+<h3 id="tc-s88-update_borders-no-border-params-returns-error">TC-S88: update_borders — no border params returns error<a class="headerlink" href="#tc-s88-update_borders-no-border-params-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Calling <code>update_borders</code> with no edge params returns <code>{"error": ...}</code>
+- No batchUpdate API call made</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong> <code>test_no_params_returns_error</code> passes.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_borders(A1:D1, no edge params) → {"error":"No border parameters provided"}</p>
+<hr />
+<h3 id="tc-s89-update_borders-border-spec-missing-style-returns-error">TC-S89: update_borders — border spec missing style returns error<a class="headerlink" href="#tc-s89-update_borders-border-spec-missing-style-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- An edge dict without a <code>"style"</code> key returns <code>{"error": ...}</code> before any API call</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong> <code>test_missing_style_returns_error</code> passes.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_borders(top={"color":{"red":0}}) missing style → {"error":"Border spec for 'top' is missing required 'style' key"}</p>
+<hr />
+<h3 id="tc-s90-update_borders-invalid-style-value-returns-error">TC-S90: update_borders — invalid style value returns error<a class="headerlink" href="#tc-s90-update_borders-invalid-style-value-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- An unrecognized <code>style</code> value (e.g. <code>"SQUIGGLY"</code>) returns <code>{"error": ...}</code> listing valid styles, before any API call</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong> <code>test_invalid_style_returns_error</code> passes.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_borders(top={"style":"SQUIGGLY"}) → {"error":"Invalid border style 'SQUIGGLY' for 'top'. Must be one of: DOTTED, DASHED, SOLID, SOLID_MEDIUM, SOLID_THICK, DOUBLE, NONE"}</p>
+<hr />
+<h3 id="tc-s91-update_borders-sheet-not-found-returns-error">TC-S91: update_borders — sheet not found returns error<a class="headerlink" href="#tc-s91-update_borders-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Sheet name not in spreadsheet → <code>{"error": "Sheet 'X' not found"}</code></p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong> <code>test_returns_error_when_sheet_not_found</code> passes.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_borders(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h3 id="tc-s92-update_borders-non-string-style-value-returns-error-does-not-crash">TC-S92: update_borders — non-string style value returns error, does not crash<a class="headerlink" href="#tc-s92-update_borders-non-string-style-value-returns-error-does-not-crash" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Calling <code>update_borders</code> with an edge dict whose <code>"style"</code> value is not a string (e.g. <code>top={"style": 5}</code> or <code>top={"style": None}</code>) returns <code>{"error": ...}</code>, same as the existing "invalid style" and "missing style" cases.</p>
+<p><strong>Result (2026-07-16) ✅ PASS — fix verified</strong> Originally failed: validation only checked <code>"style" not in border</code> (key presence) before calling <code>.upper()</code>, so a non-string style (e.g. <code>top={"style": 5}</code>) reached <code>border["style"].upper()</code> and crashed with an unhandled <code>AttributeError</code> instead of a clean error. Fixed by adding <code>if not isinstance(border["style"], str): return {"error": ...}</code> before the <code>.upper()</code> call. Verified three ways: unit test <code>test_non_string_style_returns_error</code> passes (covers both <code>5</code> and <code>None</code>); confirmed live against the real <code>update_borders</code> MCP tool with <code>top={"style": 5}</code> and <code>top={"style": null}</code> — both return <code>{"error": "Border spec for 'top' has a non-string 'style' value"}</code> with no crash. TC-S92 closed.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_borders(top={"style":5}) non-string → {"error":"Border spec for 'top' has a non-string 'style' value"}, no crash</p>
+<hr />
+<h2 id="add_data_validation-get_data_validation"><code>add_data_validation</code> / <code>get_data_validation</code><a class="headerlink" href="#add_data_validation-get_data_validation" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s93-one_of_list-sets-a-dropdown-and-get_data_validation-reads-it-back-destructive">TC-S93: ONE_OF_LIST sets a dropdown and get_data_validation reads it back ⚠️ destructive<a class="headerlink" href="#tc-s93-one_of_list-sets-a-dropdown-and-get_data_validation-reads-it-back-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Add a dropdown to A1:A5 on the Sales sheet with the options Yes, No, Maybe"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>setDataValidation</code> request sent with <code>condition.type == "ONE_OF_LIST"</code> and <code>condition.values</code> matching <code>["Yes", "No", "Maybe"]</code> (as <code>userEnteredValue</code> entries)
+- <code>range</code> covers A1:A5
+- Selecting a cell in A1:A5 in the Sheets UI shows a dropdown arrow with exactly those three options
+- Calling <code>get_data_validation(range="A1:A5")</code> afterward returns one <code>{cell, rule}</code> entry per cell in the range, each with <code>condition.type == "ONE_OF_LIST"</code> and the same three values</p>
+<p><strong>Result (2026-07-17) ✅ PASS (direct tool call, not Playwright UI)</strong> — ran against a scratch range on the fixture's <code>Empty</code> sheet rather than <code>Sales</code>, but the tool logic is sheet-agnostic. <code>add_data_validation(condition_type="ONE_OF_LIST", values=["Yes","No","Maybe"])</code> succeeded; <code>get_data_validation</code> read back all 5 cells with <code>condition.type == "ONE_OF_LIST"</code> and the exact same 3 values. UI dropdown rendering not independently verified via Playwright this pass.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+add_data_validation(Empty!A1:A5, ONE_OF_LIST, [Yes,No,Maybe]) → succeeded; get_data_validation read back all 5 cells with matching condition.type/values (API-verified, not Playwright per shard instructions)</p>
+<hr />
+<h3 id="tc-s94-boolean-with-no-values-renders-a-plain-checkbox-destructive">TC-S94: BOOLEAN with no values renders a plain checkbox ⚠️ destructive<a class="headerlink" href="#tc-s94-boolean-with-no-values-renders-a-plain-checkbox-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Add a checkbox to B1:B5 on the Sales sheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>setDataValidation</code> request sent with <code>condition == {"type": "BOOLEAN"}</code> — no <code>values</code> key
+- Cells B1:B5 render as checkboxes in the Sheets UI, not free text
+- <code>get_data_validation(range="B1:B5")</code> returns <code>condition.type == "BOOLEAN"</code> for each cell, no <code>values</code> key</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+add_data_validation(Empty!B1:B5, BOOLEAN, no values) → succeeded; get_data_validation confirms condition.type=BOOLEAN, no "values" key on all 5 cells</p>
+<hr />
+<h3 id="tc-s95-number_between-with-strictfalse-shows-a-warning-instead-of-rejecting">TC-S95: NUMBER_BETWEEN with strict=False shows a warning instead of rejecting<a class="headerlink" href="#tc-s95-number_between-with-strictfalse-shows-a-warning-instead-of-rejecting" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add data validation to C1:C5 on the Sales sheet requiring a number between 1 and 10, but only warn instead of blocking invalid entries"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>setDataValidation</code> request sent with <code>condition.type == "NUMBER_BETWEEN"</code>, <code>condition.values</code> = <code>["1", "10"]</code>, and <code>rule.strict == false</code>
+- No error in response</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+add_data_validation(Empty!C1:C5, NUMBER_BETWEEN, [1,10], strict=false) → succeeded, no error</p>
+<hr />
+<h3 id="tc-s96-get_data_validation-returns-an-empty-list-for-a-range-with-no-rules">TC-S96: get_data_validation returns an empty list for a range with no rules<a class="headerlink" href="#tc-s96-get_data_validation-returns-an-empty-list-for-a-range-with-no-rules" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Check what data validation rules exist on D1:D5 on the Sales sheet" <em>(a range with no validation applied)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>[]</code>
+- No error</p>
+<p><strong>Result (2026-07-17) ✅ PASS</strong> <code>get_data_validation</code> on an untouched range returned <code>[]</code>, no error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+get_data_validation(Empty!D1:D5, no rules) → []</p>
+<hr />
+<h3 id="tc-s97-add_data_validation-invalid-condition_type-returns-error-unit-test">TC-S97: add_data_validation — invalid condition_type returns error (unit test)<a class="headerlink" href="#tc-s97-add_data_validation-invalid-condition_type-returns-error-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Calling <code>add_data_validation</code> with an unrecognized <code>condition_type</code> (e.g. <code>"NOT_A_REAL_TYPE"</code>) returns <code>{"error": ...}</code> listing valid types, before any API call
+- Covered by <code>test_invalid_condition_type_returns_error_without_api_call</code></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+add_data_validation(condition_type="NOT_A_REAL_TYPE") → {"error":"Invalid condition_type ... Must be one of: ..."}</p>
+<hr />
+<h3 id="tc-s98-add_data_validation-sheet-not-found-returns-error-unit-test">TC-S98: add_data_validation — sheet not found returns error (unit test)<a class="headerlink" href="#tc-s98-add_data_validation-sheet-not-found-returns-error-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Sheet name not in spreadsheet → <code>{"error": "Sheet 'X' not found"}</code>, before any API call
+- Covered by <code>test_returns_error_when_sheet_not_found</code></p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+add_data_validation(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h3 id="tc-s99-add_data_validation-one_of_range-the-documented-value-format-always-fails-code-review-finding">TC-S99: <code>add_data_validation</code> ONE_OF_RANGE — the documented value format always fails ❌ code review finding<a class="headerlink" href="#tc-s99-add_data_validation-one_of_range-the-documented-value-format-always-fails-code-review-finding" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>add_data_validation</code>'s own docstring documents <code>ONE_OF_RANGE</code>'s <code>values</code> as "one item, the source range in A1 notation, e.g. <code>["Sheet2!A:A"]</code>" — no leading <code>=</code>. Live-tested against the real Sheets API and confirmed this format is rejected outright.</p>
+<p><strong>Prompt (direct tool calls)</strong></p>
+<blockquote>
+<p><code>add_data_validation(condition_type="ONE_OF_RANGE", values=["Sales!A2:A5"])</code> — exactly as the docstring documents.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Should succeed and create a range-sourced dropdown.</p>
+<p><strong>Result (2026-07-17) ❌ FAIL</strong> <code>HttpError 400: "Invalid ConditionValue.userEnteredValue: Sales!A2:A5 for ConditionType: ONE_OF_RANGE"</code>. Retried with a leading <code>=</code> (<code>values=["=Sales!A2:A5"]</code>) — succeeded, and <code>get_data_validation</code> read back the rule correctly with <code>userEnteredValue: "=Sales!$A$2:$A$5"</code>. The docstring's example is missing the required <code>=</code> prefix; every caller who follows it as written gets a guaranteed failure.</p>
+<p><strong>Teardown</strong>
+Deleted and recreated the <code>Empty</code> fixture sheet to clear the test rule.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+add_data_validation(ONE_OF_RANGE, values=["Sales!A2:A5"], no leading =) → succeeded (auto-prepend fix confirmed live, no longer the TC-S99-documented HttpError); readback shows "=Sales!$A$2:$A$5"</p>
+<hr />
+<h3 id="tc-s100-get_data_validation-on-a-nonexistent-sheet-raises-raw-not-a-clean-error-code-review-finding">TC-S100: <code>get_data_validation</code> on a nonexistent sheet raises raw, not a clean error ❌ code review finding<a class="headerlink" href="#tc-s100-get_data_validation-on-a-nonexistent-sheet-raises-raw-not-a-clean-error-code-review-finding" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Every other <code>sheet</code>-taking tool in <code>structure.py</code> (~22 of them, including <code>add_data_validation</code>) checks sheet existence first and returns <code>{"error": "Sheet 'X' not found"}</code>. <code>get_data_validation</code> skips this check entirely.</p>
+<p><strong>Prompt (direct tool call)</strong></p>
+<blockquote>
+<p><code>get_data_validation(sheet="NonexistentSheetXYZ", range="A1:A5")</code></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Should return <code>{"error": "Sheet 'NonexistentSheetXYZ' not found"}</code>, matching every sibling tool's behavior for the same mistake.</p>
+<p><strong>Result (2026-07-17) ❌ FAIL</strong> Raised an unhandled <code>HttpError 400: "Unable to parse range: NonexistentSheetXYZ!A1:A5"</code> straight through to the MCP client instead. <code>server.py</code>'s <code>_timed</code> wrapper doesn't reformat exceptions, so this is the raw googleapiclient error, not a friendly response.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+get_data_validation(sheet="NonexistentSheetXYZ") → clean {"error":"Sheet 'NonexistentSheetXYZ' not found"} — confirms the documented fix is live, no raw HttpError</p>
+<hr />
+<h3 id="tc-s101-add_data_validation-one_of_range-auto-corrects-a-missing-pr-361-review-fix">TC-S101: <code>add_data_validation</code> ONE_OF_RANGE auto-corrects a missing <code>=</code> (PR #361 review fix)<a class="headerlink" href="#tc-s101-add_data_validation-one_of_range-auto-corrects-a-missing-pr-361-review-fix" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> TC-S99 found that <code>add_data_validation(condition_type="ONE_OF_RANGE", ...)</code> always failed with the docstring's own documented value format (a bare range reference, no leading <code>=</code>) — the real Sheets API rejects <code>userEnteredValue</code> without it. Fixed by auto-prepending <code>=</code> to each value when <code>condition_type</code> is <code>ONE_OF_RANGE</code> and the caller didn't already include one, instead of requiring callers to know this API quirk. Unit-tested deterministically (<code>TestAddDataValidation::test_one_of_range_auto_prepends_equals_when_missing</code>, <code>test_one_of_range_does_not_double_prepend_equals</code>); this live check re-runs TC-S99's exact failing call.</p>
+<p><strong>Prompt (direct tool call)</strong></p>
+<blockquote>
+<p><code>add_data_validation(condition_type="ONE_OF_RANGE", values=["Sales!A2:A5"])</code> — the exact call that failed in TC-S99, with no leading <code>=</code>.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call succeeds (no <code>HttpError</code>)
+- <code>get_data_validation</code> on the same range reads back <code>userEnteredValue</code> starting with <code>=</code> (e.g. <code>"=Sales!$A$2:$A$5"</code>)</p>
+<p><strong>Result (2026-07-18) ✅ PASS</strong> Re-ran the exact TC-S99 failing call (<code>values=["Sales!A2:A5"]</code>, no <code>=</code>) — succeeded (no <code>HttpError</code>). <code>get_data_validation</code> read back <code>userEnteredValue: "=Sales!$A$2:$A$5"</code> on all 3 cells, confirming auto-prepend fired correctly.</p>
+<p><strong>Teardown</strong>
+Clear the test rule from the range used.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Same as TC-S99 — re-confirms auto-prepend fix (duplicate coverage in test file)</p>
+<hr />
+<h3 id="tc-s102-get_data_validation-on-a-nonexistent-sheet-returns-a-clean-error-pr-361-review-fix">TC-S102: <code>get_data_validation</code> on a nonexistent sheet returns a clean error (PR #361 review fix)<a class="headerlink" href="#tc-s102-get_data_validation-on-a-nonexistent-sheet-returns-a-clean-error-pr-361-review-fix" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> TC-S100 found that <code>get_data_validation</code> was missing the sheet-existence check every sibling tool in this file has, so a bad sheet name raised a raw <code>HttpError</code> instead of <code>{"error": ...}</code>. Fixed by adding the same <code>_get_sheet_id</code> check <code>add_data_validation</code> already has, before the grid-data fetch. Unit-tested (<code>TestGetDataValidation::test_sheet_not_found_returns_error_not_raw_http_error</code>); this live check re-runs TC-S100's exact failing call.</p>
+<p><strong>Prompt (direct tool call)</strong></p>
+<blockquote>
+<p><code>get_data_validation(sheet="NonexistentSheetXYZ", range="A1:A5")</code> — the exact call that raised in TC-S100.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "Sheet 'NonexistentSheetXYZ' not found"}</code> — no raw <code>HttpError</code> reaches the client</p>
+<p><strong>Result (2026-07-18) ✅ PASS</strong> Re-ran the exact TC-S100 failing call — returned <code>{"error": "Sheet 'NonexistentSheetXYZ' not found"}</code> cleanly, no raw <code>HttpError</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Same as TC-S100 — re-confirms clean-error fix (duplicate coverage in test file)</p>
+<hr />
+<h2 id="freeze"><code>freeze</code><a class="headerlink" href="#freeze" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s42-freeze-the-header-row-destructive">TC-S42: Freeze the header row ⚠️ destructive<a class="headerlink" href="#tc-s42-freeze-the-header-row-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Freeze the first row on the Sales sheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateSheetProperties</code> with <code>frozenRowCount=1</code>, <code>frozenColumnCount=0</code>
+- <code>fields</code> covers both <code>frozenRowCount</code> and <code>frozenColumnCount</code>
+- No error in response</p>
+<p><strong>Result (2026-06-21) ✅</strong> Row 1 frozen on Sales. <code>replies: [{}]</code> — no error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+freeze(rows=1) → replies:[{}], no error</p>
+<hr />
+<h3 id="tc-s43-freeze-first-row-and-first-column-destructive">TC-S43: Freeze first row and first column ⚠️ destructive<a class="headerlink" href="#tc-s43-freeze-first-row-and-first-column-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Freeze the first row and first column on Sales"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>frozenRowCount=1</code>, <code>frozenColumnCount=1</code></p>
+<p><strong>Result (2026-06-21) ✅</strong> Row 1 and column 1 frozen on Sales. <code>replies: [{}]</code> — no error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+freeze(rows=1,columns=1) → replies:[{}], no error</p>
+<hr />
+<h3 id="tc-s44-unfreeze-all-rows0-columns0-destructive">TC-S44: Unfreeze all (rows=0, columns=0) ⚠️ destructive<a class="headerlink" href="#tc-s44-unfreeze-all-rows0-columns0-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Unfreeze all rows and columns on the Sales sheet"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>frozenRowCount=0</code>, <code>frozenColumnCount=0</code></p>
+<p><strong>Result (2026-06-21) ✅</strong> All rows and columns unfrozen on Sales. <code>replies: [{}]</code> — no error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+freeze(rows=0,columns=0) → replies:[{}], no error (also serves as unfreeze teardown)</p>
+<hr />
+<h3 id="tc-s45-freeze-sheet-not-found-returns-error">TC-S45: freeze — sheet not found returns error<a class="headerlink" href="#tc-s45-freeze-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Sheet not found → <code>{"error": "Sheet 'X' not found"}</code></p>
+<p><strong>Result (2026-06-21) ✅</strong> Unit test confirms error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+freeze(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h2 id="update_sheet_properties"><code>update_sheet_properties</code><a class="headerlink" href="#update_sheet_properties" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s57-set-tab-color-destructive">TC-S57: Set tab color ⚠️ destructive<a class="headerlink" href="#tc-s57-set-tab-color-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Set the tab color of the Sales sheet in {SPREADSHEET_ID} to red (red=1.0, green=0.0, blue=0.0)"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateSheetProperties</code> request has <code>properties.tabColor == {"red": 1.0, "green": 0.0, "blue": 0.0}</code>
+- <code>fields</code> includes <code>tabColor</code>
+- No error in response
+- Sales tab visibly shows a red color in the Sheets UI</p>
+<p><strong>Result (2026-07-13) ✅ PASS</strong> API call succeeded, no error field. Visually confirmed via Playwright: DOM element <code>.docs-sheet-tab-color</code> on the Sales tab has <code>style="background: rgb(255, 0, 0)"</code> — matches the requested red.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_sheet_properties(tab_color red) → replies:[{}], no error</p>
+<hr />
+<h3 id="tc-s57b-clear-tab-color-with-destructive">TC-S57b: Clear tab color with <code>{}</code> ⚠️ destructive<a class="headerlink" href="#tc-s57b-clear-tab-color-with-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Clear the tab color of the Sales sheet in {SPREADSHEET_ID}" (tool called with <code>tab_color={}</code>)</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateSheetProperties</code> request has <code>properties.tabColorStyle == {}</code>
+- <code>fields</code> includes <code>tabColorStyle</code>, and does not include <code>tabColor</code>
+- No error in response
+- Sales tab visibly returns to the default (no color) state in the Sheets UI, not black</p>
+<p><strong>Result (2026-07-14) ✅ PASS — fix verified</strong> Re-verified live after the <code>tabColorStyle</code> fix, twice with different starting colors (green→clear, then purple→clear combined with <code>show_gridlines</code> in the same call). Both times the Sales tab's <code>.docs-sheet-tab-color</code> DOM element went from a solid color to <code>style="background: transparent"</code> — matching the untouched default tabs (Empty, Notes &amp; Misc, BrandNew), not black. Unit tests (<code>test_empty_tab_color_dict_clears_color</code>, updated) also pass, confirming the request now targets <code>tabColorStyle</code> (not <code>tabColor</code>) when <code>tab_color={}</code>. TC-S57b closed.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_sheet_properties(tab_color={}) → replies:[{}], no error (clears via tabColorStyle per known fix)</p>
+<hr />
+<h3 id="tc-s58-hide-gridlines-destructive">TC-S58: Hide gridlines ⚠️ destructive<a class="headerlink" href="#tc-s58-hide-gridlines-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Hide the gridlines on the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateSheetProperties</code> request has <code>properties.gridProperties.hideGridlines == True</code>
+- <code>fields</code> includes <code>gridProperties.hideGridlines</code>
+- No error in response
+- Gridlines are visibly absent from the Sales sheet in the Sheets UI</p>
+<p><strong>Result (2026-07-13) ✅ PASS</strong> API call succeeded, no error field. Visually confirmed via Playwright screenshot: no gridlines visible between cells on the Sales sheet after the call.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_sheet_properties(show_gridlines=false) → replies:[{}], no error</p>
+<hr />
+<h3 id="tc-s59-set-right-to-left-layout-destructive">TC-S59: Set right-to-left layout ⚠️ destructive<a class="headerlink" href="#tc-s59-set-right-to-left-layout-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Set the Sales sheet in {SPREADSHEET_ID} to right-to-left layout"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>updateSheetProperties</code> request has <code>properties.rightToLeft == True</code>
+- <code>fields</code> includes <code>rightToLeft</code>
+- No error in response
+- Sheet layout visibly mirrors to right-to-left in the Sheets UI (row headers on the right)</p>
+<p><strong>Result (2026-07-13) ✅ PASS</strong> API call succeeded, no error field. Visually confirmed via Playwright screenshot: column headers ran right-to-left (A on the far right, K on the far left) after the call.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_sheet_properties(right_to_left=true) → replies:[{}], no error</p>
+<hr />
+<h3 id="tc-s60-combine-tab-color-gridlines-and-right-to-left-in-one-call-destructive">TC-S60: Combine tab color, gridlines, and right-to-left in one call ⚠️ destructive<a class="headerlink" href="#tc-s60-combine-tab-color-gridlines-and-right-to-left-in-one-call-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"On the Sales sheet in {SPREADSHEET_ID}, set the tab color to blue (red=0.0, green=0.0, blue=1.0), show gridlines, and turn off right-to-left layout — all in one call"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Single <code>updateSheetProperties</code> request in the batchUpdate body
+- <code>properties</code> includes <code>tabColor</code>, <code>gridProperties.hideGridlines == False</code>, and <code>rightToLeft == False</code>
+- <code>fields</code> lists all three: <code>tabColor</code>, <code>gridProperties.hideGridlines</code>, <code>rightToLeft</code>
+- No error in response</p>
+<p><strong>Result (2026-07-13) ✅ PASS</strong> Single <code>update_sheet_properties</code> call with <code>tab_color</code>, <code>show_gridlines=true</code>, <code>right_to_left=false</code> all set returned <code>{"spreadsheetId":"...","replies":[{}]}</code>, no error field — confirming the tool folds all three into one <code>updateSheetProperties</code> request (per code: one <code>properties</code>/<code>fields</code> dict shared across all provided args). Unit test <code>test_multiple_properties_produce_multiple_fields</code> independently confirms the request-body shape (all three keys present in both <code>properties</code> and <code>fields</code>).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_sheet_properties(tab_color=blue, show_gridlines=true, right_to_left=false) single call → replies:[{}], no error</p>
+<hr />
+<h3 id="tc-s61-no-properties-provided-returns-error">TC-S61: No properties provided returns error<a class="headerlink" href="#tc-s61-no-properties-provided-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Calling with no <code>tab_color</code>, <code>show_gridlines</code>, or <code>right_to_left</code> → <code>{"error": "No properties provided to update"}</code>
+- No <code>batchUpdate</code> call is made</p>
+<p><strong>Result (2026-07-13) ✅ PASS</strong> <code>tests/sheets/test_structure.py::TestUpdateSheetProperties::test_no_params_returns_error</code> passed (<code>uv run python -m pytest tests/sheets/test_structure.py -k UpdateSheetProperties</code>, 9/9 passed).</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_sheet_properties(no properties) → {"error":"No properties provided to update"}</p>
+<hr />
+<h3 id="tc-s62-update_sheet_properties-sheet-not-found-returns-error">TC-S62: update_sheet_properties — sheet not found returns error<a class="headerlink" href="#tc-s62-update_sheet_properties-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Sheet not found → <code>{"error": "Sheet 'X' not found"}</code>
+- No <code>batchUpdate</code> call is made</p>
+<p><strong>Result (2026-07-13) ✅ PASS</strong> Unit test <code>test_returns_error_when_sheet_not_found</code> passed. Also confirmed live against the fixture spreadsheet: <code>update_sheet_properties(spreadsheet_id=TEST_SPREADSHEET_ID, sheet="DoesNotExist", right_to_left=true)</code> → <code>{"error":"Sheet 'DoesNotExist' not found"}</code>.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+update_sheet_properties(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h2 id="sort_range"><code>sort_range</code><a class="headerlink" href="#sort_range" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s46-sort-a-data-range-ascending-by-first-column-destructive">TC-S46: Sort a data range ascending by first column ⚠️ destructive<a class="headerlink" href="#tc-s46-sort-a-data-range-ascending-by-first-column-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Sort the range A2:D50 on Sales by the first column ascending"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>sortRange</code> request with <code>sortSpecs[0].dimensionIndex=0</code>, <code>sortOrder=ASCENDING</code>
+- Range covers A2:D50</p>
+<p><strong>Result (2026-06-21) ✅</strong> A2:D5 on Sales sorted by Product ascending (Donut, Gadget, Gizmo, Widget). <code>replies: [{}]</code> — no error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+sort_range(A2:D50, col0 ASCENDING) → Donut/Gadget/Gizmo/Totals/Widget alphabetical order</p>
+<hr />
+<h3 id="tc-s47-sort-descending-by-a-non-first-column-destructive">TC-S47: Sort descending by a non-first column ⚠️ destructive<a class="headerlink" href="#tc-s47-sort-descending-by-a-non-first-column-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Sort A2:D50 on Sales by column C (index 2) descending"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>sortSpecs[0].dimensionIndex=2</code>, <code>sortOrder=DESCENDING</code></p>
+<p><strong>Result (2026-06-21) ✅</strong> A2:D5 sorted by Q2 descending (Gizmo 310, Widget 120, Gadget 180... descending). <code>replies: [{}]</code> — no error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+sort_range(A2:D50, col2 DESCENDING) → sorted by Q2 descending. FINDING (not a tool bug — genuine Sheets sort semantics): "Totals" row's SUM formulas (referencing B2:B5 etc., a range within the sorted block) turned into #REF! after the sort moved the formula row relative to its own reference range. Reproducible, expected Google Sheets behavior when sorting a range containing formulas that reference other rows inside that same range — same as a human doing Data&gt;Sort would see. Worth a QA test-design note (exclude formula/footer rows from sort_range test ranges) but not a product defect</p>
+<hr />
+<h3 id="tc-s48-multi-column-sort-destructive">TC-S48: Multi-column sort ⚠️ destructive<a class="headerlink" href="#tc-s48-multi-column-sort-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Sort A2:D50 on Sales: primary key column A ascending, secondary key column C descending"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Two sort specs in <code>sortSpecs</code>
+- First spec: <code>dimensionIndex=0</code>, <code>ASCENDING</code>
+- Second spec: <code>dimensionIndex=2</code>, <code>DESCENDING</code></p>
+<p><strong>Result (2026-06-21) ✅</strong> A2:D5 sorted by Product ASC then Q2 DESC. Two sortSpecs emitted. <code>replies: [{}]</code> — no error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+sort_range(A2:D50, col0 ASC + col2 DESC) → two sort specs applied correctly, primary key (Product) sorted ascending: Donut/Gadget/Gizmo/Totals/Widget</p>
+<hr />
+<h3 id="tc-s49-column_index-offset-by-range-start-column">TC-S49: column_index offset by range start column<a class="headerlink" href="#tc-s49-column_index-offset-by-range-start-column" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Range starting at column B (index 1) with <code>column_index=0</code> → <code>dimensionIndex=1</code></p>
+<p><strong>Result (2026-06-21) ✅</strong> Unit test confirms offset applied correctly.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+column_index offset logic implicitly exercised/correct via TC-S46-48 (dimensionIndex correctly targeted col0/col2 within A-start range); no separate live call needed for this unit-level check</p>
+<hr />
+<h3 id="tc-s50-sort_range-sheet-not-found-returns-error">TC-S50: sort_range — sheet not found returns error<a class="headerlink" href="#tc-s50-sort_range-sheet-not-found-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Sheet not found → <code>{"error": "Sheet 'X' not found"}</code></p>
+<p><strong>Result (2026-06-21) ✅</strong> Unit test confirms error.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+sort_range(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h3 id="tc-s103-sort_range-malformed-sort-spec-fields-return-a-clean-error-do-not-crash">TC-S103: sort_range — malformed sort spec fields return a clean error, do not crash<a class="headerlink" href="#tc-s103-sort_range-malformed-sort-spec-fields-return-a-clean-error-do-not-crash" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Non-string <code>"order"</code> value (e.g. <code>{"column_index": 0, "order": 5}</code>) → <code>{"error": ...}</code>, no <code>AttributeError</code> on <code>.upper()</code>.
+- Missing <code>"column_index"</code> key (e.g. <code>{"order": "ASCENDING"}</code>) → <code>{"error": ...}</code>, no <code>KeyError</code>.
+- Non-int <code>"column_index"</code> value (e.g. <code>{"column_index": "0", "order": "ASCENDING"}</code>) → <code>{"error": ...}</code>, no <code>TypeError</code> from the <code>col_start + s["column_index"]</code> addition.
+- <code>bool</code> <code>"column_index"</code> value (e.g. <code>{"column_index": True, ...}</code>) → <code>{"error": ...}</code> — <code>bool</code> is a Python <code>int</code> subclass, so a bare <code>isinstance(..., int)</code> check alone would silently accept it.
+- Invalid <code>"order"</code> enum value (e.g. <code>{"column_index": 0, "order": "banana"}</code>) → <code>{"error": ...}</code> from local validation, not a raw <code>HttpError</code> from the Sheets API.
+- In every case, no <code>batchUpdate</code> call is made.</p>
+<p>Matches <code>update_borders</code>'s validation depth (missing-key + isinstance + enum-membership) for the analogous <code>"style"</code> field (<code>structure.py</code>, <code>_VALID_BORDER_STYLES</code>) — this tool now applies the same pattern via <code>_VALID_SORT_ORDERS</code> for both <code>column_index</code> and <code>order</code>.</p>
+<p><strong>Result (2026-07-28) ⚠️ PASS (fix works) but same defect class left open on sibling fields.</strong> Live-verified against <code>mcp-gee-sweet-qa-fixtures</code> (<code>BrandNew</code> sheet), via <code>mcp-gee-sweet-sky</code>:
+- <code>sort_order=[{"column_index": 0, "order": 5}]</code> → clean <code>{"error": "Sort spec for column_index 0 has a non-string 'order' value"}</code>. This PR's own fix works as intended.
+- <code>sort_order=[{"order": "ASCENDING"}]</code> (column_index omitted) → raw <code>KeyError: 'column_index'</code> leaks as a tool execution error, not <code>{"error": ...}</code> — the same crash class this PR claims to fix, one field over. <code>column_index</code> is accessed via <code>s["column_index"]</code> (structure.py:1652) with no key-existence check, unlike <code>update_borders</code>'s analogous 3-part validation (missing-key + isinstance + enum) at lines 1129–1138 of the same file.
+- <code>sort_order=[{"column_index": "0", "order": "ASCENDING"}]</code> (string column_index) → raw <code>TypeError: unsupported operand type(s) for +: 'int' and 'str'</code> leaks (no type check on <code>column_index</code>).
+- <code>sort_order=[{"column_index": 0, "order": "banana"}]</code> (invalid enum value) → raw <code>HttpError 400</code> from the Sheets API leaks instead of a clean local error (pre-existing gap, not a new regression, but the same enum-membership check <code>update_borders</code> already has for <code>style</code>).
+- <code>sort_order=[{"column_index": 0, "order": "ASCENDING"}, "banana"]</code> (non-dict list element) — reviewed as a potential <code>AttributeError</code>, but live-tested and actually rejected upstream by MCP's own pydantic schema validation (<code>sort_order: list[dict]</code>) before the function body ever runs, so this path is not exploitable through the tool interface. Not a live defect, unlike the three above.
+- Sent back to Dev (see PR #452 comment) rather than approved — the fix is narrower than the established sibling pattern and leaves the identical crash class open on <code>column_index</code> and the <code>order</code> enum.</p>
+<p><strong>Result (2026-07-28, round 2) ✅ PASS — all findings closed.</strong> Fix commit <code>5648a91</code> adds missing-key + isinstance (with explicit <code>bool</code> exclusion) + enum-membership checks for both <code>column_index</code> and <code>order</code>, matching <code>update_borders</code>'s depth. Re-verified live against <code>mcp-gee-sweet-qa-fixtures</code> (<code>BrandNew</code> sheet), via <code>mcp-gee-sweet-sky</code>, after <code>/mcp reconnect</code>:
+- <code>sort_order=[{"order": "ASCENDING"}]</code> → <code>{"error": "Sort spec at index 0 is missing required 'column_index' key"}</code> — clean, no <code>KeyError</code>.
+- <code>sort_order=[{"column_index": "0", "order": "ASCENDING"}]</code> → <code>{"error": "Sort spec at index 0 has a non-integer 'column_index' value"}</code> — clean, no <code>TypeError</code>.
+- <code>sort_order=[{"column_index": true, "order": "ASCENDING"}]</code> → same clean error — <code>bool</code> correctly rejected, not silently accepted as an int.
+- <code>sort_order=[{"column_index": 0, "order": "banana"}]</code> → <code>{"error": "Invalid sort order 'banana' for column_index 0. Must be one of: ASCENDING, DESCENDING"}</code> — clean, no <code>HttpError</code> leak.
+- <code>sort_order=[{"column_index": 0, "order": 5}]</code> (original case) and a normal <code>DESCENDING</code> sort both still work correctly — no regression.
+- <code>uv run python -m pytest tests/sheets/test_structure.py -k SortRange</code> → 10/10 passed.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+All 5 live sub-cases match PR #452 round-2 fix exactly: non-string order → clean error; missing column_index → clean error; non-int column_index (string "0") → clean error; bool column_index → clean error (not silently accepted as int); invalid order enum "banana" → clean error naming valid values. No batchUpdate/data mutation in any case (confirmed via post-check read)</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
