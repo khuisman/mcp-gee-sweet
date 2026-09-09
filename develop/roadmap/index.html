@@ -1901,7 +1901,8 @@
 - [ ] CI: dedupe lint/format-check and lockfile-check across the Python version matrix (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/619">#619</a>)
 - [ ] Consolidate <code>uv lock --check</code> + <code>uv sync --frozen</code> into a single <code>uv sync --locked</code> step (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/536">#536</a>)
 - [ ] Catch stale hardcoded tool counts in prose docs at commit time, instead of by hand each time drift is caught (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/308">#308</a>)
-- [ ] Automate the mechanical <code>release.md</code> steps as GitHub Actions (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/660">#660</a>)</p>
+- [ ] Automate the mechanical <code>release.md</code> steps as GitHub Actions (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/660">#660</a>)
+- [ ] Guard <code>README.md</code> against non-absolute image URLs — PyPI's <code>readme_renderer</code> silently strips them (shipped a logo-less v0.9.0 page, #706). CI guard test; release/prep-for-pr backstop routed to Bob (#709) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/708">#708</a>)</p>
 <p><strong>QA &amp; docs</strong> <em>(moved out of v0.9.0 2026-09-02 so they don't gate the release; see <a href="https://github.com/khuisman/mcp-gee-sweet/issues/629">#629</a>, closed)</em>
 - [ ] Domain and public sharing tests (TC-D135–D139) — decision landed 2026-09-02: provision a real non-Google test email for external-share coverage; the <code>type=anyone</code> public-link tests stay unresolved (exposure risk not yet accepted) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/49">#49</a>)
 - [ ] Demo screenshot or GIF for the README — asset work with no owning role; how it gets produced is still open (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/589">#589</a>)
