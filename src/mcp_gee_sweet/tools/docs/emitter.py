@@ -129,8 +129,10 @@ def ast_to_requests(
     # createParagraphBullets calls are deferred: they must run after every other request
     # below (which all assume no positions have shifted yet) but before the combined
     # table/image insertion pass further down — see the loop after segment_meta for why
-    # they're applied in descending document order.
-    bullet_run_requests: list[tuple[int, dict]] = []
+    # they're applied in descending document order. Each entry's value is a list because
+    # an isolated depth>0 run (no depth-0 anchor item) expands to three requests — a
+    # throwaway anchor insert, the bullets call, and the anchor delete — see below.
+    bullet_run_requests: list[tuple[int, list[dict]]] = []
     # Combined descending-position insertion pass (tables + images, #333): both shift
     # every later, not-yet-processed position, so they must be interleaved by their true
     # final position rather than processed as two separate blocks — see ast_to_requests's
@@ -219,35 +221,62 @@ def ast_to_requests(
                 continue
             ordered = node.ordered
             j = i
+            min_depth = node.depth
             while (
                 j < len(segment_meta)
                 and isinstance(segment_meta[j][0], BulletItem)
                 and segment_meta[j][0].ordered == ordered
             ):
                 run_end = segment_meta[j][2]
+                min_depth = min(min_depth, segment_meta[j][0].depth)
                 j += 1
             preset = "NUMBERED_DECIMAL_ALPHA_ROMAN" if ordered else "BULLET_DISC_CIRCLE_SQUARE"
-            bullet_run_requests.append(
-                (
-                    run_start,
+            if min_depth == 0:
+                run_requests: list[dict] = [
                     {
                         "createParagraphBullets": {
                             "range": {"startIndex": run_start, "endIndex": run_end},
                             "bulletPreset": preset,
                         }
+                    }
+                ]
+            else:
+                # Isolated run: every item sits at depth > 0 with no depth-0 sibling in
+                # this same call to anchor nesting level 0. createParagraphBullets assigns
+                # each paragraph nestingLevel = (its leading-tab count) - (the minimum
+                # leading-tab count across the whole range), so a run with no 0-tab
+                # paragraph collapses entirely to nestingLevel 0 — rendering the depth-0
+                # glyph (● disc) even though the per-level indent is bumped so the item
+                # still *looks* nested (confirmed live, #439). Fix: prepend a throwaway
+                # 0-tab anchor paragraph, bullet the extended range (anchor -> level 0,
+                # real items -> their true level and its correct glyph), then delete the
+                # anchor. The insert (+1) and delete (-1) cancel, so every position
+                # outside [run_start, run_end] — later bullet runs, table/image inserts —
+                # is left exactly where an ordinary single call would leave it.
+                run_requests = [
+                    {"insertText": {"location": {"index": run_start}, "text": "\n"}},
+                    {
+                        "createParagraphBullets": {
+                            "range": {"startIndex": run_start, "endIndex": run_end + 1},
+                            "bulletPreset": preset,
+                        }
                     },
-                )
-            )
+                    {
+                        "deleteContentRange": {
+                            "range": {"startIndex": run_start, "endIndex": run_start + 1}
+                        }
+                    },
+                ]
+            bullet_run_requests.append((run_start, run_requests))
             i = j
 
         # Applied latest-in-document-first: each call's own range is still valid at the
         # point it runs (nothing before it in the doc has shifted yet), and processing
         # this way means an earlier, not-yet-processed run's range is never invalidated
-        # by a later run's own tab consumption.
-        for _, bullets_request in sorted(
-            bullet_run_requests, key=lambda item: item[0], reverse=True
-        ):
-            requests.append(bullets_request)
+        # by a later run's own tab consumption (or, for an isolated run, its net-zero
+        # anchor insert/delete pair).
+        for _, grouped in sorted(bullet_run_requests, key=lambda item: item[0], reverse=True):
+            requests.extend(grouped)
 
     # Queue each table's insertTable request into the same positional_inserts pass
     # images use above. Position is adjusted for any nested-bullet leading tabs already

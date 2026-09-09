@@ -3486,3 +3486,20 @@ Verification: fix diff is tightly scoped to the two named findings (no `/code-re
 
 
 ---
+
+### TC-DOC190: Isolated depth>0 bullet run renders the correct nested glyph, not the disc (#439) ⚠️ destructive
+
+**Background:** `createParagraphBullets` assigns each covered paragraph `nestingLevel = (its leading-tab count) − (the minimum leading-tab count across the whole call's range)`. A contiguous same-preset `BulletItem` run whose every item sits at `depth > 0` with no `depth=0` sibling in that same call (e.g. TC-DOC104's Case 2 — a bare `<li>` with no text of its own, only a nested `<ul>` — where the empty parent `<li>` is dropped, leaving just the two `depth=1` children) therefore collapsed entirely to `nestingLevel 0`: the per-level indent was bumped so the items still *looked* nested, but the rendered bullet glyph was the depth-0 disc (●) instead of the depth-1 circle (○). PR #432's round-2 QA (TC-DOC104/106 results, 2026-07-27) flagged this and split it out as #439, non-blocking. Fixed in `emitter.py`'s deferred bullet pass: an isolated run is wrapped with a throwaway 0-tab anchor paragraph (insert `\n` at `run_start` → `createParagraphBullets` over the range extended by 1 → `deleteContentRange` the anchor), so the real items land at their true `nestingLevel` and its glyph. The anchor insert (+1) and delete (−1) cancel, leaving every position outside the run — later bullet runs, table/image inserts — exactly where an ordinary single call would.
+
+**Prompt**
+**Playwright: required**
+> "Write this HTML to doc {DOC_ID}: contents of docs/qa/fixtures/tc-doc104-nested-lists.html"
+
+**Checks**
+- Case 2's "Bare-nested child C1"/"C2" render with the **circle** (○) glyph — the same glyph as Case 1's "Child A1"/"Child A2" (also `depth=1`) elsewhere in the same doc — not the disc (●) glyph used at depth 0
+- Case 2's children stay visibly indented one level deeper than the (absent) parent (the TC-DOC104 checklist requirement — must not regress)
+- Case 1 / Case 3 nesting is unchanged from TC-DOC104's passing result: 3 distinct indentation levels in Case 1 (disc / circle / square), continuous numbering for "Ordered child B1"/"B2" and Case 3's "Top ordered 1"/"2"
+- Precise structural confirmation (complements the Playwright glyph check, since `get_doc_structure` still doesn't expose `nestingLevel` — see the tooling-gap note under TC-DOC106): a script-driven `documents().get()` shows "Bare-nested child C1"/"C2" with `bullet.nestingLevel == 1`, and that list's `listProperties.nestingLevels[1].glyphSymbol` is the circle — not `nestingLevel 0`
+- The isolated ordered sub-run is fixed the same way: Case 1's "Ordered child B1"/"B2" report `bullet.nestingLevel == 1` (glyph "a."/"b.", `NUMBERED_DECIMAL_ALPHA_ROMAN` level 1), not `nestingLevel 0` ("1."/"2." decimal)
+
+**Cleanup:** write fixture content back
