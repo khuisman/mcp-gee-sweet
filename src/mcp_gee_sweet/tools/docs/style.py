@@ -1,8 +1,10 @@
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
+
+from ...auth import execute_in_thread
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +117,38 @@ def _read_named_styles(doc: dict) -> dict:
     return theme
 
 
+def _text_style_and_fields(style: dict) -> tuple[dict, list[str]]:
+    """Build a Docs API textStyle dict + field mask from a flat style dict keyed
+    by bold/italic/underline/strikethrough/font_size/foreground_color/link_url.
+
+    Shared by style_doc_range and insert_softbreak_paragraph so both tools draw
+    per-run styling from the same key vocabulary and request-building logic.
+    """
+    text_style: dict = {}
+    fields: list[str] = []
+    for key in ("bold", "italic", "underline", "strikethrough"):
+        if key in style:
+            text_style[key] = style[key]
+            fields.append(key)
+    if "font_size" in style:
+        text_style["fontSize"] = {"magnitude": style["font_size"], "unit": "PT"}
+        fields.append("fontSize")
+    if "foreground_color" in style:
+        text_style["foregroundColor"] = {"color": {"rgbColor": style["foreground_color"]}}
+        fields.append("foregroundColor")
+    if "link_url" in style:
+        # Clearing a link (link_url falsy) must omit "link" from textStyle
+        # entirely rather than setting it to an empty Link{} object — the API
+        # rejects an empty Link ("must include at least one type") since
+        # that's not a valid Link value, but omitting the key while still
+        # naming "link" in the field mask is the documented way to reset a
+        # nested message field to its default (no link) (#408).
+        if style["link_url"]:
+            text_style["link"] = {"url": style["link_url"]}
+        fields.append("link")
+    return text_style, fields
+
+
 def _build_named_style_requests(style_type: str, entry: dict) -> list[dict]:
     """Build an updateNamedStyle batchUpdate request for one named style type.
 
@@ -174,7 +208,7 @@ def _build_named_style_requests(style_type: str, entry: dict) -> list[dict]:
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Style Document Range", destructiveHint=True))
-    def style_doc_range(
+    async def style_doc_range(
         doc_id: str,
         ranges: list[dict],
         ctx: Context = None,
@@ -223,28 +257,12 @@ def register(tool):
                     }
                 )
 
-            text_style = {}
-            text_fields = []
-            for key, api_key in [
-                ("bold", "bold"),
-                ("italic", "italic"),
-                ("underline", "underline"),
-                ("strikethrough", "strikethrough"),
-            ]:
-                if key in r:
-                    text_style[api_key] = r[key]
-                    text_fields.append(api_key)
-            if "font_size" in r:
-                text_style["fontSize"] = {"magnitude": r["font_size"], "unit": "PT"}
-                text_fields.append("fontSize")
-            if "foreground_color" in r:
-                text_style["foregroundColor"] = {"color": {"rgbColor": r["foreground_color"]}}
-                text_fields.append("foregroundColor")
-            if "link_url" in r:
-                text_style["link"] = {"url": r["link_url"]} if r["link_url"] else {}
-                text_fields.append("link")
+            text_style, text_fields = _text_style_and_fields(r)
 
-            if text_style:
+            # A link-clear-only range (link_url=null, #408) legitimately produces
+            # an empty text_style with a non-empty field mask ("link") — the
+            # request must still be sent, so gate on text_fields, not text_style.
+            if text_fields:
                 requests.append(
                     {
                         "updateTextStyle": {
@@ -259,9 +277,12 @@ def register(tool):
             return {"error": "no recognised style fields in any range"}
 
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": requests}
-            ).execute()
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -270,7 +291,7 @@ def register(tool):
         return {"docId": doc_id, "requests": len(requests)}
 
     @tool(annotations=ToolAnnotations(title="Style Document Table Cells", destructiveHint=True))
-    def style_doc_table_cells(
+    async def style_doc_table_cells(
         doc_id: str,
         table_start_index: int,
         cells: list[dict],
@@ -289,10 +310,20 @@ def register(tool):
                 background_color (dict): {"red": 0-1, "green": 0-1, "blue": 0-1}
                 padding_top, padding_right, padding_bottom, padding_left (float): points
                 border_color (dict): {"red": 0-1, "green": 0-1, "blue": 0-1}
-                    Applies the same color to all four borders.
+                    Applies the same color to all four borders (any edge not given its
+                    own border_top/right/bottom/left below).
                 border_width (float): border line width in points
                 border_dash_style (str): "SOLID", "DOT", "DASH", "DASH_DOT",
                     "LONG_DASH", "LONG_DASH_DOT" (default SOLID)
+                border_top, border_right, border_bottom, border_left (dict): optional
+                    per-edge override, each {"color": {...}, "width": float,
+                    "dash_style": str}. Any field omitted from a per-edge dict falls
+                    back to the uniform border_color/border_width/border_dash_style
+                    above, if given (the Docs API rejects a border with non-zero width
+                    and no color as "transparent", so a width-only override needs a
+                    color from somewhere). An edge with no border_<side> key falls back
+                    entirely to the uniform border_color/border_width/border_dash_style,
+                    if given; with neither, that edge's border is left untouched.
                 row_span (int): default 1
                 column_span (int): default 1
 
@@ -309,6 +340,18 @@ def register(tool):
                "border_color": {"red": 0, "green": 0, "blue": 0},
                "border_width": 0.5, "border_dash_style": "SOLID"}
             ]
+
+        Example — signature line (bottom border only):
+            cells: [
+              {"row_index": 0, "column_index": 0,
+               "border_bottom": {"color": {"red": 0, "green": 0, "blue": 0}, "width": 1.0}}
+            ]
+
+        For form-style column alignment (labels/values lined up without a visible
+        table, since tabStops is read-only — #404), zero padding on every cell is
+        the confirmed part of the recipe; whether border_width: 0 also suppresses
+        a table's default visible border is not yet confirmed live. See
+        docs/design/borderless-table-columns.md.
         """
         lc = ctx.request_context.lifespan_context
         if not cells:
@@ -332,16 +375,51 @@ def register(tool):
                     table_cell_style[api_key] = {"magnitude": cell[key], "unit": "PT"}
                     fields.append(api_key)
 
-            if "border_color" in cell or "border_width" in cell or "border_dash_style" in cell:
-                border = {}
+            has_uniform_border = (
+                "border_color" in cell or "border_width" in cell or "border_dash_style" in cell
+            )
+            uniform_border: dict | None = None
+            if has_uniform_border:
+                uniform_border = {}
                 if "border_color" in cell:
-                    border["color"] = {"color": {"rgbColor": cell["border_color"]}}
+                    uniform_border["color"] = {"color": {"rgbColor": cell["border_color"]}}
                 if "border_width" in cell:
-                    border["width"] = {"magnitude": cell["border_width"], "unit": "PT"}
-                border["dashStyle"] = cell.get("border_dash_style", "SOLID")
-                for side in ("Top", "Right", "Bottom", "Left"):
-                    api_key = f"border{side}"
+                    uniform_border["width"] = {"magnitude": cell["border_width"], "unit": "PT"}
+                uniform_border["dashStyle"] = cell.get("border_dash_style", "SOLID")
+
+            for side in ("top", "right", "bottom", "left"):
+                edge_key = f"border_{side}"
+                api_key = f"border{side.capitalize()}"
+                if edge_key in cell:
+                    edge_spec = cell[edge_key]
+                    if not isinstance(edge_spec, dict):
+                        return {
+                            "error": f"'{edge_key}' must be a dict with optional "
+                            f"'color'/'width'/'dash_style' keys, got "
+                            f"{type(edge_spec).__name__}"
+                        }
+                    border = {}
+                    if "color" in edge_spec:
+                        border["color"] = {"color": {"rgbColor": edge_spec["color"]}}
+                    elif uniform_border is not None and "color" in uniform_border:
+                        # The Docs API rejects a border with a non-zero width and no
+                        # color as "transparent" — an edge override that only sets
+                        # width must still inherit a color from somewhere.
+                        border["color"] = uniform_border["color"]
+                    if "width" in edge_spec:
+                        border["width"] = {"magnitude": edge_spec["width"], "unit": "PT"}
+                    elif uniform_border is not None and "width" in uniform_border:
+                        border["width"] = uniform_border["width"]
+                    if "dash_style" in edge_spec:
+                        border["dashStyle"] = edge_spec["dash_style"]
+                    elif uniform_border is not None:
+                        border["dashStyle"] = uniform_border["dashStyle"]
+                    else:
+                        border["dashStyle"] = "SOLID"
                     table_cell_style[api_key] = border
+                    fields.append(api_key)
+                elif uniform_border is not None:
+                    table_cell_style[api_key] = uniform_border
                     fields.append(api_key)
 
             if not table_cell_style:
@@ -369,9 +447,12 @@ def register(tool):
             return {"error": "no style fields found in any cell"}
 
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": requests}
-            ).execute()
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -379,8 +460,322 @@ def register(tool):
         logger.debug("style_doc_table_cells: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}
 
+    @tool(annotations=ToolAnnotations(title="Create Paragraph Bullets", destructiveHint=True))
+    async def create_paragraph_bullets(
+        doc_id: str,
+        ranges: list[dict],
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Turn one or more paragraph ranges into a bulleted or numbered list, with
+        explicit nesting depth.
+
+        Wraps the Docs API's createParagraphBullets/deleteParagraphBullets
+        requests, working around two confirmed-live API quirks:
+
+        - createParagraphBullets is a no-op on a paragraph that's already
+          part of a list — it neither changes the existing nesting level nor
+          consumes any leading tab characters meant to signal a new one
+          (they're left behind as literal text). Every paragraph this tool
+          touches is deleteParagraphBullets'd first (harmless even if it
+          wasn't previously a list item) so createParagraphBullets always
+          applies to a clean, non-list paragraph.
+        - createParagraphBullets has no nestingLevel field of its own — the
+          API infers each paragraph's depth from its own leading tab
+          characters, but only relative to whatever ELSE is included in that
+          *same* call. A paragraph immediately adjacent to an existing list
+          item that call doesn't also cover gets pulled back to that
+          neighbor's level regardless of its own tabs (the same class of bug
+          PR #432 fixed in this project's own markdown-to-Doc converter).
+          To keep every requested paragraph's relative depth correct, this
+          tool fetches the document, resolves each requested range to the
+          paragraph(s) it covers, and — for any that are already part of a
+          list — expands the affected span to include their full contiguous
+          run of same-list neighbors (preserving each neighbor's own current
+          nesting level unchanged). Contiguous spans sharing one bullet
+          preset are then submitted as a single createParagraphBullets call
+          each, applied in descending document-position order so no
+          not-yet-processed span's indices are invalidated by an earlier
+          span's tab insertions.
+
+        Use get_doc_structure to obtain start_index/end_index for each target
+        range — typically one paragraph's own startIndex/endIndex, or a
+        contiguous span covering several (all promoted to the same
+        nesting_level/bullet_preset). For independent depths per paragraph,
+        pass one range per paragraph.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            ranges: List of range dicts, each with:
+                start_index (int), end_index (int): from get_doc_structure —
+                    must overlap at least one existing paragraph.
+                bullet_preset (str, optional): "BULLET_DISC_CIRCLE_SQUARE"
+                    (unordered) or "NUMBERED_DECIMAL_ALPHA_ROMAN" (ordered) —
+                    the only two presets this codebase has confirmed live
+                    (see emitter.py). The Docs API defines additional
+                    glyph/numbering presets not exercised here; pass the
+                    literal API enum string to use one anyway. If omitted,
+                    an already-listed target paragraph keeps its existing
+                    list's own style (read from the document's own `lists`
+                    map) rather than silently being converted to a
+                    different one; a paragraph with no existing list falls
+                    back to "BULLET_DISC_CIRCLE_SQUARE".
+                nesting_level (int, optional): 0 = top-level (default), 1 =
+                    one level indented, etc. Must be >= 0.
+
+        Returns:
+            Confirmation with docId and count of batchUpdate requests sent.
+            {"error": ...} if ranges is empty, a nesting_level is negative, a
+            range doesn't overlap any paragraph, two explicitly-requested
+            contiguous paragraphs specify conflicting presets, or the Docs
+            API call fails.
+        """
+        lc = ctx.request_context.lifespan_context
+        if not ranges:
+            return {"error": "ranges list is empty"}
+        for r in ranges:
+            if r.get("nesting_level", 0) < 0:
+                return {"error": f"nesting_level must be >= 0, got {r['nesting_level']}"}
+
+        try:
+            doc = await execute_in_thread(
+                lc.docs_service.documents().get(documentId=doc_id).execute,
+                lc.docs_service,
+            )
+
+            doc_lists = doc.get("lists", {})
+
+            def infer_preset(bullet: dict | None) -> str | None:
+                # Reads the existing list's own glyph info (not just its
+                # listId/nestingLevel) so an already-listed paragraph's
+                # style is preserved rather than silently overridden by
+                # this tool's own default preset (#334 round 2).
+                if not bullet:
+                    return None
+                levels = (
+                    doc_lists.get(bullet.get("listId"), {})
+                    .get("listProperties", {})
+                    .get("nestingLevels", [])
+                )
+                level = bullet.get("nestingLevel", 0)
+                if level >= len(levels):
+                    return None
+                info = levels[level]
+                if "glyphType" in info:
+                    return "NUMBERED_DECIMAL_ALPHA_ROMAN"
+                if "glyphSymbol" in info:
+                    return "BULLET_DISC_CIRCLE_SQUARE"
+                return None
+
+            body_paragraphs = [
+                (
+                    elem.get("startIndex", 0),
+                    elem.get("endIndex", 0),
+                    elem["paragraph"].get("bullet"),
+                )
+                for elem in doc.get("body", {}).get("content", [])
+                if "paragraph" in elem
+            ]
+            by_start = {ps: (pe, b) for ps, pe, b in body_paragraphs}
+            by_end = {pe: (ps, b) for ps, pe, b in body_paragraphs}
+
+            requested: dict[tuple[int, int], dict] = {}
+            for r in ranges:
+                r_start, r_end = r["start_index"], r["end_index"]
+                preset_explicit = "bullet_preset" in r
+                nesting_level = r.get("nesting_level", 0)
+                covered = [
+                    (ps, pe, b) for ps, pe, b in body_paragraphs if ps < r_end and pe > r_start
+                ]
+                if not covered:
+                    return {"error": f"no paragraph overlaps range {r_start}-{r_end}"}
+                for ps, pe, bullet in covered:
+                    requested[(ps, pe)] = {
+                        "start": ps,
+                        "end": pe,
+                        "nesting_level": nesting_level,
+                        "preset": r.get("bullet_preset"),
+                        "preset_explicit": preset_explicit,
+                        "existing_bullet": bullet,
+                    }
+
+            # Expand each already-listed requested paragraph to include its
+            # full contiguous same-listId neighbor run (see docstring) —
+            # context paragraphs keep their own current nesting level and
+            # carry no explicit preset of their own (resolved per-run below).
+            expanded: dict[tuple[int, int], dict] = dict(requested)
+            for ps, pe, bullet in body_paragraphs:
+                key = (ps, pe)
+                if key not in requested or not bullet:
+                    continue
+                list_id = bullet.get("listId")
+
+                cursor = ps
+                while cursor in by_end:
+                    prev_start, prev_bullet = by_end[cursor]
+                    if not prev_bullet or prev_bullet.get("listId") != list_id:
+                        break
+                    pkey = (prev_start, cursor)
+                    if pkey not in expanded:
+                        expanded[pkey] = {
+                            "start": prev_start,
+                            "end": cursor,
+                            "nesting_level": prev_bullet.get("nestingLevel", 0),
+                            "preset": None,
+                            "preset_explicit": False,
+                            "existing_bullet": prev_bullet,
+                        }
+                    cursor = prev_start
+
+                cursor = pe
+                while cursor in by_start:
+                    next_end, next_bullet = by_start[cursor]
+                    if not next_bullet or next_bullet.get("listId") != list_id:
+                        break
+                    nkey = (cursor, next_end)
+                    if nkey not in expanded:
+                        expanded[nkey] = {
+                            "start": cursor,
+                            "end": next_end,
+                            "nesting_level": next_bullet.get("nestingLevel", 0),
+                            "preset": None,
+                            "preset_explicit": False,
+                            "existing_bullet": next_bullet,
+                        }
+                    cursor = next_end
+
+            units = sorted(expanded.values(), key=lambda u: u["start"])
+
+            # Group touching paragraphs into runs — each run gets exactly one
+            # createParagraphBullets call, since the API infers nesting level
+            # relative to siblings within that one call. Only an explicit,
+            # conflicting caller-specified preset breaks an otherwise-
+            # touching run; an unspecified (context or defaulted) preset
+            # never does, since it's resolved per-run below.
+            runs: list[list[dict]] = [[units[0]]]
+            for u in units[1:]:
+                last = runs[-1][-1]
+                conflicts = (
+                    u["preset_explicit"]
+                    and last["preset_explicit"]
+                    and u["preset"] != last["preset"]
+                )
+                if u["start"] == last["end"] and not conflicts:
+                    runs[-1].append(u)
+                else:
+                    runs.append([u])
+
+            requests: list[dict] = []
+            # Runs applied in descending document-position order so one
+            # run's tab insertions never invalidate a not-yet-processed
+            # run's own indices — same convention as insert_doc_text.
+            for run in sorted(runs, key=lambda run: run[0]["start"], reverse=True):
+                explicit_presets = {u["preset"] for u in run if u["preset_explicit"]}
+                if len(explicit_presets) > 1:
+                    return {
+                        "error": "conflicting bullet_preset values among contiguous "
+                        f"paragraphs at index {run[0]['start']}"
+                    }
+                if explicit_presets:
+                    resolved_preset = next(iter(explicit_presets))
+                else:
+                    resolved_preset = next(
+                        (p for u in run if (p := infer_preset(u["existing_bullet"])) is not None),
+                        "BULLET_DISC_CIRCLE_SQUARE",
+                    )
+
+                run_start = run[0]["start"]
+                run_end = run[-1]["end"]
+                requests.append(
+                    {
+                        "deleteParagraphBullets": {
+                            "range": {"startIndex": run_start, "endIndex": run_end}
+                        }
+                    }
+                )
+                for unit in sorted(run, key=lambda u: u["start"], reverse=True):
+                    if unit["nesting_level"]:
+                        requests.append(
+                            {
+                                "insertText": {
+                                    "location": {"index": unit["start"]},
+                                    "text": "\t" * unit["nesting_level"],
+                                }
+                            }
+                        )
+                total_tabs = sum(u["nesting_level"] for u in run)
+                requests.append(
+                    {
+                        "createParagraphBullets": {
+                            "range": {
+                                "startIndex": run_start,
+                                "endIndex": run_end + total_tabs,
+                            },
+                            "bulletPreset": resolved_preset,
+                        }
+                    }
+                )
+
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                lc.docs_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug("create_paragraph_bullets: %d requests in doc %s", len(requests), doc_id)
+        return {"docId": doc_id, "requests": len(requests)}
+
+    @tool(annotations=ToolAnnotations(title="Delete Paragraph Bullets", destructiveHint=True))
+    async def delete_paragraph_bullets(
+        doc_id: str,
+        ranges: list[dict],
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Remove list membership (bullets/numbering) from one or more paragraph
+        ranges, leaving each paragraph's text and other styling untouched.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            ranges: List of range dicts, each with start_index and end_index
+                (from get_doc_structure).
+
+        Returns:
+            Confirmation with docId and count of batchUpdate requests sent.
+        """
+        lc = ctx.request_context.lifespan_context
+        if not ranges:
+            return {"error": "ranges list is empty"}
+
+        requests = [
+            {
+                "deleteParagraphBullets": {
+                    "range": {"startIndex": r["start_index"], "endIndex": r["end_index"]}
+                }
+            }
+            for r in ranges
+        ]
+
+        try:
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                lc.docs_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug("delete_paragraph_bullets: %d requests in doc %s", len(requests), doc_id)
+        return {"docId": doc_id, "requests": len(requests)}
+
     @tool(annotations=ToolAnnotations(title="Get Document Theme"))
-    def get_doc_theme(
+    async def get_doc_theme(
         doc_id: str,
         ctx: Context = None,
     ) -> dict[str, Any]:
@@ -413,13 +808,16 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            doc = lc.docs_service.documents().get(documentId=doc_id).execute()
+            doc = await execute_in_thread(
+                lc.docs_service.documents().get(documentId=doc_id).execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
         return _read_body_styles(doc)
 
     @tool(annotations=ToolAnnotations(title="Get Document Named Styles"))
-    def get_doc_named_styles(
+    async def get_doc_named_styles(
         doc_id: str,
         ctx: Context = None,
     ) -> dict[str, Any]:
@@ -450,13 +848,16 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            doc = lc.docs_service.documents().get(documentId=doc_id).execute()
+            doc = await execute_in_thread(
+                lc.docs_service.documents().get(documentId=doc_id).execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
         return _read_named_styles(doc)
 
     @tool(annotations=ToolAnnotations(title="Apply Document Theme", destructiveHint=True))
-    def apply_theme(
+    async def apply_theme(
         doc_id: str,
         theme: dict,
         overwrite: bool = False,
@@ -479,16 +880,24 @@ def register(tool):
         Set overwrite=True to also apply the theme directly to all existing paragraphs,
         overwriting their current styles including any individual overrides.
 
-        Theme entry keys (NORMAL_TEXT, HEADING_1–6, TITLE, SUBTITLE). Each entry can
+        Theme entry keys (NORMAL_TEXT, HEADING_1-6, TITLE, SUBTITLE). Each entry can
         include (all optional):
           font_family (str), font_size (float, points), bold (bool), italic (bool),
           color (dict {"red": 0-1, "green": 0-1, "blue": 0-1}),
-          line_spacing (float, 100=single, 115=1.15×, 150=1.5×),
+          line_spacing (float, 100=single, 115=1.15x, 150=1.5x),
           space_above (float, points), space_below (float, points)
 
         An optional "table" key applies styling to every table currently in the document:
           border_color (dict), border_width (float, points),
           border_dash_style (str, default "SOLID"),
+          border_top, border_right, border_bottom, border_left (dict): optional
+              per-edge override, each {"color": {...}, "width": float, "dash_style": str}.
+              Any field omitted from a per-edge dict falls back to the uniform
+              border_color/border_width/border_dash_style above, if given (the Docs API
+              rejects a border with non-zero width and no color as "transparent", so a
+              width-only override needs a color from somewhere). An edge with no
+              border_<side> key falls back entirely to the uniform border_color/
+              border_width/border_dash_style, if given.
           cell_padding (float, points — all four sides),
           header_background (dict) — first row only
 
@@ -519,7 +928,10 @@ def register(tool):
         doc: dict | None = None
         if overwrite or table_style:
             try:
-                doc = lc.docs_service.documents().get(documentId=doc_id).execute()
+                doc = await execute_in_thread(
+                    lc.docs_service.documents().get(documentId=doc_id).execute,
+                    lc.docs_service,
+                )
             except Exception as e:
                 return {"error": f"failed to fetch doc: {e}"}
 
@@ -586,16 +998,53 @@ def register(tool):
                     )
 
         if table_style and doc:
-            has_borders = any(
+            has_uniform_border = any(
                 k in table_style for k in ("border_color", "border_width", "border_dash_style")
             )
-            border: dict = {}
-            if has_borders:
+            uniform_border: dict | None = None
+            if has_uniform_border:
+                uniform_border = {}
                 if "border_color" in table_style:
-                    border["color"] = {"color": {"rgbColor": table_style["border_color"]}}
+                    uniform_border["color"] = {"color": {"rgbColor": table_style["border_color"]}}
                 if "border_width" in table_style:
-                    border["width"] = {"magnitude": table_style["border_width"], "unit": "PT"}
-                border["dashStyle"] = table_style.get("border_dash_style", "SOLID")
+                    uniform_border["width"] = {
+                        "magnitude": table_style["border_width"],
+                        "unit": "PT",
+                    }
+                uniform_border["dashStyle"] = table_style.get("border_dash_style", "SOLID")
+
+            edge_borders: dict[str, dict] = {}
+            for side in ("top", "right", "bottom", "left"):
+                edge_key = f"border_{side}"
+                if edge_key in table_style:
+                    edge_spec = table_style[edge_key]
+                    if not isinstance(edge_spec, dict):
+                        return {
+                            "error": f"table['{edge_key}'] must be a dict with optional "
+                            f"'color'/'width'/'dash_style' keys, got "
+                            f"{type(edge_spec).__name__}"
+                        }
+                    edge_border: dict = {}
+                    if "color" in edge_spec:
+                        edge_border["color"] = {"color": {"rgbColor": edge_spec["color"]}}
+                    elif uniform_border is not None and "color" in uniform_border:
+                        # The Docs API rejects a border with a non-zero width and no
+                        # color as "transparent" — a width-only override needs a color
+                        # from somewhere.
+                        edge_border["color"] = uniform_border["color"]
+                    if "width" in edge_spec:
+                        edge_border["width"] = {"magnitude": edge_spec["width"], "unit": "PT"}
+                    elif uniform_border is not None and "width" in uniform_border:
+                        edge_border["width"] = uniform_border["width"]
+                    if "dash_style" in edge_spec:
+                        edge_border["dashStyle"] = edge_spec["dash_style"]
+                    elif uniform_border is not None:
+                        edge_border["dashStyle"] = uniform_border["dashStyle"]
+                    else:
+                        edge_border["dashStyle"] = "SOLID"
+                    edge_borders[side] = edge_border
+
+            has_borders = has_uniform_border or bool(edge_borders)
 
             for elem in doc.get("body", {}).get("content", []):
                 if "table" not in elem:
@@ -627,7 +1076,10 @@ def register(tool):
 
                     if has_borders:
                         for side in ("Top", "Right", "Bottom", "Left"):
-                            cell_style[f"border{side}"] = border
+                            resolved_border = edge_borders.get(side.lower(), uniform_border)
+                            if resolved_border is None:
+                                continue
+                            cell_style[f"border{side}"] = resolved_border
                             style_fields.append(f"border{side}")
 
                     if not style_fields:
@@ -655,9 +1107,12 @@ def register(tool):
             return {"error": "no style requests could be built from the given theme"}
 
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id, body={"requests": requests}
-            ).execute()
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 

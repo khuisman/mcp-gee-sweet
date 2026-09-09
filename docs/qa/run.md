@@ -13,7 +13,7 @@ This file contains the conductor prompt. Paste it into a Claude session that has
 
 Copy everything in the **Conductor prompt** section below and paste it into the Claude chat.
 
-To run a single category instead of the full suite, add after the prompt: "Only run the `tests/drive.md` file" (or whichever category you want).
+To run a single category instead of the full suite, add after the prompt: "Only run the `tests/drive_files.md` file" (or whichever category you want).
 
 To resume an interrupted run: paste the prompt and add "Resume from `docs/qa/results/<date>-partial.md`".
 
@@ -22,6 +22,20 @@ To resume an interrupted run: paste the prompt and add "Resume from `docs/qa/res
 ## Playwright verification
 
 Playwright is optional at the run level. Whether a test requires visual verification is a **per-test-case decision**, marked in the test file itself with `**Playwright: required**`. The conductor follows those tags — it does not decide at runtime which tests get visual verification.
+
+### Tiers (authoring reference)
+
+Three tiers replace the earlier "visual whenever visual is possible" guidance (which produced near-zero-signal screenshots on read-only/error-path/count tests — see the v0.8.0 retro's finding #1). Only **Required** corresponds to an actual tag on the test case; **Spot-check** and **Skip** are authoring/runtime guidance, not tags.
+
+| Tier | When to use | Tag the test case? | Examples |
+|---|---|---|---|
+| **Required** | The check verifies a mutation with a visual signature the API-level response can't fully confirm — formatting, hyperlinks, images, charts, layout, table-cell run formatting, create/delete/move confirmed in UI, cache invalidation checks | Yes — `**Playwright: required**` on the Prompt line | `format_cells`, `freeze`, `merge`, `add_chart`, `delete_file`, `write_doc_content` tables, `create_event`, `style_doc_range` (font size, hyperlinks) |
+| **Spot-check** | An API response looks unexpected, or a cache discrepancy is suspected — a runtime judgment call during the run, not a fixed property of the test case | No | Any time the API says success but behavior seems wrong |
+| **Skip** | Read-only, error paths, count/pagination, cache-hit-only, unit-tested paths, or a mutation whose visual signature the API response already fully confirms (e.g. plain-paragraph bold/italic runs, checkbox glyphs as literal text, `namedStyleType`, Drive file metadata) | No | `get_sheet_data`, `list_events`, error returns, `create_folder`/`rename_file` (confirmed via `list_files`/`get_file_metadata` instead — see Drive fixture note below), row/column counts |
+
+A test case's Checks list is the source of truth: if every listed check is answerable from the tool's own response (or a follow-up read-only call), it's Skip even if the mutation *sounds* visual. If at least one check can only be answered by looking at the rendered result, it's Required. When in doubt, prefer Required — the cost of an unnecessary screenshot is lower than a silently-unverified regression.
+
+**Drive mutations are Skip by default policy, not by oversight.** Drive's UI mostly just reflects API-returned metadata directly (file name, mimeType, trashed state, parent), so `list_files`/`get_file_metadata` is the confirmation source rather than a screenshot — this is documented per-case in `docs/qa/tests/drive_*.md` Result entries (e.g. TC-D at drive_files.md's `create_shortcut` test, which uses the shortcut mimeType instead of a screenshot). Permission/sharing changes follow the same policy — see "Known limitations" below.
 
 ### How it works (authoring reference)
 
@@ -36,6 +50,7 @@ When a test case is tagged `**Playwright: required**`, after the tool call the c
 
 - **Footer / header content** — Google Docs renders headers and footers outside the main document canvas. For short documents `window.scrollTo` does not bring the footer into the viewport. When a test involves `create_footer` or `create_header`, use the API response as confirmation; a Playwright snapshot of the body is still useful but will not show the footer content.
 - **Permission changes** — sharing confirmations are not visible in the Drive UI without navigating to the file's "Share" dialog. Use `list_permissions` API response as the confirmation source for share tests.
+- **Chart-covered grid (Sales sheet)** — repeated `add_chart` test runs leave floating chart objects on the Sales sheet (they're never cleaned up between runs), and as of 2026-07-15 there were ~12 stacked overlapping charts covering roughly rows 1–22. This blocks visual verification of anything in that region — row-height/column-width changes (`resize_rows`/`resize_columns`), cell formatting, etc. are not visible in a screenshot, and Playwright's accessibility snapshot doesn't expose per-cell grid geometry either (only the charts' own accessible text). When a test in that area needs precise confirmation, use `get_sheet_data(..., range=<affected range>, include_grid_data=True)` instead — the raw response includes `rowMetadata`/`columnMetadata` with each row/column's actual `pixelSize`, which is more precise than a screenshot anyway. The same call also works for border verification (`update_borders` QA, TC-S85–S87 on 2026-07-16): each cell's `userEnteredFormat.borders`/`effectiveFormat.borders` reports `top`/`bottom`/`left`/`right` style and color directly, so a border-covering-range test doesn't need the screenshot at all — check the per-cell `borders` dict instead of `rowMetadata`/`columnMetadata`. Longer term, `add_chart` QA test cases should delete the chart they create at the end of each run (see `docs/qa/tests/sheets_charts.md`) so the fixture doesn't accumulate; that cleanup is not yet in place.
 
 ### Coordinating Playwright across parallel shards
 
@@ -53,12 +68,97 @@ Give each parallel shard's conductor prompt this protocol explicitly (path, acqu
 
 ---
 
+## Running true-concurrency test cases
+
+A single MCP client session awaits each tool result before issuing the next, so it can never hold two requests to one server process in flight at once. A handful of test cases need genuinely simultaneous requests and are otherwise perpetually skipped:
+
+| TC | File | What it needs |
+|---|---|---|
+| **TC-I24** | `tests/infra.md` | Two distinct `get_sheet_data` calls (different spreadsheets) firing at the same instant — checks the shared startup `httplib2` transport isn't corrupted across worker threads (issue #183) |
+| **TC-I02** | `tests/infra.md` | A write (`update_cells`) and a read (`get_sheet_data`) on the same spreadsheet firing at the same instant — checks SQLite WAL lets the read proceed during the write with no locking error (issue #234) |
+
+`TC-R36`/`TC-R37` (`tests/sheets_read.md`) look similar but are **within-call** concurrency (`get_multiple_sheet_data`/`get_multiple_spreadsheet_summary` `gather()` several `.execute()` calls inside one tool call) — a single session already exercises them. They don't need this procedure; just re-run them normally during the pass and record a fresh Result. Only the **cross-session** cases (TC-I24, TC-I02) need what follows.
+
+### Mechanism: two subagents, one server, a `mkdir` barrier
+
+Aziz (never a lane session — this runs during the release pass, see `.claude/team-roles/aziz.md`) spawns **two `Agent`-tool subagents** — real subagents, which inherit this session's already-connected MCP servers; **not** Agent-View spawns, which don't. Both subagents point at the **same** server prefix. Prefer **`mcp__mcp-gee-sweet-kai-sa__`** — it runs the main-checkout (release-candidate) code, not a worktree copy. A lane prefix (`mcp__mcp-gee-sweet-sky__` / `-kit__`) also works if the main-checkout server isn't available, but only after that worktree is reset to the release commit; note the substitution in the run file.
+
+Per iteration, the two subagents rendezvous at a filesystem barrier so both `.execute()` calls hit the wire within a few milliseconds of each other:
+
+- **Barrier dir:** `/tmp/mcp-gee-sweet-qa-barrier` (created once by Aziz before spawning; distinct from the Playwright lock). Markers are files inside it.
+- **A background release watcher** (Aziz starts one `run_in_background` shell loop before spawning the subagents) does, for each iteration `i` from 1 to N:
+  - wait until both `ready-a-<i>` and `ready-b-<i>` exist,
+  - `touch go-<i>`,
+  - wait until both `done-a-<i>` and `done-b-<i>` exist, then continue to `i+1`.
+- **Each subagent** (`<id>` = `a` or `b`), per iteration `i`:
+  1. `touch /tmp/mcp-gee-sweet-qa-barrier/ready-<id>-<i>`
+  2. spin (`while [ ! -e .../go-<i> ]; do :; done` — a tight poll, no sleep) until `go-<i>` appears
+  3. **immediately** issue its one assigned tool call — no reasoning, no other tool call between the spin ending and the call
+  4. append the raw result (full response, or the error text) to `/tmp/mcp-gee-sweet-qa-barrier/result-<id>-<i>.json`
+  5. `touch /tmp/mcp-gee-sweet-qa-barrier/done-<id>-<i>`
+- **Loop count:** N = 20–50. Transport/SSL corruption and WAL contention are intermittent; one clean pair proves nothing. Stop early and report if any iteration trips a check.
+- **Teardown:** Aziz `rm -rf /tmp/mcp-gee-sweet-qa-barrier` after collecting results.
+
+The subagent's job is to run the calls and write result files — **it must not edit any tracked repo file**. Only Aziz reads the `result-*` files back, diffs them, and writes the `**Result**` entries (see `.claude/team-roles/aziz.md`, the Compile step).
+
+### Per-TC checks
+
+**TC-I24** — subagent `a` calls `get_sheet_data` on `{SPREADSHEET_ID}` / `Sales!A1:C3`; subagent `b` calls `get_sheet_data` on a **second, distinct** spreadsheet / range with different known values. Across all N iterations:
+- every `result-a-*` holds only `{SPREADSHEET_ID}`'s data, every `result-b-*` only the second spreadsheet's — no row from one appears in the other's file
+- no result is empty, truncated, or an SSL/connection error (`record layer failure`, `Connection reset by peer`, `Remote end closed connection` — the signature of the shared-transport bug this guards against)
+
+**TC-I02** — subagent `a` calls `update_cells` writing a per-iteration sentinel (e.g. `QA-I02-<i>-<timestamp>`) to `{SPREADSHEET_ID}` / `Empty!A1`; subagent `b` calls `get_sheet_data` on `{SPREADSHEET_ID}` / `Sales!A1:C3` (a different sheet in the same spreadsheet, so both touch the same cache row). Across all N iterations:
+- no `result-b-*` is a `database is locked` / `SQLITE_BUSY` error, and none is empty or an SSL/connection error
+- every `result-a-*` reports the write succeeded
+- if the server's `LOG_FILE` is reachable (from `docs/qa/.env` or the team MCP config), grep it for `database is locked` / `OperationalError` over the run window — there should be none; if it isn't reachable, the response-level checks above still catch the failure mode (WAL contention surfaces as an error in the response, not just the log)
+
+### Subagent prompt template
+
+Give each of the two subagents a prompt of this shape (fill the bracketed parts; `<id>` is `a` for one, `b` for the other):
+
+> You are one of two subagents running a true-concurrency QA iteration loop. Your worker id is **`<id>`**. Barrier dir: `/tmp/mcp-gee-sweet-qa-barrier`. Iterations: **`<N>`**.
+>
+> For `i` in 1..`<N>`, in order:
+> 1. `touch /tmp/mcp-gee-sweet-qa-barrier/ready-<id>-$i`
+> 2. Spin with a tight shell poll until `/tmp/mcp-gee-sweet-qa-barrier/go-$i` exists.
+> 3. The instant it exists, call **exactly this tool, once**: `[full tool name + params, e.g. mcp__mcp-gee-sweet-kai-sa__get_sheet_data(spreadsheet_id="…", range="Sales!A1:C3")]`. Do nothing else first — no other tool call, no reasoning step, between the spin ending and this call.
+> 4. Append the tool's full raw result (or, on error, the complete error text) as one JSON line to `/tmp/mcp-gee-sweet-qa-barrier/result-<id>-$i.json`.
+> 5. `touch /tmp/mcp-gee-sweet-qa-barrier/done-<id>-$i`
+>
+> Call **only** `mcp__mcp-gee-sweet-kai-sa__*` tools. Do **not** edit, create, or delete any file inside the git repo — your only writes are to `/tmp/mcp-gee-sweet-qa-barrier/`. When the loop finishes, report back: for each `i`, whether the tool call returned data or an error, and the first ~200 chars of each result. Do not interpret pass/fail — just report what you observed.
+
+---
+
+## Drive fixture-folder pollution
+
+`TEST_FOLDER_ID` accumulates stray items across many creation/copy test categories that don't tear down after themselves (tracked in [#304](https://github.com/khuisman/mcp-gee-sweet/issues/304) — dedicated QA account/cleanup sweep). As of 2026-07-17 it held ~15 duplicate leftovers (`Copy of mcp-gee-sweet-qa-fixtures` ×2, `QA-Cache-Check` ×2, `QA-Copy-Explicit`, `QA-Create-Explicit`, `QA-Doc-Copy`, `QA-DocCache`, `QA-HTML-Doc` ×2, `QA-Markdown-Doc` ×2, `QA-Table-Doc` ×2, loose `qa-notes.md`/`qa-upload.txt`, two leftover folders).
+
+This matters for any test that syncs, lists, or downloads the whole folder (`sync_folder`, `download_folder`, `list_files` against `TEST_FOLDER_ID` directly) — the pollution items show up in results alongside whatever the test actually cares about, and a `recursive`/whole-folder operation will process all of it. Until #304 lands: for a test that needs a clean or isolated Drive tree (rather than "does this tool correctly handle files that happen to be in `TEST_FOLDER_ID`"), create a throwaway child folder under `TEST_FOLDER_ID` for that test's own fixtures instead of working at the shared top level, and delete it in teardown. Same tool behavior either way — this only reduces noise and avoids accidentally sweeping up items you don't own.
+
+---
+
+## Clearing sheet-level state with no direct tool (e.g. data validation)
+
+Some sheet-level state has a tool to *set* it but none to *clear* it, and no tool exposes a sheet's numeric `sheetId` by name to fall back to the raw `batch_update` escape hatch (`list_sheets` returns names only; the `spreadsheet://{id}/info` resource that's supposed to cover this was broken until [#363](https://github.com/khuisman/mcp-gee-sweet/issues/363) fixed it — reading it now works, but it's still no substitute for a tool that returns `sheetId` by name, tracked as a product gap in [#365](https://github.com/khuisman/mcp-gee-sweet/issues/365)). Hit live testing `add_data_validation`/`get_data_validation` (PR #361, 2026-07-18): no way to clear a validation rule from the fixture's `Empty` sheet between test cases.
+
+Workaround for a *scratch* fixture sheet (never do this to a sheet with real data — it destroys everything on the tab, not just the state you're trying to clear): `delete_sheet(sheet="Empty")` then `create_sheet(title="Empty")`. Fully resets the tab to blank, including any validation/formatting/merges, and is safe here because every QA tool call references the sheet by name, never by the ID that changes on recreate.
+
+---
+
+## Missing `docs/qa/.env` in a role worktree
+
+`docs/qa/.env` is gitignored, so it doesn't exist by default in a freshly-provisioned `.claude/worktrees/<name>` slot — confirmed empty/absent across every role worktree and the main checkout, 2026-07-19, while doing a scoped QA pass from Kit's own role process (`.claude/team-roles/qa.md` step 4), not the full conductor-prompt flow this file otherwise documents. That flow's own fixture-check step (below) would just stop and ask the user to run `setup.md`, but a scoped single-PR QA pass doesn't need the whole `.env` — only the one fixture ID relevant to the PR under review.
+
+Workaround: the fixture files have fixed, documented names (`setup.md`'s seed prompt: "Rename the doc to `mcp-gee-sweet-qa-fixtures-doc`" / "Rename the spreadsheet to `mcp-gee-sweet-qa-fixtures`"). Find the ID directly instead of blocking: `search_files(query="mcp-gee-sweet-qa-fixtures-doc", mime_type="application/vnd.google-apps.document")` (swap the doc mime type/name for the spreadsheet as needed). Only reach for this fallback in a scoped pass that needs one or two fixture IDs — a full multi-category run still needs the real `.env` for `TEST_FOLDER_ID`/`TEST_CALENDAR_ID`/etc., which don't have as fixed a name to search by.
+
+---
+
 ## Conductor prompt
 
 ```
 You are the QA conductor for mcp-gee-sweet. Your job is to execute the full test suite against the live MCP server, record outcomes, and save a results report.
 
-You have the mcp-gee-sweet MCP connected. Before starting, check whether Playwright MCP is also connected. If it is not, tell me: "Playwright MCP is not connected — tests marked **Playwright: required** will run without visual verification. Confirm to proceed, or connect Playwright first and restart." Wait for my confirmation before continuing.
+You have the mcp-gee-sweet MCP connected. Before starting, check whether Playwright MCP is also connected AND actually authenticated to Google — these are different things: a connected Playwright MCP still runs an unauthenticated browser by default, and navigating it to a Google URL just redirects to `accounts.google.com` sign-in. Do a real check: navigate to a known Google URL (e.g. the fixture doc) and confirm the page title/URL is the real resource, not a sign-in page. If Playwright isn't connected, or the navigation redirects to sign-in, tell me: "Playwright is not connected / not authenticated — tests marked **Playwright: required** will run without visual verification. Confirm to proceed, or connect/authenticate Playwright first (see `docs/qa/playwright_oauth.md`) and restart." Wait for my confirmation before continuing. If I tell you mid-run that Playwright is now authenticated, re-verify immediately and switch to using it for all subsequent **Playwright: required** cases — don't keep treating it as unusable for the rest of the run based on the earlier check.
 
 ## Step 0 — Fixture setup
 
@@ -66,7 +166,7 @@ Before running any tests:
 
 1. Record the start time (current timestamp).
 2. Read `.env` from the repo root. If the file does not exist or the TEST_* keys are missing, stop and say: ".env not found or TEST_* keys missing — follow docs/qa/setup.md to create your fixtures first."
-3. Extract TEST_SPREADSHEET_ID, TEST_DOC_ID, TEST_FOLDER_ID, TEST_CALENDAR_ID, TEST_EVENT_ID, TEST_LARGE_DOC_ID, TEST_PERMISSION_EMAIL.
+3. Extract TEST_SPREADSHEET_ID, TEST_DOC_ID, TEST_FOLDER_ID, TEST_CALENDAR_ID, TEST_EVENT_ID, TEST_LARGE_DOC_ID, TEST_PERMISSION_EMAIL, SHARED_DRIVE_ID.
 4. Verify the fixture spreadsheet with get_sheet_data: confirm sheet tabs Sales, Empty, Notes & Misc exist and Sales data has 6 rows (header + Widget/Gadget/Donut/Gizmo/Totals), columns A–D. If data is missing or in wrong order, use update_cells to restore known seed state (see docs/qa/setup.md §Known fixture state).
 5. Verify the fixture doc with get_doc_structure: confirm title "mcp-gee-sweet-qa-fixtures-doc" and body contains heading "Test Document", a paragraph, and a bullet list (Item one / Item two). If content is wrong, use write_doc_content to restore it.
 6. Tell me the fixture IDs, start time, and whether the fixture state looks correct, then wait for me to confirm before proceeding.
@@ -79,16 +179,22 @@ Work through the test files in this order:
 3. `docs/qa/tests/sheets_write.md`
 4. `docs/qa/tests/sheets_mgmt.md`
 5. `docs/qa/tests/sheets_charts.md`
-6. `docs/qa/tests/drive.md`
-7. `docs/qa/tests/docs.md`
-8. `docs/qa/tests/calendar.md`
+6. `docs/qa/tests/drive_files.md`
+7. `docs/qa/tests/drive_sharing.md`
+8. `docs/qa/tests/drive_transfer.md`
+9. `docs/qa/tests/drive_activity.md`
+10. `docs/qa/tests/docs_content.md`
+11. `docs/qa/tests/docs_tables.md`
+12. `docs/qa/tests/docs_style.md`
+13. `docs/qa/tests/docs_layout.md`
+14. `docs/qa/tests/calendar.md`
 
 For each test case:
 
 1. Announce the TC number and title.
 2. Substitute fixture IDs into the prompt (replace {SPREADSHEET_ID}, {DOC_ID}, etc. with the values from `.env`).
 3. Execute the prompt using the mcp-gee-sweet tools available in this session.
-4. If the test case is marked **Playwright: required** and Playwright MCP is connected: navigate to the affected resource and take a snapshot before recording the outcome.
+4. If the test case is marked **Playwright: required** and Playwright MCP is connected: navigate to the affected resource and take a snapshot before recording the outcome. Also save a screenshot via `browser_take_screenshot`, with `filename` set to `docs/qa/screenshots/<YYYY-MM-DD>-<tc-id>.png` (today's date, lowercase TC number — e.g. `tc-doc12.png`). The date prefix keeps each run's screenshots separate without overwriting a prior run's evidence, and avoids depending on a subfolder that `browser_take_screenshot` won't auto-create.
 5. Evaluate each item in the **Checks** list against the actual result.
 6. Record one of:
    - **PASS** — every check met
@@ -159,6 +265,8 @@ Use ✅ if all covering TCs passed, ❌ if any failed, ⚠️ no coverage if no 
 | TC-I01 | ... | PASS | |
 | ... | | | |
 ---
+
+If any test case this run was marked **Playwright: required**, tell me: "Screenshots saved to `docs/qa/screenshots/` (prefixed `<YYYY-MM-DD>-`) — delete when no longer needed."
 
 ## Resuming an interrupted run
 

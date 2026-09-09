@@ -2,10 +2,19 @@ name: Docs
 
 on:
   push:
-    branches: ["main"]
+    branches: ["develop"]
+  release:
+    types: [published]
 
 permissions:
-  contents: write  # needed for gh-deploy to push to gh-pages branch
+  contents: write  # needed for mike to push to gh-pages branch
+
+# Serialize every docs deploy: a release run and a develop-push run both commit
+# to gh-pages, and mike does not retry a rejected non-fast-forward push.
+# cancel-in-progress: false so a queued deploy still runs to completion.
+concurrency:
+  group: docs-gh-pages
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -15,10 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0  # full history for git-revision-date plugins if added later
+          fetch-depth: 0  # full history so mike can see existing gh-pages versions
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.2.0
+        uses: astral-sh/setup-uv@v10.0.1
 
       - name: Set up Python 3.12
         run: uv python install 3.12
@@ -26,5 +35,38 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --all-extras --dev --python 3.12
 
-      - name: Deploy docs
-        run: uv run mkdocs gh-deploy --force
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch existing gh-pages
+        run: git fetch origin gh-pages --depth=1 || true
+
+      # develop push -> refresh the always-present "develop" dev-channel version.
+      # Not aliased to latest and not the default, so it never shadows a release.
+      - name: Deploy docs (develop channel)
+        if: github.event_name == 'push'
+        run: uv run mike deploy --push develop
+
+      # Stable GitHub Release -> deploy under the bare version number, move the
+      # `latest` alias onto it, and repoint the site root at `latest`. Prior
+      # release versions stay browsable at their own /X.Y.Z/ path.
+      - name: Derive release version
+        if: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
+        id: ver
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="${TAG#v}"  # v0.8.1 -> 0.8.1; a bare X.Y.Z tag passes through unchanged
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tag '$TAG' does not resolve to an X.Y.Z version (got '$version') — refusing to deploy docs and move the 'latest' alias."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy docs (release -> latest)
+        if: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
+        run: |
+          uv run mike deploy --push --update-aliases "${{ steps.ver.outputs.version }}" latest
+          uv run mike set-default --push latest

@@ -1,11 +1,20 @@
 <div align="center">
+  <img src="docs/assets/logo.png" alt="mcp-gee-sweet logo" width="160">
+
   <b>mcp-gee-sweet</b>
-  <p align="center"><i>Your AI Assistant's Gateway to Google Workspace!</i></p>
+  <p align="center"><i>The Google Workspace MCP server built for depth.</i></p>
 
 ![GitHub License](https://img.shields.io/github/license/khuisman/mcp-gee-sweet)
 </div>
 
-An MCP server that gives AI clients reliable, direct access to Google Workspace — Sheets, Drive, Docs, and Calendar. 84 tools across four domains.
+<!-- mcp-name: io.github.khuisman/mcp-gee-sweet -->
+
+Google ships its own Sheets and Docs MCP servers now (Developer Preview), but they're shallow — thin CRUD, both approval-gated. mcp-gee-sweet goes deeper: raw formula access — reads `=VLOOKUP()` and friends directly, structural Docs support (colspan/rowspan tables, themes, named styles, an HTML/Markdown→AST→Docs pipeline), plus complete Drive and Calendar coverage Google's preview doesn't touch at all.
+
+A few things no other Workspace MCP has:
+- **Caching** — repeated reads return in ~2ms from a local cache instead of a round-trip API call every time.
+- **Formula access** — reads raw `=VLOOKUP()`, `=SUM()`, and `=IF()` expressions, not just the values they produce.
+- **Local sync** — two-way sync between a local folder and Google Drive.
 
 **Install (stable):**
 ```bash
@@ -18,6 +27,17 @@ uvx --prerelease=allow mcp-gee-sweet
 ```
 
 **[Full documentation →](https://khuisman.github.io/mcp-gee-sweet/)**
+
+---
+
+## What's covered
+
+| Service | Tools | Google's own MCP | Highlights |
+|---|---|---|---|
+| **Google Sheets** | 35 | 6 | Formula access, batch read/write, 8 chart types, structural ops |
+| **Google Drive** | 38 | — | File ops, sharing/permissions, local sync, revision history |
+| **Google Docs** | 34 | 2 | Full HTML→Doc pipeline, tables, range styling, themes, Markdown export |
+| **Google Calendar** | 17 | — | Event CRUD, free-slot finder across multiple calendars |
 
 ---
 
@@ -61,7 +81,7 @@ The server tries auth methods in a waterfall by default, OAuth first — it auth
 export CREDENTIALS_PATH="/path/to/credentials.json"
 ```
 
-Service accounts (recommended for headless server deployments — see Option B above), base64 credential injection, and Application Default Credentials are also supported. See [Authentication](https://khuisman.github.io/mcp-gee-sweet/auth/) for all options.
+Service accounts (recommended for headless server deployments — see Option B above), base64 credential injection, and Application Default Credentials are also supported. See [Authentication](https://khuisman.github.io/mcp-gee-sweet/latest/auth/) for all options.
 
 ---
 
@@ -94,24 +114,24 @@ Service accounts (recommended for headless server deployments — see Option B a
 }
 ```
 
-See [Client Setup](https://khuisman.github.io/mcp-gee-sweet/client-setup/) for more options including tool filtering.
+See [Client Setup](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/) for more options including tool filtering.
 
 ---
 
 ## Docs
 
-- [Tools](https://khuisman.github.io/mcp-gee-sweet/tools/) — full tool reference (84 tools)
-- [Authentication](https://khuisman.github.io/mcp-gee-sweet/auth/) — all four auth methods
-- [Configuration](https://khuisman.github.io/mcp-gee-sweet/configuration/) — env vars, caching, tool filtering
-- [Client Setup](https://khuisman.github.io/mcp-gee-sweet/client-setup/) — MCP client config examples
-- [Design Principles](https://khuisman.github.io/mcp-gee-sweet/design/) — tool inclusion policy, composite tool decisions
-- [Roadmap](https://khuisman.github.io/mcp-gee-sweet/roadmap/) — planned features and known gaps
+- [Tools](https://khuisman.github.io/mcp-gee-sweet/latest/tools/) — full tool reference, grouped by domain
+- [Authentication](https://khuisman.github.io/mcp-gee-sweet/latest/auth/) — all four auth methods
+- [Configuration](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/) — env vars, caching, tool filtering
+- [Client Setup](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/) — MCP client config examples
+- [Design Principles](https://khuisman.github.io/mcp-gee-sweet/latest/design/) — tool inclusion policy, composite tool decisions
+- [Roadmap](https://khuisman.github.io/mcp-gee-sweet/latest/roadmap/) — planned features and known gaps
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, QA workflows, and PR guidelines. All items in [`docs/qa-checklist.md`](docs/qa-checklist.md) must be verified before any PyPI release.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, QA workflows, and PR guidelines. A signed-off [`docs/qa/runs/vX.Y.Z.md`](docs/qa/runs) record is required before any stable PyPI release — see [`docs/qa/README.md`](docs/qa/README.md) for the QA workflow.
 
 ## License
 

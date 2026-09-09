@@ -43,32 +43,32 @@ list_file_activity = _tools["list_file_activity"]
 
 
 class TestListFileActivity:
-    def test_returns_file_id(self):
+    async def test_returns_file_id(self):
         ctx = _make_ctx(_activity_svc())
-        result = list_file_activity(file_id="abc123", ctx=ctx)
+        result = await list_file_activity(file_id="abc123", ctx=ctx)
         assert result["file_id"] == "abc123"
 
-    def test_empty_response(self):
+    async def test_empty_response(self):
         ctx = _make_ctx(_activity_svc())
-        result = list_file_activity(file_id="abc123", ctx=ctx)
+        result = await list_file_activity(file_id="abc123", ctx=ctx)
         assert result["activities"] == []
         assert "next_page_token" not in result
 
-    def test_request_body_uses_items_prefix(self):
+    async def test_request_body_uses_items_prefix(self):
         svc = _activity_svc()
         ctx = _make_ctx(svc)
-        list_file_activity(file_id="abc123", ctx=ctx)
+        await list_file_activity(file_id="abc123", ctx=ctx)
         body = svc.activity.return_value.query.call_args.kwargs["body"]
         assert body["itemName"] == "items/abc123"
 
-    def test_page_size_clamped_to_100(self):
+    async def test_page_size_clamped_to_100(self):
         svc = _activity_svc()
         ctx = _make_ctx(svc)
-        list_file_activity(file_id="f", page_size=999, ctx=ctx)
+        await list_file_activity(file_id="f", page_size=999, ctx=ctx)
         body = svc.activity.return_value.query.call_args.kwargs["body"]
         assert body["pageSize"] == 100
 
-    def test_oversized_result_raises(self, monkeypatch):
+    async def test_oversized_result_raises(self, monkeypatch):
         # A file with many collaborators can produce a large actors list on a single
         # activity entry — page_size alone doesn't bound an individual entry's size.
         monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
@@ -84,9 +84,9 @@ class TestListFileActivity:
         svc = _activity_svc(activities=activities)
         ctx = _make_ctx(svc)
         with pytest.raises(ValueError, match="safety cap"):
-            list_file_activity(file_id="abc123", ctx=ctx)
+            await list_file_activity(file_id="abc123", ctx=ctx)
 
-    def test_error_points_to_page_size_not_local_path(self, monkeypatch):
+    async def test_error_points_to_page_size_not_local_path(self, monkeypatch):
         # list_file_activity has no local_path param — page_size/pagination is the
         # correct remedy, so the error must say so and must not reference local_path.
         monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
@@ -101,38 +101,38 @@ class TestListFileActivity:
         )
         ctx = _make_ctx(svc)
         with pytest.raises(ValueError) as exc_info:
-            list_file_activity(file_id="abc123", ctx=ctx)
+            await list_file_activity(file_id="abc123", ctx=ctx)
         msg = str(exc_info.value)
         assert "page_size" in msg
         assert "local_path" not in msg
 
-    def test_page_size_clamped_to_1(self):
+    async def test_page_size_clamped_to_1(self):
         svc = _activity_svc()
         ctx = _make_ctx(svc)
-        list_file_activity(file_id="f", page_size=0, ctx=ctx)
+        await list_file_activity(file_id="f", page_size=0, ctx=ctx)
         body = svc.activity.return_value.query.call_args.kwargs["body"]
         assert body["pageSize"] == 1
 
-    def test_page_token_passed_when_provided(self):
+    async def test_page_token_passed_when_provided(self):
         svc = _activity_svc()
         ctx = _make_ctx(svc)
-        list_file_activity(file_id="f", page_token="tok123", ctx=ctx)
+        await list_file_activity(file_id="f", page_token="tok123", ctx=ctx)
         body = svc.activity.return_value.query.call_args.kwargs["body"]
         assert body["pageToken"] == "tok123"
 
-    def test_page_token_absent_when_none(self):
+    async def test_page_token_absent_when_none(self):
         svc = _activity_svc()
         ctx = _make_ctx(svc)
-        list_file_activity(file_id="f", ctx=ctx)
+        await list_file_activity(file_id="f", ctx=ctx)
         body = svc.activity.return_value.query.call_args.kwargs["body"]
         assert "pageToken" not in body
 
-    def test_next_page_token_in_result(self):
+    async def test_next_page_token_in_result(self):
         ctx = _make_ctx(_activity_svc(next_page_token="npt_abc"))
-        result = list_file_activity(file_id="f", ctx=ctx)
+        result = await list_file_activity(file_id="f", ctx=ctx)
         assert result["next_page_token"] == "npt_abc"
 
-    def test_edit_action_parsed(self):
+    async def test_edit_action_parsed(self):
         ctx = _make_ctx(
             _activity_svc(
                 activities=[
@@ -144,10 +144,10 @@ class TestListFileActivity:
                 ]
             )
         )
-        result = list_file_activity(file_id="f", ctx=ctx)
+        result = await list_file_activity(file_id="f", ctx=ctx)
         assert result["activities"][0]["action"] == "edit"
 
-    def test_permission_change_action_parsed(self):
+    async def test_permission_change_action_parsed(self):
         ctx = _make_ctx(
             _activity_svc(
                 activities=[
@@ -159,10 +159,10 @@ class TestListFileActivity:
                 ]
             )
         )
-        result = list_file_activity(file_id="f", ctx=ctx)
+        result = await list_file_activity(file_id="f", ctx=ctx)
         assert result["activities"][0]["action"] == "permission_change"
 
-    def test_unknown_action_falls_back(self):
+    async def test_unknown_action_falls_back(self):
         ctx = _make_ctx(
             _activity_svc(
                 activities=[
@@ -174,10 +174,10 @@ class TestListFileActivity:
                 ]
             )
         )
-        result = list_file_activity(file_id="f", ctx=ctx)
+        result = await list_file_activity(file_id="f", ctx=ctx)
         assert result["activities"][0]["action"] == "unknown"
 
-    def test_known_user_actor_parsed(self):
+    async def test_known_user_actor_parsed(self):
         ctx = _make_ctx(
             _activity_svc(
                 activities=[
@@ -198,13 +198,13 @@ class TestListFileActivity:
                 ]
             )
         )
-        result = list_file_activity(file_id="f", ctx=ctx)
+        result = await list_file_activity(file_id="f", ctx=ctx)
         actor = result["activities"][0]["actors"][0]
         assert actor["type"] == "user"
         assert actor["person_name"] == "people/12345"
         assert actor["is_current_user"] is True
 
-    def test_anonymous_actor_parsed(self):
+    async def test_anonymous_actor_parsed(self):
         ctx = _make_ctx(
             _activity_svc(
                 activities=[
@@ -216,10 +216,10 @@ class TestListFileActivity:
                 ]
             )
         )
-        result = list_file_activity(file_id="f", ctx=ctx)
+        result = await list_file_activity(file_id="f", ctx=ctx)
         assert result["activities"][0]["actors"][0]["type"] == "anonymous"
 
-    def test_system_actor_parsed(self):
+    async def test_system_actor_parsed(self):
         ctx = _make_ctx(
             _activity_svc(
                 activities=[
@@ -231,12 +231,12 @@ class TestListFileActivity:
                 ]
             )
         )
-        result = list_file_activity(file_id="f", ctx=ctx)
+        result = await list_file_activity(file_id="f", ctx=ctx)
         actor = result["activities"][0]["actors"][0]
         assert actor["type"] == "system"
         assert actor["event"] == "USER_DELETION"
 
-    def test_http_error_returns_error_dict(self):
+    async def test_http_error_returns_error_dict(self):
         svc = MagicMock()
         resp = MagicMock()
         resp.status = 403
@@ -244,10 +244,10 @@ class TestListFileActivity:
             resp=resp, content=b"Forbidden"
         )
         ctx = _make_ctx(svc)
-        result = list_file_activity(file_id="f", ctx=ctx)
+        result = await list_file_activity(file_id="f", ctx=ctx)
         assert "error" in result
 
-    def test_timestamp_from_timerange_when_no_timestamp(self):
+    async def test_timestamp_from_timerange_when_no_timestamp(self):
         ctx = _make_ctx(
             _activity_svc(
                 activities=[
@@ -259,5 +259,5 @@ class TestListFileActivity:
                 ]
             )
         )
-        result = list_file_activity(file_id="f", ctx=ctx)
+        result = await list_file_activity(file_id="f", ctx=ctx)
         assert result["activities"][0]["timestamp"] == "2024-06-01T12:00:00Z"

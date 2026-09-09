@@ -3,6 +3,8 @@
 **Date:** 2026-07-03
 **Snapshot commit:** branch `feat/issue-242-response-size-safety-net` — see `src/mcp_gee_sweet/tools/response_limits.py`
 
+**Update (2026-08-07, issue #519):** the shared `40000`-character default named throughout this doc was raised to `1000000`, and the cap now covers more tools than the 6 (1 original + 5 here) this doc scoped — see `docs/decisions/decision-response-size-cap-reevaluation-519.md`. This doc is left as-is below as the historical record of the original generalization decision.
+
 ## Background
 
 Issue #235 (see `docs/decisions/decision-grid-data-size-cap.md`) added a response-size safety net to exactly one tool, `get_sheet_data(include_grid_data=True)`: an MCP client (e.g. Claude Code, via `MAX_MCP_OUTPUT_TOKENS`) enforces a hard cap on tool response size, and exceeding it doesn't degrade gracefully — it silently kills the MCP session, requiring a full server restart to recover. That decision doc explicitly flagged #242 as the follow-up to generalize the pattern to other tools, and warned that `MAX_GRID_DATA_RESPONSE_CHARS` was scoped to one tool and wouldn't generalize as named.

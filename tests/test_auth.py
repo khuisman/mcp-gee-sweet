@@ -6,9 +6,23 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+from google.auth import (
+    compute_engine,
+    external_account_authorized_user,
+    identity_pool,
+    impersonated_credentials,
+)
+from google.oauth2 import gdch_credentials, service_account
+from google.oauth2.credentials import Credentials as UserCredentials
 
 import mcp_gee_sweet.auth as auth_module
-from mcp_gee_sweet.auth import _oauth_creds, _service_account_creds, spreadsheet_lifespan
+from mcp_gee_sweet.auth import (
+    _is_service_account_credential,
+    _oauth_creds,
+    _service_account_creds,
+    get_lifespan_context,
+    spreadsheet_lifespan,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -93,6 +107,63 @@ class TestServiceAccountCreds:
         monkeypatch.setattr(auth_module, "CREDENTIALS_CONFIG", None)
         monkeypatch.setattr(auth_module, "SERVICE_ACCOUNT_PATH", "/nonexistent/sa.json")
         assert _service_account_creds() is None
+
+
+# ---------------------------------------------------------------------------
+# _is_service_account_credential
+# ---------------------------------------------------------------------------
+
+
+class TestIsServiceAccountCredential:
+    def test_service_account_credentials_is_service_account(self):
+        creds = service_account.Credentials.__new__(service_account.Credentials)
+        assert _is_service_account_credential(creds) is True
+
+    def test_compute_engine_credentials_is_service_account(self):
+        """ADC on GCE/Cloud Run/GKE resolves to the metadata-service identity,
+        which has the same no-personal-Drive limitations as an explicit service
+        account key (#506)."""
+        creds = compute_engine.Credentials.__new__(compute_engine.Credentials)
+        assert _is_service_account_credential(creds) is True
+
+    def test_user_oauth_credentials_is_not_service_account(self):
+        """Both a real OAuth flow and a user-backed ADC session
+        (`gcloud auth application-default login`) resolve to this exact class."""
+        creds = UserCredentials.__new__(UserCredentials)
+        assert _is_service_account_credential(creds) is False
+
+    def test_arbitrary_object_is_not_service_account(self):
+        assert _is_service_account_credential(object()) is False
+
+    def test_workload_identity_federation_is_service_account(self):
+        """PR #613 QA round 1: google.auth._default's own dispatch table can
+        resolve ADC to a Workload Identity Federation credential — `identity_pool`
+        here as a representative `external_account.Credentials` subclass (`aws`
+        and `pluggable` are the other two; `external_account.Credentials` itself
+        can't be instantiated, even via __new__, since it's abstract)."""
+        creds = identity_pool.Credentials.__new__(identity_pool.Credentials)
+        assert _is_service_account_credential(creds) is True
+
+    def test_impersonated_service_account_is_service_account(self):
+        """Common in CI: ADC resolving to an impersonated service account."""
+        creds = impersonated_credentials.Credentials.__new__(impersonated_credentials.Credentials)
+        assert _is_service_account_credential(creds) is True
+
+    def test_gdch_service_account_is_service_account(self):
+        creds = gdch_credentials.ServiceAccountCredentials.__new__(
+            gdch_credentials.ServiceAccountCredentials
+        )
+        assert _is_service_account_credential(creds) is True
+
+    def test_workforce_identity_federation_authorized_user_is_not_service_account(self):
+        """Deliberately excluded: per its own module docstring, this credential
+        class "usually access[es] resources on behalf of a user (resource
+        owner)" via Workforce Identity Federation — a real human authenticated
+        through an external IdP, not a service identity."""
+        creds = external_account_authorized_user.Credentials.__new__(
+            external_account_authorized_user.Credentials
+        )
+        assert _is_service_account_credential(creds) is False
 
 
 # ---------------------------------------------------------------------------
@@ -201,40 +272,42 @@ class TestOAuthCreds:
 
 class TestLifespanAuthMethod:
     def test_pinned_service_account_uses_sa_creds(self, monkeypatch):
-        mock_sa_creds = MagicMock()
+        sa_creds = service_account.Credentials.__new__(service_account.Credentials)
         ctx = _run_lifespan(
             monkeypatch,
             auth_method="service_account",
             mock_oauth=MagicMock(side_effect=Exception("should not call")),
-            mock_sa=MagicMock(return_value=mock_sa_creds),
+            mock_sa=MagicMock(return_value=sa_creds),
             mock_adc=MagicMock(side_effect=Exception("should not call")),
         )
         assert ctx.auth_method == "service_account"
+        assert ctx.is_service_account_identity is True
 
     def test_pinned_service_account_no_creds_raises(self, monkeypatch):
         monkeypatch.setattr(auth_module, "AUTH_METHOD", "service_account")
         with (
             patch("mcp_gee_sweet.auth._service_account_creds", return_value=None),
             patch("googleapiclient.discovery.build"),
+            pytest.raises(RuntimeError, match="service_account"),
         ):
-            with pytest.raises(RuntimeError, match="service_account"):
 
-                async def _run():
-                    async with spreadsheet_lifespan(MagicMock()):
-                        pass
+            async def _run():
+                async with spreadsheet_lifespan(MagicMock()):
+                    pass
 
-                asyncio.run(_run())
+            asyncio.run(_run())
 
     def test_pinned_oauth_calls_oauth_creds(self, monkeypatch):
-        mock_oauth_creds = MagicMock()
+        user_creds = UserCredentials.__new__(UserCredentials)
         ctx = _run_lifespan(
             monkeypatch,
             auth_method="oauth",
-            mock_oauth=MagicMock(return_value=mock_oauth_creds),
+            mock_oauth=MagicMock(return_value=user_creds),
             mock_sa=MagicMock(side_effect=Exception("should not call")),
             mock_adc=MagicMock(side_effect=Exception("should not call")),
         )
         assert ctx.auth_method == "oauth"
+        assert ctx.is_service_account_identity is False
 
     def test_pinned_adc_uses_google_auth_default(self, monkeypatch):
         mock_adc_creds = MagicMock()
@@ -247,19 +320,48 @@ class TestLifespanAuthMethod:
         )
         assert ctx.auth_method == "adc"
 
+    def test_pinned_adc_user_backed_sets_is_service_account_identity_false(self, monkeypatch):
+        user_creds = UserCredentials.__new__(UserCredentials)
+        ctx = _run_lifespan(
+            monkeypatch,
+            auth_method="adc",
+            mock_oauth=MagicMock(side_effect=Exception("should not call")),
+            mock_sa=MagicMock(side_effect=Exception("should not call")),
+            mock_adc=MagicMock(return_value=(user_creds, "test-project")),
+        )
+        assert ctx.auth_method == "adc"
+        assert ctx.is_service_account_identity is False
+
+    def test_pinned_adc_service_account_backed_sets_is_service_account_identity_true(
+        self, monkeypatch
+    ):
+        """Issue #506: ADC on GCE/Cloud Run/GKE, or GOOGLE_APPLICATION_CREDENTIALS
+        pointed at a key file, resolves to a service-account credential — the
+        context needs to flag this even though auth_method itself stays "adc"."""
+        sa_creds = compute_engine.Credentials.__new__(compute_engine.Credentials)
+        ctx = _run_lifespan(
+            monkeypatch,
+            auth_method="adc",
+            mock_oauth=MagicMock(side_effect=Exception("should not call")),
+            mock_sa=MagicMock(side_effect=Exception("should not call")),
+            mock_adc=MagicMock(return_value=(sa_creds, "test-project")),
+        )
+        assert ctx.auth_method == "adc"
+        assert ctx.is_service_account_identity is True
+
     def test_pinned_adc_no_adc_raises(self, monkeypatch):
         monkeypatch.setattr(auth_module, "AUTH_METHOD", "adc")
         with (
             patch("google.auth.default", side_effect=Exception("no ADC")),
             patch("googleapiclient.discovery.build"),
+            pytest.raises(RuntimeError, match="ADC"),
         ):
-            with pytest.raises(RuntimeError, match="ADC"):
 
-                async def _run():
-                    async with spreadsheet_lifespan(MagicMock()):
-                        pass
+            async def _run():
+                async with spreadsheet_lifespan(MagicMock()):
+                    pass
 
-                asyncio.run(_run())
+            asyncio.run(_run())
 
 
 class TestLifespanWaterfall:
@@ -303,14 +405,14 @@ class TestLifespanWaterfall:
             patch("mcp_gee_sweet.auth._service_account_creds", return_value=None),
             patch("google.auth.default", side_effect=Exception("no ADC")),
             patch("googleapiclient.discovery.build"),
+            pytest.raises(RuntimeError, match="All authentication"),
         ):
-            with pytest.raises(RuntimeError, match="All authentication"):
 
-                async def _run():
-                    async with spreadsheet_lifespan(MagicMock()):
-                        pass
+            async def _run():
+                async with spreadsheet_lifespan(MagicMock()):
+                    pass
 
-                asyncio.run(_run())
+            asyncio.run(_run())
 
     def test_waterfall_context_sets_auth_method_on_context(self, monkeypatch):
         """SpreadsheetContext.auth_method is set correctly by the lifespan."""
@@ -329,3 +431,60 @@ class TestLifespanWaterfall:
         assert ctx.docs_service is not None
         assert ctx.calendar_service is not None
         assert ctx.activity_service is not None
+
+
+# ---------------------------------------------------------------------------
+# get_lifespan_context — module-level singleton lifecycle (issue #175, PR #642
+# QA round 1): the lifespan's `finally` block must reset `_lifespan_context`
+# back to None on exit, not just set it on entry. Left as `finally: pass`, the
+# static server://auth-status resource would silently keep serving a torn-down
+# SpreadsheetContext after the lifespan exits instead of raising the
+# RuntimeError get_lifespan_context()'s own docstring promises.
+# ---------------------------------------------------------------------------
+
+
+class TestGetLifespanContext:
+    def test_raises_before_lifespan_has_ever_started(self, monkeypatch):
+        monkeypatch.setattr(auth_module, "_lifespan_context", None)
+        with pytest.raises(RuntimeError, match="has not started"):
+            get_lifespan_context()
+
+    def test_returns_context_while_lifespan_is_active(self, monkeypatch):
+        sa_creds = service_account.Credentials.__new__(service_account.Credentials)
+        monkeypatch.setattr(auth_module, "AUTH_METHOD", "service_account")
+        mock_build = MagicMock()
+
+        with (
+            patch("mcp_gee_sweet.auth._service_account_creds", return_value=sa_creds),
+            patch("googleapiclient.discovery.build", mock_build),
+        ):
+
+            async def _run():
+                async with spreadsheet_lifespan(MagicMock()) as ctx:
+                    assert get_lifespan_context() is ctx
+
+            asyncio.run(_run())
+
+    def test_raises_again_after_lifespan_exits(self, monkeypatch):
+        """Regression test: `finally: pass` left the module-level singleton
+        pointing at the torn-down context after exit instead of resetting it,
+        so a later get_lifespan_context() call silently returned stale state
+        instead of the RuntimeError it's supposed to raise outside a request.
+        """
+        sa_creds = service_account.Credentials.__new__(service_account.Credentials)
+        monkeypatch.setattr(auth_module, "AUTH_METHOD", "service_account")
+        mock_build = MagicMock()
+
+        with (
+            patch("mcp_gee_sweet.auth._service_account_creds", return_value=sa_creds),
+            patch("googleapiclient.discovery.build", mock_build),
+        ):
+
+            async def _run():
+                async with spreadsheet_lifespan(MagicMock()):
+                    pass
+
+            asyncio.run(_run())
+
+        with pytest.raises(RuntimeError, match="has not started"):
+            get_lifespan_context()

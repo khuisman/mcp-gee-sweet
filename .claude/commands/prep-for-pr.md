@@ -7,9 +7,9 @@ Review the current branch against this checklist and report the status of each i
 - [ ] **Unit tests written** — are there new tests in `tests/` covering the changed code?
 - [ ] **Unit tests passing** — has `uv run python -m pytest tests/` been run and passed?
 - [ ] **Regression coverage** — were tests that touch the modified files (not just new tests) also run?
-- [ ] **QA test cases written** — are there AI-driven test cases in `docs/qa/tests/` for the new/changed tools?
-- [ ] **QA tests run** — have those test cases been executed live against the fixture doc?
-- [ ] **QA results recorded** — does each test case have a `**Result (date) ✅/❌**` entry with actual observed output?
+- [ ] **QA test cases written** — are there AI-driven test cases in `docs/qa/tests/` covering the changed behavior? This applies beyond new tools: a change to shared internal code under `src/mcp_gee_sweet/tools/` (e.g. `docs/emitter.py`, `sheets/helpers.py`) that alters what a live tool call produces needs a test case too — a unit test alone confirms the function's internal contract, not the real API output. The same applies to the two `server.py` MCP resources (`server://auth-status`, `spreadsheet://{id}/info`): they're live API surface reachable via `ReadMcpResourceTool`, just not a "tool call" in the strict sense (issue #363 fixed both resources and added TC-I25/TC-I26 in `docs/qa/tests/infra.md` as the precedent). If this is a bug fix, the test case should reproduce the regression scenario itself, not just spot-check the tool's happy path.
+
+**Live QA execution is out of scope for this checklist.** If this session is a worker in a `.claude/worktrees/*` checkout, running live QA tools here would exercise the main checkout's code, not this branch's changes — the result would look real but prove nothing. Do not run live tests and do not write `**Result**` entries from a worktree. That happens after the PR is open, in a place where the branch's actual code is reachable by live MCP tools: the orchestrator's `/verify-pr` pass in the main checkout for a plain worker PR, or the paired QA agent's pass (`/team-member Sky`/`/team-member Kit`) in its own dedicated worktree for a dev-team lane PR. Leave the `**Result**` line off new/changed test cases entirely — don't stub it as "pending," just omit it so that pass adds the first real one.
 
 ## 2. QA test case tags
 
@@ -17,6 +17,11 @@ Review the current branch against this checklist and report the status of each i
   - Tag IS present when: the tool itself requires OAuth (e.g. creates files in personal Drive: `create_doc`, `create_doc_from_file`)
   - Tag IS NOT present when: the tool is auth-agnostic and only the test fixture happens to live in personal Drive (`write_doc_content`, `get_doc_structure`, `insert_doc_text`, `delete_doc_range`, `style_doc_range`, `style_doc_table_cells`, etc.)
   - Tag IS NOT present on error-path tests that return before making any API call
+
+- [ ] **`**Playwright: required**` accuracy** — scan all new and modified test cases against the formal Required/Spot-check/Skip tier definition in `docs/qa/run.md`'s "Playwright verification" section (formalized in #264):
+  - Tag IS present when: the check verifies a mutation with a visual signature the API-level response can't fully confirm (formatting, hyperlinks, images, charts, layout, table-cell run formatting)
+  - Tag IS NOT present when: the test is read-only, an error path, a count/pagination check, or a mutation whose visual signature the API response already fully confirms (e.g. plain-paragraph bold/italic runs, checkbox glyphs, `namedStyleType`, Drive file metadata)
+  - Don't use the informal `🔍 Visual check` note as a substitute for the tag — it isn't wired into the conductor's process (that inconsistency was #264's original finding). If a check needs visual confirmation, tag it; otherwise leave both the tag and the note off.
 
 ## 3. Safety
 

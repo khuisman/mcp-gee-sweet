@@ -28,8 +28,14 @@ Prompt-driven integration tests for mcp-gee-sweet. Each test case is a natural l
 | [tests/sheets_write.md](tests/sheets_write.md) | Sheets write tools | TC-W## |
 | [tests/sheets_mgmt.md](tests/sheets_mgmt.md) | Sheets management tools | TC-S## |
 | [tests/sheets_charts.md](tests/sheets_charts.md) | Sheets chart tools | TC-C## |
-| [tests/drive.md](tests/drive.md) | Drive + Docs (legacy combined) | TC-D## |
-| [tests/docs.md](tests/docs.md) | Docs direct API tools | TC-D## |
+| [tests/drive_files.md](tests/drive_files.md) | Drive files & folders | TC-D## |
+| [tests/drive_sharing.md](tests/drive_sharing.md) | Drive sharing & permissions | TC-D## |
+| [tests/drive_transfer.md](tests/drive_transfer.md) | Drive upload/download/sync/export/revisions | TC-D## |
+| [tests/drive_activity.md](tests/drive_activity.md) | Drive activity | TC-D## |
+| [tests/docs_content.md](tests/docs_content.md) | Docs content — `content.py` plus the catch-all for `editing.py`/`images.py`/`comments.py`/`named_ranges.py` and the markdown/HTML conversion pipeline (unlike the other 7 files, not a 1:1 submodule mapping — see the file's own Source line) | TC-DOC## (plus TC-D## carried over from `create_doc`/`get_doc_content`/`write_doc_content` cases originally numbered under `drive.md`) |
+| [tests/docs_tables.md](tests/docs_tables.md) | Docs tables | TC-DOC## |
+| [tests/docs_style.md](tests/docs_style.md) | Docs style & theming | TC-DOC## |
+| [tests/docs_layout.md](tests/docs_layout.md) | Docs layout (headers/footers) | TC-DOC## |
 | [tests/infra.md](tests/infra.md) | Infrastructure | TC-I## |
 | [tests/calendar.md](tests/calendar.md) | Calendar tools | TC-CAL## |
 
@@ -37,7 +43,7 @@ Prompt-driven integration tests for mcp-gee-sweet. Each test case is a natural l
 
 - Tests marked **⚠️ destructive** mutate the fixture spreadsheet. Run these last within their section or reset fixtures afterward using the seed prompt in `setup.md`.
 - Tests marked **⚠️ requires-oauth** need OAuth or ADC auth — service accounts cannot create or copy files in Drive (no storage quota). These tests are automatically skipped with a warning when `QA_AUTH_METHOD=service_account` in `.env`.
-- Tests marked **⚠️ local-filesystem** need file paths accessible to the MCP server process. These cannot run in an AI-session QA run and are always skipped.
+- Tests marked **⚠️ local-filesystem** need file paths accessible to the MCP server process. These cannot run in an AI-session QA run and are always skipped here. A representative subset is instead covered by the opt-in `tests/integration/` pytest harness (`MCP_GEE_SWEET_LIVE_TESTS=1 uv run python -m pytest tests/integration/` — needs real Google credentials, see that package's `conftest.py`) — see [`decision-local-fs-test-harness.md`](../decisions/decision-local-fs-test-harness.md) for what it covers and what's still follow-up.
 - Tests marked **🔍 product decision** have no single correct answer — note what you observed and open an issue if the behavior seems wrong.
 - Cache hit tests (TC-R17, TC-S02, etc.) require checking server logs: `make logs` or `docker compose logs mcp-gee-sweet`.
 
@@ -69,7 +75,7 @@ Each test case follows this structure:
 
 ### Fixture files
 
-If a test needs a local file (e.g. a `.md` or `.html` to upload), **commit it to `docs/qa/fixtures/`** and reference it by repo path — don't ask the tester to write content by hand. Name fixtures after their TC number: `tc-d195-create-doc.md`.
+If a test needs a local file (e.g. a `.md` or `.html` to upload), **commit it to `docs/qa/fixtures/`** and reference it by repo path — don't ask the tester to write content by hand. Name fixtures after their TC number: `tc-d195-create-doc.md`. Note: several `docs.md` fixtures (`tc-d195-*`, `tc-d196-*`, `tc-d213-*`, `tc-d226-*`) still carry `TC-D##`-prefixed filenames from before `docs.md` was split onto its own `TC-DOC##` sequence — their current headers are `TC-DOC44`, `TC-DOC45`, etc., not the number in the filename. Don't assume a `TC-D<N>`-shaped filename means that number is claimed in `drive.md`'s own sequence, and don't assume a fixture's filename number matches its test case's current number.
 
 ### Checks quality bar
 

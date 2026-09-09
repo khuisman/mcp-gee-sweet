@@ -19,7 +19,7 @@ _spec.loader.exec_module(gen_tool_docs)
 def make_func(name, doc, params=""):
     """Build a throwaway function with a given name, docstring, and parameter list."""
     ns = {}
-    exec(f"def {name}({params}):\n    '''{doc}'''\n    pass", ns)  # noqa: S102
+    exec(f"def {name}({params}):\n    '''{doc}'''\n    pass", ns)
     return ns[name]
 
 

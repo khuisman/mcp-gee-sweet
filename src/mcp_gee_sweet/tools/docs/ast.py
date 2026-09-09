@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Union
 
 
 @dataclass
@@ -19,7 +18,7 @@ class ParagraphStyle:
     indent_first_line: float | None = None  # pt
     space_above: float | None = None  # pt
     space_below: float | None = None  # pt
-    line_spacing: float | None = None  # 100=single, 150=1.5×, 200=double
+    line_spacing: float | None = None  # 100=single, 150=1.5x, 200=double
     page_break_before: bool | None = None
     keep_lines_together: bool | None = None
     keep_with_next: bool | None = None
@@ -42,9 +41,20 @@ class Run:
 
 
 @dataclass
+class Image:
+    # Local filesystem path, "drive:<file_id>", or a public http(s) URL — resolved to a
+    # fetchable URI by the caller (docs/content.py) before any insertInlineImage request
+    # is built, since the Docs API only accepts a URI, never a Drive file ID (#333).
+    src: str
+    alt: str | None = None
+    width: float | None = None  # pt
+    height: float | None = None  # pt
+
+
+@dataclass
 class Cell:
-    runs: list[Run]
-    nested_table: Table | None = None  # one nested table rendered inside this cell
+    # Ordered text runs, inline images, and nested tables, in source order
+    children: list[Run | Image | Table]
     colspan: int = 1
     rowspan: int = 1
     is_header: bool = False
@@ -75,31 +85,35 @@ class Table:
 
 @dataclass
 class Heading:
-    level: int  # 1–6
-    runs: list[Run]
+    level: int  # 1-6
+    runs: list[Run | Image]
     paragraph_style: ParagraphStyle | None = None
+    blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
 
 
 @dataclass
 class Paragraph:
-    runs: list[Run]
+    runs: list[Run | Image]
     paragraph_style: ParagraphStyle | None = None
+    blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
 
 
 @dataclass
 class BulletItem:
-    runs: list[Run]
+    runs: list[Run | Image]
     depth: int = 0
     ordered: bool = False
     checked: bool | None = None  # None = not a task item; True/False = ☑/☐
     paragraph_style: ParagraphStyle | None = None
+    blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
 
 
 @dataclass
 class NamedBlock:
     style_type: str  # TITLE, SUBTITLE, NORMAL_TEXT
-    runs: list[Run]
+    runs: list[Run | Image]
     paragraph_style: ParagraphStyle | None = None
+    blockquote_depth: int = 0  # 0 = not in a blockquote; N = nesting depth (#476)
 
 
-DocNode = Union[Heading, Paragraph, BulletItem, Table, NamedBlock]
+DocNode = Heading | Paragraph | BulletItem | Table | NamedBlock

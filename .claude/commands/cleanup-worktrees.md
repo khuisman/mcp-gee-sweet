@@ -1,0 +1,15 @@
+Remove worktrees under `.claude/worktrees/` whose branch has a merged PR, so completed tickets don't pile up as stale directories. Safe by default: never deletes anything with uncommitted or unpushed changes — those are reported, not touched.
+
+1. List current worktrees: `git worktree list --porcelain`. Skip the main checkout (the entry with no `.claude/worktrees/` path). Also skip all eight persistent dev-team slot worktrees (`.claude/worktrees/ash`, `sky`, `jay`, `kit`, `aziz`, `amy`, `joy`, `bob` — the full `WORKTREE_ROLES` list in `scripts/setup_team.sh`, not a hand-copied subset of it) unconditionally — they're persistent, not one-off ticket worktrees, and are never removed by this command regardless of branch/PR state. `/merge-pr` resets them to idle (`team/<name>`) in place after each ticket merges; this command has no role there. (This list previously omitted `joy` — a bare copy-paste of the original six-slot set from before Joy's and Bob's slots existed, undetected because neither had ever matched the merged-PR removal criteria. Check `scripts/setup_team.sh`'s `WORKTREE_ROLES` array directly if this list and that array ever disagree again, rather than trusting either copy in isolation.)
+2. For each remaining worktree, get its branch name and check whether it has a merged PR:
+   ```
+   gh pr list --repo khuisman/mcp-gee-sweet --state merged --head <branch> --json number,url,mergedAt
+   ```
+3. For each worktree whose branch has a merged PR, check it's safe to remove:
+   - No uncommitted changes: `git -C <path> status --porcelain` must be empty.
+   - No unpushed commits: `git -C <path> log @{upstream}.. --oneline` must be empty (if the branch has no upstream, e.g. already deleted on the remote post-merge, treat a clean `status --porcelain` as sufficient).
+   - If both checks pass, remove it: `git worktree remove <path>`, then `git branch -d <branch>`.
+   - If either check fails, skip it and note what's uncommitted or unpushed — never force-remove.
+4. Leave alone any worktree whose branch has no merged PR (open PR, no PR yet, or PR closed without merging).
+5. Run `git worktree prune` to clear any stale administrative entries left behind.
+6. Report a summary: worktrees removed (with their PR link), worktrees skipped as dirty (with what's blocking removal), and worktrees still open (with PR/issue status).

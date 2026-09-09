@@ -2,9 +2,10 @@ import logging
 from typing import Any
 
 from googleapiclient.errors import HttpError
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
+from ...auth import execute_in_thread
 from ..response_limits import enforce_response_size_cap
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ def _parse_action(primary: dict) -> str:
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="List File Activity", readOnlyHint=True))
-    def list_file_activity(
+    async def list_file_activity(
         file_id: str,
         page_size: int = 50,
         page_token: str | None = None,
@@ -77,7 +78,7 @@ def register(tool):
 
         Args:
             file_id: Google Drive file ID to query.
-            page_size: Maximum number of activities to return (1–100, default 50).
+            page_size: Maximum number of activities to return (1-100, default 50).
             page_token: Continuation token from a previous response for pagination.
 
         Returns:
@@ -85,9 +86,9 @@ def register(tool):
             - file_id: echoed back for reference
             - activities: list of activity entries (timestamp, action, actors)
             - next_page_token: present when more results are available
-            Raises ValueError if the response exceeds a safety cap (default 40,000
-            characters, set MAX_TOOL_RESPONSE_CHARS to change it) — lower page_size and
-            paginate via next_page_token instead of raising the cap; a single activity's
+            Raises ValueError if the response exceeds a safety cap (see
+            MAX_TOOL_RESPONSE_CHARS in docs/configuration.md for the configured default) —
+            lower page_size and paginate via next_page_token instead of raising the cap; a single activity's
             actors list can be large on files with many collaborators.
 
         Note:
@@ -107,7 +108,10 @@ def register(tool):
             body["pageToken"] = page_token
 
         try:
-            response = activity_service.activity().query(body=body).execute()
+            response = await execute_in_thread(
+                activity_service.activity().query(body=body).execute,
+                activity_service,
+            )
         except HttpError as e:
             logger.debug("Drive Activity API error for file %s: %s", file_id, e)
             return {"error": str(e)}

@@ -48,36 +48,36 @@ class TestCreateHeader:
         }
         return docs_svc
 
-    def test_returns_header_id(self):
+    async def test_returns_header_id(self):
         docs_svc = self._make_docs_svc("hdr-abc")
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
+        result = await _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
         assert result == {"docId": "doc1", "headerId": "hdr-abc"}
 
-    def test_default_type_sent(self):
+    async def test_default_type_sent(self):
         docs_svc = self._make_docs_svc()
         ctx = self._ctx(docs_svc=docs_svc)
-        _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
+        await _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
         body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
         assert body["requests"][0]["createHeader"]["type"] == "DEFAULT"
         assert "sectionBreakLocation" not in body["requests"][0]["createHeader"]
 
-    def test_first_page_header_type(self):
+    async def test_first_page_header_type(self):
         docs_svc = self._make_docs_svc()
         ctx = self._ctx(docs_svc=docs_svc)
-        _docs_tools["create_header"](doc_id="doc1", header_type="FIRST_PAGE_HEADER", ctx=ctx)
+        await _docs_tools["create_header"](doc_id="doc1", header_type="FIRST_PAGE_HEADER", ctx=ctx)
         body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
         assert body["requests"][0]["createHeader"]["type"] == "FIRST_PAGE_HEADER"
 
-    def test_invalid_type_returns_error(self):
+    async def test_invalid_type_returns_error(self):
         ctx = self._ctx()
-        result = _docs_tools["create_header"](doc_id="doc1", header_type="BOGUS", ctx=ctx)
+        result = await _docs_tools["create_header"](doc_id="doc1", header_type="BOGUS", ctx=ctx)
         assert "error" in result
 
-    def test_content_inserted_when_provided(self):
+    async def test_content_inserted_when_provided(self):
         docs_svc = self._make_docs_svc("hdr1")
         ctx = self._ctx(docs_svc=docs_svc)
-        _docs_tools["create_header"](doc_id="doc1", content="My Header", ctx=ctx)
+        await _docs_tools["create_header"](doc_id="doc1", content="My Header", ctx=ctx)
         # Two batchUpdate calls: one to create, one to insert text
         assert docs_svc.documents.return_value.batchUpdate.call_count == 2
         second_body = docs_svc.documents.return_value.batchUpdate.call_args_list[1].kwargs["body"]
@@ -86,22 +86,22 @@ class TestCreateHeader:
         assert insert_req["location"]["segmentId"] == "hdr1"
         assert insert_req["location"]["index"] == 0
 
-    def test_no_content_single_api_call(self):
+    async def test_no_content_single_api_call(self):
         docs_svc = self._make_docs_svc()
         ctx = self._ctx(docs_svc=docs_svc)
-        _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
+        await _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
         assert docs_svc.documents.return_value.batchUpdate.call_count == 1
 
-    def test_api_error_returns_error(self):
+    async def test_api_error_returns_error(self):
         docs_svc = MagicMock()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
             "API error"
         )
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
+        result = await _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
         assert "error" in result
 
-    def test_empty_replies_falls_back_to_document_style(self):
+    async def test_empty_replies_falls_back_to_document_style(self):
         docs_svc = MagicMock()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
             "replies": []
@@ -110,10 +110,10 @@ class TestCreateHeader:
             "documentStyle": {"defaultHeaderId": "hdr-fallback"}
         }
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
+        result = await _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
         assert result == {"docId": "doc1", "headerId": "hdr-fallback"}
 
-    def test_already_exists_error_falls_back_to_document_style(self):
+    async def test_already_exists_error_falls_back_to_document_style(self):
         docs_svc = MagicMock()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = HttpError(
             resp=MagicMock(status=400), content=b"Default header already exists."
@@ -122,7 +122,7 @@ class TestCreateHeader:
             "documentStyle": {"defaultHeaderId": "hdr-existing"}
         }
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
+        result = await _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
         assert result == {"docId": "doc1", "headerId": "hdr-existing"}
 
 
@@ -137,36 +137,36 @@ class TestCreateFooter:
         }
         return docs_svc
 
-    def test_returns_footer_id(self):
+    async def test_returns_footer_id(self):
         docs_svc = self._make_docs_svc("ftr-xyz")
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
+        result = await _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
         assert result == {"docId": "doc1", "footerId": "ftr-xyz"}
 
-    def test_default_type_sent(self):
+    async def test_default_type_sent(self):
         docs_svc = self._make_docs_svc()
         ctx = self._ctx(docs_svc=docs_svc)
-        _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
+        await _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
         body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
         assert body["requests"][0]["createFooter"]["type"] == "DEFAULT"
         assert "sectionBreakLocation" not in body["requests"][0]["createFooter"]
 
-    def test_first_page_footer_type(self):
+    async def test_first_page_footer_type(self):
         docs_svc = self._make_docs_svc()
         ctx = self._ctx(docs_svc=docs_svc)
-        _docs_tools["create_footer"](doc_id="doc1", footer_type="FIRST_PAGE_FOOTER", ctx=ctx)
+        await _docs_tools["create_footer"](doc_id="doc1", footer_type="FIRST_PAGE_FOOTER", ctx=ctx)
         body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
         assert body["requests"][0]["createFooter"]["type"] == "FIRST_PAGE_FOOTER"
 
-    def test_invalid_type_returns_error(self):
+    async def test_invalid_type_returns_error(self):
         ctx = self._ctx()
-        result = _docs_tools["create_footer"](doc_id="doc1", footer_type="BOGUS", ctx=ctx)
+        result = await _docs_tools["create_footer"](doc_id="doc1", footer_type="BOGUS", ctx=ctx)
         assert "error" in result
 
-    def test_content_inserted_when_provided(self):
+    async def test_content_inserted_when_provided(self):
         docs_svc = self._make_docs_svc("ftr1")
         ctx = self._ctx(docs_svc=docs_svc)
-        _docs_tools["create_footer"](doc_id="doc1", content="Page 1", ctx=ctx)
+        await _docs_tools["create_footer"](doc_id="doc1", content="Page 1", ctx=ctx)
         assert docs_svc.documents.return_value.batchUpdate.call_count == 2
         second_body = docs_svc.documents.return_value.batchUpdate.call_args_list[1].kwargs["body"]
         insert_req = second_body["requests"][0]["insertText"]
@@ -174,22 +174,22 @@ class TestCreateFooter:
         assert insert_req["location"]["segmentId"] == "ftr1"
         assert insert_req["location"]["index"] == 0
 
-    def test_no_content_single_api_call(self):
+    async def test_no_content_single_api_call(self):
         docs_svc = self._make_docs_svc()
         ctx = self._ctx(docs_svc=docs_svc)
-        _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
+        await _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
         assert docs_svc.documents.return_value.batchUpdate.call_count == 1
 
-    def test_api_error_returns_error(self):
+    async def test_api_error_returns_error(self):
         docs_svc = MagicMock()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
             "API error"
         )
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
+        result = await _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
         assert "error" in result
 
-    def test_empty_replies_falls_back_to_document_style(self):
+    async def test_empty_replies_falls_back_to_document_style(self):
         docs_svc = MagicMock()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
             "replies": []
@@ -198,10 +198,10 @@ class TestCreateFooter:
             "documentStyle": {"defaultFooterId": "ftr-fallback"}
         }
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
+        result = await _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
         assert result == {"docId": "doc1", "footerId": "ftr-fallback"}
 
-    def test_already_exists_error_falls_back_to_document_style(self):
+    async def test_already_exists_error_falls_back_to_document_style(self):
         docs_svc = MagicMock()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = HttpError(
             resp=MagicMock(status=400), content=b"Default footer already exists."
@@ -210,7 +210,7 @@ class TestCreateFooter:
             "documentStyle": {"defaultFooterId": "ftr-existing"}
         }
         ctx = self._ctx(docs_svc=docs_svc)
-        result = _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
+        result = await _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
         assert result == {"docId": "doc1", "footerId": "ftr-existing"}
 
 
@@ -223,10 +223,10 @@ class TestInsertDocTextSegmentId:
     def _ctx(self, docs_svc=None):
         return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
 
-    def test_segment_id_included_in_location(self):
+    async def test_segment_id_included_in_location(self):
         docs_svc = MagicMock()
         ctx = self._ctx(docs_svc=docs_svc)
-        _docs_tools["insert_doc_text"](
+        await _docs_tools["insert_doc_text"](
             doc_id="doc1",
             insertions=[{"index": 1, "text": "Header text", "segment_id": "hdr1"}],
             ctx=ctx,
@@ -236,10 +236,10 @@ class TestInsertDocTextSegmentId:
         assert loc["index"] == 1
         assert loc["segmentId"] == "hdr1"
 
-    def test_no_segment_id_omits_field(self):
+    async def test_no_segment_id_omits_field(self):
         docs_svc = MagicMock()
         ctx = self._ctx(docs_svc=docs_svc)
-        _docs_tools["insert_doc_text"](
+        await _docs_tools["insert_doc_text"](
             doc_id="doc1",
             insertions=[{"index": 5, "text": "Body text"}],
             ctx=ctx,
@@ -248,10 +248,10 @@ class TestInsertDocTextSegmentId:
         loc = body["requests"][0]["insertText"]["location"]
         assert "segmentId" not in loc
 
-    def test_mixed_body_and_segment_insertions(self):
+    async def test_mixed_body_and_segment_insertions(self):
         docs_svc = MagicMock()
         ctx = self._ctx(docs_svc=docs_svc)
-        _docs_tools["insert_doc_text"](
+        await _docs_tools["insert_doc_text"](
             doc_id="doc1",
             insertions=[
                 {"index": 10, "text": "Body"},

@@ -1,7 +1,10 @@
+import asyncio
 import base64
+import hashlib
 import io
 import logging
 import mimetypes
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -9,10 +12,11 @@ from typing import Any
 import markdown as _md
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaInMemoryUpload, MediaIoBaseDownload
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
-from ..response_limits import enforce_response_size_cap
+from ...auth import execute_in_thread, thread_http
+from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from . import _SA_QUOTA_ERROR
 
 logger = logging.getLogger(__name__)
@@ -35,6 +39,1013 @@ _SYSTEM_FILES = {".DS_Store", "Thumbs.db", "desktop.ini", ".localized"}
 
 _SYNC_MTIME_TOLERANCE = 5  # seconds — absorbs clock skew and upload-time drift
 
+# Custom Drive file property set on a Google Doc created via convert_markdown's
+# native import conversion, recording the exact local filename it was created
+# from. Matching converted-md Docs back to their local file by this property
+# (rather than by current Drive display name + mimeType alone) means an
+# unrelated pre-existing Doc a human happened to name "notes.md" never matches
+# (it lacks the property), and a later Drive-side rename/case-change of the Doc
+# doesn't desync the match either, since the stored source name never changes
+# (#414 QA review, findings #2 and #7).
+_CONVERT_MARKDOWN_SOURCE_PROP = "geeSweetConvertMarkdownSource"
+
+# Google Workspace Doc mimeType, requested via Drive's native import-conversion
+# trick (upload with the source format's mimeType while setting the destination
+# file's own mimeType to this target) from two independent places: _CONVERT_MIME
+# below (local-file uploads, dispatched by extension, also covers Sheets/Slides
+# targets) and upload_file's convert_to_doc param (raw text/markdown/html content,
+# always targets a Doc since it has no extension to dispatch on). Shared here as
+# the single source of truth for the literal so the two can't drift apart on it —
+# see upload_file's own convert_to_doc branch for the other call site (#412).
+_GOOGLE_DOC_MIME = "application/vnd.google-apps.document"
+
+# extension -> (source mimeType to upload as, target Google Workspace mimeType to
+# request via Drive's native import conversion). Distinct from _EXPORT_MIME above,
+# which maps the other direction (Google type -> downloadable export format).
+_CONVERT_MIME: dict[str, tuple[str, str]] = {
+    ".csv": ("text/csv", "application/vnd.google-apps.spreadsheet"),
+    ".xlsx": (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.google-apps.spreadsheet",
+    ),
+    ".docx": (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        _GOOGLE_DOC_MIME,
+    ),
+    ".md": ("text/markdown", _GOOGLE_DOC_MIME),
+    ".html": ("text/html", _GOOGLE_DOC_MIME),
+    ".htm": ("text/html", _GOOGLE_DOC_MIME),
+    ".pptx": (
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.google-apps.presentation",
+    ),
+}
+
+
+def _restamp_failure_result(file_id: str, exc: Exception) -> dict[str, Any]:
+    """Shared result for the narrow case where create() succeeded but the
+    follow-up metadata-only modifiedTime restamp (convert / convert_markdown
+    uploads only) then failed. The created Drive file is real — pairing the
+    error with its fileId keeps that orphan findable instead of losing its ID
+    entirely (#420). A storageQuotaExceeded HttpError is rendered with the
+    shared _SA_QUOTA_ERROR text, matching every other quota-error site in this
+    file — the original per-site restamp except caught only bare Exception and
+    would have leaked a raw str(e) here (#650). Callers layer their own result
+    shape on top (e.g. _sync_level._run_one's kind/name keys)."""
+    if (
+        isinstance(exc, HttpError)
+        and exc.resp.status == 403
+        and b"storageQuotaExceeded" in (exc.content or b"")
+    ):
+        detail = _SA_QUOTA_ERROR
+    else:
+        detail = str(exc)
+    return {
+        "error": (
+            f"created Drive file {file_id!r} but failed to restamp its modifiedTime: {detail}"
+        ),
+        "fileId": file_id,
+    }
+
+
+async def _upload_local_file(
+    drive_service,
+    local_path: str,
+    parent_folder_id: str,
+    name: str | None = None,
+    skip_if_exists: bool = True,
+    convert: bool = False,
+) -> dict[str, Any]:
+    """Upload a local file to a Drive folder. Shared core behind the upload_local_file
+    tool and docs/images.py's insert_local_images (imported cross-package the same
+    way docs/content.py imports _SA_QUOTA_ERROR from tools/drive/__init__.py).
+
+    convert=True requests Drive's native import conversion (CSV/XLSX -> Sheets,
+    DOCX/MD/HTML -> Docs, PPTX -> Slides) by uploading with the source format's
+    mimeType while setting the destination file's mimeType to the target Google
+    Workspace type — this is distinct from create_doc_from_file, which parses the
+    file locally and rebuilds it via Docs API requests instead of Drive's importer.
+    upload_file's convert_to_doc param implements the identical trick for raw
+    text/markdown/html content instead of a local file — see _GOOGLE_DOC_MIME
+    above, shared by both so they can't drift apart on the target mimeType (#412)."""
+    path = Path(local_path)
+    if not path.is_file():
+        raise ValueError(f"No file found at {local_path!r}")
+
+    file_name = name or path.name
+
+    convert_mime: tuple[str, str] | None = None
+    if convert:
+        # Derived from the effective destination name, not local_path's suffix —
+        # a name= override changes what conversion applies (#188 QA review, PR #410).
+        dest_suffix = Path(file_name).suffix.lower()
+        convert_mime = _CONVERT_MIME.get(dest_suffix)
+        if convert_mime is None:
+            supported = ", ".join(sorted(_CONVERT_MIME))
+            return {
+                "error": (
+                    f"Conversion not supported for extension {dest_suffix!r}. "
+                    f"Supported extensions: {supported}"
+                )
+            }
+
+    if skip_if_exists:
+        safe_name = file_name.replace("\\", "\\\\").replace("'", "\\'")
+        existing = await execute_in_thread(
+            drive_service.files()
+            .list(
+                q=f"name='{safe_name}' and '{parent_folder_id}' in parents and trashed=false",
+                spaces="drive",
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                fields="files(id, name, webViewLink, mimeType)",
+                pageSize=1,
+            )
+            .execute,
+            drive_service,
+        )
+        hits = existing.get("files", [])
+        # When converting, a name-only match isn't good enough — an existing file
+        # with the same name but the *raw* (unconverted) mimeType isn't actually
+        # the converted duplicate skip_if_exists is meant to detect (#188 QA review,
+        # PR #410). Only skip if it's already in the target Workspace format;
+        # otherwise fall through and upload/convert normally.
+        if hits and (convert_mime is None or hits[0].get("mimeType") == convert_mime[1]):
+            logger.debug("Skipping upload — %s already exists as %s", file_name, hits[0]["id"])
+            return {
+                "fileId": hits[0]["id"],
+                "name": hits[0]["name"],
+                "web_link": hits[0].get("webViewLink"),
+                "skipped": True,
+            }
+
+    # Stamped on every upload, not just the convert_mime branch — a plain upload
+    # used to get Drive's own creation timestamp instead of the local file's mtime,
+    # which is the actual root cause of sync_folder's use_checksum needing to exist
+    # at all: without this, a file uploaded here always reads as "Drive newer" on
+    # the very next sync_folder call regardless of content (#274 PR #472 review,
+    # finding #2). Drive honors modifiedTime in the create() body directly for a
+    # plain upload (no import-conversion in the way), so no follow-up update() is
+    # needed here the way the convert_mime branch below requires.
+    lmtime_str = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%S.000Z"
+    )
+    metadata: dict[str, Any] = {
+        "name": file_name,
+        "parents": [parent_folder_id],
+        "modifiedTime": lmtime_str,
+    }
+    if convert_mime is not None:
+        mime, target_mime = convert_mime
+        metadata["mimeType"] = target_mime
+        if Path(file_name).suffix.lower() == ".md":
+            # Stamp the same marker sync_folder's own convert_markdown path sets, so
+            # a Doc created here is recognized by sync_folder's matching too — the
+            # docstring calls this "the same mechanism" as sync_folder's
+            # convert_markdown, but before this fix only sync_folder's own create()
+            # call stamped it, leaving upload_local_file's converted Docs invisible
+            # to that matching and silently duplicated on the next sync_folder run
+            # (#414 QA review round 3, finding #2).
+            metadata["properties"] = {_CONVERT_MARKDOWN_SOURCE_PROP: file_name}
+    else:
+        mime, _ = mimetypes.guess_type(local_path)
+        mime = mime or "application/octet-stream"
+    media = MediaFileUpload(local_path, mimetype=mime, resumable=True)
+    try:
+        result = await execute_in_thread(
+            drive_service.files()
+            .create(
+                body=metadata,
+                media_body=media,
+                supportsAllDrives=True,
+                fields="id, name, webViewLink",
+            )
+            .execute,
+            drive_service,
+        )
+    except HttpError as e:
+        if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+            return {"error": _SA_QUOTA_ERROR}
+        return {"error": str(e)}
+    except Exception as e:
+        # Mirrors _sync_level._run_one's create()+update() pair (its convert_this
+        # branch): the upload_local_file tool (the caller at line ~1189) has no
+        # try/except of its own, so a create() failure must be caught here rather
+        # than propagate uncaught (#422 QA review, finding #1). Nothing was
+        # created in this branch, so a bare error with no fileId is correct — the
+        # follow-up restamp below has its own try/except for the case where
+        # create() *did* succeed (#420).
+        return {"error": str(e)}
+
+    if convert_mime is not None:
+        # Drive's native import-conversion overwrites the modifiedTime just
+        # requested with its own "now" once the conversion finishes — the same
+        # drift _sync_level's own convert_markdown upload path already works
+        # around (see its create() branch). A metadata-only follow-up update()
+        # doesn't trigger reconversion and re-stamps it correctly. A plain
+        # (non-converting) upload has no such override — the create() body's
+        # modifiedTime above already sticks, no restamp needed.
+        try:
+            await execute_in_thread(
+                drive_service.files()
+                .update(
+                    fileId=result["id"],
+                    body={"modifiedTime": lmtime_str},
+                    supportsAllDrives=True,
+                    fields="id",
+                )
+                .execute,
+                drive_service,
+            )
+        except Exception as e:
+            # Unlike the create() failure above, a Doc now genuinely exists in
+            # Drive — only the metadata restamp on top of it failed. Reporting a
+            # bare error here would leave this Doc an untracked orphan with no
+            # record of its ID; surface fileId alongside the error so a caller
+            # can find and either fix or clean up the orphan (#420). Message +
+            # quota-error handling shared with _sync_level._run_one's identical
+            # restamp except via _restamp_failure_result (#650).
+            return _restamp_failure_result(result["id"], e)
+
+    logger.debug("Uploaded %s → %s (%s)", local_path, result.get("id"), mime)
+    return {
+        "fileId": result.get("id"),
+        "name": result.get("name", file_name),
+        "web_link": result.get("webViewLink"),
+        "skipped": False,
+    }
+
+
+def _local_md5(path: Path) -> str:
+    """Stream-hash a local file — mirrors Drive's md5Checksum so sync_folder's
+    use_checksum path can compare content directly instead of inferring change
+    from modifiedTime alone."""
+    h = hashlib.md5(usedforsecurity=False)
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+async def _list_drive_children(drive_service, folder_id: str) -> tuple[list[dict], list[dict]]:
+    """Return (files, folders) among the direct children of a Drive folder."""
+    results = await execute_in_thread(
+        drive_service.files()
+        .list(
+            q=f"'{folder_id}' in parents and trashed=false",
+            spaces="drive",
+            includeItemsFromAllDrives=True,
+            supportsAllDrives=True,
+            fields="files(id, name, mimeType, modifiedTime, properties, md5Checksum)",
+            pageSize=1000,
+        )
+        .execute,
+        drive_service,
+    )
+    files: list[dict] = []
+    folders: list[dict] = []
+    for f in results.get("files", []):
+        if f["mimeType"] == "application/vnd.google-apps.folder":
+            folders.append(f)
+        else:
+            files.append(f)
+    return files, folders
+
+
+async def _sync_level(
+    lc,
+    drive_service,
+    drive_folder_id: str | None,
+    dest_dir: Path,
+    rel_prefix: str,
+    direction: str,
+    export_format: str | None,
+    convert_markdown: bool,
+    use_checksum: bool,
+    skip_system_files: bool,
+    dry_run: bool,
+    recursive: bool,
+    uploaded: list[str],
+    downloaded: list[str],
+    skipped: list[str],
+    conflicts: list[str],
+    failed: list[dict[str, str]],
+    actions: list[dict[str, str]],
+    folders_skipped: list[str],
+    ctx: Context,
+    progress_count: list[int],
+) -> int:
+    """
+    Sync the files directly inside one Drive-folder/local-dir pair and, if `recursive`,
+    descend into subfolders matched by name. `drive_folder_id=None` simulates a Drive
+    folder that doesn't exist yet (used for dry-run planning of a not-yet-created
+    upload-direction folder) — no Drive API call is made and drive-side maps stay empty.
+
+    convert_markdown=True (#211) treats a local .md file's upload as a request for
+    Drive's native import conversion (same mechanism as upload_local_file's convert
+    param, #188): uploaded with mimetype='text/markdown', landing as a Google Doc
+    that keeps the original '.md' name. Since the converted file is still named
+    '<name>.md' in Drive, it's matched back to its local counterpart directly (not
+    via the export_format suffix scheme used for other Workspace files) so re-syncs
+    settle into "in sync" via the normal mtime comparison instead of re-uploading
+    a duplicate on every run.
+
+    use_checksum=True (#274) adds a content check, after the (cheap) mtime diff but
+    before the mtime-based direction decision, for names present on both sides —
+    and only when that diff actually exceeds _SYNC_MTIME_TOLERANCE and dry_run is
+    False, so an already-in-sync pair or a dry_run preview never pays for a hash
+    read it doesn't need (PR #472 review, finding #3). When it does run: if the
+    local file's md5 hash matches Drive's own md5Checksum, the pair is treated as
+    in sync regardless of how far apart their modifiedTimes are — this is what
+    actually fixes upload_local_file's non-stamped modifiedTime causing a spurious
+    re-download, not just a same-mtime coincidence (also fixed at the root in
+    _upload_local_file itself, below — this remains useful for cases the root fix
+    doesn't cover, e.g. a local overwrite that happens to preserve mtime). Only
+    applies to non-Workspace files with a real md5Checksum (Docs/Sheets/Slides and
+    convert_markdown Docs have none); those fall back to mtime-only comparison
+    exactly as when use_checksum=False. A checksum mismatch doesn't short-circuit
+    anything — it falls through to the existing mtime-based direction decision
+    below (reusing the diff already computed), since content differing doesn't by
+    itself say which side is newer. A local read failure (file vanished, lost
+    permission, etc. between the directory scan and this read) reports that one
+    name under 'failed' instead of raising out of the whole call (finding #1).
+
+    Returns bytes downloaded at this level and below; all other results are appended
+    into the shared accumulator lists/dicts passed in from the top-level call.
+    """
+    drive_files: list[dict] = []
+    drive_folders: list[dict] = []
+    if drive_folder_id is not None:
+        drive_files, drive_folders = await _list_drive_children(drive_service, drive_folder_id)
+
+    drive_map: dict[str, dict] = {}
+    collision_names: set[str] = set()
+    collision_reasons: dict[str, str] = {}
+    for f in drive_files:
+        is_workspace = f["mimeType"].startswith("application/vnd.google-apps.")
+        is_converted_md = False
+        if is_workspace:
+            convert_source = (f.get("properties") or {}).get(_CONVERT_MARKDOWN_SOURCE_PROP)
+            # Deliberately independent of this call's convert_markdown flag: a Doc
+            # already carries the marker property from whenever it was created, and
+            # matching must recognize it on every later sync regardless of whether
+            # that particular call happens to pass convert_markdown=True. Gating this
+            # on the flag (round 2) meant a resync with the flag merely omitted saw
+            # the local .md as "local only" and silently created a second, plain-text
+            # duplicate next to the existing Doc (#414 QA review round 3, finding #1).
+            is_converted_md = (
+                f["mimeType"] == _CONVERT_MIME[".md"][1] and convert_source is not None
+            )
+            if is_converted_md:
+                # The stored source name, not f["name"] — see _CONVERT_MARKDOWN_SOURCE_PROP.
+                assert convert_source is not None
+                local_name = convert_source
+            elif not export_format:
+                continue  # excluded without an export format
+            else:
+                local_name = f["name"] + _EXPORT_MIME[export_format][1]
+        else:
+            local_name = f["name"]
+
+        if local_name in collision_names:
+            continue
+        if local_name in drive_map:
+            # Drive allows more than one entry to share the same display name —
+            # whichever was enumerated last used to silently win the drive_map
+            # slot, making every other entry with that name completely invisible
+            # to this sync (never uploaded, downloaded, or reported anywhere).
+            # Originally this only fired when _is_converted_md differed between
+            # the two entries (a plain file vs. a convert_markdown Doc, #422's
+            # own reported scenario) — leaving any same-type collision (two plain
+            # files, or two convert_markdown Docs, sharing a name) silently
+            # overwritten just the same (#422 QA review, finding #2). The reason
+            # is recorded here but not written to `failed` yet — that only
+            # happens for a real run (see the plan loop below), so a dry_run
+            # preview shows this as a `conflict` instead of a `failed` entry that
+            # implies something was actually attempted (finding #4).
+            existing_is_converted = drive_map[local_name]["_is_converted_md"]
+            if existing_is_converted != is_converted_md:
+                detail = "a plain file and a convert_markdown Doc"
+            elif is_converted_md:
+                detail = "two convert_markdown Docs"
+            else:
+                detail = "multiple files"
+            collision_reasons[local_name] = (
+                f"{detail} are named '{local_name}' in this Drive folder — sync "
+                "can't tell which one the local file matches; rename or remove "
+                "one of them in Drive"
+            )
+            collision_names.add(local_name)
+            del drive_map[local_name]
+            continue
+        # _is_converted_md travels with the entry so the plan-building and download
+        # logic below can gate on it without re-deriving convert_source (#414 QA
+        # review, finding #1: this Doc must never be downloaded via export_format,
+        # regardless of whether export_format is set).
+        drive_map[local_name] = {**f, "_is_converted_md": is_converted_md}
+
+    local_map: dict[str, Path] = {}
+    if dest_dir.is_dir():
+        for p in dest_dir.iterdir():
+            if not p.is_file():
+                continue
+            if skip_system_files and p.name in _SYSTEM_FILES:
+                continue
+            local_map[p.name] = p
+
+    def _drive_mtime(entry: dict) -> datetime:
+        return datetime.fromisoformat(entry["modifiedTime"].replace("Z", "+00:00"))
+
+    def _local_mtime(p: Path) -> datetime:
+        return datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc)
+
+    plan: list[dict[str, str]] = []
+    for name in sorted(drive_map.keys() | local_map.keys() | collision_names):
+        if name in collision_names:
+            # Route through the normal plan machinery (like every other action)
+            # rather than a bare `continue` — the earlier version silently
+            # dropped this name from every output list whenever a *local* file
+            # also happened to share it, with zero acknowledgment anywhere
+            # (#422 QA review, finding #3). Reported as 'conflict' during
+            # dry_run (a preview, not a failure) and as a real 'failed' entry
+            # once execution is actually attempted — see the collision handling
+            # in the dry_run branch and _run_one below.
+            plan.append({"name": name, "action": "collision", "reason": collision_reasons[name]})
+            continue
+        in_drive = name in drive_map
+        in_local = name in local_map
+
+        if in_drive and not in_local:
+            if direction not in ("download", "bidirectional"):
+                # Upload-only callers don't care about drive-only content, whether
+                # or not it's a convert_markdown Doc — checking _is_converted_md
+                # first (as the pre-#422 code did) reported "conflict" even under
+                # direction='upload', where an ordinary drive-only file would have
+                # reported a plain "skip" (#422, finding #3).
+                plan.append(
+                    {"name": name, "action": "skip", "reason": "drive only, upload direction"}
+                )
+            elif drive_map[name]["_is_converted_md"]:
+                # A convert_markdown Doc has no reverse conversion — queuing this as
+                # a "download" here (as the pre-#414 code did) would either crash on
+                # the runtime guard below or, worse, write export_format's binary
+                # export content into a file still named .md if export_format was
+                # also set (#414 QA review, findings #1 and #4). Report it plainly
+                # up front instead, in both dry_run and a real run.
+                plan.append(
+                    {
+                        "name": name,
+                        "action": "conflict",
+                        "reason": (
+                            "drive-only convert_markdown Doc has no reverse conversion — "
+                            "add a matching local .md or remove it in Drive"
+                        ),
+                    }
+                )
+            else:
+                plan.append({"name": name, "action": "download", "reason": "drive only"})
+
+        elif in_local and not in_drive:
+            if direction in ("upload", "bidirectional"):
+                plan.append({"name": name, "action": "upload", "reason": "local only"})
+            else:
+                plan.append(
+                    {"name": name, "action": "skip", "reason": "local only, download direction"}
+                )
+
+        else:
+            dmtime = _drive_mtime(drive_map[name])
+            lmtime = _local_mtime(local_map[name])
+            diff = (lmtime - dmtime).total_seconds()
+
+            # Checked after the (cheap) mtime diff above, and only when mtimes
+            # actually disagree — a pair already within tolerance skips to the same
+            # "in sync" outcome below either way, so hashing it would just be a
+            # wasted read (#274 PR #472 review, finding #3). Skipped entirely during
+            # dry_run for the same reason: dry_run is documented elsewhere as a
+            # cheap, no-transfer preview, and reading every file's full content to
+            # hash it would violate that (same finding).
+            if use_checksum and not dry_run and abs(diff) > _SYNC_MTIME_TOLERANCE:
+                entry = drive_map[name]
+                is_workspace = entry["mimeType"].startswith("application/vnd.google-apps.")
+                drive_md5 = entry.get("md5Checksum") if not is_workspace else None
+                if drive_md5 is not None:
+                    try:
+                        local_md5 = await asyncio.to_thread(_local_md5, local_map[name])
+                    except OSError as e:
+                        # Every other per-item operation in this loop degrades to a
+                        # 'failed' entry instead of raising — a file that vanishes,
+                        # loses read permission, or is replaced by an unreadable
+                        # special file between the directory scan and this read
+                        # shouldn't take down the whole sync_folder call (#274 PR
+                        # #472 review, finding #1).
+                        plan.append(
+                            {"name": name, "action": "checksum_read_fail", "reason": str(e)}
+                        )
+                        continue
+                    if local_md5 == drive_md5:
+                        plan.append(
+                            {
+                                "name": name,
+                                "action": "skip",
+                                "reason": "content identical (checksum match)",
+                            }
+                        )
+                        continue
+                    # A mismatch that resolves to 'upload' below reads this same file
+                    # a second time (MediaFileUpload streams it for the actual
+                    # transfer) — a known, accepted cost (#274 PR #472 review,
+                    # finding #4), not fixed here: avoiding it would mean either
+                    # buffering the whole file in memory to reuse across both reads
+                    # (a worse tradeoff for large files than one extra disk read,
+                    # likely already page-cache-warm from the first pass) or hashing
+                    # inside MediaFileUpload's own read, which it doesn't support.
+                    # The upload_local_file modifiedTime fix above (finding #2)
+                    # keeps this path rare in the case that actually motivated
+                    # use_checksum, since files it uploads now carry an accurate
+                    # modifiedTime and mostly settle into the mtime-only "in sync"
+                    # branch without ever reaching this comparison.
+                    # Mismatch doesn't decide anything by itself — content differing
+                    # doesn't say which side is newer — so this falls straight
+                    # through to the same mtime-based decision below used when
+                    # use_checksum=False, reusing the diff already computed above.
+
+            if abs(diff) <= _SYNC_MTIME_TOLERANCE:
+                plan.append({"name": name, "action": "skip", "reason": "in sync"})
+            elif diff > 0:
+                if direction in ("upload", "bidirectional"):
+                    plan.append(
+                        {"name": name, "action": "upload", "reason": f"local newer by {diff:.0f}s"}
+                    )
+                else:
+                    plan.append(
+                        {
+                            "name": name,
+                            "action": "conflict",
+                            "reason": f"local newer by {diff:.0f}s but direction is download",
+                        }
+                    )
+            elif drive_map[name]["_is_converted_md"]:
+                # Same reasoning as the drive-only case above: this Doc can't be
+                # downloaded regardless of direction. In steady state the create()-
+                # time modifiedTime fix below keeps this from firing, but it's
+                # possible in principle (e.g. residual clock skew), and reporting
+                # it as a clean conflict beats a runtime download_fail.
+                plan.append(
+                    {
+                        "name": name,
+                        "action": "conflict",
+                        "reason": (
+                            f"drive newer by {-diff:.0f}s but convert_markdown Docs have no "
+                            "reverse conversion — re-upload the local file to update Drive"
+                        ),
+                    }
+                )
+            else:
+                if direction in ("download", "bidirectional"):
+                    plan.append(
+                        {
+                            "name": name,
+                            "action": "download",
+                            "reason": f"drive newer by {-diff:.0f}s",
+                        }
+                    )
+                else:
+                    plan.append(
+                        {
+                            "name": name,
+                            "action": "conflict",
+                            "reason": f"drive newer by {-diff:.0f}s but direction is upload",
+                        }
+                    )
+
+    for step in plan:
+        actions.append({**step, "name": f"{rel_prefix}{step['name']}"})
+
+    total_bytes = 0
+
+    # dry_run leaves uploaded/downloaded/skipped/conflicts/failed empty rather than
+    # duplicating each name (plus a now-redundant bare action label) into a flat
+    # list alongside its already-complete entry in `actions` — that duplication is
+    # what pushed a moderately-sized folder's dry-run response over the response
+    # size cap (#512) despite `actions` alone (name + action + reason for every
+    # item considered) already being a complete, non-redundant picture of the plan.
+    if not dry_run:
+
+        async def _run_one(step: dict[str, str]) -> dict[str, Any]:
+            name = step["name"]
+            action = step["action"]
+
+            if action == "skip":
+                return {"kind": "skip", "name": name}
+
+            if action == "conflict":
+                return {"kind": "conflict", "name": name}
+
+            if action == "collision":
+                # No API call was ever attempted for this name — it was excluded
+                # from drive_map entirely once the collision was detected. A real
+                # run reports it as a genuine failure (unlike the dry_run preview
+                # above), since nothing was synced and the ambiguity needs a
+                # human to resolve it.
+                return {"kind": "collision_fail", "name": name, "error": step["reason"]}
+
+            if action == "checksum_read_fail":
+                # The local file became unreadable (deleted, permission-denied, a
+                # special file) between the directory scan and use_checksum's hash
+                # read — surfaced as a clean failure for this one name rather than
+                # propagating out of the whole sync_folder call.
+                return {"kind": "checksum_read_fail", "name": name, "error": step["reason"]}
+
+            if action == "upload":
+                p = local_map[name]
+                convert_mime, convert_target_mime = _CONVERT_MIME[".md"]
+                # Matching (drive_map, above) now recognizes an already-converted Doc
+                # regardless of whether this call passes convert_markdown — so the
+                # reimport mime for an *existing* match must follow the same rule:
+                # once matched to a Doc that's already the converted type, treat this
+                # upload as a conversion reimport even if convert_markdown is False
+                # this call, or a plain-text re-upload would silently re-import into
+                # (or fail against) a file that Drive still considers a Google Doc.
+                is_existing_converted = name in drive_map and drive_map[name]["_is_converted_md"]
+                convert_this = (convert_markdown or is_existing_converted) and (
+                    p.suffix.lower() == ".md"
+                )
+                if convert_this:
+                    mime = convert_mime
+                else:
+                    mime, _ = mimetypes.guess_type(str(p))
+                    mime = mime or "application/octet-stream"
+                lmtime_str = datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc).strftime(
+                    "%Y-%m-%dT%H:%M:%S.000Z"
+                )
+
+                try:
+                    media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
+                    if name in drive_map:
+                        existing = drive_map[name]
+                        fid = existing["id"]
+                        if convert_this and existing["mimeType"] != convert_target_mime:
+                            # This .md was previously synced with convert_markdown=False
+                            # and landed as a plain Drive file. Drive's API has no
+                            # supported way to convert an existing file's type via
+                            # update() — only create() honors import conversion — so
+                            # silently re-uploading here would just overwrite the plain
+                            # file's raw content without ever promoting it to a Doc
+                            # (#414 QA review, finding #3). Surface this explicitly
+                            # instead of doing something that looks like it worked.
+                            return {
+                                "kind": "upload_fail",
+                                "name": name,
+                                "error": (
+                                    f"'{name}' already exists in Drive as a plain file, "
+                                    "not a converted Doc — convert_markdown cannot promote "
+                                    "an existing file's type; delete it in Drive and "
+                                    "re-sync to convert"
+                                ),
+                            }
+                        # No mimeType here: the existing file is already the
+                        # Google Doc convert_this implies, re-uploading text/markdown
+                        # content re-imports it in place without changing its type.
+                        await execute_in_thread(
+                            drive_service.files()
+                            .update(
+                                fileId=fid,
+                                body={"modifiedTime": lmtime_str},
+                                media_body=media,
+                                supportsAllDrives=True,
+                                fields="id",
+                            )
+                            .execute,
+                            drive_service,
+                        )
+                        logger.debug("Synced (update) %s%s → Drive", rel_prefix, name)
+                    else:
+                        body: dict[str, Any] = {
+                            "name": name,
+                            "parents": [drive_folder_id],
+                            "modifiedTime": lmtime_str,
+                        }
+                        if convert_this:
+                            body["mimeType"] = convert_target_mime
+                            body["properties"] = {_CONVERT_MARKDOWN_SOURCE_PROP: name}
+                        created = await execute_in_thread(
+                            drive_service.files()
+                            .create(
+                                body=body,
+                                media_body=media,
+                                supportsAllDrives=True,
+                                fields="id",
+                            )
+                            .execute,
+                            drive_service,
+                        )
+                        if convert_this:
+                            # Drive's native import-conversion on create() overwrites
+                            # the modifiedTime we just requested with its own "now"
+                            # once the conversion finishes (observed ~14.7s later) —
+                            # update() doesn't have this problem, so a metadata-only
+                            # follow-up call re-stamps it correctly. Without this, a
+                            # bidirectional resync with no local changes reads Drive
+                            # as newer, tries to download the (unconvertible) Doc, and
+                            # the file gets stuck 'failed' forever (#414 QA review,
+                            # TC-D218).
+                            try:
+                                await execute_in_thread(
+                                    drive_service.files()
+                                    .update(
+                                        fileId=created["id"],
+                                        body={"modifiedTime": lmtime_str},
+                                        supportsAllDrives=True,
+                                        fields="id",
+                                    )
+                                    .execute,
+                                    drive_service,
+                                )
+                            except Exception as e:
+                                # create() already succeeded — the Doc genuinely
+                                # exists in Drive even though this restamp failed.
+                                # A bare upload_fail here would leave it an
+                                # untracked orphan with no record of its ID
+                                # (#420); report fileId alongside the error so a
+                                # caller can find and either fix or clean it up.
+                                # Message + quota-error handling shared with
+                                # _upload_local_file via _restamp_failure_result
+                                # (#650); the kind/name keys are this call site's
+                                # own result-protocol layer on top.
+                                return {
+                                    "kind": "upload_fail",
+                                    "name": name,
+                                    **_restamp_failure_result(created["id"], e),
+                                }
+                        logger.debug("Synced (create) %s%s → Drive", rel_prefix, name)
+                    return {"kind": "upload_ok", "name": name}
+                except Exception as e:
+                    return {"kind": "upload_fail", "name": name, "error": str(e)}
+
+            # action == "download"
+            entry = drive_map[name]
+            fid = entry["id"]
+            is_workspace = entry["mimeType"].startswith("application/vnd.google-apps.")
+            if is_workspace and entry["_is_converted_md"]:
+                # No reverse conversion exists (Google Doc -> markdown), regardless of
+                # export_format — exporting one of these via export_format would write
+                # e.g. binary PDF/DOCX export content into a file still named '.md'
+                # instead of failing cleanly (#414 QA review, finding #1). The plan-
+                # building loop above already keeps this action from being reached in
+                # the normal case (queues 'conflict' instead of 'download'); this is a
+                # defense-in-depth guard for the same invariant.
+                return {
+                    "kind": "download_fail",
+                    "name": name,
+                    "error": (
+                        "Cannot download a convert_markdown Doc: no reverse conversion "
+                        "exists — edit the local .md file and re-sync to update Drive"
+                    ),
+                }
+            if is_workspace and not export_format:
+                # Unreachable in practice: a plain Workspace file with no
+                # export_format never enters drive_map (see the build loop above),
+                # and a convert_markdown twin is already handled above regardless of
+                # export_format. Kept as a defensive fallback rather than relying on
+                # that invariant never changing — surfaces a clean error instead of
+                # the KeyError _EXPORT_MIME[None] would raise if it ever became
+                # reachable.
+                return {
+                    "kind": "download_fail",
+                    "name": name,
+                    "error": (
+                        "Cannot download native Google Doc without export_format "
+                        "(convert_markdown has no reverse conversion)"
+                    ),
+                }
+            dest_file = dest_dir / name
+            try:
+                if is_workspace:
+                    target_mime = _EXPORT_MIME[export_format][0]
+                    content = await execute_in_thread(
+                        drive_service.files().export(fileId=fid, mimeType=target_mime).execute,
+                        drive_service,
+                    )
+                    if not isinstance(content, bytes):
+                        content = content.encode("utf-8")
+                    await asyncio.to_thread(dest_file.write_bytes, content)
+                else:
+
+                    def _download_to_completion(fid=fid, dest_file=dest_file) -> None:
+                        request = drive_service.files().get_media(fileId=fid)
+                        request.http = thread_http(drive_service)
+                        with dest_file.open("wb") as fh:
+                            downloader = MediaIoBaseDownload(fh, request)
+                            done = False
+                            while not done:
+                                _, done = downloader.next_chunk()
+
+                    await asyncio.to_thread(_download_to_completion)
+                # Mirror what the upload branch above does in reverse: set the
+                # local file's mtime to Drive's modifiedTime so the round trip
+                # stays within _SYNC_MTIME_TOLERANCE on the next sync. Without
+                # this the local mtime is "now" (write time), which is always
+                # later than Drive's original timestamp — the next sync sees the
+                # file as locally newer and re-uploads it, indefinitely (#346).
+                dtime = _drive_mtime(entry)
+                os.utime(dest_file, (dtime.timestamp(), dtime.timestamp()))
+                size = dest_file.stat().st_size
+                logger.debug("Synced (download) Drive → %s%s (%d bytes)", rel_prefix, name, size)
+                return {"kind": "download_ok", "name": name, "bytes": size}
+            except Exception as e:
+                return {"kind": "download_fail", "name": name, "error": str(e)}
+
+        async def _run_one_with_progress(step: dict[str, str]) -> dict[str, Any]:
+            result = await _run_one(step)
+            # Report per-item, not after the whole gather resolves — the gather
+            # blocks until every concurrent transfer at this level finishes, so
+            # reporting afterward would deliver a single silent burst instead of
+            # live progress during the wait (the actual complaint in #316).
+            if result["kind"] in ("upload_ok", "upload_fail", "download_ok", "download_fail"):
+                progress_count[0] += 1
+                try:
+                    await ctx.report_progress(
+                        progress_count[0],
+                        None,
+                        f"{rel_prefix}{result['name']}: {result['kind']}",
+                    )
+                except Exception:
+                    # The transfer already succeeded or failed on its own terms —
+                    # a broken notification channel (e.g. a dropped session) must
+                    # not overwrite that outcome with a spurious failure. PR #351
+                    # review: this was previously unguarded and a report_progress
+                    # exception here would propagate out, turning an already-
+                    # successful transfer into a "failed" item at the gather below.
+                    logger.debug(
+                        "report_progress failed for %s%s", rel_prefix, result["name"], exc_info=True
+                    )
+            return result
+
+        # return_exceptions=True: every failure path inside _run_one is already caught
+        # and converted into a *_fail result dict, but this also lets every in-flight
+        # transfer finish before surfacing an unexpected exception, instead of
+        # orphaning in-flight uploads/downloads. Thread-pool default (~32 workers)
+        # means very large plans queue rather than fully parallelizing — timing stays
+        # accurate, just with diminishing returns past that.
+        raw = await asyncio.gather(
+            *(_run_one_with_progress(step) for step in plan), return_exceptions=True
+        )
+
+        level_changed = False
+        for step, o in zip(plan, raw, strict=True):
+            rel_name = f"{rel_prefix}{step['name']}"
+            if isinstance(o, BaseException):
+                failed.append({"name": rel_name, "error": str(o)})
+                continue
+            kind = o["kind"]
+            if kind == "skip":
+                skipped.append(rel_name)
+            elif kind == "conflict":
+                conflicts.append(rel_name)
+            elif kind == "upload_ok":
+                uploaded.append(rel_name)
+                level_changed = True
+            elif kind == "download_ok":
+                downloaded.append(rel_name)
+                total_bytes += o["bytes"]
+                level_changed = True
+            else:  # upload_fail / download_fail / collision_fail / checksum_read_fail
+                entry = {"name": rel_name, "error": o["error"]}
+                if "fileId" in o:
+                    # Set only for the create()-succeeded-but-restamp-failed case
+                    # (#420) — a genuine orphan now exists in Drive, so its ID
+                    # rides along in the failed entry rather than being lost.
+                    entry["fileId"] = o["fileId"]
+                    # create() genuinely succeeded here even though the overall
+                    # step is reported as upload_fail — the folder's contents
+                    # changed and the cache must be invalidated the same as a
+                    # real upload_ok, or a cached list_files/get_multiple_* call
+                    # on this folder won't reflect the orphan (QA round 1, PR #645).
+                    level_changed = True
+                failed.append(entry)
+
+        if level_changed:
+            lc.drive_folder_cache.mark_dirty(drive_folder_id)
+
+    if recursive:
+        drive_folder_map = {f["name"]: f for f in drive_folders}
+        local_folder_map: dict[str, Path] = {}
+        if dest_dir.is_dir():
+            for p in dest_dir.iterdir():
+                if not p.is_dir():
+                    continue
+                if skip_system_files and p.name in _SYSTEM_FILES:
+                    continue
+                local_folder_map[p.name] = p
+
+        # (child_drive_id, child_dest_dir, child_rel_prefix) for every subfolder that
+        # survives the prep step below and is ready to be recursed into.
+        child_calls: list[tuple[str | None, Path, str]] = []
+
+        for name in sorted(drive_folder_map.keys() | local_folder_map.keys()):
+            in_drive = name in drive_folder_map
+            in_local = name in local_folder_map
+            child_rel_prefix = f"{rel_prefix}{name}/"
+            child_dest_dir = dest_dir / name
+
+            if in_drive and in_local:
+                child_drive_id = drive_folder_map[name]["id"]
+            elif in_drive:
+                if direction not in ("download", "bidirectional"):
+                    folders_skipped.append(child_rel_prefix)
+                    continue
+                child_drive_id = drive_folder_map[name]["id"]
+                if not dry_run:
+                    # A Drive file and a Drive folder can share a name (they're keyed
+                    # by ID, not name) — if the file-level pass above just downloaded
+                    # a same-named file here, exist_ok=True won't save us since the
+                    # existing path isn't a directory.
+                    if child_dest_dir.exists() and not child_dest_dir.is_dir():
+                        failed.append(
+                            {
+                                "name": child_rel_prefix,
+                                "error": (
+                                    f"cannot create local folder '{name}': a file with "
+                                    "the same name already exists at this path"
+                                ),
+                            }
+                        )
+                        continue
+                    child_dest_dir.mkdir(parents=True, exist_ok=True)
+            else:  # local only
+                if direction not in ("upload", "bidirectional"):
+                    folders_skipped.append(child_rel_prefix)
+                    continue
+                if dry_run:
+                    child_drive_id = None  # simulate: not created yet
+                else:
+                    try:
+                        created = await execute_in_thread(
+                            drive_service.files()
+                            .create(
+                                body={
+                                    "name": name,
+                                    "mimeType": "application/vnd.google-apps.folder",
+                                    "parents": [drive_folder_id],
+                                },
+                                supportsAllDrives=True,
+                                fields="id",
+                            )
+                            .execute,
+                            drive_service,
+                        )
+                    except Exception as e:
+                        failed.append({"name": child_rel_prefix, "error": str(e)})
+                        continue
+                    child_drive_id = created["id"]
+                    lc.drive_folder_cache.mark_dirty(drive_folder_id)
+
+            child_calls.append((child_drive_id, child_dest_dir, child_rel_prefix))
+
+        async def _descend(
+            child_drive_id: str | None, child_dest_dir: Path, child_rel_prefix: str
+        ) -> int:
+            return await _sync_level(
+                lc,
+                drive_service,
+                child_drive_id,
+                child_dest_dir,
+                child_rel_prefix,
+                direction,
+                export_format,
+                convert_markdown,
+                use_checksum,
+                skip_system_files,
+                dry_run,
+                recursive,
+                uploaded,
+                downloaded,
+                skipped,
+                conflicts,
+                failed,
+                actions,
+                folders_skipped,
+                ctx,
+                progress_count,
+            )
+
+        # Sibling subfolders are independent — descend into all of them concurrently
+        # instead of awaiting one at a time, same rationale as the file-level gather
+        # above. Shared accumulator lists are safe to append into concurrently since
+        # asyncio coroutines never actually run in parallel, only interleaved at
+        # await points.
+        child_results = await asyncio.gather(
+            *(_descend(*c) for c in child_calls), return_exceptions=True
+        )
+        for (_, _, child_rel_prefix), r in zip(child_calls, child_results, strict=True):
+            if isinstance(r, BaseException):
+                failed.append({"name": child_rel_prefix, "error": str(r)})
+            else:
+                total_bytes += r
+
+    return total_bytes
+
 
 def _xlsx_range_values(ws, range_str: str | None) -> list[list]:
     """Return cell values from an openpyxl worksheet for the given A1 range (or all data)."""
@@ -52,7 +1063,7 @@ def _xlsx_range_values(ws, range_str: str | None) -> list[list]:
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Export File", readOnlyHint=True))
-    def export_file(
+    async def export_file(
         file_id: str,
         export_format: str,
         ctx: Context = None,
@@ -82,8 +1093,8 @@ def register(tool):
             fileId, name, mime_type, format, encoding ('utf-8' or 'base64'), content.
             Text formats (txt, html, csv, rtf) are returned as plain strings; all others
             are base64-encoded bytes. Raises ValueError if the response exceeds a safety
-            cap (default 40,000 characters, set MAX_TOOL_RESPONSE_CHARS to change it) —
-            base64 encoding inflates raw file size by ~33%, so binary exports hit this
+            cap (see MAX_TOOL_RESPONSE_CHARS in docs/configuration.md for the configured
+            default) — base64 encoding inflates raw file size by ~33%, so binary exports hit this
             cap at a much smaller *file* size than text ones. Call download_file instead
             for anything but small files; it writes raw bytes straight to disk with no
             base64/JSON overhead.
@@ -92,22 +1103,28 @@ def register(tool):
 
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        metadata = (
+        metadata = await execute_in_thread(
             drive_service.files()
             .get(fileId=file_id, fields="id, name, mimeType", supportsAllDrives=True)
-            .execute()
+            .execute,
+            drive_service,
         )
         file_mime = metadata.get("mimeType", "")
         is_google_workspace = file_mime.startswith("application/vnd.google-apps.")
 
         if export_format == "raw" or not is_google_workspace:
-            request = drive_service.files().get_media(fileId=file_id)
-            buf = io.BytesIO()
-            downloader = MediaIoBaseDownload(buf, request)
-            done = False
-            while not done:
-                _, done = downloader.next_chunk()
-            raw_bytes = buf.getvalue()
+
+            def _download_to_completion() -> bytes:
+                request = drive_service.files().get_media(fileId=file_id)
+                request.http = thread_http(drive_service)
+                buf = io.BytesIO()
+                downloader = MediaIoBaseDownload(buf, request)
+                done = False
+                while not done:
+                    _, done = downloader.next_chunk()
+                return buf.getvalue()
+
+            raw_bytes = await asyncio.to_thread(_download_to_completion)
             target_mime = file_mime
             content_bytes = raw_bytes
         else:
@@ -117,8 +1134,9 @@ def register(tool):
                     f"Valid options: {', '.join(_EXPORT_MIME)}, raw"
                 )
             target_mime = _EXPORT_MIME[export_format][0]
-            content_bytes = (
-                drive_service.files().export(fileId=file_id, mimeType=target_mime).execute()
+            content_bytes = await execute_in_thread(
+                drive_service.files().export(fileId=file_id, mimeType=target_mime).execute,
+                drive_service,
             )
             if isinstance(content_bytes, str):
                 content_bytes = content_bytes.encode("utf-8")
@@ -144,7 +1162,7 @@ def register(tool):
         return result
 
     @tool(annotations=ToolAnnotations(title="List Revisions", readOnlyHint=True))
-    def list_revisions(file_id: str, ctx: Context = None) -> list[dict[str, Any]]:
+    async def list_revisions(file_id: str, ctx: Context = None) -> list[dict[str, Any]]:
         """
         List available revisions for a Google Drive file (Sheets, Docs, or any file).
 
@@ -162,13 +1180,14 @@ def register(tool):
             List of revisions, each with revisionId, modifiedTime, modifiedBy, keepForever.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
-        result = (
+        result = await execute_in_thread(
             drive_service.revisions()
             .list(
                 fileId=file_id,
                 fields="revisions(id,modifiedTime,lastModifyingUser/displayName,keepForever)",
             )
-            .execute()
+            .execute,
+            drive_service,
         )
         return [
             {
@@ -181,7 +1200,7 @@ def register(tool):
         ]
 
     @tool(annotations=ToolAnnotations(title="Export Revision", readOnlyHint=True))
-    def export_revision(
+    async def export_revision(
         file_id: str,
         revision_id: str,
         range: str | None = None,
@@ -214,10 +1233,11 @@ def register(tool):
 
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        revision = (
+        revision = await execute_in_thread(
             drive_service.revisions()
             .get(fileId=file_id, revisionId=revision_id, fields="exportLinks,modifiedTime")
-            .execute()
+            .execute,
+            drive_service,
         )
 
         xlsx_url = revision.get("exportLinks", {}).get(
@@ -229,7 +1249,9 @@ def register(tool):
                 "The file may not be a Google Sheets file."
             )
 
-        _, content = drive_service._http.request(xlsx_url)
+        # thread_http(drive_service) must be called inside the worker thread's closure, not
+        # eagerly here on the event-loop thread — see execute_in_thread's docstring in auth.py.
+        _, content = await asyncio.to_thread(lambda: thread_http(drive_service).request(xlsx_url))
         wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
 
         ws = wb[sheet] if sheet else wb.active
@@ -246,7 +1268,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Upload File", destructiveHint=True))
-    def upload_file(
+    async def upload_file(
         name: str,
         content: str,
         source_format: str = "text",
@@ -268,7 +1290,10 @@ def register(tool):
             convert_to_doc: If True, create a Google Doc instead of a raw file.
                             'markdown' and 'html' sources retain heading, list, and link
                             formatting via Drive's HTML import. 'text' uploads as plain text
-                            and Drive converts it (no formatting preserved).
+                            and Drive converts it (no formatting preserved). Uses the same
+                            Drive native-import-conversion trick as upload_local_file's
+                            convert param, simplified to always target a Doc since this
+                            tool has no file extension to dispatch Sheets/Slides on.
 
         Returns:
             fileId, name, parent folder ID, and webViewLink of the created file.
@@ -287,7 +1312,7 @@ def register(tool):
             upload_content = (
                 f"<!DOCTYPE html><html><head><meta charset='utf-8'></head>"
                 f"<body>{html_body}</body></html>"
-            ).encode("utf-8")
+            ).encode()
             upload_mime = "text/html"
         elif source_format == "html":
             upload_content = content.encode("utf-8")
@@ -301,11 +1326,17 @@ def register(tool):
             file_body["parents"] = [target_folder_id]
 
         if convert_to_doc:
-            file_body["mimeType"] = "application/vnd.google-apps.document"
+            # Same Drive native-import-conversion trick as _upload_local_file's
+            # convert/_CONVERT_MIME path above (upload with the source mimeType,
+            # override the destination mimeType to request conversion) — simpler
+            # here since this tool only ever targets a Doc, never Sheets/Slides.
+            # Shares _GOOGLE_DOC_MIME as the single source of truth for that
+            # value so the two mechanisms can't drift apart on it (#412).
+            file_body["mimeType"] = _GOOGLE_DOC_MIME
 
         media = MediaInMemoryUpload(upload_content, mimetype=upload_mime, resumable=False)
         try:
-            result = (
+            result = await execute_in_thread(
                 drive_service.files()
                 .create(
                     body=file_body,
@@ -313,7 +1344,8 @@ def register(tool):
                     supportsAllDrives=True,
                     fields="id, name, parents, webViewLink",
                 )
-                .execute()
+                .execute,
+                drive_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
@@ -335,11 +1367,12 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Upload Local File", destructiveHint=True))
-    def upload_local_file(
+    async def upload_local_file(
         local_path: str,
         parent_folder_id: str,
         name: str | None = None,
         skip_if_exists: bool = True,
+        convert: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -353,9 +1386,26 @@ def register(tool):
             skip_if_exists: If True (default), skip the upload and return the
                             existing file's metadata if a file with the same name
                             already exists in the destination folder.
+            convert: If True, request Drive's native import conversion instead of
+                     uploading as-is: .csv/.xlsx -> Google Sheets, .docx/.md/.html/.htm
+                     -> Google Docs, .pptx -> Google Slides. Any other extension
+                     returns an error. Default False (upload preserving original format).
+                     A .md conversion is recognized by sync_folder's convert_markdown
+                     matching too (same underlying mechanism, #211) — a later
+                     sync_folder call on the same folder won't create a duplicate.
+                     For .md specifically, create_doc_from_file is a local-pipeline
+                     alternative: it parses the file and rebuilds it via Docs API
+                     requests instead of Drive's importer, supporting more Markdown
+                     features (tables, nested lists, task items, fenced code blocks)
+                     at the cost of more API calls, versus this single-call
+                     Drive-native import.
 
         Returns:
-            fileId, name, webViewLink, and 'skipped' (True if skip_if_exists fired).
+            fileId, name, webViewLink, and 'skipped' (True if skip_if_exists fired) on
+            success. On failure, 'error' — plus a 'fileId' alongside it in the narrow
+            case where convert=True and the file was actually created in Drive but a
+            follow-up metadata call then failed (#420): that fileId names a real,
+            already-created Drive file, not something to retry creating again.
 
         Note:
             Requires OAuth or ADC auth. Service accounts cannot upload files to personal
@@ -365,72 +1415,27 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        path = Path(local_path)
-        if not path.is_file():
-            raise ValueError(f"No file found at {local_path!r}")
-
-        file_name = name or path.name
-
-        if skip_if_exists:
-            safe_name = file_name.replace("\\", "\\\\").replace("'", "\\'")
-            existing = (
-                drive_service.files()
-                .list(
-                    q=f"name='{safe_name}' and '{parent_folder_id}' in parents and trashed=false",
-                    spaces="drive",
-                    includeItemsFromAllDrives=True,
-                    supportsAllDrives=True,
-                    fields="files(id, name, webViewLink)",
-                    pageSize=1,
-                )
-                .execute()
-            )
-            hits = existing.get("files", [])
-            if hits:
-                logger.debug("Skipping upload — %s already exists as %s", file_name, hits[0]["id"])
-                return {
-                    "fileId": hits[0]["id"],
-                    "name": hits[0]["name"],
-                    "web_link": hits[0].get("webViewLink"),
-                    "skipped": True,
-                }
-
-        mime, _ = mimetypes.guess_type(local_path)
-        mime = mime or "application/octet-stream"
-
-        metadata: dict[str, Any] = {"name": file_name, "parents": [parent_folder_id]}
-        media = MediaFileUpload(local_path, mimetype=mime, resumable=True)
-        try:
-            result = (
-                drive_service.files()
-                .create(
-                    body=metadata,
-                    media_body=media,
-                    supportsAllDrives=True,
-                    fields="id, name, webViewLink",
-                )
-                .execute()
-            )
-        except HttpError as e:
-            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
-                return {"error": _SA_QUOTA_ERROR}
-            raise
-
-        lc.drive_folder_cache.mark_dirty(parent_folder_id)
-        logger.debug("Uploaded %s → %s (%s)", local_path, result.get("id"), mime)
-        return {
-            "fileId": result.get("id"),
-            "name": result.get("name", file_name),
-            "web_link": result.get("webViewLink"),
-            "skipped": False,
-        }
+        result = await _upload_local_file(
+            drive_service, local_path, parent_folder_id, name, skip_if_exists, convert
+        )
+        # "fileId" alongside "error" means create() genuinely succeeded and only
+        # the follow-up restamp failed (#420) — the folder's contents changed
+        # even though this call reports an error, so the cache must still be
+        # invalidated. Checked as its own case, not just "fileId" in result" —
+        # a plain skip also carries the pre-existing file's fileId and must NOT
+        # mark the cache dirty, since nothing changed (QA round 1, PR #645).
+        orphaned = "error" in result and "fileId" in result
+        if ("error" not in result and not result.get("skipped")) or orphaned:
+            lc.drive_folder_cache.mark_dirty(parent_folder_id)
+        return result
 
     @tool(annotations=ToolAnnotations(title="Upload Local Folder", destructiveHint=True))
-    def upload_local_folder(
+    async def upload_local_folder(
         local_path: str,
         parent_folder_id: str,
         skip_if_exists: bool = True,
         skip_system_files: bool = True,
+        convert: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -441,9 +1446,19 @@ def register(tool):
             parent_folder_id: ID of the destination Drive folder.
             skip_if_exists: Skip files that already exist in the destination (default True).
             skip_system_files: Skip OS metadata files like .DS_Store (default True).
+            convert: If True, request Drive's native import conversion for every file —
+                     same mapping as upload_local_file's convert param: .csv/.xlsx ->
+                     Google Sheets, .docx/.md/.html/.htm -> Google Docs, .pptx -> Google
+                     Slides. A file whose extension isn't in that mapping is reported in
+                     'failed' rather than uploaded as-is, matching upload_local_file's
+                     own convert=True behavior for an unsupported extension. Default
+                     False (upload every file preserving its original format).
 
         Returns:
-            Summary with lists of 'uploaded', 'skipped', and 'failed' filenames.
+            Summary with lists of 'uploaded', 'skipped', and 'failed' filenames. Each
+            'failed' entry is {name, error} plus a 'fileId' in the narrow convert=True
+            case where the file was actually created in Drive but a follow-up metadata
+            call then failed (#420) — see upload_local_file's own Returns docs.
 
         Note:
             Requires OAuth or ADC auth. Service accounts cannot upload files to personal
@@ -464,53 +1479,94 @@ def register(tool):
         uploaded: list[str] = []
         skipped: list[str] = []
         failed: list[dict[str, str]] = []
+        any_created = False
 
         if skip_if_exists and candidates:
-            existing_resp = (
+            # fields includes mimeType (not just name) so the convert=True case below
+            # can tell an already-converted duplicate apart from a same-named file
+            # still in its original format — mirrors _upload_local_file's own
+            # convert-aware skip_if_exists check (issue #411).
+            existing_resp = await execute_in_thread(
                 drive_service.files()
                 .list(
                     q=f"'{parent_folder_id}' in parents and trashed=false",
                     spaces="drive",
                     includeItemsFromAllDrives=True,
                     supportsAllDrives=True,
-                    fields="files(name)",
+                    fields="files(name, mimeType)",
                     pageSize=1000,
                 )
-                .execute()
+                .execute,
+                drive_service,
             )
-            existing_names = {f["name"] for f in existing_resp.get("files", [])}
+            existing_by_name = {
+                f["name"]: f.get("mimeType") for f in existing_resp.get("files", [])
+            }
         else:
-            existing_names = set()
+            existing_by_name = {}
 
         for p in sorted(candidates):
-            if skip_if_exists and p.name in existing_names:
+            if convert:
+                target_mime = _CONVERT_MIME.get(p.suffix.lower())
+                # Drive's native import-conversion strips the source extension from
+                # some converted types' display name (confirmed live for CSV,
+                # TC-D215/TC-D243) but keeps it for others (.md, TC-D240) — check
+                # both the original name and the extension-stripped stem
+                # independently so either naming behavior, or both existing at
+                # once (a raw duplicate alongside an already-converted one), is
+                # recognized correctly (PR #505 review, issue #411).
+                if target_mime is not None and (
+                    existing_by_name.get(p.name) == target_mime[1]
+                    or existing_by_name.get(p.stem) == target_mime[1]
+                ):
+                    skipped.append(p.name)
+                    continue
+            elif p.name in existing_by_name:
                 skipped.append(p.name)
                 continue
 
-            mime, _ = mimetypes.guess_type(str(p))
-            mime = mime or "application/octet-stream"
-
+            # skip_if_exists=False here — existence was already decided above from the
+            # single bulk list() call, so _upload_local_file doesn't need its own
+            # per-file check (preserves the one-list-call-per-run contract, TC-D100).
             try:
-                metadata: dict[str, Any] = {"name": p.name, "parents": [parent_folder_id]}
-                media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
-                drive_service.files().create(
-                    body=metadata,
-                    media_body=media,
-                    supportsAllDrives=True,
-                    fields="id",
-                ).execute()
-                uploaded.append(p.name)
-                logger.debug("Uploaded %s (%s)", p.name, mime)
+                result = await _upload_local_file(
+                    drive_service, str(p), parent_folder_id, skip_if_exists=False, convert=convert
+                )
             except Exception as e:
+                # _upload_local_file raises ValueError uncaught if the file no
+                # longer exists at call time (e.g. deleted between the directory
+                # scan above and this file's turn in the loop) — without this,
+                # one missing file crashed the whole call, discarding every
+                # already-accumulated uploaded/skipped/failed result instead of
+                # recording a single failed entry (PR #505 review, issue #411).
                 failed.append({"name": p.name, "error": str(e)})
+                continue
 
-        if uploaded:
+            if "error" in result:
+                entry = {"name": p.name, "error": result["error"]}
+                if "fileId" in result:
+                    # Set only for the create()-succeeded-but-restamp-failed case
+                    # (#420) — a genuine orphan now exists in Drive, so its ID
+                    # rides along in the failed entry rather than being lost.
+                    entry["fileId"] = result["fileId"]
+                    # create() genuinely succeeded here despite the overall
+                    # failure — the folder changed, so this must still count
+                    # for cache invalidation below even though it never reaches
+                    # `uploaded` (QA round 1, PR #645).
+                    any_created = True
+                failed.append(entry)
+            else:
+                uploaded.append(p.name)
+                any_created = True
+                logger.debug("Uploaded %s", p.name)
+
+        if any_created:
             lc.drive_folder_cache.mark_dirty(parent_folder_id)
 
         return {"uploaded": uploaded, "skipped": skipped, "failed": failed}
 
     @tool(annotations=ToolAnnotations(title="Download File", readOnlyHint=True))
-    def download_file(
+    async def download_file(
         file_id: str,
         local_path: str,
         export_format: str | None = None,
@@ -540,10 +1596,11 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        metadata = (
+        metadata = await execute_in_thread(
             drive_service.files()
             .get(fileId=file_id, fields="name, mimeType", supportsAllDrives=True)
-            .execute()
+            .execute,
+            drive_service,
         )
         drive_name = metadata["name"]
         file_mime = metadata.get("mimeType", "")
@@ -570,24 +1627,32 @@ def register(tool):
                     f"Unknown export_format '{export_format}'. Valid options: {', '.join(_EXPORT_MIME)}"
                 )
             target_mime = _EXPORT_MIME[export_format][0]
-            content = drive_service.files().export(fileId=file_id, mimeType=target_mime).execute()
+            content = await execute_in_thread(
+                drive_service.files().export(fileId=file_id, mimeType=target_mime).execute,
+                drive_service,
+            )
             if not isinstance(content, bytes):
                 content = content.encode("utf-8")
-            dest.write_bytes(content)
+            await asyncio.to_thread(dest.write_bytes, content)
         else:
-            request = drive_service.files().get_media(fileId=file_id)
-            with dest.open("wb") as fh:
-                downloader = MediaIoBaseDownload(fh, request)
-                done = False
-                while not done:
-                    _, done = downloader.next_chunk()
+
+            def _download_to_completion() -> None:
+                request = drive_service.files().get_media(fileId=file_id)
+                request.http = thread_http(drive_service)
+                with dest.open("wb") as fh:
+                    downloader = MediaIoBaseDownload(fh, request)
+                    done = False
+                    while not done:
+                        _, done = downloader.next_chunk()
+
+            await asyncio.to_thread(_download_to_completion)
 
         size = dest.stat().st_size
         logger.debug("Downloaded %s → %s (%d bytes)", file_id, dest, size)
         return {"local_path": str(dest), "name": drive_name, "size_bytes": size}
 
     @tool(annotations=ToolAnnotations(title="Download Folder", readOnlyHint=True))
-    def download_folder(
+    async def download_folder(
         folder_id: str,
         local_path: str,
         export_format: str | None = None,
@@ -600,7 +1665,12 @@ def register(tool):
 
         For non-Google files the raw content is downloaded. Google Workspace files
         are skipped unless export_format is provided, in which case they are exported
-        to that format.
+        to that format. Subfolders are always skipped, regardless of export_format —
+        this tool never descends into them.
+
+        Files transfer concurrently rather than one at a time. If the caller supplied
+        a progressToken, a `notifications/progress` update is sent as each file
+        finishes (e.g. "12/217: report.pdf: ok").
 
         Args:
             folder_id: The Google Drive folder ID.
@@ -624,7 +1694,7 @@ def register(tool):
             safe = mime_type_filter.replace("'", "\\'")
             query += f" and mimeType='{safe}'"
 
-        results = (
+        results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=query,
@@ -635,7 +1705,8 @@ def register(tool):
                 pageSize=1000,
                 orderBy="name",
             )
-            .execute()
+            .execute,
+            drive_service,
         )
 
         downloaded: list[str] = []
@@ -643,10 +1714,18 @@ def register(tool):
         failed: list[dict[str, str]] = []
         total_bytes = 0
 
+        candidates: list[tuple[str, str, bool, Path]] = []
+        claimed_dest: set[str] = set()
         for f in results.get("files", []):
             fid = f["id"]
             fname = f["name"]
             fmime = f.get("mimeType", "")
+
+            if fmime == "application/vnd.google-apps.folder":
+                # Non-recursive: subfolders are never descended into or exported.
+                skipped.append(fname)
+                continue
+
             is_workspace = fmime.startswith("application/vnd.google-apps.")
 
             if is_workspace and not export_format:
@@ -668,29 +1747,97 @@ def register(tool):
                 skipped.append(dest_file.name)
                 continue
 
+            # Drive allows two files with the same name (distinct IDs) in one
+            # folder; the local filesystem doesn't. Concurrent transfers below
+            # would otherwise race to write the identical path — keep the first
+            # candidate and record the rest as failed instead of silently
+            # clobbering content or double-counting size_bytes (PR #351 review,
+            # live-reproduced against a fixture folder with duplicate names).
+            dest_key = str(dest_file)
+            if dest_key in claimed_dest:
+                failed.append(
+                    {
+                        "name": fname,
+                        "error": (
+                            f"duplicate filename: another file named '{dest_file.name}' "
+                            "already claims this destination path — only the first is "
+                            "downloaded"
+                        ),
+                    }
+                )
+                continue
+            claimed_dest.add(dest_key)
+
+            candidates.append((fid, fname, is_workspace, dest_file))
+
+        total = len(candidates)
+        completed = 0
+
+        async def _download_one(
+            fid: str, fname: str, is_workspace: bool, dest_file: Path
+        ) -> dict[str, Any]:
+            nonlocal completed
             try:
                 if is_workspace:
                     target_mime = _EXPORT_MIME[export_format][0]
-                    content = (
-                        drive_service.files().export(fileId=fid, mimeType=target_mime).execute()
+                    content = await execute_in_thread(
+                        drive_service.files().export(fileId=fid, mimeType=target_mime).execute,
+                        drive_service,
                     )
                     if not isinstance(content, bytes):
                         content = content.encode("utf-8")
-                    dest_file.write_bytes(content)
+                    await asyncio.to_thread(dest_file.write_bytes, content)
                 else:
-                    request = drive_service.files().get_media(fileId=fid)
-                    with dest_file.open("wb") as fh:
-                        downloader = MediaIoBaseDownload(fh, request)
-                        done = False
-                        while not done:
-                            _, done = downloader.next_chunk()
+
+                    def _download_to_completion(fid=fid, dest_file=dest_file) -> None:
+                        request = drive_service.files().get_media(fileId=fid)
+                        request.http = thread_http(drive_service)
+                        with dest_file.open("wb") as fh:
+                            downloader = MediaIoBaseDownload(fh, request)
+                            done = False
+                            while not done:
+                                _, done = downloader.next_chunk()
+
+                    await asyncio.to_thread(_download_to_completion)
 
                 size = dest_file.stat().st_size
-                total_bytes += size
-                downloaded.append(dest_file.name)
                 logger.debug("Downloaded %s → %s (%d bytes)", fid, dest_file, size)
+                result: dict[str, Any] = {"kind": "ok", "name": dest_file.name, "bytes": size}
             except Exception as e:
-                failed.append({"name": fname, "error": str(e)})
+                result = {"kind": "fail", "name": fname, "error": str(e)}
+
+            # Reported here, inside the per-item coroutine, so updates stream in as
+            # each concurrent download finishes rather than arriving in one burst
+            # after asyncio.gather resolves — see #316.
+            completed += 1
+            try:
+                await ctx.report_progress(
+                    completed, total, f"{completed}/{total}: {result['name']}: {result['kind']}"
+                )
+            except Exception:
+                # The download already succeeded or failed on its own terms — a
+                # broken notification channel must not overwrite that outcome.
+                # PR #351 review: this was previously unguarded and a
+                # report_progress exception here would propagate out, turning an
+                # already-successful download into a "failed" item at the
+                # gather below.
+                logger.debug("report_progress failed for %s", result["name"], exc_info=True)
+            return result
+
+        # Concurrent fan-out, same pattern as _sync_level's _run_one: previously this
+        # was a sequential `for` loop awaiting one transfer at a time (#316), which
+        # measured 1.04s/file and scaled linearly with folder size.
+        raw = await asyncio.gather(*(_download_one(*c) for c in candidates), return_exceptions=True)
+
+        for c, o in zip(candidates, raw, strict=True):
+            if isinstance(o, BaseException):
+                failed.append({"name": c[1], "error": str(o)})
+                continue
+            if o["kind"] == "ok":
+                downloaded.append(o["name"])
+                total_bytes += o["bytes"]
+            else:
+                failed.append({"name": o["name"], "error": o["error"]})
 
         return {
             "downloaded": downloaded,
@@ -700,13 +1847,17 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Sync Folder", destructiveHint=True))
-    def sync_folder(
+    async def sync_folder(
         folder_id: str,
         local_path: str,
         direction: str = "bidirectional",
         export_format: str | None = None,
+        convert_markdown: bool = False,
+        use_checksum: bool = False,
         skip_system_files: bool = True,
         dry_run: bool = False,
+        recursive: bool = False,
+        result_local_path: str | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -717,7 +1868,10 @@ def register(tool):
         Files are matched by name. For Google Workspace files (Docs, Sheets, Slides),
         the export extension is appended to form the local name — e.g. a Doc called
         'Notes' with export_format='docx' matches the local file 'Notes.docx'.
-        Workspace files with no export_format are skipped entirely.
+        Workspace files with no export_format are skipped entirely — except a Doc
+        produced by convert_markdown, which keeps its '.md' name and matches its
+        local .md file directly regardless of export_format (see convert_markdown
+        below).
 
         For each matched name the action is decided as follows:
 
@@ -733,6 +1887,26 @@ def register(tool):
         Modified times are compared in UTC. When a file is uploaded, its Drive
         modifiedTime is set to the local file's mtime so future syncs stay accurate.
 
+        When use_checksum=True, a name present on both sides whose modifiedTimes
+        actually disagree (beyond the 5s tolerance) is checked for a content match
+        (local md5 vs. Drive's md5Checksum) before the direction decision above
+        runs — a match is always treated as in sync regardless of how far apart
+        the modifiedTimes are. Skipped for pairs already within tolerance and
+        during dry_run, so this never turns a cheap preview into a full read of
+        every file. This catches cases mtime alone gets wrong: content uploaded via
+        upload_local_file reading as "Drive newer" and getting needlessly
+        re-downloaded (upload_local_file now also stamps modifiedTime to match the
+        local file directly, so this mainly helps for other causes of drift, e.g. a
+        local overwrite that happens to preserve mtime), or a local regeneration
+        that changes mtime without changing bytes reading as "local newer." A local
+        read failure for one file (deleted, permission-denied, etc.) reports that
+        name under 'failed' rather than aborting the whole call. Only
+        applies to files with a real md5Checksum — Google Workspace files (Docs,
+        Sheets, Slides) and convert_markdown Docs have none and always fall back
+        to the mtime comparison. A checksum mismatch doesn't change anything by
+        itself; it just falls through to the same mtime-based direction decision
+        used when use_checksum=False.
+
         ## direction values
 
           'bidirectional' (default) — newer side wins; Drive-only files are downloaded,
@@ -742,10 +1916,39 @@ def register(tool):
           'download'                — only pull Drive changes locally; local-only files
                                       and local-newer files are left alone.
 
+        ## recursive
+
+        By default (recursive=False) only files directly inside `folder_id` /
+        `local_path` are considered — subfolders are ignored entirely, on either side.
+
+        When recursive=True, subfolders matched by name (same rules as files) are
+        walked to any depth. A subfolder present on only one side is only descended
+        into — and created on the missing side — when `direction` would actually
+        create it there:
+          - a Drive-only subfolder is downloaded (local dir created) when direction
+            includes download; left alone under 'upload' direction.
+          - a local-only subfolder is uploaded (Drive folder created) when direction
+            includes upload; left alone under 'download' direction.
+        Subfolders left alone this way are listed under 'folders_skipped' (relative
+        path, trailing '/') instead of being silently ignored.
+
         ## dry_run
 
-        When dry_run=True no files are transferred. The response includes an 'actions'
-        list showing every file and what would happen, with the reason.
+        When dry_run=True no files or folders are created/transferred. 'uploaded',
+        'downloaded', 'skipped', 'conflicts', and 'failed' are always empty in this
+        mode (nothing was materialized to report there) — the response instead
+        includes an 'actions' list with {name, action, reason} for every file
+        considered at every level visited; this is the complete, non-redundant
+        picture of what a real run would do and why, without duplicating each name
+        into a second, action-labelless list alongside it (#512).
+
+        ## Progress
+
+        File transfers within each level run concurrently rather than one at a time.
+        If the caller supplied a progressToken, a `notifications/progress` update is
+        sent as each individual upload/download completes (skips and conflicts don't
+        emit updates — they're free, not transfers). No update is sent during dry_run,
+        since nothing is transferred.
 
         Args:
             folder_id: Google Drive folder ID to sync against.
@@ -753,239 +1956,161 @@ def register(tool):
             direction: 'bidirectional', 'upload', or 'download'.
             export_format: Required to include Workspace files in the sync. They are
                            exported/compared using this format (e.g. 'pdf', 'docx', 'csv').
+            convert_markdown: If True, local .md files are uploaded via Drive's native
+                           import conversion, landing as Google Docs (still named
+                           '<name>.md') instead of raw text files — same mechanism as
+                           upload_local_file's convert param (#188), and a Doc created
+                           either way is recognized by this matching. The converted Doc
+                           is matched back to its local .md file directly on later
+                           syncs (independent of export_format, and independent of
+                           whether a later sync passes convert_markdown=True again),
+                           so edits round-trip normally instead of re-uploading a
+                           duplicate every run. Matching is scoped to Docs carrying an
+                           internal Drive property this tool sets on conversion — a
+                           pre-existing Doc a human happened to name '<name>.md' is
+                           never mistaken for one and never has its content
+                           overwritten. There is no reverse conversion: if the Doc is
+                           edited in Drive, or has no local counterpart at all, that
+                           entry is reported under 'conflicts' instead of downloaded.
+                           A .md previously synced with convert_markdown=False can't be
+                           promoted to a Doc in place — that entry is reported under
+                           'failed' with an explanatory message; delete it in Drive and
+                           re-sync to convert it.
+            use_checksum: If True, treat a name present on both sides as in sync
+                           whenever its local md5 hash matches Drive's md5Checksum,
+                           regardless of modifiedTime drift (see above). Default False
+                           (mtime-only comparison, as before this option existed).
             skip_system_files: Skip .DS_Store and similar OS metadata files (default True).
             dry_run: If True, plan the sync but transfer nothing.
+            recursive: If True, also sync matching subfolders at any depth (see above).
+                       Defaults to False — a single call only covers the top-level folder.
+            result_local_path: If set, write the result to this file/directory path
+                       instead of returning it inline, unconditionally bypassing the
+                       response-size safety cap below — useful for a large recursive
+                       sync (dry_run or real) whose result would otherwise exceed it.
+                       Returns a manifest ({local_path, bytes_written, folder_id,
+                       dry_run}) instead of the sync result itself. Must not be
+                       `local_path` or a path inside it — `local_path` is scanned as
+                       sync input on every call, so a result manifest written there
+                       would show up as a new local-only file on the next sync (and
+                       get uploaded to Drive on a real run); raises ValueError if it
+                       resolves inside `local_path`.
 
         Returns:
-            uploaded, downloaded, skipped, conflicts, failed lists (filenames),
-            size_bytes transferred, dry_run flag, and — when dry_run=True — an
-            'actions' list with {name, action, reason} for every file considered.
+            uploaded, downloaded, skipped, conflicts, failed lists (relative paths —
+            just the filename at the top level, 'subdir/name' for nested matches when
+            recursive descends; always empty when dry_run=True, see the dry_run
+            section above), 'folders_skipped' (relative subfolder paths not entered —
+            always empty when recursive=False), size_bytes transferred, dry_run flag,
+            and — when dry_run=True — an 'actions' list with {name, action, reason}
+            for every file considered at every level visited. Each 'failed' entry is
+            {name, error} plus a 'fileId' in the narrow convert_markdown case where
+            create() actually succeeded in Drive but a follow-up metadata call then
+            failed (#420) — that fileId names a real, already-created Drive file, not
+            something the next sync will retry creating from scratch. Raises
+            ValueError if the response exceeds a safety cap (see
+            MAX_TOOL_RESPONSE_CHARS in docs/configuration.md for the configured
+            default, or pass result_local_path to bypass it and write to disk
+            instead) — a recursive sync/preview over many files is the most likely
+            way to hit this.
         """
         if direction not in ("bidirectional", "upload", "download"):
-            raise ValueError(
-                f"direction must be 'bidirectional', 'upload', or 'download', got '{direction}'"
-            )
+            return {
+                "error": f"Invalid direction '{direction}'. "
+                "Use 'upload', 'download', or 'bidirectional'."
+            }
         if export_format and export_format not in _EXPORT_MIME:
-            raise ValueError(
-                f"Unknown export_format '{export_format}'. Valid: {', '.join(_EXPORT_MIME)}"
-            )
+            return {
+                "error": f"Unknown export_format '{export_format}'. "
+                f"Valid: {', '.join(_EXPORT_MIME)}"
+            }
 
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
         dest_dir = Path(local_path)
         dest_dir.mkdir(parents=True, exist_ok=True)
 
-        # --- build Drive file map: local_name → {id, mimeType, drive_name, modifiedTime} ---
-        results = (
-            drive_service.files()
-            .list(
-                q=f"'{folder_id}' in parents and trashed=false",
-                spaces="drive",
-                includeItemsFromAllDrives=True,
-                supportsAllDrives=True,
-                fields="files(id, name, mimeType, modifiedTime)",
-                pageSize=1000,
-            )
-            .execute()
-        )
-        drive_map: dict[str, dict] = {}
-        for f in results.get("files", []):
-            is_workspace = f["mimeType"].startswith("application/vnd.google-apps.")
-            if is_workspace:
-                if not export_format:
-                    continue  # excluded without an export format
-                local_name = f["name"] + _EXPORT_MIME[export_format][1]
-            else:
-                local_name = f["name"]
-            drive_map[local_name] = f
+        if result_local_path:
+            # local_path is also a live input directory this same call scans — unlike
+            # every other capped tool's local_path (a pure output destination), writing
+            # the result manifest inside it would make the manifest file itself show up
+            # as a new local-only entry on the very next sync, and get uploaded to Drive
+            # on a real (non-dry_run) run (QA finding, PR #518 review, live-reproduced).
+            result_path_resolved = Path(result_local_path).resolve()
+            dest_dir_resolved = dest_dir.resolve()
+            if (
+                result_path_resolved == dest_dir_resolved
+                or dest_dir_resolved in result_path_resolved.parents
+            ):
+                raise ValueError(
+                    f"result_local_path ('{result_local_path}') must not be local_path "
+                    f"('{local_path}') or a path inside it — local_path is scanned as "
+                    "sync input, so writing the result manifest there would make it show "
+                    "up as a new local-only file on the next sync. Use a separate directory."
+                )
 
-        # --- build local file map: name → Path ---
-        local_map: dict[str, Path] = {}
-        for p in dest_dir.iterdir():
-            if not p.is_file():
-                continue
-            if skip_system_files and p.name in _SYSTEM_FILES:
-                continue
-            local_map[p.name] = p
-
-        # --- plan actions ---
-        def _drive_mtime(entry: dict) -> datetime:
-            return datetime.fromisoformat(entry["modifiedTime"].replace("Z", "+00:00"))
-
-        def _local_mtime(p: Path) -> datetime:
-            return datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc)
-
-        plan: list[dict[str, str]] = []
-        for name in sorted(drive_map.keys() | local_map.keys()):
-            in_drive = name in drive_map
-            in_local = name in local_map
-
-            if in_drive and not in_local:
-                if direction in ("download", "bidirectional"):
-                    plan.append({"name": name, "action": "download", "reason": "drive only"})
-                else:
-                    plan.append(
-                        {"name": name, "action": "skip", "reason": "drive only, upload direction"}
-                    )
-
-            elif in_local and not in_drive:
-                if direction in ("upload", "bidirectional"):
-                    plan.append({"name": name, "action": "upload", "reason": "local only"})
-                else:
-                    plan.append(
-                        {"name": name, "action": "skip", "reason": "local only, download direction"}
-                    )
-
-            else:
-                dmtime = _drive_mtime(drive_map[name])
-                lmtime = _local_mtime(local_map[name])
-                diff = (lmtime - dmtime).total_seconds()
-
-                if abs(diff) <= _SYNC_MTIME_TOLERANCE:
-                    plan.append({"name": name, "action": "skip", "reason": "in sync"})
-                elif diff > 0:
-                    if direction in ("upload", "bidirectional"):
-                        plan.append(
-                            {
-                                "name": name,
-                                "action": "upload",
-                                "reason": f"local newer by {diff:.0f}s",
-                            }
-                        )
-                    else:
-                        plan.append(
-                            {
-                                "name": name,
-                                "action": "conflict",
-                                "reason": f"local newer by {diff:.0f}s but direction is download",
-                            }
-                        )
-                else:
-                    if direction in ("download", "bidirectional"):
-                        plan.append(
-                            {
-                                "name": name,
-                                "action": "download",
-                                "reason": f"drive newer by {-diff:.0f}s",
-                            }
-                        )
-                    else:
-                        plan.append(
-                            {
-                                "name": name,
-                                "action": "conflict",
-                                "reason": f"drive newer by {-diff:.0f}s but direction is upload",
-                            }
-                        )
-
-        if dry_run:
-            return {
-                "actions": plan,
-                "dry_run": True,
-                "uploaded": [],
-                "downloaded": [],
-                "skipped": [p["name"] for p in plan if p["action"] == "skip"],
-                "conflicts": [p["name"] for p in plan if p["action"] == "conflict"],
-                "failed": [],
-                "size_bytes": 0,
-            }
-
-        # --- execute ---
         uploaded: list[str] = []
         downloaded: list[str] = []
         skipped: list[str] = []
         conflicts: list[str] = []
         failed: list[dict[str, str]] = []
-        total_bytes = 0
+        actions: list[dict[str, str]] = []
+        folders_skipped: list[str] = []
 
-        for step in plan:
-            name = step["name"]
-            action = step["action"]
+        total_bytes = await _sync_level(
+            lc,
+            drive_service,
+            folder_id,
+            dest_dir,
+            "",
+            direction,
+            export_format,
+            convert_markdown,
+            use_checksum,
+            skip_system_files,
+            dry_run,
+            recursive,
+            uploaded,
+            downloaded,
+            skipped,
+            conflicts,
+            failed,
+            actions,
+            folders_skipped,
+            ctx,
+            [0],
+        )
 
-            if action == "skip":
-                skipped.append(name)
-                continue
-
-            if action == "conflict":
-                conflicts.append(name)
-                continue
-
-            if action == "upload":
-                p = local_map[name]
-                mime, _ = mimetypes.guess_type(str(p))
-                mime = mime or "application/octet-stream"
-                lmtime_str = datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc).strftime(
-                    "%Y-%m-%dT%H:%M:%S.000Z"
-                )
-
-                if name in drive_map:
-                    # update existing file
-                    fid = drive_map[name]["id"]
-                    try:
-                        media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
-                        drive_service.files().update(
-                            fileId=fid,
-                            body={"modifiedTime": lmtime_str},
-                            media_body=media,
-                            supportsAllDrives=True,
-                            fields="id",
-                        ).execute()
-                        uploaded.append(name)
-                        logger.debug("Synced (update) %s → Drive", name)
-                    except Exception as e:
-                        failed.append({"name": name, "error": str(e)})
-                else:
-                    # create new file
-                    try:
-                        media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
-                        drive_service.files().create(
-                            body={"name": name, "parents": [folder_id], "modifiedTime": lmtime_str},
-                            media_body=media,
-                            supportsAllDrives=True,
-                            fields="id",
-                        ).execute()
-                        uploaded.append(name)
-                        logger.debug("Synced (create) %s → Drive", name)
-                    except Exception as e:
-                        failed.append({"name": name, "error": str(e)})
-
-            elif action == "download":
-                entry = drive_map[name]
-                fid = entry["id"]
-                is_workspace = entry["mimeType"].startswith("application/vnd.google-apps.")
-                dest_file = dest_dir / name
-                try:
-                    if is_workspace:
-                        target_mime = _EXPORT_MIME[export_format][0]
-                        content = (
-                            drive_service.files().export(fileId=fid, mimeType=target_mime).execute()
-                        )
-                        if not isinstance(content, bytes):
-                            content = content.encode("utf-8")
-                        dest_file.write_bytes(content)
-                    else:
-                        request = drive_service.files().get_media(fileId=fid)
-                        with dest_file.open("wb") as fh:
-                            downloader = MediaIoBaseDownload(fh, request)
-                            done = False
-                            while not done:
-                                _, done = downloader.next_chunk()
-                    size = dest_file.stat().st_size
-                    total_bytes += size
-                    downloaded.append(name)
-                    logger.debug("Synced (download) Drive → %s (%d bytes)", name, size)
-                except Exception as e:
-                    failed.append({"name": name, "error": str(e)})
-
-        if uploaded or downloaded:
-            lc.drive_folder_cache.mark_dirty(folder_id)
-
-        return {
+        result: dict[str, Any] = {
             "uploaded": uploaded,
             "downloaded": downloaded,
             "skipped": skipped,
             "conflicts": conflicts,
             "failed": failed,
+            "folders_skipped": folders_skipped,
             "size_bytes": total_bytes,
-            "dry_run": False,
+            "dry_run": dry_run,
         }
+        if dry_run:
+            result["actions"] = actions
+
+        if result_local_path:
+            return await write_capped_result_to_disk(
+                result,
+                result_local_path,
+                default_filename=f"{folder_id}_sync_result.json",
+                manifest_extra={"folder_id": folder_id, "dry_run": dry_run},
+            )
+
+        # recursive=True removes the previous implicit bound (one folder's direct
+        # children) on every list here, especially 'actions' during a dry run — the
+        # decision doc's own reproduction case (22 subfolders / ~225 files) is a
+        # realistic scale to hit the cap.
+        enforce_response_size_cap(
+            result,
+            tool_name="sync_folder",
+            hint="Recursive syncs can produce very large result lists. Narrow "
+            "folder_id, direction, or recursive scope, or ",
+            local_path_param="result_local_path",
+        )
+        return result

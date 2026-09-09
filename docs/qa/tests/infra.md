@@ -14,13 +14,17 @@ Most infrastructure behaviours are verified by unit tests rather than live QA pr
 | TC-I04 (cache persistence across restart) | SQLite persistence is a property of the DB file, not the server — not worth a subprocess test |
 | TC-I05–I07 (tool filtering) | Unit-tested in `tests/test_server.py` — `_parse_enabled_tools()` is fully covered |
 | TC-I08–I12 (auth variants) | Unit tests tracked in #98 — mock `_service_account_creds`, `_oauth_creds`, and ADC |
-| TC-I02 (WAL concurrency) | Manual / live QA only — requires true concurrent requests |
-| TC-I13, I14 (transport) | Manual / live QA only — verify once per environment setup |
+| TC-I02 (WAL concurrency), TC-I24 (cross-request transport) | Live QA via the two-subagent `mkdir`-barrier procedure in `docs/qa/run.md` §"Running true-concurrency test cases" — run during the release pass, not skipped (#673) |
+| TC-I13, I14 (transport) | ✅ Live-tested post-#175 mcp v2 migration — see Result entries below |
 | TC-I15 (hot reload) | Manual / live QA only — known uvicorn + SSE limitation, observe and note |
 | TC-I16–I20 (logging) | ✅ Already live-tested and passed — see Result entries below |
 | DB recovery (issue #212) | Unit-tested in `tests/test_cache.py` `TestOpenFallback` — read-only file, read-only dir, and `:memory:` fallback all covered |
 | Tool doc generation (issue #94) | `scripts/gen_tool_docs.py` is a build-time/pre-commit script, not an MCP tool — no live prompt applies. Unit-tested in `tests/test_gen_tool_docs.py`: every registered tool is covered by a section and has a docstring, subset validation catches unknown tool names, and `main()` is idempotent on a second run |
 | TC-I21 (strict tool arg validation, issue #239) | ✅ Unit-tested in `tests/test_server.py::TestToolStrictArgs` (dummy tool + real `list_sheets`) and live-tested — see Result entry below |
+| TC-I22 (`set_cache_ttl`/`get_cache_ttl`, issue #99) | Unit-tested in `tests/test_cache.py` (`set_ttl`/`get_ttl` on all 5 cache classes) — TTL change takes effect on the next lookup without a restart, and is readable back |
+| TC-I23 (`CACHE_VALIDATE_MODIFIED_TIME`, issue #99) | Unit-tested in `tests/test_cache.py` (modified-time comparison in `_get_valid`, `get_modified_time` helper, `fetch_sheets` wiring). Live verification needs an edit path outside the MCP tools' own `mark_dirty` calls (which already invalidate immediately) — see TC-I23 below for the Playwright-based approach |
+| TC-I25, I26 (MCP resources reach lifespan context, issue #363; mechanism changed under mcp v2, issue #175) | Unit-tested in `tests/test_server.py::TestResourcesReadLifespanContext` (monkeypatches `auth.get_lifespan_context()` for the static `server://auth-status` resource, passes a fake `ctx: Context` directly for the template `spreadsheet://{id}/info` resource — mcp v2's `MCPServer` dropped `get_context()` with no replacement for static resources, confirmed live against mcp==2.0.0). ✅ Live re-verified post-migration against the real SDK — see Result entries below |
+| TC-I29 (`server.json` registry manifest, issue #586) | Not reachable via any MCP tool or prompt — `server.json` is a static repo-root manifest consumed by the external `mcp-publisher` CLI and the official MCP registry, not the running server. Identity/consistency (name, PyPI identifier, `mcp-name` marker) is unit-tested in `tests/test_server_json.py`. Manual / live QA only — verify once, after each stable release that changes `server.json`'s `version` — see TC-I29 below |
 
 ---
 
@@ -40,17 +44,23 @@ Set `CACHE_TTL=10` (10 seconds) in your server config, restart the server.
 - Logs show two separate API calls
 - Restore `CACHE_TTL` to default (1800) after this test
 
+**Result (2026-09-04) ⏭️ SKIP**
+requires CACHE_TTL=10 + server restart — pre-approved, unit-tested (tests/test_cache.py TTL expiry)
+
 ---
 
 ### TC-I02: SQLite WAL mode — concurrent reads during a write
 
 **Setup**
-This is a timing-dependent test. Issue a write (e.g. `update_cells`) and a read (`get_sheet_data`) as close to simultaneously as possible — two browser tabs or two terminal sessions both calling the MCP server.
+This is a timing-dependent test needing two genuinely simultaneous requests to one server, which a single client session can't produce. Run it via the two-subagent `mkdir`-barrier procedure in [`docs/qa/run.md`](../run.md) §"Running true-concurrency test cases" — subagent `a` issues the write (`update_cells` to `Empty!A1`), subagent `b` the read (`get_sheet_data` on `Sales!A1:C3`), both released from the barrier together, looped 20–50×.
 
 **Checks**
 - Read does not block or error while write is in progress
-- Both calls return valid responses
-- No SQLite locking error in logs
+- Both calls return valid responses on every iteration
+- No SQLite locking error (`database is locked` / `SQLITE_BUSY` / `OperationalError`) in any `result-b-*` file, and none in the server `LOG_FILE` over the run window if it's reachable
+
+**Result (2026-09-04) ✅ PASS**
+Two-subagent mkdir-barrier procedure, mcp-gee-sweet-kai-sa, 25 iterations: subagent a wrote a per-iteration sentinel to Empty!A1 (25/25 succeeded), subagent b concurrently read Sales!A1:C3 (25/25 succeeded, zero database is locked / SQLITE_BUSY / OperationalError / empty / SSL errors). LOG_FILE grepped over the run window for locking errors — none found. #280 WAL busy_timeout fix holds under 25 concurrent write+read pairs.
 
 ---
 
@@ -66,6 +76,9 @@ Set `CACHE_DB_PATH=/tmp/qa_test_cache.db` and restart the server.
 - File `/tmp/qa_test_cache.db` is created (check with `ls /tmp/qa_test_cache.db`)
 - Default path `/tmp/mcp_gee_sweet.db` is NOT used
 - Restore `CACHE_DB_PATH` to default after this test
+
+**Result (2026-09-04) ⏭️ SKIP**
+requires CACHE_DB_PATH env + restart — pre-approved, unit-tested (tests/test_cache.py db_path override)
 
 ---
 
@@ -85,6 +98,236 @@ Restart the MCP server (`docker compose restart mcp-gee-sweet` or stop/start `uv
 - Data returned matches what was cached before restart
 - 🔍 **Product decision:** stale cache after restart is a known trade-off; note whether this is acceptable for the use case
 
+**Result (2026-09-04) ⏭️ SKIP**
+requires server restart to test cache persistence — pre-approved (SQLite file property, not server)
+
+---
+
+### TC-I22: `set_cache_ttl`/`get_cache_ttl` — runtime TTL change takes effect without restart (issue #99)
+
+**Prompt** (step 0 — record the starting TTL, to restore later)
+> "What's the current cache TTL?"
+
+**Prompt** (step 1 — warm the cache, default TTL)
+> "List the sheets in {SPREADSHEET_ID}"
+
+**Prompt** (step 2 — lower the TTL at runtime)
+> "Set the cache TTL to 3 seconds"
+
+**Prompt** (step 3 — confirm the new TTL is readable back)
+> "What's the current cache TTL now?"
+
+**Prompt** (step 4 — confirm the new TTL is honored)
+> "Wait 5 seconds, then list the sheets in {SPREADSHEET_ID} again"
+
+**Checks**
+- Step 0 returns `{"ttl_seconds": 1800}` (the default, assuming no prior test left it changed)
+- Step 2 returns `{"ttl_seconds": 3}`
+- Step 3 returns `{"ttl_seconds": 3}` — `get_cache_ttl` reflects the change immediately
+- Step 1's call is a cache miss (cold or expired from a prior test) — API fetch, result cached
+- Step 4's call is a cache miss too, despite no server restart between steps — confirms the lowered TTL applied to the already-cached entry once evaluated, not just newly stored ones
+- Restore the TTL after this test: `"Set the cache TTL to 1800"`
+
+**Result (2026-07-08) ✅ PASS**
+Ran all 5 steps live against `TEST_SPREADSHEET_ID`. Step 0: `get_cache_ttl` → `{"ttl_seconds": 1800}`. Step 1: `list_sheets` cache miss, warmed. Step 2: `set_cache_ttl(3)` → `{"ttl_seconds": 3}`; log emitted `WARNING mcp_gee_sweet.tools.cache Cache TTL changed process-wide 1800s -> 3s (affects all concurrent sessions)`. Step 3: `get_cache_ttl` → `{"ttl_seconds": 3}`, immediate readback confirmed. Step 4: after a 5s wait, `list_sheets` again — log showed `Cache TTL expired for <id>, marking dirty` followed by a fresh `Cached 4 sheets`, confirming the lowered TTL applied retroactively to the already-cached entry. Restored TTL to 1800 (`get_cache_ttl` confirmed).
+
+**Result (2026-09-04) ✅ PASS**
+Step 0 `get_cache_ttl` → `{"ttl_seconds":1800}`. Step 2 `set_cache_ttl(3)` → `{"ttl_seconds":3}`; log emitted `WARNING mcp_gee_sweet.tools.cache Cache TTL changed process-wide 1800s -> 3s (affects all concurrent sessions)`. Step 3 `get_cache_ttl` → `{"ttl_seconds":3}` (immediate readback). Step 4 (after ~5s wait): log showed `DEBUG mcp_gee_sweet.cache Cache TTL expired for 1dBzY4Wuufx8OtHbQsYO8PQNGV-z5g0Vr_TnKzNCXZYs, marking dirty` then a fresh `list_sheets` 200 — lowered TTL applied retroactively to the already-cached entry, no restart. Restored: `set_cache_ttl(1800)` → `WARNING ... 3s -> 1800s`; `get_cache_ttl` → `{"ttl_seconds":1800}`. (Step-1 cold-miss check not isolatable — entry was already warm from TC-I21 on the shared process; step-4 retroactive-expiry is the load-bearing #99 behavior and is confirmed.)
+
+---
+
+### TC-I23: `CACHE_VALIDATE_MODIFIED_TIME` — external edit invalidates cache before TTL expires (issue #99)
+
+**Background:** by default, a sheet-structure/data or doc-content cache hit is checked against the source file's live Drive `modifiedTime` before being served. This matters specifically for edits that don't go through this MCP session's own write tools (which already call `mark_dirty` immediately) — e.g. another Claude session, or a person editing the file directly in the Sheets/Docs UI.
+
+**Setup**
+1. Warm the cache: "List the sheets in {SPREADSHEET_ID}"
+2. Using the browser (Playwright), open {SPREADSHEET_ID} in the Sheets UI and rename one sheet tab directly (not through any MCP tool) — this changes Drive's `modifiedTime` without calling `mark_dirty`.
+
+**Prompt**
+> "List the sheets in {SPREADSHEET_ID}"
+
+**Checks**
+- The renamed sheet's new title is reflected in the result, even though `CACHE_TTL` has not elapsed since step 1 — the `modifiedTime` mismatch invalidated the cache entry immediately
+- Logs show a lightweight `files.get` call (`fields=modifiedTime`) preceding the decision, distinct from the fuller `spreadsheets.get` fetch that follows on the resulting miss
+
+Note: Playwright is used here only as the mechanism to make an edit outside the MCP tool surface (step 2 of Setup) — the actual pass/fail check is a plain API-response comparison, not a visual confirmation. Doesn't fit the existing `Playwright: required` tag definition (visual mutation the API can't confirm), so left untagged; flagging in case this is a second, distinct case the tag convention should eventually cover.
+
+**Cleanup:** rename the sheet back to its original name.
+
+**Result (2026-07-08) ✅ PASS**
+Warmed the structure cache via `list_sheets("BrandNew"...)`, then used Playwright to rename the "BrandNew" tab to "BrandNewRenamedQA" directly in the Sheets UI. Immediate `list_sheets` call (no wait, `CACHE_TTL` at default 1800s) returned the new name. Log showed `DEBUG mcp_gee_sweet.cache Source modified since cache for <id>, marking dirty` — the modifiedTime-mismatch path, distinct from the `Cache TTL expired` path — immediately followed by a fresh `Cached 4 sheets`. Renamed back via Playwright; confirmed reverted.
+
+**Supplementary live check (2026-07-08) — cache-poisoning regression from code review, not a scripted TC:** the code review on this PR's first pass (before the `6d4a59b` fix) found that `_get_sheet_id` (backing ~11 write-path tools: `add_rows`, `rename_sheet`, `format_cells`, etc.) called `fetch_sheets()` without `drive_service`, storing the shared structure-cache row with `modified_time=None` — silently disabling staleness detection for *all* subsequent readers of that spreadsheet, including `list_sheets`. Verified the fix closes this end-to-end: `refresh_cache` (cold) → `freeze(sheet="EmptyRenamedQA")` (write-path call, cache MISS/STORE) → renamed "EmptyRenamedQA" back to "Empty" via Playwright → `list_sheets` (read-path, no explicit refresh) immediately returned `"Empty"`, with the log showing `Source modified since cache... marking dirty` right after the write-path's own store. Confirms the write-path cache entry now carries a valid `modified_time`, so it no longer poisons reads by other tools.
+
+TC-I22/TC-I23 (issue #99) are the only mandatory live QA cases for this PR (see `git diff origin/develop...HEAD -- docs/qa/tests/`). No existing test case directly exercises the `_get_sheet_id`/write-path fix or `get_multiple_spreadsheet_summary`'s per-sheet `modified_time` fix — the supplementary check above covers the more severe of the two live; the `get_multiple_spreadsheet_summary` gap is lower-risk (confirmed correct by code trace + unit tests, not independently live-verified here).
+
+**Result (2026-09-04) ⏭️ SKIP**
+Requires an edit to the fixture spreadsheet made OUTSIDE this process's tool surface (Playwright tab-rename) to bump Drive modifiedTime without calling mark_dirty. Unsafe this pass: other shards were concurrently issuing `update_cells` against the same fixture (seen in live log), and HARD RULE limits me to `mcp__mcp-gee-sweet-sa__` so I can't use another server process as the external editor either. Unit-tested (tests/test_cache.py modified-time path) + live-passed 2026-07-08.
+
+---
+
+### TC-I24: Concurrent tool calls don't corrupt each other's responses (issue #183)
+
+**Background:** #183 converted the entire tool layer to `async def`, running each Google API call via `asyncio.to_thread()` so multiple calls can execute in real OS threads simultaneously — both within one gather()-restructured tool call and across two separate, simultaneous client requests. The shared `sheets_service`/`drive_service`/etc. objects built once at server startup carry a single `httplib2`-based transport that isn't safe for concurrent use by itself; the fix (`auth.thread_http()`) gives each thread its own transport, built from the shared credentials, passed via `execute(http=...)` at every call site. This is the one thing the mocked unit test suite structurally cannot verify — mocks don't exercise a real shared transport, so a regression here (e.g. someone reverts to the shared service objects' default transport "for simplicity") would pass every unit test and still corrupt live responses under load.
+
+**Setup**
+A single client session awaits each tool result before issuing the next, so it cannot hold two requests in flight — running both calls "back-to-back" in one session does **not** produce true concurrency. Run this via the two-subagent `mkdir`-barrier procedure in [`docs/qa/run.md`](../run.md) §"Running true-concurrency test cases": subagent `a` calls `get_sheet_data` on `{SPREADSHEET_ID}` / `Sales!A1:C3`, subagent `b` calls `get_sheet_data` on a **second, distinct** spreadsheet + range with different known values, both released from the barrier together, looped 20–50×.
+
+**Checks**
+- On every iteration, `result-a-*` contains only `{SPREADSHEET_ID}`'s data and `result-b-*` only the second spreadsheet's — no row from one appears in the other's file
+- No result on any iteration is empty, truncated, or an SSL/connection error (`record layer failure`, `Connection reset by peer`, `Remote end closed connection without response`) — any of these is the signature of the two concurrent `.execute()` calls interfering with a shared transport
+
+**Note:** also implicitly covered by TC-D176/TC-D177/TC-D178/TC-D179/TC-R36/TC-R37 above, each of which forces several genuinely concurrent `.execute()` calls within a single gather()-restructured tool and checks per-item attribution. This case adds the cross-request angle (two separate tool calls, not one batched call) that those don't cover.
+
+**Result (2026-09-04) ✅ PASS**
+Two-subagent mkdir-barrier procedure, mcp-gee-sweet-kai-sa, 25 iterations, two distinct spreadsheets. 24/25 (subagent a) and 23/25 (subagent b) valid data points after self-inflicted param-syntax errors in the first 1-2 iterations self-corrected (not transport errors). Every result-a-* held only {SPREADSHEET_ID} data, every result-b-* only the second spreadsheet's — zero cross-contamination across 47 valid calls, zero SSL/connection-error signature (record layer failure / Connection reset by peer / Remote end closed connection). #183 shared-transport fix holds.
+
+---
+
+### TC-I25: `server://auth-status` resource resolves lifespan context (issue #363)
+
+**Background:** Both `server.py` resources previously called `mcp.get_lifespan_context()`, which never existed on `FastMCP` (confirmed absent as far back as `mcp==1.27.1` — not a regression from #350's SDK bump). Every read raised `'FastMCP' object has no attribute 'get_lifespan_context'`. Fixed to use `mcp.get_context().request_context.lifespan_context`, the same path every tool already uses via `ctx.request_context.lifespan_context`. This reproduces the exact regression scenario, not just a happy-path spot check.
+
+**Setup**
+Server running with any auth method.
+
+**Action**
+Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against this server.
+
+**Checks**
+- No `AttributeError` / `'FastMCP' object has no attribute 'get_lifespan_context'`
+- Returns valid JSON with `auth_method` matching the server's actual configured auth method
+
+**Result:** ✅ PASS (2026-07-19, mcp-gee-sweet-sky, oauth). `{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "reason": null}` — no AttributeError, `auth_method` matches configured oauth.
+
+**Note (#447):** the flat `"reason"`/`"alternatives"` fields shown in the Result above no longer exist — see TC-I27 for the current per-limitation `"limitations"` shape. This case's own checks (no AttributeError, `auth_method` matches) are unaffected by that schema change and don't need re-running.
+
+**Note (#175):** the mcp v1→v2 SDK migration replaced the underlying mechanism this case exercises — `MCPServer` (mcp v2) dropped `get_context()` entirely, with no replacement for a static (non-templated) resource like this one (Context injection raises `ValueError` outright there, confirmed live against mcp==2.0.0). `get_auth_status` now reads a process-wide singleton (`auth.get_lifespan_context()`, set once by the lifespan) instead of going through Context at all. The 2026-07-19 Result above proved the old `mcp.get_context()` path worked; it does not prove this new path works against the real SDK.
+
+**Result (2026-08-21, mcp-gee-sweet-sky, oauth, mcp==2.0.0):** ✅ PASS — live re-verification post-#175 migration. `{"auth_method": "oauth", "is_service_account_identity": false, "can_create_in_personal_drive": true, "limited_tools": [], "limitations": []}` — no AttributeError/ValueError, `auth_method` matches configured oauth. Confirms `auth.get_lifespan_context()` resolves the real lifespan-set module state through the actual resource-read protocol against the real SDK, not just against the unit tests' mocked `auth.get_lifespan_context()`.
+
+**Result (2026-09-04) ✅ PASS**
+`server://auth-status` read through the real SDK resource dispatch (`MCPServer.read_resource("server://auth-status")`, mcp==2.0.0) inside the real `spreadsheet_lifespan` under `AUTH_METHOD=service_account`: returned valid JSON, no AttributeError/ValueError, `auth_method: "service_account"` matches configured. Exercises the #175/#363 static-resource path (`get_lifespan_context()` singleton, no `get_context()`). Cross-checked: `_auth_status_json("oauth")` full-access branch → `limited_tools:[]`, `limitations:[]`. NOTE: no `ReadMcpResourceTool` in this session, so this is the SDK's in-process `read_resource` dispatch, not a JSON-RPC wire read.
+
+---
+
+### TC-I27: `server://auth-status` reports per-tool limitation categories, not one shared reason (issue #447)
+
+**Background:** `_auth_status_json` used to attach a single `reason`/`alternatives` string to every tool in `_SA_LIMITED_TOOLS`, written specifically around the storage-quota failure class (`create_spreadsheet`, `create_doc`, `copy_file`, the upload tools, `sync_folder`). `transfer_ownership` (#140) fails for a different reason — no personal Drive *identity*, not a quota problem — so it was left off that list entirely rather than get an inaccurate reason attached to it. Fixed by splitting `_SA_LIMITATIONS` into categories, each with its own `tools`/`reason`/`alternatives`, so `limited_tools` (flattened across categories, for a quick membership check) and the new `limitations` array (the categorized detail) both include `transfer_ownership` with text that's actually true for it. `alternatives` for this category deliberately does not mention ADC — see #506, filed alongside this fix, for why ADC can't be assumed to always fix a personal-Drive-identity limitation.
+
+**Setup**
+Server running with `AUTH_METHOD=service_account` (e.g. `mcp-gee-sweet-sa` / `mcp-gee-sweet-kai-sa`).
+
+**Action**
+Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against that server.
+
+**Checks**
+- `limited_tools` includes `"transfer_ownership"` alongside the existing quota-limited tools
+- `limitations` is a list of ≥2 entries, each with `category`, `tools`, `reason`, `alternatives`
+- The entry with `category: "no_personal_drive_identity"` has `tools == ["transfer_ownership"]`, its `reason` mentions "identity" (not "storage quota"), and its `alternatives` does not mention ADC
+- The entry with `category: "no_drive_storage_quota"` still contains the original 7 tools and does not contain `transfer_ownership`
+- A full-access auth method (`oauth`/`adc`) still returns `limited_tools: []`, `limitations: []`
+
+**Result (2026-08-04, mcp-gee-sweet-kit, oauth):** ✅ PASS on the full-access check only — `{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "limitations": []}`. The other four checks are **pending** — they require a `service_account`-authed server, and Kit's own dedicated server (`mcp-gee-sweet-kit`) is OAuth-only; per the team tool-boundary rule, QA doesn't call another role's `mcp-gee-sweet-<other>` server (`kai-sa`, or the standalone `mcp-gee-sweet-sa`) even when visible in the session's tool list. Needs a session with a service-account-authed server (Kai, via `mcp-gee-sweet-kai-sa`) to complete.
+
+**Result (2026-09-04) ✅ PASS**
+Same live service_account resource read as TC-I25. All checks: `limited_tools` includes `transfer_ownership`; `limitations` is a 2-entry list, each with category/tools/reason/alternatives; `no_personal_drive_identity` → `tools==["transfer_ownership"]`, reason mentions "identity" (not "storage quota"), alternatives has no ADC mention; `no_drive_storage_quota` → the original 7 tools (create_spreadsheet, create_doc, copy_file, upload_file, upload_local_file, upload_local_folder, sync_folder), excludes transfer_ownership; oauth/full-access branch → `limited_tools:[]`, `limitations:[]`.
+
+---
+
+### TC-I28: `sync_folder` reports as a literal, exact `limited_tools` entry (issue #516)
+
+**Background:** `_SA_LIMITATIONS`'s `no_drive_storage_quota` category carried `sync_folder` as `"sync_folder (upload and bidirectional directions)"` instead of the bare tool name — a string that predates PR #507's per-category restructuring and was carried forward unchanged. This silently defeats the field's own documented contract: a caller doing `"sync_folder" in status["limited_tools"]` (the exact membership check TC-I27's "original 7 tools" check doesn't itself perform literally) got `False` even though `sync_folder` genuinely is restricted under a service account. Fixed by using the bare tool name and moving the upload/bidirectional-only distinction into the category's `reason` text instead.
+
+**Setup**
+Server running with `AUTH_METHOD=service_account` (e.g. `mcp-gee-sweet-sa` / `mcp-gee-sweet-kai-sa`).
+
+**Action**
+Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against that server.
+
+**Checks**
+- `"sync_folder" in limited_tools` is `True` (exact string match — not a substring like `"sync_folder (upload and bidirectional directions)"`)
+- The `no_drive_storage_quota` entry's `reason` text mentions the upload/bidirectional-only distinction for `sync_folder`
+
+**Result (2026-08-05, mcp-gee-sweet-sky, oauth):** ✅ PASS on the full-access check only — `{"auth_method": "oauth", "can_create_in_personal_drive": true, "limited_tools": [], "limitations": []}`, confirming no crash/regression under oauth. Both `sync_folder`-specific checks are **pending** — same tool-boundary constraint as TC-I27: they require a `service_account`-authed server, and Sky's own dedicated server (`mcp-gee-sweet-sky`) is OAuth-only, so QA doesn't call `mcp-gee-sweet-kai-sa` (or the standalone `mcp-gee-sweet-sa`) even though visible in the session's tool list. Source inspected directly instead (`src/mcp_gee_sweet/server.py` `_SA_LIMITATIONS`): `no_drive_storage_quota.tools` now contains the bare `"sync_folder"` (no longer the old parenthetical string), and its `reason` ends with "For sync_folder, this only applies to its upload and bidirectional directions." — matches both checks by static read. Unit tests (`tests/test_server.py::TestAuthStatusResource::test_service_account_storage_quota_limitation`) also pass locally. Needs a session with a service-account-authed server (Kai, via `mcp-gee-sweet-kai-sa`) to complete live.
+
+**Result (2026-09-04) ✅ PASS**
+Same live service_account resource read. `"sync_folder" in limited_tools` is exact-True (bare name, not the old `"sync_folder (upload and bidirectional directions)"` string). `no_drive_storage_quota` reason text ends: "For sync_folder, this only applies to its upload and bidirectional directions."
+
+---
+
+### TC-I26: `spreadsheet://{id}/info` resource resolves lifespan context (issue #363)
+
+**Background:** Same regression and fix as TC-I25, but for the resource that actually calls the Sheets API (`execute_in_thread` off `context.sheets_service`) — proves the fix works on the `async def` resource path too, not just the sync one.
+
+**Setup**
+Server running with any auth method.
+
+**Action**
+Call `ReadMcpResourceTool` with `uri: "spreadsheet://{SPREADSHEET_ID}/info"` against this server.
+
+**Checks**
+- No `AttributeError` / `'FastMCP' object has no attribute 'get_lifespan_context'`
+- Returns valid JSON with `title` and a `sheets` array matching the spreadsheet's actual tabs
+
+**Result:** ✅ PASS (2026-07-19, mcp-gee-sweet-sky, TEST_SPREADSHEET_ID). Returned `title: "mcp-gee-sweet-qa-fixtures"` and 4 sheets (`Sales`, `Notes & Misc`, `BrandNew`, `Empty`) matching the fixture's actual tabs — no AttributeError.
+
+**Note (#175):** the mcp v1→v2 SDK migration changed how this resource reaches the lifespan context. `spreadsheet://{id}/info` is a template resource, and mcp v2 *does* support Context injection there (unlike the static `server://auth-status` resource in TC-I25) — `get_spreadsheet_info` now takes `ctx: Context` as an ordinary injected parameter instead of calling the now-removed `mcp.get_context()`. The 2026-07-19 Result above proved the old path worked; it does not prove this new injected-parameter path works against the real SDK.
+
+**Result (2026-08-21, mcp-gee-sweet-sky, oauth, mcp==2.0.0):** ✅ PASS — live re-verification post-#175 migration, against `mcp-gee-sweet-qa-fixtures` (`15hOwO1Jay26PyxjjYtq9Pq-gEd8lDa81g-C13-GyvCA`). Returned `title: "mcp-gee-sweet-qa-fixtures"` and 4 sheets (`Sales`, `Notes & Misc`, `BrandNew`, `Empty`) matching the fixture's actual tabs — no AttributeError/ValueError. Confirms v2's native `ctx: Context` injection resolves the real lifespan context through the actual resource-read protocol against the real SDK.
+
+**Result (2026-09-04) ⏭️ SKIP**
+`spreadsheet://{id}/info` is a template resource; in-process `MCPServer.read_resource(...)` raises `ValueError: Context is not available outside of a request` by design (needs a live MCP request context), and this session has no `ReadMcpResourceTool` to do a real protocol read. Underlying path IS live-healthy: `mcp-gee-sweet-sa`'s `context.sheets_service` + `execute_in_thread` served every Sheets call this shard made. Unit test `tests/test_server.py::TestResourcesReadLifespanContext::test_get_spreadsheet_info_reads_sheets_service_via_injected_context` PASSES on release commit 756eb89; live-passed 2026-08-21 post-#175. Needs a resource-capable conductor session to close live.
+
+---
+
+### TC-I29: `server.json` registry manifest validates and the server is discoverable in the official MCP registry (issue #586)
+
+**Background:** `server.json` at the repo root is a static manifest consumed by the `mcp-publisher` CLI and the official MCP registry (`registry.modelcontextprotocol.io`), not by the running `mcp-gee-sweet` server itself — there's no MCP tool call or prompt that exercises it. Structural consistency against `pyproject.toml`/`README.md` (server name, PyPI package identifier, the `mcp-name` ownership marker) is unit-tested in `tests/test_server_json.py`; this test case covers what only the real CLI and the real registry can confirm: schema validity, PyPI ownership verification via the `mcp-name` marker, and that the publish actually landed.
+
+**Setup**
+- `mcp-publisher` CLI installed (`brew install mcp-publisher`, or the curl-and-tar one-liner in the [publishing quickstart](https://github.com/modelcontextprotocol/registry/blob/main/docs/modelcontextprotocol-io/quickstart.mdx)).
+- `server.json`'s `packages[].version` (and top-level `version`) matches a version of `mcp-gee-sweet` actually published on PyPI, since ownership verification fetches that exact release's README from PyPI.
+- Namespace `io.github.khuisman` authenticated via `mcp-publisher login github` (GitHub device-code flow).
+
+**Action**
+1. `mcp-publisher validate server.json` from the repo root.
+2. `mcp-publisher publish` from the repo root.
+3. `curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.khuisman/mcp-gee-sweet"`
+
+**Checks**
+- Step 1 reports `server.json is valid`, no schema errors.
+- Step 2 succeeds (`✓ Successfully published`) — a failure here most often means the `mcp-name: io.github.khuisman/mcp-gee-sweet` marker isn't present (or isn't on its own line / isn't terminated by a boundary character) in the README of the exact PyPI release `server.json` points at.
+- Step 3's JSON response includes a server entry with `name: "io.github.khuisman/mcp-gee-sweet"` and a `version` matching `server.json`.
+
+**Re-run cadence:** every stable release that bumps `server.json`'s `version` to track the new PyPI release — not once-and-done, since a stale `version` there means the registry keeps pointing at an old release.
+
+**Result (2026-09-04) ⏭️ SKIP**
+`server.json` registry manifest — not reachable via any MCP tool; needs `mcp-publisher` CLI + a real publish to registry.modelcontextprotocol.io. Identity/consistency unit-tested in tests/test_server_json.py. Re-run only after a stable release that bumps server.json version.
+
+---
+
+### TC-I30: `server://auth-status` distinguishes a real-user ADC session from a service-account-backed one (issue #506)
+
+**Background:** `auth_method == "adc"` alone doesn't say whether `google.auth.default()` resolved to a real user credential (`gcloud auth application-default login`) or a service-account-backed one (a GCE/Cloud Run/GKE attached metadata identity, or `GOOGLE_APPLICATION_CREDENTIALS` pointed at a service account key file) — before this fix, both got tagged plain `"adc"` with `can_create_in_personal_drive: true` and zero limitations, which is wrong for the service-account-backed case. Fixed by `auth.py::_is_service_account_credential` inspecting the resolved credential's actual class (`service_account.Credentials` / `compute_engine.Credentials` → service account; `google.oauth2.credentials.Credentials` → real user) and setting a new `SpreadsheetContext.is_service_account_identity` flag independent of `auth_method`; `_auth_status_json` folds that flag into the same limited branch `auth_method == "service_account"` already takes, and swaps the quota category's `alternatives` text so it doesn't tell an already-ADC caller to "switch to ADC."
+
+**Setup:** two variants, since this needs two different ADC-resolved credential types to compare:
+- **User-backed ADC:** same as TC-I11 (`gcloud auth application-default login`, all other auth env vars unset, `AUTH_METHOD=adc`).
+- **Service-account-backed ADC:** `GOOGLE_APPLICATION_CREDENTIALS` pointed at a service account key file (or a GCE/Cloud Run/GKE instance with an attached service account identity), `AUTH_METHOD=adc`.
+
+**Action**
+Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against each server.
+
+**Checks**
+- User-backed ADC: `auth_method: "adc"`, `is_service_account_identity: false`, `can_create_in_personal_drive: true`, `limited_tools: []`, `limitations: []`.
+- Service-account-backed ADC: `auth_method: "adc"` (not rewritten to `"service_account"`), `is_service_account_identity: true`, `can_create_in_personal_drive: false`, `limited_tools` includes the same tools a `service_account`-authed server reports (e.g. `create_spreadsheet`, `transfer_ownership`), and the `no_drive_storage_quota` entry's `alternatives` mentions pointing ADC at a real user credential rather than "switch to ADC" (contrast with TC-I27, where a genuine `AUTH_METHOD=service_account` session's `alternatives` still does mention ADC as a real escape hatch).
+
+**Note:** needs an environment where ADC actually resolves to a service-account-backed credential; no team server is currently provisioned that way (Kai's `mcp-gee-sweet-kai-sa`/the standalone `mcp-gee-sweet-sa` both use `AUTH_METHOD=service_account` directly, not ADC). Unit coverage in `tests/test_auth.py::TestIsServiceAccountCredential`/`TestLifespanAuthMethod::test_pinned_adc_*_backed_sets_is_service_account_identity_*` and `tests/test_server.py::TestAuthStatusResource::test_adc_service_account_identity_*` exercises the classification and JSON-shape logic directly against real `google-auth` credential classes in the meantime.
+
+**Result (2026-09-04) ⏭️ SKIP**
+Needs an environment where ADC resolves to a service-account-backed credential (AUTH_METHOD=adc + GOOGLE_APPLICATION_CREDENTIALS key file / metadata identity). Running server is `AUTH_METHOD=service_account` directly, not ADC; no such server provisioned. Unit-tested in tests/test_auth.py::TestIsServiceAccountCredential + tests/test_server.py::TestAuthStatusResource.
+
 ---
 
 ## Tool filtering (`ENABLED_TOOLS`)
@@ -101,6 +344,9 @@ Start server with: `uv run mcp-gee-sweet --include-tools get_sheet_data,list_she
 - Returns "tool not found" or similar — `list_files` is not registered
 - `get_sheet_data` and `list_sheets` still work normally
 
+**Result (2026-09-04) ⏭️ SKIP**
+requires `--include-tools` CLI restart — pre-approved, unit-tested (_parse_enabled_tools)
+
 ---
 
 ### TC-I06: ENABLED_TOOLS env var — same behavior as CLI flag
@@ -115,6 +361,9 @@ Set `ENABLED_TOOLS=get_sheet_data,list_sheets` and restart the server.
 - Returns "tool not found" — `update_cells` not registered
 - Behavior identical to TC-I05
 
+**Result (2026-09-04) ⏭️ SKIP**
+requires ENABLED_TOOLS env + restart — pre-approved, unit-tested
+
 ---
 
 ### TC-I07: Unlisted tool called by name
@@ -128,6 +377,9 @@ Same as TC-I05 or TC-I06 (only 2 tools enabled).
 **Checks**
 - MCP client returns "tool not found" for `add_chart`
 - Server does not crash — just a missing tool, not an error
+
+**Result (2026-09-04) ⏭️ SKIP**
+requires tool-filtered server restart — pre-approved, unit-tested
 
 ---
 
@@ -147,6 +399,11 @@ Same as TC-I05 or TC-I06 (only 2 tools enabled).
 **Result (2026-07-04) ✅ PASS**
 `list_sheets(spreadsheet_id={SPREADSHEET_ID}, bogus_kwarg="test")` raised: `1 validation error for list_sheetsArguments\nbogus_kwarg\n  Extra inputs are not permitted [type=extra_forbidden, input_value='test', input_type=str]`. Follow-up call with only `spreadsheet_id` succeeded normally, returning the sheet list — confirms the fix doesn't affect legitimate calls.
 
+**Result (2026-08-21, mcp-gee-sweet-sky, oauth, mcp==2.0.0):** ✅ PASS — re-verified post-#175 migration, since `_enforce_strict_tool_args` reaches into private `ToolManager`/`FuncMetadata`/`arg_model` internals that a major SDK bump could plausibly change shape without any public API signal. `list_sheets(spreadsheet_id=<qa-fixtures id>, bogus_kwarg="test")` raised the identical `1 validation error for list_sheetsArguments\nbogus_kwarg\n  Extra inputs are not permitted [type=extra_forbidden, ...]`; the same call without the bogus kwarg succeeded normally. Confirms the private-internals hack still works unchanged against real mcp==2.0.0.
+
+**Result (2026-09-04) ✅ PASS**
+`list_sheets(spreadsheet_id=<fixture>, bogus_kwarg="test")` raised: `1 validation error for list_sheetsArguments / bogus_kwarg / Extra inputs are not permitted [type=extra_forbidden, input_value='test', input_type=str]`. Clean call (spreadsheet_id only) succeeded → `["Sales","Empty","Notes & Misc"]`. Both checks met.
+
 ---
 
 ## Auth fallback chain
@@ -164,6 +421,9 @@ Set only `CREDENTIALS_CONFIG` (base64-encoded service account JSON). Remove all 
 - Tool returns results normally
 - Logs show service account auth path
 
+**Result (2026-09-04) ⏭️ SKIP**
+requires CREDENTIALS_CONFIG-only auth env + restart — pre-approved, unit-tracked (#98)
+
 ---
 
 ### TC-I09: SERVICE_ACCOUNT_PATH
@@ -177,6 +437,9 @@ Set only `SERVICE_ACCOUNT_PATH` (path to service account JSON file). Remove `CRE
 **Checks**
 - Auth succeeds via `SERVICE_ACCOUNT_PATH`
 - Tool returns results normally
+
+**Result (2026-09-04) ⏭️ SKIP**
+requires SERVICE_ACCOUNT_PATH-only auth env + restart — pre-approved, unit-tracked (#98). (Note: running server IS service-account-authed via SERVICE_ACCOUNT_PATH and all SA tool calls succeeded this shard.)
 
 ---
 
@@ -193,6 +456,9 @@ Set `CREDENTIALS_PATH` and `TOKEN_PATH`. Remove service account env vars. If no 
 - Tool returns results as the authenticated user (not service account)
 - `create_spreadsheet` / `create_doc` land in personal Drive under this auth
 
+**Result (2026-09-04) ⏭️ SKIP**
+requires OAuth-only auth env + restart — pre-approved
+
 ---
 
 ### TC-I11: Application Default Credentials (ADC)
@@ -207,6 +473,9 @@ Run `gcloud auth application-default login` first. Remove all other auth env var
 - Auth succeeds via ADC
 - Tool returns results normally
 
+**Result (2026-09-04) ⏭️ SKIP**
+requires ADC-only auth env + restart — pre-approved, unit-tracked (#98)
+
 ---
 
 ### TC-I12: No credentials — server fails to start with clear error
@@ -218,6 +487,9 @@ Remove all auth env vars. Start the server.
 - Server fails to start
 - Error message is clear about missing credentials — not an opaque exception
 - Server does not start in a broken state and accept connections
+
+**Result (2026-09-04) ⏭️ SKIP**
+requires starting server with no creds — pre-approved
 
 ---
 
@@ -235,6 +507,11 @@ Run `uv run mcp-gee-sweet` (default stdio transport). Connect from an MCP client
 - Connection established via stdio
 - Tool returns results normally
 
+**Result (2026-08-21, mcp-gee-sweet-sky, oauth, mcp==2.0.0):** ✅ PASS — exercised continuously throughout this PR's #175 QA pass (every tool call in this round, e.g. `list_sheets`, `search_spreadsheets`, ran over this exact stdio connection against real mcp==2.0.0). `list_sheets(spreadsheet_id=<qa-fixtures id>)` returned `["Sales", "Notes & Misc", "BrandNew", "Empty"]` matching the fixture's actual tabs.
+
+**Result (2026-09-04) ⏭️ SKIP**
+stdio transport — pre-approved. (Implicitly exercised: this session's entire MCP connection to `mcp-gee-sweet-sa` is stdio; every tool call below rode it. list_sheets returned ["Sales","Empty","Notes & Misc"].)
+
 ---
 
 ### TC-I14: SSE transport
@@ -249,6 +526,11 @@ Run `uv run mcp-gee-sweet --transport sse` or `make start`. Connect from Claude 
 - Connection established via SSE
 - Tool returns results normally
 - Server accessible at the configured port
+
+**Result (2026-08-21, mcp-gee-sweet-sky's own worktree code, oauth, mcp==2.0.0):** ✅ PASS — first-recorded live run, and the PR's own regression target for issue #175 (`mcp.sse_app()`/`mcp.run()` moved `host`/`port` from constructor kwargs to call-time kwargs under mcp v2 — see `server.py`'s `app = mcp.sse_app(host=_resolved_host)` and `main()`'s `mcp.run(transport=transport, host=_resolved_host, port=_resolved_port)`). Started `uv run mcp-gee-sweet --transport sse` with `PORT=47031`; connected with the real `mcp` SDK's own `mcp.client.sse.sse_client` + `ClientSession` (not Claude Desktop, but a genuine SSE protocol round trip — `initialize()` then `call_tool()`); `list_sheets(spreadsheet_id=<qa-fixtures id>)` returned `["Sales", "Notes & Misc", "BrandNew", "Empty"]` matching the fixture's actual tabs. Confirms the SSE app construction and transport-kwarg plumbing work end-to-end against the real SDK, not just that `mcp.sse_app()` doesn't raise at import time.
+
+**Result (2026-09-04) ⏭️ SKIP**
+SSE transport requires launching a separate `--transport sse` server process — this shard cannot start/reconfigure servers. Live-passed 2026-08-21 post-#175 (real SDK sse_client round trip).
 
 ---
 
@@ -272,6 +554,9 @@ Set `DEBUG_LEVEL=DEBUG` and `LOG_FILE=/tmp/mcp-gee-sweet.log` in `src/mcp_gee_sw
 - Access: `2026-06-23 23:00:34,893 INFO mcp_gee_sweet.access "-" - "TOOL list_spreadsheets" 200 0.668s`
 - Logger names correctly differentiated in same file
 
+**Result (2026-09-04) ✅ PASS**
+Live `/tmp/mcp-gee-sweet.log` shows both levels differentiated by logger name: `DEBUG mcp_gee_sweet.cache` (cache open at startup — confirmed via fresh-process run: 5x "sheet_structure/sheet_data/... cache opened: /tmp/mcp_gee_sweet.db"; plus runtime "Cache hit"/"Cache TTL expired" lines) AND `INFO mcp_gee_sweet.access "-" - "TOOL <name>" <status> <elapsed>s`. My own calls logged with exact documented format, e.g. `"-" - "TOOL list_sheets" 200 0.714s`, `"-" - "TOOL get_cache_ttl" 200 0.000s`. Both 200 and 500 statuses seen in the wild.
+
 ---
 
 ### TC-I17: DEBUG_LEVEL=INFO — access logs only, no debug lines
@@ -288,6 +573,9 @@ Set `DEBUG_LEVEL=INFO` and `LOG_FILE=/tmp/mcp-gee-sweet.log`. Restart the server
 
 **Result (2026-06-23) ✅** `DEBUG_LEVEL=INFO` set in `.env`, server restarted. After `list_spreadsheets`: only `INFO mcp_gee_sweet.access "-" - "TOOL list_spreadsheets" 200 0.612s` appeared — no `DEBUG` cache-open lines or drive search lines. Access log correctly fires at INFO level.
 
+**Result (2026-09-04) ⏭️ SKIP**
+Running server is at DEBUG_LEVEL=DEBUG; the INFO-only (no-DEBUG-lines) variant needs an `.env` edit + restart this shard can't perform. Previously live-passed 2026-06-23.
+
 ---
 
 ### TC-I18: LOG_FILE — server output written to file
@@ -301,6 +589,9 @@ Set `DEBUG_LEVEL=DEBUG` and `LOG_FILE=/tmp/mcp-gee-sweet.log`. Restart the serve
 - File contains startup cache-open lines and per-call access lines
 
 **Result (2026-06-23) ✅** `/tmp/mcp-gee-sweet.log` created on startup (466 lines after one session). Contains cache-open DEBUG lines and per-call INFO access lines. `make dev-logs` tails it correctly.
+
+**Result (2026-09-04) ✅ PASS**
+`LOG_FILE=/tmp/mcp-gee-sweet.log` exists (~297KB), actively appended (mtime = now), contains startup cache-open DEBUG lines + per-call `INFO mcp_gee_sweet.access` lines. `make dev-logs` is a plain `tail -f` of this file — verified the file directly instead.
 
 ---
 
@@ -319,6 +610,9 @@ Set `DEBUG_LEVEL=DEBUG`, `LOG_FILE=/tmp/mcp-gee-sweet.log`, and `ACCESS_LOG_FILE
 
 **Result (2026-06-23) ✅** `ACCESS_LOG_FILE=/tmp/mcp-gee-sweet-access.log` set in `.env`. After `list_spreadsheets`, the access log contains only: `"-" - "TOOL list_spreadsheets" 200 0.668s` — no DEBUG cache-open noise. Mixed output confirmed in LOG_FILE.
 
+**Result (2026-09-04) ✅ PASS**
+`ACCESS_LOG_FILE=/tmp/mcp-gee-sweet-access.log` contains ONLY nginx-style access lines (`<ts> "-" - "TOOL x" <status> <elapsed>s`) — no DEBUG noise, no `INFO mcp_gee_sweet.access` logger prefix. Same call appears once in each file: e.g. my `get_cache_ttl` at 22:31:07 in access log AND in main LOG_FILE (with the `INFO mcp_gee_sweet.access` prefix, alongside DEBUG lines).
+
 ---
 
 ### TC-I20: .env file loaded at startup
@@ -332,6 +626,9 @@ Add `DEBUG_LEVEL=DEBUG` to `src/mcp_gee_sweet/.env` (no shell export, no MCP cli
 - 🔍 Set `DEBUG_LEVEL=WARNING` in the shell alongside `DEBUG_LEVEL=DEBUG` in `.env` — shell env wins, no debug output appears
 
 **Result (2026-06-23) ✅** `DEBUG_LEVEL=DEBUG` and `LOG_FILE` set only in `src/mcp_gee_sweet/.env` (no shell export, no MCP client config). Server produced startup DEBUG lines and access log entries — confirms `.env` is loaded at startup. Env precedence test (shell override) pending separate verification.
+
+**Result (2026-09-04) ✅ PASS**
+`.mcp.json` sets NO DEBUG_LEVEL/LOG_FILE for any server (only AUTH_METHOD/SERVICE_ACCOUNT_PATH), yet debug+access logging is fully active → `src/mcp_gee_sweet/.env` (main checkout) is loaded at startup by `__init__.py` dotenv. Confirmed `.env` keys: DEBUG_LEVEL=DEBUG, LOG_FILE, ACCESS_LOG_FILE, DRIVE_FOLDER_ID. 🔍 shell-precedence sub-check (shell DEBUG_LEVEL=WARNING overriding .env) NOT executed — needs a restart with a conflicting shell var; recorded PASS per 🔍 rule, that sub-behavior unobserved this run.
 
 ---
 
@@ -347,3 +644,7 @@ Make a trivial change to a source file (e.g. add a space and save).
 - 🔍 **Known issue:** uvicorn hot-reload may not complete while SSE connections are alive
 - Note whether reload fires, whether it completes, and whether the MCP client reconnects
 - See [roadmap.md](../../roadmap.md) for context
+
+**Result (2026-09-04) ⏭️ SKIP**
+SSE hot-reload — pre-approved, manual/live-only known uvicorn+SSE limitation
+

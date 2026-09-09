@@ -20,5 +20,9 @@ site/
 .playwright-mcp/
 
 # QA run artifacts
-tc-*.png
+docs/qa/screenshots/
 docs/qa/results/*-partial.md
+
+# Generated, machine-specific (absolute paths)
+.claude/mcp-configs/*.json
+.mcp.json

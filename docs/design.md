@@ -1,6 +1,6 @@
 # Design Principles
 
-This document is the living reference for how mcp-gee-sweet is designed and how design decisions get made. It is updated as the project's thinking evolves. For the historical reasoning behind specific decisions, see the [Decision Log](decisions/index.md).
+This document is the living reference for how mcp-gee-sweet is designed and how design decisions get made. It is updated as the project's thinking evolves. For the historical reasoning behind specific decisions, see the [Decision Log](decisions/index.md). For code-level convention — module size, test structure, linting — see the [Style Guide](style-guide.md).
 
 ---
 

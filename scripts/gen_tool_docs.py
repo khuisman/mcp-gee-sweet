@@ -40,7 +40,7 @@ def collect_tools():
     FastMCP one, so this script never touches the mcp/auth machinery."""
     captured = []
 
-    def tool(annotations=None):  # noqa: ARG001 — keyword must match the real tool() decorator
+    def tool(annotations=None):
         def decorator(func):
             captured.append(func)
             return func
@@ -97,7 +97,13 @@ SECTIONS = [
         "Spreadsheets (Drive-level)",
         lambda f: (
             f.__module__ == "mcp_gee_sweet.tools.drive.files"
-            and f.__name__ in {"create_spreadsheet", "list_spreadsheets", "search_spreadsheets"}
+            and f.__name__
+            in {
+                "create_spreadsheet",
+                "list_spreadsheets",
+                "search_spreadsheets",
+                "import_csv_to_sheet",
+            }
         ),
         "`create_spreadsheet` cannot create files in a personal Drive when using "
         "service account auth — use OAuth or a Shared Drive.",
@@ -106,7 +112,13 @@ SECTIONS = [
         "Drive — files",
         lambda f: (
             f.__module__ == "mcp_gee_sweet.tools.drive.files"
-            and f.__name__ not in {"create_spreadsheet", "list_spreadsheets", "search_spreadsheets"}
+            and f.__name__
+            not in {
+                "create_spreadsheet",
+                "list_spreadsheets",
+                "search_spreadsheets",
+                "import_csv_to_sheet",
+            }
         ),
         None,
     ),
@@ -129,9 +141,12 @@ SECTIONS = [
     (
         "Docs",
         lambda f: f.__module__.startswith("mcp_gee_sweet.tools.docs."),
-        "`write_doc_content` accepts HTML and converts it to Docs API requests via "
-        "the HTML→AST→emitter pipeline. See [Docs AST Pipeline]"
-        "(design/docs-ast-pipeline.md) for the design.\n\n"
+        "`write_doc_content` and `create_doc` accept either HTML or Markdown "
+        "(`content_format='markdown'`) and convert it to Docs API requests via the "
+        "HTML→AST→emitter pipeline — Markdown is converted to HTML first. See "
+        "[Docs AST Pipeline](design/docs-ast-pipeline.md) for the design and "
+        "[Markdown Support](design/markdown-support.md) for the full Markdown→Docs "
+        "mapping table.\n\n"
         "`create_doc` cannot create files in a personal Drive when using service "
         "account auth — see [Authentication]"
         "(auth.md#method-a-service-account-recommended-for-servers).",
@@ -194,15 +209,19 @@ SUBSETS = [
             "rename_sheet",
             "add_rows",
             "add_columns",
+            "import_csv_to_sheet",
         ],
     ),
     (
         "Docs only",
         [
             "create_doc",
+            "create_doc_from_file",
             "get_doc_content",
             "get_doc_structure",
+            "find_in_doc",
             "write_doc_content",
+            "update_doc_from_file",
             "insert_doc_text",
             "insert_doc_table",
             "delete_doc_range",
@@ -215,7 +234,16 @@ SUBSETS = [
         [
             "list_calendars",
             "get_calendar",
+            "create_calendar",
+            "update_calendar",
+            "delete_calendar",
+            "add_calendar_to_list",
+            "remove_calendar_from_list",
+            "list_calendar_acl",
+            "add_calendar_acl",
+            "remove_calendar_acl",
             "list_events",
+            "list_all_events",
             "get_event",
             "create_event",
             "update_event",

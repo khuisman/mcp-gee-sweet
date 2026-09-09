@@ -1,15 +1,17 @@
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
+
+from ...auth import execute_in_thread
 
 logger = logging.getLogger(__name__)
 
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Insert Document Table", destructiveHint=True))
-    def insert_doc_table(
+    async def insert_doc_table(
         doc_id: str,
         index: int,
         rows: int,
@@ -23,6 +25,11 @@ def register(tool):
         immediately to return the actual cell indices. Use those indices with
         insert_doc_text (targeting each cell's paragraphStartIndex) to fill cells,
         or with style_doc_table_cells to apply formatting.
+
+        Also useful for form-style column alignment (labels/values lined up without
+        a visible table) — a zero-padding table gives exact column positions where
+        tabStops would otherwise be needed (tabStops itself is read-only, #404). See
+        docs/design/borderless-table-columns.md for the full recipe.
 
         Args:
             doc_id: The Google Doc file ID.
@@ -41,25 +48,33 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id,
-                body={
-                    "requests": [
-                        {
-                            "insertTable": {
-                                "rows": rows,
-                                "columns": columns,
-                                "location": {"index": index},
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "insertTable": {
+                                    "rows": rows,
+                                    "columns": columns,
+                                    "location": {"index": index},
+                                }
                             }
-                        }
-                    ]
-                },
-            ).execute()
+                        ]
+                    },
+                )
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 
         try:
-            doc = lc.docs_service.documents().get(documentId=doc_id).execute()
+            doc = await execute_in_thread(
+                lc.docs_service.documents().get(documentId=doc_id).execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": f"table inserted but re-fetch failed: {e}"}
 
@@ -104,7 +119,7 @@ def register(tool):
         return {"error": "table inserted but could not locate it in re-fetched doc"}
 
     @tool(annotations=ToolAnnotations(title="Insert Table Row", destructiveHint=True))
-    def insert_table_row(
+    async def insert_table_row(
         doc_id: str,
         table_start_index: int,
         row_index: int,
@@ -129,23 +144,28 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id,
-                body={
-                    "requests": [
-                        {
-                            "insertTableRow": {
-                                "tableCellLocation": {
-                                    "tableStartLocation": {"index": table_start_index},
-                                    "rowIndex": row_index,
-                                    "columnIndex": 0,
-                                },
-                                "insertBelow": insert_below,
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "insertTableRow": {
+                                    "tableCellLocation": {
+                                        "tableStartLocation": {"index": table_start_index},
+                                        "rowIndex": row_index,
+                                        "columnIndex": 0,
+                                    },
+                                    "insertBelow": insert_below,
+                                }
                             }
-                        }
-                    ]
-                },
-            ).execute()
+                        ]
+                    },
+                )
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -160,7 +180,7 @@ def register(tool):
         return {"docId": doc_id, "table_start_index": table_start_index, "row_index": row_index}
 
     @tool(annotations=ToolAnnotations(title="Delete Table Row", destructiveHint=True))
-    def delete_table_row(
+    async def delete_table_row(
         doc_id: str,
         table_start_index: int,
         row_index: int,
@@ -181,22 +201,27 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id,
-                body={
-                    "requests": [
-                        {
-                            "deleteTableRow": {
-                                "tableCellLocation": {
-                                    "tableStartLocation": {"index": table_start_index},
-                                    "rowIndex": row_index,
-                                    "columnIndex": 0,
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "deleteTableRow": {
+                                    "tableCellLocation": {
+                                        "tableStartLocation": {"index": table_start_index},
+                                        "rowIndex": row_index,
+                                        "columnIndex": 0,
+                                    }
                                 }
                             }
-                        }
-                    ]
-                },
-            ).execute()
+                        ]
+                    },
+                )
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -210,7 +235,7 @@ def register(tool):
         return {"docId": doc_id, "table_start_index": table_start_index, "row_index": row_index}
 
     @tool(annotations=ToolAnnotations(title="Insert Table Column", destructiveHint=True))
-    def insert_table_column(
+    async def insert_table_column(
         doc_id: str,
         table_start_index: int,
         column_index: int,
@@ -235,23 +260,28 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id,
-                body={
-                    "requests": [
-                        {
-                            "insertTableColumn": {
-                                "tableCellLocation": {
-                                    "tableStartLocation": {"index": table_start_index},
-                                    "rowIndex": 0,
-                                    "columnIndex": column_index,
-                                },
-                                "insertRight": insert_right,
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "insertTableColumn": {
+                                    "tableCellLocation": {
+                                        "tableStartLocation": {"index": table_start_index},
+                                        "rowIndex": 0,
+                                        "columnIndex": column_index,
+                                    },
+                                    "insertRight": insert_right,
+                                }
                             }
-                        }
-                    ]
-                },
-            ).execute()
+                        ]
+                    },
+                )
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 
@@ -269,8 +299,88 @@ def register(tool):
             "column_index": column_index,
         }
 
+    @tool(annotations=ToolAnnotations(title="Merge Table Cells", destructiveHint=True))
+    async def merge_table_cells(
+        doc_id: str,
+        table_start_index: int,
+        row_index: int,
+        column_index: int,
+        row_span: int = 1,
+        column_span: int = 1,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Merge a rectangular range of cells in an existing table into one cell.
+
+        Use get_doc_structure to find the table's startIndex and the row/column
+        of the merge range's top-left (anchor) cell. Merging doesn't delete
+        content or shift character indices: cells covered by the merge remain
+        physical entries in the doc, they're just no longer independently
+        addressable in the rendered table.
+
+        Args:
+            doc_id: The Google Doc file ID.
+            table_start_index: The startIndex of the table (from get_doc_structure).
+            row_index: Zero-based row of the merge range's top-left cell.
+            column_index: Zero-based column of the merge range's top-left cell.
+            row_span: Number of rows the merged cell should span (default 1).
+            column_span: Number of columns the merged cell should span (default 1).
+
+        Returns:
+            Confirmation with docId, table_start_index, row_index, column_index,
+            row_span, and column_span.
+        """
+        lc = ctx.request_context.lifespan_context
+        try:
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "mergeTableCells": {
+                                    "tableRange": {
+                                        "tableCellLocation": {
+                                            "tableStartLocation": {"index": table_start_index},
+                                            "rowIndex": row_index,
+                                            "columnIndex": column_index,
+                                        },
+                                        "rowSpan": row_span,
+                                        "columnSpan": column_span,
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                )
+                .execute,
+                lc.docs_service,
+            )
+        except Exception as e:
+            return {"error": str(e)}
+
+        lc.doc_cache.mark_dirty(doc_id)
+        logger.debug(
+            "merge_table_cells: (%d,%d) span %dx%d in table at %d in doc %s",
+            row_index,
+            column_index,
+            row_span,
+            column_span,
+            table_start_index,
+            doc_id,
+        )
+        return {
+            "docId": doc_id,
+            "table_start_index": table_start_index,
+            "row_index": row_index,
+            "column_index": column_index,
+            "row_span": row_span,
+            "column_span": column_span,
+        }
+
     @tool(annotations=ToolAnnotations(title="Delete Table Column", destructiveHint=True))
-    def delete_table_column(
+    async def delete_table_column(
         doc_id: str,
         table_start_index: int,
         column_index: int,
@@ -291,22 +401,27 @@ def register(tool):
         """
         lc = ctx.request_context.lifespan_context
         try:
-            lc.docs_service.documents().batchUpdate(
-                documentId=doc_id,
-                body={
-                    "requests": [
-                        {
-                            "deleteTableColumn": {
-                                "tableCellLocation": {
-                                    "tableStartLocation": {"index": table_start_index},
-                                    "rowIndex": 0,
-                                    "columnIndex": column_index,
+            await execute_in_thread(
+                lc.docs_service.documents()
+                .batchUpdate(
+                    documentId=doc_id,
+                    body={
+                        "requests": [
+                            {
+                                "deleteTableColumn": {
+                                    "tableCellLocation": {
+                                        "tableStartLocation": {"index": table_start_index},
+                                        "rowIndex": 0,
+                                        "columnIndex": column_index,
+                                    }
                                 }
                             }
-                        }
-                    ]
-                },
-            ).execute()
+                        ]
+                    },
+                )
+                .execute,
+                lc.docs_service,
+            )
         except Exception as e:
             return {"error": str(e)}
 

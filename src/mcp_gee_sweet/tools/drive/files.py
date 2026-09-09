@@ -1,19 +1,26 @@
+import asyncio
+import csv
 import logging
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 from googleapiclient.errors import HttpError
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
+from ...auth import execute_in_thread
+from ..sheets.helpers import _quote_sheet_name
 from . import _SA_QUOTA_ERROR
 
 logger = logging.getLogger(__name__)
 
+_CSV_IMPORT_CHUNK_ROWS = 5000
+
 
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Create Spreadsheet", destructiveHint=True))
-    def create_spreadsheet(
+    async def create_spreadsheet(
         title: str, folder_id: str | None = None, ctx: Context = None
     ) -> dict[str, Any]:
         """
@@ -44,10 +51,11 @@ def register(tool):
             file_body["parents"] = [target_folder_id]
 
         try:
-            spreadsheet = (
+            spreadsheet = await execute_in_thread(
                 drive_service.files()
                 .create(supportsAllDrives=True, body=file_body, fields="id, name, parents")
-                .execute()
+                .execute,
+                drive_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
@@ -71,13 +79,245 @@ def register(tool):
             "folder": parents[0] if parents else "root",
         }
 
+    @tool(annotations=ToolAnnotations(title="Import CSV to Sheet", destructiveHint=True))
+    async def import_csv_to_sheet(
+        local_path: str,
+        title: str,
+        folder_id: str | None = None,
+        sheet_name: str = "Sheet1",
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Create a new Google Spreadsheet populated from a local CSV file.
+
+        Reads the CSV, creates the spreadsheet, expands the sheet's grid to fit
+        the data (avoiding the default 1000-row/26-column limit), and writes
+        every row in one or more batched value updates.
+
+        Args:
+            local_path: Absolute path to the local .csv file.
+            title: Title for the new spreadsheet.
+            folder_id: Optional Google Drive folder ID where the spreadsheet should
+                      be created. If not provided, uses the configured default
+                      folder or creates in root.
+            sheet_name: Name of the sheet the data is written to (default "Sheet1").
+
+        Returns:
+            spreadsheetId, title, web_link, and rows_written on full success. Rows are
+            written in row-range chunks that run concurrently; if one or more chunks
+            fail, the spreadsheet (already created) may have some rows missing — not
+            necessarily a clean prefix. In that case returns an 'error' summary plus
+            spreadsheetId, title, web_link, rows_attempted, failed_ranges (start_row,
+            end_row, error per failed chunk), and written_ranges (start_row, end_row
+            per chunk that succeeded), so the missing rows can be retried precisely.
+
+        Note:
+            Requires OAuth or ADC auth. Service accounts cannot create files in personal
+            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            Check server://auth-status for your current auth method.
+        """
+        path = Path(local_path)
+        if not path.exists():
+            return {"error": f"File not found: {local_path}"}
+        if path.suffix.lower() != ".csv":
+            return {"error": f"Unsupported file extension '{path.suffix}'. Use .csv"}
+
+        def _read_csv() -> list[list[str]]:
+            with path.open(newline="", encoding="utf-8") as f:
+                return list(csv.reader(f))
+
+        rows = await asyncio.to_thread(_read_csv)
+
+        if not rows:
+            return {"error": f"CSV file is empty: {local_path}"}
+
+        width = max(len(row) for row in rows)
+        rows = [row + [""] * (width - len(row)) for row in rows]
+
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+        sheets_service = lc.sheets_service
+        target_folder_id = folder_id or lc.folder_id
+
+        file_body = {"name": title, "mimeType": "application/vnd.google-apps.spreadsheet"}
+        if target_folder_id:
+            file_body["parents"] = [target_folder_id]
+
+        try:
+            spreadsheet = await execute_in_thread(
+                drive_service.files()
+                .create(
+                    supportsAllDrives=True,
+                    body=file_body,
+                    fields="id, name, parents, webViewLink",
+                )
+                .execute,
+                drive_service,
+            )
+        except HttpError as e:
+            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+                return {"error": _SA_QUOTA_ERROR}
+            raise
+
+        spreadsheet_id = spreadsheet.get("id")
+        target_folder_id = target_folder_id or (spreadsheet.get("parents", [None])[0])
+
+        spreadsheet_meta = await execute_in_thread(
+            sheets_service.spreadsheets()
+            .get(
+                spreadsheetId=spreadsheet_id,
+                fields="sheets(properties(sheetId,title,gridProperties))",
+            )
+            .execute,
+            sheets_service,
+        )
+        default_sheet = spreadsheet_meta.get("sheets", [{}])[0]
+        default_props = default_sheet.get("properties", {})
+        sheet_id = default_props.get("sheetId", 0)
+        default_title = default_props.get("title")
+        grid = default_props.get("gridProperties", {})
+
+        requests: list[dict[str, Any]] = []
+        if default_title != sheet_name:
+            requests.append(
+                {
+                    "updateSheetProperties": {
+                        "properties": {"sheetId": sheet_id, "title": sheet_name},
+                        "fields": "title",
+                    }
+                }
+            )
+        needed_rows, needed_cols = len(rows), width
+        if needed_rows > grid.get("rowCount", 1000) or needed_cols > grid.get("columnCount", 26):
+            requests.append(
+                {
+                    "updateSheetProperties": {
+                        "properties": {
+                            "sheetId": sheet_id,
+                            "gridProperties": {
+                                "rowCount": max(needed_rows, grid.get("rowCount", 1000)),
+                                "columnCount": max(needed_cols, grid.get("columnCount", 26)),
+                            },
+                        },
+                        "fields": "gridProperties.rowCount,gridProperties.columnCount",
+                    }
+                }
+            )
+
+        if requests:
+            await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
+                .execute,
+                sheets_service,
+            )
+            lc.cache.mark_dirty(spreadsheet_id)
+
+        quoted_sheet = _quote_sheet_name(sheet_name)
+
+        async def _write_chunk(start: int, chunk: list[list]) -> dict[str, Any]:
+            row_range = {"start_row": start + 1, "end_row": start + len(chunk)}
+            try:
+                await execute_in_thread(
+                    sheets_service.spreadsheets()
+                    .values()
+                    .update(
+                        spreadsheetId=spreadsheet_id,
+                        range=f"{quoted_sheet}!A{start + 1}",
+                        valueInputOption="USER_ENTERED",
+                        body={"values": chunk},
+                    )
+                    .execute,
+                    sheets_service,
+                )
+                return {**row_range, "ok": True}
+            except Exception as e:
+                return {**row_range, "ok": False, "error": str(e)}
+
+        # Safe to parallelize: each chunk writes a disjoint row range of the same
+        # sheet (A{start+1} onward, non-overlapping), so there's no read-modify-write
+        # race between chunks. Unlike the old sequential loop — where a failure left a
+        # clean truncated prefix — a concurrent failure can leave a hole mid-sheet (an
+        # earlier chunk can still be in flight when a later one succeeds), so failures
+        # are reported per-range rather than as a single opaque exception.
+        chunks = [
+            (start, rows[start : start + _CSV_IMPORT_CHUNK_ROWS])
+            for start in range(0, len(rows), _CSV_IMPORT_CHUNK_ROWS)
+        ]
+        chunk_results: list[dict[str, Any]] = []
+        if chunks:
+            raw = await asyncio.gather(
+                *(_write_chunk(start, chunk) for start, chunk in chunks), return_exceptions=True
+            )
+            chunk_results = [
+                r
+                if not isinstance(r, BaseException)
+                else {
+                    "start_row": start + 1,
+                    "end_row": start + len(chunk),
+                    "ok": False,
+                    "error": str(r),
+                }
+                for (start, chunk), r in zip(chunks, raw, strict=True)
+            ]
+
+        if target_folder_id:
+            lc.drive_folder_cache.mark_dirty(target_folder_id)
+        lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+
+        failed_ranges = [
+            {"start_row": r["start_row"], "end_row": r["end_row"], "error": r["error"]}
+            for r in chunk_results
+            if not r["ok"]
+        ]
+        if failed_ranges:
+            written_ranges = [
+                {"start_row": r["start_row"], "end_row": r["end_row"]}
+                for r in chunk_results
+                if r["ok"]
+            ]
+            return {
+                "error": (
+                    f"{len(failed_ranges)} of {len(chunk_results)} row-range write(s) failed. "
+                    "The spreadsheet was already created and some rows may be missing "
+                    "(not necessarily a clean prefix — chunks write concurrently). See "
+                    "failed_ranges for exactly which rows need to be retried."
+                ),
+                "spreadsheetId": spreadsheet_id,
+                "title": spreadsheet.get("name", title),
+                "web_link": spreadsheet.get("webViewLink"),
+                "rows_attempted": len(rows),
+                "failed_ranges": failed_ranges,
+                "written_ranges": written_ranges,
+            }
+
+        logger.debug(
+            "Imported CSV %s into spreadsheet %s (%d rows, %d cols)",
+            local_path,
+            spreadsheet_id,
+            len(rows),
+            width,
+        )
+
+        return {
+            "spreadsheetId": spreadsheet_id,
+            "title": spreadsheet.get("name", title),
+            "web_link": spreadsheet.get("webViewLink"),
+            "rows_written": len(rows),
+        }
+
     @tool(annotations=ToolAnnotations(title="List Spreadsheets", readOnlyHint=True))
-    def list_spreadsheets(
+    async def list_spreadsheets(
         folder_id: str | None = None, ctx: Context = None
     ) -> list[dict[str, str]]:
         """
         List all spreadsheets in the specified Google Drive folder.
         If no folder is specified, uses the configured default folder or lists from 'My Drive'.
+
+        A strict, less-flexible special case of list_files pre-filtered to the
+        spreadsheet MIME type. For a different result cap or other file types, use
+        list_files(folder_id, mime_type='application/vnd.google-apps.spreadsheet', ...)
+        instead.
 
         Args:
             folder_id: Optional Google Drive folder ID to search in.
@@ -96,7 +336,7 @@ def register(tool):
         else:
             logger.debug("Searching for spreadsheets in 'My Drive'")
 
-        results = (
+        results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=query,
@@ -106,13 +346,14 @@ def register(tool):
                 fields="files(id, name)",
                 orderBy="modifiedTime desc",
             )
-            .execute()
+            .execute,
+            drive_service,
         )
 
         return [{"id": f["id"], "title": f["name"]} for f in results.get("files", [])]
 
     @tool(annotations=ToolAnnotations(title="List Folders", readOnlyHint=True))
-    def list_folders(
+    async def list_folders(
         parent_folder_id: str | None = None, ctx: Context = None
     ) -> list[dict[str, str]]:
         """
@@ -136,7 +377,7 @@ def register(tool):
             query += " and 'root' in parents"
             logger.debug("Searching for folders in 'My Drive' root")
 
-        results = (
+        results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=query,
@@ -146,7 +387,8 @@ def register(tool):
                 fields="files(id, name, parents)",
                 orderBy="name",
             )
-            .execute()
+            .execute,
+            drive_service,
         )
 
         return [
@@ -159,7 +401,7 @@ def register(tool):
         ]
 
     @tool(annotations=ToolAnnotations(title="List Shared Drives", readOnlyHint=True))
-    def list_drives(
+    async def list_drives(
         query: str | None = None,
         max_results: int = 100,
         ctx: Context = None,
@@ -187,9 +429,14 @@ def register(tool):
         if query:
             kwargs["q"] = query
 
+        # Sequential by nature — each page's pageToken depends on the previous
+        # response, so this isn't a gather() candidate.
         drives: list[dict[str, Any]] = []
         while len(drives) < max_results:
-            result = drive_service.drives().list(**kwargs).execute()
+            result = await execute_in_thread(
+                drive_service.drives().list(**kwargs).execute,
+                drive_service,
+            )
             for d in result.get("drives", []):
                 drives.append(
                     {
@@ -208,7 +455,7 @@ def register(tool):
         return drives[:max_results]
 
     @tool(annotations=ToolAnnotations(title="List Files", readOnlyHint=True))
-    def list_files(
+    async def list_files(
         folder_id: str,
         mime_type: str | None = None,
         max_results: int = 100,
@@ -216,6 +463,10 @@ def register(tool):
     ) -> list[dict[str, Any]]:
         """
         List files in a Google Drive folder, optionally filtered by MIME type.
+
+        For a spreadsheet-only listing, list_spreadsheets(folder_id) is a narrower
+        convenience wrapper around this same call pre-filtered to the spreadsheet
+        MIME type.
 
         Args:
             folder_id: The Google Drive folder ID to list files from.
@@ -226,7 +477,13 @@ def register(tool):
             max_results: Maximum number of results to return (default 100, max 1000)
 
         Returns:
-            List of files with their ID, name, MIME type, modified time, and web link.
+            List of files with their ID, name, MIME type, modified time, web link, and
+            md5_checksum. md5_checksum is only present for binary files — Google
+            Workspace files (Docs, Sheets, Slides, etc.) have no fixed byte content and
+            the Drive API omits the field for them, so it's None for those. Use it to
+            detect real content drift (e.g. after sync_folder's upload path, which
+            doesn't stamp modifiedTime the way sync_folder's own upload does) instead
+            of inferring change from modifiedTime alone.
             Results are cached; call refresh_cache(folder_id=folder_id) to invalidate,
             or refresh_cache() to clear all caches.
         """
@@ -235,43 +492,49 @@ def register(tool):
         folder_cache = lc.drive_folder_cache
         max_results = min(max(1, max_results), 1000)
 
-        cached = folder_cache.get(folder_id, mime_type)
+        cached = folder_cache.get(folder_id, mime_type, max_results)
         if cached is not None:
             return cached
 
         query = f"'{folder_id}' in parents and trashed=false"
         if mime_type:
-            query += f" and mimeType='{mime_type}'"
+            safe_mime = mime_type.replace("'", "\\'")
+            query += f" and mimeType='{safe_mime}'"
 
-        results = (
-            drive_service.files()
-            .list(
-                q=query,
-                pageSize=max_results,
-                spaces="drive",
-                includeItemsFromAllDrives=True,
-                supportsAllDrives=True,
-                fields="files(id, name, mimeType, modifiedTime, webViewLink)",
-                orderBy="name",
+        try:
+            results = await execute_in_thread(
+                drive_service.files()
+                .list(
+                    q=query,
+                    pageSize=max_results,
+                    spaces="drive",
+                    includeItemsFromAllDrives=True,
+                    supportsAllDrives=True,
+                    fields="files(id, name, mimeType, modifiedTime, webViewLink, md5Checksum)",
+                    orderBy="name",
+                )
+                .execute,
+                drive_service,
             )
-            .execute()
-        )
 
-        files = [
-            {
-                "id": f["id"],
-                "name": f["name"],
-                "mime_type": f["mimeType"],
-                "modified_time": f.get("modifiedTime"),
-                "web_link": f.get("webViewLink"),
-            }
-            for f in results.get("files", [])
-        ]
-        folder_cache.store(folder_id, mime_type, files)
-        return files
+            files = [
+                {
+                    "id": f["id"],
+                    "name": f["name"],
+                    "mime_type": f["mimeType"],
+                    "modified_time": f.get("modifiedTime"),
+                    "web_link": f.get("webViewLink"),
+                    "md5_checksum": f.get("md5Checksum"),
+                }
+                for f in results.get("files", [])
+            ]
+            folder_cache.store(folder_id, mime_type, files, max_results)
+            return files
+        except Exception as e:
+            return [{"error": f"List files failed: {e!s}"}]
 
     @tool(annotations=ToolAnnotations(title="Search Files", readOnlyHint=True))
-    def search_files(
+    async def search_files(
         query: str,
         mime_type: str | None = None,
         folder_id: str | None = None,
@@ -280,6 +543,10 @@ def register(tool):
     ) -> list[dict[str, Any]]:
         """
         Search for files in Google Drive by name or content.
+
+        For a spreadsheet-only search, search_spreadsheets(query, max_results) is a
+        narrower convenience wrapper around this same query pre-filtered to the
+        spreadsheet MIME type.
 
         Args:
             query: Search string matched against file name and full text.
@@ -306,7 +573,7 @@ def register(tool):
             parts.append(f"'{folder_id}' in parents")
 
         try:
-            results = (
+            results = await execute_in_thread(
                 drive_service.files()
                 .list(
                     q=" and ".join(parts),
@@ -317,7 +584,8 @@ def register(tool):
                     fields="files(id, name, mimeType, createdTime, modifiedTime, owners, parents, webViewLink)",
                     orderBy="modifiedTime desc",
                 )
-                .execute()
+                .execute,
+                drive_service,
             )
             return [
                 {
@@ -339,11 +607,16 @@ def register(tool):
             title="Search Spreadsheets by Name or Content", readOnlyHint=True
         )
     )
-    def search_spreadsheets(
+    async def search_spreadsheets(
         query: str, max_results: int = 20, ctx: Context = None
     ) -> list[dict[str, Any]]:
         """
         Search for spreadsheets in Google Drive by name or content.
+
+        A strict, less-flexible special case of search_files pre-filtered to the
+        spreadsheet MIME type. For folder-scoped search or other file types, use
+        search_files(query, mime_type='application/vnd.google-apps.spreadsheet', ...)
+        instead.
 
         Args:
             query: Search query string. Searches in file name and content.
@@ -363,7 +636,7 @@ def register(tool):
         )
 
         try:
-            results = (
+            results = await execute_in_thread(
                 drive_service.files()
                 .list(
                     q=search_query,
@@ -374,7 +647,8 @@ def register(tool):
                     fields="files(id, name, createdTime, modifiedTime, owners, webViewLink)",
                     orderBy="modifiedTime desc",
                 )
-                .execute()
+                .execute,
+                drive_service,
             )
 
             return [
@@ -392,7 +666,7 @@ def register(tool):
             return [{"error": f"Search failed: {e!s}"}]
 
     @tool(annotations=ToolAnnotations(title="Get File Metadata", readOnlyHint=True))
-    def get_file_metadata(file_id: str, ctx: Context = None) -> dict[str, Any]:
+    async def get_file_metadata(file_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Get metadata for any file or folder in Google Drive.
 
@@ -401,18 +675,24 @@ def register(tool):
 
         Returns:
             id, name, mimeType, parents, createdTime, modifiedTime, size,
-            owners, webViewLink, and trashed status.
+            owners, webViewLink, trashed status, and md5_checksum. md5_checksum
+            (like size) is only present for binary files — Google Workspace files
+            have no fixed byte content and the Drive API omits it for them. Use it
+            to detect real content drift instead of inferring change from
+            modifiedTime alone (e.g. after upload_local_file, which doesn't stamp
+            modifiedTime to match a local file's mtime the way sync_folder does).
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        f = (
+        f = await execute_in_thread(
             drive_service.files()
             .get(
                 fileId=file_id,
-                fields="id, name, mimeType, parents, createdTime, modifiedTime, size, owners, webViewLink, trashed",
+                fields="id, name, mimeType, parents, createdTime, modifiedTime, size, owners, webViewLink, trashed, md5Checksum",
                 supportsAllDrives=True,
             )
-            .execute()
+            .execute,
+            drive_service,
         )
         mime = f["mimeType"]
         result: dict[str, Any] = {
@@ -425,6 +705,7 @@ def register(tool):
             "owners": [o.get("emailAddress") for o in f.get("owners", [])],
             "web_link": f.get("webViewLink"),
             "trashed": f.get("trashed", False),
+            "md5_checksum": f.get("md5Checksum"),
         }
         # Workspace files (Docs, Sheets, Slides, etc.) don't consume storage quota;
         # the Drive API returns quotaBytesUsed as "size", which is misleading.
@@ -433,7 +714,7 @@ def register(tool):
         return result
 
     @tool(annotations=ToolAnnotations(title="Create Folder", destructiveHint=True))
-    def create_folder(
+    async def create_folder(
         name: str, parent_folder_id: str | None = None, ctx: Context = None
     ) -> dict[str, Any]:
         """
@@ -458,10 +739,11 @@ def register(tool):
         if target_parent_id:
             file_body["parents"] = [target_parent_id]
 
-        folder = (
+        folder = await execute_in_thread(
             drive_service.files()
             .create(supportsAllDrives=True, body=file_body, fields="id, name, parents")
-            .execute()
+            .execute,
+            drive_service,
         )
 
         folder_id = folder.get("id")
@@ -477,8 +759,77 @@ def register(tool):
             "parent": parents[0] if parents else "root",
         }
 
+    @tool(annotations=ToolAnnotations(title="Create Shortcut", destructiveHint=True))
+    async def create_shortcut(
+        target_file_id: str,
+        folder_id: str | None = None,
+        name: str | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Create a Drive shortcut pointing to an existing file.
+
+        Args:
+            target_file_id: The ID of the file the shortcut should point to.
+            folder_id: Destination folder ID for the shortcut. If not provided, uses
+                      the configured default folder or creates in root.
+            name: Name for the shortcut. Defaults to the target file's own name.
+
+        Returns:
+            shortcutId, name, parent, targetId, and targetMimeType of the new shortcut.
+        """
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+        target_parent_id = folder_id or lc.folder_id
+
+        shortcut_name = name
+        if not shortcut_name:
+            target = await execute_in_thread(
+                drive_service.files()
+                .get(fileId=target_file_id, fields="name", supportsAllDrives=True)
+                .execute,
+                drive_service,
+            )
+            shortcut_name = target["name"]
+
+        file_body: dict[str, Any] = {
+            "name": shortcut_name,
+            "mimeType": "application/vnd.google-apps.shortcut",
+            "shortcutDetails": {"targetId": target_file_id},
+        }
+        if target_parent_id:
+            file_body["parents"] = [target_parent_id]
+
+        shortcut = await execute_in_thread(
+            drive_service.files()
+            .create(
+                supportsAllDrives=True,
+                body=file_body,
+                fields="id, name, parents, shortcutDetails",
+            )
+            .execute,
+            drive_service,
+        )
+
+        parents = shortcut.get("parents")
+        logger.debug(
+            "Shortcut created with ID: %s -> target %s", shortcut.get("id"), target_file_id
+        )
+
+        if target_parent_id:
+            lc.drive_folder_cache.mark_dirty(target_parent_id)
+
+        details = shortcut.get("shortcutDetails", {})
+        return {
+            "shortcutId": shortcut.get("id"),
+            "name": shortcut.get("name", shortcut_name),
+            "parent": parents[0] if parents else "root",
+            "targetId": details.get("targetId", target_file_id),
+            "targetMimeType": details.get("targetMimeType"),
+        }
+
     @tool(annotations=ToolAnnotations(title="Copy File", destructiveHint=True))
-    def copy_file(
+    async def copy_file(
         file_id: str,
         new_name: str | None = None,
         folder_id: str | None = None,
@@ -510,7 +861,7 @@ def register(tool):
             body["parents"] = [folder_id]
 
         try:
-            copied = (
+            copied = await execute_in_thread(
                 drive_service.files()
                 .copy(
                     fileId=file_id,
@@ -518,7 +869,8 @@ def register(tool):
                     supportsAllDrives=True,
                     fields="id, name, mimeType, parents, webViewLink",
                 )
-                .execute()
+                .execute,
+                drive_service,
             )
         except HttpError as e:
             if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
@@ -538,7 +890,9 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Move File", destructiveHint=True))
-    def move_file(file_id: str, destination_folder_id: str, ctx: Context = None) -> dict[str, Any]:
+    async def move_file(
+        file_id: str, destination_folder_id: str, ctx: Context = None
+    ) -> dict[str, Any]:
         """
         Move a file or folder to a different folder in Google Drive.
 
@@ -552,14 +906,15 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        existing = (
+        existing = await execute_in_thread(
             drive_service.files()
             .get(fileId=file_id, fields="parents", supportsAllDrives=True)
-            .execute()
+            .execute,
+            drive_service,
         )
         previous_parents = ",".join(existing.get("parents", []))
 
-        updated = (
+        updated = await execute_in_thread(
             drive_service.files()
             .update(
                 fileId=file_id,
@@ -568,7 +923,8 @@ def register(tool):
                 supportsAllDrives=True,
                 fields="id, name, parents, mimeType",
             )
-            .execute()
+            .execute,
+            drive_service,
         )
 
         logger.debug("Moved file %s to folder %s", file_id, destination_folder_id)
@@ -586,7 +942,7 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Rename File", destructiveHint=True))
-    def rename_file(file_id: str, new_name: str, ctx: Context = None) -> dict[str, Any]:
+    async def rename_file(file_id: str, new_name: str, ctx: Context = None) -> dict[str, Any]:
         """
         Rename a file or folder in Google Drive.
 
@@ -600,7 +956,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
 
-        updated = (
+        updated = await execute_in_thread(
             drive_service.files()
             .update(
                 fileId=file_id,
@@ -608,7 +964,8 @@ def register(tool):
                 supportsAllDrives=True,
                 fields="id, name, parents",
             )
-            .execute()
+            .execute,
+            drive_service,
         )
 
         parents = updated.get("parents", [])
@@ -621,8 +978,74 @@ def register(tool):
             "parent": parents[0] if parents else "root",
         }
 
+    @tool(annotations=ToolAnnotations(title="Star File"))
+    async def star_file(file_id: str, ctx: Context = None) -> dict[str, Any]:
+        """
+        Mark a file or folder as starred in Google Drive, for easy retrieval later.
+
+        Args:
+            file_id: The ID of the file or folder to star.
+
+        Returns:
+            fileId, name, and the resulting starred state.
+        """
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+
+        updated = await execute_in_thread(
+            drive_service.files()
+            .update(
+                fileId=file_id,
+                body={"starred": True},
+                supportsAllDrives=True,
+                fields="id, name, starred",
+            )
+            .execute,
+            drive_service,
+        )
+
+        logger.debug("Starred file %s", file_id)
+        return {
+            "fileId": updated.get("id"),
+            "name": updated.get("name"),
+            "starred": updated.get("starred", False),
+        }
+
+    @tool(annotations=ToolAnnotations(title="Unstar File"))
+    async def unstar_file(file_id: str, ctx: Context = None) -> dict[str, Any]:
+        """
+        Remove a file or folder's starred marker in Google Drive.
+
+        Args:
+            file_id: The ID of the file or folder to unstar.
+
+        Returns:
+            fileId, name, and the resulting starred state.
+        """
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+
+        updated = await execute_in_thread(
+            drive_service.files()
+            .update(
+                fileId=file_id,
+                body={"starred": False},
+                supportsAllDrives=True,
+                fields="id, name, starred",
+            )
+            .execute,
+            drive_service,
+        )
+
+        logger.debug("Unstarred file %s", file_id)
+        return {
+            "fileId": updated.get("id"),
+            "name": updated.get("name"),
+            "starred": updated.get("starred", False),
+        }
+
     @tool(annotations=ToolAnnotations(title="List Shared With Me", readOnlyHint=True))
-    def list_shared_with_me(
+    async def list_shared_with_me(
         mime_type: str | None = None,
         max_results: int = 50,
         ctx: Context = None,
@@ -646,34 +1069,38 @@ def register(tool):
 
         parts = ["sharedWithMe=true", "trashed=false"]
         if mime_type:
-            parts.append(f"mimeType='{mime_type.replace(chr(39), chr(39) * 2)}'")
+            safe_mime = mime_type.replace("'", "\\'")
+            parts.append(f"mimeType='{safe_mime}'")
 
-        results = (
-            drive_service.files()
-            .list(
-                q=" and ".join(parts),
-                pageSize=max_results,
-                spaces="drive",
-                fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
-                orderBy="modifiedTime desc",
+        try:
+            results = await execute_in_thread(
+                drive_service.files()
+                .list(
+                    q=" and ".join(parts),
+                    pageSize=max_results,
+                    spaces="drive",
+                    fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
+                    orderBy="modifiedTime desc",
+                )
+                .execute,
+                drive_service,
             )
-            .execute()
-        )
-
-        return [
-            {
-                "id": f["id"],
-                "name": f["name"],
-                "mime_type": f["mimeType"],
-                "modified_time": f.get("modifiedTime"),
-                "owners": [o.get("emailAddress") for o in f.get("owners", [])],
-                "web_link": f.get("webViewLink"),
-            }
-            for f in results.get("files", [])
-        ]
+            return [
+                {
+                    "id": f["id"],
+                    "name": f["name"],
+                    "mime_type": f["mimeType"],
+                    "modified_time": f.get("modifiedTime"),
+                    "owners": [o.get("emailAddress") for o in f.get("owners", [])],
+                    "web_link": f.get("webViewLink"),
+                }
+                for f in results.get("files", [])
+            ]
+        except Exception as e:
+            return [{"error": f"List shared with me failed: {e!s}"}]
 
     @tool(annotations=ToolAnnotations(title="List Recent Files", readOnlyHint=True))
-    def list_recent_files(
+    async def list_recent_files(
         max_results: int = 20,
         days: int | None = None,
         mime_type: str | None = None,
@@ -701,36 +1128,40 @@ def register(tool):
             )
             parts.append(f"modifiedTime > '{cutoff}'")
         if mime_type:
-            parts.append(f"mimeType='{mime_type.replace(chr(39), chr(39) * 2)}'")
+            safe_mime = mime_type.replace("'", "\\'")
+            parts.append(f"mimeType='{safe_mime}'")
 
-        results = (
-            drive_service.files()
-            .list(
-                q=" and ".join(parts),
-                pageSize=max_results,
-                spaces="drive",
-                includeItemsFromAllDrives=True,
-                supportsAllDrives=True,
-                fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
-                orderBy="modifiedTime desc",
+        try:
+            results = await execute_in_thread(
+                drive_service.files()
+                .list(
+                    q=" and ".join(parts),
+                    pageSize=max_results,
+                    spaces="drive",
+                    includeItemsFromAllDrives=True,
+                    supportsAllDrives=True,
+                    fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
+                    orderBy="modifiedTime desc",
+                )
+                .execute,
+                drive_service,
             )
-            .execute()
-        )
-
-        return [
-            {
-                "id": f["id"],
-                "name": f["name"],
-                "mime_type": f["mimeType"],
-                "modified_time": f.get("modifiedTime"),
-                "owners": [o.get("emailAddress") for o in f.get("owners", [])],
-                "web_link": f.get("webViewLink"),
-            }
-            for f in results.get("files", [])
-        ]
+            return [
+                {
+                    "id": f["id"],
+                    "name": f["name"],
+                    "mime_type": f["mimeType"],
+                    "modified_time": f.get("modifiedTime"),
+                    "owners": [o.get("emailAddress") for o in f.get("owners", [])],
+                    "web_link": f.get("webViewLink"),
+                }
+                for f in results.get("files", [])
+            ]
+        except Exception as e:
+            return [{"error": f"List recent files failed: {e!s}"}]
 
     @tool(annotations=ToolAnnotations(title="Get Storage Quota", readOnlyHint=True))
-    def get_storage_quota(ctx: Context = None) -> dict[str, Any]:
+    async def get_storage_quota(ctx: Context = None) -> dict[str, Any]:
         """
         Get Drive storage usage and limits for the authenticated account.
 
@@ -742,7 +1173,10 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        about = drive_service.about().get(fields="storageQuota,user").execute()
+        about = await execute_in_thread(
+            drive_service.about().get(fields="storageQuota,user").execute,
+            drive_service,
+        )
 
         quota = about.get("storageQuota", {})
         user = about.get("user", {})
@@ -757,7 +1191,9 @@ def register(tool):
         }
 
     @tool(annotations=ToolAnnotations(title="Trash or Delete File", destructiveHint=True))
-    def delete_file(file_id: str, permanent: bool = False, ctx: Context = None) -> dict[str, Any]:
+    async def delete_file(
+        file_id: str, permanent: bool = False, ctx: Context = None
+    ) -> dict[str, Any]:
         """
         Move a file to the trash or permanently delete it.
 
@@ -773,24 +1209,100 @@ def register(tool):
         drive_service = lc.drive_service
 
         # Fetch parents before deletion so we can invalidate the cache
-        existing = (
+        existing = await execute_in_thread(
             drive_service.files()
             .get(fileId=file_id, fields="parents", supportsAllDrives=True)
-            .execute()
+            .execute,
+            drive_service,
         )
         for parent in existing.get("parents", []):
             lc.drive_folder_cache.mark_dirty(parent)
 
         if permanent:
-            drive_service.files().delete(fileId=file_id, supportsAllDrives=True).execute()
+            await execute_in_thread(
+                drive_service.files().delete(fileId=file_id, supportsAllDrives=True).execute,
+                drive_service,
+            )
             logger.debug("Permanently deleted file %s", file_id)
             return {"fileId": file_id, "action": "deleted"}
 
-        drive_service.files().update(
-            fileId=file_id,
-            body={"trashed": True},
-            supportsAllDrives=True,
-            fields="id",
-        ).execute()
+        await execute_in_thread(
+            drive_service.files()
+            .update(
+                fileId=file_id,
+                body={"trashed": True},
+                supportsAllDrives=True,
+                fields="id",
+            )
+            .execute,
+            drive_service,
+        )
         logger.debug("Trashed file %s", file_id)
         return {"fileId": file_id, "action": "trashed"}
+
+    @tool(annotations=ToolAnnotations(title="Restore File", destructiveHint=True))
+    async def restore_file(file_id: str, ctx: Context = None) -> dict[str, Any]:
+        """
+        Restore a trashed file or folder back to its original location — undoes
+        `delete_file` when it was called without `permanent=True`. Raises an
+        API error (does not silently no-op) if the file was permanently
+        deleted or otherwise no longer exists — permanent deletion can't be
+        recovered from.
+
+        Args:
+            file_id: The ID of the trashed file or folder to restore.
+
+        Returns:
+            Confirmation with fileId and action taken ('restored').
+        """
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+
+        result = await execute_in_thread(
+            drive_service.files()
+            .update(
+                fileId=file_id,
+                body={"trashed": False},
+                supportsAllDrives=True,
+                fields="id,parents",
+            )
+            .execute,
+            drive_service,
+        )
+        for parent in result.get("parents", []):
+            lc.drive_folder_cache.mark_dirty(parent)
+
+        logger.debug("Restored file %s", file_id)
+        return {"fileId": file_id, "action": "restored"}
+
+    @tool(annotations=ToolAnnotations(title="Empty Trash", destructiveHint=True))
+    async def empty_trash(drive_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
+        """
+        Permanently delete every trashed file in a single trash. This cannot
+        be undone — unlike `delete_file`'s default (recoverable) trash
+        behavior, there is no restoring a file after this.
+
+        Args:
+            drive_id: If omitted (default), empties the caller's own My Drive
+                trash only. If set to a Shared Drive's ID (see `list_drives`),
+                empties that Shared Drive's trash instead. A single call only
+                ever targets one trash — to empty several Shared Drives' trash,
+                call this once per `drive_id`.
+
+        Returns:
+            Confirmation that the trash was emptied, echoing which drive
+            (drive_id, or None for My Drive) was targeted.
+        """
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+
+        kwargs: dict[str, Any] = {}
+        if drive_id:
+            kwargs["driveId"] = drive_id
+
+        await execute_in_thread(
+            drive_service.files().emptyTrash(**kwargs).execute,
+            drive_service,
+        )
+        logger.debug("Emptied trash (drive_id=%s)", drive_id)
+        return {"action": "trash_emptied", "drive_id": drive_id}

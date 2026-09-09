@@ -40,6 +40,47 @@ response). Related: #133.
 
 ---
 
+### Nested tables not supported via Markdown input
+
+**What:** Markdown content passed to `create_doc`/`write_doc_content` (`content_format='markdown'`)
+or `create_doc_from_file` (`.md` files) cannot produce a nested table — a table inside a table
+cell.
+
+**Why:** The Python `markdown` library's `tables` extension has no syntax for a table nested
+inside another table's cell.
+
+**Workaround:** Supply raw HTML instead — the HTML→AST pipeline fully supports nested tables
+(see #109). Related: `docs/qa/tests/docs_content.md` TC-DOC51.
+
+---
+
+### `get_doc_as_markdown` — nested tables, temporary image URLs, and inline-vs-block code ambiguity
+
+**What:** `get_doc_as_markdown` (#300) has three read-side gaps, each rooted in a genuine
+Markdown-format or Docs-API constraint rather than missing implementation:
+
+1. A table nested inside another table's cell has no Markdown table syntax to express — the
+   mirror image of the write-side limitation above. That cell renders a placeholder note
+   (`*(nested table omitted...)*`) instead.
+2. An inline image resolves to Drive's temporary `contentUri`, which expires (roughly 30
+   minutes). The exported Markdown's `![alt](url)` links go stale if consumed well after
+   generation.
+3. Both inline code (`` `x` ``) and a fenced code block (` ```...``` `) are written to the Docs
+   API identically — a run (or every run in a paragraph) with `font_family="Courier New"` — see
+   `docs/design/markdown-support.md`'s mapping table. There is no other marker to tell them
+   apart on read. `get_doc_as_markdown` treats a paragraph as a fenced block only when *every*
+   run in it is code-styled; a paragraph containing nothing but a single inline code span (no
+   surrounding text) is indistinguishable from a one-line code block and renders as a fenced
+   block either way.
+
+**Why:** (1) and (3) are Docs-representation-level ambiguities, not gaps in this tool's
+traversal; (2) is inherent to how Drive serves inline image bytes.
+
+**Workaround:** For full fidelity on any of these three cases, use `get_doc_structure` (or the
+raw Docs API via `batch_update` passthrough) instead. Related: docs/design/doc-to-markdown.md.
+
+---
+
 ## Google Drive
 
 ### Service account cannot create files in personal Drive
@@ -56,25 +97,3 @@ service account.
 use `write_doc_content` or `update_cells` to populate it. Alternatively, use OAuth authentication
 (`AUTH_METHOD=oauth`) which authenticates as the user and has full personal Drive access.
 Related: project memory `service_account_limit`.
-
----
-
-## Calendar
-
-### `list_all_events` — not yet built, blocked on an async/httplib2 thread-safety issue
-
-**What:** `list_all_events` (fetching events across multiple calendars concurrently) is planned
-([#194](https://github.com/khuisman/mcp-gee-sweet/issues/194), still open) but not yet
-implemented — it does not exist as a tool today. The blocker is a thread-safety issue: the
-Google API Python client uses `httplib2` internally, and `httplib2` connections are not safe to
-share across threads.
-
-**Why:** The planned implementation would use `ThreadPoolExecutor` to fan out calendar queries
-in parallel. Each thread needs its own HTTP connection, but reconstructing a full authorized
-service per thread via `build_from_document` + `google_auth_httplib2.AuthorizedHttp` adds
-significant overhead and complexity (Frankenstein code) rather than working cleanly through the
-SDK — this is why it's blocked on
-[#183](https://github.com/khuisman/mcp-gee-sweet/issues/183) (async tool execution strategy)
-rather than built ad hoc.
-
-**Workaround:** Use `list_events` per calendar individually in the meantime.

@@ -6,6 +6,7 @@ from mcp_gee_sweet.tools.docs.ast import (
     BulletItem,
     Cell,
     Heading,
+    Image,
     NamedBlock,
     Paragraph,
     Row,
@@ -14,7 +15,6 @@ from mcp_gee_sweet.tools.docs.ast import (
 )
 from mcp_gee_sweet.tools.docs.content import (
     _html_to_doc_requests,
-    _html_to_text,
     _to_doc_requests,
 )
 from mcp_gee_sweet.tools.docs.emitter import (
@@ -23,6 +23,10 @@ from mcp_gee_sweet.tools.docs.emitter import (
     _build_merge_requests,
     _build_phantom_set,
     _physical_to_ast_indices,
+    _run_group_fill_requests,
+    _text_offset_since_last_table,
+    ast_to_requests,
+    extract_images,
 )
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 
@@ -32,7 +36,7 @@ from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 
 
 def _cell(text: str, colspan: int = 1, rowspan: int = 1) -> Cell:
-    return Cell(runs=[Run(text)], colspan=colspan, rowspan=rowspan)
+    return Cell(children=[Run(text)], colspan=colspan, rowspan=rowspan)
 
 
 def _row(*cells: Cell) -> Row:
@@ -41,41 +45,6 @@ def _row(*cells: Cell) -> Row:
 
 def _table(*rows: Row) -> Table:
     return Table(rows=list(rows))
-
-
-class TestHtmlToText:
-    def test_plain_paragraph(self):
-        assert _html_to_text("<p>Hello world</p>") == "Hello world"
-
-    def test_multiple_paragraphs(self):
-        result = _html_to_text("<p>First</p><p>Second</p>")
-        assert "First" in result
-        assert "Second" in result
-        assert result.index("First") < result.index("Second")
-
-    def test_line_break(self):
-        result = _html_to_text("Line one<br>Line two")
-        assert "\n" in result
-
-    def test_strips_tags(self):
-        result = _html_to_text("<h1>Title</h1><p>Body</p>")
-        assert "<h1>" not in result
-        assert "Title" in result
-        assert "Body" in result
-
-    def test_html_entities(self):
-        assert "&amp;" not in _html_to_text("<p>fish &amp; chips</p>")
-        assert "fish & chips" in _html_to_text("<p>fish &amp; chips</p>")
-
-    def test_numeric_html_entity(self):
-        result = _html_to_text("<p>&#169;</p>")
-        assert "©" in result
-
-    def test_empty_input(self):
-        assert _html_to_text("") == ""
-
-    def test_plain_text_passthrough(self):
-        assert _html_to_text("just text") == "just text"
 
 
 class TestHtmlToDocRequests:
@@ -137,18 +106,36 @@ class TestHtmlToDocRequests:
         assert full_text == "First\nSecond\n"
 
     def test_list_item_inside_ul(self):
+        # Both items are the same preset and contiguous, so they're grouped into one
+        # createParagraphBullets call spanning both paragraphs (#336) rather than one
+        # call per item.
         requests, _ = _html_to_doc_requests("<ul><li>Item one</li><li>Item two</li></ul>")
         bullets = [r for r in requests if "createParagraphBullets" in r]
-        assert len(bullets) == 2
+        assert len(bullets) == 1
 
-    def test_whitespace_only_paragraph_skipped(self):
-        requests, _ = _html_to_doc_requests("<p>   </p><p>Real content</p>")
+    def test_whitespace_only_paragraph_preserves_boundary(self):
+        # #402: a whitespace-only paragraph (e.g. spaces, or a lone &nbsp; used
+        # as a deliberate markdown blank-line spacer) must not be dropped —
+        # dropping it fuses its neighbors together with no gap.
+        requests, _ = _html_to_doc_requests("<p>Real content</p><p>   </p><p>More content</p>")
         insert = next(r for r in requests if "insertText" in r)
-        assert "Real content" in insert["insertText"]["text"]
-        assert insert["insertText"]["text"].strip() == "Real content"
+        assert insert["insertText"]["text"] == "Real content\n   \nMore content\n"
+
+    def test_nbsp_only_paragraph_preserves_boundary(self):
+        requests, _ = _html_to_doc_requests("<p>A</p><p>&nbsp;</p><p>B</p>")
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "A\n\xa0\nB\n"
+
+    def test_img_and_hr_preserve_paragraph_boundary(self):
+        # #401: an unsupported construct (<img>, <hr>) must not fuse its
+        # neighbors together — each still gets its own blank line in the
+        # final insertText rather than A's endIndex landing on B's startIndex.
+        requests, _ = _html_to_doc_requests('<p>A</p><p><img src="x.png"></p><hr><p>B</p>')
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "A\n\n\nB\n"
 
     def test_table_produces_insert_table_request(self):
-        requests, tables = _html_to_doc_requests(
+        requests, _tables = _html_to_doc_requests(
             "<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>"
         )
         table_reqs = [r for r in requests if "insertTable" in r]
@@ -163,14 +150,14 @@ class TestHtmlToDocRequests:
         assert len(tables) == 1
         # tables are now Table AST nodes
         assert len(tables[0].rows) == 2
-        assert tables[0].rows[0].cells[0].runs[0].text == "A"
-        assert tables[0].rows[0].cells[1].runs[0].text == "B"
-        assert tables[0].rows[1].cells[0].runs[0].text == "1"
-        assert tables[0].rows[1].cells[1].runs[0].text == "2"
+        assert tables[0].rows[0].cells[0].children[0].text == "A"
+        assert tables[0].rows[0].cells[1].children[0].text == "B"
+        assert tables[0].rows[1].cells[0].children[0].text == "1"
+        assert tables[0].rows[1].cells[1].children[0].text == "2"
 
     def test_table_interleaved_with_text(self):
         html = "<h2>Before</h2><table><tr><td>X</td></tr></table><h2>After</h2>"
-        requests, tables = _html_to_doc_requests(html)
+        requests, _tables = _html_to_doc_requests(html)
         insert_texts = [r for r in requests if "insertText" in r]
         insert_tables = [r for r in requests if "insertTable" in r]
         # All text ("Before\nAfter\n") in one insertText; table inserted between them
@@ -182,6 +169,30 @@ class TestHtmlToDocRequests:
         text_start = insert_texts[0]["insertText"]["location"]["index"]
         table_idx = insert_tables[0]["insertTable"]["location"]["index"]
         assert text_start <= table_idx <= text_start + len("Before\n")
+
+    def test_astral_characters_use_utf16_indices(self):
+        requests, _ = _html_to_doc_requests(
+            "<p>😀</p><p><b>X</b></p><table><tr><td>T</td></tr></table>"
+        )
+
+        styled_x = next(r["updateTextStyle"]["range"] for r in requests if "updateTextStyle" in r)
+        table_index = next(
+            r["insertTable"]["location"]["index"] for r in requests if "insertTable" in r
+        )
+
+        assert styled_x == {"startIndex": 4, "endIndex": 5}
+        assert table_index == 6
+
+    def test_astral_characters_use_utf16_indices_inside_table_cells(self):
+        runs = [Run("😀"), Run("X", bold=True)]
+
+        requests = _run_group_fill_requests(runs, para_start=10)
+        clear_range = requests[1]["updateTextStyle"]["range"]
+        styled_x = requests[2]["updateTextStyle"]["range"]
+
+        assert clear_range == {"startIndex": 10, "endIndex": 13}
+        assert styled_x == {"startIndex": 12, "endIndex": 13}
+        assert _text_offset_since_last_table(runs, cursor=2) == 3
 
     def test_heading_gets_delete_bullets(self):
         requests, _ = _html_to_doc_requests("<h1>Title</h1>")
@@ -212,8 +223,8 @@ class TestHtmlToDocRequests:
         insert_tables = [r for r in requests if "insertTable" in r]
         assert len(insert_tables) == 2
         assert len(tables) == 2
-        assert tables[0].rows[0].cells[0].runs[0].text == "T1"
-        assert tables[1].rows[0].cells[0].runs[0].text == "T2"
+        assert tables[0].rows[0].cells[0].children[0].text == "T1"
+        assert tables[1].rows[0].cells[0].children[0].text == "T2"
         # Both tables share the same insert position (no text between them).
         # Reverse-order insertion means T1 ends up at a lower index than T2 in the doc,
         # so T1's position must be <= T2's position in the request list (last request = T1).
@@ -274,25 +285,25 @@ class TestHtmlToAst:
         assert isinstance(table, Table)
         cell = table.rows[0].cells[0]
         assert cell.is_header is True
-        assert cell.runs[0].bold is True
+        assert cell.children[0].bold is True
 
     def test_td_cell_text(self):
         nodes = html_to_ast("<table><tr><td>Data</td></tr></table>")
         table = nodes[0]
         cell = table.rows[0].cells[0]
         assert cell.is_header is False
-        assert cell.runs[0].text == "Data"
+        assert cell.children[0].text == "Data"
 
     def test_inline_bold_in_td(self):
         nodes = html_to_ast("<table><tr><td><b>bold cell</b></td></tr></table>")
         cell = nodes[0].rows[0].cells[0]
-        assert cell.runs[0].bold is True
-        assert cell.runs[0].text == "bold cell"
+        assert cell.children[0].bold is True
+        assert cell.children[0].text == "bold cell"
 
     def test_inline_link_in_td(self):
         nodes = html_to_ast('<table><tr><td><a href="https://x.com">link</a></td></tr></table>')
         cell = nodes[0].rows[0].cells[0]
-        link_run = next(r for r in cell.runs if r.link_url)
+        link_run = next(r for r in cell.children if r.link_url)
         assert link_run.link_url == "https://x.com"
 
     def test_colspan_on_td(self):
@@ -303,6 +314,18 @@ class TestHtmlToAst:
     def test_default_colspan_is_1(self):
         nodes = html_to_ast("<table><tr><td>x</td></tr></table>")
         assert nodes[0].rows[0].cells[0].colspan == 1
+
+    def test_explicit_colspan_zero_clamped_to_1(self):
+        # colspan="0" is invalid HTML but must not survive as a literal 0 — a
+        # zero-column cell breaks downstream `num_cols` calculations. The old
+        # `int(attr_dict.get("colspan") or 1)` didn't catch this: "0" is a
+        # non-empty (truthy) string, so `or 1` never kicks in.
+        nodes = html_to_ast('<table><tr><td colspan="0">x</td></tr></table>')
+        assert nodes[0].rows[0].cells[0].colspan == 1
+
+    def test_explicit_rowspan_zero_clamped_to_1(self):
+        nodes = html_to_ast('<table><tr><td rowspan="0">x</td></tr></table>')
+        assert nodes[0].rows[0].cells[0].rowspan == 1
 
     def test_col_width_parsed_from_col_tag(self):
         # 96px → 72pt (96 * 72 / 96 = 72)
@@ -366,6 +389,126 @@ class TestHtmlToAst:
         assert nodes[0].style_type == "TITLE"
 
 
+class TestUnsupportedConstructPreservesParagraphBoundary:
+    """#401: a construct the converter can't represent (<hr>) must leave
+    behind an empty block rather than deleting the paragraph boundary
+    itself, so adjacent content doesn't fuse together. <img> used to be in
+    this category too, but #333 makes it a genuinely supported construct —
+    see TestImageParsing below for its own coverage — so this class now
+    documents that its paragraph boundary is preserved by carrying the real
+    Image node forward, not by leaving an empty placeholder."""
+
+    def test_img_wrapped_in_paragraph_preserves_boundary_with_real_content(self):
+        nodes = html_to_ast('<p>A</p><p><img src="x.png"></p><p>B</p>')
+        assert len(nodes) == 3
+        assert [isinstance(n, Paragraph) for n in nodes] == [True, True, True]
+        assert nodes[0].runs[0].text == "A"
+        assert len(nodes[1].runs) == 1
+        assert isinstance(nodes[1].runs[0], Image)
+        assert nodes[1].runs[0].src == "x.png"
+        assert nodes[2].runs[0].text == "B"
+
+    def test_bare_hr_between_paragraphs_leaves_empty_paragraph(self):
+        nodes = html_to_ast("<p>A</p><hr><p>B</p>")
+        assert len(nodes) == 3
+        assert [isinstance(n, Paragraph) for n in nodes] == [True, True, True]
+        assert nodes[0].runs[0].text == "A"
+        assert nodes[1].runs == []
+        assert nodes[2].runs[0].text == "B"
+
+    def test_underscore_hr_between_paragraphs_leaves_empty_paragraph(self):
+        # python-markdown renders both "---" and "___" thematic breaks the
+        # same way (<hr />) — confirmed in issue #401's own follow-up comment.
+        nodes = html_to_ast("<p>A</p><hr /><p>B</p>")
+        assert len(nodes) == 3
+        assert nodes[1].runs == []
+
+    def test_hr_wrapped_in_inline_tag_with_no_block_ancestor_still_dropped(self):
+        # PR #406 QA pass 2: the bare-<hr> check omitted the _tag_depth == 0
+        # condition that handle_data's sibling bare-text check uses (#343),
+        # so an <hr> wrapped only in an inline tag with no block ancestor
+        # (e.g. "<span><hr></span>") spuriously injected a paragraph
+        # boundary — contradicting the existing, tested policy that
+        # inline-only content with no block ancestor is a deliberate no-op
+        # (see test_span_wrapped_text_still_dropped in test_docs_content.py).
+        assert html_to_ast("<span><hr></span>") == []
+
+    def test_whitespace_only_paragraph_preserved(self):
+        # #402: unlike the runs=[] case above (gated on preserve_if_empty),
+        # a paragraph with actual (whitespace) runs is always kept — there's
+        # real, if invisible, content to lose, not just a boundary.
+        nodes = html_to_ast("<p>A</p><p>   </p><p>B</p>")
+        assert len(nodes) == 3
+        assert nodes[0].runs[0].text == "A"
+        assert nodes[1].runs[0].text == "   "
+        assert nodes[2].runs[0].text == "B"
+
+    def test_nbsp_only_paragraph_preserved(self):
+        nodes = html_to_ast("<p>A</p><p>&nbsp;</p><p>B</p>")
+        assert len(nodes) == 3
+        assert nodes[1].runs[0].text == "\xa0"
+
+    def test_nbsp_only_list_item_still_dropped(self):
+        # PR #441's QA round (live-caught): #402's whitespace-preserve fix
+        # is a <p>-specific blank-line-spacer convention (a literal blank
+        # line only collapses between paragraphs) — it must not fire for
+        # <li>, or a real bullet glyph with only invisible content renders
+        # between two genuine list items.
+        nodes = html_to_ast("<ul><li>Real</li><li>&nbsp;</li><li>More</li></ul>")
+        assert len(nodes) == 2
+        assert nodes[0].runs[0].text == "Real"
+        assert nodes[1].runs[0].text == "More"
+
+    def test_nbsp_only_heading_still_dropped(self):
+        nodes = html_to_ast("<h1>Title</h1><h1>&nbsp;</h1><h1>Next</h1>")
+        assert len(nodes) == 2
+        assert nodes[0].runs[0].text == "Title"
+        assert nodes[1].runs[0].text == "Next"
+
+    def test_dropped_construct_survives_interruption_by_nested_list(self):
+        # #401 follow-up (PR #406, TC-DOC136): _interrupt_open_block flushed
+        # the currently-open block before descending into a nested construct
+        # with preserve_if_empty always False, so a bullet whose only content
+        # was an unsupported construct vanished entirely — not just that
+        # construct's own content — whenever it was interrupted by its own
+        # nested list instead of closing directly. TC-DOC135's own review
+        # round live-reproduced this exact gap using <img> as the dropped
+        # construct; #333 makes <img> itself supported (see
+        # test_image_survives_interruption_by_nested_list below for that same
+        # shape with a real Image node preserved instead of an empty runs
+        # list) — a bare <hr> stands in here to keep covering a construct
+        # that's still genuinely dropped.
+        html = "<ul><li><hr><ul><li>nested</li></ul></li></ul>"
+        nodes = html_to_ast(html)
+        assert [isinstance(n, BulletItem) for n in nodes] == [True, True]
+        assert nodes[0].runs == []
+        assert nodes[1].runs[0].text == "nested"
+
+    def test_image_survives_interruption_by_nested_list(self):
+        # #333 companion to the dropped-construct test above: a bullet whose
+        # only content is an <img> must carry the real Image node forward
+        # through the same interrupt/resume path, not an empty runs list.
+        html = '<ul><li><img src="x.png"><ul><li>nested</li></ul></li></ul>'
+        nodes = html_to_ast(html)
+        assert [isinstance(n, BulletItem) for n in nodes] == [True, True]
+        assert len(nodes[0].runs) == 1
+        assert isinstance(nodes[0].runs[0], Image)
+        assert nodes[0].runs[0].src == "x.png"
+        assert nodes[1].runs[0].text == "nested"
+
+    def test_parent_with_no_own_text_still_unaffected_by_the_fix(self):
+        # Companion control case for the fix above: an <li> that wraps only
+        # a nested list, with no text and no dropped construct of its own,
+        # must still emit nothing for itself — the naive fix of always
+        # preserving an interrupt-time empty flush regresses exactly this
+        # (see TestNestedLists.test_parent_with_no_own_text_unaffected for
+        # the end-to-end version of this same guard).
+        html = "<ul><li><ul><li>child</li></ul></li></ul>"
+        nodes = html_to_ast(html)
+        assert [isinstance(n, BulletItem) for n in nodes] == [True]
+        assert nodes[0].runs[0].text == "child"
+
+
 class TestNamedBlockEmitter:
     def test_title_emits_named_style_type(self):
         requests, _ = _html_to_doc_requests('<p data-style="title">My Title</p>')
@@ -392,6 +535,45 @@ class TestNamedBlockEmitter:
     def test_named_block_produces_delete_bullets(self):
         requests, _ = _html_to_doc_requests('<p data-style="title">T</p>')
         assert any("deleteParagraphBullets" in r for r in requests)
+
+
+class TestBlockquoteEmitter:
+    """Blockquote paragraphs get a left border + scaled indent (#476) — the closest
+    visual equivalent to a real blockquote style the Docs API's ParagraphStyle
+    exposes, since Google Docs has no native blockquote namedStyleType."""
+
+    def _blockquote_style_requests(self, requests):
+        return [
+            r["updateParagraphStyle"]
+            for r in requests
+            if "updateParagraphStyle" in r
+            and "borderLeft" in r["updateParagraphStyle"]["paragraphStyle"]
+        ]
+
+    def test_blockquote_paragraph_gets_border_and_indent(self):
+        requests, _ = _html_to_doc_requests("<blockquote><p>Quoted</p></blockquote>")
+        bq_requests = self._blockquote_style_requests(requests)
+        assert len(bq_requests) == 1
+        style = bq_requests[0]["paragraphStyle"]
+        assert style["borderLeft"]["dashStyle"] == "SOLID"
+        assert style["indentStart"]["magnitude"] == 36
+        assert bq_requests[0]["fields"] == "indentStart,borderLeft"
+
+    def test_plain_paragraph_gets_no_border(self):
+        requests, _ = _html_to_doc_requests("<p>Not quoted</p>")
+        assert self._blockquote_style_requests(requests) == []
+
+    def test_nested_blockquote_doubles_indent(self):
+        html = "<blockquote><p>outer</p><blockquote><p>inner</p></blockquote></blockquote>"
+        requests, _ = _html_to_doc_requests(html)
+        bq_requests = self._blockquote_style_requests(requests)
+        magnitudes = sorted(r["paragraphStyle"]["indentStart"]["magnitude"] for r in bq_requests)
+        assert magnitudes == [36, 72]
+
+    def test_blockquote_wrapping_bullet_item_gets_border(self):
+        html = "<blockquote><ul><li>a</li></ul></blockquote>"
+        requests, _ = _html_to_doc_requests(html)
+        assert len(self._blockquote_style_requests(requests)) == 1
 
 
 class TestColspanNumCols:
@@ -593,6 +775,17 @@ class TestRowspanFill:
         insert_indices = [r["insertText"]["location"]["index"] for r in reqs if "insertText" in r]
         assert insert_indices == sorted(insert_indices, reverse=True)
 
+    def test_cell_with_nested_table_skipped_here(self):
+        # Cells containing a nested table are handled by _fill_nested_cell_content
+        # instead (see tests/test_docs_tables.py) — _build_fill_requests must skip
+        # them entirely rather than filling only the leading text and ignoring
+        # the table, which would silently drop content again.
+        inner = _table(_row(_cell("inner")))
+        ast_t = Table(rows=[Row(cells=[Cell(children=[Run("Some label "), inner])])])
+        doc_t = {"tableRows": [self._doc_row(10)]}
+        reqs = _build_fill_requests([doc_t], [ast_t])
+        assert reqs == []
+
 
 class TestFillRequestsFontSizeClear:
     """Table cell text must not inherit font size from a preceding heading (issue #189)."""
@@ -641,7 +834,7 @@ class TestFillRequestsFontSizeClear:
     def test_explicit_run_font_size_applied_after_clear(self):
         # If a run has an explicit font_size, it must appear AFTER the clear request.
         sized_run = Run("Big", font_size=18.0)
-        cell = Cell(runs=[sized_run])
+        cell = Cell(children=[sized_run])
         ast_t = _table(_row(cell))
         doc_t = {"tableRows": [self._doc_row(10)]}
         reqs = _build_fill_requests([doc_t], [ast_t])
@@ -693,6 +886,172 @@ class TestTaskListEmitter:
         bold_start = bold_reqs[0]["updateTextStyle"]["range"]["startIndex"]
         # glyph "☑ " is 2 chars; bold run must start at least 2 chars after insert_idx
         assert bold_start >= insert_idx + 2
+
+
+class TestNestedBulletDepthEmitsIndentation:
+    """#336: BulletItem.depth must reach the live doc as nesting level via leading tabs —
+    the only mechanism createParagraphBullets exposes for setting it (it infers and
+    consumes leading tab characters from each paragraph's text). PR #432 QA round 1
+    found that issuing one createParagraphBullets call per paragraph let call
+    order/adjacency to an already-bulleted neighbor override the tab-encoded depth live
+    (same-depth siblings landed at different indentation levels, ordered lists lost
+    continuous numbering) even though each call's own range/tabs were individually
+    correct — so contiguous same-preset BulletItems must be grouped into one call."""
+
+    def _bullet_ranges(self, requests):
+        return [
+            r["createParagraphBullets"]["range"] for r in requests if "createParagraphBullets" in r
+        ]
+
+    def test_depth_zero_item_gets_no_leading_tabs(self):
+        nodes = [BulletItem(runs=[Run("Item")], depth=0)]
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "Item\n"
+
+    def test_nested_item_gets_leading_tabs_matching_depth(self):
+        nodes = [
+            BulletItem(runs=[Run("Parent")], depth=0),
+            BulletItem(runs=[Run("Child")], depth=1),
+            BulletItem(runs=[Run("Grandchild")], depth=2),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "Parent\n\tChild\n\t\tGrandchild\n"
+
+    def test_contiguous_same_preset_bullets_grouped_into_one_call(self):
+        # A parent + nested child of the same preset must get exactly ONE
+        # createParagraphBullets call spanning both paragraphs (including the child's
+        # leading tab), not one call per paragraph — see class docstring.
+        nodes = [
+            BulletItem(runs=[Run("Parent")], depth=0),
+            BulletItem(runs=[Run("Child")], depth=1),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        ranges = self._bullet_ranges(requests)
+        assert len(ranges) == 1
+        # "Parent\n" (7 chars) + "\tChild\n" (7 chars) = one combined range, 1-15
+        assert ranges[0] == {"startIndex": 1, "endIndex": 15}
+
+    def test_three_level_nesting_still_one_call(self):
+        nodes = [
+            BulletItem(runs=[Run("Parent")], depth=0),
+            BulletItem(runs=[Run("Child")], depth=1),
+            BulletItem(runs=[Run("Grandchild")], depth=2),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        ranges = self._bullet_ranges(requests)
+        assert len(ranges) == 1
+        insert = next(r for r in requests if "insertText" in r)
+        full_text = insert["insertText"]["text"]
+        assert ranges[0] == {"startIndex": 1, "endIndex": 1 + len(full_text)}
+
+    def test_run_style_offset_skips_leading_tabs(self):
+        # A styled run inside a nested item must not have the leading tab(s) folded
+        # into its style range.
+        requests, _ = ast_to_requests([BulletItem(runs=[Run("bold", bold=True)], depth=2)])
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "\t\tbold\n"
+        bold_req = next(
+            r
+            for r in requests
+            if "updateTextStyle" in r and r["updateTextStyle"]["textStyle"].get("bold") is True
+        )
+        rng = bold_req["updateTextStyle"]["range"]
+        assert rng == {"startIndex": 3, "endIndex": 7}  # skips the 2 leading tabs
+
+    def test_bullet_run_request_applied_after_sibling_requests(self):
+        # A grouped bullet-run's createParagraphBullets call consumes characters
+        # (shifting everything after it), so it must be ordered after every other
+        # request that assumes positions haven't shifted yet — including a later
+        # heading's own style request, which must appear earlier in the array.
+        nodes = [
+            BulletItem(runs=[Run("Parent")], depth=0),
+            BulletItem(runs=[Run("Child")], depth=1),
+            Heading(level=1, runs=[Run("Next")]),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        heading_idx = next(i for i, r in enumerate(requests) if "updateParagraphStyle" in r)
+        bullet_run_idx = next(i for i, r in enumerate(requests) if "createParagraphBullets" in r)
+        assert heading_idx < bullet_run_idx
+
+    def test_separate_bullet_runs_applied_latest_position_first(self):
+        # Two lists separated by a paragraph are two independent runs, each getting
+        # its own createParagraphBullets call. Processing must go latest-in-document-
+        # first so an earlier, not-yet-processed run's precomputed range is never
+        # invalidated by a later run's own tab consumption.
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=1),
+            Paragraph(runs=[Run("Interrupter")]),
+            BulletItem(runs=[Run("B")], depth=1),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        ranges = self._bullet_ranges(requests)
+        assert len(ranges) == 2
+        starts = [r["startIndex"] for r in ranges]
+        assert starts == sorted(starts, reverse=True)
+
+    def test_ordered_and_unordered_runs_split_at_preset_boundary(self):
+        # A preset change mid-list must end the current run and start a new one — one
+        # createParagraphBullets call takes exactly one bulletPreset.
+        nodes = [
+            BulletItem(runs=[Run("Bullet A")], depth=0, ordered=False),
+            BulletItem(runs=[Run("Bullet B")], depth=0, ordered=False),
+            BulletItem(runs=[Run("Num 1")], depth=0, ordered=True),
+            BulletItem(runs=[Run("Num 2")], depth=0, ordered=True),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        bullet_reqs = [
+            r["createParagraphBullets"] for r in requests if "createParagraphBullets" in r
+        ]
+        assert len(bullet_reqs) == 2
+        presets = {req["bulletPreset"] for req in bullet_reqs}
+        assert presets == {"BULLET_DISC_CIRCLE_SQUARE", "NUMBERED_DECIMAL_ALPHA_ROMAN"}
+
+    def test_table_position_adjusted_for_preceding_nested_bullet_tabs(self):
+        # A table positioned after a nested bullet must have its insertTable index
+        # adjusted for the tab character(s) that bullet's own createParagraphBullets
+        # call removes ahead of it.
+        nodes = [
+            BulletItem(runs=[Run("Parent")], depth=0),
+            BulletItem(runs=[Run("Child")], depth=1),
+            Table(rows=[Row(cells=[Cell(children=[Run("X")])])]),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        table_req = next(r for r in requests if "insertTable" in r)
+        # As-inserted text is "Parent\n\tChild\n" (14 chars); table's raw position would
+        # be 1 + 14 = 15, but the 1 leading tab gets consumed ahead of it, so the real
+        # position is 14.
+        assert insert["insertText"]["text"] == "Parent\n\tChild\n"
+        assert table_req["insertTable"]["location"]["index"] == 14
+
+    def test_table_before_nested_bullet_unaffected(self):
+        # No nested-bullet tabs precede this table, so its position needs no adjustment.
+        nodes = [
+            Table(rows=[Row(cells=[Cell(children=[Run("X")])])]),
+            BulletItem(runs=[Run("Parent")], depth=0),
+            BulletItem(runs=[Run("Child")], depth=1),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        table_req = next(r for r in requests if "insertTable" in r)
+        assert table_req["insertTable"]["location"]["index"] == 1
+
+    def test_ordered_nested_list_uses_numbered_preset(self):
+        nodes = [BulletItem(runs=[Run("Item")], depth=1, ordered=True)]
+        requests, _ = ast_to_requests(nodes)
+        bullet_req = next(r for r in requests if "createParagraphBullets" in r)
+        assert (
+            bullet_req["createParagraphBullets"]["bulletPreset"] == "NUMBERED_DECIMAL_ALPHA_ROMAN"
+        )
+
+    def test_end_to_end_html_nested_list_produces_leading_tabs(self):
+        # Integration check through the real HTML parser, matching the shape of the
+        # live #336 repro (a parent item followed by a nested sub-list).
+        html = "<ul><li>Parent<ul><li>Child</li></ul></li></ul>"
+        requests, _ = _to_doc_requests(html)
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "Parent\n\tChild\n"
 
 
 class TestBuildBlankParaBeforeTableCollapses:
@@ -775,3 +1134,99 @@ class TestBuildBlankParaBeforeTableCollapses:
     def test_table_preceded_by_table_not_touched(self):
         doc = self._doc([self._table_elem(1), self._table_elem(10)])
         assert _build_blank_para_before_table_collapses(doc) == []
+
+
+class TestImagePositionalInserts:
+    """#333: extract_images + ast_to_requests's image_uris handling — the combined
+    descending-position pass that lets images and tables shift each other's
+    positions correctly, exactly like the table-only pass it generalizes."""
+
+    def test_extract_images_collects_in_document_order(self):
+        img1 = Image(src="a.png")
+        img2 = Image(src="b.png")
+        nodes = [
+            Paragraph(runs=[Run("before "), img1, Run(" after")]),
+            BulletItem(runs=[img2]),
+        ]
+        assert extract_images(nodes) == [img1, img2]
+
+    def test_extract_images_skips_table_cell_content(self):
+        # Table-cell images are a deliberate gap (#333) — html_parser.py never
+        # actually puts one there, but extract_images must not crash or
+        # silently pick one up if it somehow did.
+        table = Table(rows=[Row(cells=[Cell(children=[Run("x")])])])
+        nodes = [table]
+        assert extract_images(nodes) == []
+
+    def test_unresolved_image_dropped_no_crash(self):
+        nodes = [Paragraph(runs=[Run("before "), Image(src="a.png"), Run(" after")])]
+        requests, _ = ast_to_requests(nodes)  # no image_uris
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "before  after\n"
+        assert not any("insertInlineImage" in r for r in requests)
+
+    def test_resolved_image_positioned_correctly_with_size(self):
+        img = Image(src="a.png", width=100.0, height=50.0)
+        nodes = [Paragraph(runs=[Run("Before")]), Paragraph(runs=[img])]
+        requests, _ = ast_to_requests(nodes, image_uris={id(img): "https://example.com/a.png"})
+        image_reqs = [r for r in requests if "insertInlineImage" in r]
+        assert len(image_reqs) == 1
+        req = image_reqs[0]["insertInlineImage"]
+        assert req["uri"] == "https://example.com/a.png"
+        assert req["location"]["index"] == 8  # "Before\n" = 7 chars, start_index 1
+        assert req["objectSize"]["width"] == {"magnitude": 100.0, "unit": "PT"}
+        assert req["objectSize"]["height"] == {"magnitude": 50.0, "unit": "PT"}
+
+    def test_image_position_accounts_for_preceding_bullet_tab_consumption(self):
+        # A nested bullet's leading tabs are consumed by createParagraphBullets
+        # before the image-insertion pass runs — the image's own final position
+        # must already reflect that shrinkage (tabs_through in ast_to_requests).
+        img = Image(src="a.png")
+        nodes = [
+            BulletItem(runs=[Run("outer")], depth=0),
+            BulletItem(runs=[Run("nested")], depth=1),
+            Paragraph(runs=[img]),
+        ]
+        requests, _ = ast_to_requests(nodes, image_uris={id(img): "https://example.com/a.png"})
+        insert = next(r for r in requests if "insertText" in r)
+        # Raw text (pre-tab-removal): "outer\n" (6) + "\tnested\n" (8) = 14 chars from
+        # start_index 1, so the image's own paragraph starts at raw position 15 — one
+        # tab (1 char) gets removed by createParagraphBullets, so its final position
+        # must be 15 - 1 = 14, not the raw 15.
+        assert insert["insertText"]["text"] == "outer\n\tnested\n\n"
+        image_req = next(r for r in requests if "insertInlineImage" in r)
+        assert image_req["insertInlineImage"]["location"]["index"] == 14
+
+    def test_image_after_table_lands_correctly_not_shifted_by_table_insertion(self):
+        # The core ordering fix (#333): an image positioned after a table in the
+        # document must not have its target position invalidated by the table's
+        # own insertTable request running first — both are applied together in
+        # one descending-position pass, not as two separate blocks.
+        img = Image(src="a.png")
+        table = Table(rows=[Row(cells=[Cell(children=[Run("cell")])])])
+        nodes = [
+            Paragraph(runs=[Run("Before")]),
+            table,
+            Paragraph(runs=[img]),
+        ]
+        requests, tables = ast_to_requests(nodes, image_uris={id(img): "https://example.com/a.png"})
+        assert tables == [table]
+        insert = next(r for r in requests if "insertText" in r)
+        # "Before\n" (7 chars) then (table contributes 0 chars to text) then "\n"
+        # for the image's own now-empty paragraph.
+        assert insert["insertText"]["text"] == "Before\n\n"
+        table_req = next(r for r in requests if "insertTable" in r)
+        image_req = next(r for r in requests if "insertInlineImage" in r)
+        # Table lands right after "Before\n" (position 8); the image's own paragraph
+        # (computed in the same table-agnostic coordinate space) also starts at 8 —
+        # both requests target position 8, and since the image request is processed
+        # in the same combined descending pass, it isn't shifted by the table
+        # insertion despite appearing later in the document.
+        assert table_req["insertTable"]["location"]["index"] == 8
+        assert image_req["insertInlineImage"]["location"]["index"] == 8
+        # Descending-position ordering means the higher-position insertion (here,
+        # a tie — image is emitted after its own node walk, so it appears after
+        # the table in requests) must still not corrupt either target index.
+        idx_table = requests.index(table_req)
+        idx_image = requests.index(image_req)
+        assert {idx_table, idx_image}.issubset(range(len(requests)))

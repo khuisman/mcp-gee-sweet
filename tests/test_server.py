@@ -1,14 +1,48 @@
 """Tests for server.py (_parse_enabled_tools, _auth_status_json, _timed, tool strict args)."""
 
+import importlib.metadata
+import inspect
 import json
 import logging
 import sys
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 from pydantic import ValidationError
 
-from mcp_gee_sweet.server import _auth_status_json, _parse_enabled_tools, _timed, mcp, tool
+from mcp_gee_sweet import server
+from mcp_gee_sweet.server import (
+    _auth_status_json,
+    _parse_enabled_tools,
+    _timed,
+    _version_logger,
+    get_auth_status,
+    get_spreadsheet_info,
+    main,
+    mcp,
+    tool,
+)
+
+
+class TestAllToolsAreAsync:
+    """Regression test for issue #183: _timed's wrapper is unconditionally
+    `async def wrapper(...): return await func(...)`, so any tool registered as
+    a plain `def` breaks with TypeError at call time. This is invisible to the
+    rest of the test suite — every other test captures the raw inner function
+    via a fake tool registry, bypassing _timed entirely. Already hit once for
+    tools/cache.py's get_cache_ttl/set_cache_ttl/refresh_cache (zero .execute()
+    calls, so missed by the .execute()-driven async conversion sweep); this
+    guards against it recurring for any future tool with no I/O of its own.
+    """
+
+    def test_every_registered_tool_is_async(self):
+        tools = mcp._tool_manager.list_tools()
+        assert tools, "no tools registered — registration may be broken"
+        sync_tools = sorted(
+            t.name for t in tools if not inspect.iscoroutinefunction(inspect.unwrap(t.fn))
+        )
+        assert sync_tools == [], f"non-async tool(s) found: {sync_tools}"
 
 
 class TestParseEnabledTools:
@@ -65,8 +99,8 @@ class TestParseEnabledTools:
 class TestAuthStatusResource:
     """server://auth-status resource returns correct capabilities per auth method."""
 
-    def _get_status(self, auth_method):
-        return json.loads(_auth_status_json(auth_method))
+    def _get_status(self, auth_method, is_service_account_identity=False):
+        return json.loads(_auth_status_json(auth_method, is_service_account_identity))
 
     def test_service_account_cannot_create_in_personal_drive(self):
         status = self._get_status("service_account")
@@ -80,24 +114,131 @@ class TestAuthStatusResource:
         assert "create_doc" in status["limited_tools"]
         assert "copy_file" in status["limited_tools"]
         assert "upload_file" in status["limited_tools"]
+        assert "upload_local_file" in status["limited_tools"]
+        assert "upload_local_folder" in status["limited_tools"]
+        assert "sync_folder" in status["limited_tools"]
+        assert "transfer_ownership" in status["limited_tools"]
 
-    def test_service_account_includes_reason_and_alternative(self):
+    def test_service_account_storage_quota_limitation(self):
+        """Issue #447: each failure class gets its own reason/alternatives — a tool
+        limited for one reason (no storage quota) shouldn't share text with a tool
+        limited for a different reason (no personal Drive identity)."""
         status = self._get_status("service_account")
-        assert status["reason"] is not None
-        assert "storage quota" in status["reason"].lower()
-        assert status["alternatives"] is not None
+        quota = next(
+            lim for lim in status["limitations"] if lim["category"] == "no_drive_storage_quota"
+        )
+        assert "create_spreadsheet" in quota["tools"]
+        assert "transfer_ownership" not in quota["tools"]
+        assert "storage quota" in quota["reason"].lower()
+        assert quota["alternatives"] is not None
+
+    def test_service_account_transfer_ownership_limitation(self):
+        status = self._get_status("service_account")
+        identity = next(
+            lim for lim in status["limitations"] if lim["category"] == "no_personal_drive_identity"
+        )
+        assert identity["tools"] == ["transfer_ownership"]
+        assert "identity" in identity["reason"].lower()
+        # Alternatives must not claim ADC fixes this — ADC may itself resolve to a
+        # service-account-backed credential with the same limitation (see #506).
+        assert "adc" not in identity["alternatives"].lower()
 
     def test_oauth_can_create_in_personal_drive(self):
         status = self._get_status("oauth")
         assert status["auth_method"] == "oauth"
         assert status["can_create_in_personal_drive"] is True
         assert status["limited_tools"] == []
-        assert status["reason"] is None
+        assert status["limitations"] == []
 
     def test_adc_can_create_in_personal_drive(self):
         status = self._get_status("adc")
+        assert status["is_service_account_identity"] is False
         assert status["can_create_in_personal_drive"] is True
         assert status["limited_tools"] == []
+        assert status["limitations"] == []
+
+    def test_adc_service_account_identity_reports_same_limitations_as_service_account(self):
+        """Issue #506: auth_method stays "adc" (that's how the credential was
+        actually obtained), but a service-account-backed ADC identity gets the
+        same restrictions as auth_method == "service_account"."""
+        status = self._get_status("adc", is_service_account_identity=True)
+        assert status["auth_method"] == "adc"
+        assert status["is_service_account_identity"] is True
+        assert status["can_create_in_personal_drive"] is False
+        assert "create_spreadsheet" in status["limited_tools"]
+        assert "transfer_ownership" in status["limited_tools"]
+
+    def test_adc_service_account_identity_quota_alternatives_do_not_suggest_adc(self):
+        """Telling an ADC session already backed by a service account to "switch to
+        ADC" would be circular — the alternatives text needs to say something an
+        ADC caller can actually act on instead."""
+        status = self._get_status("adc", is_service_account_identity=True)
+        quota = next(
+            lim for lim in status["limitations"] if lim["category"] == "no_drive_storage_quota"
+        )
+        assert "switch to adc" not in quota["alternatives"].lower()
+        assert "oauth" in quota["alternatives"].lower()
+
+    def test_service_account_quota_alternatives_still_suggest_adc(self):
+        """The AUTH_METHOD=service_account case (not ADC-backed) is unaffected by
+        the #506 fix — ADC is still a genuine escape hatch there."""
+        status = self._get_status("service_account")
+        quota = next(
+            lim for lim in status["limitations"] if lim["category"] == "no_drive_storage_quota"
+        )
+        assert "adc" in quota["alternatives"].lower()
+
+
+class TestResourcesReadLifespanContext:
+    """Regression coverage for issue #363 (FastMCP had no `get_lifespan_context()`,
+    confirmed never a real API even in mcp==1.27.1) carried forward through the
+    mcp v2 migration (issue #175): v2's `MCPServer` dropped `get_context()` entirely,
+    with no replacement for a static (non-templated) resource — Context injection
+    there raises `ValueError` outright (confirmed live against mcp==2.0.0). So
+    `get_auth_status` now reads the process-wide `auth.get_lifespan_context()`
+    directly instead of going through Context at all, while `get_spreadsheet_info`
+    (a template resource, where v2 *does* support it) takes `ctx: Context` as an
+    ordinary injected parameter. These tests exercise both real mechanisms so a
+    reintroduction of the old `get_context()`/`get_lifespan_context()` calls (or any
+    other API drift) fails loudly.
+    """
+
+    def _fake_context(self, **lifespan_attrs):
+        fake_ctx = MagicMock()
+        for k, v in lifespan_attrs.items():
+            setattr(fake_ctx.request_context.lifespan_context, k, v)
+        return fake_ctx
+
+    def test_get_auth_status_reads_auth_method_via_get_lifespan_context(self, monkeypatch):
+        monkeypatch.setattr(
+            server,
+            "get_lifespan_context",
+            lambda: SimpleNamespace(auth_method="oauth", is_service_account_identity=False),
+        )
+        result = json.loads(get_auth_status())
+        assert result["auth_method"] == "oauth"
+        assert result["is_service_account_identity"] is False
+
+    async def test_get_spreadsheet_info_reads_sheets_service_via_injected_context(self):
+        sheets_service = MagicMock()
+        sheets_service.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "properties": {"title": "Test Sheet"},
+            "sheets": [
+                {
+                    "properties": {
+                        "title": "Sheet1",
+                        "sheetId": 0,
+                        "gridProperties": {"rowCount": 10, "columnCount": 5},
+                    }
+                }
+            ],
+        }
+        fake_ctx = self._fake_context(sheets_service=sheets_service)
+        result = json.loads(await get_spreadsheet_info("some-spreadsheet-id", fake_ctx))
+        assert result["title"] == "Test Sheet"
+        assert result["sheets"] == [
+            {"title": "Sheet1", "sheetId": 0, "gridProperties": {"rowCount": 10, "columnCount": 5}}
+        ]
 
 
 class TestTimed:
@@ -128,87 +269,142 @@ class TestTimed:
     def _access_messages(self):
         return [r.getMessage() for r in self._access_records]
 
-    def test_returns_function_result(self):
+    async def test_returns_function_result(self):
         @_timed
-        def my_func(**_kwargs):
+        async def my_func(**_kwargs):
             return 42
 
-        assert my_func() == 42
+        assert await my_func() == 42
 
-    def test_reraises_exception(self):
+    async def test_reraises_exception(self):
         @_timed
-        def my_func(**_kwargs):
+        async def my_func(**_kwargs):
             raise ValueError("boom")
 
         with pytest.raises(ValueError, match="boom"):
-            my_func()
+            await my_func()
 
-    def test_logs_success_access_line(self):
+    async def test_logs_success_access_line(self):
         @_timed
-        def list_files(**kwargs):
+        async def list_files(**kwargs):
             return []
 
-        list_files()
+        await list_files()
 
         msgs = self._access_messages()
         assert len(msgs) == 1
         assert '"TOOL list_files"' in msgs[0]
         assert "200" in msgs[0]
 
-    def test_logs_500_on_exception(self):
+    async def test_logs_500_on_exception(self):
         @_timed
-        def my_func(**_kwargs):
+        async def my_func(**_kwargs):
             raise RuntimeError("fail")
 
         with pytest.raises(RuntimeError):
-            my_func()
+            await my_func()
 
         msgs = self._access_messages()
         assert len(msgs) == 1
         assert "500" in msgs[0]
 
-    def test_falls_back_to_dash_without_ctx(self):
+    async def test_falls_back_to_dash_without_ctx(self):
         @_timed
-        def my_func(**_kwargs):
+        async def my_func(**_kwargs):
             return None
 
-        my_func()
+        await my_func()
 
         msgs = self._access_messages()
         assert len(msgs) == 1
         assert '"-"' in msgs[0]
 
-    def test_extracts_ip_and_ua_from_ctx(self):
+    async def test_extracts_ip_and_ua_from_ctx(self):
         ctx = MagicMock()
         ctx.request_context.request.client.host = "1.2.3.4"
         ctx.request_context.request.headers = {"user-agent": "test-client/1.0"}
 
         @_timed
-        def my_func(**_kwargs):
+        async def my_func(**_kwargs):
             return None
 
-        my_func(ctx=ctx)
+        await my_func(ctx=ctx)
 
         msgs = self._access_messages()
         assert len(msgs) == 1
         assert "1.2.3.4" in msgs[0]
         assert "test-client/1.0" in msgs[0]
 
-    def test_elapsed_time_appears_in_log(self):
+    async def test_elapsed_time_appears_in_log(self):
         @_timed
-        def my_func(**_kwargs):
+        async def my_func(**_kwargs):
             return None
 
-        my_func()
+        await my_func()
 
         msgs = self._access_messages()
         assert msgs[0].endswith("s")
 
 
+class TestMainLogsVersion:
+    """Issue #356: main() logs the running package version at startup so a
+    deployed instance's version can be confirmed from logs alone.
+
+    _version_logger has propagate=False and its own dedicated handler (module
+    load time, unconditional — see server.py), so it never reaches caplog's
+    root-attached handler. Same quirk TestTimed's capture_access_log fixture
+    documents for mcp_gee_sweet.access; worked around the same way here rather
+    than relying on caplog, so this passes regardless of whether DEBUG_LEVEL
+    is set in the environment (the original version of this test only passed
+    when DEBUG_LEVEL was unset — see PR #479's QA round).
+    """
+
+    @pytest.fixture(autouse=True)
+    def capture_version_log(self):
+        self._version_records = []
+
+        class _Capture(logging.Handler):
+            def emit(inner_self, record):
+                self._version_records.append(record)
+
+        capture_handler = _Capture(level=logging.DEBUG)
+        _version_logger.addHandler(capture_handler)
+        yield
+        _version_logger.removeHandler(capture_handler)
+
+    def test_logs_resolved_version(self, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
+        monkeypatch.setattr(mcp, "run", MagicMock())
+        main()
+
+        version_records = [r for r in self._version_records if "mcp-gee-sweet version" in r.message]
+        assert version_records, "expected a startup log line with the package version"
+        assert importlib.metadata.version("mcp-gee-sweet") in version_records[0].message
+
+    def test_falls_back_when_package_metadata_missing(self, monkeypatch):
+        """Issue #481: a broken/repackaged install (or invoking main() without the
+        package installed) makes importlib.metadata.version raise
+        PackageNotFoundError. main() should log a placeholder and keep starting
+        up instead of crashing before tool-filtering/transport setup.
+        """
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])
+        monkeypatch.setattr(mcp, "run", MagicMock())
+
+        def _raise(name):
+            raise importlib.metadata.PackageNotFoundError(name)
+
+        monkeypatch.setattr(importlib.metadata, "version", _raise)
+        main()
+
+        version_records = [r for r in self._version_records if "mcp-gee-sweet version" in r.message]
+        assert version_records, "expected a startup log line even when metadata is unresolvable"
+        assert "unknown" in version_records[0].message
+
+
 class TestToolStrictArgs:
     """tool() rejects unrecognized kwargs instead of silently ignoring them (issue #239).
 
-    FastMCP's auto-generated arg model defaults to extra="ignore" (pydantic's own
+    MCPServer's auto-generated arg model defaults to extra="ignore" (pydantic's own
     default); tool() flips it to extra="forbid" after registration via private
     ToolManager/FuncMetadata internals — see _enforce_strict_tool_args's docstring.
     """

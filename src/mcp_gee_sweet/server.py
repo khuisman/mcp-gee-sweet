@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 """
 Google Spreadsheet MCP Server
-A Model Context Protocol (MCP) server built with FastMCP for interacting with Google Sheets.
+A Model Context Protocol (MCP) server built with MCPServer for interacting with Google Sheets.
 """
 
 import functools
+import importlib.metadata
 import json
 import logging
 import os
@@ -19,6 +20,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 logging.getLogger("sse_starlette.sse").setLevel(logging.WARNING)  # suppress keepalive ping noise
+
+# Startup version banner: confirming which build is running is basic operational
+# info, not verbosity-gated debug output, so it gets its own always-on logger
+# with a dedicated handler and propagate=False — independent of DEBUG_LEVEL and
+# the root WARNING default above, which would otherwise silently swallow it
+# (issue #356 QA round: a plain logger.info() call was blocked by root's
+# inherited WARNING level when DEBUG_LEVEL was unset, and re-filtered by the
+# DEBUG_LEVEL block's own handler level when it was set to anything above INFO).
+_version_logger = logging.getLogger(f"{__name__}.version")
+_version_logger.setLevel(logging.INFO)
+_version_logger.propagate = False
+_version_handler = logging.StreamHandler(sys.stderr)
+_version_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+_version_logger.addHandler(_version_handler)
 # DEBUG_LEVEL controls all package and access logging. Accepts standard level names (DEBUG, INFO, WARNING…).
 if _level_name := os.getenv("DEBUG_LEVEL"):
     _level = getattr(logging, _level_name.upper(), logging.DEBUG)
@@ -57,10 +72,10 @@ if _level_name := os.getenv("DEBUG_LEVEL"):
         _tool_access_fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
         _tool_access_logger.addHandler(_tool_access_fh)
 
-from mcp.server.fastmcp import FastMCP  # noqa: E402
+from mcp.server.mcpserver import Context, MCPServer  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402
 
-from .auth import spreadsheet_lifespan  # noqa: E402
+from .auth import execute_in_thread, get_lifespan_context, spreadsheet_lifespan  # noqa: E402
 
 
 def _parse_enabled_tools() -> set | None:
@@ -86,15 +101,15 @@ try:
 except ValueError:
     _resolved_port = 8000
 
-mcp = FastMCP(
+mcp = MCPServer(
     "Google Spreadsheet",
     dependencies=["google-auth", "google-auth-oauthlib", "google-api-python-client"],
     lifespan=spreadsheet_lifespan,
-    host=_resolved_host,
-    port=_resolved_port,
 )
 
-app = mcp.sse_app()
+# mcp v2 moved host/port from the constructor to call-time kwargs on
+# sse_app()/run_sse_async()/run() itself (confirmed live against mcp==2.0.0, issue #175)
+app = mcp.sse_app(host=_resolved_host)
 
 
 _tool_access_logger = logging.getLogger("mcp_gee_sweet.access")
@@ -102,11 +117,11 @@ _tool_access_logger = logging.getLogger("mcp_gee_sweet.access")
 
 def _timed(func):
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
+    async def wrapper(*args, **kwargs):
         start = time.perf_counter()
         status = 200
         try:
-            return func(*args, **kwargs)
+            return await func(*args, **kwargs)
         except Exception:
             status = 500
             raise
@@ -127,10 +142,12 @@ def _timed(func):
 def _enforce_strict_tool_args(tool_name: str) -> None:
     """Reject unrecognized kwargs instead of silently ignoring them (issue #239).
 
-    FastMCP's auto-generated per-tool pydantic arg model defaults to extra="ignore"
+    MCPServer's auto-generated per-tool pydantic arg model defaults to extra="ignore"
     (pydantic's own default) — neither func_metadata() nor Tool.from_function expose
     a public way to opt into extra="forbid". Verified absent in mcp 1.27.1 through
-    1.28.1 (this project's full allowed range, mcp>=1.27.0,<2.0.0). This reaches into
+    2.0.0 (confirmed live against mcp==2.0.0, issue #175 — the private
+    _tool_manager/fn_metadata/arg_model chain this function relies on is unchanged
+    from v1 to v2). This reaches into
     private ToolManager/FuncMetadata internals to flip it after registration.
     model_rebuild(force=True) is REQUIRED: pydantic v2 bakes `extra` behavior into a
     compiled core schema at class-creation time, so mutating model_config alone is
@@ -165,40 +182,101 @@ from .tools import register_all  # noqa: E402
 register_all(tool)
 
 
-_SA_LIMITED_TOOLS = [
-    "create_spreadsheet",
-    "create_doc",
-    "copy_file",
-    "upload_file",
-    "upload_local_file",
-    "upload_local_folder",
-    "sync_folder (upload and bidirectional directions)",
+# Service-account restrictions fall into distinct failure classes with their own
+# reason/alternatives text — bolting a new tool onto one class's reason string is
+# wrong when its actual failure mode differs (issue #447: transfer_ownership fails
+# because a service account has no personal Drive *identity*, not the storage-quota
+# problem every other entry here shares).
+_SA_LIMITATIONS = [
+    {
+        "category": "no_drive_storage_quota",
+        "tools": [
+            "create_spreadsheet",
+            "create_doc",
+            "copy_file",
+            "upload_file",
+            "upload_local_file",
+            "upload_local_folder",
+            "sync_folder",
+        ],
+        "reason": (
+            "Service accounts have no Drive storage quota and cannot create "
+            "or copy files in personal Drive. These tools will return an error "
+            "unless a Shared Drive destination is used. For sync_folder, this "
+            "only applies to its upload and bidirectional directions."
+        ),
+        "alternatives": "Switch to OAuth (CREDENTIALS_PATH) or ADC for full tool coverage.",
+    },
+    {
+        "category": "no_personal_drive_identity",
+        "tools": ["transfer_ownership"],
+        "reason": (
+            "Service accounts have no personal Drive identity to transfer file "
+            "ownership to/from, so Drive's API rejects the transfer."
+        ),
+        # Deliberately doesn't offer ADC here: ADC may itself resolve to a
+        # service-account-backed credential (metadata service, or
+        # GOOGLE_APPLICATION_CREDENTIALS pointed at a key file) with the exact same
+        # identity limitation, which auth.py's is_service_account_identity flag
+        # (#506) now detects and folds into this same limited branch — but "switch
+        # to ADC" still isn't a *fix* on its own, since a caller would have to
+        # additionally know to point ADC at a real user credential specifically.
+        "alternatives": "Switch to OAuth (CREDENTIALS_PATH) for full tool coverage.",
+    },
 ]
 
 
-def _auth_status_json(auth_method: str) -> str:
-    """Return a JSON string describing the auth method and its Drive limitations."""
-    if auth_method == "service_account":
+def _sa_limitations_for(auth_method: str) -> list[dict]:
+    """`_SA_LIMITATIONS`, with the quota category's `alternatives` adjusted when the
+    caller is already on ADC (issue #506): telling an ADC session backed by a
+    service account to "switch to ADC" is circular, since it's already there.
+    """
+    if auth_method != "adc":
+        return _SA_LIMITATIONS
+    adjusted = []
+    for lim in _SA_LIMITATIONS:
+        if lim["category"] == "no_drive_storage_quota":
+            lim = {
+                **lim,
+                "alternatives": (
+                    "Switch to OAuth (CREDENTIALS_PATH), or point ADC at a real "
+                    "user credential (e.g. `gcloud auth application-default "
+                    "login`) instead of a service-account-backed one."
+                ),
+            }
+        adjusted.append(lim)
+    return adjusted
+
+
+def _auth_status_json(auth_method: str, is_service_account_identity: bool = False) -> str:
+    """Return a JSON string describing the auth method and its Drive limitations.
+
+    `is_service_account_identity` covers issue #506: `auth_method == "adc"` alone
+    doesn't say whether `google.auth.default()` resolved to a real user or a
+    service-account-backed credential (GCE/Cloud Run/GKE metadata identity, or
+    `GOOGLE_APPLICATION_CREDENTIALS` pointed at a key file) — the latter has the
+    exact same Drive limitations as `auth_method == "service_account"`, even though
+    the auth *method* used to reach it was ADC.
+    """
+    if auth_method == "service_account" or is_service_account_identity:
+        limitations = _sa_limitations_for(auth_method)
         return json.dumps(
             {
-                "auth_method": "service_account",
+                "auth_method": auth_method,
+                "is_service_account_identity": True,
                 "can_create_in_personal_drive": False,
-                "limited_tools": _SA_LIMITED_TOOLS,
-                "reason": (
-                    "Service accounts have no Drive storage quota and cannot create "
-                    "or copy files in personal Drive. These tools will return an error "
-                    "unless a Shared Drive destination is used."
-                ),
-                "alternatives": "Switch to OAuth (CREDENTIALS_PATH) or ADC for full tool coverage.",
+                "limited_tools": [t for lim in limitations for t in lim["tools"]],
+                "limitations": limitations,
             },
             indent=2,
         )
     return json.dumps(
         {
             "auth_method": auth_method,
+            "is_service_account_identity": False,
             "can_create_in_personal_drive": True,
             "limited_tools": [],
-            "reason": None,
+            "limitations": [],
         },
         indent=2,
     )
@@ -212,12 +290,16 @@ def get_auth_status() -> str:
     Returns a JSON summary of the active auth method and which tools are
     restricted. Useful for deciding which tools to attempt before calling them.
     """
-    context = mcp.get_lifespan_context()
-    return _auth_status_json(context.auth_method)
+    # mcp v2 dropped get_context() with no replacement for a static (non-templated)
+    # resource — Context injection isn't supported there at all (confirmed live
+    # against mcp==2.0.0, issue #175). SpreadsheetContext is a process-wide singleton
+    # set once by the lifespan, so get_lifespan_context() reads it directly.
+    context = get_lifespan_context()
+    return _auth_status_json(context.auth_method, context.is_service_account_identity)
 
 
 @mcp.resource("spreadsheet://{spreadsheet_id}/info")
-def get_spreadsheet_info(spreadsheet_id: str) -> str:
+async def get_spreadsheet_info(spreadsheet_id: str, ctx: Context) -> str:
     """
     Get basic information about a Google Spreadsheet.
 
@@ -227,10 +309,13 @@ def get_spreadsheet_info(spreadsheet_id: str) -> str:
     Returns:
         JSON string with spreadsheet information
     """
-    context = mcp.get_lifespan_context()
+    context = ctx.request_context.lifespan_context
     sheets_service = context.sheets_service
 
-    spreadsheet = sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+    spreadsheet = await execute_in_thread(
+        sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute,
+        sheets_service,
+    )
     info = {
         "title": spreadsheet.get("properties", {}).get("title", "Unknown"),
         "sheets": [
@@ -247,6 +332,12 @@ def get_spreadsheet_info(spreadsheet_id: str) -> str:
 
 
 def main():
+    try:
+        version = importlib.metadata.version("mcp-gee-sweet")
+    except importlib.metadata.PackageNotFoundError:
+        version = "unknown"
+    _version_logger.info("mcp-gee-sweet version %s", version)
+
     if ENABLED_TOOLS is not None:
         logger.debug("Tool filtering enabled. Active tools: %s", ", ".join(sorted(ENABLED_TOOLS)))
     else:
@@ -269,5 +360,9 @@ def main():
             port=_resolved_port,
             reload=True,
         )
-    else:
+    elif transport == "stdio":
         mcp.run(transport=transport)
+    else:
+        # mcp v2 moved host/port from the constructor to call-time kwargs (see the
+        # mcp.sse_app() call above) — stdio's own overload doesn't accept them.
+        mcp.run(transport=transport, host=_resolved_host, port=_resolved_port)

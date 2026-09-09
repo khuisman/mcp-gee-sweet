@@ -25,6 +25,10 @@ theme:
     - toc.integrate
     - content.code.copy
 
+plugins:
+  - search  # explicit — defining plugins: disables the implicit default search plugin
+  - mike    # per-version canonical URLs + version-aware `mike serve`; pairs with extra.version below
+
 markdown_extensions:
   - tables
   - toc:
@@ -32,6 +36,11 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.superfences
+
+extra:
+  version:
+    provider: mike
+    default: latest  # non-latest versions (old releases, develop) show the "outdated" banner
 
 nav:
   - Home: index.md
@@ -53,7 +62,6 @@ nav:
   - Roadmap: roadmap.md
   - Development:
     - QA Overview: qa/README.md
-    - QA Checklist: qa-checklist.md
     - QA Setup: qa/setup.md
     - QA Run Guide: qa/run.md
     - QA Fixtures: qa/fixtures.template.md

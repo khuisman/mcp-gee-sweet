@@ -29,7 +29,7 @@ Best for headless or automated environments. Credentials don't expire.
    - `SERVICE_ACCOUNT_PATH` — path to the JSON key file
    - `DRIVE_FOLDER_ID` — ID of the shared Drive folder
 
-**Limitation:** service accounts cannot create files in a user's personal Drive (no quota). Use OAuth or a Shared Drive when you need to create files. See `server://auth-status` to check your active auth method.
+**Limitation:** service accounts cannot create files in a user's personal Drive (no quota). Use OAuth or a Shared Drive when you need to create files. Service accounts also have no personal Drive identity, so `transfer_ownership` always fails — that one requires OAuth, with no Shared Drive workaround. See `server://auth-status` to check your active auth method and affected tools.
 
 ## Method B: OAuth 2.0 (personal use / local dev)
 
@@ -72,6 +72,8 @@ gcloud auth application-default set-quota-project YOUR_PROJECT_ID
 ```
 
 On GCP, attach a service account to your compute resource — ADC picks it up automatically. The `GOOGLE_APPLICATION_CREDENTIALS` env var (Google's standard) also feeds into ADC.
+
+**ADC can resolve to either a real user or a service identity**, and the two have different limitations: a real user credential (`gcloud auth application-default login`, or Workforce Identity Federation) has full personal Drive access, while a service identity — a GCE/Cloud Run/GKE attached metadata identity, `GOOGLE_APPLICATION_CREDENTIALS` pointed at a service account key, Workload Identity Federation, an impersonated service account, or a GDCH service account — has the same restrictions as Method A above. `server://auth-status` reports which one is actually active — `auth_method` stays `"adc"` either way, but `is_service_account_identity` distinguishes them.
 
 ## Required Google APIs
 
