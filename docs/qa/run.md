@@ -143,6 +143,8 @@ Some sheet-level state has a tool to *set* it but none to *clear* it, and no too
 
 Workaround for a *scratch* fixture sheet (never do this to a sheet with real data — it destroys everything on the tab, not just the state you're trying to clear): `delete_sheet(sheet="Empty")` then `create_sheet(title="Empty")`. Fully resets the tab to blank, including any validation/formatting/merges, and is safe here because every QA tool call references the sheet by name, never by the ID that changes on recreate.
 
+**Use disjoint ranges for independent TCs sharing one scratch sheet within a single run.** Confirmed on the v0.9.0 pass: re-verifying `merge_cells`/`unmerge_cells` TCs and `add_data_validation`/`get_data_validation` TCs against *overlapping* ranges on the `Empty` sheet in the same subagent run triggered Google Sheets' own merge → validation-carryover behavior (a merge overwrote the overlapping range's dropdown rule with a checkbox rule) — native Sheets semantics, not a tool defect, but it reads exactly like cross-test contamination until investigated. Give each independent TC its own non-overlapping block (e.g. `A1:C3` for one, `E1:G3` for another).
+
 ---
 
 ## Missing `docs/qa/.env` in a role worktree
