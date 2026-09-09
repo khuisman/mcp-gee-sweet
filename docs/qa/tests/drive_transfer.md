@@ -1473,6 +1473,29 @@ Remove `/tmp/qa-239/`.
 
 ---
 
+### TC-D253: `sync_folder` — equal mtimes but differing byte sizes are not skipped as "in sync" (issue #659) ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** `sync_folder` skipped a name whenever the two mtimes agreed, even if the content differed. The reliable trigger is a rename-in-place: `mv` preserves mtime, so a name ends up pointing at different bytes with an unchanged timestamp; the name stays "in sync" forever since nothing will re-bump the mtime, and `use_checksum` can't help (its hash check only runs when the mtimes already disagree). Fixed with a free size check — Drive's `size` is already in the folder listing, so a within-tolerance mtime pair whose byte sizes disagree is no longer skipped: it becomes an upload or download per `direction`, or a `conflict` under `bidirectional` (equal mtimes can't say which side is newer). Non-Workspace files only (Workspace / convert_markdown Docs report no `size`). Runs during `dry_run` too, since it reads nothing. A same-size edit that also preserves mtime is still reported "in sync" — deliberately out of scope (would need hashing every within-tolerance pair).
+
+**Setup:** `/tmp/qa-sync-253/` created; `{FOLDER_ID}` empty of any `report.txt`.
+
+**Prompt**
+> 1. `printf 'AAAA' > /tmp/qa-sync-253/report.txt` (4 bytes). Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-253/", direction="upload")` — `report.txt` appears in `uploaded`.
+> 2. `get_file_metadata` the uploaded `report.txt`; note its `modified_time` and `size` (4).
+> 3. Simulate the rename-in-place: `printf 'BBBBBBBBBBBBBBBBBBBB' > /tmp/qa-sync-253/report.txt` (20 bytes, different content and size), then `touch -d '<the modified_time from step 2>' /tmp/qa-sync-253/report.txt` so the two mtimes match exactly.
+> 4. Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-253/", direction="bidirectional", dry_run=true)`.
+> 5. Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-253/", direction="upload")`.
+
+**Checks**
+- Step 4 (`dry_run`): `actions` has one entry for `report.txt` with `action: "conflict"` and a `reason` mentioning the local/Drive size mismatch. `report.txt` is **not** reported anywhere with `action: "skip"` / reason `"in sync"`. Flat lists (`uploaded`/`downloaded`/`skipped`/`conflicts`) all empty (dry_run, #512). Nothing changed in Drive or locally.
+- Step 5 (`direction="upload"`): `report.txt` appears in `uploaded`, not `skipped`. Afterward `get_file_metadata` shows `size` is now 20 and content is the `B…` bytes — the stale 4-byte version is gone.
+- Control (optional): repeat steps 1–5 but in step 3 overwrite with exactly-4-byte different content (`printf 'CCCC'`) before the `touch`. Step 4/5 now report `report.txt` in `skipped` / `"in sync"` — the documented same-size-edit gap, not a regression.
+
+**Teardown**
+Delete `report.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-253/`.
+
+---
+
 ## `list_revisions`
 
 ### TC-D146: List revisions for a spreadsheet

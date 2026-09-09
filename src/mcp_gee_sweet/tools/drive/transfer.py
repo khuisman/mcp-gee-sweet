@@ -307,7 +307,7 @@ async def _list_drive_children(drive_service, folder_id: str) -> tuple[list[dict
             spaces="drive",
             includeItemsFromAllDrives=True,
             supportsAllDrives=True,
-            fields="files(id, name, mimeType, modifiedTime, properties, md5Checksum)",
+            fields="files(id, name, mimeType, modifiedTime, properties, md5Checksum, size)",
             pageSize=1000,
         )
         .execute,
@@ -380,6 +380,18 @@ async def _sync_level(
     itself say which side is newer. A local read failure (file vanished, lost
     permission, etc. between the directory scan and this read) reports that one
     name under 'failed' instead of raising out of the whole call (finding #1).
+
+    Independently of use_checksum (#659): for a both-sides pair whose mtimes are
+    within tolerance, the local file's byte size is compared against Drive's
+    reported `size` (already in the folder listing, no read, so this runs during
+    dry_run too). If they differ the content has definitely diverged — most often
+    a rename-in-place, where `mv` preserves the mtime so the equal-mtime skip
+    below would hide it forever — and the pair is not skipped: it becomes an
+    upload or download per direction, or a 'conflict' under 'bidirectional' since
+    equal mtimes can't say which side is newer. Non-Workspace files only
+    (Workspace/convert_markdown files report no `size`). A same-size edit that
+    also preserves mtime still reads as "in sync" — that needs a hash, which is
+    only done here when mtimes already disagree.
 
     Returns bytes downloaded at this level and below; all other results are appended
     into the shared accumulator lists/dicts passed in from the top-level call.
@@ -528,17 +540,41 @@ async def _sync_level(
             dmtime = _drive_mtime(drive_map[name])
             lmtime = _local_mtime(local_map[name])
             diff = (lmtime - dmtime).total_seconds()
+            entry = drive_map[name]
+            is_workspace = entry["mimeType"].startswith("application/vnd.google-apps.")
+
+            # Cheap content-divergence signal that costs no file read: Drive
+            # reports `size` for every non-Workspace file, so a within-tolerance
+            # mtime pair whose byte sizes disagree has definitely diverged. The
+            # classic cause is a rename-in-place — `mv` preserves mtime, so the
+            # name now points at different bytes with an unchanged timestamp, and
+            # the equal-mtime "in sync" skip below would hide that forever, since
+            # nothing will ever bump the mtime again (#659). Workspace and
+            # convert_markdown files have no `size` (same as md5Checksum), so the
+            # signal simply doesn't apply and they fall back to mtime-only. Unlike
+            # the hash check below this runs during dry_run too — it reads nothing,
+            # and a preview that can't flag a diverged rename is the other half of
+            # the bug.
+            drive_size = entry.get("size") if not is_workspace else None
+            size_differs = False
+            if drive_size is not None:
+                try:
+                    size_differs = local_map[name].stat().st_size != int(drive_size)
+                except (OSError, ValueError):
+                    size_differs = False  # degrade to mtime-only, don't raise here
 
             # Checked after the (cheap) mtime diff above, and only when mtimes
-            # actually disagree — a pair already within tolerance skips to the same
-            # "in sync" outcome below either way, so hashing it would just be a
-            # wasted read (#274 PR #472 review, finding #3). Skipped entirely during
-            # dry_run for the same reason: dry_run is documented elsewhere as a
-            # cheap, no-transfer preview, and reading every file's full content to
-            # hash it would violate that (same finding).
+            # actually disagree — a within-tolerance pair is already resolved by
+            # then: the free size check above catches a diverged one, and a
+            # same-size within-tolerance pair is deliberately treated as in sync
+            # (catching a same-size mtime-preserving edit would need a hash of
+            # every such pair, out of scope — see the docstring), so hashing here
+            # would just be a wasted read (#274 PR #472 review, finding #3).
+            # Skipped entirely during dry_run for the same reason: dry_run is
+            # documented elsewhere as a cheap, no-transfer preview, and reading
+            # every file's full content to hash it would violate that (same
+            # finding).
             if use_checksum and not dry_run and abs(diff) > _SYNC_MTIME_TOLERANCE:
-                entry = drive_map[name]
-                is_workspace = entry["mimeType"].startswith("application/vnd.google-apps.")
                 drive_md5 = entry.get("md5Checksum") if not is_workspace else None
                 if drive_md5 is not None:
                     try:
@@ -582,7 +618,36 @@ async def _sync_level(
                     # use_checksum=False, reusing the diff already computed above.
 
             if abs(diff) <= _SYNC_MTIME_TOLERANCE:
-                plan.append({"name": name, "action": "skip", "reason": "in sync"})
+                if not size_differs:
+                    plan.append({"name": name, "action": "skip", "reason": "in sync"})
+                elif direction == "upload":
+                    plan.append(
+                        {
+                            "name": name,
+                            "action": "upload",
+                            "reason": "content differs (local/Drive size mismatch), mtimes match",
+                        }
+                    )
+                elif direction == "download":
+                    plan.append(
+                        {
+                            "name": name,
+                            "action": "download",
+                            "reason": "content differs (local/Drive size mismatch), mtimes match",
+                        }
+                    )
+                else:  # bidirectional — equal mtimes can't say which side is newer
+                    plan.append(
+                        {
+                            "name": name,
+                            "action": "conflict",
+                            "reason": (
+                                "content differs (local/Drive size mismatch) but mtimes match "
+                                "— can't tell which side is newer; touch the newer file or run "
+                                "a directional sync"
+                            ),
+                        }
+                    )
             elif diff > 0:
                 if direction in ("upload", "bidirectional"):
                     plan.append(
@@ -1899,12 +1964,25 @@ def register(tool):
           Local only  + direction includes upload    → upload
           Local only  + direction is 'download'      → skip
           Both sides, mtimes within 5 s tolerance    → skip (already in sync)
+          Both sides, mtimes match but byte sizes differ → upload / download by
+                                                      direction; 'conflict' if bidirectional
           Both sides, local newer by > 5 s           → upload  (if direction includes upload)
           Both sides, Drive newer by > 5 s           → download (if direction includes download)
           Both sides, conflict (direction mismatch)  → skip, listed under 'conflicts'
 
         Modified times are compared in UTC. When a file is uploaded, its Drive
         modifiedTime is set to the local file's mtime so future syncs stay accurate.
+
+        The "mtimes match but byte sizes differ" row (#659) exists because equal
+        mtimes don't guarantee equal content: a rename-in-place (`mv` keeps the
+        mtime) leaves a name pointing at different bytes with an unchanged
+        timestamp, which the plain equal-mtime skip would hide permanently.
+        Drive's `size` is already in the folder listing, so this check is free and
+        runs during dry_run too. It only applies to non-Workspace files (Workspace
+        and convert_markdown files report no `size`). Equal size with a same-size
+        content edit that also preserves mtime is still reported as "in sync" —
+        hashing every within-tolerance pair to catch that is out of scope here
+        (use_checksum only checks pairs whose mtimes already disagree).
 
         When use_checksum=True, a name present on both sides whose modifiedTimes
         actually disagree (beyond the 5s tolerance) is checked for a content match
