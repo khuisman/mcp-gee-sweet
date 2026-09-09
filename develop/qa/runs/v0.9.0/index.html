@@ -1325,7 +1325,7 @@
 <h1 id="qa-run-gate-v090">QA Run Gate — v0.9.0<a class="headerlink" href="#qa-run-gate-v090" title="Permanent link">&para;</a></h1>
 <p><strong>Release type:</strong> Stable
 <strong>Suite required:</strong> <strong>Full Regression</strong> — see scoping audit below
-<strong>Status:</strong> ✅ pass complete, bugs filed and routed — sign-off conditional on #687/#688 landing before tagging. Pass ran 2026-09-03 → 2026-09-04.</p>
+<strong>Status:</strong> ✅ <strong>signed off — cleared to tag.</strong> Pass ran 2026-09-03 → 2026-09-04; the two conditional blockers (#687/#688) landed and were live-re-verified 2026-09-05 (see "Post-sign-off resolution" below). Finalized 2026-09-08.</p>
 <hr />
 <h2 id="pre-flight">Pre-flight<a class="headerlink" href="#pre-flight" title="Permanent link">&para;</a></h2>
 <ul>
@@ -1526,7 +1526,8 @@
 <li>[x] <strong>Calendar</strong> — <code>calendar.md</code> — 76 PASS / 0 FAIL / 1 SKIP (77; includes 6 fixture-identity-sensitive TCs re-verified against the real fixture on OAuth after the SA-substitute shard, per Run history)</li>
 <li>[x] <strong>Concurrency</strong> — TC-I24 (47/50 valid data points, zero cross-contamination), TC-I02 (50/50 clean, zero locking errors) — both <strong>PASS</strong></li>
 </ul>
-<p><strong>Grand total: 623 PASS / 12 FAIL / 38 SKIP / 1 N/A across 674 TCs</strong> (out of 750 in the 14 files — the ~76-TC gap is the pre-approved-SKIP master list below, kept at its standing disposition rather than a redundant fresh line). Plus 17 Playwright/OAuth re-verifications folded into the totals as the authoritative Result for their TCs (see Run history).</p>
+<p><strong>Grand total at pass time: 623 PASS / 12 FAIL / 38 SKIP / 1 N/A across 674 TCs</strong> (out of 750 in the 14 files — the ~76-TC gap is the pre-approved-SKIP master list below, kept at its standing disposition rather than a redundant fresh line). Plus 17 Playwright/OAuth re-verifications folded into the totals as the authoritative Result for their TCs (see Run history).</p>
+<p><strong>After the #687/#688 fixes (2026-09-05): 630 PASS / 5 FAIL / 38 SKIP / 1 N/A</strong> — the 5 remaining FAILs are all non-defects (stale test assumptions, a test-prompt bug, one deliberately-open enhancement call). See "Post-sign-off resolution" below. The Suite-checklist lines above are the pass-time record; Drive Sharing is now 26 PASS / 1 FAIL and Drive Files 76 PASS / 2 FAIL.</p>
 <hr />
 <h2 id="pre-approved-skips">Pre-approved SKIPs<a class="headerlink" href="#pre-approved-skips" title="Permanent link">&para;</a></h2>
 <p>Copied from <code>docs/qa/runs/README.md</code> master list, trimmed to v0.9.0 scope. TC-I02/TC-I24 are <strong>no longer standing SKIPs</strong> (#673) — run via the barrier procedure.</p>
@@ -1626,6 +1627,15 @@
 <td>38</td>
 <td>1</td>
 </tr>
+<tr>
+<td>2026-09-05 (post-fix re-verify)</td>
+<td>OAuth — real Shared-Drive fixture</td>
+<td><a href="../../results/2026-09-04/">docs/qa/results/2026-09-04.md</a> (post-run addendum)</td>
+<td>630</td>
+<td>5</td>
+<td>38</td>
+<td>1</td>
+</tr>
 </tbody>
 </table>
 <h2 id="run-history-incidents">Run history / incidents<a class="headerlink" href="#run-history-incidents" title="Permanent link">&para;</a></h2>
@@ -1653,13 +1663,13 @@
 <td>BUG-SS</td>
 <td><code>share_spreadsheet</code> omits <code>supportsAllDrives=True</code> on its <code>permissions().create()</code> call — every sibling permission op in the same file has it. Fails with "File not found" for any Shared-Drive file (the current fixture environment, post-#305). <code>share_file</code> still works (functional workaround).</td>
 <td>Real, release-scope</td>
-<td>File — v0.9.0, route to Dev lane B</td>
+<td>✅ <strong>Fixed <a href="https://github.com/khuisman/mcp-gee-sweet/pull/695">#695</a>, merged 2026-09-05, live-re-verified</strong> (see Post-sign-off resolution)</td>
 </tr>
 <tr>
 <td>BUG-CACHE</td>
 <td>Folder-listing cache key omits <code>max_results</code> — a smaller-limit call can (a) get an unfiltered cache hit from an earlier larger call, ignoring the limit, and (b) <em>store</em> its own truncated result, so later larger-limit calls get the truncated list until <code>refresh_cache</code>. Reproduced twice. Affects <code>list_files</code>, <code>list_spreadsheets</code>, <code>list_folders</code> (shared cache).</td>
 <td>Real, release-scope — silent persistent wrong data, the most severe finding this pass</td>
-<td>File — v0.9.0, route to Dev lane B</td>
+<td>✅ <strong>Fixed <a href="https://github.com/khuisman/mcp-gee-sweet/pull/697">#697</a>, merged 2026-09-05, live-re-verified</strong> (see Post-sign-off resolution)</td>
 </tr>
 <tr>
 <td>BUG-LF</td>
@@ -1752,13 +1762,53 @@
 <ul>
 <li>[x] All 14 domain suites + concurrency complete, Results written inline (674 TCs)</li>
 <li>[x] TC-DOC80 (#678) re-run under low-cap method — PASS</li>
-<li>[x] All FAILs disposed — 4 are stale test-case assumptions (fixed in this branch: TC-D124, TC-D13, TC-W02, TC-CAL16), 1 (TC-D167) tracked as a follow-up of the same class as TC-DOC80, 6 (the <code>share_spreadsheet</code> TCs) and 1 (TC-D40) trace to BUG-SS/BUG-CACHE respectively — filed and routed above. No FAIL is left undiagnosed.</li>
+<li>[x] All FAILs disposed — 4 are stale test-case assumptions (fixed in the sign-off PR #694: TC-D124, TC-D13, TC-W02, TC-CAL16), 1 (TC-D167) tracked as a follow-up of the same class as TC-DOC80, 6 (the <code>share_spreadsheet</code> TCs) and 1 (TC-D40) trace to BUG-SS/BUG-CACHE respectively — filed and routed above, <strong>both fixed and live-re-verified 2026-09-05</strong> (see Post-sign-off resolution). No FAIL is left undiagnosed; no product defect open in v0.9.0 scope.</li>
 <li>[x] <code>docs/qa/results/2026-09-04.md</code> written and linked</li>
 <li>[x] Bugs filed — #687-#693 (BUG-SS, BUG-CACHE, BUG-LF, BUG-DF + 3 minor)</li>
 <li>[x] QA-gate PR opened — see below</li>
 </ul>
-<p><strong>BUG-SS (#687) and BUG-CACHE (#688) are routed to Dev lane B for a v0.9.0 fix before the release tags</strong> — sign-off is conditional on those landing; v0.9.0 should not ship with them open. BUG-LF, BUG-DF, and the 3 minor findings are lower-severity/have workarounds and are v0.9.1 follow-ups.</p>
-<p><strong>Signed off by:</strong> Aziz (Release QA Lead), pending user confirmation of the final go-ahead to tag once #687/#688 land <strong>Date:</strong> 2026-09-04</p>
+<p><strong>BUG-SS (#687) and BUG-CACHE (#688) were routed to Dev lane B for a v0.9.0 fix before the release tags</strong> — the sign-off was conditional on those landing; v0.9.0 was not to ship with them open. Both landed and were live-re-verified 2026-09-05 (details below). BUG-LF, BUG-DF, and the 3 minor findings are lower-severity/have workarounds and are v0.9.1 follow-ups.</p>
+<p><strong>Signed off by:</strong> Aziz (Release QA Lead) — conditional sign-off 2026-09-04, <strong>finalized unconditional 2026-09-08</strong> after #687/#688 landed and were re-verified. Cleared for <code>/release</code>.</p>
+<hr />
+<h2 id="post-sign-off-resolution-2026-09-08">Post-sign-off resolution (2026-09-08)<a class="headerlink" href="#post-sign-off-resolution-2026-09-08" title="Permanent link">&para;</a></h2>
+<p>The 2026-09-04 sign-off held tagging on the two release-scope product defects landing. Both did, on 2026-09-05, each through the normal PR gate with a live re-verification recorded in its domain test file:</p>
+<table>
+<thead>
+<tr>
+<th>Bug</th>
+<th>Issue</th>
+<th>Fix PR</th>
+<th>Merged</th>
+<th>Live re-verification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BUG-SS</td>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues/687">#687</a></td>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/pull/695">#695</a></td>
+<td>2026-09-05</td>
+<td><code>supportsAllDrives=True</code> added to <code>share_spreadsheet</code>'s <code>permissions().create()</code>; re-run against the real Shared-Drive fixture returned <code>successes:[...]</code>, test permission removed after. Recorded at <code>docs/qa/tests/drive_sharing.md</code> TC-D18/D19/D20/D23/D24/D176. + regression unit test.</td>
+</tr>
+<tr>
+<td>BUG-CACHE</td>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/issues/688">#688</a></td>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/pull/697">#697</a></td>
+<td>2026-09-05</td>
+<td><code>DriveFolderCache.get()/store()</code> now carry a <code>max_results</code> sufficiency check (mirrors <code>SheetDataCache.rows_fetched</code>); both bug scenarios re-tested against the real fixture folder — small-<code>max_results</code> hit now slices correctly, small fetch no longer poisons a later larger fetch. Recorded at <code>docs/qa/tests/drive_files.md</code> TC-D40. + 3 regression unit tests.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>FAIL accounting after these fixes</strong> — of the 12 FAILs at pass time:</p>
+<ul>
+<li><strong>7 were the two blocking product defects</strong> (TC-D18/D19/D20/D23/D24/D176 → BUG-SS; TC-D40 → BUG-CACHE) — <strong>now PASS</strong>, per the re-verifications above.</li>
+<li><strong>5 remain, none a product defect:</strong></li>
+<li>TC-D124, TC-D13 — stale test-case assumptions for the #305 Shared-Drive migration (no <code>owner</code> role on Shared-Drive items; default folder ≠ fixture subfolder). Test checks updated in the sign-off PR (#694); see the <code>Note (v0.9.0)</code> blocks in <code>drive_sharing.md</code> / <code>drive_files.md</code>.</li>
+<li>TC-W02 — test-prompt used single-quote formula string delimiters (Sheets requires double); prompt corrected in #694, re-run PASS. <code>USER_ENTERED</code> itself was independently confirmed correct.</li>
+<li>TC-D167 — same stale-<code>#519</code>-cap-premise class as TC-DOC80; <code>export_file</code>'s cap path is exercised via the sibling <code>get_doc_content</code> check (TC-DOC80) + unit tests. Not a regression. Tracked as a #678-style test rewrite follow-up.</li>
+<li>TC-D01 — deliberately open: <code>create_spreadsheet</code>/<code>import_csv_to_sheet</code> return no web link (siblings do). Enhancement-vs-test-expectation call left for the user via <a href="https://github.com/khuisman/mcp-gee-sweet/issues/693">#693</a> (v0.9.1). Not a defect.</li>
+</ul>
+<p><strong>Effective post-fix totals: 630 PASS / 5 FAIL (0 defects) / 38 SKIP / 1 N/A.</strong> No open product defect in v0.9.0 scope. Cleared to tag.</p>
 
 
 

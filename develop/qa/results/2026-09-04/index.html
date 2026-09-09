@@ -1495,13 +1495,13 @@ Prompt used single-quote string delimiters in a Sheets formula (<code>=A2&amp;' 
 <td>BUG-SS</td>
 <td><a href="https://github.com/khuisman/mcp-gee-sweet/issues/687">#687</a> — <code>share_spreadsheet</code> omits <code>supportsAllDrives=True</code>, broken on Shared Drives</td>
 <td>Real, release-scope</td>
-<td>v0.9, routed to Dev lane B — sign-off conditional on this landing</td>
+<td>✅ Fixed <a href="https://github.com/khuisman/mcp-gee-sweet/pull/695">#695</a>, merged + live-re-verified 2026-09-05 — see addendum</td>
 </tr>
 <tr>
 <td>BUG-CACHE</td>
 <td><a href="https://github.com/khuisman/mcp-gee-sweet/issues/688">#688</a> — folder-listing cache key omits <code>max_results</code>, silent truncation + cross-call poisoning</td>
 <td>Real, release-scope (silent wrong data)</td>
-<td>v0.9, routed to Dev lane B — sign-off conditional on this landing</td>
+<td>✅ Fixed <a href="https://github.com/khuisman/mcp-gee-sweet/pull/697">#697</a>, merged + live-re-verified 2026-09-05 — see addendum</td>
 </tr>
 <tr>
 <td>BUG-LF</td>
@@ -1544,8 +1544,8 @@ Prompt used single-quote string delimiters in a Sheets formula (<code>=A2&amp;' 
 <h2 id="test-file-fixes-applied-this-pass-not-product-bugs">Test-file fixes applied this pass (not product bugs)<a class="headerlink" href="#test-file-fixes-applied-this-pass-not-product-bugs" title="Permanent link">&para;</a></h2>
 <ul>
 <li>TC-DOC80 (#678), TC-D03/D04/D27/D58/D59/D61/D175 (#680) — done in pass-prep, see <code>docs/roadmap.md</code>/commit <code>966e06a</code>.</li>
-<li>TC-D124 (organizer vs owner on Shared Drive), TC-D13 (default-folder assumption), TC-W02 (formula quote style), TC-CAL16 (group-calendar organizer field wording) — need the same treatment; tracked for a fast-follow test-file PR alongside the bug fixes.</li>
-<li>TC-D167 needs the TC-DOC80-style low-cap rewrite (#678 follow-up).</li>
+<li>TC-D124 (organizer vs owner on Shared Drive), TC-D13 (default-folder assumption), TC-W02 (formula quote style), TC-CAL16 (group-calendar organizer field wording) — check updates applied in the sign-off PR (#694); see the <code>Note (v0.9.0)</code> blocks in <code>drive_sharing.md</code> / <code>drive_files.md</code> / <code>sheets_write.md</code> / <code>calendar.md</code>.</li>
+<li>TC-D167 needs the TC-DOC80-style low-cap rewrite (#678 follow-up) — not done this pass; <code>export_file</code>'s cap path stays covered by TC-DOC80's sibling <code>get_doc_content</code> check + unit tests.</li>
 </ul>
 <h2 id="process-notes">Process notes<a class="headerlink" href="#process-notes" title="Permanent link">&para;</a></h2>
 <ul>
@@ -1559,6 +1559,72 @@ Prompt used single-quote string delimiters in a Sheets formula (<code>=A2&amp;' 
 <p>All 127 registered tools have at least one exercising TC (verified in pass-prep, no drift since). Full coverage table not reproduced here — see <code>docs/tools.md</code> (generated, current) cross-referenced against <code>docs/qa/README.md</code>'s tool→test-file table.</p>
 <h2 id="screenshots">Screenshots<a class="headerlink" href="#screenshots" title="Permanent link">&para;</a></h2>
 <p><code>docs/qa/screenshots/</code>, prefixed <code>2026-09-04-</code> (gitignored per #231) — delete when no longer needed.</p>
+<hr />
+<h2 id="post-run-addendum-687688-fixes-re-verified-2026-09-05-finalized-2026-09-08">Post-run addendum — #687/#688 fixes re-verified (2026-09-05, finalized 2026-09-08)<a class="headerlink" href="#post-run-addendum-687688-fixes-re-verified-2026-09-05-finalized-2026-09-08" title="Permanent link">&para;</a></h2>
+<p>The 2026-09-04 sign-off (<code>docs/qa/runs/v0.9.0.md</code>) held the v0.9.0 tag on the two release-scope product defects landing. Both did, on 2026-09-05, each through the normal PR gate with a live re-verification recorded in its domain test file:</p>
+<table>
+<thead>
+<tr>
+<th>Bug</th>
+<th>Fix PR</th>
+<th>Re-verification (against the real Shared-Drive fixture)</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BUG-SS (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/687">#687</a>)</td>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/pull/695">#695</a></td>
+<td><code>supportsAllDrives=True</code> added to <code>share_spreadsheet</code>'s <code>permissions().create()</code>; <code>share_spreadsheet</code> writer on the real fixture returned <code>successes:[{...}]</code> / <code>failures:[]</code>; test permission removed after. <code>docs/qa/tests/drive_sharing.md</code> TC-D18/D19/D20/D23/D24/D176. + regression unit test.</td>
+<td>✅ PASS (6 TCs)</td>
+</tr>
+<tr>
+<td>BUG-CACHE (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/688">#688</a>)</td>
+<td><a href="https://github.com/khuisman/mcp-gee-sweet/pull/697">#697</a></td>
+<td><code>DriveFolderCache.get()/store()</code> gained a <code>max_results</code> sufficiency check (mirrors <code>SheetDataCache.rows_fetched</code>). Both scenarios re-tested on the real fixture folder (3 items): fresh default fetch then <code>max_results=2</code> → sliced to exactly 2, default again → still 3 (no poisoning); fresh <code>max_results=1</code> then default → treated as a miss, returns all 3. <code>docs/qa/tests/drive_files.md</code> TC-D40. + 3 regression unit tests (84 cache tests pass).</td>
+<td>✅ PASS (1 TC)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Revised FAIL accounting</strong> — of the 12 FAILs at pass time, 7 were these two defects and are now PASS. The 5 that remain are all non-defects:</p>
+<table>
+<thead>
+<tr>
+<th>TC</th>
+<th>Cause</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-D124</td>
+<td>Stale assumption — Shared-Drive items report no <code>owner</code> role (<code>owners: []</code>), roles are <code>organizer</code>/<code>fileOrganizer</code></td>
+<td>Check updated in #694 (<code>Note (v0.9.0)</code> in <code>drive_sharing.md</code>)</td>
+</tr>
+<tr>
+<td>TC-D13</td>
+<td>Stale assumption — default folder now resolves to the Shared-Drive root, not the fixture subfolder (post-#305)</td>
+<td>Check updated in #694 (<code>Note (#680, v0.9.0)</code> in <code>drive_files.md</code>)</td>
+</tr>
+<tr>
+<td>TC-W02</td>
+<td>Test-prompt bug — single-quote formula string delimiters; Sheets requires double</td>
+<td>Prompt fixed in #694; re-run PASS; <code>USER_ENTERED</code> independently confirmed</td>
+</tr>
+<tr>
+<td>TC-D167</td>
+<td>Stale <code>#519</code>-cap premise (same class as TC-DOC80) — <code>export_file</code> base64 no longer trips the raised default at this fixture size</td>
+<td>Not a regression; cap path covered by TC-DOC80 sibling check + unit tests. #678-style rewrite is a follow-up</td>
+</tr>
+<tr>
+<td>TC-D01</td>
+<td>Deliberately open — <code>create_spreadsheet</code>/<code>import_csv_to_sheet</code> return no web link (siblings do); enhancement-vs-expectation call left to the user via <a href="https://github.com/khuisman/mcp-gee-sweet/issues/693">#693</a> (v0.9.1)</td>
+<td>Not a defect</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Effective post-fix totals: 630 PASS / 5 FAIL (0 product defects) / 38 SKIP / 1 N/A.</strong> No open product defect in v0.9.0 scope — release cleared to tag.</p>
+<p>The 2026-09-04 summary table above is left as the pass-time record and not retro-edited; per-domain, Drive Sharing is now 26 PASS / 1 FAIL and Drive Files 76 PASS / 2 FAIL.</p>
 
 
 
