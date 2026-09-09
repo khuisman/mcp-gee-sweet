@@ -1461,6 +1461,16 @@ Remove `/tmp/qa-239/`.
 
 ---
 
+### TC-D252: `_sync_level._run_one` outer catch-all renders a quota error with the friendly message, not raw `str(e)` (issue #670) (unit test)
+
+**Background:** direct follow-up to TC-D251's round-1 Result, which flagged (and #670 filed) the last un-fixed quota-error site in `transfer.py`: `_sync_level._run_one`'s **outer** `except Exception as e` — the one wrapping the whole `create()`/re-import `update()` block, distinct from the restamp `except` #650 already fixed — returned `{"kind": "upload_fail", "name": name, "error": str(e)}`. A `storageQuotaExceeded` `HttpError` raised by `files().create()` (plain or convert path) or the media-carrying `update()` propagates there and leaked Drive's raw `{"error": {"reason": "storageQuotaExceeded"}}` blob instead of the shared `_SA_QUOTA_ERROR` text every sibling site uses. Fixed by a module-level `_quota_error_detail(exc)` helper (returns `_SA_QUOTA_ERROR` for a quota `HttpError`, else `str(exc)`) built on a `_is_quota_error(exc)` predicate; the outer catch-all now renders through it, and `_restamp_failure_result` plus the two other inline quota checks (`_upload_local_file`'s `except HttpError`, `upload_file`'s `convert_to_doc` `except HttpError`) were folded onto the same two helpers so the detection/rendering logic lives in one place. Same not-reliably-reproducible-live constraint as TC-D249–TC-D251 (quota errors aren't forceable); verified by unit test.
+
+**Checks (unit test)**
+- `tests/drive/test_transfer.py::TestSyncFolderConvertMarkdown::test_upload_create_quota_failure_uses_friendly_message` — a plain (non-convert) `sync_folder(direction="upload")` where `files().create()` raises a `storageQuotaExceeded` `HttpError` (403) reports the file under `failed` with `error` containing `_SA_QUOTA_ERROR` and the raw `storageQuotaExceeded` string no longer present. The non-convert path is used deliberately so the failure is `create()` itself hitting the outer catch-all, not the restamp `except` covered by TC-D251.
+- Regression: the existing quota tests for the folded sites still pass unchanged — `TestUploadLocalFileCore::test_quota_exceeded_returns_friendly_error_dict` (`_upload_local_file`'s `except HttpError` → now `_quota_error_detail(e)`), `TestUploadFile::test_quota_exceeded_returns_friendly_error_dict` (`upload_file`'s `except HttpError` → now `_is_quota_error(e)`), and `TestSyncFolderConvertMarkdown::test_restamp_quota_failure_uses_friendly_message` (`_restamp_failure_result` → now delegates to `_quota_error_detail`).
+
+---
+
 ## `list_revisions`
 
 ### TC-D146: List revisions for a spreadsheet
