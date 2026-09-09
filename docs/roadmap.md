@@ -209,6 +209,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] Consolidate `uv lock --check` + `uv sync --frozen` into a single `uv sync --locked` step ([#536](https://github.com/khuisman/mcp-gee-sweet/issues/536))
 - [ ] Catch stale hardcoded tool counts in prose docs at commit time, instead of by hand each time drift is caught ([#308](https://github.com/khuisman/mcp-gee-sweet/issues/308))
 - [ ] Automate the mechanical `release.md` steps as GitHub Actions ([#660](https://github.com/khuisman/mcp-gee-sweet/issues/660))
+- [ ] Guard `README.md` against non-absolute image URLs — PyPI's `readme_renderer` silently strips them (shipped a logo-less v0.9.0 page, #706). CI guard test; release/prep-for-pr backstop routed to Bob (#709) ([#708](https://github.com/khuisman/mcp-gee-sweet/issues/708))
 
 **QA & docs** _(moved out of v0.9.0 2026-09-02 so they don't gate the release; see [#629](https://github.com/khuisman/mcp-gee-sweet/issues/629), closed)_
 - [ ] Domain and public sharing tests (TC-D135–D139) — decision landed 2026-09-02: provision a real non-Google test email for external-share coverage; the `type=anyone` public-link tests stay unresolved (exposure risk not yet accepted) ([#49](https://github.com/khuisman/mcp-gee-sweet/issues/49))
