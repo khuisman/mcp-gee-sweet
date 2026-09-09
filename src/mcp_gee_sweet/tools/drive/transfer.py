@@ -82,6 +82,26 @@ _CONVERT_MIME: dict[str, tuple[str, str]] = {
 }
 
 
+def _is_quota_error(exc: Exception) -> bool:
+    """True for Drive's storageQuotaExceeded HttpError (403) — the "this identity
+    has no personal storage" failure a service account hits on a non-Shared-Drive
+    target, which the shared _SA_QUOTA_ERROR text explains."""
+    return (
+        isinstance(exc, HttpError)
+        and exc.resp.status == 403
+        and b"storageQuotaExceeded" in (exc.content or b"")
+    )
+
+
+def _quota_error_detail(exc: Exception) -> str:
+    """Render an exception as a user-facing 'error' string: the friendly
+    _SA_QUOTA_ERROR text for a storageQuotaExceeded HttpError, else str(exc).
+    Keeps every quota-error site in this file rendering the same way — including
+    catch-all `except Exception` handlers where a bare `except HttpError` quota
+    check would otherwise be skipped and leak the raw error blob (#670)."""
+    return _SA_QUOTA_ERROR if _is_quota_error(exc) else str(exc)
+
+
 def _restamp_failure_result(file_id: str, exc: Exception) -> dict[str, Any]:
     """Shared result for the narrow case where create() succeeded but the
     follow-up metadata-only modifiedTime restamp (convert / convert_markdown
@@ -92,14 +112,7 @@ def _restamp_failure_result(file_id: str, exc: Exception) -> dict[str, Any]:
     file — the original per-site restamp except caught only bare Exception and
     would have leaked a raw str(e) here (#650). Callers layer their own result
     shape on top (e.g. _sync_level._run_one's kind/name keys)."""
-    if (
-        isinstance(exc, HttpError)
-        and exc.resp.status == 403
-        and b"storageQuotaExceeded" in (exc.content or b"")
-    ):
-        detail = _SA_QUOTA_ERROR
-    else:
-        detail = str(exc)
+    detail = _quota_error_detail(exc)
     return {
         "error": (
             f"created Drive file {file_id!r} but failed to restamp its modifiedTime: {detail}"
@@ -224,9 +237,7 @@ async def _upload_local_file(
             drive_service,
         )
     except HttpError as e:
-        if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
-            return {"error": _SA_QUOTA_ERROR}
-        return {"error": str(e)}
+        return {"error": _quota_error_detail(e)}
     except Exception as e:
         # Mirrors _sync_level._run_one's create()+update() pair (its convert_this
         # branch): the upload_local_file tool (the caller at line ~1189) has no
@@ -781,7 +792,15 @@ async def _sync_level(
                         logger.debug("Synced (create) %s%s → Drive", rel_prefix, name)
                     return {"kind": "upload_ok", "name": name}
                 except Exception as e:
-                    return {"kind": "upload_fail", "name": name, "error": str(e)}
+                    # Catch-all for the create()/update() calls above — a
+                    # storageQuotaExceeded HttpError lands here too, so render it
+                    # through _quota_error_detail rather than a bare str(e) that
+                    # would leak Drive's raw error blob (#670).
+                    return {
+                        "kind": "upload_fail",
+                        "name": name,
+                        "error": _quota_error_detail(e),
+                    }
 
             # action == "download"
             entry = drive_map[name]
@@ -1348,7 +1367,7 @@ def register(tool):
                 drive_service,
             )
         except HttpError as e:
-            if e.resp.status == 403 and b"storageQuotaExceeded" in (e.content or b""):
+            if _is_quota_error(e):
                 return {"error": _SA_QUOTA_ERROR}
             raise
 

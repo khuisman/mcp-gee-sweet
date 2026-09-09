@@ -1993,6 +1993,41 @@ class TestSyncFolderConvertMarkdown:
         assert "storageQuotaExceeded" not in entry["error"]
         assert transfer_module._SA_QUOTA_ERROR in entry["error"]
 
+    async def test_upload_create_quota_failure_uses_friendly_message(self, tmp_path):
+        """#670: _sync_level._run_one's *outer* catch-all `except Exception` (the
+        one wrapping the whole create()/update() block, not the restamp except
+        fixed in #650) returned a bare str(e). A storageQuotaExceeded HttpError
+        raised by files().create() lands there and previously leaked Drive's raw
+        error blob instead of the shared _SA_QUOTA_ERROR text. Exercised via a
+        plain (non-convert) upload so the failure is create() itself, not the
+        convert_markdown restamp."""
+        (tmp_path / "readme.txt").write_text("hello")
+
+        class _CreateQuotaFailsFakeDriveFS(_FakeDriveFS):
+            def _create(self, **kwargs):
+                resp = MagicMock()
+                resp.status = 403
+                raise HttpError(
+                    resp=resp,
+                    content=b'{"error": {"reason": "storageQuotaExceeded"}}',
+                )
+
+        fs = _CreateQuotaFailsFakeDriveFS({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            ctx=self._ctx(fs),
+        )
+
+        assert result["uploaded"] == []
+        assert len(result["failed"]) == 1
+        entry = result["failed"][0]
+        assert entry["name"] == "readme.txt"
+        assert "storageQuotaExceeded" not in entry["error"]
+        assert transfer_module._SA_QUOTA_ERROR in entry["error"]
+
     async def test_bidirectional_resync_after_initial_convert_stays_in_sync(self, tmp_path):
         """TC-D218 (#414 QA review): Drive's native import-conversion on create()
         overwrites the modifiedTime we request with its own 'now' once conversion
