@@ -200,6 +200,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] `find_free_slots`'s per-calendar error shape is less detailed than `list_all_events`'s for the same failure mode. Found in the v0.9.0 QA pass ([#691](https://github.com/khuisman/mcp-gee-sweet/issues/691))
 - [ ] A bare `-` marker alone on its line isn't recognized as a list item by python-markdown regardless of indentation — distinct from the tracked `sane_lists` threshold bug. Found in the v0.9.0 QA pass, may end up a documented limitation rather than a fix ([#692](https://github.com/khuisman/mcp-gee-sweet/issues/692))
 - [ ] `create_spreadsheet`/`import_csv_to_sheet` response has no web link, unlike sibling create/copy tools — enhancement or fix TC-D01's expectation instead, still open. Found in the v0.9.0 QA pass ([#693](https://github.com/khuisman/mcp-gee-sweet/issues/693))
+- [ ] PyPI project page drops the logo — README `<img src>` is a relative path, which PyPI's `readme_renderer` strips. Found on the published v0.9.0 page ([#706](https://github.com/khuisman/mcp-gee-sweet/issues/706))
 
 **Infrastructure**
 - [ ] Interaction-log middleware for tool calls — structured, append-only JSONL log per call (inputs, duration, cache hit, error), opt-in ID redaction, swappable backend ([#646](https://github.com/khuisman/mcp-gee-sweet/issues/646))
