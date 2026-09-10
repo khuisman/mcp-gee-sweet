@@ -185,7 +185,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped, plus a handful of infrastructure/tooling additions that don't belong to any specific tool tier. Started because v0.9.0's own scope kept growing past its original Tier 2 definition; splitting this out keeps that pattern from repeating indefinitely.
 
 **Defects**
-- [ ] Isolated depth>0 bullet run renders the wrong glyph (disc instead of circle) despite correct indentation ([#439](https://github.com/khuisman/mcp-gee-sweet/issues/439))
+- [x] Isolated depth>0 bullet run renders the wrong glyph (disc instead of circle) despite correct indentation (PR #711) ([#439](https://github.com/khuisman/mcp-gee-sweet/issues/439))
 - [ ] `_auth_status_json` silently overrides a caller passing an inconsistent `is_service_account_identity` instead of erroring or reconciling ([#614](https://github.com/khuisman/mcp-gee-sweet/issues/614))
 - [ ] `_timed` logs a `200` status for tool calls that catch their own exception and return `{error: ...}` — observability reports success for a call that actually failed ([#579](https://github.com/khuisman/mcp-gee-sweet/issues/579))
 - [ ] `emitter.py` table-cell images have no cursor-advance handling — latent infinite loop if that code path is ever reached ([#509](https://github.com/khuisman/mcp-gee-sweet/issues/509))
