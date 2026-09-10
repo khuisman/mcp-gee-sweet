@@ -1466,17 +1466,19 @@ list_spreadsheets(empty scratch folder) returned <code>[]</code>, not an error.<
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 list_folders(FOLDER_ID) returned <code>[]</code> — FOLDER_ID has no subfolders; no error.</p>
 <hr />
-<h3 id="tc-d27-list-from-root-known-tool-gap-680-see-filed-bug">TC-D27: List from root ⚠️ known tool gap (#680 → see filed bug)<a class="headerlink" href="#tc-d27-list-from-root-known-tool-gap-680-see-filed-bug" title="Permanent link">&para;</a></h3>
+<h3 id="tc-d27-list-with-no-parent-falls-back-to-drive_folder_id-689">TC-D27: List with no parent falls back to <code>DRIVE_FOLDER_ID</code> (#689)<a class="headerlink" href="#tc-d27-list-with-no-parent-falls-back-to-drive_folder_id-689" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
 <blockquote>
-<p>"List folders at the root of my Drive"</p>
+<p>"List my Drive folders" (no folder specified)</p>
 </blockquote>
 <p><strong>Checks</strong>
 - <code>list_folders(parent_folder_id=None)</code> returns without error
-- ⚠️ <strong>Confirmed tool gap:</strong> <code>list_folders</code> hardcodes <code>q += " and 'root' in parents"</code> when no parent is given (<code>tools/drive/files.py</code>) — it does <strong>not</strong> consult <code>DRIVE_FOLDER_ID</code>. On a Shared-Drive deployment the OAuth user's personal My-Drive root is not where fixtures live, and for a pure service account there is no personal root at all, so <code>list_folders(None)</code> returns the wrong scope or nothing. Filed as a separate product bug (link in the run file). Record the observed behavior; PASS only means "returned without crashing", not "returned the right folders".
-- Explicit-parent form (<code>list_folders(parent_folder_id={SHARED_DRIVE_ID})</code>) is the working path — covered by TC-D25/D26.</p>
-<p><strong>Result (2026-09-04) ✅ PASS</strong>
-🔍 KNOWN TOOL GAP (#680). <code>list_folders(parent_folder_id=None)</code> returned <code>{"result":[]}</code> — no crash. On this OAuth (sky) deployment with fixtures in a Shared Drive, the hardcoded <code>'root' in parents</code> query surfaces nothing; DRIVE_FOLDER_ID is not consulted. Observed verbatim: empty result list.</p>
+- On this deployment <code>DRIVE_FOLDER_ID</code> is set, so the call now lists the folders <strong>inside the configured default folder</strong> (<code>{FOLDER_ID}</code>) — the same result as <code>list_folders(parent_folder_id={FOLDER_ID})</code> (compare against TC-D26). It no longer hardcodes <code>'root' in parents</code> / the OAuth user's personal My-Drive root.
+- Fixed in #689: <code>list_folders</code> now does <code>parent_folder_id or lc.folder_id</code>, mirroring <code>list_spreadsheets</code>. When neither is set it lists folders across 'My Drive' (no <code>in parents</code> clause).
+- Explicit-parent form (<code>list_folders(parent_folder_id={FOLDER_ID})</code>) still works — covered by TC-D26.</p>
+<p><strong>Prior behavior (2026-09-04, pre-#689):</strong> <code>list_folders(parent_folder_id=None)</code> returned <code>{"result":[]}</code> on this Shared-Drive OAuth deployment — the hardcoded <code>'root' in parents</code> query surfaced nothing because <code>DRIVE_FOLDER_ID</code> was not consulted. The <code>**Result**</code> line below is added by the first live re-run against the fixed code.</p>
+<p><strong>Result (2026-09-09) ✅ PASS</strong>
+<code>list_folders(parent_folder_id=None)</code> returned <code>[{"id": "{FIXTURES_FOLDER_ID}", "name": "mcp-gee-sweet-qa-fixtures", "parent": "{DRIVE_FOLDER_ID}"}]</code> — no error. <code>list_folders(parent_folder_id={DRIVE_FOLDER_ID})</code> returned byte-identical output, confirming the no-parent path now resolves to <code>lc.folder_id</code> (the configured Shared-Drive root) instead of the hardcoded <code>'root' in parents</code>. Explicit-parent form still overrides the default — <code>list_folders(parent_folder_id={FIXTURES_FOLDER_ID})</code> returned <code>[]</code> (fixtures folder has no subfolders). Unit tests: <code>tests/drive/test_files.py::TestListFolders</code> 4/4 pass; full suite 1339 passed / 3 skipped.</p>
 <hr />
 <h3 id="tc-d28-empty-folder">TC-D28: Empty folder<a class="headerlink" href="#tc-d28-empty-folder" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
