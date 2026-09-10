@@ -240,6 +240,7 @@ Follows the design in [`docs/decisions/decision-comments-first-class.md`](decisi
 
 - [ ] Split `tools/sheets/structure.py` by domain (1865 lines, 25 tools) ([#376](https://github.com/khuisman/mcp-gee-sweet/issues/376))
 - [ ] Plan type-annotation (ANN) adoption — 1635 untyped occurrences; **decision needed** ([#379](https://github.com/khuisman/mcp-gee-sweet/issues/379))
+- [ ] Decide handling of ASYNC240 findings — sync `pathlib` calls in async tool functions (16 sites); **decision needed** ([#378](https://github.com/khuisman/mcp-gee-sweet/issues/378))
 - [ ] Investigate other MCP clients' response-overflow handling for platform-specific `MAX_TOOL_RESPONSE_CHARS` guidance ([#555](https://github.com/khuisman/mcp-gee-sweet/issues/555))
 
 ### Tier 3 — Advanced / occasionally needed _(target: [v1.0.0](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0))_
