@@ -186,6 +186,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 
 **Defects**
 - [x] Isolated depth>0 bullet run renders the wrong glyph (disc instead of circle) despite correct indentation (PR #711) ([#439](https://github.com/khuisman/mcp-gee-sweet/issues/439))
+- [ ] `create_paragraph_bullets` (`style.py`) has the same isolated-run collapse-to-`nestingLevel 0` bug #439 fixed in `emitter.py` only — port PR #711's anchor-paragraph approach to the sibling path ([#713](https://github.com/khuisman/mcp-gee-sweet/issues/713))
 - [ ] `_auth_status_json` silently overrides a caller passing an inconsistent `is_service_account_identity` instead of erroring or reconciling ([#614](https://github.com/khuisman/mcp-gee-sweet/issues/614))
 - [ ] `_timed` logs a `200` status for tool calls that catch their own exception and return `{error: ...}` — observability reports success for a call that actually failed ([#579](https://github.com/khuisman/mcp-gee-sweet/issues/579))
 - [ ] `emitter.py` table-cell images have no cursor-advance handling — latent infinite loop if that code path is ever reached ([#509](https://github.com/khuisman/mcp-gee-sweet/issues/509))
@@ -210,22 +211,36 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] Catch stale hardcoded tool counts in prose docs at commit time, instead of by hand each time drift is caught ([#308](https://github.com/khuisman/mcp-gee-sweet/issues/308))
 - [ ] Automate the mechanical `release.md` steps as GitHub Actions ([#660](https://github.com/khuisman/mcp-gee-sweet/issues/660))
 - [ ] Guard `README.md` against non-absolute image URLs — PyPI's `readme_renderer` silently strips them (shipped a logo-less v0.9.0 page, #706). CI guard test; release/prep-for-pr backstop routed to Bob (#709) ([#708](https://github.com/khuisman/mcp-gee-sweet/issues/708))
+- [ ] `/release` + `prep-for-pr` backstop checks for README render breakage on PyPI — the human-facing companion to #708's CI guard, routed to Bob ([#709](https://github.com/khuisman/mcp-gee-sweet/issues/709))
+- [ ] `supportsAllDrives=True` is hand-inlined at ~58 Drive call sites — retrofitted twice now (#687 plus its own original miss); wants a shared wrapper or lint guard so a new call site can't omit it ([#696](https://github.com/khuisman/mcp-gee-sweet/issues/696))
+- [ ] Extract a shared `_BaseCache` helper for the `rows_fetched` sufficiency check + epoch-guarded store — #688's fix copy-pasted the pattern into `DriveFolderCache` instead, and the epoch guard is still missing there ([#698](https://github.com/khuisman/mcp-gee-sweet/issues/698))
 
 **QA & docs** _(moved out of v0.9.0 2026-09-02 so they don't gate the release; see [#629](https://github.com/khuisman/mcp-gee-sweet/issues/629), closed)_
 - [ ] Domain and public sharing tests (TC-D135–D139) — decision landed 2026-09-02: provision a real non-Google test email for external-share coverage; the `type=anyone` public-link tests stay unresolved (exposure risk not yet accepted) ([#49](https://github.com/khuisman/mcp-gee-sweet/issues/49))
-- [ ] Demo screenshot or GIF for the README — asset work with no owning role; how it gets produced is still open ([#589](https://github.com/khuisman/mcp-gee-sweet/issues/589))
+- [ ] Demo screenshot or GIF for the README — routed to Amy; how the asset gets produced is still open ([#589](https://github.com/khuisman/mcp-gee-sweet/issues/589))
+- [ ] Several `drive_files.md` cases assume My-Drive semantics now that fixtures live in a Shared Drive (TC-D58/D61/D03/D59/D27/D04/D175); TC-D27 overlaps #689's `list_folders` gap — Aziz reviews during Full Regression prep ([#680](https://github.com/khuisman/mcp-gee-sweet/issues/680))
+- [ ] TC-DOC80 can no longer trip the response-size cap post-#519 — large-doc fixture is under the raised default; needs a per-case low-cap override — Aziz ([#678](https://github.com/khuisman/mcp-gee-sweet/issues/678))
+- [ ] Define the correctness rubric and own execution for the composite-vs-primitive efficiency benchmark — Aziz ([#584](https://github.com/khuisman/mcp-gee-sweet/issues/584))
 - [ ] QA `.env` has no single source of truth — `setup_team.sh` only copies `.env` into a worktree when absent, so fixture-ID changes never propagate (had to hand-sync 9 copies for #305); also `run.md` vs `setup.md` disagree on `docs/qa/.env` vs repo-root `.env`. Surfaced by PR #677, relates to [#648](https://github.com/khuisman/mcp-gee-sweet/issues/648) ([#679](https://github.com/khuisman/mcp-gee-sweet/issues/679))
 - [ ] `list_files`/`get_file_metadata` docstrings cite a stale `upload_local_file` `modifiedTime` caveat (fixed at the root by PR #472) and carry a broken self-referential contrast — from Bob's `docs/tools.md` docstring sweep; Dev/QA track, batches with #682/#683 ([#681](https://github.com/khuisman/mcp-gee-sweet/issues/681))
 - [ ] `create_doc` family docstrings name only the ~25MP inline-image limit; the ~50MB byte-size limit (#562) is equally enforced, and 3 deferring docstrings inherit the gap — from Bob's `docs/tools.md` docstring sweep ([#682](https://github.com/khuisman/mcp-gee-sweet/issues/682))
 
 ### v0.9.2 — Comments as a first-class, cross-suite capability _(target: [v0.9.2](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2), before Tier 3 begins)_
 
-Follows the design in [`docs/decisions/decision-comments-first-class.md`](decisions/decision-comments-first-class.md) ([#661](https://github.com/khuisman/mcp-gee-sweet/issues/661)): the Drive `comments`/`replies` resource is one generic, file-type-agnostic capability, but the codebase only ships a Docs-named `list`/`add`/`resolve` subset (#151). This release generalizes and completes it. Ships a breaking rename — no alias/deprecation mechanism exists in this codebase, so it must be called out explicitly in the release notes.
+Follows the design in [`docs/decisions/decision-comments-first-class.md`](decisions/decision-comments-first-class.md) ([#661](https://github.com/khuisman/mcp-gee-sweet/issues/661)): the Drive `comments`/`replies` resource is one generic, file-type-agnostic capability, but the codebase only ships a Docs-named `list`/`add`/`resolve` subset (#151). This release generalizes and completes it. Ships a breaking rename — no alias/deprecation mechanism exists in this codebase, so it must be called out explicitly in the release notes. Also carries Joy's code-structure/typing initiative work (see below), slotted here 2026-09-09 to give it release deadlines rather than leaving it open-ended.
+
+**Comments capability**
 
 - [ ] Generalize the three comment tools to `tools/drive/comments.py` and rename `list_doc_comments`/`add_doc_comment`/`resolve_doc_comment` → `list_file_comments`/`add_file_comment`/`resolve_comment` (param `doc_id` → `file_id`); retire `tools/docs/comments.py`. Breaking change. ([#663](https://github.com/khuisman/mcp-gee-sweet/issues/663))
 - [ ] Full `comments`/`replies` CRUD parity — `get`/`update`/`delete` for comments; plain `reply`/`reopen`/`update`/`delete`/`list` for replies. Depends on #663. ([#664](https://github.com/khuisman/mcp-gee-sweet/issues/664))
 - [ ] Fix the stale Tier 4 "zero comment tooling on Docs today" line; close or re-scope #142 (asks for what #151 already shipped under different naming). ([#662](https://github.com/khuisman/mcp-gee-sweet/issues/662))
 - [ ] **Decision needed:** deprecate `share_spreadsheet` in favor of `share_file` (a strict superset over the same `permissions()` resource), or keep both and document why. Same pattern as #151/#142, with a longer compatibility tail. ([#665](https://github.com/khuisman/mcp-gee-sweet/issues/665))
+
+**Code structure & typing (Joy)** _(slotted into v0.9.2 2026-09-09 so Joy's architecture initiative carries release deadlines instead of staying open-ended)_
+
+- [ ] Split `tools/sheets/structure.py` by domain (1865 lines, 25 tools) ([#376](https://github.com/khuisman/mcp-gee-sweet/issues/376))
+- [ ] Plan type-annotation (ANN) adoption — 1635 untyped occurrences; **decision needed** ([#379](https://github.com/khuisman/mcp-gee-sweet/issues/379))
+- [ ] Investigate other MCP clients' response-overflow handling for platform-specific `MAX_TOOL_RESPONSE_CHARS` guidance ([#555](https://github.com/khuisman/mcp-gee-sweet/issues/555))
 
 ### Tier 3 — Advanced / occasionally needed _(target: [v1.0.0](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0))_
 
