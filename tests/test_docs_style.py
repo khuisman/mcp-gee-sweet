@@ -628,6 +628,9 @@ class TestCreateParagraphBulletsTool:
     async def test_nesting_level_on_isolated_paragraph_inserts_tabs(self):
         # A single paragraph with no same-list neighbors in the doc at all —
         # nothing to expand, tabs inserted directly for the target itself.
+        # Every unit in the run sits at nesting_level > 0, so a throwaway
+        # 0-tab anchor paragraph is prepended and then deleted (#713) to
+        # stop the API collapsing the run to nestingLevel 0.
         tools = self._setup()
         doc = self._doc([(5, 15, "Item\n", {"listId": "L1"})])
         mock_docs, ctx = self._mocks(doc)
@@ -640,7 +643,55 @@ class TestCreateParagraphBulletsTool:
         reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
         assert reqs[0]["deleteParagraphBullets"]["range"] == {"startIndex": 5, "endIndex": 15}
         assert reqs[1]["insertText"] == {"location": {"index": 5}, "text": "\t\t"}
-        assert reqs[2]["createParagraphBullets"]["range"] == {"startIndex": 5, "endIndex": 17}
+        assert reqs[2]["insertText"] == {"location": {"index": 5}, "text": "\n"}
+        # endIndex = run_end (15) + total_tabs (2) + anchor newline (1)
+        assert reqs[3]["createParagraphBullets"]["range"] == {"startIndex": 5, "endIndex": 18}
+        assert reqs[4]["deleteContentRange"]["range"] == {"startIndex": 5, "endIndex": 6}
+
+    async def test_isolated_all_nonzero_run_wraps_zero_tab_anchor(self):
+        # #713: repairing part of an existing list whose contiguous
+        # same-listId run has NO level-0 member (every neighbour pulled in
+        # by the expansion pass is itself at nestingLevel >= 1). Without a
+        # 0-tab anchor, createParagraphBullets assigns every paragraph
+        # nestingLevel = (its tabs) - (min tabs in range) = 0 and renders
+        # the depth-0 disc glyph despite the bumped indent — the same shape
+        # #439 fixed for emitter.py in PR #711.
+        tools = self._setup()
+        bullet = {"listId": "L1", "nestingLevel": 1}
+        doc = self._doc(
+            [
+                (1, 6, "One\n", bullet),
+                (6, 11, "Two\n", bullet),
+                (11, 17, "Three\n", bullet),
+            ]
+        )
+        mock_docs, ctx = self._mocks(doc)
+
+        result = await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[{"start_index": 6, "end_index": 11, "nesting_level": 1}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        kinds = [next(iter(r)) for r in reqs]
+        # tabs for all three items, then the anchor newline, then one
+        # createParagraphBullets, then the anchor delete.
+        assert kinds == [
+            "deleteParagraphBullets",
+            "insertText",
+            "insertText",
+            "insertText",
+            "insertText",
+            "createParagraphBullets",
+            "deleteContentRange",
+        ]
+        anchor_insert = reqs[4]["insertText"]
+        assert anchor_insert == {"location": {"index": 1}, "text": "\n"}
+        create = reqs[5]["createParagraphBullets"]
+        # run_end (17) + total_tabs (1 per item * 3) + anchor newline (1)
+        assert create["range"] == {"startIndex": 1, "endIndex": 21}
+        assert reqs[6]["deleteContentRange"]["range"] == {"startIndex": 1, "endIndex": 2}
 
     async def test_expands_to_include_same_list_neighbors(self):
         # #334 round 2's core fix: nesting the middle paragraph of an
@@ -732,7 +783,12 @@ class TestCreateParagraphBulletsTool:
         )
         reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
         insert_indices = [r["insertText"]["location"]["index"] for r in reqs if "insertText" in r]
-        assert insert_indices == [20, 1]
+        # Each run is all-nesting_level>0, so each emits a tab insert plus a
+        # 0-tab anchor newline insert (#713), both at the run start. The
+        # higher-position run (20) is still fully emitted before the lower
+        # one (1) so an earlier tab/anchor insert never shifts a
+        # not-yet-processed run's indices.
+        assert insert_indices == [20, 20, 1, 1]
 
     async def test_omitted_preset_preserves_existing_numbered_list(self):
         # #334 round 2's core fix: repairing part of an existing NUMBERED

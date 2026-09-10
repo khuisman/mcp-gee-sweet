@@ -586,3 +586,28 @@ Tool calls: `delete_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <
 3-item list; delete_paragraph_bullets "Second item" [12,24] -> requests:1; First/Third keep bullet, Second bullet:null, Second text "Second item\n" unchanged.
 
 ---
+
+### TC-DOC191: `create_paragraph_bullets` — an all-`nesting_level>=1` run renders the correct nested glyph, not the disc (#713) ⚠️ destructive
+
+**Background:** issue #713 — `create_paragraph_bullets` (`style.py`) has the same collapse-to-`nestingLevel 0` bug that `emitter.py` had under #439 (fixed in PR #711, covered by `docs_content.md` TC-DOC190). `createParagraphBullets` assigns each covered paragraph `nestingLevel = (its leading-tab count) − (the minimum leading-tab count across the whole call's range)`, so a formed run in which every paragraph sits at `nesting_level >= 1` — no level-0 member to anchor the inference — collapsed entirely to `nestingLevel 0`: the per-level indent was bumped so it *looked* nested, but the rendered glyph was the depth-0 disc (●) instead of the depth-1 circle (○). Reachable either by passing only `nesting_level >= 1` ranges, or when the same-`listId` contiguous-neighbour expansion pulls in only paragraphs already at level >= 1. Fixed by wrapping such a run with a throwaway 0-tab anchor paragraph (`insertText "\n"` at `run_start` → `createParagraphBullets` over the range extended by 1 → `deleteContentRange` the anchor), mirroring `emitter.py`'s #439 fix — the insert (+1) and delete (−1) cancel, so positions outside the run are unaffected.
+
+**Prompt**
+**Playwright: required**
+> "Write this Markdown to doc {DOC_ID}: '- Alpha\n- Beta\n- Gamma\n', then show me its structure."
+
+Tool calls: `write_doc_content(doc_id={DOC_ID}, content="- Alpha\n- Beta\n- Gamma\n", content_format="markdown")`, then `get_doc_structure(doc_id={DOC_ID})` — note the `start_index` of "Alpha" and the `end_index` of "Gamma".
+
+Then: "Now indent all three items one level deeper, and show me the structure again."
+
+Tool calls: `create_paragraph_bullets(doc_id={DOC_ID}, ranges=[{"start_index": <Alpha start_index>, "end_index": <Gamma end_index>, "nesting_level": 1}])` (one range covering all three items — the formed run has no level-0 member), then `get_doc_structure(doc_id={DOC_ID})` again.
+
+**Checks**
+- First `get_doc_structure`: "Alpha"/"Beta"/"Gamma" share one `listId`, all at `nestingLevel: 0`.
+- `create_paragraph_bullets` call succeeds with no API error.
+- Second `get_doc_structure`: all three paragraphs' `bullet.nestingLevel` is now `1` (not `0`), still sharing the same `listId`; no leaked tab or stray anchor `"\n"` in any `text` field; no extra empty list paragraph left behind.
+- Precise structural confirmation (`get_doc_structure` doesn't expose the glyph): a script-driven `documents().get()` shows each of the three paragraphs with `bullet.nestingLevel == 1`, and that list's `listProperties.nestingLevels[1].glyphSymbol` is the circle (○), not `nestingLevels[0]`'s disc (●).
+- 🔍 Visual check: a Playwright screenshot shows all three items rendered with the depth-1 circle glyph (○) at a single indented level — not the depth-0 disc (●).
+
+**Cleanup:** write fixture content back (`write_doc_content(doc_id={DOC_ID}, content="- Alpha\n- Beta\n- Gamma\n", content_format="markdown")`).
+
+---

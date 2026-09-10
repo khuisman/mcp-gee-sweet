@@ -496,7 +496,12 @@ def register(tool):
           preset are then submitted as a single createParagraphBullets call
           each, applied in descending document-position order so no
           not-yet-processed span's indices are invalidated by an earlier
-          span's tab insertions.
+          span's tab insertions. A span in which every paragraph sits at
+          nesting_level > 0 (no level-0 member to anchor the API's relative
+          depth inference) is wrapped with a throwaway 0-tab anchor paragraph
+          that is bulleted alongside the real items and then deleted, so the
+          items land at their true nesting level instead of collapsing to 0
+          (issue #713; the same fix emitter.py carries for #439).
 
         Use get_doc_structure to obtain start_index/end_index for each target
         range — typically one paragraph's own startIndex/endIndex, or a
@@ -704,17 +709,57 @@ def register(tool):
                             }
                         )
                 total_tabs = sum(u["nesting_level"] for u in run)
-                requests.append(
-                    {
-                        "createParagraphBullets": {
-                            "range": {
-                                "startIndex": run_start,
-                                "endIndex": run_end + total_tabs,
-                            },
-                            "bulletPreset": resolved_preset,
+                if min(u["nesting_level"] for u in run) == 0:
+                    requests.append(
+                        {
+                            "createParagraphBullets": {
+                                "range": {
+                                    "startIndex": run_start,
+                                    "endIndex": run_end + total_tabs,
+                                },
+                                "bulletPreset": resolved_preset,
+                            }
                         }
-                    }
-                )
+                    )
+                else:
+                    # Isolated run: no unit sits at nesting_level 0, so
+                    # createParagraphBullets — which assigns each paragraph
+                    # nestingLevel = (its leading-tab count) - (the minimum
+                    # across the call's whole range) — would collapse the entire
+                    # run to nestingLevel 0, rendering the depth-0 disc glyph
+                    # even though the per-level indent is bumped (issue #713;
+                    # same shape as #439, fixed for emitter.py in PR #711).
+                    # Prepend a throwaway 0-tab anchor paragraph, bullet the
+                    # extended range (anchor -> level 0, real items -> their true
+                    # level and correct glyph), then delete the anchor. The
+                    # insert (+1) and delete (-1) cancel, so every position
+                    # outside [run_start, run_end] is left exactly where the
+                    # non-isolated path leaves it and the descending-run
+                    # application order still holds.
+                    requests.append(
+                        {"insertText": {"location": {"index": run_start}, "text": "\n"}}
+                    )
+                    requests.append(
+                        {
+                            "createParagraphBullets": {
+                                "range": {
+                                    "startIndex": run_start,
+                                    "endIndex": run_end + total_tabs + 1,
+                                },
+                                "bulletPreset": resolved_preset,
+                            }
+                        }
+                    )
+                    requests.append(
+                        {
+                            "deleteContentRange": {
+                                "range": {
+                                    "startIndex": run_start,
+                                    "endIndex": run_start + 1,
+                                }
+                            }
+                        }
+                    )
 
             await execute_in_thread(
                 lc.docs_service.documents()
