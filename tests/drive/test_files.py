@@ -629,6 +629,51 @@ class TestListFiles:
         assert result == [{"error": "List files failed: simulated API failure"}]
 
 
+class TestListFolders:
+    """#689: list_folders with no parent must fall back to DRIVE_FOLDER_ID
+    (lc.folder_id), mirroring list_spreadsheets — not hardcode 'root' in parents."""
+
+    def _drive_service(self, files=None):
+        mock = MagicMock()
+        mock.files.return_value.list.return_value.execute.return_value = {"files": files or []}
+        return mock
+
+    def _captured_q(self, svc):
+        return svc.files.return_value.list.call_args.kwargs["q"]
+
+    async def test_no_parent_falls_back_to_configured_default(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc, folder_id="default_folder")
+        await _drive_tools["list_folders"](ctx=ctx)
+        q = self._captured_q(svc)
+        assert "'default_folder' in parents" in q
+        assert "'root' in parents" not in q
+
+    async def test_explicit_parent_overrides_configured_default(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc, folder_id="default_folder")
+        await _drive_tools["list_folders"](parent_folder_id="explicit_par", ctx=ctx)
+        q = self._captured_q(svc)
+        assert "'explicit_par' in parents" in q
+        assert "default_folder" not in q
+
+    async def test_no_parent_no_default_lists_across_my_drive(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc, folder_id=None)
+        await _drive_tools["list_folders"](ctx=ctx)
+        q = self._captured_q(svc)
+        assert "in parents" not in q
+        assert "'root'" not in q
+
+    async def test_result_shape_unchanged(self):
+        svc = self._drive_service(
+            files=[{"id": "f1", "name": "Sub", "parents": ["default_folder"]}]
+        )
+        ctx = _make_ctx(drive_service=svc, folder_id="default_folder")
+        result = await _drive_tools["list_folders"](ctx=ctx)
+        assert result == [{"id": "f1", "name": "Sub", "parent": "default_folder"}]
+
+
 class TestGetFileMetadata:
     def _drive_service(self, file=None):
         mock = MagicMock()

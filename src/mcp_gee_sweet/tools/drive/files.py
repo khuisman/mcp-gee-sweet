@@ -358,24 +358,27 @@ def register(tool):
     ) -> list[dict[str, str]]:
         """
         List all folders in the specified Google Drive folder.
-        If no parent folder is specified, lists folders from 'My Drive' root.
+        If no parent is specified, uses the configured default folder
+        (DRIVE_FOLDER_ID); if that is also unset, lists folders across 'My Drive'.
 
         Args:
             parent_folder_id: Optional Google Drive folder ID to search within.
-                             If not provided, searches the root of 'My Drive'.
+                             If not provided, uses the configured default folder
+                             or searches 'My Drive'.
 
         Returns:
             List of folders with their ID, name, and parent information
         """
-        drive_service = ctx.request_context.lifespan_context.drive_service
+        lc = ctx.request_context.lifespan_context
+        drive_service = lc.drive_service
+        target_folder_id = parent_folder_id or lc.folder_id
 
         query = "mimeType='application/vnd.google-apps.folder' and trashed=false"
-        if parent_folder_id:
-            query += f" and '{parent_folder_id}' in parents"
-            logger.debug("Searching for folders in parent folder: %s", parent_folder_id)
+        if target_folder_id:
+            query += f" and '{target_folder_id}' in parents"
+            logger.debug("Searching for folders in parent folder: %s", target_folder_id)
         else:
-            query += " and 'root' in parents"
-            logger.debug("Searching for folders in 'My Drive' root")
+            logger.debug("Searching for folders across 'My Drive'")
 
         results = await execute_in_thread(
             drive_service.files()
