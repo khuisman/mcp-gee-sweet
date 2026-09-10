@@ -1473,6 +1473,44 @@ Remove `/tmp/qa-239/`.
 
 ---
 
+### TC-D253: `sync_folder` — equal mtimes but differing byte sizes report a `conflict`, never a silent skip or an overwrite (issue #659) ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** `sync_folder` skipped a name whenever the two mtimes agreed, even if the content differed. The reliable trigger is a rename-in-place: `mv` preserves mtime, so a name ends up pointing at different bytes with an unchanged timestamp; the name stays "in sync" forever since nothing will re-bump the mtime, and `use_checksum` can't help (its hash check only runs when the mtimes already disagree). Fixed with a near-free byte-size check — Drive's `size` is already in the folder listing, so a within-tolerance mtime pair whose sizes disagree is no longer skipped: it is reported as a `conflict` for **every** direction. It is deliberately *not* auto-transferred even under `direction="upload"`/`"download"` — the mtimes agree, so which side is newer is unknown, and a directional sync already reports `conflict` rather than overwrite a target it *can* tell is newer (drive-newer + `direction="upload"` → `conflict`, local-newer + `direction="download"` → `conflict`); this branch knows less and must be at least as cautious (PR #712 QA round 1). Non-Workspace files only (Workspace / convert_markdown Docs report no `size`). Runs during `dry_run` too (one `stat`, no read). A same-size edit that also preserves mtime is still reported "in sync" — deliberately out of scope, follow-up #716.
+
+**Setup:** `/tmp/qa-sync-253/` created; `{FOLDER_ID}` empty of any `report.txt`.
+
+**Prompt**
+> 1. `printf 'AAAA' > /tmp/qa-sync-253/report.txt` (4 bytes). Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-253/", direction="upload")` — `report.txt` appears in `uploaded`.
+> 2. `get_file_metadata` the uploaded `report.txt`; note its `modified_time` and `size` (4).
+> 3. Simulate the rename-in-place: `printf 'BBBBBBBBBBBBBBBBBBBB' > /tmp/qa-sync-253/report.txt` (20 bytes, different content and size), then `touch -d '<the modified_time from step 2>' /tmp/qa-sync-253/report.txt` so the two mtimes match exactly.
+> 4. Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-253/", direction="bidirectional", dry_run=true)`.
+> 5. Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-253/", direction="upload")` (a real run).
+> 6. Call `sync_folder(folder_id="{FOLDER_ID}", local_path="/tmp/qa-sync-253/", direction="download")` (a real run).
+
+**Checks**
+- Step 4 (`dry_run`): `actions` has one entry for `report.txt` with `action: "conflict"` and a `reason` mentioning the local/Drive byte-size mismatch. `report.txt` is **not** reported anywhere with `action: "skip"` / reason `"in sync"`. Flat lists (`uploaded`/`downloaded`/`skipped`/`conflicts`) all empty (dry_run, #512). Nothing changed in Drive or locally.
+- Step 5 (`direction="upload"`): `report.txt` appears in `conflicts`, **not** `uploaded` and **not** `skipped`. Afterward `get_file_metadata` shows Drive's `size` is still 4 and its content is still `AAAA` — the local 20-byte file was **not** pushed (recency is ambiguous, so a directional sync refuses to clobber).
+- Step 6 (`direction="download"`): `report.txt` appears in `conflicts`, **not** `downloaded`. Afterward the local `/tmp/qa-sync-253/report.txt` is still the 20-byte `B…` content — Drive's stale 4-byte version was **not** pulled down over it.
+- Control (optional): repeat steps 1–4 but in step 3 overwrite with exactly-4-byte different content (`printf 'CCCC'`) before the `touch`. Step 4 now reports `report.txt` with `action: "skip"` / `"in sync"` — the documented same-size-edit gap (#716), not a regression.
+
+**Teardown**
+Delete `report.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-253/`.
+
+**Result (2026-09-09) ✅ PASS (round 2, fix `b361ef9`)** — verified live via `mcp-gee-sweet-kit` against a throwaway subfolder of `{FOLDER_ID}` (`qa-sync-253-kit`, deleted after). Local fixture under a job-scoped dir. All steps + control:
+- **Step 1** (`direction="upload"`, 4-byte `AAAA`): `uploaded: ["report.txt"]`.
+- **Step 2**: `get_file_metadata` → `size: "4"`, `modified_time: 2026-09-10T03:58:01.000Z`, md5 `098890dd…` (of `AAAA`).
+- **Step 3**: local overwritten with 20 bytes `B…` (md5 `52af981e…`), `os.utime` to match Drive's mtime exactly.
+- **Step 4** (`bidirectional`, `dry_run=true`): `actions: [{name: "report.txt", action: "conflict", reason: "content differs (local and Drive byte sizes disagree) but mtimes match — can't tell which side is newer; touch the newer file, or delete the stale copy, then re-sync"}]`. All flat lists empty (dry_run, #512). Nothing changed.
+- **Step 5** (`direction="upload"`, real run): `conflicts: ["report.txt"]`, `uploaded: []`, `skipped: []`. `get_file_metadata` afterward: Drive `size` still `"4"`, md5 still `098890dd…` — the local 20-byte file was **not** pushed. ✅ (round-1 blocking finding fixed: no silent clobber under `upload`)
+- **Step 6** (`direction="download"`, real run): `conflicts: ["report.txt"]`, `downloaded: []`, `skipped: []`. Local `report.txt` still 20-byte `B…` (md5 `52af981e…`) — Drive's stale 4-byte version was **not** pulled over it. ✅ (symmetric case fixed)
+- **Control**: local set to a different 4-byte content (`CCCC`, md5 `b41c1949…`) with matching mtime → `bidirectional dry_run` reports `action: "skip"` / `"in sync"`. The documented same-size-edit gap (#716), not a regression.
+
+Unit tests: full `tests/drive/test_transfer.py` green (126 passed), including `TestSyncFolderSizeDivergence` (updated to assert `conflict` for `upload`/`download` directions). Round-2 diff is a net simplification matching the four named round-1 findings closely — fast-path re-verification (no second full `/code-review`).
+
+_Round 1 (2026-09-09):_ `/code-review high` surfaced a blocking correctness concern in the size-divergence branch: under `direction="upload"`/`"download"` an equal-mtime + size-differs pair was transferred unconditionally, silently overwriting a target the code can't establish is older — inconsistent with the invariant that a directional sync reports `conflict` rather than clobber a *known*-newer target (`transfer.py:656`, `:689`). Sent back to Jay; non-blocking findings 2–4 folded into the round-2 fix, finding 1 filed as follow-up #716.
+
+---
+
 ## `list_revisions`
 
 ### TC-D146: List revisions for a spreadsheet

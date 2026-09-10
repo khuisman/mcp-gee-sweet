@@ -1097,12 +1097,15 @@ def _drive_file(
     mime="text/plain",
     properties=None,
     md5=None,
+    size=None,
 ):
     f = {"id": file_id, "name": name, "mimeType": mime, "modifiedTime": mtime}
     if properties is not None:
         f["properties"] = properties
     if md5 is not None:
         f["md5Checksum"] = md5
+    if size is not None:
+        f["size"] = str(size)  # Drive returns size as a string
     return f
 
 
@@ -2460,6 +2463,171 @@ class TestSyncFolderUseChecksum:
         p = tmp_path / "a.txt"
         p.write_bytes(self._CONTENT)
         assert transfer_module._local_md5(p) == self._MD5
+
+
+class TestSyncFolderSizeDivergence:
+    """Issue #659: `sync_folder` reports "in sync" for a name whose content
+    differs on the two sides whenever the mtimes happen to agree. The classic
+    trigger is a rename-in-place — `mv` preserves mtime, so a name ends up
+    pointing at different bytes with an unchanged timestamp and the equal-mtime
+    skip hides it forever. use_checksum can't catch it (its hash check is guarded
+    on the mtimes already disagreeing). Fixed with a near-free byte-size check:
+    Drive's `size` is already in the folder listing, so a within-tolerance mtime
+    pair whose sizes disagree is not skipped — it is reported as a `conflict`,
+    for every direction (PR #712 QA round 1): the mtimes agree, so recency is
+    unknown, and a directional sync already reports `conflict` rather than
+    overwrite a target it *can* tell is newer, so this branch (which knows less)
+    must be at least as cautious."""
+
+    _CONTENT = b"hello world"  # 11 bytes
+    _MD5 = "5eb63bbbe01eeed093cb22bb8f5acdc3"
+    _OTHER = b"totally different content, longer"  # 33 bytes — different size
+
+    def _ctx(self, fs: _FakeDriveFS):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = fs.svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    def _write_local(self, tmp_path, name, content, mtime_str):
+        p = tmp_path / name
+        p.write_bytes(content)
+        dt = datetime.fromisoformat(mtime_str.replace("Z", "+00:00"))
+        os.utime(p, (dt.timestamp(), dt.timestamp()))
+        return p
+
+    def _fs_with_stale_drive_file(self):
+        # Drive still holds the 11-byte _CONTENT under 'a.txt' (size + md5 match
+        # it); the local 'a.txt' will be overwritten with different, differently
+        # sized bytes at the same mtime.
+        return _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "a.txt",
+                        "fa",
+                        mtime="2024-06-01T00:00:00.000Z",
+                        md5=self._MD5,
+                        size=len(self._CONTENT),
+                    )
+                ]
+            }
+        )
+
+    async def test_bidirectional_equal_mtime_size_differs_is_conflict(self, tmp_path):
+        fs = self._fs_with_stale_drive_file()
+        self._write_local(tmp_path, "a.txt", self._OTHER, "2024-06-01T00:00:00.000Z")
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            ctx=self._ctx(fs),
+        )
+        assert result["skipped"] == []
+        assert result["conflicts"] == ["a.txt"]
+        assert result["uploaded"] == []
+        assert result["downloaded"] == []
+
+    async def test_upload_direction_equal_mtime_size_differs_is_conflict(self, tmp_path):
+        # direction='upload' must NOT auto-upload here: the local file could be the
+        # stale side (a collaborator's newer, differently-sized Drive copy whose
+        # mtime landed within tolerance) — same caution the drive-newer +
+        # direction='upload' branch already applies (PR #712 QA round 1).
+        fs = self._fs_with_stale_drive_file()
+        self._write_local(tmp_path, "a.txt", self._OTHER, "2024-06-01T00:00:00.000Z")
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            ctx=self._ctx(fs),
+        )
+        assert result["conflicts"] == ["a.txt"]
+        assert result["uploaded"] == []
+        assert result["skipped"] == []
+
+    async def test_download_direction_equal_mtime_size_differs_is_conflict(self, tmp_path):
+        # Symmetric to the upload case: direction='download' must not silently
+        # overwrite a freshly-renamed local file (no local revision history to
+        # recover from) with Drive's stale bytes.
+        fs = self._fs_with_stale_drive_file()
+        self._write_local(tmp_path, "a.txt", self._OTHER, "2024-06-01T00:00:00.000Z")
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="download",
+            ctx=self._ctx(fs),
+        )
+        assert result["conflicts"] == ["a.txt"]
+        assert result["downloaded"] == []
+        assert result["skipped"] == []
+
+    async def test_signal_is_independent_of_use_checksum_and_md5(self, tmp_path):
+        # Drive reports `size` but no md5Checksum, and use_checksum is left at its
+        # default False — the divergence is still caught purely from size.
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "a.txt",
+                        "fa",
+                        mtime="2024-06-01T00:00:00.000Z",
+                        size=len(self._CONTENT),
+                    )
+                ]
+            }
+        )
+        self._write_local(tmp_path, "a.txt", self._OTHER, "2024-06-01T00:00:00.000Z")
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            ctx=self._ctx(fs),
+        )
+        assert result["conflicts"] == ["a.txt"]
+        assert result["skipped"] == []
+
+    async def test_equal_mtime_equal_size_still_reads_as_in_sync(self, tmp_path):
+        # Documented remaining gap: a same-size edit that also preserves mtime is
+        # indistinguishable without hashing every within-tolerance pair, which is
+        # deliberately out of scope for #659.
+        fs = self._fs_with_stale_drive_file()
+        self._write_local(tmp_path, "a.txt", b"11 bytes!!!", "2024-06-01T00:00:02.000Z")  # 11 bytes
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            ctx=self._ctx(fs),
+        )
+        assert result["skipped"] == ["a.txt"]
+        assert result["conflicts"] == []
+
+    async def test_dry_run_flags_size_divergence_without_reading_files(self, tmp_path, monkeypatch):
+        # The other half of the bug report: a dry-run preview must give a signal.
+        # Size comes from the listing, so this costs no file read — the hash path
+        # stays dry_run-gated.
+        spy = MagicMock(side_effect=transfer_module._local_md5)
+        monkeypatch.setattr(transfer_module, "_local_md5", spy)
+        fs = self._fs_with_stale_drive_file()
+        self._write_local(tmp_path, "a.txt", self._OTHER, "2024-06-01T00:00:00.000Z")
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            use_checksum=True,
+            dry_run=True,
+            ctx=self._ctx(fs),
+        )
+        spy.assert_not_called()
+        # dry_run leaves the flat lists empty (#512) — the signal is in `actions`.
+        assert result["skipped"] == []
+        assert result["conflicts"] == []
+        a_txt = [a for a in result["actions"] if a["name"] == "a.txt"]
+        assert len(a_txt) == 1
+        assert a_txt[0]["action"] == "conflict"
+        assert "size" in a_txt[0]["reason"]
 
 
 class TestDownloadFolder:
