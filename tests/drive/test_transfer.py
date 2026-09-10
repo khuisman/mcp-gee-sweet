@@ -2471,9 +2471,13 @@ class TestSyncFolderSizeDivergence:
     trigger is a rename-in-place — `mv` preserves mtime, so a name ends up
     pointing at different bytes with an unchanged timestamp and the equal-mtime
     skip hides it forever. use_checksum can't catch it (its hash check is guarded
-    on the mtimes already disagreeing). Fixed with a free size check: Drive's
-    `size` is already in the folder listing, so a within-tolerance mtime pair
-    whose byte sizes disagree is not skipped."""
+    on the mtimes already disagreeing). Fixed with a near-free byte-size check:
+    Drive's `size` is already in the folder listing, so a within-tolerance mtime
+    pair whose sizes disagree is not skipped — it is reported as a `conflict`,
+    for every direction (PR #712 QA round 1): the mtimes agree, so recency is
+    unknown, and a directional sync already reports `conflict` rather than
+    overwrite a target it *can* tell is newer, so this branch (which knows less)
+    must be at least as cautious."""
 
     _CONTENT = b"hello world"  # 11 bytes
     _MD5 = "5eb63bbbe01eeed093cb22bb8f5acdc3"
@@ -2525,7 +2529,11 @@ class TestSyncFolderSizeDivergence:
         assert result["uploaded"] == []
         assert result["downloaded"] == []
 
-    async def test_upload_direction_equal_mtime_size_differs_uploads(self, tmp_path):
+    async def test_upload_direction_equal_mtime_size_differs_is_conflict(self, tmp_path):
+        # direction='upload' must NOT auto-upload here: the local file could be the
+        # stale side (a collaborator's newer, differently-sized Drive copy whose
+        # mtime landed within tolerance) — same caution the drive-newer +
+        # direction='upload' branch already applies (PR #712 QA round 1).
         fs = self._fs_with_stale_drive_file()
         self._write_local(tmp_path, "a.txt", self._OTHER, "2024-06-01T00:00:00.000Z")
 
@@ -2535,14 +2543,14 @@ class TestSyncFolderSizeDivergence:
             direction="upload",
             ctx=self._ctx(fs),
         )
-        assert result["uploaded"] == ["a.txt"]
+        assert result["conflicts"] == ["a.txt"]
+        assert result["uploaded"] == []
         assert result["skipped"] == []
-        assert result["conflicts"] == []
 
-    async def test_download_direction_equal_mtime_size_differs_plans_download(self, tmp_path):
-        # Checked via dry_run's plan rather than a real transfer — the fix is in
-        # the planning logic (skip -> download), and a real non-Workspace download
-        # needs the MediaIoBaseDownload machinery faked, which is beside the point.
+    async def test_download_direction_equal_mtime_size_differs_is_conflict(self, tmp_path):
+        # Symmetric to the upload case: direction='download' must not silently
+        # overwrite a freshly-renamed local file (no local revision history to
+        # recover from) with Drive's stale bytes.
         fs = self._fs_with_stale_drive_file()
         self._write_local(tmp_path, "a.txt", self._OTHER, "2024-06-01T00:00:00.000Z")
 
@@ -2550,13 +2558,11 @@ class TestSyncFolderSizeDivergence:
             folder_id="root",
             local_path=str(tmp_path),
             direction="download",
-            dry_run=True,
             ctx=self._ctx(fs),
         )
-        a_txt = [a for a in result["actions"] if a["name"] == "a.txt"]
-        assert len(a_txt) == 1
-        assert a_txt[0]["action"] == "download"
-        assert "size" in a_txt[0]["reason"]
+        assert result["conflicts"] == ["a.txt"]
+        assert result["downloaded"] == []
+        assert result["skipped"] == []
 
     async def test_signal_is_independent_of_use_checksum_and_md5(self, tmp_path):
         # Drive reports `size` but no md5Checksum, and use_checksum is left at its
