@@ -1496,11 +1496,18 @@ Remove `/tmp/qa-239/`.
 **Teardown**
 Delete `report.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-253/`.
 
-**Result (2026-09-09)** pending — round-1 review sent back with a blocking finding (below); round-2 fix pushed, awaiting live QA.
+**Result (2026-09-09) ✅ PASS (round 2, fix `b361ef9`)** — verified live via `mcp-gee-sweet-kit` against a throwaway subfolder of `{FOLDER_ID}` (`qa-sync-253-kit`, deleted after). Local fixture under a job-scoped dir. All steps + control:
+- **Step 1** (`direction="upload"`, 4-byte `AAAA`): `uploaded: ["report.txt"]`.
+- **Step 2**: `get_file_metadata` → `size: "4"`, `modified_time: 2026-09-10T03:58:01.000Z`, md5 `098890dd…` (of `AAAA`).
+- **Step 3**: local overwritten with 20 bytes `B…` (md5 `52af981e…`), `os.utime` to match Drive's mtime exactly.
+- **Step 4** (`bidirectional`, `dry_run=true`): `actions: [{name: "report.txt", action: "conflict", reason: "content differs (local and Drive byte sizes disagree) but mtimes match — can't tell which side is newer; touch the newer file, or delete the stale copy, then re-sync"}]`. All flat lists empty (dry_run, #512). Nothing changed.
+- **Step 5** (`direction="upload"`, real run): `conflicts: ["report.txt"]`, `uploaded: []`, `skipped: []`. `get_file_metadata` afterward: Drive `size` still `"4"`, md5 still `098890dd…` — the local 20-byte file was **not** pushed. ✅ (round-1 blocking finding fixed: no silent clobber under `upload`)
+- **Step 6** (`direction="download"`, real run): `conflicts: ["report.txt"]`, `downloaded: []`, `skipped: []`. Local `report.txt` still 20-byte `B…` (md5 `52af981e…`) — Drive's stale 4-byte version was **not** pulled over it. ✅ (symmetric case fixed)
+- **Control**: local set to a different 4-byte content (`CCCC`, md5 `b41c1949…`) with matching mtime → `bidirectional dry_run` reports `action: "skip"` / `"in sync"`. The documented same-size-edit gap (#716), not a regression.
 
-_Round 1:_ `/code-review high origin/develop...HEAD` (PR #712, first QA pass) surfaced a blocking correctness concern in the new size-divergence branch: under `direction="upload"`/`"download"` an equal-mtime + size-differs pair was transferred unconditionally, silently overwriting a target the code can't establish is older — inconsistent with the surrounding invariant that a directional sync reports `conflict` rather than clobber a *known*-newer target (`transfer.py:656`, `:689`). Sent back to Jay for a design decision.
+Unit tests: full `tests/drive/test_transfer.py` green (126 passed), including `TestSyncFolderSizeDivergence` (updated to assert `conflict` for `upload`/`download` directions). Round-2 diff is a net simplification matching the four named round-1 findings closely — fast-path re-verification (no second full `/code-review`).
 
-_Round-2 fix (Jay):_ the size-divergence branch now reports `conflict` for **all** directions (never `upload`/`download`) — see the revised Background and Checks above. Non-blocking findings 2–4 folded in (size check moved inside the `abs(diff) <= tolerance` branch as a single `stat`, the partial `except` pretense dropped to match the unguarded `_local_mtime` one line up, the three near-identical `plan.append` arms collapsed to one). Non-blocking finding 1 (explicit `use_checksum=True` doesn't verify a within-tolerance pair) filed as follow-up #716; the docstring was tightened to stop overselling that path.
+_Round 1 (2026-09-09):_ `/code-review high` surfaced a blocking correctness concern in the size-divergence branch: under `direction="upload"`/`"download"` an equal-mtime + size-differs pair was transferred unconditionally, silently overwriting a target the code can't establish is older — inconsistent with the invariant that a directional sync reports `conflict` rather than clobber a *known*-newer target (`transfer.py:656`, `:689`). Sent back to Jay; non-blocking findings 2–4 folded into the round-2 fix, finding 1 filed as follow-up #716.
 
 ---
 
