@@ -68,7 +68,7 @@
 
 | Tool | Description | Key parameters |
 |---|---|---|
-| `list_folders` | List all folders in the specified Google Drive folder. If no parent folder is specified, lists folders from 'My Drive' root. | `parent_folder_id?` |
+| `list_folders` | List all folders in the specified Google Drive folder. If no parent is specified, uses the configured default folder (DRIVE_FOLDER_ID); if that is also unset, lists folders across 'My Drive'. | `parent_folder_id?` |
 | `list_drives` | List shared (Team) Drives accessible to the authenticated account. | `query?`, `max_results?` |
 | `list_files` | List files in a Google Drive folder, optionally filtered by MIME type. | `folder_id`, `mime_type?`, `max_results?` |
 | `search_files` | Search for files in Google Drive by name or content. | `query`, `mime_type?`, `folder_id?`, `max_results?` |

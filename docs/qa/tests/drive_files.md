@@ -184,18 +184,18 @@ list_folders(FOLDER_ID) returned `[]` — FOLDER_ID has no subfolders; no error.
 
 ---
 
-### TC-D27: List from root ⚠️ known tool gap (#680 → see filed bug)
+### TC-D27: List with no parent falls back to `DRIVE_FOLDER_ID` (#689)
 
 **Prompt**
-> "List folders at the root of my Drive"
+> "List my Drive folders" (no folder specified)
 
 **Checks**
 - `list_folders(parent_folder_id=None)` returns without error
-- ⚠️ **Confirmed tool gap:** `list_folders` hardcodes `q += " and 'root' in parents"` when no parent is given (`tools/drive/files.py`) — it does **not** consult `DRIVE_FOLDER_ID`. On a Shared-Drive deployment the OAuth user's personal My-Drive root is not where fixtures live, and for a pure service account there is no personal root at all, so `list_folders(None)` returns the wrong scope or nothing. Filed as a separate product bug (link in the run file). Record the observed behavior; PASS only means "returned without crashing", not "returned the right folders".
-- Explicit-parent form (`list_folders(parent_folder_id={SHARED_DRIVE_ID})`) is the working path — covered by TC-D25/D26.
+- On this deployment `DRIVE_FOLDER_ID` is set, so the call now lists the folders **inside the configured default folder** (`{FOLDER_ID}`) — the same result as `list_folders(parent_folder_id={FOLDER_ID})` (compare against TC-D26). It no longer hardcodes `'root' in parents` / the OAuth user's personal My-Drive root.
+- Fixed in #689: `list_folders` now does `parent_folder_id or lc.folder_id`, mirroring `list_spreadsheets`. When neither is set it lists folders across 'My Drive' (no `in parents` clause).
+- Explicit-parent form (`list_folders(parent_folder_id={FOLDER_ID})`) still works — covered by TC-D26.
 
-**Result (2026-09-04) ✅ PASS**
-🔍 KNOWN TOOL GAP (#680). `list_folders(parent_folder_id=None)` returned `{"result":[]}` — no crash. On this OAuth (sky) deployment with fixtures in a Shared Drive, the hardcoded `'root' in parents` query surfaces nothing; DRIVE_FOLDER_ID is not consulted. Observed verbatim: empty result list.
+**Prior behavior (2026-09-04, pre-#689):** `list_folders(parent_folder_id=None)` returned `{"result":[]}` on this Shared-Drive OAuth deployment — the hardcoded `'root' in parents` query surfaced nothing because `DRIVE_FOLDER_ID` was not consulted. The `**Result**` line below is added by the first live re-run against the fixed code.
 
 ---
 
