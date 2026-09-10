@@ -1494,6 +1494,8 @@ Remove `/tmp/qa-239/`.
 **Teardown**
 Delete `report.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-253/`.
 
+**Result (2026-09-09)** pending — not run live this round. `/code-review high origin/develop...HEAD` (PR #712, first QA pass) surfaced a blocking correctness concern in the new size-divergence branch (`transfer.py:620-650`): under `direction="upload"`/`"download"` an equal-mtime + size-differs pair is transferred unconditionally, silently overwriting a target the code can't establish is older — inconsistent with the surrounding invariant that a directional sync reports `conflict` rather than clobber a *known*-newer target (`transfer.py:656`, `:689`). Sent back to Jay for a design decision before live QA; see PR #712 comment.
+
 ---
 
 ## `list_revisions`
