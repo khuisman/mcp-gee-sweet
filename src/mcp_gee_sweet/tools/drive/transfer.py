@@ -1653,7 +1653,9 @@ def register(tool):
         file before download.
 
         If local_path is a directory, the file is saved inside it using the Drive
-        filename (with an extension appended for exported Workspace files).
+        filename (with an extension appended for exported Workspace files). A
+        local_path ending in a path separator is always treated as a directory
+        target, and is created (mkdir -p) if it doesn't exist yet.
 
         Args:
             file_id: The Google Drive file ID.
@@ -1680,6 +1682,24 @@ def register(tool):
         is_workspace = file_mime.startswith("application/vnd.google-apps.")
 
         dest = Path(local_path)
+
+        # A trailing path separator means "this is a directory" even when it
+        # doesn't exist yet — Path() has already stripped it from `dest`, so the
+        # intent has to be read off the raw string. Without this, a call like
+        # download_file(..., local_path="/new/dir/") writes a plain file literally
+        # named "dir" and every later download to the same local_path silently
+        # clobbers it (#690).
+        wants_dir = local_path.endswith(("/", os.sep)) or (
+            os.altsep is not None and local_path.endswith(os.altsep)
+        )
+        if wants_dir:
+            if dest.exists() and not dest.is_dir():
+                raise ValueError(
+                    f"local_path {local_path!r} ends in a path separator (implying a "
+                    f"directory) but a non-directory already exists at {str(dest)!r}"
+                )
+            dest.mkdir(parents=True, exist_ok=True)
+
         if dest.is_dir():
             if is_workspace and export_format:
                 ext = _EXPORT_MIME[export_format][1] if export_format in _EXPORT_MIME else ""

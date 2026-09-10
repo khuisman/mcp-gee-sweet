@@ -3068,6 +3068,97 @@ class TestDownloadFile:
             )
         svc.files.return_value.export.assert_not_called()
 
+    async def test_trailing_slash_nonexistent_dir_is_created_and_file_saved_inside(
+        self, tmp_path, monkeypatch
+    ):
+        """#690: a local_path ending in a separator whose directory doesn't exist
+        yet was writing a plain file literally named after the last segment
+        (Path() strips the trailing slash before the .is_dir() check). It must
+        instead create the directory and save the Drive file inside it."""
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = self._metadata(
+            "photo.png", "image/png"
+        )
+
+        class _FakeDownloader:
+            def __init__(self, fh, request):
+                self._fh = fh
+
+            def next_chunk(self):
+                self._fh.write(b"png bytes")
+                return None, True
+
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _FakeDownloader)
+        new_dir = tmp_path / "new" / "sub"  # neither level exists yet
+        result = await _transfer_tools["download_file"](
+            file_id="bin1",
+            local_path=str(new_dir) + os.sep,  # trailing separator
+            ctx=self._ctx(svc),
+        )
+
+        assert new_dir.is_dir()
+        saved = new_dir / "photo.png"
+        assert saved.is_file()
+        assert saved.read_bytes() == b"png bytes"
+        assert result["local_path"] == str(saved)
+        # The bug's signature: NO plain file literally named "sub" alongside.
+        assert not (tmp_path / "new" / "sub").is_file()
+
+    async def test_trailing_slash_dir_second_download_does_not_clobber(self, tmp_path, monkeypatch):
+        """#690's clobber symptom: two different Drive files downloaded to the
+        same trailing-slash local_path must land as two separate files inside the
+        directory, not overwrite one file named after the directory."""
+        svc = MagicMock()
+        target = str(tmp_path / "out") + os.sep
+
+        class _FakeDownloader:
+            payload = b""
+
+            def __init__(self, fh, request):
+                self._fh = fh
+
+            def next_chunk(self):
+                self._fh.write(_FakeDownloader.payload)
+                return None, True
+
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _FakeDownloader)
+
+        svc.files.return_value.get.return_value.execute.return_value = self._metadata(
+            "first.bin", "application/octet-stream"
+        )
+        _FakeDownloader.payload = b"first"
+        await _transfer_tools["download_file"](file_id="a", local_path=target, ctx=self._ctx(svc))
+
+        svc.files.return_value.get.return_value.execute.return_value = self._metadata(
+            "second.bin", "application/octet-stream"
+        )
+        _FakeDownloader.payload = b"second"
+        await _transfer_tools["download_file"](file_id="b", local_path=target, ctx=self._ctx(svc))
+
+        out = tmp_path / "out"
+        assert (out / "first.bin").read_bytes() == b"first"
+        assert (out / "second.bin").read_bytes() == b"second"
+        assert not out.is_file()
+
+    async def test_trailing_slash_over_existing_non_directory_raises(self, tmp_path):
+        """If a plain file already sits where the trailing-slash local_path points,
+        the directory intent can't be honored — raise rather than silently write
+        past it."""
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = self._metadata(
+            "x.bin", "application/octet-stream"
+        )
+        clash = tmp_path / "clash"
+        clash.write_bytes(b"i am a file")
+
+        with pytest.raises(ValueError, match="non-directory already exists"):
+            await _transfer_tools["download_file"](
+                file_id="bin1",
+                local_path=str(clash) + os.sep,
+                ctx=self._ctx(svc),
+            )
+        assert clash.read_bytes() == b"i am a file"  # untouched
+
 
 class TestSyncFolderResponseSizeCap:
     """PR #328 review: recursive=True removes the previous implicit bound (one
