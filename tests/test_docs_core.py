@@ -1054,6 +1054,99 @@ class TestNestedBulletDepthEmitsIndentation:
         assert insert["insertText"]["text"] == "Parent\n\tChild\n"
 
 
+class TestIsolatedDepthRunGlyph:
+    """#439: a contiguous createParagraphBullets run whose every item is at depth > 0
+    (no depth-0 sibling in the same call) rendered the depth-0 glyph (disc) instead of
+    the correct nested glyph — createParagraphBullets assigns nestingLevel relative to
+    the *minimum* leading-tab count in the range, so a run with no 0-tab paragraph
+    collapses to level 0. Fixed by wrapping such a run with a throwaway 0-tab anchor
+    paragraph (insert -> bullet extended range -> delete) so the real items land at
+    their true nesting level and glyph. The anchor insert (+1) and delete (-1) cancel."""
+
+    def _bullet_call(self, requests):
+        return next(r for r in requests if "createParagraphBullets" in r)
+
+    def test_isolated_depth1_run_wrapped_with_anchor(self):
+        nodes = [
+            BulletItem(runs=[Run("C1")], depth=1),
+            BulletItem(runs=[Run("C2")], depth=1),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        # main text insert is "\tC1\n\tC2\n" (8 chars) at index 1 -> run is [1, 9)
+        main_insert = next(r for r in requests if "insertText" in r)
+        assert main_insert["insertText"]["text"] == "\tC1\n\tC2\n"
+        # Trailing three requests: anchor insert, bullets over the extended range, delete.
+        anchor_insert, bullets, delete = requests[-3:]
+        assert anchor_insert == {"insertText": {"location": {"index": 1}, "text": "\n"}}
+        assert bullets["createParagraphBullets"]["range"] == {"startIndex": 1, "endIndex": 10}
+        assert delete == {"deleteContentRange": {"range": {"startIndex": 1, "endIndex": 2}}}
+
+    def test_single_isolated_item_wrapped_with_anchor(self):
+        requests, _ = ast_to_requests([BulletItem(runs=[Run("only")], depth=2)])
+        anchor_insert, bullets, delete = requests[-3:]
+        assert anchor_insert["insertText"] == {"location": {"index": 1}, "text": "\n"}
+        # "\t\tonly\n" is 7 chars -> run [1, 8); extended by the anchor -> endIndex 9
+        assert bullets["createParagraphBullets"]["range"] == {"startIndex": 1, "endIndex": 9}
+        assert delete["deleteContentRange"]["range"] == {"startIndex": 1, "endIndex": 2}
+
+    def test_run_with_depth0_anchor_item_is_not_wrapped(self):
+        nodes = [
+            BulletItem(runs=[Run("Parent")], depth=0),
+            BulletItem(runs=[Run("Child")], depth=1),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        assert not any("deleteContentRange" in r for r in requests)
+        # exactly one insertText (the main body text), no anchor insert
+        assert sum(1 for r in requests if "insertText" in r) == 1
+        assert self._bullet_call(requests)["createParagraphBullets"]["range"] == {
+            "startIndex": 1,
+            "endIndex": 15,
+        }
+
+    def test_anchor_wrap_is_position_neutral_for_a_following_table(self):
+        # The anchor insert/delete cancel, so a table after an isolated run sits exactly
+        # where it would if the run's tabs alone were consumed — same index the
+        # equivalent depth-0-anchored run would produce.
+        isolated = [
+            BulletItem(runs=[Run("C1")], depth=1),
+            BulletItem(runs=[Run("C2")], depth=1),
+            Table(rows=[Row(cells=[Cell(children=[Run("X")])])]),
+        ]
+        requests, _ = ast_to_requests(isolated)
+        table_req = next(r for r in requests if "insertTable" in r)
+        # as-inserted text "\tC1\n\tC2\n" is 8 chars -> raw table pos 1 + 8 = 9;
+        # the 2 leading tabs are consumed ahead of it -> real pos 7.
+        assert table_req["insertTable"]["location"]["index"] == 7
+
+    def test_two_isolated_runs_applied_latest_position_first(self):
+        nodes = [
+            BulletItem(runs=[Run("A")], depth=1),
+            Paragraph(runs=[Run("Interrupter")]),
+            BulletItem(runs=[Run("B")], depth=1),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        bullet_calls = [
+            r["createParagraphBullets"]["range"]["startIndex"]
+            for r in requests
+            if "createParagraphBullets" in r
+        ]
+        assert len(bullet_calls) == 2
+        assert bullet_calls == sorted(bullet_calls, reverse=True)
+        # Each isolated run still carries its own anchor delete.
+        assert sum(1 for r in requests if "deleteContentRange" in r) == 2
+
+    def test_end_to_end_bare_parent_nested_list_wrapped(self):
+        # #439's own repro shape: a bare <li> with no text, only a nested <ul>. The
+        # parent <li> is dropped (empty), leaving an isolated depth-1 run.
+        html = "<ul><li><ul><li>C1</li><li>C2</li></ul></li></ul>"
+        requests, _ = _to_doc_requests(html)
+        assert any("deleteContentRange" in r for r in requests)
+        anchor_inserts = [
+            r for r in requests if "insertText" in r and r["insertText"]["text"] == "\n"
+        ]
+        assert len(anchor_inserts) == 1
+
+
 class TestBuildBlankParaBeforeTableCollapses:
     """_build_blank_para_before_table_collapses shrinks empty paragraphs before tables to
     zero visual height (deleteContentRange is rejected by the API for these paragraphs)."""
