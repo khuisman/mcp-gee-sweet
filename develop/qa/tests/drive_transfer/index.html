@@ -1754,6 +1754,29 @@ download {DOC_ID} with no export_format: ValueError "export_format is required f
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 No PNG fixture — used qa-upload.txt → local_path="/tmp/qa-specific-name.txt": written to exactly that path (not a subdir), content "Hello from QA" intact, 13 bytes. Parent dir already existed.</p>
 <hr />
+<h3 id="tc-d254-download_file-a-non-existent-trailing-slash-local_path-is-created-as-a-directory-not-written-as-a-file-issue-690-local-filesystem">TC-D254: <code>download_file</code> — a non-existent trailing-slash <code>local_path</code> is created as a directory, not written as a file (issue #690) ⚠️ local-filesystem<a class="headerlink" href="#tc-d254-download_file-a-non-existent-trailing-slash-local_path-is-created-as-a-directory-not-written-as-a-file-issue-690-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>download_file(file_id, local_path="/some/new/dir/")</code> where <code>/some/new/dir/</code> didn't exist wrote a plain <em>file</em> literally named <code>dir</code> (Python's <code>Path()</code> strips the trailing separator before the <code>.is_dir()</code> check), and every later download to the same <code>local_path</code> silently clobbered it. Fixed by reading the directory intent off the raw <code>local_path</code> string before <code>Path()</code> strips it: a trailing separator now means "directory", created <code>mkdir -p</code>-style if absent, with the Drive file saved inside using its own name. A non-directory already sitting at that path raises a <code>ValueError</code> instead of being written past.</p>
+<p><strong>Setup:</strong> <code>{BINARY_FILE_ID}</code> = any non-Google Drive file. <code>/tmp/qa-d254/</code> must NOT exist at the start (<code>rm -rf /tmp/qa-d254</code>).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<ol>
+<li><code>download_file(file_id="{BINARY_FILE_ID}", local_path="/tmp/qa-d254/new/sub/")</code> — note the trailing slash and that neither <code>new/</code> nor <code>sub/</code> exists yet.</li>
+<li><code>download_file</code> a <em>different</em> Drive file (<code>{BINARY_FILE_ID_2}</code>, or the same file re-fetched — any file with a different name) to the exact same <code>local_path="/tmp/qa-d254/new/sub/"</code>.</li>
+<li><code>printf x &gt; /tmp/qa-d254/clash</code>, then <code>download_file(file_id="{BINARY_FILE_ID}", local_path="/tmp/qa-d254/clash/")</code>.</li>
+</ol>
+</blockquote>
+<p><strong>Checks</strong>
+- Step 1: <code>/tmp/qa-d254/new/sub/</code> exists as a <strong>directory</strong>; the file is at <code>/tmp/qa-d254/new/sub/&lt;drive_name&gt;</code> with the real content; the returned <code>local_path</code> is that full file path. There is <strong>no</strong> plain file at <code>/tmp/qa-d254/new/sub</code>.
+- Step 2: both downloads are present as separate files inside <code>/tmp/qa-d254/new/sub/</code> (named after each Drive file) — the second did not overwrite the first, and <code>/tmp/qa-d254/new/sub</code> is still a directory, not a file.
+- Step 3: the call returns/raises a <code>ValueError</code> mentioning a non-directory already exists at that path; <code>/tmp/qa-d254/clash</code> still contains <code>x</code>, untouched.</p>
+<p><strong>Teardown</strong>
+<code>rm -rf /tmp/qa-d254</code>.</p>
+<p><strong>Result (2026-09-09) ✅ PASS</strong> — verified live via <code>mcp-gee-sweet-kit</code>. Fixtures: two throwaway binary files (<code>alpha.bin</code> 15 B, <code>beta.bin</code> 25 B) uploaded to a scratch subfolder of <code>{FOLDER_ID}</code> (<code>qa-d254-kit</code>, deleted after); local target under a job-scoped dir.
+- <strong>Step 1</strong> (<code>download_file(alpha, local_path=".../new/sub/")</code>, trailing slash, neither <code>new/</code> nor <code>sub/</code> existing): <code>.../new/sub/</code> created as a <strong>directory</strong> (both levels, mkdir -p); file written to <code>.../new/sub/alpha.bin</code> with the real 15-byte content; returned <code>local_path</code> is that full file path. No plain file at <code>.../new/sub</code>.
+- <strong>Step 2</strong> (download <code>beta</code> to the same trailing-slash <code>local_path</code>): <code>.../new/sub/</code> holds <code>alpha.bin</code> (15 B, unchanged) <strong>and</strong> <code>beta.bin</code> (25 B) as separate files — no clobber; <code>.../new/sub</code> still a directory.
+- <strong>Step 3</strong> (<code>printf x &gt; .../clash</code>, then <code>download_file(alpha, local_path=".../clash/")</code>): raised <code>ValueError</code> <code>"local_path '…/clash/' ends in a path separator (implying a directory) but a non-directory already exists at '…/clash'"</code>; <code>.../clash</code> still contains <code>x</code>, untouched.</p>
+<p>Unit tests: <code>tests/drive/test_transfer.py -k TestDownloadFile</code> — 10 passed (incl. the 3 new <code>test_trailing_slash_*</code> cases). <code>/code-review high origin/develop...HEAD</code> surfaced 3 non-blocking cleanups (fail-fast ordering of the clash <code>ValueError</code> vs. the <code>files().get()</code> call; a dead <code>os.altsep</code> clause in the <code>wants_dir</code> test; a raw <code>NotADirectoryError</code> when an <em>intermediate</em> parent is a regular file) — none blocking, filed as follow-up #724.</p>
+<hr />
 <h2 id="download_folder"><code>download_folder</code><a class="headerlink" href="#download_folder" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d107-download-folder-with-mixed-content-local-filesystem">TC-D107: Download folder with mixed content ⚠️ local-filesystem<a class="headerlink" href="#tc-d107-download-folder-with-mixed-content-local-filesystem" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
