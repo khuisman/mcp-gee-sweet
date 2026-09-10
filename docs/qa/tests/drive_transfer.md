@@ -525,6 +525,34 @@ No PNG fixture — used qa-upload.txt → local_path="/tmp/qa-specific-name.txt"
 
 ---
 
+### TC-D254: `download_file` — a non-existent trailing-slash `local_path` is created as a directory, not written as a file (issue #690) ⚠️ local-filesystem
+
+**Background:** `download_file(file_id, local_path="/some/new/dir/")` where `/some/new/dir/` didn't exist wrote a plain *file* literally named `dir` (Python's `Path()` strips the trailing separator before the `.is_dir()` check), and every later download to the same `local_path` silently clobbered it. Fixed by reading the directory intent off the raw `local_path` string before `Path()` strips it: a trailing separator now means "directory", created `mkdir -p`-style if absent, with the Drive file saved inside using its own name. A non-directory already sitting at that path raises a `ValueError` instead of being written past.
+
+**Setup:** `{BINARY_FILE_ID}` = any non-Google Drive file. `/tmp/qa-d254/` must NOT exist at the start (`rm -rf /tmp/qa-d254`).
+
+**Prompt**
+> 1. `download_file(file_id="{BINARY_FILE_ID}", local_path="/tmp/qa-d254/new/sub/")` — note the trailing slash and that neither `new/` nor `sub/` exists yet.
+> 2. `download_file` a *different* Drive file (`{BINARY_FILE_ID_2}`, or the same file re-fetched — any file with a different name) to the exact same `local_path="/tmp/qa-d254/new/sub/"`.
+> 3. `printf x > /tmp/qa-d254/clash`, then `download_file(file_id="{BINARY_FILE_ID}", local_path="/tmp/qa-d254/clash/")`.
+
+**Checks**
+- Step 1: `/tmp/qa-d254/new/sub/` exists as a **directory**; the file is at `/tmp/qa-d254/new/sub/<drive_name>` with the real content; the returned `local_path` is that full file path. There is **no** plain file at `/tmp/qa-d254/new/sub`.
+- Step 2: both downloads are present as separate files inside `/tmp/qa-d254/new/sub/` (named after each Drive file) — the second did not overwrite the first, and `/tmp/qa-d254/new/sub` is still a directory, not a file.
+- Step 3: the call returns/raises a `ValueError` mentioning a non-directory already exists at that path; `/tmp/qa-d254/clash` still contains `x`, untouched.
+
+**Teardown**
+`rm -rf /tmp/qa-d254`.
+
+**Result (2026-09-09) ✅ PASS** — verified live via `mcp-gee-sweet-kit`. Fixtures: two throwaway binary files (`alpha.bin` 15 B, `beta.bin` 25 B) uploaded to a scratch subfolder of `{FOLDER_ID}` (`qa-d254-kit`, deleted after); local target under a job-scoped dir.
+- **Step 1** (`download_file(alpha, local_path=".../new/sub/")`, trailing slash, neither `new/` nor `sub/` existing): `.../new/sub/` created as a **directory** (both levels, mkdir -p); file written to `.../new/sub/alpha.bin` with the real 15-byte content; returned `local_path` is that full file path. No plain file at `.../new/sub`.
+- **Step 2** (download `beta` to the same trailing-slash `local_path`): `.../new/sub/` holds `alpha.bin` (15 B, unchanged) **and** `beta.bin` (25 B) as separate files — no clobber; `.../new/sub` still a directory.
+- **Step 3** (`printf x > .../clash`, then `download_file(alpha, local_path=".../clash/")`): raised `ValueError` `"local_path '…/clash/' ends in a path separator (implying a directory) but a non-directory already exists at '…/clash'"`; `.../clash` still contains `x`, untouched.
+
+Unit tests: `tests/drive/test_transfer.py -k TestDownloadFile` — 10 passed (incl. the 3 new `test_trailing_slash_*` cases). `/code-review high origin/develop...HEAD` surfaced 3 non-blocking cleanups (fail-fast ordering of the clash `ValueError` vs. the `files().get()` call; a dead `os.altsep` clause in the `wants_dir` test; a raw `NotADirectoryError` when an *intermediate* parent is a regular file) — none blocking, filed as follow-up #724.
+
+---
+
 ## `download_folder`
 
 ### TC-D107: Download folder with mixed content ⚠️ local-filesystem
