@@ -197,6 +197,9 @@ list_folders(FOLDER_ID) returned `[]` — FOLDER_ID has no subfolders; no error.
 
 **Prior behavior (2026-09-04, pre-#689):** `list_folders(parent_folder_id=None)` returned `{"result":[]}` on this Shared-Drive OAuth deployment — the hardcoded `'root' in parents` query surfaced nothing because `DRIVE_FOLDER_ID` was not consulted. The `**Result**` line below is added by the first live re-run against the fixed code.
 
+**Result (2026-09-09) ✅ PASS**
+`list_folders(parent_folder_id=None)` returned `[{"id": "{FIXTURES_FOLDER_ID}", "name": "mcp-gee-sweet-qa-fixtures", "parent": "{DRIVE_FOLDER_ID}"}]` — no error. `list_folders(parent_folder_id={DRIVE_FOLDER_ID})` returned byte-identical output, confirming the no-parent path now resolves to `lc.folder_id` (the configured Shared-Drive root) instead of the hardcoded `'root' in parents`. Explicit-parent form still overrides the default — `list_folders(parent_folder_id={FIXTURES_FOLDER_ID})` returned `[]` (fixtures folder has no subfolders). Unit tests: `tests/drive/test_files.py::TestListFolders` 4/4 pass; full suite 1339 passed / 3 skipped.
+
 ---
 
 ### TC-D28: Empty folder
