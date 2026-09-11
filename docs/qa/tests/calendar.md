@@ -995,18 +995,19 @@ find_free_slots [SACAL, MINCAL] same window -> busy has a key per calendar; MINC
 
 ---
 
-### TC-CAL33: Invalid calendar ID in list
+### TC-CAL33: Invalid calendar ID in list (issue #691: error shape aligned with list_all_events)
+
+**Background:** originally `busy["invalid-cal@example.com"]` was a bare `[{"error": "notFound"}]` — just the freebusy API's `reason` string, no `calendar_id`/`calendar_summary`, unlike `list_all_events`'s per-calendar error entry for the identical failure (`{calendar_id, calendar_summary, error}`). Fixed by aligning the shape: `calendar_id` and `calendar_summary` (falling back to the id when the calendar isn't in the user's calendar list) are now included, and `error` also folds in the API's `domain` when present (`"<reason> (<domain>)"`).
 
 **Prompt**
 > "Find free slots for calendars [{CALENDAR_ID}, 'invalid-cal@example.com'] for the next hour"
 
 **Checks**
-- `busy["invalid-cal@example.com"]` contains an `error` entry (Calendar API errors-per-calendar)
+- `busy["invalid-cal@example.com"]` is `[{"calendar_id": "invalid-cal@example.com", "calendar_summary": "invalid-cal@example.com", "error": "notFound"}]` (or `"notFound (<domain>)"` if the API includes a domain) — not a bare `{"error": "notFound"}`
 - `busy[{CALENDAR_ID}]` is still populated correctly
 - Top-level response is not an error — partial results returned
 
-**Result (2026-09-04) ✅ PASS**
-find_free_slots [SACAL, 'invalid-cal@example.com'] -> busy["invalid-cal@example.com"]=[{"error":"notFound"}], busy[SACAL] still populated, top-level not an error (partial results).
+**Result (2026-09-04) ✅ PASS — superseded (#691), re-run under the richer error shape above.** _Prior run, before the fix:_ find_free_slots [SACAL, 'invalid-cal@example.com'] -> busy["invalid-cal@example.com"]=[{"error":"notFound"}], busy[SACAL] still populated, top-level not an error (partial results).
 
 ---
 
@@ -1038,6 +1039,18 @@ find_free_slots SACAL 2026-07-10T00:00:00Z..01:00:00Z, no events -> free_slots e
 
 **Result (2026-09-04) ✅ PASS**
 Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -> busy merged to single {14:00:00Z..16:00:00Z}; free_slots {13:00-14:00Z} and {16:00-17:00Z}, no zero/negative gap between. Interval-merge confirmed. (adjacent events cleaned up)
+
+---
+
+### TC-CAL78: find_free_slots error shape — summary fallback and no extra API call on the happy path (issue #691) (unit test)
+
+**Background:** two invariants of the #691 fix (TC-CAL33 covers the headline shape change) that aren't reliably distinguishable live: (1) `calendar_summary` in the error entry comes from the user's own `calendar_cache`-backed calendar list, falling back to the bare `calendar_id` only when that calendar isn't in the list — TC-CAL33's `invalid-cal@example.com` is never in the list either way, so it can't tell "summary looked up and happened to equal the id" apart from "lookup never ran"; and (2) the summary lookup is gated on at least one calendar actually erroring, so an all-readable `find_free_slots` call costs exactly one API call (the freebusy query), same as before the fix — not reliably forceable against the live API without mocking the calendar-list call to prove it was (or wasn't) made. Verified by unit test instead.
+
+**Checks (unit test)**
+- `tests/test_calendar.py::TestFindFreeSlots::test_unreadable_calendar_reports_full_error_shape` — a calendar list containing the erroring id's real summary ("Team Cal") produces `busy["cal-2"] == [{"calendar_id": "cal-2", "calendar_summary": "Team Cal", "error": "notFound (global)"}]` — the summary is genuinely looked up, not just echoing the id.
+- `tests/test_calendar.py::TestFindFreeSlots::test_error_shape_summary_falls_back_to_id_when_calendar_not_in_list` — the same failure with the erroring id absent from the calendar list falls back to `calendar_summary == "cal-2"`.
+- `tests/test_calendar.py::TestFindFreeSlots::test_summary_fetch_failure_does_not_break_find_free_slots` — a calendar-list fetch that itself raises still returns the error entry (id-fallback summary), proving the best-effort lookup can never turn a working `find_free_slots` call into a failing one.
+- `tests/test_calendar.py::TestFindFreeSlots::test_all_readable_path_never_fetches_the_calendar_list` — with every calendar readable, `calendar_cache.get_list` and `calendarList().list()` are both asserted not called — the happy path stays a single API call.
 
 ---
 
