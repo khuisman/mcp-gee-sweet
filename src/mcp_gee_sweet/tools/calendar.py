@@ -828,7 +828,12 @@ def register(tool):
 
         Returns:
             busy: dict mapping each calendar_id to its list of busy periods
-                  ({start, end} each in RFC 3339).
+                  ({start, end} each in RFC 3339). A calendar the freebusy API
+                  couldn't read (bad id, no access, etc.) maps instead to a
+                  single-element list holding {calendar_id, calendar_summary,
+                  error} — the same per-calendar error shape list_all_events uses,
+                  rather than aborting the whole query. calendar_summary falls
+                  back to the id when the calendar isn't in the user's list.
             free_slots: list of free periods ({start, end}) across all calendars,
                         computed as the complement of the union of all busy times.
         """
@@ -851,11 +856,38 @@ def register(tool):
 
         calendars_busy = result.get("calendars", {})
         busy: dict[str, list[dict[str, str]]] = {}
+
+        # Only pay for calendar summaries when at least one calendar errored — the
+        # common (all-readable) path stays a single freebusy API call. Best-effort:
+        # a failure here must never turn a working find_free_slots into a failing
+        # one, so it degrades to no summaries (calendar_summary falls back to the
+        # id, exactly as list_all_events does for a not-in-list calendar). #691.
+        summary_by_id: dict[str, str] = {}
+        if any(calendars_busy.get(cid, {}).get("errors") for cid in calendar_ids):
+            try:
+                summary_by_id = {
+                    c["id"]: c.get("summary") or c["id"]
+                    for c in await _get_cached_calendar_list(lc)
+                }
+            except Exception:
+                summary_by_id = {}
+
         for cid in calendar_ids:
             cal_data = calendars_busy.get(cid, {})
             errors = cal_data.get("errors")
             if errors:
-                busy[cid] = [{"error": err.get("reason", "unknown")} for err in errors]
+                detail = "; ".join(
+                    err.get("reason", "unknown")
+                    + (f" ({err['domain']})" if err.get("domain") else "")
+                    for err in errors
+                )
+                busy[cid] = [
+                    {
+                        "calendar_id": cid,
+                        "calendar_summary": summary_by_id.get(cid, cid),
+                        "error": detail,
+                    }
+                ]
             else:
                 busy[cid] = [
                     {"start": p["start"], "end": p["end"]} for p in cal_data.get("busy", [])

@@ -1032,6 +1032,113 @@ class TestFindFreeSlots:
         assert slots[0] == {"start": "2026-06-15T09:00:00Z", "end": "2026-06-15T10:00:00Z"}
         assert slots[1] == {"start": "2026-06-15T12:00:00Z", "end": "2026-06-15T18:00:00Z"}
 
+    def _cal_svc_with_error(self, good_busy, bad_cal_id, errors):
+        """freebusy response: one readable calendar ('primary') plus one that the
+        API reports per-calendar `errors` for (the #691 failure mode)."""
+        mock = MagicMock()
+        mock.freebusy.return_value.query.return_value.execute.return_value = {
+            "calendars": {
+                "primary": {"busy": [{"start": s, "end": e} for s, e in good_busy]},
+                bad_cal_id: {"errors": errors},
+            }
+        }
+        return mock
+
+    async def test_unreadable_calendar_reports_full_error_shape(self):
+        """#691: a calendar the freebusy API can't read now inlines
+        {calendar_id, calendar_summary, error} — matching list_all_events'
+        per-calendar error shape — instead of a bare {"error": "<reason>"}."""
+        cal_svc = self._cal_svc_with_error(
+            [("2026-06-15T10:00:00Z", "2026-06-15T11:00:00Z")],
+            "cal-2",
+            [{"domain": "global", "reason": "notFound"}],
+        )
+        cache = MagicMock()
+        cache.get_list.return_value = [
+            {"id": "primary", "summary": "Me"},
+            {"id": "cal-2", "summary": "Team Cal"},
+        ]
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["find_free_slots"](
+            calendar_ids=["primary", "cal-2"],
+            time_min="2026-06-15T09:00:00Z",
+            time_max="2026-06-15T18:00:00Z",
+            ctx=ctx,
+        )
+
+        assert result["busy"]["cal-2"] == [
+            {"calendar_id": "cal-2", "calendar_summary": "Team Cal", "error": "notFound (global)"}
+        ]
+        # The readable calendar is unaffected, and the error entry is excluded
+        # from the free-slot computation.
+        assert result["busy"]["primary"] == [
+            {"start": "2026-06-15T10:00:00Z", "end": "2026-06-15T11:00:00Z"}
+        ]
+        assert result["free_slots"] == [
+            {"start": "2026-06-15T09:00:00Z", "end": "2026-06-15T10:00:00Z"},
+            {"start": "2026-06-15T11:00:00Z", "end": "2026-06-15T18:00:00Z"},
+        ]
+
+    async def test_error_shape_summary_falls_back_to_id_when_calendar_not_in_list(self):
+        cal_svc = self._cal_svc_with_error(
+            [], "cal-2", [{"domain": "global", "reason": "notFound"}]
+        )
+        cache = MagicMock()
+        cache.get_list.return_value = [{"id": "primary", "summary": "Me"}]  # no cal-2
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["find_free_slots"](
+            calendar_ids=["primary", "cal-2"],
+            time_min="2026-06-15T09:00:00Z",
+            time_max="2026-06-15T18:00:00Z",
+            ctx=ctx,
+        )
+
+        assert result["busy"]["cal-2"] == [
+            {"calendar_id": "cal-2", "calendar_summary": "cal-2", "error": "notFound (global)"}
+        ]
+
+    async def test_summary_fetch_failure_does_not_break_find_free_slots(self):
+        """The best-effort summary lookup must never turn a working call into a
+        failing one — a raising calendar-list fetch degrades to id fallback."""
+        cal_svc = self._cal_svc_with_error([], "cal-2", [{"reason": "notFound"}])
+        cache = MagicMock()
+        cache.get_list.return_value = None  # force the live path...
+        cal_svc.calendarList.return_value.list.return_value.execute.side_effect = Exception(
+            "list blew up"
+        )
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        result = await _cal_tools["find_free_slots"](
+            calendar_ids=["primary", "cal-2"],
+            time_min="2026-06-15T09:00:00Z",
+            time_max="2026-06-15T18:00:00Z",
+            ctx=ctx,
+        )
+
+        # No domain in the error object → just the reason, no parenthetical.
+        assert result["busy"]["cal-2"] == [
+            {"calendar_id": "cal-2", "calendar_summary": "cal-2", "error": "notFound"}
+        ]
+
+    async def test_all_readable_path_never_fetches_the_calendar_list(self):
+        """The summary fetch is gated on at least one calendar erroring — the
+        common path stays a single freebusy API call."""
+        cal_svc = self._cal_svc({"primary": [], "secondary": []})
+        cache = MagicMock()
+        ctx = _make_ctx(calendar_service=cal_svc, calendar_cache=cache)
+
+        await _cal_tools["find_free_slots"](
+            calendar_ids=["primary", "secondary"],
+            time_min="2026-06-15T09:00:00Z",
+            time_max="2026-06-15T18:00:00Z",
+            ctx=ctx,
+        )
+
+        cache.get_list.assert_not_called()
+        cal_svc.calendarList.return_value.list.assert_not_called()
+
 
 class TestListAllEvents:
     """list_all_events fans events().list() out across calendars via asyncio.gather."""
