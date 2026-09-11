@@ -1007,7 +1007,9 @@ find_free_slots [SACAL, MINCAL] same window -> busy has a key per calendar; MINC
 - `busy[{CALENDAR_ID}]` is still populated correctly
 - Top-level response is not an error — partial results returned
 
-**Result (2026-09-04) ✅ PASS — superseded (#691), re-run under the richer error shape above.** _Prior run, before the fix:_ find_free_slots [SACAL, 'invalid-cal@example.com'] -> busy["invalid-cal@example.com"]=[{"error":"notFound"}], busy[SACAL] still populated, top-level not an error (partial results).
+**Result (2026-09-10) ✅ PASS (re-verified under #691's richer error shape)** — verified live via `mcp-gee-sweet-kit`: `find_free_slots([{qa-cal}, "invalid-cal@example.com"], next hour)` → `busy["invalid-cal@example.com"] == [{"calendar_id": "invalid-cal@example.com", "calendar_summary": "invalid-cal@example.com", "error": "notFound (global)"}]` (id-fallback summary, since the invalid id is never in the calendar list — matches `list_all_events`' behavior for a not-in-list calendar); `busy[{qa-cal}] == []` (correctly populated, empty); top-level response not an error, `free_slots` covers the full window (partial results).
+
+_Prior run (2026-09-04), before the fix:_ find_free_slots [SACAL, 'invalid-cal@example.com'] -> busy["invalid-cal@example.com"]=[{"error":"notFound"}], busy[SACAL] still populated, top-level not an error (partial results).
 
 ---
 
@@ -1051,6 +1053,8 @@ Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -> busy merged to single {14:00
 - `tests/test_calendar.py::TestFindFreeSlots::test_error_shape_summary_falls_back_to_id_when_calendar_not_in_list` — the same failure with the erroring id absent from the calendar list falls back to `calendar_summary == "cal-2"`.
 - `tests/test_calendar.py::TestFindFreeSlots::test_summary_fetch_failure_does_not_break_find_free_slots` — a calendar-list fetch that itself raises still returns the error entry (id-fallback summary), proving the best-effort lookup can never turn a working `find_free_slots` call into a failing one.
 - `tests/test_calendar.py::TestFindFreeSlots::test_all_readable_path_never_fetches_the_calendar_list` — with every calendar readable, `calendar_cache.get_list` and `calendarList().list()` are both asserted not called — the happy path stays a single API call.
+
+**Result (2026-09-10) ✅ PASS** — `tests/test_calendar.py -k TestFindFreeSlots` — 9 passed, including all 4 cited cases. `/code-review high origin/develop...HEAD` surfaced 2 non-blocking findings, neither exercised by these invariants: `summary_by_id`'s `c.get("summary") or c["id"]` (this fix) falls back to the id on a falsy *or empty-string* summary, while `list_all_events`' equivalent (`calendar.py:981`) only falls back on a *missing* key — a calendar with a genuinely empty-string `summary` would report differently between the two tools, contradicting the docstring's "same shape" claim for that edge case; and the id→summary lookup is duplicated rather than shared between the two tools. Neither affects correctness for a real (non-empty-string) summary. Filed as follow-up #726.
 
 ---
 
