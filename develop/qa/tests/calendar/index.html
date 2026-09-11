@@ -2026,10 +2026,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#tc-cal33-invalid-calendar-id-in-list" class="md-nav__link">
+  <a href="#tc-cal33-invalid-calendar-id-in-list-issue-691-error-shape-aligned-with-list_all_events" class="md-nav__link">
     <span class="md-ellipsis">
       
-        TC-CAL33: Invalid calendar ID in list
+        TC-CAL33: Invalid calendar ID in list (issue #691: error shape aligned with list_all_events)
       
     </span>
   </a>
@@ -2052,6 +2052,17 @@
     <span class="md-ellipsis">
       
         TC-CAL35: Contiguous busy periods merged in free_slots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal78-find_free_slots-error-shape-summary-fallback-and-no-extra-api-call-on-the-happy-path-issue-691-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL78: find_free_slots error shape — summary fallback and no extra API call on the happy path (issue #691) (unit test)
       
     </span>
   </a>
@@ -3318,17 +3329,18 @@ find_free_slots SACAL 2026-07-01 16:00-00:00Z (9am-5pm PT) -&gt; busy[SACAL]=[{2
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 find_free_slots [SACAL, MINCAL] same window -&gt; busy has a key per calendar; MINCAL busy=[] (no events, no error); free_slots = union (only SACAL busy considered).</p>
 <hr />
-<h3 id="tc-cal33-invalid-calendar-id-in-list">TC-CAL33: Invalid calendar ID in list<a class="headerlink" href="#tc-cal33-invalid-calendar-id-in-list" title="Permanent link">&para;</a></h3>
+<h3 id="tc-cal33-invalid-calendar-id-in-list-issue-691-error-shape-aligned-with-list_all_events">TC-CAL33: Invalid calendar ID in list (issue #691: error shape aligned with list_all_events)<a class="headerlink" href="#tc-cal33-invalid-calendar-id-in-list-issue-691-error-shape-aligned-with-list_all_events" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> originally <code>busy["invalid-cal@example.com"]</code> was a bare <code>[{"error": "notFound"}]</code> — just the freebusy API's <code>reason</code> string, no <code>calendar_id</code>/<code>calendar_summary</code>, unlike <code>list_all_events</code>'s per-calendar error entry for the identical failure (<code>{calendar_id, calendar_summary, error}</code>). Fixed by aligning the shape: <code>calendar_id</code> and <code>calendar_summary</code> (falling back to the id when the calendar isn't in the user's calendar list) are now included, and <code>error</code> also folds in the API's <code>domain</code> when present (<code>"&lt;reason&gt; (&lt;domain&gt;)"</code>).</p>
 <p><strong>Prompt</strong></p>
 <blockquote>
 <p>"Find free slots for calendars [{CALENDAR_ID}, 'invalid-cal@example.com'] for the next hour"</p>
 </blockquote>
 <p><strong>Checks</strong>
-- <code>busy["invalid-cal@example.com"]</code> contains an <code>error</code> entry (Calendar API errors-per-calendar)
+- <code>busy["invalid-cal@example.com"]</code> is <code>[{"calendar_id": "invalid-cal@example.com", "calendar_summary": "invalid-cal@example.com", "error": "notFound"}]</code> (or <code>"notFound (&lt;domain&gt;)"</code> if the API includes a domain) — not a bare <code>{"error": "notFound"}</code>
 - <code>busy[{CALENDAR_ID}]</code> is still populated correctly
 - Top-level response is not an error — partial results returned</p>
-<p><strong>Result (2026-09-04) ✅ PASS</strong>
-find_free_slots [SACAL, 'invalid-cal@example.com'] -&gt; busy["invalid-cal@example.com"]=[{"error":"notFound"}], busy[SACAL] still populated, top-level not an error (partial results).</p>
+<p><strong>Result (2026-09-10) ✅ PASS (re-verified under #691's richer error shape)</strong> — verified live via <code>mcp-gee-sweet-kit</code>: <code>find_free_slots([{qa-cal}, "invalid-cal@example.com"], next hour)</code> → <code>busy["invalid-cal@example.com"] == [{"calendar_id": "invalid-cal@example.com", "calendar_summary": "invalid-cal@example.com", "error": "notFound (global)"}]</code> (id-fallback summary, since the invalid id is never in the calendar list — matches <code>list_all_events</code>' behavior for a not-in-list calendar); <code>busy[{qa-cal}] == []</code> (correctly populated, empty); top-level response not an error, <code>free_slots</code> covers the full window (partial results).</p>
+<p><em>Prior run (2026-09-04), before the fix:</em> find_free_slots [SACAL, 'invalid-cal@example.com'] -&gt; busy["invalid-cal@example.com"]=[{"error":"notFound"}], busy[SACAL] still populated, top-level not an error (partial results).</p>
 <hr />
 <h3 id="tc-cal34-free_slots-covers-full-window-when-no-busy-times">TC-CAL34: free_slots covers full window when no busy times<a class="headerlink" href="#tc-cal34-free_slots-covers-full-window-when-no-busy-times" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -3353,6 +3365,15 @@ find_free_slots SACAL 2026-07-10T00:00:00Z..01:00:00Z, no events -&gt; free_slot
 - Confirms the interval merge logic in <code>find_free_slots</code></p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -&gt; busy merged to single {14:00:00Z..16:00:00Z}; free_slots {13:00-14:00Z} and {16:00-17:00Z}, no zero/negative gap between. Interval-merge confirmed. (adjacent events cleaned up)</p>
+<hr />
+<h3 id="tc-cal78-find_free_slots-error-shape-summary-fallback-and-no-extra-api-call-on-the-happy-path-issue-691-unit-test">TC-CAL78: find_free_slots error shape — summary fallback and no extra API call on the happy path (issue #691) (unit test)<a class="headerlink" href="#tc-cal78-find_free_slots-error-shape-summary-fallback-and-no-extra-api-call-on-the-happy-path-issue-691-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> two invariants of the #691 fix (TC-CAL33 covers the headline shape change) that aren't reliably distinguishable live: (1) <code>calendar_summary</code> in the error entry comes from the user's own <code>calendar_cache</code>-backed calendar list, falling back to the bare <code>calendar_id</code> only when that calendar isn't in the list — TC-CAL33's <code>invalid-cal@example.com</code> is never in the list either way, so it can't tell "summary looked up and happened to equal the id" apart from "lookup never ran"; and (2) the summary lookup is gated on at least one calendar actually erroring, so an all-readable <code>find_free_slots</code> call costs exactly one API call (the freebusy query), same as before the fix — not reliably forceable against the live API without mocking the calendar-list call to prove it was (or wasn't) made. Verified by unit test instead.</p>
+<p><strong>Checks (unit test)</strong>
+- <code>tests/test_calendar.py::TestFindFreeSlots::test_unreadable_calendar_reports_full_error_shape</code> — a calendar list containing the erroring id's real summary ("Team Cal") produces <code>busy["cal-2"] == [{"calendar_id": "cal-2", "calendar_summary": "Team Cal", "error": "notFound (global)"}]</code> — the summary is genuinely looked up, not just echoing the id.
+- <code>tests/test_calendar.py::TestFindFreeSlots::test_error_shape_summary_falls_back_to_id_when_calendar_not_in_list</code> — the same failure with the erroring id absent from the calendar list falls back to <code>calendar_summary == "cal-2"</code>.
+- <code>tests/test_calendar.py::TestFindFreeSlots::test_summary_fetch_failure_does_not_break_find_free_slots</code> — a calendar-list fetch that itself raises still returns the error entry (id-fallback summary), proving the best-effort lookup can never turn a working <code>find_free_slots</code> call into a failing one.
+- <code>tests/test_calendar.py::TestFindFreeSlots::test_all_readable_path_never_fetches_the_calendar_list</code> — with every calendar readable, <code>calendar_cache.get_list</code> and <code>calendarList().list()</code> are both asserted not called — the happy path stays a single API call.</p>
+<p><strong>Result (2026-09-10) ✅ PASS</strong> — <code>tests/test_calendar.py -k TestFindFreeSlots</code> — 9 passed, including all 4 cited cases. <code>/code-review high origin/develop...HEAD</code> surfaced 2 non-blocking findings, neither exercised by these invariants: <code>summary_by_id</code>'s <code>c.get("summary") or c["id"]</code> (this fix) falls back to the id on a falsy <em>or empty-string</em> summary, while <code>list_all_events</code>' equivalent (<code>calendar.py:981</code>) only falls back on a <em>missing</em> key — a calendar with a genuinely empty-string <code>summary</code> would report differently between the two tools, contradicting the docstring's "same shape" claim for that edge case; and the id→summary lookup is duplicated rather than shared between the two tools. Neither affects correctness for a real (non-empty-string) summary. Filed as follow-up #726.</p>
 <hr />
 <h2 id="create_event-recurrence-support"><code>create_event</code> — recurrence support<a class="headerlink" href="#create_event-recurrence-support" title="Permanent link">&para;</a></h2>
 <h3 id="tc-cal36-create-a-weekly-recurring-event-destructive">TC-CAL36: Create a weekly recurring event ⚠️ destructive<a class="headerlink" href="#tc-cal36-create-a-weekly-recurring-event-destructive" title="Permanent link">&para;</a></h3>
