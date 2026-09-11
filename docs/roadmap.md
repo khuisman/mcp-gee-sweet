@@ -206,6 +206,61 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] `create_spreadsheet`/`import_csv_to_sheet` response has no web link, unlike sibling create/copy tools — enhancement or fix TC-D01's expectation instead, still open. Found in the v0.9.0 QA pass ([#693](https://github.com/khuisman/mcp-gee-sweet/issues/693))
 - [x] PyPI project page drops the logo — README `<img src>` is a relative path, which PyPI's `readme_renderer` strips. Found on the published v0.9.0 page (PR #707) ([#706](https://github.com/khuisman/mcp-gee-sweet/issues/706))
 
+**Sheets hardening** _(triaged out of `backlog` 2026-09-11 — see the "Backlog triage" note below)_
+- [ ] `update_sheet_properties`/dimension-tool hardening + dedup follow-ups from PR #321's review ([#323](https://github.com/khuisman/mcp-gee-sweet/issues/323))
+- [ ] `update_borders` hardening + dedup follow-ups from PR #325's review ([#330](https://github.com/khuisman/mcp-gee-sweet/issues/330))
+- [ ] No tool clears a data validation rule, and no tool exposes a range's numeric `sheetId` ([#365](https://github.com/khuisman/mcp-gee-sweet/issues/365))
+- [ ] `add_data_validation`: validate the `values` count/shape against `condition_type` before the API call ([#366](https://github.com/khuisman/mcp-gee-sweet/issues/366))
+- [ ] Dedupe `_get_sheet_id`/`_get_sheet_index` lookup logic; add happy-path test coverage ([#442](https://github.com/khuisman/mcp-gee-sweet/issues/442))
+
+**Docs hardening & dedup** _(triaged out of `backlog` 2026-09-11)_
+- [ ] `html_parser.py`: readability + reset-consistency nits in `_emit_block_node`/`_block_had_unsupported_content` ([#417](https://github.com/khuisman/mcp-gee-sweet/issues/417))
+- [ ] `emitter.py`: non-blocking cleanup findings from PR #432's nested-bullet review ([#434](https://github.com/khuisman/mcp-gee-sweet/issues/434))
+- [ ] `html_parser`: a resumed block's genuine trailing `&nbsp;` is still silently dropped after #402's fix ([#444](https://github.com/khuisman/mcp-gee-sweet/issues/444))
+- [ ] `docs/style.py`/`docs/content.py`: no shared helper for the "omit key but keep field mask" link-clear pattern ([#448](https://github.com/khuisman/mcp-gee-sweet/issues/448))
+- [ ] `html_parser`: merge identical `ol`/`ul` close-tag branches in `handle_endtag` ([#451](https://github.com/khuisman/mcp-gee-sweet/issues/451))
+- [ ] Heading-anchor resolution (#409): minor duplication/efficiency cleanups in `anchors.py`/`content.py` ([#454](https://github.com/khuisman/mcp-gee-sweet/issues/454))
+- [ ] `insert_local_images`/`create_doc`: image alt text is parsed but never used ([#508](https://github.com/khuisman/mcp-gee-sweet/issues/508))
+- [ ] `content.py`: image-fetch-failure retry mechanism is fragile, resends the whole document per bad image ([#510](https://github.com/khuisman/mcp-gee-sweet/issues/510))
+- [ ] `content.py`: duplicated image upload/share/revoke logic across `create_doc` and `insert_local_images`, plus an avoidable extra Drive round trip ([#511](https://github.com/khuisman/mcp-gee-sweet/issues/511))
+- [ ] `docs/images.py` oversized-image handling: duplicated logic + unneeded full pixel decode (#400 follow-up) ([#560](https://github.com/khuisman/mcp-gee-sweet/issues/560))
+- [ ] `content.py`: `update_doc_from_file` duplicates `create_doc_from_file`'s file-reading logic; `_replace_doc_content` has a wide positional-bool signature ([#567](https://github.com/khuisman/mcp-gee-sweet/issues/567))
+- [ ] Inline-image size validation: shrink-loop postcondition, check-order inconsistency, unguarded size parsing (#562 follow-up) ([#581](https://github.com/khuisman/mcp-gee-sweet/issues/581))
+- [ ] `doc_to_ast.py` duplicates `style.py`'s glyph-inference and color-extraction logic ([#596](https://github.com/khuisman/mcp-gee-sweet/issues/596))
+- [ ] `ast_to_markdown.py`: image-render duplication + falsy-based code-block buffer flush ([#600](https://github.com/khuisman/mcp-gee-sweet/issues/600))
+- [ ] `html_parser.py` `handle_data`: a SIM114 lint merge conflates two structurally distinct buffering triggers ([#638](https://github.com/khuisman/mcp-gee-sweet/issues/638))
+- [ ] Docs image-sharing failure paths: unrevocable `anyone:reader` grant + missing folder-cache invalidation in `_replace_doc_content` ([#666](https://github.com/khuisman/mcp-gee-sweet/issues/666))
+- [ ] Docstrings: `create_paragraph_bullets` carries internal API-quirk mechanics plus residual bare issue refs in `style.py` tool docstrings ([#683](https://github.com/khuisman/mcp-gee-sweet/issues/683))
+- [ ] `TestIsolatedDepthRunGlyph` asserts request shape, not rendered nesting outcome (PR #711) ([#715](https://github.com/khuisman/mcp-gee-sweet/issues/715))
+- [ ] `style_doc_range` has no `font_family` parameter — can't apply monospace to an existing range ([#720](https://github.com/khuisman/mcp-gee-sweet/issues/720))
+- [ ] Extract a shared helper for the isolated-bullet-run zero-tab anchor mechanic (`emitter.py` ↔ `style.py`); harden its regression test (`lane-a`) ([#727](https://github.com/khuisman/mcp-gee-sweet/issues/727))
+
+**Drive hardening & dedup** _(triaged out of `backlog` 2026-09-11)_
+- [ ] `download_folder`/`sync_folder` progress notifications: report bytes transferred, not just file count ([#352](https://github.com/khuisman/mcp-gee-sweet/issues/352))
+- [ ] Unify the two progress-counter idioms in `transfer.py` (nonlocal vs. list-box) ([#354](https://github.com/khuisman/mcp-gee-sweet/issues/354))
+- [ ] Extend notifications/progress to the remaining `asyncio.gather`-based multi-call tools ([#355](https://github.com/khuisman/mcp-gee-sweet/issues/355))
+- [ ] Expose starred state via `get_file_metadata`/`list_files` — `star_file`/`unstar_file` (#139) set it but nothing reads it back ([#388](https://github.com/khuisman/mcp-gee-sweet/issues/388))
+- [ ] `drive`: consolidate `convert_markdown`'s duplicated matching/messaging logic in `transfer.py` (PR #414 follow-up) ([#424](https://github.com/khuisman/mcp-gee-sweet/issues/424))
+- [ ] `sync_folder`: `is_workspace` recomputed inline in the `use_checksum` block instead of reusing `drive_map`'s stashed value ([#474](https://github.com/khuisman/mcp-gee-sweet/issues/474))
+- [ ] `upload_local_folder`: `convert` skip logic has a duplicate-name edge case + logic duplication vs. `_upload_local_file` ([#514](https://github.com/khuisman/mcp-gee-sweet/issues/514))
+- [ ] `sync_folder`: `actions` list built unconditionally even when `dry_run=False` ([#521](https://github.com/khuisman/mcp-gee-sweet/issues/521))
+- [ ] Extend the `_GOOGLE_DOC_MIME` sweep to remaining hardcoded-literal and comparison sites (#412 follow-up) ([#544](https://github.com/khuisman/mcp-gee-sweet/issues/544))
+- [ ] `refactor(drive)`: dedupe `mime_type` quote-escaping and list-files response mapping in `files.py` ([#578](https://github.com/khuisman/mcp-gee-sweet/issues/578))
+- [ ] `list_folders`/`list_spreadsheets` no-parent + no-`DRIVE_FOLDER_ID` path is unbounded across all drives, no `max_results` (`lane-a`) ([#718](https://github.com/khuisman/mcp-gee-sweet/issues/718))
+
+**Calendar hardening** _(triaged out of `backlog` 2026-09-11)_
+- [ ] `list_calendar_acl` pagination fix (#460) needs a response-size cap, loop safety bound, and partial-failure handling ([#615](https://github.com/khuisman/mcp-gee-sweet/issues/615))
+- [ ] `list_all_events` concurrency cap: per-invocation only, no env override ([#626](https://github.com/khuisman/mcp-gee-sweet/issues/626))
+- [ ] `_shape_event`: `get_event` still duplicates it, no null-guard, no kwarg-collision guard ([#627](https://github.com/khuisman/mcp-gee-sweet/issues/627))
+
+**Testing** _(triaged out of `backlog` 2026-09-11)_
+- [ ] Duplicate fake-Sheets-service test scaffolding in `test_helpers.py` ([#392](https://github.com/khuisman/mcp-gee-sweet/issues/392))
+- [ ] Add unit test coverage for `sync_folder`'s SA-limitations caveat text ([#526](https://github.com/khuisman/mcp-gee-sweet/issues/526))
+- [ ] `test`: strengthen `download_file` unit test assertions (metadata call signature, export str-fallback) ([#551](https://github.com/khuisman/mcp-gee-sweet/issues/551))
+- [ ] `test(drive)`: dedupe `skip_if_exists` companion-test boilerplate in `test_transfer.py` ([#561](https://github.com/khuisman/mcp-gee-sweet/issues/561))
+- [ ] `qa`: `search_files` has no unit test coverage for the error-dict path ([#573](https://github.com/khuisman/mcp-gee-sweet/issues/573))
+- [ ] `test`: brittle exact-equality assertion in `test_api_error_returns_error_dict_not_raised` (`test_files.py`) ([#574](https://github.com/khuisman/mcp-gee-sweet/issues/574))
+
 **Infrastructure**
 - [ ] Interaction-log middleware for tool calls — structured, append-only JSONL log per call (inputs, duration, cache hit, error), opt-in ID redaction, swappable backend ([#646](https://github.com/khuisman/mcp-gee-sweet/issues/646))
 - [ ] Automated tooling for dependency-bump security review — today's manual skim can miss a well-disguised supply-chain compromise ([#520](https://github.com/khuisman/mcp-gee-sweet/issues/520))
@@ -217,6 +272,9 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] `/release` + `prep-for-pr` backstop checks for README render breakage on PyPI — the human-facing companion to #708's CI guard, routed to Bob ([#709](https://github.com/khuisman/mcp-gee-sweet/issues/709))
 - [ ] `supportsAllDrives=True` is hand-inlined at ~58 Drive call sites — retrofitted twice now (#687 plus its own original miss); wants a shared wrapper or lint guard so a new call site can't omit it ([#696](https://github.com/khuisman/mcp-gee-sweet/issues/696))
 - [ ] Extract a shared `_BaseCache` helper for the `rows_fetched` sufficiency check + epoch-guarded store — #688's fix copy-pasted the pattern into `DriveFolderCache` instead, and the epoch guard is still missing there ([#698](https://github.com/khuisman/mcp-gee-sweet/issues/698))
+- [ ] `_SA_LIMITATIONS` (`server.py`) hygiene: no registry tying restricted tools to entries, redundant per-call flatten, duplicated alternatives text — triaged out of `backlog` 2026-09-11 ([#517](https://github.com/khuisman/mcp-gee-sweet/issues/517))
+- [ ] `server.json`/`test_server_json.py`: minor hardening findings from PR #603's review — triaged out of `backlog` 2026-09-11 ([#607](https://github.com/khuisman/mcp-gee-sweet/issues/607))
+- [ ] Restore the explanatory comment for the `annotations=None` stub param in `gen_tool_docs.py` — triaged out of `backlog` 2026-09-11 ([#637](https://github.com/khuisman/mcp-gee-sweet/issues/637))
 
 **QA & docs** _(moved out of v0.9.0 2026-09-02 so they don't gate the release; see [#629](https://github.com/khuisman/mcp-gee-sweet/issues/629), closed)_
 - [ ] Domain and public sharing tests (TC-D135–D139) — decision landed 2026-09-02: provision a real non-Google test email for external-share coverage; the `type=anyone` public-link tests stay unresolved (exposure risk not yet accepted) ([#49](https://github.com/khuisman/mcp-gee-sweet/issues/49))
@@ -227,6 +285,11 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] QA `.env` has no single source of truth — `setup_team.sh` only copies `.env` into a worktree when absent, so fixture-ID changes never propagate (had to hand-sync 9 copies for #305); also `run.md` vs `setup.md` disagree on `docs/qa/.env` vs repo-root `.env`. Surfaced by PR #677, relates to [#648](https://github.com/khuisman/mcp-gee-sweet/issues/648) ([#679](https://github.com/khuisman/mcp-gee-sweet/issues/679))
 - [ ] `list_files`/`get_file_metadata` docstrings cite a stale `upload_local_file` `modifiedTime` caveat (fixed at the root by PR #472) and carry a broken self-referential contrast — from Bob's `docs/tools.md` docstring sweep; Dev/QA track, batches with #682/#683 ([#681](https://github.com/khuisman/mcp-gee-sweet/issues/681))
 - [ ] `create_doc` family docstrings name only the ~25MP inline-image limit; the ~50MB byte-size limit (#562) is equally enforced, and 3 deferring docstrings inherit the gap — from Bob's `docs/tools.md` docstring sweep ([#682](https://github.com/khuisman/mcp-gee-sweet/issues/682))
+- [ ] `qa(docs)`: no comprehensive fixture exercising every Docs formatting construct in one pass — Aziz, triaged out of `backlog` 2026-09-11 ([#477](https://github.com/khuisman/mcp-gee-sweet/issues/477))
+- [ ] Fact-check and word competitive/benchmark claims once real benchmark numbers exist — routed to Amy, triaged out of `backlog` 2026-09-11 ([#585](https://github.com/khuisman/mcp-gee-sweet/issues/585))
+- [ ] QA test-doc cross-reference cleanup after the `drive.md`/`docs.md` split (PR #582) — triaged out of `backlog` 2026-09-11 ([#590](https://github.com/khuisman/mcp-gee-sweet/issues/590))
+
+**Backlog triage, 2026-09-11 (Kai orchestrator session):** open issues were growing ~2:1 against closures (37 opened vs. 20 closed over the prior 14 days); the 60 issues sitting in unscheduled `backlog` with no version were the other half of that — filed as legitimate findings, never given a real release slot. Retriaged all 60 into actual tiers rather than pruning them: everything fixing/hardening/testing already-shipped functionality went into this v0.9.1 release (the sections above marked "triaged out of `backlog`"), one comments-API cleanup went to v0.9.2 (below, since it overlaps that release's own comments-generalization work), and net-new capabilities that were never started went to Tier 3 (v1.0) or a new lighter-weight tier below Tier 3 (v1.1+) based on scope — see those sections. `backlog` (no version) is now empty; going forward, an issue either has a version or gets triaged promptly, it doesn't accumulate unversioned.
 
 ### v0.9.2 — Comments as a first-class, cross-suite capability _(target: [v0.9.2](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2), before Tier 3 begins)_
 
@@ -238,6 +301,7 @@ Follows the design in [`docs/decisions/decision-comments-first-class.md`](decisi
 - [ ] Full `comments`/`replies` CRUD parity — `get`/`update`/`delete` for comments; plain `reply`/`reopen`/`update`/`delete`/`list` for replies. Depends on #663. ([#664](https://github.com/khuisman/mcp-gee-sweet/issues/664))
 - [ ] Fix the stale Tier 4 "zero comment tooling on Docs today" line; close or re-scope #142 (asks for what #151 already shipped under different naming). ([#662](https://github.com/khuisman/mcp-gee-sweet/issues/662))
 - [ ] **Decision needed:** deprecate `share_spreadsheet` in favor of `share_file` (a strict superset over the same `permissions()` resource), or keep both and document why. Same pattern as #151/#142, with a longer compatibility tail. ([#665](https://github.com/khuisman/mcp-gee-sweet/issues/665))
+- [ ] Follow-up cleanup for the docs comments API (`add_doc_comment`/`resolve_doc_comment`/`list_doc_comments`) — same surface #663/#664 generalize, do it there rather than twice; triaged out of `backlog` 2026-09-11 ([#329](https://github.com/khuisman/mcp-gee-sweet/issues/329))
 
 **Code structure & typing (Joy)** _(slotted into v0.9.2 2026-09-09 so Joy's architecture initiative carries release deadlines instead of staying open-ended)_
 
@@ -253,6 +317,9 @@ Follows the design in [`docs/decisions/decision-comments-first-class.md`](decisi
 - [ ] `add_named_range` / `delete_named_range` ([#130](https://github.com/khuisman/mcp-gee-sweet/issues/130)) _(piotr-agier/google-drive-mcp)_
 - [ ] `protect_sheet` / `protect_range` — lock a sheet or range against edits ([#128](https://github.com/khuisman/mcp-gee-sweet/issues/128)) _(piotr-agier/google-drive-mcp)_
 - [ ] `set_basic_filter` / `clear_basic_filter` — toggle autofilter on a range ([#196](https://github.com/khuisman/mcp-gee-sweet/issues/196)) _(freema/mcp-gsheets)_
+- [ ] `get_sheet_dimensions` — read column widths, row heights, frozen counts; triaged out of `backlog` 2026-09-11 ([#132](https://github.com/khuisman/mcp-gee-sweet/issues/132)) _(freema/mcp-gsheets)_
+- [ ] `add_note` / `clear_note` — cell notes (distinct from comments); triaged out of `backlog` 2026-09-11 ([#131](https://github.com/khuisman/mcp-gee-sweet/issues/131)) _(freema/mcp-gsheets)_
+- [ ] Developer metadata — key-value metadata attached to rows, columns, or ranges; triaged out of `backlog` 2026-09-11 ([#134](https://github.com/khuisman/mcp-gee-sweet/issues/134))
 
 **Calendar**
 - [ ] `quick_add` — create an event from a natural language string ([#159](https://github.com/khuisman/mcp-gee-sweet/issues/159))
@@ -260,11 +327,14 @@ Follows the design in [`docs/decisions/decision-comments-first-class.md`](decisi
 - [ ] Conference data — auto-create Google Meet link ([#161](https://github.com/khuisman/mcp-gee-sweet/issues/161))
 - [ ] Event attachments — link Drive files to events ([#162](https://github.com/khuisman/mcp-gee-sweet/issues/162))
 - [ ] Reminders — per-event override reminders (email, popup, minutes before) ([#163](https://github.com/khuisman/mcp-gee-sweet/issues/163))
+- [ ] Working location / OOO / Focus time events; triaged out of `backlog` 2026-09-11 ([#164](https://github.com/khuisman/mcp-gee-sweet/issues/164))
 
 **Docs**
 - [ ] `create_footnote` — footnote at a run index ([#149](https://github.com/khuisman/mcp-gee-sweet/issues/149))
 - [ ] `create_table_of_contents` ([#153](https://github.com/khuisman/mcp-gee-sweet/issues/153))
 - [ ] `insert_section_break` — section breaks for per-section column/margin layout ([#154](https://github.com/khuisman/mcp-gee-sweet/issues/154))
+- [ ] Raw `batchUpdate` passthrough for Docs (escape hatch, mirroring Sheets' `batch_update`); triaged out of `backlog` 2026-09-11 ([#339](https://github.com/khuisman/mcp-gee-sweet/issues/339))
+- [ ] Read/list/delete tools for named ranges (asymmetric with existing `create_named_range`); triaged out of `backlog` 2026-09-11 ([#340](https://github.com/khuisman/mcp-gee-sweet/issues/340))
 
 **Drive**
 - [ ] File comments — list and add comments on Drive files ([#142](https://github.com/khuisman/mcp-gee-sweet/issues/142))
@@ -272,13 +342,17 @@ Follows the design in [`docs/decisions/decision-comments-first-class.md`](decisi
 - [ ] Labels API — custom metadata labels on Drive files ([#144](https://github.com/khuisman/mcp-gee-sweet/issues/144))
 - [ ] `empty_trash` — optional fan-out across all accessible Shared Drives in one call, instead of one call per drive; considered and deliberately deferred during #386's review ([#389](https://github.com/khuisman/mcp-gee-sweet/issues/389))
 
+### Tier 3.5 — Planned but bigger-lift _(target: [v1.1+](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22v1.1%2B%22))_
+
+Net-new capabilities substantial enough (new subsystem, external infra like webhooks) to warrant their own design pass rather than a single PR — later than Tier 3, still a real target rather than an indefinitely-parked wishlist item.
+
+- [ ] Pivot tables — create and update pivot table specs via batchUpdate; triaged out of `backlog` 2026-09-11 ([#133](https://github.com/khuisman/mcp-gee-sweet/issues/133))
+- [ ] Calendar watch notifications — webhook push on calendar or event changes; triaged out of `backlog` 2026-09-11 ([#165](https://github.com/khuisman/mcp-gee-sweet/issues/165))
+- [ ] `get_doc_as_markdown`: parallelize doc fetch and comments fetch ([#595](https://github.com/khuisman/mcp-gee-sweet/issues/595))
+
 ### Tier 4 — Nice to have / niche _(no assigned version)_
 
 **Sheets**
-- [ ] `get_sheet_dimensions` — read column widths, row heights, frozen counts ([#132](https://github.com/khuisman/mcp-gee-sweet/issues/132)) _(freema/mcp-gsheets)_
-- [ ] `add_note` / `clear_note` — cell notes (distinct from comments) ([#131](https://github.com/khuisman/mcp-gee-sweet/issues/131)) _(freema/mcp-gsheets)_
-- [ ] Pivot tables — create and update pivot table specs via batchUpdate ([#133](https://github.com/khuisman/mcp-gee-sweet/issues/133))
-- [ ] Developer metadata — key-value metadata attached to rows, columns, or ranges ([#134](https://github.com/khuisman/mcp-gee-sweet/issues/134))
 - [ ] Sheet comments and cell notes (add/get/list/reply/resolve/delete) — we have zero comment tooling on Sheets today _(a-bonus/google-docs-mcp)_
 - [ ] Conditional formatting rules — add/get/delete _(a-bonus/google-docs-mcp)_
 - [ ] Protected ranges — protect/unprotect a range _(a-bonus/google-docs-mcp)_
@@ -298,10 +372,6 @@ Follows the design in [`docs/decisions/decision-comments-first-class.md`](decisi
 - [ ] Table structure discovery and cloning (read a table's row/column structure; clone an existing table) _(a-bonus/google-docs-mcp)_
 - [ ] Finer-grained table styling — per-border, per-column-width, per-row-height table styling beyond what `style_doc_table_cells` currently exposes _(a-bonus/google-docs-mcp)_
 - [ ] Footnote management _(piotr-agier/google-drive-mcp)_
-
-**Calendar**
-- [ ] Working location / OOO / Focus time events ([#164](https://github.com/khuisman/mcp-gee-sweet/issues/164))
-- [ ] Watch notifications — webhook push on calendar or event changes ([#165](https://github.com/khuisman/mcp-gee-sweet/issues/165))
 
 **Infrastructure**
 - [x] `notifications/progress` feedback for long-running transfer calls (`download_folder`, `sync_folder`) — no tool uses MCP progress reporting today, would establish a new pattern; split from #316 (PR #351) ([#319](https://github.com/khuisman/mcp-gee-sweet/issues/319))
