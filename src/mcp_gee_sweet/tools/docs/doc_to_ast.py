@@ -26,6 +26,7 @@ from .ast import (
     Table,
 )
 from .emitter import _BLOCKQUOTE_INDENT_PT_PER_LEVEL
+from .indices import decode_code_run_text
 
 _HEADING_LEVELS = {f"HEADING_{i}": i for i in range(1, 7)}
 
@@ -146,13 +147,7 @@ def _text_run_to_run(text: str, ts: dict) -> Run:
     fg = ts.get("foregroundColor", {}).get("color", {}).get("rgbColor")
     bg = ts.get("backgroundColor", {}).get("color", {}).get("rgbColor")
     baseline = ts.get("baselineOffset")
-    font_family = ts.get("weightedFontFamily", {}).get("fontFamily")
-    if font_family == "Courier New":
-        # Reverses emitter.py's write-side "\n" -> "\v" substitution for a
-        # multi-line fenced code block (issue #719) — a code-styled run is the
-        # only place that substitution is ever applied, so it's safe to reverse
-        # unconditionally here without misinterpreting an unrelated soft break.
-        text = text.replace("\v", "\n")
+    text = decode_code_run_text(text, ts)
     return Run(
         text=text,
         bold=ts.get("bold"),
@@ -162,7 +157,7 @@ def _text_run_to_run(text: str, ts: dict) -> Run:
         link_url=link.get("url") if link else None,
         font_size=ts.get("fontSize", {}).get("magnitude"),
         foreground_color=_rgb_color(fg),
-        font_family=font_family,
+        font_family=ts.get("weightedFontFamily", {}).get("fontFamily"),
         background_color=_rgb_color(bg),
         baseline_offset=baseline if baseline not in (None, "NONE") else None,
         small_caps=ts.get("smallCaps"),

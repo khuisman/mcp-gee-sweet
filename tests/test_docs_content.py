@@ -2049,6 +2049,74 @@ class TestGetDocStructureBullet:
         assert result["elements"][0]["bullet"] == {"listId": "list1", "nestingLevel": 0}
 
 
+class TestGetDocStructureCodeBlockSoftBreak:
+    """#731 (found in QA on #719's own PR): get_doc_structure built its text
+    straight off the raw Docs API response with no reversal for emitter.py's
+    "\\n" -> "\\v" substitution on a code-styled paragraph, leaking a literal
+    "\\v" (U+000B) instead of restoring the original newline."""
+
+    def _ctx(self, docs_svc):
+        return _make_ctx(docs_service=docs_svc)
+
+    async def test_courier_new_paragraph_soft_breaks_restored_to_newlines(self):
+        style = {"weightedFontFamily": {"fontFamily": "Courier New"}}
+        para = {
+            "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
+            "elements": [{"textRun": {"content": "line1\vline2\vline3\n", "textStyle": style}}],
+        }
+        doc = {
+            "documentId": "doc1",
+            "title": "Doc",
+            "body": {"content": [{"startIndex": 1, "endIndex": 20, "paragraph": para}]},
+        }
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = doc
+
+        result = await _docs_tools["get_doc_structure"](doc_id="doc1", ctx=self._ctx(docs_svc))
+
+        elem = result["elements"][0]
+        assert "\v" not in elem["text"]
+        assert elem["text"] == "line1\nline2\nline3\n"
+        assert elem["runs"][0]["text"] == "line1\nline2\nline3\n"
+
+    async def test_table_cell_courier_new_soft_breaks_restored_to_newlines(self):
+        style = {"weightedFontFamily": {"fontFamily": "Courier New"}}
+        cell = {
+            "startIndex": 5,
+            "endIndex": 20,
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {"textRun": {"content": "a\vb\n", "textStyle": style}},
+                        ]
+                    }
+                }
+            ],
+        }
+        doc = {
+            "documentId": "doc1",
+            "title": "Doc",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 30,
+                        "table": {"tableRows": [{"tableCells": [cell]}]},
+                    }
+                ]
+            },
+        }
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = doc
+
+        result = await _docs_tools["get_doc_structure"](doc_id="doc1", ctx=self._ctx(docs_svc))
+
+        cell_result = result["elements"][0]["cells"][0]
+        assert "\v" not in cell_result["text"]
+        assert cell_result["text"] == "a\nb"
+
+
 # ---------------------------------------------------------------------------
 # Heading-anchor resolution (#409): _has_pending_anchor_links,
 # _resolve_heading_anchors, and end-to-end via create_doc_from_file.
@@ -2655,6 +2723,29 @@ class TestFindInDoc:
         result = await _docs_tools["find_in_doc"](doc_id="missing", query="x", ctx=ctx)
 
         assert "error" in result
+
+    async def test_courier_new_paragraph_soft_breaks_restored_to_newlines(self):
+        # #731 (found in QA on #719's own PR): _collect_doc_paragraphs (which
+        # find_in_doc uses) yielded a Courier-New run's content unmodified —
+        # a multi-line code block written by #719's fix leaked a literal "\v"
+        # (U+000B) into matched_text/context instead of the original "\n".
+        style = {"weightedFontFamily": {"fontFamily": "Courier New"}}
+        para = {
+            "elements": [
+                {
+                    "startIndex": 1,
+                    "textRun": {"content": "line1\vneedle\vline3\n", "textStyle": style},
+                }
+            ]
+        }
+        doc = {"body": {"content": [{"startIndex": 1, "endIndex": 19, "paragraph": para}]}}
+        ctx = self._ctx(self._docs_svc(doc))
+
+        results = await _docs_tools["find_in_doc"](doc_id="doc1", query="needle", ctx=ctx)
+
+        assert len(results) == 1
+        assert "\v" not in results[0]["context"]
+        assert results[0]["context"] == "line1\nneedle\nline3"
 
     async def test_match_offset_after_astral_character_is_utf16_correct(self):
         # Regression: offsets used to be computed via enumerate() over Python

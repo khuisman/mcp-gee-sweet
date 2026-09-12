@@ -9,6 +9,22 @@ def utf16_len(text: str) -> int:
     return sum(2 if ord(char) > 0xFFFF else 1 for char in text)
 
 
+def decode_code_run_text(content: str, text_style: dict[str, Any]) -> str:
+    """Reverse emitter.py's write-side "\\n" -> "\\v" substitution for a
+    multi-line fenced code block's *internal* line breaks (issue #719).
+
+    Every site that reads a textRun's own content straight off the raw
+    Docs API response needs this, not just doc_to_ast.py's own read path —
+    get_doc_structure and find_in_doc build their text the same way and
+    would otherwise leak a literal "\\v" (U+000B) with nothing indicating
+    why (issue #731). Scoped to a Courier-New-styled run specifically, the
+    only place the substitution is ever written, so it can't misinterpret
+    an unrelated genuine soft break from insert_softbreak_paragraph."""
+    if text_style.get("weightedFontFamily", {}).get("fontFamily") == "Courier New":
+        return content.replace("\v", "\n")
+    return content
+
+
 def _collect_doc_paragraphs(content: list[dict[str, Any]]) -> Iterator[tuple[str, list[int]]]:
     """Walk document body content, recursing into table cells, yielding each
     paragraph's text paired with a parallel list of document character indices
@@ -39,7 +55,7 @@ def _collect_doc_paragraphs(content: list[dict[str, Any]]) -> Iterator[tuple[str
                     offset = start
                 tr = pe.get("textRun")
                 if tr and tr.get("content"):
-                    run_text = tr["content"]
+                    run_text = decode_code_run_text(tr["content"], tr.get("textStyle", {}))
                     text_parts.append(run_text)
                     for ch in run_text:
                         indices.append(offset)
