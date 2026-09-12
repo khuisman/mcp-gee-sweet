@@ -54,6 +54,43 @@ inside another table's cell.
 
 ---
 
+### A bare `-` line is never recognized as an empty list item
+
+**What:** In Markdown input, a line containing only `-` (optionally with trailing whitespace) is
+never recognized as an empty list item, regardless of indentation. What happens instead depends
+on what precedes it:
+
+1. **As the first line of a would-be list** (e.g. right after a heading, as in the
+   `tc-doc106-nested-lists-4space.md` fixture's Case 2 — a bare `-` meant to hold only a nested
+   sub-list): the whole block, including the following well-formed list-item lines, collapses
+   into a single plain paragraph of literal text. No list is produced at all.
+   `"-\n- item two\n- item three\n"` → `<p>-\n- item two\n- item three</p>`.
+2. **Immediately following a text line** (e.g. `"- item one\n-\n- item three\n"`): it's instead
+   consumed together with the preceding line as a Setext-style H2 heading, since a line of only
+   `-` characters is also CommonMark/Setext heading-underline syntax. Renders
+   `<h2>- item one</h2>` followed by a list containing only `"item three"` — the first item's
+   bullet and the empty second item are both silently lost.
+
+**Why:** This is a Python `markdown` library parsing-priority issue, not something this
+project's own HTML→AST pipeline controls. The list-item regex (`sane_lists` and core alike)
+requires a marker *and* a space *and* content (`"- "` + text) to recognize a line as a list item
+— a bare `-` with nothing after it never matches, so it falls through to whatever else can claim
+the line: ordinary paragraph continuation (case 1) or the core block processor's Setext-heading
+check, which runs before list-continuation logic gets a chance to treat the line as a (would-be
+empty) list item (case 2). This fires regardless of indentation and is distinct from the
+already-documented `sane_lists` indentation-threshold bug (see `docs/design/markdown-support.md`
+and the TC-DOC105/TC-DOC106 fixtures) — that bug is about sub-list nesting depth, not this
+marker-recognition gap. Working around this by changing how bare markers or Setext headings are
+parsed would change behavior for every other document using either construct, a much larger and
+riskier change than this narrow, low-frequency edge case (an intentionally empty list item)
+warrants.
+
+**Workaround:** Give the list item a non-breaking space instead of a bare `-` (i.e. `- ` followed
+by U+00A0) — python-markdown parses this as an ordinary, genuinely empty list item (`<li></li>`)
+in both contexts above. Confirmed live via `_md_to_html`. Related: #692.
+
+---
+
 ### `get_doc_as_markdown` — nested tables, temporary image URLs, and inline-vs-block code ambiguity
 
 **What:** `get_doc_as_markdown` (#300) has three read-side gaps, each rooted in a genuine
