@@ -3520,3 +3520,19 @@ Extra probes run live (fresh scratch docs, trashed after) to check the code-revi
 - Blockquote wrapping an isolated run → **both** items keep `borderLeft` + `indentStart` (blockquote style not stripped from the first item).
 - Isolated run immediately followed by a `<table>` → table lands at the same index it would with an ordinary depth-0-anchored run (anchor insert/delete are position-neutral).
 - `min_depth == 2` isolated run (`<ul><li><ul><li><ul><li>D2a</li>…`) → renders at absolute `nestingLevel 2` (square glyph, 108pt indent), i.e. two indent tiers with no visible parents. This is a deliberate behavior change from the pre-#711 prose ("still renders correctly one level deep") — arguably more faithful, but only `min_depth == 1` is exercised by the checks above; flagged non-blocking in the PR comment.
+
+---
+
+### TC-DOC191: A multi-line fenced code block stays one Docs paragraph, and round-trips as one fence (#719) ⚠️ requires-oauth
+
+**Background:** A markdown fenced code block with more than one line (`` ``` `` + N lines + `` ``` ``) converts to one `Paragraph` AST node whose `Run` text legitimately contains embedded `"\n"` characters — but the Docs API treats every `"\n"` in inserted text as a new paragraph boundary, so the block used to silently fragment into one `NORMAL_TEXT` paragraph per line. Creation itself still applied `Courier New` correctly to every fragment (confirmed live pre-fix via a raw `documents().get()`), but `get_doc_as_markdown`'s round-trip then re-rendered each fragment as its own separate one-line fence instead of one — reproducing identically for a plain (non-HTML) multi-line code block, not just the HTML-tag content the issue was originally filed against. Fixed by writing the block's internal line breaks as `"\v"` (the same soft-break convention `insert_softbreak_paragraph` already uses) instead of `"\n"`, with a matching reversal on the read side for any `Courier New`-styled run.
+
+**Setup:** `create_doc(title="TC-DOC191", content_format="markdown", content="Some text before.\n\n\`\`\`\n<ul>\n  <li>\n    <ul>\n      <li>Item D2a</li>\n    </ul>\n  </li>\n</ul>\n\`\`\`\n\nSome text after.")`
+
+**Checks**
+- `get_doc_structure({DOC_ID})` shows exactly **3** body paragraphs (plus the trailing empty one) — "Some text before.", one paragraph holding the entire multi-line `<ul>…</ul>` block, "Some text after." — not one paragraph per code line (8 separate `NORMAL_TEXT` paragraphs would mean the fragmentation bug is back)
+- `get_doc_as_markdown({DOC_ID})` returns the code content as **one** fenced block (`` ``` `` … `` ``` ``) containing all the original lines with their indentation intact — not multiple separate one-line fences
+- Repeat with a plain (non-HTML) multi-line code block — `content="\`\`\`\ndef foo():\n    return 1\n\`\`\`"` — same shape: 1 Docs paragraph, 1 fence back, confirming the fix isn't scoped to HTML-tag content specifically
+- A single-line fenced block (`` ``` ``\nx = 1\n`` ``` ``) is unaffected — still 1 paragraph, 1 fence back (no embedded `"\n"` to substitute)
+
+**Cleanup:** `delete_file({DOC_ID}, permanent=true)` — a scratch doc created solely for this test, not a shared fixture.

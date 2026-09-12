@@ -983,6 +983,24 @@ class TestToDocRequestsMarkdown:
         ]
         assert len(font_reqs) >= 1
 
+    async def test_markdown_multiline_fenced_code_uses_soft_breaks_not_newlines(self):
+        # #719: the Docs API treats every "\n" in inserted text as a new
+        # paragraph boundary, so a multi-line fenced code block's *internal*
+        # line breaks must be written as "\v" (soft break) instead — this is
+        # what keeps the whole block as one Docs paragraph rather than
+        # fragmenting it into one NORMAL_TEXT paragraph per line.
+        requests, _ = _to_doc_requests("```\nline1\nline2\nline3\n```\n", "markdown")
+        insert = next(r for r in requests if "insertText" in r)
+        text = insert["insertText"]["text"]
+        assert text == "line1\vline2\vline3\n"
+
+    async def test_markdown_single_line_fenced_code_unaffected(self):
+        # No embedded newline to substitute — a single-line fenced block's
+        # insertText is unchanged by the #719 fix.
+        requests, _ = _to_doc_requests("```\nx = 1\n```\n", "markdown")
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "x = 1\n"
+
     async def test_markdown_image_and_thematic_break_preserve_paragraph_boundary(self):
         # #401 end-to-end repro: an unsupported image followed by a thematic
         # break, followed by real headings, must not fuse into one run of
