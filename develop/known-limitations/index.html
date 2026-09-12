@@ -1359,6 +1359,40 @@ inside another table's cell.</p>
 <p><strong>Workaround:</strong> Supply raw HTML instead — the HTML→AST pipeline fully supports nested tables
 (see #109). Related: <code>docs/qa/tests/docs_content.md</code> TC-DOC51.</p>
 <hr />
+<h3 id="a-bare-line-is-never-recognized-as-an-empty-list-item">A bare <code>-</code> line is never recognized as an empty list item<a class="headerlink" href="#a-bare-line-is-never-recognized-as-an-empty-list-item" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> In Markdown input, a line containing only <code>-</code> (optionally with trailing whitespace) is
+never recognized as an empty list item, regardless of indentation. What happens instead depends
+on what precedes it:</p>
+<ol>
+<li><strong>As the first line of a would-be list</strong> (e.g. right after a heading, as in the
+   <code>tc-doc106-nested-lists-4space.md</code> fixture's Case 2 — a bare <code>-</code> meant to hold only a nested
+   sub-list): the whole block, including the following well-formed list-item lines, collapses
+   into a single plain paragraph of literal text. No list is produced at all.
+   <code>"-\n- item two\n- item three\n"</code> → <code>&lt;p&gt;-\n- item two\n- item three&lt;/p&gt;</code>.</li>
+<li><strong>Immediately following a text line</strong> (e.g. <code>"- item one\n-\n- item three\n"</code>): it's instead
+   consumed together with the preceding line as a Setext-style H2 heading, since a line of only
+   <code>-</code> characters is also CommonMark/Setext heading-underline syntax. Renders
+   <code>&lt;h2&gt;- item one&lt;/h2&gt;</code> followed by a list containing only <code>"item three"</code> — the first item's
+   bullet and the empty second item are both silently lost.</li>
+</ol>
+<p><strong>Why:</strong> This is a Python <code>markdown</code> library parsing-priority issue, not something this
+project's own HTML→AST pipeline controls. The list-item regex (<code>sane_lists</code> and core alike)
+requires a marker <em>and</em> a space <em>and</em> content (<code>"- "</code> + text) to recognize a line as a list item
+— a bare <code>-</code> with nothing after it never matches, so it falls through to whatever else can claim
+the line: ordinary paragraph continuation (case 1) or the core block processor's Setext-heading
+check, which runs before list-continuation logic gets a chance to treat the line as a (would-be
+empty) list item (case 2). This fires regardless of indentation and is distinct from the
+already-documented <code>sane_lists</code> indentation-threshold bug (see <code>docs/qa/tests/docs_content.md</code>'s
+TC-DOC105/TC-DOC106 sections and tracked issue #334) — that bug is about sub-list nesting depth,
+not this marker-recognition gap. Working around this by changing how bare markers or Setext headings are
+parsed would change behavior for every other document using either construct, a much larger and
+riskier change than this narrow, low-frequency edge case (an intentionally empty list item)
+warrants.</p>
+<p><strong>Workaround:</strong> Give the list item a non-breaking space instead of a bare <code>-</code> (i.e. <code>-</code> followed
+by U+00A0) — python-markdown parses this as an ordinary, genuinely empty list item (<code>&lt;li&gt;&lt;/li&gt;</code>)
+in both contexts above. Confirmed via direct execution of <code>_md_to_html</code> — a local, offline
+markdown→HTML conversion, not a live Google API round trip. Related: #692.</p>
+<hr />
 <h3 id="get_doc_as_markdown-nested-tables-temporary-image-urls-and-inline-vs-block-code-ambiguity"><code>get_doc_as_markdown</code> — nested tables, temporary image URLs, and inline-vs-block code ambiguity<a class="headerlink" href="#get_doc_as_markdown-nested-tables-temporary-image-urls-and-inline-vs-block-code-ambiguity" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> <code>get_doc_as_markdown</code> (#300) has three read-side gaps, each rooted in a genuine
 Markdown-format or Docs-API constraint rather than missing implementation:</p>
