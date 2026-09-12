@@ -810,6 +810,46 @@ class TestMdToHtml:
         html = _md_to_html("[click](https://example.com)")
         assert 'href="https://example.com"' in html
 
+    async def test_bare_hyphen_as_first_list_line_collapses_to_plain_paragraph(self):
+        """Known limitation (#692, docs/known-limitations.md): a bare '-' line with
+        nothing after it never matches python-markdown's list-item regex ("- " +
+        content). As the first line of a would-be list (no preceding text line, e.g.
+        right after a heading — the tc-doc106-nested-lists-4space.md fixture's Case
+        2 shape), the whole block including the following well-formed list-item
+        lines collapses into one literal paragraph; no list is produced at all."""
+        html = _md_to_html("-\n- item two\n- item three\n")
+        assert "<ul>" not in html
+        assert "<p>-\n- item two\n- item three</p>" in html
+
+    async def test_bare_hyphen_line_becomes_setext_heading_not_list_item(self):
+        """Known limitation (#692, docs/known-limitations.md): the same bare '-'
+        line, when it instead follows a text line, is consumed together with that
+        line as python-markdown's own setext H2 underline syntax, which takes
+        priority over list-item recognition. This pins the documented (buggy-
+        looking but upstream) behavior so a future python-markdown upgrade that
+        changes it doesn't go unnoticed."""
+        html = _md_to_html("- item one\n-\n- item three\n")
+        assert "<h2>- item one</h2>" in html
+        assert "<ul>" in html
+        assert "<li>item three</li>" in html
+
+    async def test_bare_hyphen_workaround_nbsp_produces_empty_list_item(self):
+        """The documented workaround (docs/known-limitations.md, #692): replacing
+        the offending bare '-' line itself with a '- ' + non-breaking-space marker
+        parses as a genuine empty list item in both manifestations above, instead
+        of collapsing to a paragraph or heading."""
+        nbsp = chr(0xA0)  # non-breaking space; ruff RUF001 flags it if written literally
+
+        # First-line manifestation, fixed:
+        html = _md_to_html(f"- {nbsp}\n- item two\n- item three\n")
+        assert "<ul>" in html
+        assert html.count("<li>") == 3
+
+        # Mid-list / setext-heading manifestation, fixed:
+        html = _md_to_html(f"- item one\n- {nbsp}\n- item three\n")
+        assert "<h2>" not in html
+        assert html.count("<li>") == 3
+
     async def test_pipe_table(self):
         md = "| A | B |\n|---|---|\n| 1 | 2 |\n"
         html = _md_to_html(md)
