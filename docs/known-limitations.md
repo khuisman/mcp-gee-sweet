@@ -78,16 +78,17 @@ requires a marker *and* a space *and* content (`"- "` + text) to recognize a lin
 the line: ordinary paragraph continuation (case 1) or the core block processor's Setext-heading
 check, which runs before list-continuation logic gets a chance to treat the line as a (would-be
 empty) list item (case 2). This fires regardless of indentation and is distinct from the
-already-documented `sane_lists` indentation-threshold bug (see `docs/design/markdown-support.md`
-and the TC-DOC105/TC-DOC106 fixtures) — that bug is about sub-list nesting depth, not this
-marker-recognition gap. Working around this by changing how bare markers or Setext headings are
+already-documented `sane_lists` indentation-threshold bug (see `docs/qa/tests/docs_content.md`'s
+TC-DOC105/TC-DOC106 sections and tracked issue #334) — that bug is about sub-list nesting depth,
+not this marker-recognition gap. Working around this by changing how bare markers or Setext headings are
 parsed would change behavior for every other document using either construct, a much larger and
 riskier change than this narrow, low-frequency edge case (an intentionally empty list item)
 warrants.
 
 **Workaround:** Give the list item a non-breaking space instead of a bare `-` (i.e. `- ` followed
 by U+00A0) — python-markdown parses this as an ordinary, genuinely empty list item (`<li></li>`)
-in both contexts above. Confirmed live via `_md_to_html`. Related: #692.
+in both contexts above. Confirmed via direct execution of `_md_to_html` — a local, offline
+markdown→HTML conversion, not a live Google API round trip. Related: #692.
 
 ---
 
