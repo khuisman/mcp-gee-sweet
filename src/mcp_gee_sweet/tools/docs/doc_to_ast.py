@@ -26,6 +26,7 @@ from .ast import (
     Table,
 )
 from .emitter import _BLOCKQUOTE_INDENT_PT_PER_LEVEL
+from .indices import decode_code_run_text
 
 _HEADING_LEVELS = {f"HEADING_{i}": i for i in range(1, 7)}
 
@@ -146,6 +147,7 @@ def _text_run_to_run(text: str, ts: dict) -> Run:
     fg = ts.get("foregroundColor", {}).get("color", {}).get("rgbColor")
     bg = ts.get("backgroundColor", {}).get("color", {}).get("rgbColor")
     baseline = ts.get("baselineOffset")
+    text = decode_code_run_text(text, ts)
     return Run(
         text=text,
         bold=ts.get("bold"),

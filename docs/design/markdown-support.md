@@ -184,6 +184,13 @@ another registered tool), passing `content_format` through to `_to_doc_requests`
 Code blocks and inline code render with `font_family="Courier New"` on every run (#103) — no
 further code-block-specific styling (background shading, line numbers) is planned.
 
+A multi-line code block's own internal line breaks are emitted as `"\v"` (soft break), not
+`"\n"` — the Docs API treats a literal `"\n"` as a new paragraph boundary regardless of styling,
+which used to fragment one fenced block into one `NORMAL_TEXT` Docs paragraph per line (#719),
+contradicting the "monospace **paragraph**" (singular) mapping above. See `CLAUDE.md`'s
+`docs/emitter.py` paragraph for the full fix, including the matching read-side reversal in
+`doc_to_ast.py`.
+
 ---
 
 ## Verification

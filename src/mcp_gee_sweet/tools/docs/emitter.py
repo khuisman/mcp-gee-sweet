@@ -11,6 +11,18 @@ from .indices import utf16_len
 logger = logging.getLogger(__name__)
 
 
+def _is_code_paragraph(node: DocNode) -> bool:
+    """A Paragraph whose every Run is code-styled (font_family='Courier New') is
+    the AST shape html_parser.py builds for a <pre><code> block (#103) — mirrors
+    ast_to_markdown.py's identical _is_code_block predicate, kept as a separate
+    copy rather than a shared import to avoid a write/read circular import
+    between this module and ast_to_markdown.py (which already imports from here)."""
+    if not isinstance(node, Paragraph):
+        return False
+    runs = [r for r in node.runs if isinstance(r, Run)]
+    return bool(runs) and all(r.font_family == "Courier New" for r in runs)
+
+
 def extract_images(nodes: list[DocNode]) -> list[Image]:
     """Collect every Image node in `nodes`, in document order.
 
@@ -102,6 +114,21 @@ def ast_to_requests(
             # text at all, just a positional marker resolved into its own
             # insertInlineImage request below, exactly like a Table.
             text = prefix + "".join(r.text for r in node.runs if isinstance(r, Run))
+            # A multi-line fenced code block is one Paragraph node whose Run text
+            # carries embedded "\n" line breaks (html_parser.py's <pre> handling) —
+            # but the Docs API treats every "\n" in inserted text as a new paragraph
+            # boundary, so inserting it literally here silently fragments one code
+            # block into N separate NORMAL_TEXT paragraphs (issue #719), contradicting
+            # markdown-support.md's own documented mapping of a fenced block to a
+            # single "monospace paragraph". Using "\v" (the same soft-line-break
+            # convention insert_softbreak_paragraph already uses) for the *embedded*
+            # breaks keeps the whole block as one Docs paragraph while still
+            # rendering each line on its own visual line; the node's own trailing
+            # "\n" appended below is untouched, since that one is a real paragraph
+            # boundary to whatever node comes next. doc_to_ast.py's _text_run_to_run
+            # reverses this on read, so get_doc_as_markdown round-trips it correctly.
+            if _is_code_paragraph(node) and "\n" in text:
+                text = text.replace("\n", "\v")
             # Every node reaching this loop is one html_parser.py already decided
             # is worth a line in the doc — a node with runs=[] (an unsupported
             # construct like a bare <hr>, #401) as much as a node whose runs are

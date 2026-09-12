@@ -29,7 +29,7 @@ from .images import (
     rewrite_too_large_error,
     upload_and_share_image,
 )
-from .indices import _collect_doc_paragraphs, utf16_len
+from .indices import _collect_doc_paragraphs, decode_code_run_text, utf16_len
 
 logger = logging.getLogger(__name__)
 
@@ -1287,7 +1287,7 @@ def register(tool):
                     ts = tr.get("textStyle", {})
                     runs.append(
                         {
-                            "text": tr.get("content", ""),
+                            "text": decode_code_run_text(tr.get("content", ""), ts),
                             "bold": ts.get("bold"),
                             "italic": ts.get("italic"),
                             "underline": ts.get("underline"),
@@ -1318,7 +1318,10 @@ def register(tool):
                         content = cell.get("content", [])
                         para_start = content[0].get("startIndex") if content else None
                         cell_text = "".join(
-                            pe.get("textRun", {}).get("content", "")
+                            decode_code_run_text(
+                                pe.get("textRun", {}).get("content", ""),
+                                pe.get("textRun", {}).get("textStyle", {}),
+                            )
                             for ce in content
                             if "paragraph" in ce
                             for pe in ce["paragraph"].get("elements", [])

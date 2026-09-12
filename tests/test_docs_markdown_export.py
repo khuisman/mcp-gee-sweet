@@ -104,6 +104,24 @@ class TestDocToAstParagraphs:
         assert run.foreground_color.red == 1.0
         assert run.foreground_color.green == 0.0
 
+    def test_courier_new_run_converts_soft_break_to_newline(self):
+        # #719: emitter.py writes a multi-line fenced code block's internal
+        # line breaks as "\v" (soft break) rather than "\n", so the whole
+        # block stays one Docs paragraph instead of fragmenting into one
+        # paragraph per line. This is the read-side reversal.
+        style = {"weightedFontFamily": {"fontFamily": "Courier New"}}
+        doc = {"body": {"content": [_para("line1\vline2\vline3\n", style=style)]}}
+        run = document_to_ast(doc)[0].runs[0]
+        assert run.text == "line1\nline2\nline3"
+
+    def test_non_code_run_leaves_soft_break_untouched(self):
+        # The "\v" -> "\n" reversal is scoped to Courier-New-styled runs only
+        # (the one place emitter.py ever writes it) — an unrelated soft break
+        # from insert_softbreak_paragraph must not be touched by this fix.
+        doc = {"body": {"content": [_para("line1\vline2\n")]}}
+        run = document_to_ast(doc)[0].runs[0]
+        assert run.text == "line1\vline2"
+
 
 class TestDocToAstBullets:
     def test_ordered_detected_from_glyph_type(self):
@@ -562,6 +580,14 @@ class TestAstToMarkdownInline:
     def test_paragraph_entirely_code_styled_renders_as_fenced_block(self):
         nodes = [Paragraph(runs=[Run(text="x = 1", font_family="Courier New")])]
         assert ast_to_markdown(nodes) == "```\nx = 1\n```\n"
+
+    def test_multiline_code_paragraph_renders_as_one_fenced_block(self):
+        # #719: a multi-line fenced code block round-trips as one Paragraph
+        # node (its internal line breaks already restored to "\n" by
+        # doc_to_ast.py's _text_run_to_run) and must render as a single
+        # fence, not one fence per line.
+        nodes = [Paragraph(runs=[Run(text="line1\nline2\nline3", font_family="Courier New")])]
+        assert ast_to_markdown(nodes) == "```\nline1\nline2\nline3\n```\n"
 
     def test_image_mixed_into_code_styled_paragraph_is_not_dropped(self):
         # An Image sitting alongside Courier-New-styled Runs in the same
