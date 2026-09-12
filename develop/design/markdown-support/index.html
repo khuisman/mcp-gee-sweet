@@ -1544,6 +1544,12 @@ another registered tool), passing <code>content_format</code> through to <code>_
 </table>
 <p>Code blocks and inline code render with <code>font_family="Courier New"</code> on every run (#103) — no
 further code-block-specific styling (background shading, line numbers) is planned.</p>
+<p>A multi-line code block's own internal line breaks are emitted as <code>"\v"</code> (soft break), not
+<code>"\n"</code> — the Docs API treats a literal <code>"\n"</code> as a new paragraph boundary regardless of styling,
+which used to fragment one fenced block into one <code>NORMAL_TEXT</code> Docs paragraph per line (#719),
+contradicting the "monospace <strong>paragraph</strong>" (singular) mapping above. See <code>CLAUDE.md</code>'s
+<code>docs/emitter.py</code> paragraph for the full fix, including the matching read-side reversal in
+<code>doc_to_ast.py</code>.</p>
 <hr />
 <h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>
 <ol>
