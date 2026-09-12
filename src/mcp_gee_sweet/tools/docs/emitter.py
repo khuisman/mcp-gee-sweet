@@ -253,6 +253,15 @@ def ast_to_requests(
                 # anchor. The insert (+1) and delete (-1) cancel, so every position
                 # outside [run_start, run_end] — later bullet runs, table/image inserts —
                 # is left exactly where an ordinary single call would leave it.
+                #
+                # Because the anchor always contributes 0 tabs, the minimum across the
+                # extended range is always 0 regardless of min_depth — so every item lands
+                # at nestingLevel == its own depth exactly (min_depth == 1 -> level 1,
+                # min_depth == 2 -> level 2, etc.), never clamped to level 1. This is a
+                # deliberate decision (#714, following the #439 fix in PR #711): the
+                # converter renders the source's true nesting depth faithfully rather than
+                # clamping a deeply-nested fragment (whose ancestors were dropped for
+                # having no text of their own) to look one level deep.
                 run_requests = [
                     {"insertText": {"location": {"index": run_start}, "text": "\n"}},
                     {
