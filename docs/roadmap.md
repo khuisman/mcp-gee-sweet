@@ -233,7 +233,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] Docstrings: `create_paragraph_bullets` carries internal API-quirk mechanics plus residual bare issue refs in `style.py` tool docstrings ([#683](https://github.com/khuisman/mcp-gee-sweet/issues/683))
 - [ ] `TestIsolatedDepthRunGlyph` asserts request shape, not rendered nesting outcome (PR #711) ([#715](https://github.com/khuisman/mcp-gee-sweet/issues/715))
 - [ ] `style_doc_range` has no `font_family` parameter — can't apply monospace to an existing range ([#720](https://github.com/khuisman/mcp-gee-sweet/issues/720))
-- [ ] Extract a shared helper for the isolated-bullet-run zero-tab anchor mechanic (`emitter.py` ↔ `style.py`); harden its regression test (`lane-a`) ([#727](https://github.com/khuisman/mcp-gee-sweet/issues/727))
+- [x] Extract a shared helper for the isolated-bullet-run zero-tab anchor mechanic (`emitter.py` ↔ `style.py`); harden its regression test (`lane-a`) ([#727](https://github.com/khuisman/mcp-gee-sweet/issues/727)) (PR #735)
 
 **Drive hardening & dedup** _(triaged out of `backlog` 2026-09-11)_
 - [ ] `download_folder`/`sync_folder` progress notifications: report bytes transferred, not just file count ([#352](https://github.com/khuisman/mcp-gee-sweet/issues/352))
