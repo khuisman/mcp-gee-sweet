@@ -1936,7 +1936,8 @@
 - [ ] Docstrings: <code>create_paragraph_bullets</code> carries internal API-quirk mechanics plus residual bare issue refs in <code>style.py</code> tool docstrings (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/683">#683</a>)
 - [ ] <code>TestIsolatedDepthRunGlyph</code> asserts request shape, not rendered nesting outcome (PR #711) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/715">#715</a>)
 - [ ] <code>style_doc_range</code> has no <code>font_family</code> parameter — can't apply monospace to an existing range (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/720">#720</a>)
-- [x] Extract a shared helper for the isolated-bullet-run zero-tab anchor mechanic (<code>emitter.py</code> ↔ <code>style.py</code>); harden its regression test (<code>lane-a</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/727">#727</a>) (PR #735)</p>
+- [x] Extract a shared helper for the isolated-bullet-run zero-tab anchor mechanic (<code>emitter.py</code> ↔ <code>style.py</code>); harden its regression test (<code>lane-a</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/727">#727</a>) (PR #735)
+- [ ] <code>doc_to_ast.py</code>'s Courier-New soft-break reversal is per-run, not per-paragraph — mismatched-style edge case can emit malformed inline code with an embedded newline (PR #730 follow-up) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/732">#732</a>)</p>
 <p><strong>Drive hardening &amp; dedup</strong> <em>(triaged out of <code>backlog</code> 2026-09-11)</em>
 - [ ] <code>download_folder</code>/<code>sync_folder</code> progress notifications: report bytes transferred, not just file count (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/352">#352</a>)
 - [ ] Unify the two progress-counter idioms in <code>transfer.py</code> (nonlocal vs. list-box) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/354">#354</a>)
@@ -1948,11 +1949,14 @@
 - [ ] <code>sync_folder</code>: <code>actions</code> list built unconditionally even when <code>dry_run=False</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/521">#521</a>)
 - [ ] Extend the <code>_GOOGLE_DOC_MIME</code> sweep to remaining hardcoded-literal and comparison sites (#412 follow-up) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/544">#544</a>)
 - [ ] <code>refactor(drive)</code>: dedupe <code>mime_type</code> quote-escaping and list-files response mapping in <code>files.py</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/578">#578</a>)
-- [x] <code>list_folders</code>/<code>list_spreadsheets</code> no-parent + no-<code>DRIVE_FOLDER_ID</code> path is unbounded across all drives, no <code>max_results</code> (<code>lane-a</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/718">#718</a>) (PR #736)</p>
+- [x] <code>list_folders</code>/<code>list_spreadsheets</code> no-parent + no-<code>DRIVE_FOLDER_ID</code> path is unbounded across all drives, no <code>max_results</code> (<code>lane-a</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/718">#718</a>) (PR #736)
+- [ ] <code>download_file</code> trailing-slash guard: fail-fast ordering, dead <code>os.altsep</code> clause, raw <code>NotADirectoryError</code> surface (PR #722 follow-up) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/724">#724</a>)
+- [ ] Deduplicate the <code>max_results</code> clamp expression, hand-copied 8x across <code>drive/files.py</code> with inconsistent caps (PR #736 follow-up) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/737">#737</a>)</p>
 <p><strong>Calendar hardening</strong> <em>(triaged out of <code>backlog</code> 2026-09-11)</em>
 - [ ] <code>list_calendar_acl</code> pagination fix (#460) needs a response-size cap, loop safety bound, and partial-failure handling (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/615">#615</a>)
 - [ ] <code>list_all_events</code> concurrency cap: per-invocation only, no env override (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/626">#626</a>)
-- [ ] <code>_shape_event</code>: <code>get_event</code> still duplicates it, no null-guard, no kwarg-collision guard (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/627">#627</a>)</p>
+- [ ] <code>_shape_event</code>: <code>get_event</code> still duplicates it, no null-guard, no kwarg-collision guard (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/627">#627</a>)
+- [ ] <code>find_free_slots</code>/<code>list_all_events</code>: unify duplicated id-to-summary lookup, align empty-string fallback (PR #725 follow-up) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/726">#726</a>)</p>
 <p><strong>Testing</strong> <em>(triaged out of <code>backlog</code> 2026-09-11)</em>
 - [ ] Duplicate fake-Sheets-service test scaffolding in <code>test_helpers.py</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/392">#392</a>)
 - [ ] Add unit test coverage for <code>sync_folder</code>'s SA-limitations caveat text (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/526">#526</a>)
