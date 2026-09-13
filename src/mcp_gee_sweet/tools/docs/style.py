@@ -5,6 +5,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from .indices import isolated_bullet_run_wrap_requests
 
 logger = logging.getLogger(__name__)
 
@@ -698,7 +699,11 @@ def register(tool):
                         }
                     }
                 )
+                total_tabs = 0
+                min_nesting = run[0]["nesting_level"]
                 for unit in sorted(run, key=lambda u: u["start"], reverse=True):
+                    total_tabs += unit["nesting_level"]
+                    min_nesting = min(min_nesting, unit["nesting_level"])
                     if unit["nesting_level"]:
                         requests.append(
                             {
@@ -708,8 +713,7 @@ def register(tool):
                                 }
                             }
                         )
-                total_tabs = sum(u["nesting_level"] for u in run)
-                if min(u["nesting_level"] for u in run) == 0:
+                if min_nesting == 0:
                     requests.append(
                         {
                             "createParagraphBullets": {
@@ -729,36 +733,18 @@ def register(tool):
                     # run to nestingLevel 0, rendering the depth-0 disc glyph
                     # even though the per-level indent is bumped (issue #713;
                     # same shape as #439, fixed for emitter.py in PR #711).
-                    # Prepend a throwaway 0-tab anchor paragraph, bullet the
-                    # extended range (anchor -> level 0, real items -> their true
-                    # level and correct glyph), then delete the anchor. The
-                    # insert (+1) and delete (-1) cancel, so every position
-                    # outside [run_start, run_end] is left exactly where the
-                    # non-isolated path leaves it and the descending-run
-                    # application order still holds.
-                    requests.append(
-                        {"insertText": {"location": {"index": run_start}, "text": "\n"}}
-                    )
-                    requests.append(
-                        {
-                            "createParagraphBullets": {
-                                "range": {
-                                    "startIndex": run_start,
-                                    "endIndex": run_end + total_tabs + 1,
-                                },
-                                "bulletPreset": resolved_preset,
-                            }
-                        }
-                    )
-                    requests.append(
-                        {
-                            "deleteContentRange": {
-                                "range": {
-                                    "startIndex": run_start,
-                                    "endIndex": run_start + 1,
-                                }
-                            }
-                        }
+                    # isolated_bullet_run_wrap_requests (indices.py, shared with
+                    # emitter.py per #727) prepends a throwaway 0-tab anchor
+                    # paragraph, bullets the extended range (anchor -> level 0,
+                    # real items -> their true level and correct glyph), then
+                    # deletes the anchor. The insert (+1) and delete (-1) cancel,
+                    # so every position outside [run_start, run_end] is left
+                    # exactly where the non-isolated path leaves it and the
+                    # descending-run application order still holds.
+                    requests.extend(
+                        isolated_bullet_run_wrap_requests(
+                            run_start, run_end + total_tabs, resolved_preset
+                        )
                     )
 
             await execute_in_thread(

@@ -6,7 +6,7 @@ import logging
 
 from ...auth import execute_in_thread
 from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Row, Run, Table
-from .indices import utf16_len
+from .indices import isolated_bullet_run_wrap_requests, utf16_len
 
 logger = logging.getLogger(__name__)
 
@@ -274,9 +274,10 @@ def ast_to_requests(
                 # leading-tab count across the whole range), so a run with no 0-tab
                 # paragraph collapses entirely to nestingLevel 0 — rendering the depth-0
                 # glyph (● disc) even though the per-level indent is bumped so the item
-                # still *looks* nested (confirmed live, #439). Fix: prepend a throwaway
-                # 0-tab anchor paragraph, bullet the extended range (anchor -> level 0,
-                # real items -> their true level and its correct glyph), then delete the
+                # still *looks* nested (confirmed live, #439). isolated_bullet_run_wrap_requests
+                # (indices.py, shared with style.py per #727) prepends a throwaway 0-tab
+                # anchor paragraph, bullets the extended range (anchor -> level 0, real
+                # items -> their true level and its correct glyph), then deletes the
                 # anchor. The insert (+1) and delete (-1) cancel, so every position
                 # outside [run_start, run_end] — later bullet runs, table/image inserts —
                 # is left exactly where an ordinary single call would leave it.
@@ -289,20 +290,7 @@ def ast_to_requests(
                 # converter renders the source's true nesting depth faithfully rather than
                 # clamping a deeply-nested fragment (whose ancestors were dropped for
                 # having no text of their own) to look one level deep.
-                run_requests = [
-                    {"insertText": {"location": {"index": run_start}, "text": "\n"}},
-                    {
-                        "createParagraphBullets": {
-                            "range": {"startIndex": run_start, "endIndex": run_end + 1},
-                            "bulletPreset": preset,
-                        }
-                    },
-                    {
-                        "deleteContentRange": {
-                            "range": {"startIndex": run_start, "endIndex": run_start + 1}
-                        }
-                    },
-                ]
+                run_requests = isolated_bullet_run_wrap_requests(run_start, run_end, preset)
             bullet_run_requests.append((run_start, run_requests))
             i = j
 

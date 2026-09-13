@@ -1,6 +1,9 @@
 """Tests for docs/indices.py — Google Docs character-index helpers."""
 
-from mcp_gee_sweet.tools.docs.indices import _collect_doc_paragraphs
+from mcp_gee_sweet.tools.docs.indices import (
+    _collect_doc_paragraphs,
+    isolated_bullet_run_wrap_requests,
+)
 
 
 def _build_doc_body(paragraph_runs: list[list[str]]) -> tuple[dict, list[tuple[int, str]]]:
@@ -160,3 +163,30 @@ class TestCollectDocParagraphs:
         }
         result = list(_collect_doc_paragraphs(doc["body"]["content"]))
         assert result == [("text\n", [2, 3, 4, 5, 6])]
+
+
+class TestIsolatedBulletRunWrapRequests:
+    """#727: the anchor-wrap mechanic shared by emitter.py and style.py."""
+
+    def test_returns_insert_bullet_delete_triple_in_order(self):
+        reqs = isolated_bullet_run_wrap_requests(10, 20, "BULLET_DISC_CIRCLE_SQUARE")
+        assert [next(iter(r)) for r in reqs] == [
+            "insertText",
+            "createParagraphBullets",
+            "deleteContentRange",
+        ]
+
+    def test_anchor_insert_targets_run_start(self):
+        reqs = isolated_bullet_run_wrap_requests(10, 20, "BULLET_DISC_CIRCLE_SQUARE")
+        assert reqs[0]["insertText"] == {"location": {"index": 10}, "text": "\n"}
+
+    def test_bullet_range_extends_run_end_by_one_for_the_anchor(self):
+        reqs = isolated_bullet_run_wrap_requests(10, 20, "NUMBERED_DECIMAL_ALPHA_ROMAN")
+        assert reqs[1]["createParagraphBullets"] == {
+            "range": {"startIndex": 10, "endIndex": 21},
+            "bulletPreset": "NUMBERED_DECIMAL_ALPHA_ROMAN",
+        }
+
+    def test_anchor_delete_removes_exactly_the_inserted_character(self):
+        reqs = isolated_bullet_run_wrap_requests(10, 20, "BULLET_DISC_CIRCLE_SQUARE")
+        assert reqs[2]["deleteContentRange"] == {"range": {"startIndex": 10, "endIndex": 11}}

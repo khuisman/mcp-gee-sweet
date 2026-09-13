@@ -25,6 +25,37 @@ def decode_code_run_text(content: str, text_style: dict[str, Any]) -> str:
     return content
 
 
+def isolated_bullet_run_wrap_requests(run_start: int, run_end: int, preset: str) -> list[dict]:
+    """Build the insert/createParagraphBullets/delete triple that lets an
+    "isolated" bullet run — every paragraph at nesting depth > 0, with no
+    depth-0 member for createParagraphBullets to anchor its relative-depth
+    inference on — land at its true nesting level instead of collapsing to 0
+    (issue #439, generalized to #713's live-document variant; shared between
+    emitter.py's fresh-document build and style.py's create_paragraph_bullets
+    per issue #727, which previously hand-rolled this mechanic twice).
+
+    A throwaway 0-tab anchor paragraph is inserted at `run_start`, bulleted
+    alongside the real range, then deleted — the insert (+1) and delete (-1)
+    cancel, so every position outside [run_start, run_end] is left exactly
+    where it would be without this wrapping.
+
+    `run_end` must already reflect every tab character the caller has
+    inserted (or will insert) ahead of this call: emitter.py's run_end
+    already includes tabs baked into its freshly-built full_text; style.py's
+    caller adds its own total_tabs before calling this.
+    """
+    return [
+        {"insertText": {"location": {"index": run_start}, "text": "\n"}},
+        {
+            "createParagraphBullets": {
+                "range": {"startIndex": run_start, "endIndex": run_end + 1},
+                "bulletPreset": preset,
+            }
+        },
+        {"deleteContentRange": {"range": {"startIndex": run_start, "endIndex": run_start + 1}}},
+    ]
+
+
 def _collect_doc_paragraphs(content: list[dict[str, Any]]) -> Iterator[tuple[str, list[int]]]:
     """Walk document body content, recursing into table cells, yielding each
     paragraph's text paired with a parallel list of document character indices
