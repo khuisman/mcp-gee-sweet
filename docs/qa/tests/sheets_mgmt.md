@@ -425,6 +425,8 @@ create_sheet(title="CacheNewSheet") then list_sheets includes it immediately —
 - Previously a negative `start_row`/`start_column` passed straight to `insertDimension` with a negative `startIndex`, which the Sheets API rejected with an opaque 400 rather than a clear local error (PR #734 QA round 1, issue #323)
 - Covered by `test_negative_start_row_returns_error_without_api_call` / `test_negative_start_column_returns_error_without_api_call` in `TestAddRows`/`TestAddColumns`
 
+**Result (2026-09-12) ✅** — unit tests pass (155/155). Live-verified via `mcp-gee-sweet-kit` against the QA fixture spreadsheet (`Empty` sheet): `add_rows(start_row=-1, count=1)` and `add_columns(start_column=-1, count=1)` both returned the exact documented error with no `batchUpdate` call.
+
 ---
 
 ## `refresh_cache`
@@ -602,6 +604,8 @@ delete_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 - Previously a negative `start_row` passed straight through to `deleteDimension` with a negative `startIndex` (PR #734 QA round 1, issue #323)
 - Covered by `test_negative_start_row_returns_error_without_api_call` in `TestDeleteRows`
 
+**Result (2026-09-12) ✅** — unit tests pass (155/155). Live-verified via `mcp-gee-sweet-kit` against the QA fixture spreadsheet (`Empty` sheet): `delete_rows(start_row=-1)` returned the exact documented error with no `batchUpdate` call.
+
 ---
 
 ## `delete_columns`
@@ -670,6 +674,8 @@ delete_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"
 - `delete_columns(spreadsheet_id, sheet, start_column=-1)` → `{"error": "start_column must be non-negative, got -1"}`, no `batchUpdate` call
 - Same underlying gap as TC-S113, one dimension over (PR #734 QA round 1, issue #323)
 - Covered by `test_negative_start_column_returns_error_without_api_call` in `TestDeleteColumns`
+
+**Result (2026-09-12) ✅** — unit tests pass (155/155). Live-verified via `mcp-gee-sweet-kit` against the QA fixture spreadsheet (`Empty` sheet): `delete_columns(start_column=-1)` returned the exact documented error with no `batchUpdate` call.
 
 ---
 
@@ -782,6 +788,8 @@ unhide_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 - Both tools share the same underlying `_non_negative_value_error` check (PR #734 QA round 1, issue #323)
 - Covered by `test_negative_start_row_returns_error_without_api_call` in `TestHideRows`/`TestUnhideRows`
 
+**Result (2026-09-12) ✅** — unit tests pass (155/155). Live-verified via `mcp-gee-sweet-kit` against the QA fixture spreadsheet (`Empty` sheet): `hide_rows(start_row=-1)` and `unhide_rows(start_row=-1)` both returned the exact documented error with no `batchUpdate` call.
+
 ---
 
 ## `hide_columns` / `unhide_columns`
@@ -892,6 +900,8 @@ unhide_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"
 - `unhide_columns(spreadsheet_id, sheet, start_column=-1)` → same error shape, no `batchUpdate` call
 - Both tools share the same underlying `_non_negative_value_error` check (PR #734 QA round 1, issue #323)
 - Covered by `test_negative_start_column_returns_error_without_api_call` in `TestHideColumns`/`TestUnhideColumns`
+
+**Result (2026-09-12) ✅** — unit tests pass (155/155). Live-verified via `mcp-gee-sweet-kit` against the QA fixture spreadsheet (`Empty` sheet): `hide_columns(start_column=-1)` and `unhide_columns(start_column=-1)` both returned the exact documented error with no `batchUpdate` call.
 
 ---
 
@@ -1135,6 +1145,8 @@ resize_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"
 - `resize_columns(spreadsheet_id, sheet, start_column=-1, pixel_size=80)` → `{"error": "start_column must be non-negative, got -1"}`, no `batchUpdate` call
 - Same underlying gap as TC-S112/S113/S115, extended to resize (PR #734 QA round 1, issue #323)
 - Covered by `test_negative_start_row_returns_error_without_api_call` / `test_negative_start_column_returns_error_without_api_call` in `TestResizeRows`/`TestResizeColumns`
+
+**Result (2026-09-12) ✅** — unit tests pass (155/155). Live-verified via `mcp-gee-sweet-kit` against the QA fixture spreadsheet (`Empty` sheet): `resize_rows(start_row=-1, pixel_size=50)` and `resize_columns(start_column=-1, pixel_size=80)` both returned the exact documented error with no `batchUpdate` call.
 
 ---
 
