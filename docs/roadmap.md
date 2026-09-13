@@ -237,7 +237,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] `doc_to_ast.py`'s Courier-New soft-break reversal is per-run, not per-paragraph — mismatched-style edge case can emit malformed inline code with an embedded newline (PR #730 follow-up) ([#732](https://github.com/khuisman/mcp-gee-sweet/issues/732))
 
 **Drive hardening & dedup** _(triaged out of `backlog` 2026-09-11)_
-- [ ] `download_folder`/`sync_folder` progress notifications: report bytes transferred, not just file count ([#352](https://github.com/khuisman/mcp-gee-sweet/issues/352))
+- [x] `download_folder`/`sync_folder` progress notifications: report bytes transferred, not just file count ([#352](https://github.com/khuisman/mcp-gee-sweet/issues/352)) (PR #739)
 - [ ] Unify the two progress-counter idioms in `transfer.py` (nonlocal vs. list-box) ([#354](https://github.com/khuisman/mcp-gee-sweet/issues/354))
 - [ ] Extend notifications/progress to the remaining `asyncio.gather`-based multi-call tools ([#355](https://github.com/khuisman/mcp-gee-sweet/issues/355))
 - [ ] Expose starred state via `get_file_metadata`/`list_files` — `star_file`/`unstar_file` (#139) set it but nothing reads it back ([#388](https://github.com/khuisman/mcp-gee-sweet/issues/388))
