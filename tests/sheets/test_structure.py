@@ -451,6 +451,15 @@ class TestAddRows:
         assert "error" in result
         assert not svc.spreadsheets.return_value.batchUpdate.called
 
+    async def test_negative_start_row_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", count=1, start_row=-1, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
 
 class TestAddColumns:
     def _sheets_service(self, sheet_id=0):
@@ -498,6 +507,15 @@ class TestAddColumns:
         ctx = _make_ctx(sheets_service=svc, cache=None)
         result = await _structure_tools["add_columns"](
             spreadsheet_id="ss1", sheet="Sheet1", count=-1, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_negative_start_column_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", count=1, start_column=-1, ctx=ctx
         )
         assert "error" in result
         assert not svc.spreadsheets.return_value.batchUpdate.called
@@ -592,6 +610,15 @@ class TestDeleteRows:
         assert "error" in result
         assert not svc.spreadsheets.return_value.batchUpdate.called
 
+    async def test_negative_start_row_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["delete_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=-1, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
 
 class TestDeleteColumns:
     def _sheets_service(self, sheet_id=0):
@@ -640,6 +667,15 @@ class TestDeleteColumns:
         ctx = _make_ctx(sheets_service=svc, cache=None)
         result = await _structure_tools["delete_columns"](
             spreadsheet_id="ss1", sheet="Sheet1", start_column=5, end_column=2, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_negative_start_column_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["delete_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=-1, ctx=ctx
         )
         assert "error" in result
         assert not svc.spreadsheets.return_value.batchUpdate.called
@@ -698,6 +734,15 @@ class TestHideRows:
         assert "error" in result
         assert not svc.spreadsheets.return_value.batchUpdate.called
 
+    async def test_negative_start_row_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["hide_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=-1, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
 
 class TestUnhideRows:
     def _sheets_service(self, sheet_id=0):
@@ -747,6 +792,15 @@ class TestUnhideRows:
         ctx = _make_ctx(sheets_service=svc, cache=None)
         result = await _structure_tools["unhide_rows"](
             spreadsheet_id="ss1", sheet="Sheet1", start_row=5, end_row=2, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_negative_start_row_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["unhide_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=-1, ctx=ctx
         )
         assert "error" in result
         assert not svc.spreadsheets.return_value.batchUpdate.called
@@ -804,6 +858,15 @@ class TestHideColumns:
         assert "error" in result
         assert not svc.spreadsheets.return_value.batchUpdate.called
 
+    async def test_negative_start_column_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["hide_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=-1, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
 
 class TestUnhideColumns:
     def _sheets_service(self, sheet_id=0):
@@ -853,6 +916,15 @@ class TestUnhideColumns:
         ctx = _make_ctx(sheets_service=svc, cache=None)
         result = await _structure_tools["unhide_columns"](
             spreadsheet_id="ss1", sheet="Sheet1", start_column=5, end_column=2, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_negative_start_column_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["unhide_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=-1, ctx=ctx
         )
         assert "error" in result
         assert not svc.spreadsheets.return_value.batchUpdate.called
@@ -959,6 +1031,15 @@ class TestResizeRows:
         ctx = _make_ctx(sheets_service=svc, cache=None)
         result = await _structure_tools["resize_rows"](
             spreadsheet_id="ss1", sheet="Sheet1", start_row=5, end_row=2, pixel_size=50, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_negative_start_row_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["resize_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=-1, pixel_size=50, ctx=ctx
         )
         assert "error" in result
         assert not svc.spreadsheets.return_value.batchUpdate.called
@@ -1072,6 +1153,15 @@ class TestResizeColumns:
             end_column=2,
             pixel_size=80,
             ctx=ctx,
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_negative_start_column_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["resize_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=-1, pixel_size=80, ctx=ctx
         )
         assert "error" in result
         assert not svc.spreadsheets.return_value.batchUpdate.called

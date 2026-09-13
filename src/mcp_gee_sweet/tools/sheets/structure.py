@@ -108,6 +108,27 @@ def _positive_value_error(name: str, value: int) -> dict[str, Any] | None:
     return None
 
 
+def _non_negative_value_error(name: str, value: int) -> dict[str, Any] | None:
+    """Return an {"error": ...} dict if value is negative."""
+    if value < 0:
+        return {"error": f"{name} must be non-negative, got {value}"}
+    return None
+
+
+def _resolve_end_index_or_error(
+    start: int, end: int | None, start_label: str, end_label: str
+) -> tuple[dict[str, Any] | None, int | None]:
+    """Validate an inclusive end (if given) against start, then compute the
+    exclusive end index the Sheets API expects.
+
+    Returns (error, None) on failure, or (None, end_index) on success.
+    """
+    error = _range_order_error(start, end, start_label, end_label)
+    if error:
+        return error, None
+    return None, (end if end is not None else start) + 1
+
+
 async def _update_dimension_properties(
     sheets_service,
     spreadsheet_id: str,
@@ -176,8 +197,43 @@ async def _auto_resize_dimension(
     )
 
 
+def _validate_resize_params(
+    start_index: int,
+    end_index_inclusive: int | None,
+    pixel_size: int | None,
+    auto_resize: bool,
+    start_label: str,
+    end_label: str,
+) -> tuple[dict[str, Any] | None, int | None]:
+    """Pure parameter validation for resize_rows/resize_columns — no I/O, so it
+    can be unit-tested without a mock service.
+
+    Returns (error, None) on failure, or (None, end_index) on success.
+    """
+    if pixel_size is None and not auto_resize:
+        return {"error": "Specify pixel_size or set auto_resize=True"}, None
+    if pixel_size is not None and auto_resize:
+        return {"error": "Specify only one of pixel_size or auto_resize"}, None
+
+    error = _non_negative_value_error(start_label, start_index)
+    if error:
+        return error, None
+
+    error, end_index = _resolve_end_index_or_error(
+        start_index, end_index_inclusive, start_label, end_label
+    )
+    if error:
+        return error, None
+
+    if pixel_size is not None:
+        error = _positive_value_error("pixel_size", pixel_size)
+        if error:
+            return error, None
+
+    return None, end_index
+
+
 async def _resize_dimension(
-    sheets_service,
     lc,
     spreadsheet_id: str,
     sheet: str,
@@ -190,26 +246,20 @@ async def _resize_dimension(
     end_label: str,
 ) -> dict[str, Any]:
     """Shared implementation behind resize_rows/resize_columns."""
+    sheets_service = lc.sheets_service
+
     sheet_id = await _get_sheet_id(
         sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
     )
     if sheet_id is None:
         return {"error": f"Sheet '{sheet}' not found"}
 
-    if pixel_size is None and not auto_resize:
-        return {"error": "Specify pixel_size or set auto_resize=True"}
-    if pixel_size is not None and auto_resize:
-        return {"error": "Specify only one of pixel_size or auto_resize"}
-
-    error = _range_order_error(start_index, end_index_inclusive, start_label, end_label)
+    error, end_index = _validate_resize_params(
+        start_index, end_index_inclusive, pixel_size, auto_resize, start_label, end_label
+    )
     if error:
         return error
-    if pixel_size is not None:
-        error = _positive_value_error("pixel_size", pixel_size)
-        if error:
-            return error
-
-    end_index = (end_index_inclusive if end_index_inclusive is not None else start_index) + 1
+    assert end_index is not None  # guaranteed whenever error is None
 
     if auto_resize:
         return await _auto_resize_dimension(
@@ -498,7 +548,8 @@ def register(tool):
             start_row: 0-based row index to start adding. If not provided, adds at the beginning.
 
         Returns:
-            Result of the operation
+            Result of the operation. Returns {"error": ...} without calling the
+            Sheets API if start_row is negative or count isn't positive.
         """
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
@@ -508,6 +559,11 @@ def register(tool):
         )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
+
+        if start_row is not None:
+            error = _non_negative_value_error("start_row", start_row)
+            if error:
+                return error
 
         error = _positive_value_error("count", count)
         if error:
@@ -558,7 +614,8 @@ def register(tool):
             start_column: 0-based column index to start adding. If not provided, adds at the beginning.
 
         Returns:
-            Result of the operation
+            Result of the operation. Returns {"error": ...} without calling the
+            Sheets API if start_column is negative or count isn't positive.
         """
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
@@ -568,6 +625,11 @@ def register(tool):
         )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
+
+        if start_column is not None:
+            error = _non_negative_value_error("start_column", start_column)
+            if error:
+                return error
 
         error = _positive_value_error("count", count)
         if error:
@@ -653,7 +715,8 @@ def register(tool):
                      If omitted, deletes only start_row.
 
         Returns:
-            Result of the operation
+            Result of the operation. Returns {"error": ...} without calling the
+            Sheets API if start_row is negative or end_row precedes start_row.
         """
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
@@ -664,11 +727,13 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        error = _range_order_error(start_row, end_row, "start_row", "end_row")
+        error = _non_negative_value_error("start_row", start_row)
         if error:
             return error
 
-        end_index = (end_row if end_row is not None else start_row) + 1  # exclusive
+        error, end_index = _resolve_end_index_or_error(start_row, end_row, "start_row", "end_row")
+        if error:
+            return error
 
         return await execute_in_thread(
             sheets_service.spreadsheets()
@@ -712,7 +777,8 @@ def register(tool):
                         If omitted, deletes only start_column.
 
         Returns:
-            Result of the operation
+            Result of the operation. Returns {"error": ...} without calling the
+            Sheets API if start_column is negative or end_column precedes start_column.
         """
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
@@ -723,11 +789,15 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        error = _range_order_error(start_column, end_column, "start_column", "end_column")
+        error = _non_negative_value_error("start_column", start_column)
         if error:
             return error
 
-        end_index = (end_column if end_column is not None else start_column) + 1  # exclusive
+        error, end_index = _resolve_end_index_or_error(
+            start_column, end_column, "start_column", "end_column"
+        )
+        if error:
+            return error
 
         return await execute_in_thread(
             sheets_service.spreadsheets()
@@ -771,7 +841,8 @@ def register(tool):
                      If omitted, hides only start_row.
 
         Returns:
-            Result of the batchUpdate operation
+            Result of the batchUpdate operation. Returns {"error": ...} without
+            calling the Sheets API if start_row is negative or end_row precedes start_row.
         """
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
@@ -782,11 +853,13 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        error = _range_order_error(start_row, end_row, "start_row", "end_row")
+        error = _non_negative_value_error("start_row", start_row)
         if error:
             return error
 
-        end_index = (end_row if end_row is not None else start_row) + 1  # exclusive
+        error, end_index = _resolve_end_index_or_error(start_row, end_row, "start_row", "end_row")
+        if error:
+            return error
 
         return await _update_dimension_properties(
             sheets_service,
@@ -818,7 +891,8 @@ def register(tool):
                      If omitted, unhides only start_row.
 
         Returns:
-            Result of the batchUpdate operation
+            Result of the batchUpdate operation. Returns {"error": ...} without
+            calling the Sheets API if start_row is negative or end_row precedes start_row.
         """
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
@@ -829,11 +903,13 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        error = _range_order_error(start_row, end_row, "start_row", "end_row")
+        error = _non_negative_value_error("start_row", start_row)
         if error:
             return error
 
-        end_index = (end_row if end_row is not None else start_row) + 1  # exclusive
+        error, end_index = _resolve_end_index_or_error(start_row, end_row, "start_row", "end_row")
+        if error:
+            return error
 
         return await _update_dimension_properties(
             sheets_service,
@@ -865,7 +941,8 @@ def register(tool):
                         If omitted, hides only start_column.
 
         Returns:
-            Result of the batchUpdate operation
+            Result of the batchUpdate operation. Returns {"error": ...} without
+            calling the Sheets API if start_column is negative or end_column precedes start_column.
         """
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
@@ -876,11 +953,15 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        error = _range_order_error(start_column, end_column, "start_column", "end_column")
+        error = _non_negative_value_error("start_column", start_column)
         if error:
             return error
 
-        end_index = (end_column if end_column is not None else start_column) + 1  # exclusive
+        error, end_index = _resolve_end_index_or_error(
+            start_column, end_column, "start_column", "end_column"
+        )
+        if error:
+            return error
 
         return await _update_dimension_properties(
             sheets_service,
@@ -912,7 +993,8 @@ def register(tool):
                         If omitted, unhides only start_column.
 
         Returns:
-            Result of the batchUpdate operation
+            Result of the batchUpdate operation. Returns {"error": ...} without
+            calling the Sheets API if start_column is negative or end_column precedes start_column.
         """
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
@@ -923,11 +1005,15 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        error = _range_order_error(start_column, end_column, "start_column", "end_column")
+        error = _non_negative_value_error("start_column", start_column)
         if error:
             return error
 
-        end_index = (end_column if end_column is not None else start_column) + 1  # exclusive
+        error, end_index = _resolve_end_index_or_error(
+            start_column, end_column, "start_column", "end_column"
+        )
+        if error:
+            return error
 
         return await _update_dimension_properties(
             sheets_service,
@@ -964,11 +1050,12 @@ def register(tool):
                          an explicit pixel_size.
 
         Returns:
-            Result of the batchUpdate operation
+            Result of the batchUpdate operation. Returns {"error": ...} without
+            calling the Sheets API if start_row is negative, end_row precedes
+            start_row, or pixel_size isn't positive.
         """
         lc = ctx.request_context.lifespan_context
         return await _resize_dimension(
-            lc.sheets_service,
             lc,
             spreadsheet_id,
             sheet,
@@ -1005,11 +1092,12 @@ def register(tool):
                          an explicit pixel_size.
 
         Returns:
-            Result of the batchUpdate operation
+            Result of the batchUpdate operation. Returns {"error": ...} without
+            calling the Sheets API if start_column is negative, end_column precedes
+            start_column, or pixel_size isn't positive.
         """
         lc = ctx.request_context.lifespan_context
         return await _resize_dimension(
-            lc.sheets_service,
             lc,
             spreadsheet_id,
             sheet,

@@ -417,6 +417,16 @@ create_sheet(title="CacheNewSheet") then list_sheets includes it immediately —
 
 ---
 
+### TC-S112: add_rows / add_columns — negative start returns error (unit test)
+
+**Checks (unit test)**
+- `add_rows(spreadsheet_id, sheet, count=1, start_row=-1)` → `{"error": "start_row must be non-negative, got -1"}`, no `batchUpdate` call
+- `add_columns(spreadsheet_id, sheet, count=1, start_column=-1)` → `{"error": "start_column must be non-negative, got -1"}`, no `batchUpdate` call
+- Previously a negative `start_row`/`start_column` passed straight to `insertDimension` with a negative `startIndex`, which the Sheets API rejected with an opaque 400 rather than a clear local error (PR #734 QA round 1, issue #323)
+- Covered by `test_negative_start_row_returns_error_without_api_call` / `test_negative_start_column_returns_error_without_api_call` in `TestAddRows`/`TestAddColumns`
+
+---
+
 ## `refresh_cache`
 
 ### TC-S20: Refresh by spreadsheet ID only
@@ -585,6 +595,15 @@ delete_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
+### TC-S113: delete_rows — negative start_row returns error (unit test)
+
+**Checks (unit test)**
+- `delete_rows(spreadsheet_id, sheet, start_row=-1)` → `{"error": "start_row must be non-negative, got -1"}`, no `batchUpdate` call
+- Previously a negative `start_row` passed straight through to `deleteDimension` with a negative `startIndex` (PR #734 QA round 1, issue #323)
+- Covered by `test_negative_start_row_returns_error_without_api_call` in `TestDeleteRows`
+
+---
+
 ## `delete_columns`
 
 ### TC-S30: Delete a single column ⚠️ destructive
@@ -642,6 +661,15 @@ delete_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"
 - `delete_columns(spreadsheet_id, sheet, start_column=5, end_column=2)` → `{"error": "end_column (2) must be >= start_column (5)"}`, no `batchUpdate` call
 - Same underlying gap as TC-S105, one dimension over (issue #323)
 - Covered by `test_end_column_before_start_column_returns_error_without_api_call` in `TestDeleteColumns`
+
+---
+
+### TC-S114: delete_columns — negative start_column returns error (unit test)
+
+**Checks (unit test)**
+- `delete_columns(spreadsheet_id, sheet, start_column=-1)` → `{"error": "start_column must be non-negative, got -1"}`, no `batchUpdate` call
+- Same underlying gap as TC-S113, one dimension over (PR #734 QA round 1, issue #323)
+- Covered by `test_negative_start_column_returns_error_without_api_call` in `TestDeleteColumns`
 
 ---
 
@@ -746,6 +774,16 @@ unhide_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
+### TC-S115: hide_rows / unhide_rows — negative start_row returns error (unit test)
+
+**Checks (unit test)**
+- `hide_rows(spreadsheet_id, sheet, start_row=-1)` → `{"error": "start_row must be non-negative, got -1"}`, no `batchUpdate` call
+- `unhide_rows(spreadsheet_id, sheet, start_row=-1)` → same error shape, no `batchUpdate` call
+- Both tools share the same underlying `_non_negative_value_error` check (PR #734 QA round 1, issue #323)
+- Covered by `test_negative_start_row_returns_error_without_api_call` in `TestHideRows`/`TestUnhideRows`
+
+---
+
 ## `hide_columns` / `unhide_columns`
 
 ### TC-S68: Hide a single column ⚠️ destructive
@@ -844,6 +882,16 @@ unhide_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"
 - `unhide_columns(spreadsheet_id, sheet, start_column=5, end_column=2)` → same error shape, no `batchUpdate` call
 - Both tools share the same underlying `_range_order_error` check (issue #323)
 - Covered by `test_end_column_before_start_column_returns_error_without_api_call` in `TestHideColumns`/`TestUnhideColumns`
+
+---
+
+### TC-S116: hide_columns / unhide_columns — negative start_column returns error (unit test)
+
+**Checks (unit test)**
+- `hide_columns(spreadsheet_id, sheet, start_column=-1)` → `{"error": "start_column must be non-negative, got -1"}`, no `batchUpdate` call
+- `unhide_columns(spreadsheet_id, sheet, start_column=-1)` → same error shape, no `batchUpdate` call
+- Both tools share the same underlying `_non_negative_value_error` check (PR #734 QA round 1, issue #323)
+- Covered by `test_negative_start_column_returns_error_without_api_call` in `TestHideColumns`/`TestUnhideColumns`
 
 ---
 
@@ -1077,6 +1125,16 @@ resize_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"
 - `resize_columns(spreadsheet_id, sheet="NoSuchSheet", start_column=0)` → same shape
 - Previously the mutual-exclusivity check ran before the sheet lookup, so a bad sheet name paired with missing/conflicting resize params returned the params error first, masking the more fundamental problem — now matches `format_cells`' sheet-first ordering (issue #323)
 - Covered by `test_bad_sheet_name_reported_before_missing_params` in `TestResizeRows`/`TestResizeColumns`
+
+---
+
+### TC-S117: resize_rows / resize_columns — negative start returns error (unit test)
+
+**Checks (unit test)**
+- `resize_rows(spreadsheet_id, sheet, start_row=-1, pixel_size=50)` → `{"error": "start_row must be non-negative, got -1"}`, no `batchUpdate` call
+- `resize_columns(spreadsheet_id, sheet, start_column=-1, pixel_size=80)` → `{"error": "start_column must be non-negative, got -1"}`, no `batchUpdate` call
+- Same underlying gap as TC-S112/S113/S115, extended to resize (PR #734 QA round 1, issue #323)
+- Covered by `test_negative_start_row_returns_error_without_api_call` / `test_negative_start_column_returns_error_without_api_call` in `TestResizeRows`/`TestResizeColumns`
 
 ---
 
