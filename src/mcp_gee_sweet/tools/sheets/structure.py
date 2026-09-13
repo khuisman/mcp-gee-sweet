@@ -95,11 +95,13 @@ def _enum_value_error(
 ) -> dict[str, Any] | None:
     """Return an {"error": ...} dict if value.upper() isn't in valid_values.
 
-    context, when given, is appended (e.g. a border edge name) for a caller
-    that validates the same field under several different keys.
+    context, when given, is appended to the message verbatim (e.g.
+    "for 'top'" or "for column_index 0") for a caller that validates the
+    same field under several different keys — the caller controls the full
+    wording, including any quoting, since callers disagree on the shape.
     """
     if value.upper() not in valid_values:
-        suffix = f" for '{context}'" if context else ""
+        suffix = f" {context}" if context else ""
         return {
             "error": f"Invalid {field_name} '{value}'{suffix}. Must be one of: {', '.join(valid_values)}"
         }
@@ -1314,7 +1316,9 @@ def register(tool):
                 return {"error": f"Border spec for '{key}' is missing required 'style' key"}
             if not isinstance(border["style"], str):
                 return {"error": f"Border spec for '{key}' has a non-string 'style' value"}
-            error = _enum_value_error(border["style"], _VALID_BORDER_STYLES, "border style", key)
+            error = _enum_value_error(
+                border["style"], _VALID_BORDER_STYLES, "border style", f"for '{key}'"
+            )
             if error:
                 return error
             update_borders_request[key] = _border_spec(border)
@@ -1395,12 +1399,10 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
+        error = _enum_value_error(condition_type, _VALID_CONDITION_TYPES, "condition_type")
+        if error:
+            return error
         normalized_type = condition_type.upper()
-        if normalized_type not in _VALID_CONDITION_TYPES:
-            return {
-                "error": f"Invalid condition_type '{condition_type}'. "
-                f"Must be one of: {', '.join(_VALID_CONDITION_TYPES)}"
-            }
 
         sheet_id = await _get_sheet_id(
             sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
@@ -1408,16 +1410,7 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        indices = _parse_a1_notation(range)
-        grid_range = {
-            "sheetId": sheet_id,
-            "startRowIndex": indices.get("startRowIndex", 0),
-            "startColumnIndex": indices.get("startColumnIndex", 0),
-        }
-        if "endRowIndex" in indices:
-            grid_range["endRowIndex"] = indices["endRowIndex"]
-        if "endColumnIndex" in indices:
-            grid_range["endColumnIndex"] = indices["endColumnIndex"]
+        grid_range = _grid_range(sheet_id, range)
 
         condition: dict[str, Any] = {"type": normalized_type}
         if values:
@@ -1795,11 +1788,11 @@ def register(tool):
                     "error": f"Sort spec for column_index {s['column_index']} "
                     "has a non-string 'order' value"
                 }
-            if order.upper() not in _VALID_SORT_ORDERS:
-                return {
-                    "error": f"Invalid sort order '{order}' for column_index {s['column_index']}. "
-                    f"Must be one of: {', '.join(_VALID_SORT_ORDERS)}"
-                }
+            error = _enum_value_error(
+                order, _VALID_SORT_ORDERS, "sort order", f"for column_index {s['column_index']}"
+            )
+            if error:
+                return error
 
             sort_specs.append(
                 {
