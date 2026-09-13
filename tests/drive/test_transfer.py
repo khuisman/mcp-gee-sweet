@@ -1320,6 +1320,33 @@ class TestSyncFolderRecursive:
         assert any("a.txt" in m for m in messages)
         assert any("b.txt" in m for m in messages)
 
+    async def test_progress_message_includes_running_bytes_transferred(self, tmp_path):
+        """#352: sync_folder's progress/total stay file-count-based with no total
+        (recursive descent means the overall count isn't known upfront) — the
+        message text adds a running total of bytes transferred so far as
+        supplementary context."""
+        (tmp_path / "a.txt").write_text("hi")  # 2 bytes
+        (tmp_path / "b.txt").write_text("bye!")  # 4 bytes
+        fs = _FakeDriveFS({"root": []})
+        ctx = self._ctx(fs)
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            ctx=ctx,
+        )
+        assert set(result["uploaded"]) == {"a.txt", "b.txt"}
+        messages = [c.args[2] for c in ctx.report_progress.await_args_list]
+        assert all(m.endswith("bytes so far") for m in messages)
+        # progress/total (args[0]/args[1]) are unaffected — still file-count-based
+        # with no total, per the docstring's own documented Progress behavior.
+        for c in ctx.report_progress.await_args_list:
+            assert c.args[1] is None
+        # Running total accumulates across both uploads (2 then 6, in whichever
+        # order the concurrent gather completes them).
+        assert any("6 bytes so far" in m for m in messages)
+
     async def test_dry_run_reports_no_progress(self, tmp_path):
         """dry_run transfers nothing, so no progress update should fire either."""
         (tmp_path / "a.txt").write_text("hi")
@@ -2740,6 +2767,90 @@ class TestDownloadFolder:
         assert completed_values == [1, 2]
         for c in ctx.report_progress.await_args_list:
             assert c.args[1] == 2  # total
+
+    async def test_progress_message_falls_back_to_running_bytes_when_sizes_unknown(self, tmp_path):
+        """#352: Drive doesn't report a `size` for Workspace files, so an upfront
+        byte total isn't knowable when export_format is exporting them — the
+        message falls back to a running byte count with no '/total' denominator
+        rather than fabricating one. progress/total (the primary metric) stay
+        file-count-based either way."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "doc1",
+                    "name": "Doc One",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+                {
+                    "id": "doc2",
+                    "name": "Doc Two",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+            ]
+        }
+        svc.files.return_value.export.return_value.execute.return_value = b"content"
+        ctx = self._ctx(svc)
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            ctx=ctx,
+        )
+        assert result["failed"] == []
+        messages = [c.args[2] for c in ctx.report_progress.await_args_list]
+        assert all("bytes so far:" in m for m in messages)
+        assert not any(" bytes:" in m for m in messages)
+        for c in ctx.report_progress.await_args_list:
+            assert c.args[1] == 2  # total stays file-count-based
+
+    async def test_progress_message_includes_byte_total_when_sizes_known(
+        self, tmp_path, monkeypatch
+    ):
+        """#352: non-Workspace candidates report `size` in the same Drive listing
+        call, so an accurate upfront byte total is known — the message shows it
+        as 'transferred/total bytes' instead of a denominator-less running count."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "bin1",
+                    "name": "a.bin",
+                    "mimeType": "application/octet-stream",
+                    "size": "5",
+                },
+                {
+                    "id": "bin2",
+                    "name": "b.bin",
+                    "mimeType": "application/octet-stream",
+                    "size": "7",
+                },
+            ]
+        }
+
+        class _FakeDownloader:
+            def __init__(self, fh, request):
+                self._fh = fh
+
+            def next_chunk(self):
+                self._fh.write(b"x" * 5)
+                return None, True
+
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _FakeDownloader)
+        ctx = self._ctx(svc)
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            ctx=ctx,
+        )
+        assert result["failed"] == []
+        messages = [c.args[2] for c in ctx.report_progress.await_args_list]
+        # 5 + 7 = 12, the upfront total from the listing's own `size` fields —
+        # independent of the (fixed, 5-byte) content the fake downloader actually
+        # writes for each candidate.
+        assert any("/12 bytes:" in m for m in messages)
 
     async def test_duplicate_drive_filenames_do_not_race_or_double_count(self, tmp_path):
         """PR #351 review, live-reproduced: Drive allows two files with the same

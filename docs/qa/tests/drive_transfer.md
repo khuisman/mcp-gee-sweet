@@ -1324,7 +1324,7 @@ Remove `/tmp/qa-download-316/`.
 
 ### TC-D199: `download_folder` and `sync_folder` emit `notifications/progress` updates as each transfer completes (issue #316)
 
-**Background:** Both tools previously ran silently for their entire duration — the 226s `download_folder` call above returned nothing until the very end, with no indication to the caller of whether it was working or hung. Both now call `ctx.report_progress()` from inside each individual transfer's own coroutine right as it finishes, not after the whole concurrent batch resolves, so a caller that supplied a progressToken sees a live stream of updates spread across the call's duration instead of one final burst. The two tools' messages aren't identical: `download_folder` knows its file count upfront (a single non-recursive listing), so it reports a real `total` and a message like `"12/217: report.pdf: ok"`. `sync_folder` doesn't know the total ahead of time (recursive descent discovers files level by level), so it always passes `total=None` and reports a running count with a message like `"readme.txt: download_ok"` — no "N/total" prefix. Progress is file-count based, not byte-size, for both: neither tool's Drive listing fetches a `size` field, and a Workspace file's exported size is unknown until after the export completes, so an accurate byte total isn't available upfront (a size-based mode is tracked separately in #352). `sync_folder`'s dry-run mode never transfers anything, so it never reports progress either. `ctx.report_progress()` itself is wrapped in a try/except at both call sites (PR #351 review) — a failed notification (e.g. a dropped session) no longer downgrades an already-successful transfer to a reported failure.
+**Background:** Both tools previously ran silently for their entire duration — the 226s `download_folder` call above returned nothing until the very end, with no indication to the caller of whether it was working or hung. Both now call `ctx.report_progress()` from inside each individual transfer's own coroutine right as it finishes, not after the whole concurrent batch resolves, so a caller that supplied a progressToken sees a live stream of updates spread across the call's duration instead of one final burst. The two tools' messages aren't identical: `download_folder` knows its file count upfront (a single non-recursive listing), so it reports a real `total` and a message like `"12/217: report.pdf: ok"`. `sync_folder` doesn't know the total ahead of time (recursive descent discovers files level by level), so it always passes `total=None` and reports a running count with a message like `"readme.txt: download_ok"` — no "N/total" prefix. Progress is file-count based, not byte-size, for both — neither tool's Drive listing fetched a `size` field at the time this was written, and a Workspace file's exported size is unknown until after the export completes, so an accurate byte total wasn't available upfront. #352 (see TC-D255) later added bytes transferred so far to the message text as supplementary context, without changing this primary file-count metric. `sync_folder`'s dry-run mode never transfers anything, so it never reports progress either. `ctx.report_progress()` itself is wrapped in a try/except at both call sites (PR #351 review) — a failed notification (e.g. a dropped session) no longer downgrades an already-successful transfer to a reported failure.
 
 **Note:** `notifications/progress` is a protocol-level message, not part of the tool's JSON response — whether it's visible during this QA pass depends on whether the MCP client surfaces raw progress notifications in the transcript. The exact per-item call count, `total`, and message content are already asserted against a mocked `ctx` in `tests/drive/test_transfer.py::TestDownloadFolder::test_reports_progress_as_files_complete` and `TestSyncFolderRecursive::test_reports_progress_for_each_transfer_not_after_the_whole_batch`/`test_dry_run_reports_no_progress`. If the client doesn't surface progress notifications, this check can only confirm the call still completes normally with the notification calls in place.
 
@@ -1347,6 +1347,27 @@ Remove `/tmp/qa-progress-316/`.
 
 **Result (2026-09-04) ✅ PASS**
 download_folder scratch→/tmp/qa-progress-316/ export_format=txt completed normally: downloaded=5, failed=[]. Progress-notification visibility not testable in this client (no progressToken set) — consistent with the TC's own caveat; substantive check (call completes, downloaded correct) passes.
+
+---
+
+### TC-D255: `download_folder`/`sync_folder` progress messages add bytes transferred so far as supplementary context (issue #352)
+
+**Background:** TC-D199 (#316) noted progress was file-count-based only, with byte-size progress tracked separately as #352 — "one 2GB file completing looks identical, progress-wise, to one 2KB file completing." Fixed without changing the primary `progress`/`total` metric (still file-count-based in both tools — a byte total isn't always knowable upfront, since Drive omits `size` entirely for Workspace files until their export actually completes): the message text now appends bytes transferred so far as supplementary context. `download_folder`'s Drive listing now also fetches `size`, so when every candidate in a call has a known size (no Workspace export in the batch) the message shows an accurate upfront total, e.g. `"12/217, 4823001/98234112 bytes: report.pdf: ok"`; if any candidate's size is unknown, it falls back to a denominator-less running count, e.g. `"12/217, 4823001 bytes so far: report.pdf: ok"`. `sync_folder` never has a knowable upfront byte total (recursive descent discovers files level by level, same reason it already has no file-count total per TC-D199) — its message always uses the running-count form, e.g. `"readme.txt: upload_ok, 40231 bytes so far"`. Unit-tested deterministically against a mocked `ctx` in `tests/drive/test_transfer.py::TestDownloadFolder::test_progress_message_falls_back_to_running_bytes_when_sizes_unknown`/`test_progress_message_includes_byte_total_when_sizes_known` and `TestSyncFolderRecursive::test_progress_message_includes_running_bytes_transferred`; this live check confirms the message text against a real API call.
+
+**Note:** Same protocol-level caveat as TC-D199 — `notifications/progress` isn't part of the tool's JSON response, so visibility depends on whether this QA client sets a `progressToken`. If it doesn't, this check can only confirm the call still completes normally with the new byte-counting logic in place (no exception from the added `int(f["size"])` parsing, etc.).
+
+**Setup**
+In `{FOLDER_ID}`, ensure at least 3 non-Workspace files exist (so `download_folder`'s upfront byte total is exercised).
+
+**Prompt**
+> "Download all files from {FOLDER_ID} to `/tmp/qa-progress-352/`"
+
+**Checks**
+- If progress notifications are visible in the client: each message includes a byte count alongside the file-count prefix, e.g. "2/5, 1234/50000 bytes: notes.txt: ok"
+- Regardless of notification visibility: the call completes normally and `downloaded`/`size_bytes` are correct
+
+**Teardown**
+Remove `/tmp/qa-progress-352/`.
 
 ---
 
