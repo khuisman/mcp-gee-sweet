@@ -1941,7 +1941,7 @@
 <p><strong>Drive hardening &amp; dedup</strong> <em>(triaged out of <code>backlog</code> 2026-09-11)</em>
 - [x] <code>download_folder</code>/<code>sync_folder</code> progress notifications: report bytes transferred, not just file count (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/352">#352</a>) (PR #739)
 - [ ] <code>download_folder</code>'s <code>candidates</code> tuple: fragile positional access across consumer sites, could be a dataclass (PR #739 follow-up) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/740">#740</a>)
-- [ ] Decision needed: should <code>report_progress</code>'s structured <code>progress</code>/<code>total</code> fields carry byte data, not just the message text? (PR #739 follow-up) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/741">#741</a>)
+- [ ] <code>download_folder</code>: opt-in flag to report byte-based <code>progress</code>/<code>total</code> in <code>report_progress</code>'s structured fields (default stays file-count for consistency) (PR #739 follow-up, decision resolved) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/741">#741</a>)
 - [ ] Unify the two progress-counter idioms in <code>transfer.py</code> (nonlocal vs. list-box) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/354">#354</a>)
 - [ ] Extend notifications/progress to the remaining <code>asyncio.gather</code>-based multi-call tools (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/355">#355</a>)
 - [ ] Expose starred state via <code>get_file_metadata</code>/<code>list_files</code> — <code>star_file</code>/<code>unstar_file</code> (#139) set it but nothing reads it back (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/388">#388</a>)
