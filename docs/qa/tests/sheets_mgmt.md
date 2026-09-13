@@ -1413,6 +1413,15 @@ update_borders(top={"style":5}) non-string → {"error":"Border spec for 'top' h
 
 ---
 
+### TC-S118: update_borders — cheap param validation now runs before the sheet lookup (unit test)
+
+**Checks (unit test)**
+- `update_borders(spreadsheet_id, sheet="NoSuchSheet", range="A1", top={"style": "SQUIGGLY"})` → `{"error": "Invalid border style 'SQUIGGLY' for 'top'. Must be one of: ..."}`, **not** `{"error": "Sheet 'NoSuchSheet' not found"}` — no `spreadsheets().get()` call is made at all
+- Previously `update_borders` resolved the sheet name (a network/cache round trip) before checking whether any border params were provided or validating `style`, unlike `add_chart`/`resize_rows`/`resize_columns` which validate cheap params first — a bad sheet name paired with an invalid style masked the more fundamental problem (issue #330)
+- Covered by `test_validation_runs_before_sheet_lookup` in `TestUpdateBorders`
+
+---
+
 ## `add_data_validation` / `get_data_validation`
 
 ### TC-S93: ONE_OF_LIST sets a dropdown and get_data_validation reads it back ⚠️ destructive
