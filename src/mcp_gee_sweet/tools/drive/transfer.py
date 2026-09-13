@@ -121,6 +121,25 @@ def _restamp_failure_result(file_id: str, exc: Exception) -> dict[str, Any]:
     }
 
 
+def _format_bytes_note(so_far: int, total: int | None) -> str:
+    """Progress-message byte-count suffix shared by download_folder's
+    _download_one and _sync_level's _run_one_with_progress (#352 QA review,
+    finding #3 — these were previously duplicated with different shapes despite
+    an inline comment claiming they shared "the same principle"). `total` is
+    the accurate upfront byte total when every candidate's size is known ahead
+    of time (download_folder only — sync_folder never has one, recursive
+    descent discovers files level by level), or None otherwise. Checked via
+    `is not None`, not truthiness — a genuine all-zero-byte total (e.g. a
+    batch of only empty files) must still render as 'N/0 bytes' rather than
+    silently falling back to the less precise running-count form (finding #2:
+    the original per-site checks each truthy-tested the total instead)."""
+    if total is not None:
+        return f", {so_far}/{total} bytes"
+    if so_far:
+        return f", {so_far} bytes so far"
+    return ""
+
+
 async def _upload_local_file(
     drive_service,
     local_path: str,
@@ -785,6 +804,7 @@ async def _sync_level(
                             .execute,
                             drive_service,
                         )
+                        synced_id = fid
                         logger.debug("Synced (update) %s%s → Drive", rel_prefix, name)
                     else:
                         body: dict[str, Any] = {
@@ -844,8 +864,28 @@ async def _sync_level(
                                     "name": name,
                                     **_restamp_failure_result(created["id"], e),
                                 }
+                        synced_id = created["id"]
                         logger.debug("Synced (create) %s%s → Drive", rel_prefix, name)
-                    return {"kind": "upload_ok", "name": name, "bytes": p.stat().st_size}
+                    try:
+                        size = p.stat().st_size
+                    except OSError as e:
+                        # The Drive write above already succeeded — synced_id names a
+                        # real Drive object even though this stat then failed (e.g.
+                        # the local file was deleted/moved in the window between the
+                        # write and this stat). Report fileId alongside the error so
+                        # it isn't left untracked, mirroring the restamp-failure
+                        # pattern above (#420/#650) for the same reason (#352 QA
+                        # review, finding #1).
+                        return {
+                            "kind": "upload_fail",
+                            "name": name,
+                            "error": (
+                                f"synced to Drive file {synced_id!r} but failed to stat "
+                                f"the local file afterward: {e}"
+                            ),
+                            "fileId": synced_id,
+                        }
+                    return {"kind": "upload_ok", "name": name, "bytes": size}
                 except Exception as e:
                     # Catch-all for the create()/update() calls above — a
                     # storageQuotaExceeded HttpError lands here too, so render it
@@ -941,12 +981,12 @@ async def _sync_level(
                 # progress stays file-count-based with no total (recursive descent
                 # means the overall file count isn't known upfront) — bytes
                 # transferred so far are supplementary context in the message only
-                # (#352), following the same principle as download_folder's own
-                # progress message above.
+                # (#352). sync_folder never has a reliable upfront byte total
+                # (unlike download_folder), so total is always None here.
                 bytes_note = ""
                 if "bytes" in result:
                     progress_bytes[0] += result["bytes"]
-                    bytes_note = f", {progress_bytes[0]} bytes so far"
+                    bytes_note = _format_bytes_note(progress_bytes[0], None)
                 try:
                     await ctx.report_progress(
                         progress_count[0],
@@ -1944,12 +1984,9 @@ def register(tool):
                 bytes_completed += result["bytes"]
             # progress/total stay file-count-based (see the docstring's #352 note);
             # bytes transferred so far are supplementary context in the message only.
-            if bytes_total_known and total_bytes_expected:
-                bytes_note = f", {bytes_completed}/{total_bytes_expected} bytes"
-            elif bytes_completed:
-                bytes_note = f", {bytes_completed} bytes so far"
-            else:
-                bytes_note = ""
+            bytes_note = _format_bytes_note(
+                bytes_completed, total_bytes_expected if bytes_total_known else None
+            )
             try:
                 await ctx.report_progress(
                     completed,
