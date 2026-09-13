@@ -1369,6 +1369,10 @@ In `{FOLDER_ID}`, ensure at least 3 non-Workspace files exist (so `download_fold
 **Teardown**
 Remove `/tmp/qa-progress-352/`.
 
+**Result (2026-09-13) ✅ PASS (no-progress-notification path; blocking findings sent back separately)** — Ran against an isolated scratch folder (not `{FOLDER_ID}`, which currently has no non-Workspace files — avoids dragging fixture pollution into a destructive test) containing 3 fresh binary files (5/7/9 bytes). `download_folder` completed normally: `downloaded: ["a.bin", "b.bin", "c.bin"]`, `size_bytes: 21` — matches the real total (5+7+9), confirming the byte-tracking is correct end-to-end even though raw `notifications/progress` wasn't surfaced through this MCP client path (same caveat as TC-D199). `tests/drive/test_transfer.py` (132 tests) passes. Scratch folder trashed as teardown.
+
+Code review surfaced 3 blocking findings on this PR's own new code (sent back to Dev, not re-verified here yet): (1) the new `p.stat().st_size` call in `_sync_level`'s upload path sits inside the same try/except as the Drive write, so a stat() failure after a successful upload is misreported as a failure with no `fileId` — unlike the established restamp-failure pattern; (2) `download_folder`'s `if bytes_total_known and total_bytes_expected:` truthy-checks the byte total instead of checking `is not None`, so an all-zero-byte-file batch silently loses the accurate-total message form; (3) `test_progress_message_includes_byte_total_when_sizes_known`'s fake downloader writes a fixed 5 bytes regardless of declared size, so the test never actually verifies the accumulated-bytes numerator, only that the (correct) declared-size denominator appears in some message. Two non-blocking findings filed as #740 (candidates-tuple positional fragility, pre-existing convention) and #741 (structured `progress`/`total` fields never carrying byte data, a design question for the maintainer).
+
 ---
 
 ### TC-D200: `download_folder` — two Drive files with the same name no longer race or double-count (PR #351 review) ⚠️ local-filesystem
