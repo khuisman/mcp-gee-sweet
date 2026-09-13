@@ -1948,7 +1948,7 @@
 - [ ] <code>sync_folder</code>: <code>actions</code> list built unconditionally even when <code>dry_run=False</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/521">#521</a>)
 - [ ] Extend the <code>_GOOGLE_DOC_MIME</code> sweep to remaining hardcoded-literal and comparison sites (#412 follow-up) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/544">#544</a>)
 - [ ] <code>refactor(drive)</code>: dedupe <code>mime_type</code> quote-escaping and list-files response mapping in <code>files.py</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/578">#578</a>)
-- [ ] <code>list_folders</code>/<code>list_spreadsheets</code> no-parent + no-<code>DRIVE_FOLDER_ID</code> path is unbounded across all drives, no <code>max_results</code> (<code>lane-a</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/718">#718</a>)</p>
+- [x] <code>list_folders</code>/<code>list_spreadsheets</code> no-parent + no-<code>DRIVE_FOLDER_ID</code> path is unbounded across all drives, no <code>max_results</code> (<code>lane-a</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/718">#718</a>) (PR #736)</p>
 <p><strong>Calendar hardening</strong> <em>(triaged out of <code>backlog</code> 2026-09-11)</em>
 - [ ] <code>list_calendar_acl</code> pagination fix (#460) needs a response-size cap, loop safety bound, and partial-failure handling (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/615">#615</a>)
 - [ ] <code>list_all_events</code> concurrency cap: per-invocation only, no env override (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/626">#626</a>)
