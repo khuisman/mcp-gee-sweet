@@ -686,6 +686,15 @@ class TestCreateParagraphBulletsTool:
             "createParagraphBullets",
             "deleteContentRange",
         ]
+        # Tabs are inserted in descending-start order (Three, Two, One), each
+        # unit's own single tab at its own start index — the load-bearing
+        # invariant is that these three land in the request array *before*
+        # the anchor insert below, since both the last of these (index 1) and
+        # the anchor target the identical run_start index (1) and Docs API
+        # requests at the same location apply in array order.
+        assert reqs[1]["insertText"] == {"location": {"index": 11}, "text": "\t"}
+        assert reqs[2]["insertText"] == {"location": {"index": 6}, "text": "\t"}
+        assert reqs[3]["insertText"] == {"location": {"index": 1}, "text": "\t"}
         anchor_insert = reqs[4]["insertText"]
         assert anchor_insert == {"location": {"index": 1}, "text": "\n"}
         create = reqs[5]["createParagraphBullets"]
