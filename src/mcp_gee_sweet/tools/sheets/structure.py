@@ -92,14 +92,31 @@ def _per_column_ranges(sheet_id: int, indices: dict) -> list[dict]:
     ]
 
 
-async def _set_dimension_hidden(
+def _range_order_error(
+    start: int, end: int | None, start_label: str, end_label: str
+) -> dict[str, Any] | None:
+    """Return an {"error": ...} dict if end (inclusive, when given) precedes start."""
+    if end is not None and end < start:
+        return {"error": f"{end_label} ({end}) must be >= {start_label} ({start})"}
+    return None
+
+
+def _positive_value_error(name: str, value: int) -> dict[str, Any] | None:
+    """Return an {"error": ...} dict if value is not a positive integer."""
+    if value <= 0:
+        return {"error": f"{name} must be positive, got {value}"}
+    return None
+
+
+async def _update_dimension_properties(
     sheets_service,
     spreadsheet_id: str,
     sheet_id: int,
     dimension: str,
     start_index: int,
     end_index: int,
-    hidden: bool,
+    properties: dict[str, Any],
+    fields: str,
 ) -> dict[str, Any]:
     return await execute_in_thread(
         sheets_service.spreadsheets()
@@ -115,43 +132,8 @@ async def _set_dimension_hidden(
                                 "startIndex": start_index,
                                 "endIndex": end_index,
                             },
-                            "properties": {"hiddenByUser": hidden},
-                            "fields": "hiddenByUser",
-                        }
-                    }
-                ]
-            },
-        )
-        .execute,
-        sheets_service,
-    )
-
-
-async def _set_dimension_pixel_size(
-    sheets_service,
-    spreadsheet_id: str,
-    sheet_id: int,
-    dimension: str,
-    start_index: int,
-    end_index: int,
-    pixel_size: int,
-) -> dict[str, Any]:
-    return await execute_in_thread(
-        sheets_service.spreadsheets()
-        .batchUpdate(
-            spreadsheetId=spreadsheet_id,
-            body={
-                "requests": [
-                    {
-                        "updateDimensionProperties": {
-                            "range": {
-                                "sheetId": sheet_id,
-                                "dimension": dimension,
-                                "startIndex": start_index,
-                                "endIndex": end_index,
-                            },
-                            "properties": {"pixelSize": pixel_size},
-                            "fields": "pixelSize",
+                            "properties": properties,
+                            "fields": fields,
                         }
                     }
                 ]
@@ -191,6 +173,58 @@ async def _auto_resize_dimension(
         )
         .execute,
         sheets_service,
+    )
+
+
+async def _resize_dimension(
+    sheets_service,
+    lc,
+    spreadsheet_id: str,
+    sheet: str,
+    dimension: str,
+    start_index: int,
+    end_index_inclusive: int | None,
+    pixel_size: int | None,
+    auto_resize: bool,
+    start_label: str,
+    end_label: str,
+) -> dict[str, Any]:
+    """Shared implementation behind resize_rows/resize_columns."""
+    sheet_id = await _get_sheet_id(
+        sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+    )
+    if sheet_id is None:
+        return {"error": f"Sheet '{sheet}' not found"}
+
+    if pixel_size is None and not auto_resize:
+        return {"error": "Specify pixel_size or set auto_resize=True"}
+    if pixel_size is not None and auto_resize:
+        return {"error": "Specify only one of pixel_size or auto_resize"}
+
+    error = _range_order_error(start_index, end_index_inclusive, start_label, end_label)
+    if error:
+        return error
+    if pixel_size is not None:
+        error = _positive_value_error("pixel_size", pixel_size)
+        if error:
+            return error
+
+    end_index = (end_index_inclusive if end_index_inclusive is not None else start_index) + 1
+
+    if auto_resize:
+        return await _auto_resize_dimension(
+            sheets_service, spreadsheet_id, sheet_id, dimension, start_index, end_index
+        )
+
+    return await _update_dimension_properties(
+        sheets_service,
+        spreadsheet_id,
+        sheet_id,
+        dimension,
+        start_index,
+        end_index,
+        {"pixelSize": pixel_size},
+        "pixelSize",
     )
 
 
@@ -475,6 +509,10 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
+        error = _positive_value_error("count", count)
+        if error:
+            return error
+
         start = start_row if start_row is not None else 0
         result = await execute_in_thread(
             sheets_service.spreadsheets()
@@ -530,6 +568,10 @@ def register(tool):
         )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
+
+        error = _positive_value_error("count", count)
+        if error:
+            return error
 
         start = start_column if start_column is not None else 0
         result = await execute_in_thread(
@@ -622,6 +664,10 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
+        error = _range_order_error(start_row, end_row, "start_row", "end_row")
+        if error:
+            return error
+
         end_index = (end_row if end_row is not None else start_row) + 1  # exclusive
 
         return await execute_in_thread(
@@ -676,6 +722,10 @@ def register(tool):
         )
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
+
+        error = _range_order_error(start_column, end_column, "start_column", "end_column")
+        if error:
+            return error
 
         end_index = (end_column if end_column is not None else start_column) + 1  # exclusive
 
@@ -732,10 +782,21 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
+        error = _range_order_error(start_row, end_row, "start_row", "end_row")
+        if error:
+            return error
+
         end_index = (end_row if end_row is not None else start_row) + 1  # exclusive
 
-        return await _set_dimension_hidden(
-            sheets_service, spreadsheet_id, sheet_id, "ROWS", start_row, end_index, True
+        return await _update_dimension_properties(
+            sheets_service,
+            spreadsheet_id,
+            sheet_id,
+            "ROWS",
+            start_row,
+            end_index,
+            {"hiddenByUser": True},
+            "hiddenByUser",
         )
 
     @tool(annotations=ToolAnnotations(title="Unhide Rows", destructiveHint=True))
@@ -768,10 +829,21 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
+        error = _range_order_error(start_row, end_row, "start_row", "end_row")
+        if error:
+            return error
+
         end_index = (end_row if end_row is not None else start_row) + 1  # exclusive
 
-        return await _set_dimension_hidden(
-            sheets_service, spreadsheet_id, sheet_id, "ROWS", start_row, end_index, False
+        return await _update_dimension_properties(
+            sheets_service,
+            spreadsheet_id,
+            sheet_id,
+            "ROWS",
+            start_row,
+            end_index,
+            {"hiddenByUser": False},
+            "hiddenByUser",
         )
 
     @tool(annotations=ToolAnnotations(title="Hide Columns", destructiveHint=True))
@@ -804,10 +876,21 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
+        error = _range_order_error(start_column, end_column, "start_column", "end_column")
+        if error:
+            return error
+
         end_index = (end_column if end_column is not None else start_column) + 1  # exclusive
 
-        return await _set_dimension_hidden(
-            sheets_service, spreadsheet_id, sheet_id, "COLUMNS", start_column, end_index, True
+        return await _update_dimension_properties(
+            sheets_service,
+            spreadsheet_id,
+            sheet_id,
+            "COLUMNS",
+            start_column,
+            end_index,
+            {"hiddenByUser": True},
+            "hiddenByUser",
         )
 
     @tool(annotations=ToolAnnotations(title="Unhide Columns", destructiveHint=True))
@@ -840,10 +923,21 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
+        error = _range_order_error(start_column, end_column, "start_column", "end_column")
+        if error:
+            return error
+
         end_index = (end_column if end_column is not None else start_column) + 1  # exclusive
 
-        return await _set_dimension_hidden(
-            sheets_service, spreadsheet_id, sheet_id, "COLUMNS", start_column, end_index, False
+        return await _update_dimension_properties(
+            sheets_service,
+            spreadsheet_id,
+            sheet_id,
+            "COLUMNS",
+            start_column,
+            end_index,
+            {"hiddenByUser": False},
+            "hiddenByUser",
         )
 
     @tool(annotations=ToolAnnotations(title="Resize Rows", destructiveHint=True))
@@ -873,28 +967,18 @@ def register(tool):
             Result of the batchUpdate operation
         """
         lc = ctx.request_context.lifespan_context
-        sheets_service = lc.sheets_service
-
-        if pixel_size is None and not auto_resize:
-            return {"error": "Specify pixel_size or set auto_resize=True"}
-        if pixel_size is not None and auto_resize:
-            return {"error": "Specify only one of pixel_size or auto_resize"}
-
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
-        )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
-
-        end_index = (end_row if end_row is not None else start_row) + 1  # exclusive
-
-        if auto_resize:
-            return await _auto_resize_dimension(
-                sheets_service, spreadsheet_id, sheet_id, "ROWS", start_row, end_index
-            )
-
-        return await _set_dimension_pixel_size(
-            sheets_service, spreadsheet_id, sheet_id, "ROWS", start_row, end_index, pixel_size
+        return await _resize_dimension(
+            lc.sheets_service,
+            lc,
+            spreadsheet_id,
+            sheet,
+            "ROWS",
+            start_row,
+            end_row,
+            pixel_size,
+            auto_resize,
+            "start_row",
+            "end_row",
         )
 
     @tool(annotations=ToolAnnotations(title="Resize Columns", destructiveHint=True))
@@ -924,28 +1008,18 @@ def register(tool):
             Result of the batchUpdate operation
         """
         lc = ctx.request_context.lifespan_context
-        sheets_service = lc.sheets_service
-
-        if pixel_size is None and not auto_resize:
-            return {"error": "Specify pixel_size or set auto_resize=True"}
-        if pixel_size is not None and auto_resize:
-            return {"error": "Specify only one of pixel_size or auto_resize"}
-
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
-        )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
-
-        end_index = (end_column if end_column is not None else start_column) + 1  # exclusive
-
-        if auto_resize:
-            return await _auto_resize_dimension(
-                sheets_service, spreadsheet_id, sheet_id, "COLUMNS", start_column, end_index
-            )
-
-        return await _set_dimension_pixel_size(
-            sheets_service, spreadsheet_id, sheet_id, "COLUMNS", start_column, end_index, pixel_size
+        return await _resize_dimension(
+            lc.sheets_service,
+            lc,
+            spreadsheet_id,
+            sheet,
+            "COLUMNS",
+            start_column,
+            end_column,
+            pixel_size,
+            auto_resize,
+            "start_column",
+            "end_column",
         )
 
     @tool(annotations=ToolAnnotations(title="Format Cells", destructiveHint=True))

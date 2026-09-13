@@ -403,6 +403,20 @@ create_sheet(title="CacheNewSheet") then list_sheets includes it immediately —
 
 ---
 
+## `add_rows` / `add_columns`
+
+### TC-S104: Non-positive count returns error (unit test)
+
+**Checks (unit test)**
+- `add_rows(spreadsheet_id, sheet, count=0)` → `{"error": "count must be positive, got 0"}`, no `batchUpdate` call
+- `add_rows(spreadsheet_id, sheet, count=-2)` → `{"error": "count must be positive, got -2"}`, no `batchUpdate` call
+- `add_columns(spreadsheet_id, sheet, count=0)` → `{"error": "count must be positive, got 0"}`, no `batchUpdate` call
+- `add_columns(spreadsheet_id, sheet, count=-1)` → `{"error": "count must be positive, got -1"}`, no `batchUpdate` call
+- Previously a non-positive `count` passed straight to `insertDimension` (`startIndex == endIndex` or `startIndex > endIndex`), which the Sheets API rejected with an opaque 400 rather than a clear local error (issue #323)
+- Covered by `test_zero_count_returns_error_without_api_call` / `test_negative_count_returns_error_without_api_call` in `TestAddRows`/`TestAddColumns`
+
+---
+
 ## `refresh_cache`
 
 ### TC-S20: Refresh by spreadsheet ID only
@@ -562,6 +576,15 @@ delete_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
+### TC-S105: end_row before start_row returns error (unit test)
+
+**Checks (unit test)**
+- `delete_rows(spreadsheet_id, sheet, start_row=5, end_row=2)` → `{"error": "end_row (2) must be >= start_row (5)"}`, no `batchUpdate` call
+- Previously an inverted range passed straight through to `deleteDimension`'s computed (invalid) `startIndex`/`endIndex` pair, which the Sheets API rejected with an opaque 400 rather than a clear local error (issue #323)
+- Covered by `test_end_row_before_start_row_returns_error_without_api_call` in `TestDeleteRows`
+
+---
+
 ## `delete_columns`
 
 ### TC-S30: Delete a single column ⚠️ destructive
@@ -610,6 +633,15 @@ delete_columns(start_column=2,end_column=4) on 3-col sheet → only Q3(idx2) exi
 
 **Result (2026-09-04) ✅ PASS**
 delete_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
+
+---
+
+### TC-S106: end_column before start_column returns error (unit test)
+
+**Checks (unit test)**
+- `delete_columns(spreadsheet_id, sheet, start_column=5, end_column=2)` → `{"error": "end_column (2) must be >= start_column (5)"}`, no `batchUpdate` call
+- Same underlying gap as TC-S105, one dimension over (issue #323)
+- Covered by `test_end_column_before_start_column_returns_error_without_api_call` in `TestDeleteColumns`
 
 ---
 
@@ -704,6 +736,16 @@ unhide_rows(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
+### TC-S107: hide_rows / unhide_rows — end_row before start_row returns error (unit test)
+
+**Checks (unit test)**
+- `hide_rows(spreadsheet_id, sheet, start_row=5, end_row=2)` → `{"error": "end_row (2) must be >= start_row (5)"}`, no `batchUpdate` call
+- `unhide_rows(spreadsheet_id, sheet, start_row=5, end_row=2)` → same error shape, no `batchUpdate` call
+- Both tools share the same underlying `_range_order_error` check (issue #323)
+- Covered by `test_end_row_before_start_row_returns_error_without_api_call` in `TestHideRows`/`TestUnhideRows`
+
+---
+
 ## `hide_columns` / `unhide_columns`
 
 ### TC-S68: Hide a single column ⚠️ destructive
@@ -792,6 +834,16 @@ unhide_columns(start_column=1) → col B unhidden (verified via cleanup pass)
 
 **Result (2026-09-04) ✅ PASS**
 unhide_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
+
+---
+
+### TC-S108: hide_columns / unhide_columns — end_column before start_column returns error (unit test)
+
+**Checks (unit test)**
+- `hide_columns(spreadsheet_id, sheet, start_column=5, end_column=2)` → `{"error": "end_column (2) must be >= start_column (5)"}`, no `batchUpdate` call
+- `unhide_columns(spreadsheet_id, sheet, start_column=5, end_column=2)` → same error shape, no `batchUpdate` call
+- Both tools share the same underlying `_range_order_error` check (issue #323)
+- Covered by `test_end_column_before_start_column_returns_error_without_api_call` in `TestHideColumns`/`TestUnhideColumns`
 
 ---
 
@@ -996,6 +1048,35 @@ resize_columns(pixel_size=100,auto_resize=True) both → {"error":"Specify only 
 
 **Result (2026-09-04) ✅ PASS**
 resize_columns(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
+
+---
+
+### TC-S109: resize_rows / resize_columns — non-positive pixel_size returns error (unit test)
+
+**Checks (unit test)**
+- `resize_rows(spreadsheet_id, sheet, start_row=0, pixel_size=0)` → `{"error": "pixel_size must be positive, got 0"}`, no `batchUpdate` call
+- `resize_columns(spreadsheet_id, sheet, start_column=0, pixel_size=-5)` → `{"error": "pixel_size must be positive, got -5"}`, no `batchUpdate` call
+- Previously a non-positive `pixel_size` passed straight to `updateDimensionProperties`, which the Sheets API either silently clamped or rejected with an opaque 400 rather than a clear local error (issue #323)
+- Covered by `test_non_positive_pixel_size_returns_error_without_api_call` in `TestResizeRows`/`TestResizeColumns`
+
+---
+
+### TC-S110: resize_rows / resize_columns — end index before start index returns error (unit test)
+
+**Checks (unit test)**
+- `resize_rows(spreadsheet_id, sheet, start_row=5, end_row=2, pixel_size=50)` → `{"error": "end_row (2) must be >= start_row (5)"}`, no `batchUpdate` call
+- `resize_columns(spreadsheet_id, sheet, start_column=5, end_column=2, pixel_size=80)` → `{"error": "end_column (2) must be >= start_column (5)"}`, no `batchUpdate` call
+- Covered by `test_end_row_before_start_row_returns_error_without_api_call` / `test_end_column_before_start_column_returns_error_without_api_call` in `TestResizeRows`/`TestResizeColumns`
+
+---
+
+### TC-S111: resize_rows / resize_columns — sheet lookup now precedes pixel_size/auto_resize validation (unit test)
+
+**Checks (unit test)**
+- `resize_rows(spreadsheet_id, sheet="NoSuchSheet", start_row=0)` (no `pixel_size`/`auto_resize` given) → `{"error": "Sheet 'NoSuchSheet' not found"}`, **not** `{"error": "Specify pixel_size or set auto_resize=True"}`
+- `resize_columns(spreadsheet_id, sheet="NoSuchSheet", start_column=0)` → same shape
+- Previously the mutual-exclusivity check ran before the sheet lookup, so a bad sheet name paired with missing/conflicting resize params returned the params error first, masking the more fundamental problem — now matches `format_cells`' sheet-first ordering (issue #323)
+- Covered by `test_bad_sheet_name_reported_before_missing_params` in `TestResizeRows`/`TestResizeColumns`
 
 ---
 

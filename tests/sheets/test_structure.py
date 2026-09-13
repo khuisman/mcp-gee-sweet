@@ -393,6 +393,116 @@ class TestGetSheetIdCallSitesForwardDriveService:
             )
 
 
+class TestAddRows:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _dimension_range(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["insertDimension"]["range"]
+
+    async def test_default_start_is_zero(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["add_rows"](spreadsheet_id="ss1", sheet="Sheet1", count=3, ctx=ctx)
+        r = self._dimension_range(svc)
+        assert r["startIndex"] == 0
+        assert r["endIndex"] == 3
+        assert r["dimension"] == "ROWS"
+
+    async def test_explicit_start_row_used(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["add_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", count=2, start_row=5, ctx=ctx
+        )
+        r = self._dimension_range(svc)
+        assert r["startIndex"] == 5
+        assert r["endIndex"] == 7
+
+    async def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_rows"](
+            spreadsheet_id="ss1", sheet="Missing", count=1, ctx=ctx
+        )
+        assert "error" in result
+
+    async def test_zero_count_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", count=0, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_negative_count_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", count=-2, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+
+class TestAddColumns:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _dimension_range(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["insertDimension"]["range"]
+
+    async def test_default_start_is_zero(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["add_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", count=3, ctx=ctx
+        )
+        r = self._dimension_range(svc)
+        assert r["startIndex"] == 0
+        assert r["endIndex"] == 3
+        assert r["dimension"] == "COLUMNS"
+
+    async def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_columns"](
+            spreadsheet_id="ss1", sheet="Missing", count=1, ctx=ctx
+        )
+        assert "error" in result
+
+    async def test_zero_count_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", count=0, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_negative_count_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", count=-1, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+
 class TestDeleteSheet:
     def _sheets_service(self, sheet_id=7):
         mock = MagicMock()
@@ -473,6 +583,15 @@ class TestDeleteRows:
         )
         assert "error" in result
 
+    async def test_end_row_before_start_row_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["delete_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=5, end_row=2, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
 
 class TestDeleteColumns:
     def _sheets_service(self, sheet_id=0):
@@ -515,6 +634,15 @@ class TestDeleteColumns:
             spreadsheet_id="ss1", sheet="Missing", start_column=0, ctx=ctx
         )
         assert "error" in result
+
+    async def test_end_column_before_start_column_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["delete_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=5, end_column=2, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
 
 
 class TestHideRows:
@@ -561,6 +689,15 @@ class TestHideRows:
         )
         assert "error" in result
 
+    async def test_end_row_before_start_row_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["hide_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=5, end_row=2, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
 
 class TestUnhideRows:
     def _sheets_service(self, sheet_id=0):
@@ -604,6 +741,15 @@ class TestUnhideRows:
             spreadsheet_id="ss1", sheet="Missing", start_row=0, ctx=ctx
         )
         assert "error" in result
+
+    async def test_end_row_before_start_row_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["unhide_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=5, end_row=2, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
 
 
 class TestHideColumns:
@@ -649,6 +795,15 @@ class TestHideColumns:
         )
         assert "error" in result
 
+    async def test_end_column_before_start_column_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["hide_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=5, end_column=2, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
 
 class TestUnhideColumns:
     def _sheets_service(self, sheet_id=0):
@@ -692,6 +847,15 @@ class TestUnhideColumns:
             spreadsheet_id="ss1", sheet="Missing", start_column=0, ctx=ctx
         )
         assert "error" in result
+
+    async def test_end_column_before_start_column_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["unhide_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=5, end_column=2, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
 
 
 class TestResizeRows:
@@ -769,6 +933,35 @@ class TestResizeRows:
             spreadsheet_id="ss1", sheet="Missing", start_row=0, pixel_size=50, ctx=ctx
         )
         assert "error" in result
+
+    async def test_bad_sheet_name_reported_before_missing_params(self):
+        # Sheet lookup must be checked before the pixel_size/auto_resize mutual
+        # exclusivity check, matching format_cells' sheet-first ordering — a bad
+        # sheet name should surface its own error, not mask it behind a params error.
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["resize_rows"](
+            spreadsheet_id="ss1", sheet="Missing", start_row=0, ctx=ctx
+        )
+        assert "not found" in result["error"]
+
+    async def test_non_positive_pixel_size_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["resize_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=0, pixel_size=0, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_end_row_before_start_row_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["resize_rows"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_row=5, end_row=2, pixel_size=50, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
 
 
 class TestResizeColumns:
@@ -851,6 +1044,37 @@ class TestResizeColumns:
             spreadsheet_id="ss1", sheet="Missing", start_column=0, pixel_size=80, ctx=ctx
         )
         assert "error" in result
+
+    async def test_bad_sheet_name_reported_before_missing_params(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["resize_columns"](
+            spreadsheet_id="ss1", sheet="Missing", start_column=0, ctx=ctx
+        )
+        assert "not found" in result["error"]
+
+    async def test_non_positive_pixel_size_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["resize_columns"](
+            spreadsheet_id="ss1", sheet="Sheet1", start_column=0, pixel_size=-5, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_end_column_before_start_column_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["resize_columns"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            start_column=5,
+            end_column=2,
+            pixel_size=80,
+            ctx=ctx,
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
 
 
 class TestFormatCells:
