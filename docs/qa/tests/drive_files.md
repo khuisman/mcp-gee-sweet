@@ -181,6 +181,8 @@ list_spreadsheets(empty scratch folder) returned `[]`, not an error.
 
 **Result (2026-09-12) ✅ PASS** — `list_spreadsheets(max_results=2)` returned `[]`, no error (this deployment's `DRIVE_FOLDER_ID` is set, so the fallback resolves to the configured default folder rather than a true global My-Drive+shared-drives search — same caveat as TC-D27; that folder has 0 spreadsheets directly, so the returned-count check wasn't exercised by this fixture). Confirmed the tool's own live description text still shows the stale Args wording flagged by code review (`or searches 'My Drive'`) — filed as a blocking finding on the PR rather than closed here, since it's this PR's own regression, not a QA-doc issue. `pageSize`-level clamp/boundary behavior (25/1000/0→1) is exercised by `tests/drive/test_files.py::TestListSpreadsheets` (78-test suite passes) — not independently re-provable via this black-box MCP call without a fixture folder with >2 items.
 
+**Result (2026-09-13) ✅ PASS (re-verification, fix `802b799`)** — Ash's fix updates both Args lines to match the summary text ("or searches 'My Drive' and every shared drive the account can access"), confirmed via `git show` against the source. Re-ran live post-`/mcp reconnect`: `list_spreadsheets(max_results=2)` unchanged behavior (`[]`, no error) — expected, since this is a docstring-only fix with no behavioral surface. Docstring text itself isn't independently re-observable through this black-box tool call (no MCP mechanism surfaces the served description back to the caller), so verification here rests on the confirmed source diff plus the unchanged, correct runtime behavior. `tests/drive/test_files.py` (78 tests) passes.
+
 ---
 
 ## `list_folders`
@@ -243,6 +245,8 @@ list_folders(empty scratch folder) returned `[]` — not an error.
 - Docstring's fallback description now explicitly names both 'My Drive' AND shared drives (previously understated as 'My Drive' only) — spot-check the tool's live description text if surfaced to a caller
 
 **Result (2026-09-12) ✅ PASS** — `list_folders(max_results=2)` returned exactly 1 folder (`mcp-gee-sweet-qa-fixtures`), no error; fallback resolves to the configured `DRIVE_FOLDER_ID` on this deployment (same caveat as TC-D27/TC-D249). Confirmed the tool's own live description text still shows the stale Args wording flagged by code review — same blocking PR finding as TC-D249, not duplicated as a separate issue. `pageSize`-level clamp/boundary behavior is exercised by `tests/drive/test_files.py::TestListFolders` (78-test suite passes).
+
+**Result (2026-09-13) ✅ PASS (re-verification, fix `802b799`)** — same fix commit as TC-D249. Re-ran live post-`/mcp reconnect`: `list_folders(max_results=2)` unchanged behavior (1 folder, no error). Verification rests on the confirmed source diff (`git show`) plus unchanged correct runtime behavior, same reasoning as TC-D249's re-verification note. `tests/drive/test_files.py` (78 tests) passes.
 
 ---
 
