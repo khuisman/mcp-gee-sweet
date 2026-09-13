@@ -700,10 +700,9 @@ def register(tool):
                     }
                 )
                 total_tabs = 0
-                min_nesting = run[0]["nesting_level"]
+                min_nesting = min(u["nesting_level"] for u in run)
                 for unit in sorted(run, key=lambda u: u["start"], reverse=True):
                     total_tabs += unit["nesting_level"]
-                    min_nesting = min(min_nesting, unit["nesting_level"])
                     if unit["nesting_level"]:
                         requests.append(
                             {
