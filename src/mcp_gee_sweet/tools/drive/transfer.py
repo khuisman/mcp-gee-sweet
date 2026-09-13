@@ -121,6 +121,25 @@ def _restamp_failure_result(file_id: str, exc: Exception) -> dict[str, Any]:
     }
 
 
+def _format_bytes_note(so_far: int, total: int | None) -> str:
+    """Progress-message byte-count suffix shared by download_folder's
+    _download_one and _sync_level's _run_one_with_progress (#352 QA review,
+    finding #3 — these were previously duplicated with different shapes despite
+    an inline comment claiming they shared "the same principle"). `total` is
+    the accurate upfront byte total when every candidate's size is known ahead
+    of time (download_folder only — sync_folder never has one, recursive
+    descent discovers files level by level), or None otherwise. Checked via
+    `is not None`, not truthiness — a genuine all-zero-byte total (e.g. a
+    batch of only empty files) must still render as 'N/0 bytes' rather than
+    silently falling back to the less precise running-count form (finding #2:
+    the original per-site checks each truthy-tested the total instead)."""
+    if total is not None:
+        return f", {so_far}/{total} bytes"
+    if so_far:
+        return f", {so_far} bytes so far"
+    return ""
+
+
 async def _upload_local_file(
     drive_service,
     local_path: str,
@@ -345,6 +364,7 @@ async def _sync_level(
     folders_skipped: list[str],
     ctx: Context,
     progress_count: list[int],
+    progress_bytes: list[int],
 ) -> int:
     """
     Sync the files directly inside one Drive-folder/local-dir pair and, if `recursive`,
@@ -784,6 +804,7 @@ async def _sync_level(
                             .execute,
                             drive_service,
                         )
+                        synced_id = fid
                         logger.debug("Synced (update) %s%s → Drive", rel_prefix, name)
                     else:
                         body: dict[str, Any] = {
@@ -843,8 +864,28 @@ async def _sync_level(
                                     "name": name,
                                     **_restamp_failure_result(created["id"], e),
                                 }
+                        synced_id = created["id"]
                         logger.debug("Synced (create) %s%s → Drive", rel_prefix, name)
-                    return {"kind": "upload_ok", "name": name}
+                    try:
+                        size = p.stat().st_size
+                    except OSError as e:
+                        # The Drive write above already succeeded — synced_id names a
+                        # real Drive object even though this stat then failed (e.g.
+                        # the local file was deleted/moved in the window between the
+                        # write and this stat). Report fileId alongside the error so
+                        # it isn't left untracked, mirroring the restamp-failure
+                        # pattern above (#420/#650) for the same reason (#352 QA
+                        # review, finding #1).
+                        return {
+                            "kind": "upload_fail",
+                            "name": name,
+                            "error": (
+                                f"synced to Drive file {synced_id!r} but failed to stat "
+                                f"the local file afterward: {e}"
+                            ),
+                            "fileId": synced_id,
+                        }
+                    return {"kind": "upload_ok", "name": name, "bytes": size}
                 except Exception as e:
                     # Catch-all for the create()/update() calls above — a
                     # storageQuotaExceeded HttpError lands here too, so render it
@@ -937,11 +978,20 @@ async def _sync_level(
             # live progress during the wait (the actual complaint in #316).
             if result["kind"] in ("upload_ok", "upload_fail", "download_ok", "download_fail"):
                 progress_count[0] += 1
+                # progress stays file-count-based with no total (recursive descent
+                # means the overall file count isn't known upfront) — bytes
+                # transferred so far are supplementary context in the message only
+                # (#352). sync_folder never has a reliable upfront byte total
+                # (unlike download_folder), so total is always None here.
+                bytes_note = ""
+                if "bytes" in result:
+                    progress_bytes[0] += result["bytes"]
+                    bytes_note = _format_bytes_note(progress_bytes[0], None)
                 try:
                     await ctx.report_progress(
                         progress_count[0],
                         None,
-                        f"{rel_prefix}{result['name']}: {result['kind']}",
+                        f"{rel_prefix}{result['name']}: {result['kind']}{bytes_note}",
                     )
                 except Exception:
                     # The transfer already succeeded or failed on its own terms —
@@ -1101,6 +1151,7 @@ async def _sync_level(
                 folders_skipped,
                 ctx,
                 progress_count,
+                progress_bytes,
             )
 
         # Sibling subfolders are independent — descend into all of them concurrently
@@ -1763,7 +1814,15 @@ def register(tool):
 
         Files transfer concurrently rather than one at a time. If the caller supplied
         a progressToken, a `notifications/progress` update is sent as each file
-        finishes (e.g. "12/217: report.pdf: ok").
+        finishes (e.g. "12/217: report.pdf: ok"). The `progress`/`total` values
+        stay file-count-based (a byte total isn't always knowable upfront — Drive
+        only reports `size` for non-Workspace files, so a folder containing
+        Workspace files with export_format set has no reliable total byte count
+        until each export actually completes) — the message text adds bytes
+        transferred so far as supplementary context (#352), e.g.
+        "12/217, 4823001/98234112 bytes: report.pdf: ok" when every candidate's
+        size is known upfront, or "12/217, 4823001 bytes so far: report.pdf: ok"
+        when one or more candidates (a Workspace export) has an unknown size.
 
         Args:
             folder_id: The Google Drive folder ID.
@@ -1794,7 +1853,7 @@ def register(tool):
                 spaces="drive",
                 includeItemsFromAllDrives=True,
                 supportsAllDrives=True,
-                fields="files(id, name, mimeType)",
+                fields="files(id, name, mimeType, size)",
                 pageSize=1000,
                 orderBy="name",
             )
@@ -1807,12 +1866,17 @@ def register(tool):
         failed: list[dict[str, str]] = []
         total_bytes = 0
 
-        candidates: list[tuple[str, str, bool, Path]] = []
+        # size is None for a Workspace file (Drive omits the field entirely — export
+        # size isn't known until the export itself completes) or if Drive simply
+        # didn't report it; every other candidate's size is known upfront from this
+        # same listing call, at no extra cost (#352).
+        candidates: list[tuple[str, str, bool, Path, int | None]] = []
         claimed_dest: set[str] = set()
         for f in results.get("files", []):
             fid = f["id"]
             fname = f["name"]
             fmime = f.get("mimeType", "")
+            fsize = int(f["size"]) if f.get("size") is not None else None
 
             if fmime == "application/vnd.google-apps.folder":
                 # Non-recursive: subfolders are never descended into or exported.
@@ -1861,15 +1925,28 @@ def register(tool):
                 continue
             claimed_dest.add(dest_key)
 
-            candidates.append((fid, fname, is_workspace, dest_file))
+            # A Workspace candidate's export target is a different byte size than
+            # fsize (the original document's own stored size, itself usually None
+            # anyway) — never carry fsize through for one, so it's correctly
+            # treated as "unknown" below rather than an inaccurate upfront total.
+            candidates.append(
+                (fid, fname, is_workspace, dest_file, None if is_workspace else fsize)
+            )
 
         total = len(candidates)
         completed = 0
+        bytes_completed = 0
+        # A reliable upfront total requires every candidate's size to be known —
+        # one Workspace export with an unknown size makes any "expected total"
+        # inaccurate, so the message falls back to a running count with no
+        # denominator in that case rather than implying a precision it doesn't have.
+        total_bytes_expected = sum(s for *_, s in candidates if s is not None)
+        bytes_total_known = all(s is not None for *_, s in candidates)
 
         async def _download_one(
             fid: str, fname: str, is_workspace: bool, dest_file: Path
         ) -> dict[str, Any]:
-            nonlocal completed
+            nonlocal completed, bytes_completed
             try:
                 if is_workspace:
                     target_mime = _EXPORT_MIME[export_format][0]
@@ -1903,9 +1980,18 @@ def register(tool):
             # each concurrent download finishes rather than arriving in one burst
             # after asyncio.gather resolves — see #316.
             completed += 1
+            if result["kind"] == "ok":
+                bytes_completed += result["bytes"]
+            # progress/total stay file-count-based (see the docstring's #352 note);
+            # bytes transferred so far are supplementary context in the message only.
+            bytes_note = _format_bytes_note(
+                bytes_completed, total_bytes_expected if bytes_total_known else None
+            )
             try:
                 await ctx.report_progress(
-                    completed, total, f"{completed}/{total}: {result['name']}: {result['kind']}"
+                    completed,
+                    total,
+                    f"{completed}/{total}{bytes_note}: {result['name']}: {result['kind']}",
                 )
             except Exception:
                 # The download already succeeded or failed on its own terms — a
@@ -1920,7 +2006,9 @@ def register(tool):
         # Concurrent fan-out, same pattern as _sync_level's _run_one: previously this
         # was a sequential `for` loop awaiting one transfer at a time (#316), which
         # measured 1.04s/file and scaled linearly with folder size.
-        raw = await asyncio.gather(*(_download_one(*c) for c in candidates), return_exceptions=True)
+        raw = await asyncio.gather(
+            *(_download_one(*c[:4]) for c in candidates), return_exceptions=True
+        )
 
         for c, o in zip(candidates, raw, strict=True):
             if isinstance(o, BaseException):
@@ -2060,7 +2148,11 @@ def register(tool):
         If the caller supplied a progressToken, a `notifications/progress` update is
         sent as each individual upload/download completes (skips and conflicts don't
         emit updates — they're free, not transfers). No update is sent during dry_run,
-        since nothing is transferred.
+        since nothing is transferred. `progress` stays a running file-transfer count
+        with no `total` (recursive descent means the overall file count isn't known
+        upfront) — the message text adds a running total of bytes transferred so far
+        as supplementary context (#352), e.g. "notes.txt: upload_ok, 40231 bytes
+        so far".
 
         Args:
             folder_id: Google Drive folder ID to sync against.
@@ -2190,6 +2282,7 @@ def register(tool):
             actions,
             folders_skipped,
             ctx,
+            [0],
             [0],
         )
 

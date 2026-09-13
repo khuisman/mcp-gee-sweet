@@ -1320,6 +1320,85 @@ class TestSyncFolderRecursive:
         assert any("a.txt" in m for m in messages)
         assert any("b.txt" in m for m in messages)
 
+    async def test_progress_message_includes_running_bytes_transferred(self, tmp_path):
+        """#352: sync_folder's progress/total stay file-count-based with no total
+        (recursive descent means the overall count isn't known upfront) — the
+        message text adds a running total of bytes transferred so far as
+        supplementary context."""
+        (tmp_path / "a.txt").write_text("hi")  # 2 bytes
+        (tmp_path / "b.txt").write_text("bye!")  # 4 bytes
+        fs = _FakeDriveFS({"root": []})
+        ctx = self._ctx(fs)
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            ctx=ctx,
+        )
+        assert set(result["uploaded"]) == {"a.txt", "b.txt"}
+        messages = [c.args[2] for c in ctx.report_progress.await_args_list]
+        assert all(m.endswith("bytes so far") for m in messages)
+        # progress/total (args[0]/args[1]) are unaffected — still file-count-based
+        # with no total, per the docstring's own documented Progress behavior.
+        for c in ctx.report_progress.await_args_list:
+            assert c.args[1] is None
+        # Running total accumulates across both uploads (2 then 6, in whichever
+        # order the concurrent gather completes them).
+        assert any("6 bytes so far" in m for m in messages)
+
+    async def test_upload_stat_failure_after_successful_write_reports_orphan_fileId(
+        self, tmp_path, monkeypatch
+    ):
+        """#352 QA review, finding #1: the new bytes-reporting `p.stat()` call
+        used to sit inside the same try/except that covers the Drive create()/
+        update() calls above it. If the local file is deleted/moved in the
+        window between the Drive write succeeding and this stat() call, the
+        exception fell into the enclosing except and reported upload_fail with
+        no fileId — unlike the restamp-failure branch a few lines above
+        (#420/#650), which deliberately reports fileId so a genuinely-created
+        Drive object isn't left untracked. The stat() call now has its own
+        try/except mirroring that pattern."""
+        local_file = tmp_path / "a.txt"
+        local_file.write_text("hi")
+        fs = _FakeDriveFS({"root": []})
+        ctx = self._ctx(fs)
+
+        real_stat = Path.stat
+
+        def _flaky_stat(self, *args, **kwargs):
+            # Raise only once the fake Drive write has actually landed —
+            # simulates the local file vanishing in the window between the
+            # Drive write succeeding and the post-write size stat(), without
+            # having to guess how many earlier stat() calls (e.g. the
+            # pre-upload mtime read) happen first.
+            if self == local_file and fs.created_files:
+                raise OSError("No such file or directory")
+            return real_stat(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "stat", _flaky_stat)
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            ctx=ctx,
+        )
+
+        # The Drive write genuinely succeeded before the stat() failed.
+        assert len(fs.created_files) == 1
+        assert result["uploaded"] == []
+        assert len(result["failed"]) == 1
+        entry = result["failed"][0]
+        assert entry["name"] == "a.txt"
+        assert "failed to stat the local file afterward" in entry["error"]
+        assert entry["fileId"] == "new-file-1"
+        # A genuine Drive-side change still earns a cache invalidation, the same
+        # as a real upload_ok (mirrors the restamp-failure case above).
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_once_with(
+            "root"
+        )
+
     async def test_dry_run_reports_no_progress(self, tmp_path):
         """dry_run transfers nothing, so no progress update should fire either."""
         (tmp_path / "a.txt").write_text("hi")
@@ -2740,6 +2819,101 @@ class TestDownloadFolder:
         assert completed_values == [1, 2]
         for c in ctx.report_progress.await_args_list:
             assert c.args[1] == 2  # total
+
+    async def test_progress_message_falls_back_to_running_bytes_when_sizes_unknown(self, tmp_path):
+        """#352: Drive doesn't report a `size` for Workspace files, so an upfront
+        byte total isn't knowable when export_format is exporting them — the
+        message falls back to a running byte count with no '/total' denominator
+        rather than fabricating one. progress/total (the primary metric) stay
+        file-count-based either way."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "doc1",
+                    "name": "Doc One",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+                {
+                    "id": "doc2",
+                    "name": "Doc Two",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+            ]
+        }
+        svc.files.return_value.export.return_value.execute.return_value = b"content"
+        ctx = self._ctx(svc)
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            ctx=ctx,
+        )
+        assert result["failed"] == []
+        messages = [c.args[2] for c in ctx.report_progress.await_args_list]
+        assert all("bytes so far:" in m for m in messages)
+        assert not any(" bytes:" in m for m in messages)
+        for c in ctx.report_progress.await_args_list:
+            assert c.args[1] == 2  # total stays file-count-based
+
+    async def test_progress_message_includes_byte_total_when_sizes_known(
+        self, tmp_path, monkeypatch
+    ):
+        """#352: non-Workspace candidates report `size` in the same Drive listing
+        call, so an accurate upfront byte total is known — the message shows it
+        as 'transferred/total bytes' instead of a denominator-less running count.
+        The fake downloader writes each candidate's own listed size (5 and 7,
+        not a fixed amount for both) so the numerator is checked against the
+        real accumulated total, not just the denominator's presence (#352 QA
+        review, finding #4 — the original version's fixed 5-byte-per-file fake
+        would have passed even if bytes_completed accumulation regressed)."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "bin1",
+                    "name": "a.bin",
+                    "mimeType": "application/octet-stream",
+                    "size": "5",
+                },
+                {
+                    "id": "bin2",
+                    "name": "b.bin",
+                    "mimeType": "application/octet-stream",
+                    "size": "7",
+                },
+            ]
+        }
+        sizes = {"bin1": 5, "bin2": 7}
+        svc.files.return_value.get_media.side_effect = lambda fileId: MagicMock(fileId=fileId)
+
+        class _FakeDownloader:
+            def __init__(self, fh, request):
+                self._fh = fh
+                self._size = sizes[request.fileId]
+
+            def next_chunk(self):
+                self._fh.write(b"x" * self._size)
+                return None, True
+
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _FakeDownloader)
+        ctx = self._ctx(svc)
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            ctx=ctx,
+        )
+        assert result["failed"] == []
+        assert result["size_bytes"] == 12
+        by_completed = {c.args[0]: c.args[2] for c in ctx.report_progress.await_args_list}
+        assert set(by_completed) == {1, 2}
+        # First completion (whichever file finishes first) reports its own real
+        # size against the fixed total; second (final) completion reports the
+        # real accumulated total, not a fixed/guessed value.
+        assert by_completed[1] in ("1/2, 5/12 bytes: a.bin: ok", "1/2, 7/12 bytes: b.bin: ok")
+        assert by_completed[2].startswith("2/2, 12/12 bytes:")
 
     async def test_duplicate_drive_filenames_do_not_race_or_double_count(self, tmp_path):
         """PR #351 review, live-reproduced: Drive allows two files with the same
