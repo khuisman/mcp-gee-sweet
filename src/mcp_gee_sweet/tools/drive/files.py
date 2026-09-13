@@ -324,7 +324,8 @@ def register(tool):
 
         Args:
             folder_id: Optional Google Drive folder ID to search in.
-                      If not provided, uses the configured default folder or searches 'My Drive'.
+                      If not provided, uses the configured default folder or searches
+                      'My Drive' and every shared drive the account can access.
             max_results: Maximum number of results to return (default 100, max 1000).
 
         Returns:
@@ -372,7 +373,8 @@ def register(tool):
         Args:
             parent_folder_id: Optional Google Drive folder ID to search within.
                              If not provided, uses the configured default folder
-                             or searches 'My Drive'.
+                             or searches 'My Drive' and every shared drive the
+                             account can access.
             max_results: Maximum number of results to return (default 100, max 1000).
 
         Returns:
