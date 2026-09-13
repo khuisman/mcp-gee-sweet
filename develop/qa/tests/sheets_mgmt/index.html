@@ -2573,6 +2573,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-s118-update_borders-cheap-param-validation-now-runs-before-the-sheet-lookup-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S118: update_borders — cheap param validation now runs before the sheet lookup (unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4058,6 +4069,13 @@ update_borders(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"
 <p><strong>Result (2026-07-16) ✅ PASS — fix verified</strong> Originally failed: validation only checked <code>"style" not in border</code> (key presence) before calling <code>.upper()</code>, so a non-string style (e.g. <code>top={"style": 5}</code>) reached <code>border["style"].upper()</code> and crashed with an unhandled <code>AttributeError</code> instead of a clean error. Fixed by adding <code>if not isinstance(border["style"], str): return {"error": ...}</code> before the <code>.upper()</code> call. Verified three ways: unit test <code>test_non_string_style_returns_error</code> passes (covers both <code>5</code> and <code>None</code>); confirmed live against the real <code>update_borders</code> MCP tool with <code>top={"style": 5}</code> and <code>top={"style": null}</code> — both return <code>{"error": "Border spec for 'top' has a non-string 'style' value"}</code> with no crash. TC-S92 closed.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 update_borders(top={"style":5}) non-string → {"error":"Border spec for 'top' has a non-string 'style' value"}, no crash</p>
+<hr />
+<h3 id="tc-s118-update_borders-cheap-param-validation-now-runs-before-the-sheet-lookup-unit-test">TC-S118: update_borders — cheap param validation now runs before the sheet lookup (unit test)<a class="headerlink" href="#tc-s118-update_borders-cheap-param-validation-now-runs-before-the-sheet-lookup-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- <code>update_borders(spreadsheet_id, sheet="NoSuchSheet", range="A1", top={"style": "SQUIGGLY"})</code> → <code>{"error": "Invalid border style 'SQUIGGLY' for 'top'. Must be one of: ..."}</code>, <strong>not</strong> <code>{"error": "Sheet 'NoSuchSheet' not found"}</code> — no <code>spreadsheets().get()</code> call is made at all
+- Previously <code>update_borders</code> resolved the sheet name (a network/cache round trip) before checking whether any border params were provided or validating <code>style</code>, unlike <code>add_chart</code>/<code>resize_rows</code>/<code>resize_columns</code> which validate cheap params first — a bad sheet name paired with an invalid style masked the more fundamental problem (issue #330)
+- Covered by <code>test_validation_runs_before_sheet_lookup</code> in <code>TestUpdateBorders</code></p>
+<p><strong>Result (2026-09-13) ✅</strong> — unit tests pass (158/158). Live-verified via <code>mcp-gee-sweet-kit</code> against the QA fixture spreadsheet: <code>update_borders(sheet="NoSuchSheet", range="A1", top={"style": "SQUIGGLY"})</code> returned <code>{"error": "Invalid border style 'SQUIGGLY' for 'top'. Must be one of: ..."}</code>, not the sheet-not-found error — confirming validation still runs before the sheet lookup after PR #738 round 2's dedup fix (<code>_enum_value_error</code> now takes an explicit <code>context</code> string rather than auto-quoting).</p>
 <hr />
 <h2 id="add_data_validation-get_data_validation"><code>add_data_validation</code> / <code>get_data_validation</code><a class="headerlink" href="#add_data_validation-get_data_validation" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s93-one_of_list-sets-a-dropdown-and-get_data_validation-reads-it-back-destructive">TC-S93: ONE_OF_LIST sets a dropdown and get_data_validation reads it back ⚠️ destructive<a class="headerlink" href="#tc-s93-one_of_list-sets-a-dropdown-and-get_data_validation-reads-it-back-destructive" title="Permanent link">&para;</a></h3>
