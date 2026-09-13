@@ -177,6 +177,9 @@ list_spreadsheets(empty scratch folder) returned `[]`, not an error.
 - `list_spreadsheets(max_results=2)` passes `pageSize=2` to the Drive API call — confirms the previously-unbounded no-folder/no-`DRIVE_FOLDER_ID` fallback (single call, implicit ~100-result API default, no caller control) is now capped by an explicit, caller-controlled parameter
 - Omitting `max_results` still defaults to 100 (unchanged from the implicit prior behavior)
 - A `max_results` above 1000 is clamped down to 1000, matching `list_files`/`list_drives`'s own clamp convention
+- Docstring's fallback description now explicitly names both 'My Drive' AND shared drives (previously understated as 'My Drive' only) — spot-check the tool's live description text if surfaced to a caller
+
+**Result (2026-09-12) ✅ PASS** — `list_spreadsheets(max_results=2)` returned `[]`, no error (this deployment's `DRIVE_FOLDER_ID` is set, so the fallback resolves to the configured default folder rather than a true global My-Drive+shared-drives search — same caveat as TC-D27; that folder has 0 spreadsheets directly, so the returned-count check wasn't exercised by this fixture). Confirmed the tool's own live description text still shows the stale Args wording flagged by code review (`or searches 'My Drive'`) — filed as a blocking finding on the PR rather than closed here, since it's this PR's own regression, not a QA-doc issue. `pageSize`-level clamp/boundary behavior (25/1000/0→1) is exercised by `tests/drive/test_files.py::TestListSpreadsheets` (78-test suite passes) — not independently re-provable via this black-box MCP call without a fixture folder with >2 items.
 
 ---
 
@@ -238,6 +241,8 @@ list_folders(empty scratch folder) returned `[]` — not an error.
 - Omitting `max_results` still defaults to 100 (unchanged from the implicit prior behavior)
 - A `max_results` above 1000 is clamped down to 1000, matching `list_files`/`list_drives`'s own clamp convention
 - Docstring's fallback description now explicitly names both 'My Drive' AND shared drives (previously understated as 'My Drive' only) — spot-check the tool's live description text if surfaced to a caller
+
+**Result (2026-09-12) ✅ PASS** — `list_folders(max_results=2)` returned exactly 1 folder (`mcp-gee-sweet-qa-fixtures`), no error; fallback resolves to the configured `DRIVE_FOLDER_ID` on this deployment (same caveat as TC-D27/TC-D249). Confirmed the tool's own live description text still shows the stale Args wording flagged by code review — same blocking PR finding as TC-D249, not duplicated as a separate issue. `pageSize`-level clamp/boundary behavior is exercised by `tests/drive/test_files.py::TestListFolders` (78-test suite passes).
 
 ---
 
