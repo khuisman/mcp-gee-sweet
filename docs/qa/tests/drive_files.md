@@ -160,11 +160,23 @@ list_spreadsheets(empty scratch folder) returned `[]`, not an error.
 > "List spreadsheets in {FOLDER_ID}"
 
 **Checks**
-- 🔍 **Known limitation:** if the folder has >100 spreadsheets, results are silently truncated
+- 🔍 **Known limitation:** `max_results` (added #718, default 100, max 1000) bounds a single call's `pageSize` but there's still no `nextPageToken` continuation beyond it — a folder with more matches than `max_results` is silently truncated at that cap
 - Note the count returned and whether a `nextPageToken` is visible in any debug output
 
 **Result (2026-09-04) ✅ PASS**
 🔍 list_spreadsheets(FOLDER_ID) returned 3 results; no nextPageToken/pagination field exposed in response. Known limitation acknowledged.
+
+---
+
+### TC-D249: `max_results` bounds the no-folder fallback (#718)
+
+**Prompt**
+> "List all my spreadsheets, but limit results to 2"
+
+**Checks**
+- `list_spreadsheets(max_results=2)` passes `pageSize=2` to the Drive API call — confirms the previously-unbounded no-folder/no-`DRIVE_FOLDER_ID` fallback (single call, implicit ~100-result API default, no caller control) is now capped by an explicit, caller-controlled parameter
+- Omitting `max_results` still defaults to 100 (unchanged from the implicit prior behavior)
+- A `max_results` above 1000 is clamped down to 1000, matching `list_files`/`list_drives`'s own clamp convention
 
 ---
 
@@ -209,10 +221,23 @@ list_folders(FOLDER_ID) returned `[]` — FOLDER_ID has no subfolders; no error.
 
 **Checks**
 - Returns `[]` — not an error
-- 🔍 **Known limitation:** pagination not implemented — >100 subfolders would silently truncate
+- 🔍 **Known limitation:** `max_results` (added #718, default 100, max 1000) bounds a single call's `pageSize` but there's still no `nextPageToken` continuation beyond it — a folder with more subfolders than `max_results` is silently truncated at that cap
 
 **Result (2026-09-04) ✅ PASS**
 list_folders(empty scratch folder) returned `[]` — not an error.
+
+---
+
+### TC-D250: `max_results` bounds the no-parent fallback (#718)
+
+**Prompt**
+> "List my Drive folders, but limit results to 2"
+
+**Checks**
+- `list_folders(max_results=2)` passes `pageSize=2` to the Drive API call — confirms the previously-unbounded no-parent/no-`DRIVE_FOLDER_ID` fallback (single call, implicit ~100-result API default, no caller control) is now capped by an explicit, caller-controlled parameter
+- Omitting `max_results` still defaults to 100 (unchanged from the implicit prior behavior)
+- A `max_results` above 1000 is clamped down to 1000, matching `list_files`/`list_drives`'s own clamp convention
+- Docstring's fallback description now explicitly names both 'My Drive' AND shared drives (previously understated as 'My Drive' only) — spot-check the tool's live description text if surfaced to a caller
 
 ---
 

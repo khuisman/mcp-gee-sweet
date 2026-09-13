@@ -673,6 +673,91 @@ class TestListFolders:
         result = await _drive_tools["list_folders"](ctx=ctx)
         assert result == [{"id": "f1", "name": "Sub", "parent": "default_folder"}]
 
+    def _captured_page_size(self, svc):
+        return svc.files.return_value.list.call_args.kwargs["pageSize"]
+
+    async def test_default_max_results_used_as_page_size(self):
+        # #718: the no-parent + no-DRIVE_FOLDER_ID fallback previously issued a
+        # single unpaginated call with no pageSize at all, silently truncated
+        # at the API's own default (~100) with no caller control.
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc, folder_id=None)
+        await _drive_tools["list_folders"](ctx=ctx)
+        assert self._captured_page_size(svc) == 100
+
+    async def test_max_results_passed_through_as_page_size(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc, folder_id=None)
+        await _drive_tools["list_folders"](max_results=25, ctx=ctx)
+        assert self._captured_page_size(svc) == 25
+
+    async def test_max_results_clamped_to_1000(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc, folder_id=None)
+        await _drive_tools["list_folders"](max_results=5000, ctx=ctx)
+        assert self._captured_page_size(svc) == 1000
+
+    async def test_max_results_clamped_to_at_least_1(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc, folder_id=None)
+        await _drive_tools["list_folders"](max_results=0, ctx=ctx)
+        assert self._captured_page_size(svc) == 1
+
+
+class TestListSpreadsheets:
+    """#718: list_spreadsheets had no max_results/pageSize at all — the
+    no-parent + no-DRIVE_FOLDER_ID fallback was a single unpaginated call
+    silently truncated at the API's own default with no caller control."""
+
+    def _drive_service(self, files=None):
+        mock = MagicMock()
+        mock.files.return_value.list.return_value.execute.return_value = {"files": files or []}
+        return mock
+
+    def _captured_q(self, svc):
+        return svc.files.return_value.list.call_args.kwargs["q"]
+
+    def _captured_page_size(self, svc):
+        return svc.files.return_value.list.call_args.kwargs["pageSize"]
+
+    async def test_no_folder_no_default_lists_across_all_drives(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc, folder_id=None)
+        await _drive_tools["list_spreadsheets"](ctx=ctx)
+        q = self._captured_q(svc)
+        assert "in parents" not in q
+        assert svc.files.return_value.list.call_args.kwargs["includeItemsFromAllDrives"] is True
+
+    async def test_result_shape_unchanged(self):
+        svc = self._drive_service(files=[{"id": "s1", "name": "Budget"}])
+        ctx = _make_ctx(drive_service=svc, folder_id=None)
+        result = await _drive_tools["list_spreadsheets"](ctx=ctx)
+        assert result == [{"id": "s1", "title": "Budget"}]
+
+    async def test_default_max_results_used_as_page_size(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc, folder_id=None)
+        await _drive_tools["list_spreadsheets"](ctx=ctx)
+        assert self._captured_page_size(svc) == 100
+
+    async def test_max_results_passed_through_as_page_size(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc, folder_id=None)
+        await _drive_tools["list_spreadsheets"](max_results=25, ctx=ctx)
+        assert self._captured_page_size(svc) == 25
+
+    async def test_max_results_clamped_to_1000(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc, folder_id=None)
+        await _drive_tools["list_spreadsheets"](max_results=5000, ctx=ctx)
+        assert self._captured_page_size(svc) == 1000
+
+    async def test_max_results_clamped_to_at_least_1(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc, folder_id=None)
+        await _drive_tools["list_spreadsheets"](max_results=0, ctx=ctx)
+        assert self._captured_page_size(svc) == 1
+
 
 class TestGetFileMetadata:
     def _drive_service(self, file=None):

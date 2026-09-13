@@ -59,7 +59,7 @@
 |---|---|---|
 | `create_spreadsheet` | Create a new Google Spreadsheet. | `title`, `folder_id?` |
 | `import_csv_to_sheet` | Create a new Google Spreadsheet populated from a local CSV file. | `local_path`, `title`, `folder_id?`, `sheet_name?` |
-| `list_spreadsheets` | List all spreadsheets in the specified Google Drive folder. If no folder is specified, uses the configured default folder or lists from 'My Drive'. | `folder_id?` |
+| `list_spreadsheets` | List all spreadsheets in the specified Google Drive folder. If no folder is specified, uses the configured default folder; if that's also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (includeItemsFromAllDrives=True) — not just 'My Drive'. | `folder_id?`, `max_results?` |
 | `search_spreadsheets` | Search for spreadsheets in Google Drive by name or content. | `query`, `max_results?` |
 
 `create_spreadsheet` cannot create files in a personal Drive when using service account auth — use OAuth or a Shared Drive.
@@ -68,7 +68,7 @@
 
 | Tool | Description | Key parameters |
 |---|---|---|
-| `list_folders` | List all folders in the specified Google Drive folder. If no parent is specified, uses the configured default folder (DRIVE_FOLDER_ID); if that is also unset, lists folders across 'My Drive'. | `parent_folder_id?` |
+| `list_folders` | List all folders in the specified Google Drive folder. If no parent is specified, uses the configured default folder (DRIVE_FOLDER_ID); if that is also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (includeItemsFromAllDrives=True) — not just 'My Drive'. | `parent_folder_id?`, `max_results?` |
 | `list_drives` | List shared (Team) Drives accessible to the authenticated account. | `query?`, `max_results?` |
 | `list_files` | List files in a Google Drive folder, optionally filtered by MIME type. | `folder_id`, `mime_type?`, `max_results?` |
 | `search_files` | Search for files in Google Drive by name or content. | `query`, `mime_type?`, `folder_id?`, `max_results?` |
