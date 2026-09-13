@@ -234,6 +234,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] `TestIsolatedDepthRunGlyph` asserts request shape, not rendered nesting outcome (PR #711) ([#715](https://github.com/khuisman/mcp-gee-sweet/issues/715))
 - [ ] `style_doc_range` has no `font_family` parameter — can't apply monospace to an existing range ([#720](https://github.com/khuisman/mcp-gee-sweet/issues/720))
 - [x] Extract a shared helper for the isolated-bullet-run zero-tab anchor mechanic (`emitter.py` ↔ `style.py`); harden its regression test (`lane-a`) ([#727](https://github.com/khuisman/mcp-gee-sweet/issues/727)) (PR #735)
+- [ ] `doc_to_ast.py`'s Courier-New soft-break reversal is per-run, not per-paragraph — mismatched-style edge case can emit malformed inline code with an embedded newline (PR #730 follow-up) ([#732](https://github.com/khuisman/mcp-gee-sweet/issues/732))
 
 **Drive hardening & dedup** _(triaged out of `backlog` 2026-09-11)_
 - [ ] `download_folder`/`sync_folder` progress notifications: report bytes transferred, not just file count ([#352](https://github.com/khuisman/mcp-gee-sweet/issues/352))
@@ -247,11 +248,14 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] Extend the `_GOOGLE_DOC_MIME` sweep to remaining hardcoded-literal and comparison sites (#412 follow-up) ([#544](https://github.com/khuisman/mcp-gee-sweet/issues/544))
 - [ ] `refactor(drive)`: dedupe `mime_type` quote-escaping and list-files response mapping in `files.py` ([#578](https://github.com/khuisman/mcp-gee-sweet/issues/578))
 - [x] `list_folders`/`list_spreadsheets` no-parent + no-`DRIVE_FOLDER_ID` path is unbounded across all drives, no `max_results` (`lane-a`) ([#718](https://github.com/khuisman/mcp-gee-sweet/issues/718)) (PR #736)
+- [ ] `download_file` trailing-slash guard: fail-fast ordering, dead `os.altsep` clause, raw `NotADirectoryError` surface (PR #722 follow-up) ([#724](https://github.com/khuisman/mcp-gee-sweet/issues/724))
+- [ ] Deduplicate the `max_results` clamp expression, hand-copied 8x across `drive/files.py` with inconsistent caps (PR #736 follow-up) ([#737](https://github.com/khuisman/mcp-gee-sweet/issues/737))
 
 **Calendar hardening** _(triaged out of `backlog` 2026-09-11)_
 - [ ] `list_calendar_acl` pagination fix (#460) needs a response-size cap, loop safety bound, and partial-failure handling ([#615](https://github.com/khuisman/mcp-gee-sweet/issues/615))
 - [ ] `list_all_events` concurrency cap: per-invocation only, no env override ([#626](https://github.com/khuisman/mcp-gee-sweet/issues/626))
 - [ ] `_shape_event`: `get_event` still duplicates it, no null-guard, no kwarg-collision guard ([#627](https://github.com/khuisman/mcp-gee-sweet/issues/627))
+- [ ] `find_free_slots`/`list_all_events`: unify duplicated id-to-summary lookup, align empty-string fallback (PR #725 follow-up) ([#726](https://github.com/khuisman/mcp-gee-sweet/issues/726))
 
 **Testing** _(triaged out of `backlog` 2026-09-11)_
 - [ ] Duplicate fake-Sheets-service test scaffolding in `test_helpers.py` ([#392](https://github.com/khuisman/mcp-gee-sweet/issues/392))
