@@ -308,11 +308,14 @@ def register(tool):
 
     @tool(annotations=ToolAnnotations(title="List Spreadsheets", readOnlyHint=True))
     async def list_spreadsheets(
-        folder_id: str | None = None, ctx: Context = None
+        folder_id: str | None = None, max_results: int = 100, ctx: Context = None
     ) -> list[dict[str, str]]:
         """
         List all spreadsheets in the specified Google Drive folder.
-        If no folder is specified, uses the configured default folder or lists from 'My Drive'.
+        If no folder is specified, uses the configured default folder; if that's
+        also unset, searches across 'My Drive' AND every shared drive the
+        authenticated account can access (includeItemsFromAllDrives=True) — not
+        just 'My Drive'.
 
         A strict, less-flexible special case of list_files pre-filtered to the
         spreadsheet MIME type. For a different result cap or other file types, use
@@ -321,26 +324,30 @@ def register(tool):
 
         Args:
             folder_id: Optional Google Drive folder ID to search in.
-                      If not provided, uses the configured default folder or searches 'My Drive'.
+                      If not provided, uses the configured default folder or searches
+                      'My Drive' and every shared drive the account can access.
+            max_results: Maximum number of results to return (default 100, max 1000).
 
         Returns:
             List of spreadsheets with their ID and title
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
         target_folder_id = folder_id or ctx.request_context.lifespan_context.folder_id
+        max_results = min(max(1, max_results), 1000)
 
         query = "mimeType='application/vnd.google-apps.spreadsheet'"
         if target_folder_id:
             query += f" and '{target_folder_id}' in parents"
             logger.debug("Searching for spreadsheets in folder: %s", target_folder_id)
         else:
-            logger.debug("Searching for spreadsheets in 'My Drive'")
+            logger.debug("Searching for spreadsheets across 'My Drive' and shared drives")
 
         results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=query,
                 spaces="drive",
+                pageSize=max_results,
                 includeItemsFromAllDrives=True,
                 supportsAllDrives=True,
                 fields="files(id, name)",
@@ -354,17 +361,21 @@ def register(tool):
 
     @tool(annotations=ToolAnnotations(title="List Folders", readOnlyHint=True))
     async def list_folders(
-        parent_folder_id: str | None = None, ctx: Context = None
+        parent_folder_id: str | None = None, max_results: int = 100, ctx: Context = None
     ) -> list[dict[str, str]]:
         """
         List all folders in the specified Google Drive folder.
         If no parent is specified, uses the configured default folder
-        (DRIVE_FOLDER_ID); if that is also unset, lists folders across 'My Drive'.
+        (DRIVE_FOLDER_ID); if that is also unset, searches across 'My Drive' AND
+        every shared drive the authenticated account can access
+        (includeItemsFromAllDrives=True) — not just 'My Drive'.
 
         Args:
             parent_folder_id: Optional Google Drive folder ID to search within.
                              If not provided, uses the configured default folder
-                             or searches 'My Drive'.
+                             or searches 'My Drive' and every shared drive the
+                             account can access.
+            max_results: Maximum number of results to return (default 100, max 1000).
 
         Returns:
             List of folders with their ID, name, and parent information
@@ -372,19 +383,21 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
         target_folder_id = parent_folder_id or lc.folder_id
+        max_results = min(max(1, max_results), 1000)
 
         query = "mimeType='application/vnd.google-apps.folder' and trashed=false"
         if target_folder_id:
             query += f" and '{target_folder_id}' in parents"
             logger.debug("Searching for folders in parent folder: %s", target_folder_id)
         else:
-            logger.debug("Searching for folders across 'My Drive'")
+            logger.debug("Searching for folders across 'My Drive' and shared drives")
 
         results = await execute_in_thread(
             drive_service.files()
             .list(
                 q=query,
                 spaces="drive",
+                pageSize=max_results,
                 includeItemsFromAllDrives=True,
                 supportsAllDrives=True,
                 fields="files(id, name, parents)",
