@@ -1939,7 +1939,7 @@
 - [x] Extract a shared helper for the isolated-bullet-run zero-tab anchor mechanic (<code>emitter.py</code> ↔ <code>style.py</code>); harden its regression test (<code>lane-a</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/727">#727</a>) (PR #735)
 - [ ] <code>doc_to_ast.py</code>'s Courier-New soft-break reversal is per-run, not per-paragraph — mismatched-style edge case can emit malformed inline code with an embedded newline (PR #730 follow-up) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/732">#732</a>)</p>
 <p><strong>Drive hardening &amp; dedup</strong> <em>(triaged out of <code>backlog</code> 2026-09-11)</em>
-- [ ] <code>download_folder</code>/<code>sync_folder</code> progress notifications: report bytes transferred, not just file count (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/352">#352</a>)
+- [x] <code>download_folder</code>/<code>sync_folder</code> progress notifications: report bytes transferred, not just file count (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/352">#352</a>) (PR #739)
 - [ ] Unify the two progress-counter idioms in <code>transfer.py</code> (nonlocal vs. list-box) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/354">#354</a>)
 - [ ] Extend notifications/progress to the remaining <code>asyncio.gather</code>-based multi-call tools (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/355">#355</a>)
 - [ ] Expose starred state via <code>get_file_metadata</code>/<code>list_files</code> — <code>star_file</code>/<code>unstar_file</code> (#139) set it but nothing reads it back (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/388">#388</a>)
