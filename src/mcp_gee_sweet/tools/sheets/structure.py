@@ -61,13 +61,51 @@ _VALID_CONDITION_TYPES = [
 
 
 def _border_spec(border: dict) -> dict[str, Any]:
-    """Convert a {"style", "color", "width"} dict into a Sheets API Border object."""
+    """Convert a {"style", "color", "width"} dict into a Sheets API Border object.
+
+    Only "style" is validated locally (by the caller, against
+    _VALID_BORDER_STYLES) — "color"/"width" are passed through unchecked, so a
+    malformed value surfaces only as a raw Sheets API 400.
+    """
     spec: dict[str, Any] = {"style": border["style"].upper()}
     if "color" in border:
         spec["color"] = border["color"]
     if "width" in border:
         spec["width"] = border["width"]
     return spec
+
+
+def _grid_range(sheet_id: int, range_str: str) -> dict[str, Any]:
+    """Build a Sheets API GridRange dict from an A1 notation range string."""
+    indices = _parse_a1_notation(range_str)
+    grid_range: dict[str, Any] = {
+        "sheetId": sheet_id,
+        "startRowIndex": indices.get("startRowIndex", 0),
+        "startColumnIndex": indices.get("startColumnIndex", 0),
+    }
+    if "endRowIndex" in indices:
+        grid_range["endRowIndex"] = indices["endRowIndex"]
+    if "endColumnIndex" in indices:
+        grid_range["endColumnIndex"] = indices["endColumnIndex"]
+    return grid_range
+
+
+def _enum_value_error(
+    value: str, valid_values: list[str], field_name: str, context: str | None = None
+) -> dict[str, Any] | None:
+    """Return an {"error": ...} dict if value.upper() isn't in valid_values.
+
+    context, when given, is appended to the message verbatim (e.g.
+    "for 'top'" or "for column_index 0") for a caller that validates the
+    same field under several different keys — the caller controls the full
+    wording, including any quoting, since callers disagree on the shape.
+    """
+    if value.upper() not in valid_values:
+        suffix = f" {context}" if context else ""
+        return {
+            "error": f"Invalid {field_name} '{value}'{suffix}. Must be one of: {', '.join(valid_values)}"
+        }
+    return None
 
 
 def _per_column_ranges(sheet_id: int, indices: dict) -> list[dict]:
@@ -1158,8 +1196,6 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        indices = _parse_a1_notation(range)
-
         cell_format: dict[str, Any] = {}
         fields: list[str] = []
 
@@ -1202,16 +1238,6 @@ def register(tool):
         if not fields:
             return {"error": "No formatting parameters provided"}
 
-        grid_range = {
-            "sheetId": sheet_id,
-            "startRowIndex": indices.get("startRowIndex", 0),
-            "startColumnIndex": indices.get("startColumnIndex", 0),
-        }
-        if "endRowIndex" in indices:
-            grid_range["endRowIndex"] = indices["endRowIndex"]
-        if "endColumnIndex" in indices:
-            grid_range["endColumnIndex"] = indices["endColumnIndex"]
-
         return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
@@ -1220,7 +1246,7 @@ def register(tool):
                     "requests": [
                         {
                             "repeatCell": {
-                                "range": grid_range,
+                                "range": _grid_range(sheet_id, range),
                                 "cell": {"userEnteredFormat": cell_format},
                                 "fields": ",".join(fields),
                             }
@@ -1272,12 +1298,6 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
-        )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
-
         edges = {
             "top": top,
             "bottom": bottom,
@@ -1290,31 +1310,26 @@ def register(tool):
         if not provided:
             return {"error": "No border parameters provided"}
 
+        update_borders_request: dict[str, Any] = {}
         for key, border in provided.items():
             if "style" not in border:
                 return {"error": f"Border spec for '{key}' is missing required 'style' key"}
             if not isinstance(border["style"], str):
                 return {"error": f"Border spec for '{key}' has a non-string 'style' value"}
-            if border["style"].upper() not in _VALID_BORDER_STYLES:
-                return {
-                    "error": f"Invalid border style '{border['style']}' for '{key}'. "
-                    f"Must be one of: {', '.join(_VALID_BORDER_STYLES)}"
-                }
-
-        indices = _parse_a1_notation(range)
-        grid_range = {
-            "sheetId": sheet_id,
-            "startRowIndex": indices.get("startRowIndex", 0),
-            "startColumnIndex": indices.get("startColumnIndex", 0),
-        }
-        if "endRowIndex" in indices:
-            grid_range["endRowIndex"] = indices["endRowIndex"]
-        if "endColumnIndex" in indices:
-            grid_range["endColumnIndex"] = indices["endColumnIndex"]
-
-        update_borders_request: dict[str, Any] = {"range": grid_range}
-        for key, border in provided.items():
+            error = _enum_value_error(
+                border["style"], _VALID_BORDER_STYLES, "border style", f"for '{key}'"
+            )
+            if error:
+                return error
             update_borders_request[key] = _border_spec(border)
+
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        update_borders_request["range"] = _grid_range(sheet_id, range)
 
         return await execute_in_thread(
             sheets_service.spreadsheets()
@@ -1384,12 +1399,10 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
+        error = _enum_value_error(condition_type, _VALID_CONDITION_TYPES, "condition_type")
+        if error:
+            return error
         normalized_type = condition_type.upper()
-        if normalized_type not in _VALID_CONDITION_TYPES:
-            return {
-                "error": f"Invalid condition_type '{condition_type}'. "
-                f"Must be one of: {', '.join(_VALID_CONDITION_TYPES)}"
-            }
 
         sheet_id = await _get_sheet_id(
             sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
@@ -1397,16 +1410,7 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        indices = _parse_a1_notation(range)
-        grid_range = {
-            "sheetId": sheet_id,
-            "startRowIndex": indices.get("startRowIndex", 0),
-            "startColumnIndex": indices.get("startColumnIndex", 0),
-        }
-        if "endRowIndex" in indices:
-            grid_range["endRowIndex"] = indices["endRowIndex"]
-        if "endColumnIndex" in indices:
-            grid_range["endColumnIndex"] = indices["endColumnIndex"]
+        grid_range = _grid_range(sheet_id, range)
 
         condition: dict[str, Any] = {"type": normalized_type}
         if values:
@@ -1541,17 +1545,6 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        indices = _parse_a1_notation(range)
-        grid_range = {
-            "sheetId": sheet_id,
-            "startRowIndex": indices.get("startRowIndex", 0),
-            "startColumnIndex": indices.get("startColumnIndex", 0),
-        }
-        if "endRowIndex" in indices:
-            grid_range["endRowIndex"] = indices["endRowIndex"]
-        if "endColumnIndex" in indices:
-            grid_range["endColumnIndex"] = indices["endColumnIndex"]
-
         return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
@@ -1560,7 +1553,7 @@ def register(tool):
                     "requests": [
                         {
                             "mergeCells": {
-                                "range": grid_range,
+                                "range": _grid_range(sheet_id, range),
                                 "mergeType": merge_type.upper(),
                             }
                         }
@@ -1598,22 +1591,11 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        indices = _parse_a1_notation(range)
-        grid_range = {
-            "sheetId": sheet_id,
-            "startRowIndex": indices.get("startRowIndex", 0),
-            "startColumnIndex": indices.get("startColumnIndex", 0),
-        }
-        if "endRowIndex" in indices:
-            grid_range["endRowIndex"] = indices["endRowIndex"]
-        if "endColumnIndex" in indices:
-            grid_range["endColumnIndex"] = indices["endColumnIndex"]
-
         return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
-                body={"requests": [{"unmergeCells": {"range": grid_range}}]},
+                body={"requests": [{"unmergeCells": {"range": _grid_range(sheet_id, range)}}]},
             )
             .execute,
             sheets_service,
@@ -1787,18 +1769,8 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        indices = _parse_a1_notation(range)
-        col_start = indices.get("startColumnIndex", 0)
-
-        grid_range = {
-            "sheetId": sheet_id,
-            "startRowIndex": indices.get("startRowIndex", 0),
-            "startColumnIndex": col_start,
-        }
-        if "endRowIndex" in indices:
-            grid_range["endRowIndex"] = indices["endRowIndex"]
-        if "endColumnIndex" in indices:
-            grid_range["endColumnIndex"] = indices["endColumnIndex"]
+        grid_range = _grid_range(sheet_id, range)
+        col_start = grid_range["startColumnIndex"]
 
         if sort_order is None:
             sort_order = [{"column_index": 0, "order": "ASCENDING"}]
@@ -1816,11 +1788,11 @@ def register(tool):
                     "error": f"Sort spec for column_index {s['column_index']} "
                     "has a non-string 'order' value"
                 }
-            if order.upper() not in _VALID_SORT_ORDERS:
-                return {
-                    "error": f"Invalid sort order '{order}' for column_index {s['column_index']}. "
-                    f"Must be one of: {', '.join(_VALID_SORT_ORDERS)}"
-                }
+            error = _enum_value_error(
+                order, _VALID_SORT_ORDERS, "sort order", f"for column_index {s['column_index']}"
+            )
+            if error:
+                return error
 
             sort_specs.append(
                 {
@@ -1918,11 +1890,10 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
+        error = _enum_value_error(chart_type, _VALID_CHART_TYPES, "chart type")
+        if error:
+            return error
         chart_type = chart_type.upper()
-        if chart_type not in _VALID_CHART_TYPES:
-            return {
-                "error": f"Invalid chart type '{chart_type}'. Must be one of: {', '.join(_VALID_CHART_TYPES)}"
-            }
 
         sheet_id = await _get_sheet_id(
             sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service

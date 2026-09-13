@@ -176,6 +176,21 @@ class TestAddChart:
         assert series[-1]["type"] == "LINE"
         assert all(s["type"] == "COLUMN" for s in series[:-1])
 
+    # Enum validation (issue #330 — shared with update_borders via _enum_value_error)
+
+    async def test_invalid_chart_type_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        result = await self._call(svc, "DONUT", "A1:D5")
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_lowercase_chart_type_is_normalized(self):
+        svc = self._sheets_service()
+        result = await self._call(svc, "column", "A1:D5")
+        assert "error" not in result
+        spec = self._chart_spec(svc)
+        assert spec["basicChart"]["chartType"] == "COLUMN"
+
 
 class TestCopySheet:
     """Bug: rename was silently skipped when API response omitted the 'title' key."""
@@ -1392,6 +1407,20 @@ class TestUpdateBorders:
             spreadsheet_id="ss1", sheet="Missing", range="A1", top={"style": "SOLID"}, ctx=ctx
         )
         assert "error" in result
+
+    async def test_validation_runs_before_sheet_lookup(self):
+        # A bad style paired with a bad sheet name should surface the (cheap,
+        # local) validation error without ever paying for the sheet-name
+        # lookup — matching add_chart/resize_rows/resize_columns' own
+        # cheap-params-first ordering (issue #330).
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["update_borders"](
+            spreadsheet_id="ss1", sheet="Missing", range="A1", top={"style": "SQUIGGLY"}, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.get.called
+        assert not svc.spreadsheets.return_value.batchUpdate.called
 
 
 class TestAddDataValidation:
