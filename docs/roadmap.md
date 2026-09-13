@@ -208,7 +208,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 
 **Sheets hardening** _(triaged out of `backlog` 2026-09-11 — see the "Backlog triage" note below)_
 - [x] `update_sheet_properties`/dimension-tool hardening + dedup follow-ups from PR #321's review ([#323](https://github.com/khuisman/mcp-gee-sweet/issues/323)) (PR #734)
-- [ ] `update_borders` hardening + dedup follow-ups from PR #325's review ([#330](https://github.com/khuisman/mcp-gee-sweet/issues/330))
+- [x] `update_borders` hardening + dedup follow-ups from PR #325's review ([#330](https://github.com/khuisman/mcp-gee-sweet/issues/330)) (PR #738)
 - [ ] No tool clears a data validation rule, and no tool exposes a range's numeric `sheetId` ([#365](https://github.com/khuisman/mcp-gee-sweet/issues/365))
 - [ ] `add_data_validation`: validate the `values` count/shape against `condition_type` before the API call ([#366](https://github.com/khuisman/mcp-gee-sweet/issues/366))
 - [ ] Dedupe `_get_sheet_id`/`_get_sheet_index` lookup logic; add happy-path test coverage ([#442](https://github.com/khuisman/mcp-gee-sweet/issues/442))
