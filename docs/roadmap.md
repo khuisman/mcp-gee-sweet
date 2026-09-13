@@ -246,7 +246,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] `sync_folder`: `actions` list built unconditionally even when `dry_run=False` ([#521](https://github.com/khuisman/mcp-gee-sweet/issues/521))
 - [ ] Extend the `_GOOGLE_DOC_MIME` sweep to remaining hardcoded-literal and comparison sites (#412 follow-up) ([#544](https://github.com/khuisman/mcp-gee-sweet/issues/544))
 - [ ] `refactor(drive)`: dedupe `mime_type` quote-escaping and list-files response mapping in `files.py` ([#578](https://github.com/khuisman/mcp-gee-sweet/issues/578))
-- [ ] `list_folders`/`list_spreadsheets` no-parent + no-`DRIVE_FOLDER_ID` path is unbounded across all drives, no `max_results` (`lane-a`) ([#718](https://github.com/khuisman/mcp-gee-sweet/issues/718))
+- [x] `list_folders`/`list_spreadsheets` no-parent + no-`DRIVE_FOLDER_ID` path is unbounded across all drives, no `max_results` (`lane-a`) ([#718](https://github.com/khuisman/mcp-gee-sweet/issues/718)) (PR #736)
 
 **Calendar hardening** _(triaged out of `backlog` 2026-09-11)_
 - [ ] `list_calendar_acl` pagination fix (#460) needs a response-size cap, loop safety bound, and partial-failure handling ([#615](https://github.com/khuisman/mcp-gee-sweet/issues/615))
