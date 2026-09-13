@@ -1449,10 +1449,23 @@ list_spreadsheets(empty scratch folder) returned <code>[]</code>, not an error.<
 <p>"List spreadsheets in {FOLDER_ID}"</p>
 </blockquote>
 <p><strong>Checks</strong>
-- 🔍 <strong>Known limitation:</strong> if the folder has &gt;100 spreadsheets, results are silently truncated
+- 🔍 <strong>Known limitation:</strong> <code>max_results</code> (added #718, default 100, max 1000) bounds a single call's <code>pageSize</code> but there's still no <code>nextPageToken</code> continuation beyond it — a folder with more matches than <code>max_results</code> is silently truncated at that cap
 - Note the count returned and whether a <code>nextPageToken</code> is visible in any debug output</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 🔍 list_spreadsheets(FOLDER_ID) returned 3 results; no nextPageToken/pagination field exposed in response. Known limitation acknowledged.</p>
+<hr />
+<h3 id="tc-d249-max_results-bounds-the-no-folder-fallback-718">TC-D249: <code>max_results</code> bounds the no-folder fallback (#718)<a class="headerlink" href="#tc-d249-max_results-bounds-the-no-folder-fallback-718" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List all my spreadsheets, but limit results to 2"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_spreadsheets(max_results=2)</code> passes <code>pageSize=2</code> to the Drive API call — confirms the previously-unbounded no-folder/no-<code>DRIVE_FOLDER_ID</code> fallback (single call, implicit ~100-result API default, no caller control) is now capped by an explicit, caller-controlled parameter
+- Omitting <code>max_results</code> still defaults to 100 (unchanged from the implicit prior behavior)
+- A <code>max_results</code> above 1000 is clamped down to 1000, matching <code>list_files</code>/<code>list_drives</code>'s own clamp convention
+- Docstring's fallback description now explicitly names both 'My Drive' AND shared drives (previously understated as 'My Drive' only) — spot-check the tool's live description text if surfaced to a caller</p>
+<p><strong>Result (2026-09-12) ✅ PASS</strong> — <code>list_spreadsheets(max_results=2)</code> returned <code>[]</code>, no error (this deployment's <code>DRIVE_FOLDER_ID</code> is set, so the fallback resolves to the configured default folder rather than a true global My-Drive+shared-drives search — same caveat as TC-D27; that folder has 0 spreadsheets directly, so the returned-count check wasn't exercised by this fixture). Confirmed the tool's own live description text still shows the stale Args wording flagged by code review (<code>or searches 'My Drive'</code>) — filed as a blocking finding on the PR rather than closed here, since it's this PR's own regression, not a QA-doc issue. <code>pageSize</code>-level clamp/boundary behavior (25/1000/0→1) is exercised by <code>tests/drive/test_files.py::TestListSpreadsheets</code> (78-test suite passes) — not independently re-provable via this black-box MCP call without a fixture folder with &gt;2 items.</p>
+<p><strong>Result (2026-09-13) ✅ PASS (re-verification, fix <code>802b799</code>)</strong> — Ash's fix updates both Args lines to match the summary text ("or searches 'My Drive' and every shared drive the account can access"), confirmed via <code>git show</code> against the source. Re-ran live post-<code>/mcp reconnect</code>: <code>list_spreadsheets(max_results=2)</code> unchanged behavior (<code>[]</code>, no error) — expected, since this is a docstring-only fix with no behavioral surface. Docstring text itself isn't independently re-observable through this black-box tool call (no MCP mechanism surfaces the served description back to the caller), so verification here rests on the confirmed source diff plus the unchanged, correct runtime behavior. <code>tests/drive/test_files.py</code> (78 tests) passes.</p>
 <hr />
 <h2 id="list_folders"><code>list_folders</code><a class="headerlink" href="#list_folders" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d26-list-folders-in-a-specific-parent">TC-D26: List folders in a specific parent<a class="headerlink" href="#tc-d26-list-folders-in-a-specific-parent" title="Permanent link">&para;</a></h3>
@@ -1487,9 +1500,22 @@ list_folders(FOLDER_ID) returned <code>[]</code> — FOLDER_ID has no subfolders
 </blockquote>
 <p><strong>Checks</strong>
 - Returns <code>[]</code> — not an error
-- 🔍 <strong>Known limitation:</strong> pagination not implemented — &gt;100 subfolders would silently truncate</p>
+- 🔍 <strong>Known limitation:</strong> <code>max_results</code> (added #718, default 100, max 1000) bounds a single call's <code>pageSize</code> but there's still no <code>nextPageToken</code> continuation beyond it — a folder with more subfolders than <code>max_results</code> is silently truncated at that cap</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 list_folders(empty scratch folder) returned <code>[]</code> — not an error.</p>
+<hr />
+<h3 id="tc-d250-max_results-bounds-the-no-parent-fallback-718">TC-D250: <code>max_results</code> bounds the no-parent fallback (#718)<a class="headerlink" href="#tc-d250-max_results-bounds-the-no-parent-fallback-718" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List my Drive folders, but limit results to 2"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>list_folders(max_results=2)</code> passes <code>pageSize=2</code> to the Drive API call — confirms the previously-unbounded no-parent/no-<code>DRIVE_FOLDER_ID</code> fallback (single call, implicit ~100-result API default, no caller control) is now capped by an explicit, caller-controlled parameter
+- Omitting <code>max_results</code> still defaults to 100 (unchanged from the implicit prior behavior)
+- A <code>max_results</code> above 1000 is clamped down to 1000, matching <code>list_files</code>/<code>list_drives</code>'s own clamp convention
+- Docstring's fallback description now explicitly names both 'My Drive' AND shared drives (previously understated as 'My Drive' only) — spot-check the tool's live description text if surfaced to a caller</p>
+<p><strong>Result (2026-09-12) ✅ PASS</strong> — <code>list_folders(max_results=2)</code> returned exactly 1 folder (<code>mcp-gee-sweet-qa-fixtures</code>), no error; fallback resolves to the configured <code>DRIVE_FOLDER_ID</code> on this deployment (same caveat as TC-D27/TC-D249). Confirmed the tool's own live description text still shows the stale Args wording flagged by code review — same blocking PR finding as TC-D249, not duplicated as a separate issue. <code>pageSize</code>-level clamp/boundary behavior is exercised by <code>tests/drive/test_files.py::TestListFolders</code> (78-test suite passes).</p>
+<p><strong>Result (2026-09-13) ✅ PASS (re-verification, fix <code>802b799</code>)</strong> — same fix commit as TC-D249. Re-ran live post-<code>/mcp reconnect</code>: <code>list_folders(max_results=2)</code> unchanged behavior (1 folder, no error). Verification rests on the confirmed source diff (<code>git show</code>) plus unchanged correct runtime behavior, same reasoning as TC-D249's re-verification note. <code>tests/drive/test_files.py</code> (78 tests) passes.</p>
 <hr />
 <h2 id="search_spreadsheets"><code>search_spreadsheets</code><a class="headerlink" href="#search_spreadsheets" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d29-basic-name-search">TC-D29: Basic name search<a class="headerlink" href="#tc-d29-basic-name-search" title="Permanent link">&para;</a></h3>

@@ -1723,8 +1723,8 @@
 </tr>
 <tr>
 <td><code>list_spreadsheets</code></td>
-<td>List all spreadsheets in the specified Google Drive folder. If no folder is specified, uses the configured default folder or lists from 'My Drive'.</td>
-<td><code>folder_id?</code></td>
+<td>List all spreadsheets in the specified Google Drive folder. If no folder is specified, uses the configured default folder; if that's also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (includeItemsFromAllDrives=True) — not just 'My Drive'.</td>
+<td><code>folder_id?</code>, <code>max_results?</code></td>
 </tr>
 <tr>
 <td><code>search_spreadsheets</code></td>
@@ -1746,8 +1746,8 @@
 <tbody>
 <tr>
 <td><code>list_folders</code></td>
-<td>List all folders in the specified Google Drive folder. If no parent is specified, uses the configured default folder (DRIVE_FOLDER_ID); if that is also unset, lists folders across 'My Drive'.</td>
-<td><code>parent_folder_id?</code></td>
+<td>List all folders in the specified Google Drive folder. If no parent is specified, uses the configured default folder (DRIVE_FOLDER_ID); if that is also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (includeItemsFromAllDrives=True) — not just 'My Drive'.</td>
+<td><code>parent_folder_id?</code>, <code>max_results?</code></td>
 </tr>
 <tr>
 <td><code>list_drives</code></td>
