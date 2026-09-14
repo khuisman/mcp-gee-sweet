@@ -2717,6 +2717,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#clear_data_validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        clear_data_validation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="clear_data_validation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s119-clear_data_validation-removes-an-existing-rule-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S119: clear_data_validation removes an existing rule ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s120-clear_data_validation-on-a-range-with-no-existing-rule-is-a-no-op" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S120: clear_data_validation on a range with no existing rule is a no-op
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s121-clear_data_validation-sheet-not-found-returns-error-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S121: clear_data_validation — sheet not found returns error (unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#freeze" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4195,6 +4245,44 @@ Same as TC-S99 — re-confirms auto-prepend fix (duplicate coverage in test file
 <p><strong>Result (2026-07-18) ✅ PASS</strong> Re-ran the exact TC-S100 failing call — returned <code>{"error": "Sheet 'NonexistentSheetXYZ' not found"}</code> cleanly, no raw <code>HttpError</code>.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 Same as TC-S100 — re-confirms clean-error fix (duplicate coverage in test file)</p>
+<hr />
+<h2 id="clear_data_validation"><code>clear_data_validation</code><a class="headerlink" href="#clear_data_validation" title="Permanent link">&para;</a></h2>
+<h3 id="tc-s119-clear_data_validation-removes-an-existing-rule-destructive">TC-S119: clear_data_validation removes an existing rule ⚠️ destructive<a class="headerlink" href="#tc-s119-clear_data_validation-removes-an-existing-rule-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Issue #365 — before this tool, the only way to remove a data
+validation rule was <code>delete_sheet</code> + <code>create_sheet</code> on the whole sheet.
+<code>clear_data_validation</code> calls <code>setDataValidation</code> with no <code>rule</code>, which the
+Sheets API documents as clearing any existing rule on the range.</p>
+<p><strong>Prompt (direct tool call)</strong></p>
+<blockquote>
+<ol>
+<li><code>add_data_validation(spreadsheet_id=&lt;fixture&gt;, sheet="Empty", range="E1:E5", condition_type="ONE_OF_LIST", values=["Yes","No","Maybe"])</code></li>
+<li><code>clear_data_validation(spreadsheet_id=&lt;fixture&gt;, sheet="Empty", range="E1:E5")</code></li>
+<li><code>get_data_validation(spreadsheet_id=&lt;fixture&gt;, sheet="Empty", range="E1:E5")</code></li>
+</ol>
+</blockquote>
+<p><strong>Checks</strong>
+- Step 1 succeeds (sets up the rule to clear)
+- Step 2 returns no error
+- Step 3 (<code>get_data_validation</code>) returns <code>[]</code> — the rule set in step 1 is gone</p>
+<p><strong>Result (2026-09-13) ✅ PASS</strong>
+Ran live against the fixture spreadsheet. <code>add_data_validation</code> set the ONE_OF_LIST rule on E1:E5 with no error; <code>clear_data_validation</code> returned no error; <code>get_data_validation</code> on E1:E5 returned <code>[]</code> afterward — confirms the tool's core premise (<code>setDataValidation</code> with <code>rule</code> omitted actually clears an existing rule against the real Sheets API, not just in the mocked unit tests).</p>
+<p><strong>Re-verified (2026-09-13) ✅ PASS</strong> — after PR #745's <code>_apply_data_validation</code> dedup refactor (commit 931363a): re-ran the same set/clear/confirm sequence on G1:G5 directly against the reconnected server. <code>add_data_validation</code> still sets the rule correctly, <code>clear_data_validation</code> still clears it (<code>get_data_validation</code> → <code>[]</code> afterward) — no behavior change from the extraction.</p>
+<hr />
+<h3 id="tc-s120-clear_data_validation-on-a-range-with-no-existing-rule-is-a-no-op">TC-S120: clear_data_validation on a range with no existing rule is a no-op<a class="headerlink" href="#tc-s120-clear_data_validation-on-a-range-with-no-existing-rule-is-a-no-op" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt (direct tool call)</strong></p>
+<blockquote>
+<p><code>clear_data_validation(spreadsheet_id=&lt;fixture&gt;, sheet="Empty", range="F1:F5")</code> — a range that has never had a validation rule set.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns no error (clearing an already-clear range is not itself an error condition)
+- <code>get_data_validation(spreadsheet_id=&lt;fixture&gt;, sheet="Empty", range="F1:F5")</code> still returns <code>[]</code> afterward</p>
+<p><strong>Result (2026-09-13) ✅ PASS</strong>
+Confirmed F1:F5 had no rule beforehand (<code>get_data_validation</code> → <code>[]</code>), then <code>clear_data_validation</code> returned no error, then <code>get_data_validation</code> still returned <code>[]</code>.</p>
+<hr />
+<h3 id="tc-s121-clear_data_validation-sheet-not-found-returns-error-unit-test">TC-S121: clear_data_validation — sheet not found returns error (unit test)<a class="headerlink" href="#tc-s121-clear_data_validation-sheet-not-found-returns-error-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- Sheet name not in spreadsheet → <code>{"error": "Sheet 'X' not found"}</code>, before any API call
+- Covered by <code>TestClearDataValidation::test_returns_error_when_sheet_not_found</code></p>
 <hr />
 <h2 id="freeze"><code>freeze</code><a class="headerlink" href="#freeze" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s42-freeze-the-header-row-destructive">TC-S42: Freeze the header row ⚠️ destructive<a class="headerlink" href="#tc-s42-freeze-the-header-row-destructive" title="Permanent link">&para;</a></h3>
