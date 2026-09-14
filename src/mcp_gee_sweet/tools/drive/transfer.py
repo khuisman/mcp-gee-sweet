@@ -5,6 +5,7 @@ import io
 import logging
 import mimetypes
 import os
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -1185,6 +1186,24 @@ def _xlsx_range_values(ws, range_str: str | None) -> list[list]:
     return [[cells.value]]
 
 
+@dataclass
+class _DownloadCandidate:
+    """One file download_folder has decided to transfer, replacing the
+    previous 5-element positional tuple (#740) — a reorder or added field
+    there had no type error to catch a call site that unpacked it
+    positionally (_download_one(*c[:4]), c[1] for the name, sum(s for *_, s
+    in candidates ...)). size is None for a Workspace export (the export's
+    byte size isn't known until it completes) or when Drive simply didn't
+    report one; every other candidate's size is known upfront from the same
+    listing call, at no extra cost (#352)."""
+
+    file_id: str
+    name: str
+    is_workspace: bool
+    dest_file: Path
+    size: int | None
+
+
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Export File", readOnlyHint=True))
     async def export_file(
@@ -1866,11 +1885,7 @@ def register(tool):
         failed: list[dict[str, str]] = []
         total_bytes = 0
 
-        # size is None for a Workspace file (Drive omits the field entirely — export
-        # size isn't known until the export itself completes) or if Drive simply
-        # didn't report it; every other candidate's size is known upfront from this
-        # same listing call, at no extra cost (#352).
-        candidates: list[tuple[str, str, bool, Path, int | None]] = []
+        candidates: list[_DownloadCandidate] = []
         claimed_dest: set[str] = set()
         for f in results.get("files", []):
             fid = f["id"]
@@ -1925,12 +1940,15 @@ def register(tool):
                 continue
             claimed_dest.add(dest_key)
 
-            # A Workspace candidate's export target is a different byte size than
-            # fsize (the original document's own stored size, itself usually None
-            # anyway) — never carry fsize through for one, so it's correctly
-            # treated as "unknown" below rather than an inaccurate upfront total.
+            # size=None for a Workspace candidate — see _DownloadCandidate's docstring.
             candidates.append(
-                (fid, fname, is_workspace, dest_file, None if is_workspace else fsize)
+                _DownloadCandidate(
+                    file_id=fid,
+                    name=fname,
+                    is_workspace=is_workspace,
+                    dest_file=dest_file,
+                    size=None if is_workspace else fsize,
+                )
             )
 
         total = len(candidates)
@@ -1940,29 +1958,31 @@ def register(tool):
         # (no await between read and write) — this is purely a style match.
         completed = [0]
         bytes_completed = [0]
-        # A reliable upfront total requires every candidate's size to be known —
-        # one Workspace export with an unknown size makes any "expected total"
-        # inaccurate, so the message falls back to a running count with no
-        # denominator in that case rather than implying a precision it doesn't have.
-        total_bytes_expected = sum(s for *_, s in candidates if s is not None)
-        bytes_total_known = all(s is not None for *_, s in candidates)
+        # A reliable upfront total requires every candidate's size to be known
+        # (see _DownloadCandidate's docstring for why one can be None) — with one
+        # unknown, the message falls back to a running count with no denominator
+        # rather than implying a precision it doesn't have.
+        total_bytes_expected = sum(c.size for c in candidates if c.size is not None)
+        bytes_total_known = all(c.size is not None for c in candidates)
 
-        async def _download_one(
-            fid: str, fname: str, is_workspace: bool, dest_file: Path
-        ) -> dict[str, Any]:
+        async def _download_one(candidate: _DownloadCandidate) -> dict[str, Any]:
             try:
-                if is_workspace:
+                if candidate.is_workspace:
                     target_mime = _EXPORT_MIME[export_format][0]
                     content = await execute_in_thread(
-                        drive_service.files().export(fileId=fid, mimeType=target_mime).execute,
+                        drive_service.files()
+                        .export(fileId=candidate.file_id, mimeType=target_mime)
+                        .execute,
                         drive_service,
                     )
                     if not isinstance(content, bytes):
                         content = content.encode("utf-8")
-                    await asyncio.to_thread(dest_file.write_bytes, content)
+                    await asyncio.to_thread(candidate.dest_file.write_bytes, content)
                 else:
 
-                    def _download_to_completion(fid=fid, dest_file=dest_file) -> None:
+                    def _download_to_completion(
+                        fid=candidate.file_id, dest_file=candidate.dest_file
+                    ) -> None:
                         request = drive_service.files().get_media(fileId=fid)
                         request.http = thread_http(drive_service)
                         with dest_file.open("wb") as fh:
@@ -1973,11 +1993,17 @@ def register(tool):
 
                     await asyncio.to_thread(_download_to_completion)
 
-                size = dest_file.stat().st_size
-                logger.debug("Downloaded %s → %s (%d bytes)", fid, dest_file, size)
-                result: dict[str, Any] = {"kind": "ok", "name": dest_file.name, "bytes": size}
+                size = candidate.dest_file.stat().st_size
+                logger.debug(
+                    "Downloaded %s → %s (%d bytes)", candidate.file_id, candidate.dest_file, size
+                )
+                result: dict[str, Any] = {
+                    "kind": "ok",
+                    "name": candidate.dest_file.name,
+                    "bytes": size,
+                }
             except Exception as e:
-                result = {"kind": "fail", "name": fname, "error": str(e)}
+                result = {"kind": "fail", "name": candidate.name, "error": str(e)}
 
             # Reported here, inside the per-item coroutine, so updates stream in as
             # each concurrent download finishes rather than arriving in one burst
@@ -2009,13 +2035,11 @@ def register(tool):
         # Concurrent fan-out, same pattern as _sync_level's _run_one: previously this
         # was a sequential `for` loop awaiting one transfer at a time (#316), which
         # measured 1.04s/file and scaled linearly with folder size.
-        raw = await asyncio.gather(
-            *(_download_one(*c[:4]) for c in candidates), return_exceptions=True
-        )
+        raw = await asyncio.gather(*(_download_one(c) for c in candidates), return_exceptions=True)
 
         for c, o in zip(candidates, raw, strict=True):
             if isinstance(o, BaseException):
-                failed.append({"name": c[1], "error": str(o)})
+                failed.append({"name": c.name, "error": str(o)})
                 continue
             if o["kind"] == "ok":
                 downloaded.append(o["name"])
