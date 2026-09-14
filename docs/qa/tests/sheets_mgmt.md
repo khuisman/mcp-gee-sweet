@@ -1610,6 +1610,8 @@ Sheets API documents as clearing any existing rule on the range.
 **Result (2026-09-13) ✅ PASS**
 Ran live against the fixture spreadsheet. `add_data_validation` set the ONE_OF_LIST rule on E1:E5 with no error; `clear_data_validation` returned no error; `get_data_validation` on E1:E5 returned `[]` afterward — confirms the tool's core premise (`setDataValidation` with `rule` omitted actually clears an existing rule against the real Sheets API, not just in the mocked unit tests).
 
+**Re-verified (2026-09-13) ✅ PASS** — after PR #745's `_apply_data_validation` dedup refactor (commit 931363a): re-ran the same set/clear/confirm sequence on G1:G5 directly against the reconnected server. `add_data_validation` still sets the rule correctly, `clear_data_validation` still clears it (`get_data_validation` → `[]` afterward) — no behavior change from the extraction.
+
 ---
 
 ### TC-S120: clear_data_validation on a range with no existing rule is a no-op
