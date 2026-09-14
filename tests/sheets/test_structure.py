@@ -1685,6 +1685,17 @@ class TestAddDataValidation:
                 assert "error" in result, f"{condition_type} with {bad_values} should error"
             assert not svc.spreadsheets.return_value.batchUpdate.called
 
+    def test_condition_value_counts_covers_every_valid_condition_type(self):
+        """PR #750 review: _condition_value_count_error indexes
+        _CONDITION_VALUE_COUNTS by condition_type with no .get()/fallback —
+        this guards the two tables never drifting apart, so a future
+        condition_type added to _VALID_CONDITION_TYPES without a matching
+        _CONDITION_VALUE_COUNTS entry fails this test instead of silently
+        skipping the local check (or, pre-fix, raising a KeyError) in prod."""
+        assert set(sheets_structure_module._CONDITION_VALUE_COUNTS) == set(
+            sheets_structure_module._VALID_CONDITION_TYPES
+        )
+
     async def test_returns_error_when_sheet_not_found(self):
         svc = self._sheets_service()
         ctx = _make_ctx(sheets_service=svc, cache=None)

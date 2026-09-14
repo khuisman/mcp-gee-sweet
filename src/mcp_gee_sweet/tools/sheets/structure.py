@@ -103,7 +103,16 @@ def _condition_value_count_error(
 ) -> dict[str, Any] | None:
     """Return an {"error": ...} dict if `values` doesn't match the count
     condition_type expects. Assumes condition_type is already a valid,
-    upper-cased member of _VALID_CONDITION_TYPES."""
+    upper-cased member of _VALID_CONDITION_TYPES.
+
+    condition_type not being a key in _CONDITION_VALUE_COUNTS (a future
+    desync between the two tables — guarded against by
+    TestAddDataValidation::test_condition_value_counts_covers_every_valid_condition_type)
+    skips the local check rather than raising a KeyError; the real Sheets
+    API still validates the request either way (PR #750 review).
+    """
+    if condition_type not in _CONDITION_VALUE_COUNTS:
+        return None
     count = len(values) if values else 0
     expected = _CONDITION_VALUE_COUNTS[condition_type]
     if expected is None:
