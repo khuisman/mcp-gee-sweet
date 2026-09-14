@@ -1513,6 +1513,21 @@ add_data_validation(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not f
 
 ---
 
+### TC-S122: add_data_validation — values count/shape mismatch per condition_type returns a local error (unit test)
+
+**Background:** Issue #366 — before this, a mismatched `values` count reached the real Sheets API and got a clean 400 back (e.g. `NUMBER_BETWEEN` with 1 value: `"requires exactly two ConditionValues, but 1 value was supplied"`), which was already safe, just a round-trip later than necessary. Now caught locally via `_condition_value_count_error` before any API call, covering all five value-count shapes: zero-only (`NOT_BLANK`, `BLANK`, `DATE_IS_VALID`, `TEXT_IS_EMAIL`, `TEXT_IS_URL`), zero-or-two (`BOOLEAN`), exactly-one (`NUMBER_GREATER`, `CUSTOM_FORMULA`, `ONE_OF_RANGE`, and the other single-value TEXT_*/DATE_*/NUMBER_* types), exactly-two (`NUMBER_BETWEEN`, `NUMBER_NOT_BETWEEN`, `DATE_BETWEEN`, `DATE_NOT_BETWEEN`), and at-least-one (`ONE_OF_LIST`).
+
+**Checks (unit test)**
+- `NUMBER_BETWEEN` with 1 value → `{"error": ...}`, before any API call (the issue's own example)
+- `BOOLEAN` accepts 0 or 2 values (a plain checkbox or custom checked/unchecked labels), rejects exactly 1
+- A zero-value type (`NOT_BLANK`) rejects any supplied value
+- `ONE_OF_LIST` rejects an empty/omitted `values`
+- Exactly-one types (`NUMBER_GREATER`, `CUSTOM_FORMULA`, `ONE_OF_RANGE`) reject 0 or 2 values
+- Exactly-two types (`NUMBER_BETWEEN`, `DATE_BETWEEN`) reject 1 or 3 values
+- Covered by `TestAddDataValidation::test_value_count_mismatch_returns_error_without_api_call`, `test_boolean_accepts_two_custom_label_values`, `test_boolean_rejects_exactly_one_value`, `test_zero_value_condition_type_rejects_a_value`, `test_one_of_list_requires_at_least_one_value`, `test_exactly_one_value_types_reject_zero_or_two`, `test_exactly_two_value_types_reject_one_or_three`
+
+---
+
 ### TC-S99: `add_data_validation` ONE_OF_RANGE — the documented value format always fails ❌ code review finding
 
 **Background:** `add_data_validation`'s own docstring documents `ONE_OF_RANGE`'s `values` as "one item, the source range in A1 notation, e.g. `["Sheet2!A:A"]`" — no leading `=`. Live-tested against the real Sheets API and confirmed this format is rejected outright.

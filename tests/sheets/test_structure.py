@@ -1580,6 +1580,111 @@ class TestAddDataValidation:
         assert "error" in result
         assert not svc.spreadsheets.return_value.batchUpdate.called
 
+    async def test_value_count_mismatch_returns_error_without_api_call(self):
+        """Issue #366 — the exact case from the issue body: NUMBER_BETWEEN
+        with only 1 value used to reach the real Sheets API and get a 400
+        back; now caught locally before any API call."""
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            condition_type="NUMBER_BETWEEN",
+            values=["1"],
+            ctx=ctx,
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_boolean_accepts_two_custom_label_values(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            condition_type="BOOLEAN",
+            values=["Checked", "Unchecked"],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        req = self._set_data_validation_request(svc)
+        assert len(req["rule"]["condition"]["values"]) == 2
+
+    async def test_boolean_rejects_exactly_one_value(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            condition_type="BOOLEAN",
+            values=["OnlyOne"],
+            ctx=ctx,
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_zero_value_condition_type_rejects_a_value(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            condition_type="NOT_BLANK",
+            values=["unexpected"],
+            ctx=ctx,
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_one_of_list_requires_at_least_one_value(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            condition_type="ONE_OF_LIST",
+            ctx=ctx,
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_exactly_one_value_types_reject_zero_or_two(self):
+        for condition_type in ("NUMBER_GREATER", "CUSTOM_FORMULA", "ONE_OF_RANGE"):
+            svc = self._sheets_service()
+            ctx = _make_ctx(sheets_service=svc, cache=None)
+            for bad_values in (None, ["a", "b"]):
+                result = await _structure_tools["add_data_validation"](
+                    spreadsheet_id="ss1",
+                    sheet="Sheet1",
+                    range="A1",
+                    condition_type=condition_type,
+                    values=bad_values,
+                    ctx=ctx,
+                )
+                assert "error" in result, f"{condition_type} with {bad_values} should error"
+            assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_exactly_two_value_types_reject_one_or_three(self):
+        for condition_type in ("NUMBER_BETWEEN", "DATE_BETWEEN"):
+            svc = self._sheets_service()
+            ctx = _make_ctx(sheets_service=svc, cache=None)
+            for bad_values in (["1"], ["1", "2", "3"]):
+                result = await _structure_tools["add_data_validation"](
+                    spreadsheet_id="ss1",
+                    sheet="Sheet1",
+                    range="A1",
+                    condition_type=condition_type,
+                    values=bad_values,
+                    ctx=ctx,
+                )
+                assert "error" in result, f"{condition_type} with {bad_values} should error"
+            assert not svc.spreadsheets.return_value.batchUpdate.called
+
     async def test_returns_error_when_sheet_not_found(self):
         svc = self._sheets_service()
         ctx = _make_ctx(sheets_service=svc, cache=None)
