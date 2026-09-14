@@ -1526,6 +1526,8 @@ add_data_validation(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not f
 - Exactly-two types (`NUMBER_BETWEEN`, `DATE_BETWEEN`) reject 1 or 3 values
 - Covered by `TestAddDataValidation::test_value_count_mismatch_returns_error_without_api_call`, `test_boolean_accepts_two_custom_label_values`, `test_boolean_rejects_exactly_one_value`, `test_zero_value_condition_type_rejects_a_value`, `test_one_of_list_requires_at_least_one_value`, `test_exactly_one_value_types_reject_zero_or_two`, `test_exactly_two_value_types_reject_one_or_three`
 
+**Result (2026-09-13) ✅ PASS (live spot-check)** — ran `add_data_validation(Empty!H1:H5, NUMBER_BETWEEN, ["5"])` (the issue's own example) against the fixture spreadsheet on the running server (not just the mocked unit tests): returned `{"error": "condition_type 'NUMBER_BETWEEN' requires exactly 2 value(s), got 1"}` with no sheet mutation, confirming the local check is wired up end-to-end.
+
 ---
 
 ### TC-S99: `add_data_validation` ONE_OF_RANGE — the documented value format always fails ❌ code review finding
