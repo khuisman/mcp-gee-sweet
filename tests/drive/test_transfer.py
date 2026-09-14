@@ -2915,6 +2915,97 @@ class TestDownloadFolder:
         assert by_completed[1] in ("1/2, 5/12 bytes: a.bin: ok", "1/2, 7/12 bytes: b.bin: ok")
         assert by_completed[2].startswith("2/2, 12/12 bytes:")
 
+    async def test_progress_unit_bytes_reports_byte_totals_when_sizes_known(
+        self, tmp_path, monkeypatch
+    ):
+        """#741: progress_unit='bytes' feeds the structured progress/total fields
+        from bytes_completed/total_bytes_expected instead of file counts, for a
+        client that renders a progress bar from those fields alone rather than
+        parsing the message text. The message text itself is unaffected — still
+        file-count-first with a supplementary bytes note (#352)."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "bin1",
+                    "name": "a.bin",
+                    "mimeType": "application/octet-stream",
+                    "size": "5",
+                },
+                {
+                    "id": "bin2",
+                    "name": "b.bin",
+                    "mimeType": "application/octet-stream",
+                    "size": "7",
+                },
+            ]
+        }
+        sizes = {"bin1": 5, "bin2": 7}
+        svc.files.return_value.get_media.side_effect = lambda fileId: MagicMock(fileId=fileId)
+
+        class _FakeDownloader:
+            def __init__(self, fh, request):
+                self._fh = fh
+                self._size = sizes[request.fileId]
+
+            def next_chunk(self):
+                self._fh.write(b"x" * self._size)
+                return None, True
+
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _FakeDownloader)
+        ctx = self._ctx(svc)
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            progress_unit="bytes",
+            ctx=ctx,
+        )
+        assert result["failed"] == []
+        calls = [(c.args[0], c.args[1], c.args[2]) for c in ctx.report_progress.await_args_list]
+        progress_totals = {(progress, total) for progress, total, _ in calls}
+        # Whichever file finishes first reports its own byte size (5 or 7)
+        # against the full total (12); the second (final) completion reports
+        # the accumulated 12/12 — the message text stays file-count-first
+        # regardless of progress_unit.
+        assert progress_totals in ({(5, 12), (12, 12)}, {(7, 12), (12, 12)})
+        final_message = next(msg for progress, _, msg in calls if progress == 12)
+        assert final_message.startswith("2/2, 12/12 bytes:")
+
+    async def test_progress_unit_bytes_falls_back_to_files_when_sizes_unknown(self, tmp_path):
+        """#741: progress_unit='bytes' has no reliable total to report against
+        when a Workspace export's size isn't known upfront — falls back to
+        file-count for the structured fields rather than reporting a byte
+        'total' with no real denominator."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "doc1",
+                    "name": "Doc One",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+                {
+                    "id": "doc2",
+                    "name": "Doc Two",
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+            ]
+        }
+        svc.files.return_value.export.return_value.execute.return_value = b"content"
+        ctx = self._ctx(svc)
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            export_format="pdf",
+            progress_unit="bytes",
+            ctx=ctx,
+        )
+        assert result["failed"] == []
+        for c in ctx.report_progress.await_args_list:
+            assert c.args[1] == 2  # falls back to file-count total, not bytes
+
     async def test_duplicate_drive_filenames_do_not_race_or_double_count(self, tmp_path):
         """PR #351 review, live-reproduced: Drive allows two files with the same
         name (distinct IDs) in one folder; the local filesystem doesn't. The old

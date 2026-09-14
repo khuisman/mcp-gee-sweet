@@ -8,7 +8,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import markdown as _md
 from googleapiclient.errors import HttpError
@@ -1821,6 +1821,7 @@ def register(tool):
         export_format: str | None = None,
         mime_type_filter: str | None = None,
         skip_if_exists: bool = True,
+        progress_unit: Literal["files", "bytes"] = "files",
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -1833,15 +1834,20 @@ def register(tool):
 
         Files transfer concurrently rather than one at a time. If the caller supplied
         a progressToken, a `notifications/progress` update is sent as each file
-        finishes (e.g. "12/217: report.pdf: ok"). The `progress`/`total` values
-        stay file-count-based (a byte total isn't always knowable upfront — Drive
-        only reports `size` for non-Workspace files, so a folder containing
-        Workspace files with export_format set has no reliable total byte count
-        until each export actually completes) — the message text adds bytes
+        finishes (e.g. "12/217: report.pdf: ok"). The message text always adds bytes
         transferred so far as supplementary context (#352), e.g.
         "12/217, 4823001/98234112 bytes: report.pdf: ok" when every candidate's
         size is known upfront, or "12/217, 4823001 bytes so far: report.pdf: ok"
         when one or more candidates (a Workspace export) has an unknown size.
+
+        The structured `progress`/`total` fields default to file-count
+        (progress_unit='files'), for consistency with every other progress-reporting
+        tool in this file. Pass progress_unit='bytes' to report bytes transferred
+        instead, for a client that renders a progress bar from the structured fields
+        alone rather than parsing the message text (#741) — this only takes effect
+        when every candidate's size is known upfront (see _DownloadCandidate's
+        docstring); otherwise it silently falls back to file-count, since there's no
+        reliable byte total to report against.
 
         Args:
             folder_id: The Google Drive folder ID.
@@ -1851,6 +1857,10 @@ def register(tool):
                            Without this, Workspace files are skipped.
             mime_type_filter: Only download files matching this MIME type.
             skip_if_exists: Skip files that already exist at the destination (default True).
+            progress_unit: 'files' (default) or 'bytes' — which metric feeds the
+                           structured progress/total fields reported via
+                           notifications/progress. Falls back to 'files' when not
+                           every candidate's size is known upfront.
 
         Returns:
             Summary with lists of 'downloaded', 'skipped', and 'failed' filenames,
@@ -1964,6 +1974,11 @@ def register(tool):
         # rather than implying a precision it doesn't have.
         total_bytes_expected = sum(c.size for c in candidates if c.size is not None)
         bytes_total_known = all(c.size is not None for c in candidates)
+        # #741: byte-based structured progress is only meaningful when there's a
+        # reliable total to report against — silently fall back to file-count
+        # rather than reporting a byte "total" that's actually just a running
+        # count with no denominator.
+        report_bytes = progress_unit == "bytes" and bytes_total_known
 
         async def _download_one(candidate: _DownloadCandidate) -> dict[str, Any]:
             try:
@@ -2017,9 +2032,11 @@ def register(tool):
                 bytes_completed[0], total_bytes_expected if bytes_total_known else None
             )
             try:
+                progress = bytes_completed[0] if report_bytes else completed[0]
+                progress_total = total_bytes_expected if report_bytes else total
                 await ctx.report_progress(
-                    completed[0],
-                    total,
+                    progress,
+                    progress_total,
                     f"{completed[0]}/{total}{bytes_note}: {result['name']}: {result['kind']}",
                 )
             except Exception:

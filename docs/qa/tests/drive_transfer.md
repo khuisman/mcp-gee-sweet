@@ -1664,3 +1664,25 @@ export_revision(rev 6, no range) → sheet="Sheet1", range=null, values = full 5
 export_revision({DOC_ID}, rev 3) → error "No XLSX export available for revision 3. The file may not be a Google Sheets file." Clear error, no crash.
 
 ---
+
+### TC-D256: `download_folder`'s `progress_unit='bytes'` feeds byte totals into the structured progress fields, with a file-count fallback when sizes aren't fully known (issue #741) ⚠️ local-filesystem
+
+**Background:** TC-D255 (#352) confirmed the message text carries bytes-transferred-so-far as supplementary context, but the structured `progress`/`total` fields passed to `ctx.report_progress()` stayed file-count-based unconditionally — a client rendering a progress bar from those fields alone (not parsing message text) sees the same one-tick-per-file granularity regardless of individual file size. #741's maintainer decision: keep file-count as the default (`progress_unit='files'`), but add an opt-in `progress_unit='bytes'` so a caller can request byte-based structured fields when every candidate's size is known upfront (same `bytes_total_known` gate TC-D255's message-fallback logic already uses) — falling back to file-count when it isn't, since there's no reliable byte total to report against then. `sync_folder` is explicitly out of scope for this decision (recursive descent never has a full upfront size list). Unit-tested deterministically against a mocked `ctx` in `tests/drive/test_transfer.py::TestDownloadFolder::test_progress_unit_bytes_reports_byte_totals_when_sizes_known`/`test_progress_unit_bytes_falls_back_to_files_when_sizes_unknown`; this live check confirms both branches against a real API call.
+
+**Note:** Same protocol-level caveat as TC-D199/TC-D255 — `notifications/progress` isn't part of the tool's JSON response, so visibility depends on whether this QA client sets a `progressToken`. If it doesn't, this check can only confirm both calls still complete normally with `progress_unit` accepted as a parameter.
+
+**Setup**
+Create a scratch Drive folder with 2 non-Workspace files of known, distinct sizes (e.g. 5 and 7 bytes) for the first call. For the second call, create a separate scratch folder containing one non-Workspace file and one Google Doc (Workspace file, unknown export size upfront).
+
+**Tool calls**
+1. `download_folder(folder_id="<scratch-folder-1-id>", local_path="/tmp/qa-741-bytes/", progress_unit="bytes")`
+2. `download_folder(folder_id="<scratch-folder-2-id>", local_path="/tmp/qa-741-fallback/", export_format="pdf", progress_unit="bytes")`
+
+**Checks**
+- Call 1: completes normally, `downloaded` contains both files, `size_bytes` matches the real total (12). If progress notifications are visible in the client: the structured `progress`/`total` values reflect bytes transferred/expected (e.g. 5/12 then 12/12), not file counts (1/2, 2/2)
+- Call 2: completes normally despite the Workspace file's unknown upfront size. If progress notifications are visible in the client: the structured `total` value is 2 (file count), not a byte total — confirming the fallback fires instead of reporting an inaccurate/missing byte denominator
+
+**Teardown**
+Remove `/tmp/qa-741-bytes/` and `/tmp/qa-741-fallback/`; trash both scratch Drive folders.
+
+---
