@@ -85,6 +85,37 @@ def _parse_a1_notation(range_str: str) -> dict[str, int]:
     return result
 
 
+async def _find_sheet_properties(
+    sheets_service: Any,
+    spreadsheet_id: str,
+    match_key: str,
+    match_value: Any,
+) -> dict[str, Any] | None:
+    """Fetch spreadsheet metadata and return the properties dict of the one
+    sheet whose match_key equals match_value, or None if no sheet matches.
+
+    Shared by _get_sheet_id (match_key="title") and _get_sheet_index
+    (match_key="sheetId") — both used to independently fetch spreadsheet
+    metadata and linear-scan for a match, which meant issue #384's "let
+    exceptions propagate instead of swallowing to None" fix had to be
+    applied twice (#391 caught _get_sheet_index missing it). A transient API
+    failure (rate limit, timeout, auth hiccup) propagates as an exception
+    here instead of being swallowed into None, so callers don't misreport
+    it as "not found" (#384/#391, now enforced in one place — #442).
+    """
+    spreadsheet = await execute_in_thread(
+        sheets_service.spreadsheets()
+        .get(spreadsheetId=spreadsheet_id, fields="sheets.properties(title,sheetId,index)")
+        .execute,
+        sheets_service,
+    )
+    for sheet in spreadsheet.get("sheets", []):
+        properties = sheet["properties"]
+        if properties.get(match_key) == match_value:
+            return properties
+    return None
+
+
 async def _get_sheet_id(
     sheets_service: Any,
     spreadsheet_id: str,
@@ -95,9 +126,8 @@ async def _get_sheet_id(
     """Return the numeric sheet ID for sheet_name, or None if not found.
 
     None means the sheet genuinely doesn't exist among the spreadsheet's
-    sheets. A transient API failure (rate limit, timeout, auth hiccup)
-    propagates as an exception instead of being swallowed into None, so
-    callers don't misreport it as "Sheet not found" (issue #384).
+    sheets. See _find_sheet_properties for the exception-propagation
+    behavior (issue #384) shared with _get_sheet_index.
     """
     if cache is not None:
         from ...cache import fetch_sheets
@@ -110,33 +140,20 @@ async def _get_sheet_id(
         cache.mark_dirty(spreadsheet_id)
         return None
 
-    spreadsheet = await execute_in_thread(
-        sheets_service.spreadsheets()
-        .get(spreadsheetId=spreadsheet_id, fields="sheets(properties(title,sheetId))")
-        .execute,
-        sheets_service,
+    properties = await _find_sheet_properties(
+        sheets_service, spreadsheet_id, match_key="title", match_value=sheet_name
     )
-    for sheet in spreadsheet.get("sheets", []):
-        if sheet["properties"]["title"] == sheet_name:
-            return sheet["properties"]["sheetId"]
-    return None
+    return properties["sheetId"] if properties else None
 
 
 async def _get_sheet_index(sheets_service: Any, spreadsheet_id: str, sheet_id: int) -> int | None:
     """Return the current 0-based tab position of sheet_id, or None if not found.
 
     None means the sheet genuinely doesn't exist among the spreadsheet's
-    sheets. A transient API failure (rate limit, timeout, auth hiccup)
-    propagates as an exception instead of being swallowed into None, so
-    callers don't misreport it as "not found" (issue #391, mirroring #384).
+    sheets. See _find_sheet_properties for the exception-propagation
+    behavior (issue #391, mirroring #384) shared with _get_sheet_id.
     """
-    spreadsheet = await execute_in_thread(
-        sheets_service.spreadsheets()
-        .get(spreadsheetId=spreadsheet_id, fields="sheets.properties(sheetId,index)")
-        .execute,
-        sheets_service,
+    properties = await _find_sheet_properties(
+        sheets_service, spreadsheet_id, match_key="sheetId", match_value=sheet_id
     )
-    for sheet in spreadsheet.get("sheets", []):
-        if sheet["properties"]["sheetId"] == sheet_id:
-            return sheet["properties"]["index"]
-    return None
+    return properties["index"] if properties else None

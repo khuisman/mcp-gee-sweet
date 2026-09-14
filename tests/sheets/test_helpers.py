@@ -140,6 +140,30 @@ class _EmptySheetsService:
         return self._Spreadsheets()
 
 
+class _MatchingSheetsService:
+    """A real API response with more than one sheet, so a happy-path lookup
+    exercises picking the right match rather than trivially returning the
+    only entry present."""
+
+    _http = SimpleNamespace(credentials=None)
+
+    class _Spreadsheets:
+        class _Request:
+            def execute(self, **kwargs):
+                return {
+                    "sheets": [
+                        {"properties": {"title": "Sheet1", "sheetId": 0, "index": 0}},
+                        {"properties": {"title": "Sheet2", "sheetId": 123456, "index": 1}},
+                    ]
+                }
+
+        def get(self, spreadsheetId, fields):
+            return self._Request()
+
+    def spreadsheets(self):
+        return self._Spreadsheets()
+
+
 class TestGetSheetIdExceptionPropagation:
     """Regression test for issue #384: _get_sheet_id used to catch every
     exception and return None, the same value returned for a genuine
@@ -153,6 +177,26 @@ class TestGetSheetIdExceptionPropagation:
     async def test_no_cache_genuine_missing_sheet_still_returns_none(self):
         sheet_id = await _get_sheet_id(_EmptySheetsService(), "sid", "Sheet1")
         assert sheet_id is None
+
+    async def test_no_cache_matching_sheet_returns_its_id(self):
+        """Happy-path coverage (PR #442 review, issue #442) — the existing
+        exception-propagation/not-found tests never exercised a genuine
+        match, so a bug in the match/return logic itself (wrong dict key,
+        returning the wrong sheet's id) would have passed unnoticed."""
+        sheet_id = await _get_sheet_id(_MatchingSheetsService(), "sid", "Sheet2")
+        assert sheet_id == 123456
+
+    async def test_with_cache_matching_sheet_returns_its_id(self):
+        # _RaisingSheetsService here proves the cache path never touches the
+        # API at all for a fresh, matching cache entry — if it did, this
+        # would raise TimeoutError instead of returning.
+        cache = SheetStructureCache(db_path=":memory:", ttl=1000)
+        cache.store(
+            "sid",
+            [SheetInfo(title="Sheet1", sheet_id=0), SheetInfo(title="Sheet2", sheet_id=123456)],
+        )
+        sheet_id = await _get_sheet_id(_RaisingSheetsService(), "sid", "Sheet2", cache)
+        assert sheet_id == 123456
 
     async def test_with_cache_transient_api_error_propagates(self):
         cache = SheetStructureCache(db_path=":memory:", ttl=1000)
@@ -186,3 +230,9 @@ class TestGetSheetIndexExceptionPropagation:
     async def test_genuine_missing_sheet_still_returns_none(self):
         sheet_index = await _get_sheet_index(_EmptySheetsService(), "sid", 999)
         assert sheet_index is None
+
+    async def test_matching_sheet_returns_its_index(self):
+        """Happy-path coverage (PR #442 review, issue #442) — same gap as
+        TestGetSheetIdExceptionPropagation above."""
+        sheet_index = await _get_sheet_index(_MatchingSheetsService(), "sid", 123456)
+        assert sheet_index == 1
