@@ -240,7 +240,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [x] `download_folder`/`sync_folder` progress notifications: report bytes transferred, not just file count ([#352](https://github.com/khuisman/mcp-gee-sweet/issues/352)) (PR #739)
 - [ ] `download_folder`'s `candidates` tuple: fragile positional access across consumer sites, could be a dataclass (PR #739 follow-up) ([#740](https://github.com/khuisman/mcp-gee-sweet/issues/740))
 - [ ] `download_folder`: opt-in flag to report byte-based `progress`/`total` in `report_progress`'s structured fields (default stays file-count for consistency) (PR #739 follow-up, decision resolved) ([#741](https://github.com/khuisman/mcp-gee-sweet/issues/741))
-- [ ] Unify the two progress-counter idioms in `transfer.py` (nonlocal vs. list-box) ([#354](https://github.com/khuisman/mcp-gee-sweet/issues/354))
+- [x] Unify the two progress-counter idioms in `transfer.py` (nonlocal vs. list-box) ([#354](https://github.com/khuisman/mcp-gee-sweet/issues/354)) (PR #746)
 - [ ] Extend notifications/progress to the remaining `asyncio.gather`-based multi-call tools ([#355](https://github.com/khuisman/mcp-gee-sweet/issues/355))
 - [ ] Expose starred state via `get_file_metadata`/`list_files` — `star_file`/`unstar_file` (#139) set it but nothing reads it back ([#388](https://github.com/khuisman/mcp-gee-sweet/issues/388))
 - [ ] `drive`: consolidate `convert_markdown`'s duplicated matching/messaging logic in `transfer.py` (PR #414 follow-up) ([#424](https://github.com/khuisman/mcp-gee-sweet/issues/424))
