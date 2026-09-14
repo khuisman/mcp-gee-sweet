@@ -1935,9 +1935,9 @@ def register(tool):
 
         total = len(candidates)
         # List-box, not a bare int + nonlocal: matches _sync_level's
-        # progress_count/progress_bytes idiom (#354) so this file has one
-        # convention for "shared mutable counter across concurrent coroutines"
-        # rather than two.
+        # progress_count/progress_bytes idiom (#354) for one shared
+        # convention in this file, though nonlocal was already safe here
+        # (no await between read and write) — this is purely a style match.
         completed = [0]
         bytes_completed = [0]
         # A reliable upfront total requires every candidate's size to be known —
