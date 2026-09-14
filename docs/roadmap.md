@@ -239,7 +239,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 
 **Drive hardening & dedup** _(triaged out of `backlog` 2026-09-11)_
 - [x] `download_folder`/`sync_folder` progress notifications: report bytes transferred, not just file count ([#352](https://github.com/khuisman/mcp-gee-sweet/issues/352)) (PR #739)
-- [ ] `download_folder`'s `candidates` tuple: fragile positional access across consumer sites, could be a dataclass (PR #739 follow-up) ([#740](https://github.com/khuisman/mcp-gee-sweet/issues/740))
+- [x] `download_folder`'s `candidates` tuple: fragile positional access across consumer sites, could be a dataclass (PR #739 follow-up) ([#740](https://github.com/khuisman/mcp-gee-sweet/issues/740)) (PR #748)
 - [ ] `download_folder`: opt-in flag to report byte-based `progress`/`total` in `report_progress`'s structured fields (default stays file-count for consistency) (PR #739 follow-up, decision resolved) ([#741](https://github.com/khuisman/mcp-gee-sweet/issues/741))
 - [x] Unify the two progress-counter idioms in `transfer.py` (nonlocal vs. list-box) ([#354](https://github.com/khuisman/mcp-gee-sweet/issues/354)) (PR #746)
 - [ ] Extend notifications/progress to the remaining `asyncio.gather`-based multi-call tools ([#355](https://github.com/khuisman/mcp-gee-sweet/issues/355))
