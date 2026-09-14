@@ -1528,6 +1528,8 @@ add_data_validation(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not f
 
 **Result (2026-09-13) ✅ PASS (live spot-check)** — ran `add_data_validation(Empty!H1:H5, NUMBER_BETWEEN, ["5"])` (the issue's own example) against the fixture spreadsheet on the running server (not just the mocked unit tests): returned `{"error": "condition_type 'NUMBER_BETWEEN' requires exactly 2 value(s), got 1"}` with no sheet mutation, confirming the local check is wired up end-to-end.
 
+**Re-verified (2026-09-13) ✅ PASS** — after PR #750's KeyError-guard fix (commit 475e420): re-ran the same `NUMBER_BETWEEN` call against the reconnected server, still returns the clean local error with no regression.
+
 ---
 
 ### TC-S99: `add_data_validation` ONE_OF_RANGE — the documented value format always fails ❌ code review finding
