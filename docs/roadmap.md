@@ -212,6 +212,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [x] No tool clears a data validation rule, and no tool exposes a range's numeric `sheetId` ([#365](https://github.com/khuisman/mcp-gee-sweet/issues/365)) (PR #745)
 - [ ] `add_data_validation`: validate the `values` count/shape against `condition_type` before the API call ([#366](https://github.com/khuisman/mcp-gee-sweet/issues/366))
 - [ ] Dedupe `_get_sheet_id`/`_get_sheet_index` lookup logic; add happy-path test coverage ([#442](https://github.com/khuisman/mcp-gee-sweet/issues/442))
+- [ ] `_parse_a1_notation`/`_grid_range` raise an uncaught `ValueError` on invalid A1 notation instead of returning `{"error": ...}`, across ~10 call sites in `data.py`/`structure.py` (PR #745 follow-up) ([#747](https://github.com/khuisman/mcp-gee-sweet/issues/747))
 
 **Docs hardening & dedup** _(triaged out of `backlog` 2026-09-11)_
 - [ ] `html_parser.py`: readability + reset-consistency nits in `_emit_block_node`/`_block_had_unsupported_content` ([#417](https://github.com/khuisman/mcp-gee-sweet/issues/417))
