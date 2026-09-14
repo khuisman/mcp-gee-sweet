@@ -1700,6 +1700,52 @@ class TestGetDataValidation:
         assert result == {"error": "Sheet 'Missing' not found"}
 
 
+class TestClearDataValidation:
+    def _sheets_service(self, sheet_id=0):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": sheet_id}}]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+        return mock
+
+    def _set_data_validation_request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["setDataValidation"]
+
+    async def test_sends_setDataValidation_with_no_rule(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["clear_data_validation"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A2:A100", ctx=ctx
+        )
+        req = self._set_data_validation_request(svc)
+        assert "rule" not in req
+
+    async def test_range_maps_to_grid_range_indices(self):
+        svc = self._sheets_service(sheet_id=42)
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        await _structure_tools["clear_data_validation"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="B2:C5", ctx=ctx
+        )
+        req = self._set_data_validation_request(svc)
+        assert req["range"] == {
+            "sheetId": 42,
+            "startRowIndex": 1,
+            "startColumnIndex": 1,
+            "endRowIndex": 5,
+            "endColumnIndex": 3,
+        }
+
+    async def test_returns_error_when_sheet_not_found(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["clear_data_validation"](
+            spreadsheet_id="ss1", sheet="Missing", range="A1", ctx=ctx
+        )
+        assert result == {"error": "Sheet 'Missing' not found"}
+
+
 class TestMergeCells:
     def _sheets_service(self, sheet_id=0):
         mock = MagicMock()

@@ -1515,6 +1515,45 @@ def register(tool):
 
         return matches
 
+    @tool(annotations=ToolAnnotations(title="Clear Data Validation", destructiveHint=True))
+    async def clear_data_validation(
+        spreadsheet_id: str,
+        sheet: str,
+        range: str,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Clear any data validation rule from a cell range.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet
+            sheet: The name of the sheet
+            range: A1 notation range to clear (e.g. "A2:A100")
+
+        Returns:
+            Result of the batchUpdate operation.
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        )
+        if sheet_id is None:
+            return {"error": f"Sheet '{sheet}' not found"}
+
+        grid_range = _grid_range(sheet_id, range)
+
+        return await execute_in_thread(
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": [{"setDataValidation": {"range": grid_range}}]},
+            )
+            .execute,
+            sheets_service,
+        )
+
     @tool(annotations=ToolAnnotations(title="Merge Cells", destructiveHint=True))
     async def merge_cells(
         spreadsheet_id: str,
