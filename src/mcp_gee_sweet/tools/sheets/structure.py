@@ -90,6 +90,42 @@ def _grid_range(sheet_id: int, range_str: str) -> dict[str, Any]:
     return grid_range
 
 
+async def _apply_data_validation(
+    sheets_service,
+    spreadsheet_id: str,
+    sheet: str,
+    range_str: str,
+    cache,
+    drive_service,
+    rule: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Resolve `sheet` to a sheetId and issue a setDataValidation request.
+
+    `rule=None` omits the rule field, which clears any existing rule on the
+    range (clear_data_validation); a rule dict sets one (add_data_validation).
+    Shared scaffolding extracted per PR #745 review — the two callers were
+    duplicating this sheet-resolution + _grid_range + batchUpdate block
+    almost verbatim.
+    """
+    sheet_id = await _get_sheet_id(sheets_service, spreadsheet_id, sheet, cache, drive_service)
+    if sheet_id is None:
+        return {"error": f"Sheet '{sheet}' not found"}
+
+    set_data_validation: dict[str, Any] = {"range": _grid_range(sheet_id, range_str)}
+    if rule is not None:
+        set_data_validation["rule"] = rule
+
+    return await execute_in_thread(
+        sheets_service.spreadsheets()
+        .batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={"requests": [{"setDataValidation": set_data_validation}]},
+        )
+        .execute,
+        sheets_service,
+    )
+
+
 def _enum_value_error(
     value: str, valid_values: list[str], field_name: str, context: str | None = None
 ) -> dict[str, Any] | None:
@@ -1404,14 +1440,6 @@ def register(tool):
             return error
         normalized_type = condition_type.upper()
 
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
-        )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
-
-        grid_range = _grid_range(sheet_id, range)
-
         condition: dict[str, Any] = {"type": normalized_type}
         if values:
             # ONE_OF_RANGE's userEnteredValue must be a formula-style range reference
@@ -1433,14 +1461,8 @@ def register(tool):
         if input_message is not None:
             rule["inputMessage"] = input_message
 
-        return await execute_in_thread(
-            sheets_service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={"requests": [{"setDataValidation": {"range": grid_range, "rule": rule}}]},
-            )
-            .execute,
-            sheets_service,
+        return await _apply_data_validation(
+            sheets_service, spreadsheet_id, sheet, range, lc.cache, lc.drive_service, rule
         )
 
     @tool(annotations=ToolAnnotations(title="Get Data Validation", readOnlyHint=True))
@@ -1514,6 +1536,31 @@ def register(tool):
                 matches.append({"cell": cell_ref, "rule": rule})
 
         return matches
+
+    @tool(annotations=ToolAnnotations(title="Clear Data Validation", destructiveHint=True))
+    async def clear_data_validation(
+        spreadsheet_id: str,
+        sheet: str,
+        range: str,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Clear any data validation rule from a cell range.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet
+            sheet: The name of the sheet
+            range: A1 notation range to clear (e.g. "A2:A100")
+
+        Returns:
+            Result of the batchUpdate operation.
+        """
+        lc = ctx.request_context.lifespan_context
+        sheets_service = lc.sheets_service
+
+        return await _apply_data_validation(
+            sheets_service, spreadsheet_id, sheet, range, lc.cache, lc.drive_service, None
+        )
 
     @tool(annotations=ToolAnnotations(title="Merge Cells", destructiveHint=True))
     async def merge_cells(

@@ -1588,6 +1588,54 @@ Same as TC-S100 — re-confirms clean-error fix (duplicate coverage in test file
 
 ---
 
+## `clear_data_validation`
+
+### TC-S119: clear_data_validation removes an existing rule ⚠️ destructive
+
+**Background:** Issue #365 — before this tool, the only way to remove a data
+validation rule was `delete_sheet` + `create_sheet` on the whole sheet.
+`clear_data_validation` calls `setDataValidation` with no `rule`, which the
+Sheets API documents as clearing any existing rule on the range.
+
+**Prompt (direct tool call)**
+> 1. `add_data_validation(spreadsheet_id=<fixture>, sheet="Empty", range="E1:E5", condition_type="ONE_OF_LIST", values=["Yes","No","Maybe"])`
+> 2. `clear_data_validation(spreadsheet_id=<fixture>, sheet="Empty", range="E1:E5")`
+> 3. `get_data_validation(spreadsheet_id=<fixture>, sheet="Empty", range="E1:E5")`
+
+**Checks**
+- Step 1 succeeds (sets up the rule to clear)
+- Step 2 returns no error
+- Step 3 (`get_data_validation`) returns `[]` — the rule set in step 1 is gone
+
+**Result (2026-09-13) ✅ PASS**
+Ran live against the fixture spreadsheet. `add_data_validation` set the ONE_OF_LIST rule on E1:E5 with no error; `clear_data_validation` returned no error; `get_data_validation` on E1:E5 returned `[]` afterward — confirms the tool's core premise (`setDataValidation` with `rule` omitted actually clears an existing rule against the real Sheets API, not just in the mocked unit tests).
+
+**Re-verified (2026-09-13) ✅ PASS** — after PR #745's `_apply_data_validation` dedup refactor (commit 931363a): re-ran the same set/clear/confirm sequence on G1:G5 directly against the reconnected server. `add_data_validation` still sets the rule correctly, `clear_data_validation` still clears it (`get_data_validation` → `[]` afterward) — no behavior change from the extraction.
+
+---
+
+### TC-S120: clear_data_validation on a range with no existing rule is a no-op
+
+**Prompt (direct tool call)**
+> `clear_data_validation(spreadsheet_id=<fixture>, sheet="Empty", range="F1:F5")` — a range that has never had a validation rule set.
+
+**Checks**
+- Returns no error (clearing an already-clear range is not itself an error condition)
+- `get_data_validation(spreadsheet_id=<fixture>, sheet="Empty", range="F1:F5")` still returns `[]` afterward
+
+**Result (2026-09-13) ✅ PASS**
+Confirmed F1:F5 had no rule beforehand (`get_data_validation` → `[]`), then `clear_data_validation` returned no error, then `get_data_validation` still returned `[]`.
+
+---
+
+### TC-S121: clear_data_validation — sheet not found returns error (unit test)
+
+**Checks (unit test)**
+- Sheet name not in spreadsheet → `{"error": "Sheet 'X' not found"}`, before any API call
+- Covered by `TestClearDataValidation::test_returns_error_when_sheet_not_found`
+
+---
+
 ## `freeze`
 
 ### TC-S42: Freeze the header row ⚠️ destructive
