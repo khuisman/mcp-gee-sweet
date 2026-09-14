@@ -1934,8 +1934,12 @@ def register(tool):
             )
 
         total = len(candidates)
-        completed = 0
-        bytes_completed = 0
+        # List-box, not a bare int + nonlocal: matches _sync_level's
+        # progress_count/progress_bytes idiom (#354) for one shared
+        # convention in this file, though nonlocal was already safe here
+        # (no await between read and write) — this is purely a style match.
+        completed = [0]
+        bytes_completed = [0]
         # A reliable upfront total requires every candidate's size to be known —
         # one Workspace export with an unknown size makes any "expected total"
         # inaccurate, so the message falls back to a running count with no
@@ -1946,7 +1950,6 @@ def register(tool):
         async def _download_one(
             fid: str, fname: str, is_workspace: bool, dest_file: Path
         ) -> dict[str, Any]:
-            nonlocal completed, bytes_completed
             try:
                 if is_workspace:
                     target_mime = _EXPORT_MIME[export_format][0]
@@ -1979,19 +1982,19 @@ def register(tool):
             # Reported here, inside the per-item coroutine, so updates stream in as
             # each concurrent download finishes rather than arriving in one burst
             # after asyncio.gather resolves — see #316.
-            completed += 1
+            completed[0] += 1
             if result["kind"] == "ok":
-                bytes_completed += result["bytes"]
+                bytes_completed[0] += result["bytes"]
             # progress/total stay file-count-based (see the docstring's #352 note);
             # bytes transferred so far are supplementary context in the message only.
             bytes_note = _format_bytes_note(
-                bytes_completed, total_bytes_expected if bytes_total_known else None
+                bytes_completed[0], total_bytes_expected if bytes_total_known else None
             )
             try:
                 await ctx.report_progress(
-                    completed,
+                    completed[0],
                     total,
-                    f"{completed}/{total}{bytes_note}: {result['name']}: {result['kind']}",
+                    f"{completed[0]}/{total}{bytes_note}: {result['name']}: {result['kind']}",
                 )
             except Exception:
                 # The download already succeeded or failed on its own terms — a
