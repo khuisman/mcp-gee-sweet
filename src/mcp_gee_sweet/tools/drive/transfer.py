@@ -1186,7 +1186,7 @@ def _xlsx_range_values(ws, range_str: str | None) -> list[list]:
     return [[cells.value]]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass
 class _DownloadCandidate:
     """One file download_folder has decided to transfer, replacing the
     previous 5-element positional tuple (#740) — a reorder or added field
@@ -1940,10 +1940,7 @@ def register(tool):
                 continue
             claimed_dest.add(dest_key)
 
-            # A Workspace candidate's export target is a different byte size than
-            # fsize (the original document's own stored size, itself usually None
-            # anyway) — never carry fsize through for one, so it's correctly
-            # treated as "unknown" below rather than an inaccurate upfront total.
+            # size=None for a Workspace candidate — see _DownloadCandidate's docstring.
             candidates.append(
                 _DownloadCandidate(
                     file_id=fid,
@@ -1961,10 +1958,10 @@ def register(tool):
         # (no await between read and write) — this is purely a style match.
         completed = [0]
         bytes_completed = [0]
-        # A reliable upfront total requires every candidate's size to be known —
-        # one Workspace export with an unknown size makes any "expected total"
-        # inaccurate, so the message falls back to a running count with no
-        # denominator in that case rather than implying a precision it doesn't have.
+        # A reliable upfront total requires every candidate's size to be known
+        # (see _DownloadCandidate's docstring for why one can be None) — with one
+        # unknown, the message falls back to a running count with no denominator
+        # rather than implying a precision it doesn't have.
         total_bytes_expected = sum(c.size for c in candidates if c.size is not None)
         bytes_total_known = all(c.size is not None for c in candidates)
 
