@@ -59,6 +59,75 @@ _VALID_CONDITION_TYPES = [
     "CUSTOM_FORMULA",
 ]
 
+# Expected `values` count per condition_type, per add_data_validation's own
+# docstring (issue #366) — None means "at least 1, no upper bound"
+# (ONE_OF_LIST's dropdown items), a tuple means "exactly one of these counts"
+# (BOOLEAN accepts 0 for a plain checkbox or 2 for custom checked/unchecked
+# labels). Without this, a mismatched call still fails, just as a raw Sheets
+# API 400 after a round-trip instead of a local, immediate {"error": ...}.
+_CONDITION_VALUE_COUNTS: dict[str, tuple[int, ...] | None] = {
+    "BOOLEAN": (0, 2),
+    "TEXT_CONTAINS": (1,),
+    "TEXT_NOT_CONTAINS": (1,),
+    "TEXT_STARTS_WITH": (1,),
+    "TEXT_ENDS_WITH": (1,),
+    "TEXT_EQ": (1,),
+    "TEXT_IS_EMAIL": (0,),
+    "TEXT_IS_URL": (0,),
+    "DATE_EQ": (1,),
+    "DATE_BEFORE": (1,),
+    "DATE_AFTER": (1,),
+    "DATE_ON_OR_BEFORE": (1,),
+    "DATE_ON_OR_AFTER": (1,),
+    "DATE_BETWEEN": (2,),
+    "DATE_NOT_BETWEEN": (2,),
+    "DATE_IS_VALID": (0,),
+    "NUMBER_GREATER": (1,),
+    "NUMBER_GREATER_THAN_EQ": (1,),
+    "NUMBER_LESS": (1,),
+    "NUMBER_LESS_THAN_EQ": (1,),
+    "NUMBER_EQ": (1,),
+    "NUMBER_NOT_EQ": (1,),
+    "NUMBER_BETWEEN": (2,),
+    "NUMBER_NOT_BETWEEN": (2,),
+    "ONE_OF_RANGE": (1,),
+    "ONE_OF_LIST": None,
+    "BLANK": (0,),
+    "NOT_BLANK": (0,),
+    "CUSTOM_FORMULA": (1,),
+}
+
+
+def _condition_value_count_error(
+    condition_type: str, values: list[str] | None
+) -> dict[str, Any] | None:
+    """Return an {"error": ...} dict if `values` doesn't match the count
+    condition_type expects. Assumes condition_type is already a valid,
+    upper-cased member of _VALID_CONDITION_TYPES.
+
+    condition_type not being a key in _CONDITION_VALUE_COUNTS (a future
+    desync between the two tables — guarded against by
+    TestAddDataValidation::test_condition_value_counts_covers_every_valid_condition_type)
+    skips the local check rather than raising a KeyError; the real Sheets
+    API still validates the request either way (PR #750 review).
+    """
+    if condition_type not in _CONDITION_VALUE_COUNTS:
+        return None
+    count = len(values) if values else 0
+    expected = _CONDITION_VALUE_COUNTS[condition_type]
+    if expected is None:
+        if count < 1:
+            return {
+                "error": f"condition_type '{condition_type}' requires at least 1 value, got {count}"
+            }
+        return None
+    if count not in expected:
+        needed = " or ".join(str(n) for n in expected)
+        return {
+            "error": f"condition_type '{condition_type}' requires exactly {needed} value(s), got {count}"
+        }
+    return None
+
 
 def _border_spec(border: dict) -> dict[str, Any]:
     """Convert a {"style", "color", "width"} dict into a Sheets API Border object.
@@ -1439,6 +1508,10 @@ def register(tool):
         if error:
             return error
         normalized_type = condition_type.upper()
+
+        error = _condition_value_count_error(normalized_type, values)
+        if error:
+            return error
 
         condition: dict[str, Any] = {"type": normalized_type}
         if values:
