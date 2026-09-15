@@ -1,6 +1,6 @@
 """Tests for tools/drive/files.py (search_spreadsheets, create_folder, move_file, delete_file, etc.)."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from googleapiclient.errors import HttpError
@@ -1065,6 +1065,54 @@ class TestImportCsvToSheet:
         # compare as a set instead of an ordered list.
         ranges = {c.kwargs["range"] for c in update_call.call_args_list}
         assert ranges == {"Sheet1!A1", "Sheet1!A3", "Sheet1!A5"}
+
+    async def test_reports_progress_per_chunk(self, tmp_path, monkeypatch):
+        """#355: extends #316/#319's per-item ctx.report_progress pattern to
+        import_csv_to_sheet's concurrent chunk writes."""
+        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 2)
+        rows = [["h"]] + [[str(i)] for i in range(5)]
+        path = self._write_csv(tmp_path, rows)
+        drive_svc = self._drive_service()
+        sheets_svc = self._sheets_service()
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            folder_id=None,
+        )
+        ctx.report_progress = AsyncMock()
+        await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+
+        assert ctx.report_progress.await_count == 3
+        completed_values = sorted(c.args[0] for c in ctx.report_progress.await_args_list)
+        assert completed_values == [1, 2, 3]
+        for c in ctx.report_progress.await_args_list:
+            assert c.args[1] == 3  # total chunks
+            assert ": ok" in c.args[2]
+
+    async def test_report_progress_failure_does_not_demote_a_successful_chunk(
+        self, tmp_path, monkeypatch
+    ):
+        """PR #351's review established this guard for download_folder/sync_folder:
+        a broken notification channel must not turn an already-successful item into
+        a failure. #355 extends the same pattern here."""
+        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 2)
+        rows = [["h"], ["1"], ["2"]]
+        path = self._write_csv(tmp_path, rows)
+        drive_svc = self._drive_service()
+        sheets_svc = self._sheets_service()
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            folder_id=None,
+        )
+        ctx.report_progress = AsyncMock(side_effect=RuntimeError("connection dropped"))
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert "error" not in result
+        assert result["rows_written"] == 3
 
     async def test_partial_chunk_failure_reports_failed_and_written_ranges(
         self, tmp_path, monkeypatch

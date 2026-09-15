@@ -214,6 +214,10 @@ def register(tool):
         """
         Get data from multiple specific ranges in Google Spreadsheets.
 
+        Queries fetch concurrently rather than one at a time. If the caller supplied
+        a progressToken, a `notifications/progress` update is sent as each query
+        finishes (#355).
+
         Args:
             queries: A list of dictionaries, each specifying a query.
                      Each dictionary must have 'spreadsheet_id' and 'sheet' keys.
@@ -235,27 +239,49 @@ def register(tool):
         """
         sheets_service = ctx.request_context.lifespan_context.sheets_service
 
+        total = len(queries)
+        completed = [0]
+
         async def _fetch_one(query: dict[str, str]) -> dict[str, Any]:
             spreadsheet_id = query.get("spreadsheet_id")
             sheet = query.get("sheet")
             range_str = query.get("range")
 
             if not all([spreadsheet_id, sheet]):
-                return {**query, "error": "Missing required keys (spreadsheet_id, sheet)"}
+                item_result = {**query, "error": "Missing required keys (spreadsheet_id, sheet)"}
+            else:
+                try:
+                    quoted = _quote_sheet_name(str(sheet))
+                    full_range = f"{quoted}!{range_str}" if range_str else quoted
+                    api_result = await execute_in_thread(
+                        sheets_service.spreadsheets()
+                        .values()
+                        .get(spreadsheetId=spreadsheet_id, range=full_range)
+                        .execute,
+                        sheets_service,
+                    )
+                    item_result = {**query, "data": api_result.get("values", [])}
+                except Exception as e:
+                    item_result = {**query, "error": str(e)}
 
+            # Reported here, inside the per-item coroutine, so updates stream in as
+            # each concurrent fetch finishes rather than arriving in one burst after
+            # asyncio.gather resolves — see #316/#319's original rationale, extended
+            # to this tool by #355.
+            completed[0] += 1
+            outcome = "error" if "error" in item_result else "ok"
             try:
-                quoted = _quote_sheet_name(str(sheet))
-                full_range = f"{quoted}!{range_str}" if range_str else quoted
-                result = await execute_in_thread(
-                    sheets_service.spreadsheets()
-                    .values()
-                    .get(spreadsheetId=spreadsheet_id, range=full_range)
-                    .execute,
-                    sheets_service,
+                await ctx.report_progress(
+                    completed[0], total, f"{spreadsheet_id}/{sheet}: {outcome}"
                 )
-                return {**query, "data": result.get("values", [])}
-            except Exception as e:
-                return {**query, "error": str(e)}
+            except Exception:
+                # The fetch already succeeded or failed on its own terms — a broken
+                # notification channel must not overwrite that outcome (#316/#319
+                # review, PR #351).
+                logger.debug(
+                    "report_progress failed for %s/%s", spreadsheet_id, sheet, exc_info=True
+                )
+            return item_result
 
         # return_exceptions=True: each _fetch_one already catches its own errors and
         # returns a tagged dict, but this also lets any genuinely unexpected exception
@@ -288,6 +314,10 @@ def register(tool):
         Get a summary of multiple Google Spreadsheets, including sheet names,
         headers, and the first few rows of data for each sheet.
 
+        Spreadsheets summarize concurrently rather than one at a time. If the caller
+        supplied a progressToken, a `notifications/progress` update is sent as each
+        summary finishes (#355).
+
         Args:
             spreadsheet_ids: A list of spreadsheet IDs to summarize.
             rows_to_fetch: The number of rows (including header) to fetch for the summary (default: 5).
@@ -311,6 +341,9 @@ def register(tool):
         drive_service = lc.drive_service
         data_cache = lc.sheet_data_cache
         structure_cache = lc.cache
+
+        total = len(spreadsheet_ids)
+        completed = [0]
 
         async def _summarize_one(spreadsheet_id: str) -> dict[str, Any]:
             summary_data = {
@@ -435,6 +468,20 @@ def register(tool):
 
             except Exception as e:
                 summary_data["error"] = f"Error fetching spreadsheet {spreadsheet_id}: {e}"
+
+            # Reported here, inside the per-item coroutine, so updates stream in as
+            # each concurrent summary finishes rather than arriving in one burst
+            # after asyncio.gather resolves — see #316/#319's original rationale,
+            # extended to this tool by #355.
+            completed[0] += 1
+            outcome = "error" if summary_data["error"] else "ok"
+            try:
+                await ctx.report_progress(completed[0], total, f"{spreadsheet_id}: {outcome}")
+            except Exception:
+                # The summary already succeeded or failed on its own terms — a broken
+                # notification channel must not overwrite that outcome (#316/#319
+                # review, PR #351).
+                logger.debug("report_progress failed for %s", spreadsheet_id, exc_info=True)
 
             return summary_data
 

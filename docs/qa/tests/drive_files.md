@@ -1456,6 +1456,24 @@ import_csv_to_sheet(12001-row CSV → 'QA-CSV-Concurrent-183') → rows_written=
 
 ---
 
+### TC-D257: `import_csv_to_sheet` emits `notifications/progress` updates as each row chunk completes ⚠️ requires-oauth ⚠️ local-filesystem (issue #355)
+
+**Background:** #355 extends #316/#319's per-item `ctx.report_progress()` pattern (originally added to `download_folder`/`sync_folder` — see TC-D199) to `import_csv_to_sheet`'s concurrent chunk writes (the same concurrent loop TC-D179 stress-tests for correctness): `ctx.report_progress(completed, total_chunks, f"rows {start}-{end}: {outcome}")` fires from inside each chunk's own coroutine as its write finishes, wrapped in try/except so a broken notification channel can't demote an already-successful write. Unit-tested against a mocked `ctx` in `tests/drive/test_files.py::TestImportCsvToSheet::test_reports_progress_per_chunk`/`test_report_progress_failure_does_not_demote_a_successful_chunk`.
+
+**Note:** Same protocol-level caveat as TC-D199 — `notifications/progress` isn't part of the tool's JSON response, so visibility depends on whether this QA client sets a `progressToken`. If it doesn't, this check can only confirm the call still completes normally with the new `ctx.report_progress(...)` call path in place.
+
+**Prompt**
+> "Import `/tmp/qa-import-355.csv` into a new spreadsheet called 'QA-CSV-Progress-355'" *(a small CSV, e.g. header + 3 rows, is enough — this checks that progress reporting doesn't break the call, not chunk-boundary correctness, already covered by TC-D179)*
+
+**Checks**
+- Call completes normally, `rows_written` matches the CSV's row count, no error
+- If progress notifications are visible in the client: at least one discrete update appears per chunk written
+
+**Teardown**
+Delete the `QA-CSV-Progress-355` spreadsheet.
+
+---
+
 ## `create_shortcut` (issue #141)
 
 ### TC-D206: Create a shortcut with explicit name and folder ⚠️ requires-oauth ⚠️ destructive

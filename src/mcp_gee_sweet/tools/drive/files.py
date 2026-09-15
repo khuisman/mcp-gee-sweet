@@ -94,6 +94,10 @@ def register(tool):
         the data (avoiding the default 1000-row/26-column limit), and writes
         every row in one or more batched value updates.
 
+        Row chunks write concurrently rather than one at a time. If the caller
+        supplied a progressToken, a `notifications/progress` update is sent as each
+        chunk finishes (#355).
+
         Args:
             local_path: Absolute path to the local .csv file.
             title: Title for the new spreadsheet.
@@ -215,6 +219,19 @@ def register(tool):
 
         quoted_sheet = _quote_sheet_name(sheet_name)
 
+        # Safe to parallelize: each chunk writes a disjoint row range of the same
+        # sheet (A{start+1} onward, non-overlapping), so there's no read-modify-write
+        # race between chunks. Unlike the old sequential loop — where a failure left a
+        # clean truncated prefix — a concurrent failure can leave a hole mid-sheet (an
+        # earlier chunk can still be in flight when a later one succeeds), so failures
+        # are reported per-range rather than as a single opaque exception.
+        chunks = [
+            (start, rows[start : start + _CSV_IMPORT_CHUNK_ROWS])
+            for start in range(0, len(rows), _CSV_IMPORT_CHUNK_ROWS)
+        ]
+        total_chunks = len(chunks)
+        completed = [0]
+
         async def _write_chunk(start: int, chunk: list[list]) -> dict[str, Any]:
             row_range = {"start_row": start + 1, "end_row": start + len(chunk)}
             try:
@@ -230,20 +247,34 @@ def register(tool):
                     .execute,
                     sheets_service,
                 )
-                return {**row_range, "ok": True}
+                result = {**row_range, "ok": True}
             except Exception as e:
-                return {**row_range, "ok": False, "error": str(e)}
+                result = {**row_range, "ok": False, "error": str(e)}
 
-        # Safe to parallelize: each chunk writes a disjoint row range of the same
-        # sheet (A{start+1} onward, non-overlapping), so there's no read-modify-write
-        # race between chunks. Unlike the old sequential loop — where a failure left a
-        # clean truncated prefix — a concurrent failure can leave a hole mid-sheet (an
-        # earlier chunk can still be in flight when a later one succeeds), so failures
-        # are reported per-range rather than as a single opaque exception.
-        chunks = [
-            (start, rows[start : start + _CSV_IMPORT_CHUNK_ROWS])
-            for start in range(0, len(rows), _CSV_IMPORT_CHUNK_ROWS)
-        ]
+            # Reported here, inside the per-item coroutine, so updates stream in as
+            # each concurrent chunk write finishes rather than arriving in one burst
+            # after asyncio.gather resolves — see #316/#319's original rationale,
+            # extended to this tool by #355.
+            completed[0] += 1
+            try:
+                await ctx.report_progress(
+                    completed[0],
+                    total_chunks,
+                    f"rows {row_range['start_row']}-{row_range['end_row']}: "
+                    f"{'ok' if result['ok'] else 'error'}",
+                )
+            except Exception:
+                # The chunk write already succeeded or failed on its own terms — a
+                # broken notification channel must not overwrite that outcome
+                # (#316/#319 review, PR #351).
+                logger.debug(
+                    "report_progress failed for rows %s-%s",
+                    row_range["start_row"],
+                    row_range["end_row"],
+                    exc_info=True,
+                )
+            return result
+
         chunk_results: list[dict[str, Any]] = []
         if chunks:
             raw = await asyncio.gather(
