@@ -8,7 +8,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import markdown as _md
 from googleapiclient.errors import HttpError
@@ -1821,6 +1821,7 @@ def register(tool):
         export_format: str | None = None,
         mime_type_filter: str | None = None,
         skip_if_exists: bool = True,
+        progress_unit: Literal["files", "bytes"] = "files",
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -1833,15 +1834,20 @@ def register(tool):
 
         Files transfer concurrently rather than one at a time. If the caller supplied
         a progressToken, a `notifications/progress` update is sent as each file
-        finishes (e.g. "12/217: report.pdf: ok"). The `progress`/`total` values
-        stay file-count-based (a byte total isn't always knowable upfront — Drive
-        only reports `size` for non-Workspace files, so a folder containing
-        Workspace files with export_format set has no reliable total byte count
-        until each export actually completes) — the message text adds bytes
+        finishes (e.g. "12/217: report.pdf: ok"). The message text always adds bytes
         transferred so far as supplementary context (#352), e.g.
         "12/217, 4823001/98234112 bytes: report.pdf: ok" when every candidate's
         size is known upfront, or "12/217, 4823001 bytes so far: report.pdf: ok"
         when one or more candidates (a Workspace export) has an unknown size.
+
+        The structured `progress`/`total` fields default to file-count
+        (progress_unit='files'), for consistency with every other progress-reporting
+        tool in this file. Pass progress_unit='bytes' to report bytes transferred
+        instead, for a client that renders a progress bar from the structured fields
+        alone rather than parsing the message text (#741) — this only takes effect
+        when every candidate's size is known upfront (see _DownloadCandidate's
+        docstring); otherwise it silently falls back to file-count, since there's no
+        reliable byte total to report against.
 
         Args:
             folder_id: The Google Drive folder ID.
@@ -1851,6 +1857,10 @@ def register(tool):
                            Without this, Workspace files are skipped.
             mime_type_filter: Only download files matching this MIME type.
             skip_if_exists: Skip files that already exist at the destination (default True).
+            progress_unit: 'files' (default) or 'bytes' — which metric feeds the
+                           structured progress/total fields reported via
+                           notifications/progress. Falls back to 'files' when not
+                           every candidate's size is known upfront.
 
         Returns:
             Summary with lists of 'downloaded', 'skipped', and 'failed' filenames,
@@ -1958,12 +1968,29 @@ def register(tool):
         # (no await between read and write) — this is purely a style match.
         completed = [0]
         bytes_completed = [0]
+        # Separate from bytes_completed (real bytes transferred, message-text-only,
+        # success-only — see below): this one backs the structured progress field
+        # when report_bytes is true, and must reach total_bytes_expected exactly
+        # once every candidate has been attempted, success or fail, the same way
+        # completed[0] reaches `total` unconditionally in file-count mode. Advancing
+        # it by the candidate's own *declared* size on every outcome (not just on
+        # success, unlike bytes_completed) is what guarantees that — a failed
+        # candidate's size would otherwise stay baked into the denominator
+        # (total_bytes_expected sums every candidate) while never being added to
+        # the numerator, so the final call would report less than 100% even though
+        # the operation is fully done (#741 QA review, finding #1).
+        bytes_accounted = [0]
         # A reliable upfront total requires every candidate's size to be known
         # (see _DownloadCandidate's docstring for why one can be None) — with one
         # unknown, the message falls back to a running count with no denominator
         # rather than implying a precision it doesn't have.
         total_bytes_expected = sum(c.size for c in candidates if c.size is not None)
         bytes_total_known = all(c.size is not None for c in candidates)
+        # #741: byte-based structured progress is only meaningful when there's a
+        # reliable total to report against — silently fall back to file-count
+        # rather than reporting a byte "total" that's actually just a running
+        # count with no denominator.
+        report_bytes = progress_unit == "bytes" and bytes_total_known
 
         async def _download_one(candidate: _DownloadCandidate) -> dict[str, Any]:
             try:
@@ -2011,15 +2038,24 @@ def register(tool):
             completed[0] += 1
             if result["kind"] == "ok":
                 bytes_completed[0] += result["bytes"]
-            # progress/total stay file-count-based (see the docstring's #352 note);
-            # bytes transferred so far are supplementary context in the message only.
+            # bytes_accounted advances on every outcome (see its own comment above)
+            # so byte-mode progress still reaches full completion when a candidate
+            # fails; candidate.size is never None here when report_bytes is true
+            # (bytes_total_known already guarantees it).
+            bytes_accounted[0] += candidate.size or 0
+            # progress/total stay file-count-based by default (see the docstring's
+            # #352 note) — bytes transferred so far are supplementary context in the
+            # message only. With progress_unit='bytes' (#741) the structured fields
+            # below use byte totals instead; the message text is unaffected either way.
             bytes_note = _format_bytes_note(
                 bytes_completed[0], total_bytes_expected if bytes_total_known else None
             )
             try:
+                progress = bytes_accounted[0] if report_bytes else completed[0]
+                progress_total = total_bytes_expected if report_bytes else total
                 await ctx.report_progress(
-                    completed[0],
-                    total,
+                    progress,
+                    progress_total,
                     f"{completed[0]}/{total}{bytes_note}: {result['name']}: {result['kind']}",
                 )
             except Exception:

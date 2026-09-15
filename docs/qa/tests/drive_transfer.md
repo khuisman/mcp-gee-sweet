@@ -1664,3 +1664,31 @@ export_revision(rev 6, no range) → sheet="Sheet1", range=null, values = full 5
 export_revision({DOC_ID}, rev 3) → error "No XLSX export available for revision 3. The file may not be a Google Sheets file." Clear error, no crash.
 
 ---
+
+### TC-D256: `download_folder`'s `progress_unit='bytes'` feeds byte totals into the structured progress fields, with a file-count fallback when sizes aren't fully known (issue #741) ⚠️ local-filesystem
+
+**Background:** TC-D255 (#352) confirmed the message text carries bytes-transferred-so-far as supplementary context, but the structured `progress`/`total` fields passed to `ctx.report_progress()` stayed file-count-based unconditionally — a client rendering a progress bar from those fields alone (not parsing message text) sees the same one-tick-per-file granularity regardless of individual file size. #741's maintainer decision: keep file-count as the default (`progress_unit='files'`), but add an opt-in `progress_unit='bytes'` so a caller can request byte-based structured fields when every candidate's size is known upfront (same `bytes_total_known` gate TC-D255's message-fallback logic already uses) — falling back to file-count when it isn't, since there's no reliable byte total to report against then. `sync_folder` is explicitly out of scope for this decision (recursive descent never has a full upfront size list). Unit-tested deterministically against a mocked `ctx` in `tests/drive/test_transfer.py::TestDownloadFolder::test_progress_unit_bytes_reports_byte_totals_when_sizes_known`/`test_progress_unit_bytes_falls_back_to_files_when_sizes_unknown`; this live check confirms both branches against a real API call.
+
+**Note:** Same protocol-level caveat as TC-D199/TC-D255 — `notifications/progress` isn't part of the tool's JSON response, so visibility depends on whether this QA client sets a `progressToken`. If it doesn't, this check can only confirm both calls still complete normally with `progress_unit` accepted as a parameter.
+
+**Setup**
+Create a scratch Drive folder with 2 non-Workspace files of known, distinct sizes (e.g. 5 and 7 bytes) for the first call. For the second call, create a separate scratch folder containing one non-Workspace file and one Google Doc (Workspace file, unknown export size upfront).
+
+**Tool calls**
+1. `download_folder(folder_id="<scratch-folder-1-id>", local_path="/tmp/qa-741-bytes/", progress_unit="bytes")`
+2. `download_folder(folder_id="<scratch-folder-2-id>", local_path="/tmp/qa-741-fallback/", export_format="pdf", progress_unit="bytes")`
+
+**Checks**
+- Call 1: completes normally, `downloaded` contains both files, `size_bytes` matches the real total (12). If progress notifications are visible in the client: the structured `progress`/`total` values reflect bytes transferred/expected (e.g. 5/12 then 12/12), not file counts (1/2, 2/2)
+- Call 2: completes normally despite the Workspace file's unknown upfront size. If progress notifications are visible in the client: the structured `total` value is 2 (file count), not a byte total — confirming the fallback fires instead of reporting an inaccurate/missing byte denominator
+
+**Teardown**
+Remove `/tmp/qa-741-bytes/` and `/tmp/qa-741-fallback/`; trash both scratch Drive folders.
+
+**Result (2026-09-14) ✅ PASS** Ran against two fresh scratch folders (2 binary files of 5/7 bytes; 1 binary file of 3 bytes + 1 Google Doc export). Call 1: `downloaded=["qa-741-a.txt","qa-741-b.txt"]`, `size_bytes=12` (matches real total), files landed on disk with correct sizes. Call 2: `downloaded=["qa-741-c.txt","qa-741-doc.pdf"]`, `size_bytes=30588`, completed normally despite the Workspace file's unknown upfront size — fallback path didn't error. Structured `progress`/`total` values not visible (this client sets no `progressToken`, same caveat as TC-D199/TC-D255). Both scratch folders trashed as teardown.
+
+Code review (`/code-review high`) separately surfaced 2 blocking findings on this PR's own new code, sent back to Dev (not covered by the setup above, since it's a happy-path case with no failing candidate): (1) byte-mode structured progress never reached full completion if any candidate failed — `bytes_completed` only advanced on success while `total_bytes_expected` summed every candidate's declared size regardless of outcome; (2) a comment directly above the fix's own new code was left claiming progress/total stay file-count-based unconditionally, now false.
+
+**Re-verification (2026-09-14, fix `1788f82`) ✅ PASS** — Added a separate `bytes_accounted` counter that advances by each candidate's declared size on every outcome (success or fail), matching file-count mode's existing full-completion guarantee; stale comment corrected. New unit test (`test_progress_unit_bytes_reaches_full_total_even_when_a_candidate_fails`) covers a 2-candidate batch (sizes 5/7) where the second fails — asserts the final `report_progress` call reports `12/12`, not stuck below total. `tests/drive/test_transfer.py -k "download_folder or progress_unit"` (3 tests) passes. The happy-path live calls above were re-run post-`/mcp reconnect` with identical results (`size_bytes=12` / `size_bytes=30588`); the failing-candidate scenario itself isn't practical to force against a real Drive API call, so it's covered by the new deterministic unit test rather than live.
+
+---
