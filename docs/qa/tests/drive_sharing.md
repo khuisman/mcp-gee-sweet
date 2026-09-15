@@ -159,6 +159,24 @@ All 5 recipients -> successes, none in failures. `list_permissions` cross-check 
 
 ---
 
+### TC-D258: `share_spreadsheet` emits `notifications/progress` updates as each recipient completes (issue #355)
+
+**Background:** #355 extends #316/#319's per-item `ctx.report_progress()` pattern (originally added to `download_folder`/`sync_folder` — see TC-D199) to `share_spreadsheet`'s concurrent per-recipient shares (the same concurrent loop TC-D176 exercises for cross-attribution): `ctx.report_progress(completed, total, f"{email_address}: {outcome}")` fires from inside each recipient's own coroutine as its share finishes, wrapped in try/except so a broken notification channel can't demote an already-successful share. Unit-tested against a mocked `ctx` in `tests/drive/test_sharing.py::TestShareSpreadsheet::test_reports_progress_per_recipient`/`test_report_progress_failure_does_not_demote_a_successful_share`.
+
+**Note:** Same protocol-level caveat as TC-D199 — visibility depends on whether this QA client sets a `progressToken`.
+
+**Prompt**
+> "Share {SPREADSHEET_ID} with recipient1@example.com as reader and recipient2@example.com as reader"
+
+**Checks**
+- Both entries land in `successes`, no top-level error
+- If progress notifications are visible in the client: 2 discrete updates appear, one per recipient, not a single update at the very end
+
+**Teardown**
+`remove_permission` for both test recipients.
+
+---
+
 ## `list_permissions`
 
 ### TC-D124: List permissions on a file — top-level entry present
@@ -486,5 +504,23 @@ share_file(throwaway, huismanfamily01@gmail.com reader, send_notification=false)
 
 **Result (2026-09-04) ✅ PASS**
 share_file concurrent 4-permission call (3 users + 1 domain). All 4 in successes, none in failures. Attribution cross-checked individually against list_permissions: qa177-recipient1=reader (17860759509164023546), qa177-recipient2=writer (03150678215290859261), qa177-recipient3=commenter (13827627058833662749), domain mcpsuite.io=reader (09502084656447390423). No cross-attribution.
+
+---
+
+### TC-D259: `share_file` emits `notifications/progress` updates as each permission entry completes (issue #355)
+
+**Background:** #355 extends #316/#319's per-item `ctx.report_progress()` pattern (originally added to `download_folder`/`sync_folder` — see TC-D199) to `share_file`'s concurrent per-permission shares (the same concurrent loop TC-D177 exercises for cross-attribution): `ctx.report_progress(completed, total, f"{perm_type}: {outcome}")` fires from inside each entry's own coroutine as its share finishes, wrapped in try/except so a broken notification channel can't demote an already-successful share. Unit-tested against a mocked `ctx` in `tests/drive/test_sharing.py::TestShareFile::test_reports_progress_per_permission`/`test_report_progress_failure_does_not_demote_a_successful_share`.
+
+**Note:** Same protocol-level caveat as TC-D199 — visibility depends on whether this QA client sets a `progressToken`.
+
+**Prompt**
+> "Share {SPREADSHEET_ID} using share_file with type='anyone' role='reader' and type='domain' domain={GWS_DOMAIN} role='reader'"
+
+**Checks**
+- Both entries land in `successes`, no top-level error
+- If progress notifications are visible in the client: 2 discrete updates appear, one per permission entry, not a single update at the very end
+
+**Teardown**
+`remove_permission` for both test permissions.
 
 ---

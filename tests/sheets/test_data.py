@@ -1,7 +1,7 @@
 """Tests for tools/sheets/data.py."""
 
 import json
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -309,6 +309,38 @@ class TestGetMultipleSheetData:
         written = json.loads(dest.read_text())
         assert written[0]["data"] == [["x" * 1000]]
 
+    async def test_reports_progress_per_query(self):
+        """#355: extends #316/#319's per-item ctx.report_progress pattern to
+        get_multiple_sheet_data's concurrent fetches."""
+        ctx = self._ctx([["A"]])
+        ctx.report_progress = AsyncMock()
+        await _data_tools["get_multiple_sheet_data"](
+            queries=[
+                {"spreadsheet_id": "abc", "sheet": "Sheet1"},
+                {"spreadsheet_id": "xyz", "sheet": "Sheet2"},
+            ],
+            ctx=ctx,
+        )
+        assert ctx.report_progress.await_count == 2
+        completed_values = sorted(c.args[0] for c in ctx.report_progress.await_args_list)
+        assert completed_values == [1, 2]
+        for c in ctx.report_progress.await_args_list:
+            assert c.args[1] == 2  # total queries
+            assert ": ok" in c.args[2]
+
+    async def test_report_progress_failure_does_not_demote_a_successful_fetch(self):
+        """PR #351's review established this guard for download_folder/sync_folder:
+        a broken notification channel must not turn an already-successful item into
+        a failure. #355 extends the same pattern here."""
+        ctx = self._ctx([["A"]])
+        ctx.report_progress = AsyncMock(side_effect=RuntimeError("connection dropped"))
+        result = await _data_tools["get_multiple_sheet_data"](
+            queries=[{"spreadsheet_id": "abc", "sheet": "Sheet1"}],
+            ctx=ctx,
+        )
+        assert "error" not in result[0]
+        assert result[0]["data"] == [["A"]]
+
 
 class TestGetMultipleSpreadsheetSummary:
     """Response-size cap and local_path parity with get_multiple_sheet_data (QA finding, #183)."""
@@ -351,6 +383,33 @@ class TestGetMultipleSpreadsheetSummary:
         assert result["spreadsheet_count"] == 1
         written = json.loads(dest.read_text())
         assert written[0]["title"] == "Big"
+
+    async def test_reports_progress_per_spreadsheet(self):
+        """#355: extends #316/#319's per-item ctx.report_progress pattern to
+        get_multiple_spreadsheet_summary's concurrent fetches."""
+        ctx = self._ctx(self._spreadsheet_meta(), [["A"]])
+        ctx.report_progress = AsyncMock()
+        await _data_tools["get_multiple_spreadsheet_summary"](
+            spreadsheet_ids=["abc", "xyz"], ctx=ctx
+        )
+        assert ctx.report_progress.await_count == 2
+        completed_values = sorted(c.args[0] for c in ctx.report_progress.await_args_list)
+        assert completed_values == [1, 2]
+        for c in ctx.report_progress.await_args_list:
+            assert c.args[1] == 2  # total spreadsheets
+            assert ": ok" in c.args[2]
+
+    async def test_report_progress_failure_does_not_demote_a_successful_summary(self):
+        """PR #351's review established this guard for download_folder/sync_folder:
+        a broken notification channel must not turn an already-successful item into
+        a failure. #355 extends the same pattern here."""
+        ctx = self._ctx(self._spreadsheet_meta(), [["A"]])
+        ctx.report_progress = AsyncMock(side_effect=RuntimeError("connection dropped"))
+        result = await _data_tools["get_multiple_spreadsheet_summary"](
+            spreadsheet_ids=["abc"], ctx=ctx
+        )
+        assert result[0]["error"] is None
+        assert result[0]["title"] == "Big"
 
 
 class TestFindInSpreadsheet:
