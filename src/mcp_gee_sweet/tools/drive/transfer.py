@@ -343,6 +343,25 @@ async def _list_drive_children(drive_service, folder_id: str) -> tuple[list[dict
     return files, folders
 
 
+_SyncAction = Literal["skip", "conflict", "collision", "checksum_read_fail", "upload", "download"]
+
+
+@dataclass
+class _SyncStep:
+    """One name _sync_level has planned an action for, replacing the previous
+    untyped dict[str, str] (#749) — the same fragility #740's _DownloadCandidate
+    (below) fixed for download_folder's candidates: a plan.append({...}) site
+    that dropped or renamed a key, or a step["..."] read that typo'd one, had
+    no type error to catch it, just a silent runtime KeyError (or a
+    silently-wrong value from a typo'd Literal). action is one of _SyncAction's
+    values, not a bare str, so a call site passing an action _run_one doesn't
+    actually branch on is now a type-checker error too."""
+
+    name: str
+    action: _SyncAction
+    reason: str
+
+
 async def _sync_level(
     lc,
     drive_service,
@@ -505,7 +524,7 @@ async def _sync_level(
     def _local_mtime(p: Path) -> datetime:
         return datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc)
 
-    plan: list[dict[str, str]] = []
+    plan: list[_SyncStep] = []
     for name in sorted(drive_map.keys() | local_map.keys() | collision_names):
         if name in collision_names:
             # Route through the normal plan machinery (like every other action)
@@ -516,7 +535,7 @@ async def _sync_level(
             # dry_run (a preview, not a failure) and as a real 'failed' entry
             # once execution is actually attempted — see the collision handling
             # in the dry_run branch and _run_one below.
-            plan.append({"name": name, "action": "collision", "reason": collision_reasons[name]})
+            plan.append(_SyncStep(name=name, action="collision", reason=collision_reasons[name]))
             continue
         in_drive = name in drive_map
         in_local = name in local_map
@@ -529,7 +548,7 @@ async def _sync_level(
                 # direction='upload', where an ordinary drive-only file would have
                 # reported a plain "skip" (#422, finding #3).
                 plan.append(
-                    {"name": name, "action": "skip", "reason": "drive only, upload direction"}
+                    _SyncStep(name=name, action="skip", reason="drive only, upload direction")
                 )
             elif drive_map[name]["_is_converted_md"]:
                 # A convert_markdown Doc has no reverse conversion — queuing this as
@@ -539,24 +558,24 @@ async def _sync_level(
                 # also set (#414 QA review, findings #1 and #4). Report it plainly
                 # up front instead, in both dry_run and a real run.
                 plan.append(
-                    {
-                        "name": name,
-                        "action": "conflict",
-                        "reason": (
+                    _SyncStep(
+                        name=name,
+                        action="conflict",
+                        reason=(
                             "drive-only convert_markdown Doc has no reverse conversion — "
                             "add a matching local .md or remove it in Drive"
                         ),
-                    }
+                    )
                 )
             else:
-                plan.append({"name": name, "action": "download", "reason": "drive only"})
+                plan.append(_SyncStep(name=name, action="download", reason="drive only"))
 
         elif in_local and not in_drive:
             if direction in ("upload", "bidirectional"):
-                plan.append({"name": name, "action": "upload", "reason": "local only"})
+                plan.append(_SyncStep(name=name, action="upload", reason="local only"))
             else:
                 plan.append(
-                    {"name": name, "action": "skip", "reason": "local only, download direction"}
+                    _SyncStep(name=name, action="skip", reason="local only, download direction")
                 )
 
         else:
@@ -590,16 +609,16 @@ async def _sync_level(
                         # shouldn't take down the whole sync_folder call (#274 PR
                         # #472 review, finding #1).
                         plan.append(
-                            {"name": name, "action": "checksum_read_fail", "reason": str(e)}
+                            _SyncStep(name=name, action="checksum_read_fail", reason=str(e))
                         )
                         continue
                     if local_md5 == drive_md5:
                         plan.append(
-                            {
-                                "name": name,
-                                "action": "skip",
-                                "reason": "content identical (checksum match)",
-                            }
+                            _SyncStep(
+                                name=name,
+                                action="skip",
+                                reason="content identical (checksum match)",
+                            )
                         )
                         continue
                     # A mismatch that resolves to 'upload' below reads this same file
@@ -645,31 +664,31 @@ async def _sync_level(
                     local_map[name].stat().st_size != int(drive_size)
                 )
                 if not size_differs:
-                    plan.append({"name": name, "action": "skip", "reason": "in sync"})
+                    plan.append(_SyncStep(name=name, action="skip", reason="in sync"))
                 else:
                     plan.append(
-                        {
-                            "name": name,
-                            "action": "conflict",
-                            "reason": (
+                        _SyncStep(
+                            name=name,
+                            action="conflict",
+                            reason=(
                                 "content differs (local and Drive byte sizes disagree) but "
                                 "mtimes match — can't tell which side is newer; touch the newer "
                                 "file, or delete the stale copy, then re-sync"
                             ),
-                        }
+                        )
                     )
             elif diff > 0:
                 if direction in ("upload", "bidirectional"):
                     plan.append(
-                        {"name": name, "action": "upload", "reason": f"local newer by {diff:.0f}s"}
+                        _SyncStep(name=name, action="upload", reason=f"local newer by {diff:.0f}s")
                     )
                 else:
                     plan.append(
-                        {
-                            "name": name,
-                            "action": "conflict",
-                            "reason": f"local newer by {diff:.0f}s but direction is download",
-                        }
+                        _SyncStep(
+                            name=name,
+                            action="conflict",
+                            reason=f"local newer by {diff:.0f}s but direction is download",
+                        )
                     )
             elif drive_map[name]["_is_converted_md"]:
                 # Same reasoning as the drive-only case above: this Doc can't be
@@ -678,35 +697,37 @@ async def _sync_level(
                 # possible in principle (e.g. residual clock skew), and reporting
                 # it as a clean conflict beats a runtime download_fail.
                 plan.append(
-                    {
-                        "name": name,
-                        "action": "conflict",
-                        "reason": (
+                    _SyncStep(
+                        name=name,
+                        action="conflict",
+                        reason=(
                             f"drive newer by {-diff:.0f}s but convert_markdown Docs have no "
                             "reverse conversion — re-upload the local file to update Drive"
                         ),
-                    }
+                    )
                 )
             else:
                 if direction in ("download", "bidirectional"):
                     plan.append(
-                        {
-                            "name": name,
-                            "action": "download",
-                            "reason": f"drive newer by {-diff:.0f}s",
-                        }
+                        _SyncStep(
+                            name=name,
+                            action="download",
+                            reason=f"drive newer by {-diff:.0f}s",
+                        )
                     )
                 else:
                     plan.append(
-                        {
-                            "name": name,
-                            "action": "conflict",
-                            "reason": f"drive newer by {-diff:.0f}s but direction is upload",
-                        }
+                        _SyncStep(
+                            name=name,
+                            action="conflict",
+                            reason=f"drive newer by {-diff:.0f}s but direction is upload",
+                        )
                     )
 
     for step in plan:
-        actions.append({**step, "name": f"{rel_prefix}{step['name']}"})
+        actions.append(
+            {"name": f"{rel_prefix}{step.name}", "action": step.action, "reason": step.reason}
+        )
 
     total_bytes = 0
 
@@ -718,9 +739,9 @@ async def _sync_level(
     # item considered) already being a complete, non-redundant picture of the plan.
     if not dry_run:
 
-        async def _run_one(step: dict[str, str]) -> dict[str, Any]:
-            name = step["name"]
-            action = step["action"]
+        async def _run_one(step: _SyncStep) -> dict[str, Any]:
+            name = step.name
+            action = step.action
 
             if action == "skip":
                 return {"kind": "skip", "name": name}
@@ -734,14 +755,14 @@ async def _sync_level(
                 # run reports it as a genuine failure (unlike the dry_run preview
                 # above), since nothing was synced and the ambiguity needs a
                 # human to resolve it.
-                return {"kind": "collision_fail", "name": name, "error": step["reason"]}
+                return {"kind": "collision_fail", "name": name, "error": step.reason}
 
             if action == "checksum_read_fail":
                 # The local file became unreadable (deleted, permission-denied, a
                 # special file) between the directory scan and use_checksum's hash
                 # read — surfaced as a clean failure for this one name rather than
                 # propagating out of the whole sync_folder call.
-                return {"kind": "checksum_read_fail", "name": name, "error": step["reason"]}
+                return {"kind": "checksum_read_fail", "name": name, "error": step.reason}
 
             if action == "upload":
                 p = local_map[name]
@@ -971,7 +992,7 @@ async def _sync_level(
             except Exception as e:
                 return {"kind": "download_fail", "name": name, "error": str(e)}
 
-        async def _run_one_with_progress(step: dict[str, str]) -> dict[str, Any]:
+        async def _run_one_with_progress(step: _SyncStep) -> dict[str, Any]:
             result = await _run_one(step)
             # Report per-item, not after the whole gather resolves — the gather
             # blocks until every concurrent transfer at this level finishes, so
@@ -1018,7 +1039,7 @@ async def _sync_level(
 
         level_changed = False
         for step, o in zip(plan, raw, strict=True):
-            rel_name = f"{rel_prefix}{step['name']}"
+            rel_name = f"{rel_prefix}{step.name}"
             if isinstance(o, BaseException):
                 failed.append({"name": rel_name, "error": str(o)})
                 continue
