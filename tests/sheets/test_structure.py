@@ -197,13 +197,15 @@ class TestCopySheet:
 
     def _mock_sheets(self, copy_result):
         mock = MagicMock()
-        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
-            "sheets": [{"properties": {"title": "Sheet1", "sheetId": 0}}]
-        }
         (
             mock.spreadsheets.return_value.sheets.return_value.copyTo.return_value.execute.return_value
         ) = copy_result
         return mock
+
+    def _cache_with_sheet(self, title="Sheet1", sheet_id=0):
+        cache = MagicMock()
+        cache.get_sheets.return_value = [SheetInfo(title=title, sheet_id=sheet_id)]
+        return cache
 
     def _rename_titles(self, mock_sheets):
         body = mock_sheets.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
@@ -216,7 +218,7 @@ class TestCopySheet:
     async def test_rename_triggered_when_title_absent_from_response(self):
         """The old guard `if 'title' in copy_result` would silently skip this case."""
         mock_sheets = self._mock_sheets({"sheetId": 42})  # no "title" key
-        ctx = _make_ctx(sheets_service=mock_sheets, cache=MagicMock())
+        ctx = _make_ctx(sheets_service=mock_sheets, cache=self._cache_with_sheet())
         await _structure_tools["copy_sheet"](
             src_spreadsheet="src",
             src_sheet="Sheet1",
@@ -229,7 +231,7 @@ class TestCopySheet:
 
     async def test_rename_triggered_when_title_differs(self):
         mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1"})
-        ctx = _make_ctx(sheets_service=mock_sheets, cache=MagicMock())
+        ctx = _make_ctx(sheets_service=mock_sheets, cache=self._cache_with_sheet())
         await _structure_tools["copy_sheet"](
             src_spreadsheet="src",
             src_sheet="Sheet1",
@@ -241,7 +243,7 @@ class TestCopySheet:
 
     async def test_rename_skipped_when_title_already_matches(self):
         mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Target Name"})
-        ctx = _make_ctx(sheets_service=mock_sheets, cache=MagicMock())
+        ctx = _make_ctx(sheets_service=mock_sheets, cache=self._cache_with_sheet())
         await _structure_tools["copy_sheet"](
             src_spreadsheet="src",
             src_sheet="Sheet1",
@@ -250,6 +252,80 @@ class TestCopySheet:
             ctx=ctx,
         )
         assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
+
+    async def test_returns_error_when_source_sheet_not_found(self):
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1"})
+        ctx = _make_ctx(sheets_service=mock_sheets, cache=self._cache_with_sheet(title="Other"))
+        result = await _structure_tools["copy_sheet"](
+            src_spreadsheet="src",
+            src_sheet="Missing",
+            dst_spreadsheet="dst",
+            dst_sheet="My Sheet",
+            ctx=ctx,
+        )
+        assert result == {"error": "Source sheet 'Missing' not found"}
+        assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
+
+
+class TestRenameSheet:
+    def _mock_sheets(self):
+        return MagicMock()
+
+    def _cache_with_sheet(self, title="Sheet1", sheet_id=0):
+        cache = MagicMock()
+        cache.get_sheets.return_value = [SheetInfo(title=title, sheet_id=sheet_id)]
+        return cache
+
+    def _request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["updateSheetProperties"]
+
+    async def test_sends_rename_request_with_resolved_sheet_id(self):
+        svc = self._mock_sheets()
+        cache = self._cache_with_sheet(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=cache)
+        await _structure_tools["rename_sheet"](
+            spreadsheet="ss1", sheet="Sheet1", new_name="Renamed", ctx=ctx
+        )
+        req = self._request(svc)
+        assert req["properties"] == {"sheetId": 7, "title": "Renamed"}
+        assert req["fields"] == "title"
+
+    async def test_returns_error_when_sheet_not_found(self):
+        svc = self._mock_sheets()
+        cache = self._cache_with_sheet(title="Other")
+        ctx = _make_ctx(sheets_service=svc, cache=cache)
+        result = await _structure_tools["rename_sheet"](
+            spreadsheet="ss1", sheet="Missing", new_name="Renamed", ctx=ctx
+        )
+        assert result == {"error": "Sheet 'Missing' not found"}
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    async def test_marks_cache_dirty_on_success(self):
+        svc = self._mock_sheets()
+        cache = self._cache_with_sheet(sheet_id=7)
+        ctx = _make_ctx(sheets_service=svc, cache=cache)
+        await _structure_tools["rename_sheet"](
+            spreadsheet="ss1", sheet="Sheet1", new_name="Renamed", ctx=ctx
+        )
+        cache.mark_dirty.assert_called_with("ss1")
+
+    async def test_forwards_drive_service_to_get_sheet_id(self, monkeypatch):
+        """Regression: a call site omitting drive_service reintroduces the
+        cache-poisoning bug fixed in #284 (modified_time silently disabled for
+        all subsequent readers of the spreadsheet) — see the sibling test on
+        TestDuplicateSheet and TestGetSheetIdCallSitesForwardDriveService's
+        static guard below."""
+        svc = self._mock_sheets()
+        cache = self._cache_with_sheet(sheet_id=7)
+        drive_svc = MagicMock()
+        ctx = _make_ctx(sheets_service=svc, cache=cache, drive_service=drive_svc)
+        mock_get_sheet_id = AsyncMock(return_value=7)
+        monkeypatch.setattr(sheets_structure_module, "_get_sheet_id", mock_get_sheet_id)
+        await _structure_tools["rename_sheet"](
+            spreadsheet="ss1", sheet="Sheet1", new_name="Renamed", ctx=ctx
+        )
+        mock_get_sheet_id.assert_called_once_with(svc, "ss1", "Sheet1", cache, drive_svc)
 
 
 class TestDuplicateSheet:
