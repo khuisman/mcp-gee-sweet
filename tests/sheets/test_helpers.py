@@ -106,62 +106,55 @@ class TestParseA1Notation:
             _parse_a1_notation("??!!")
 
 
-class _RaisingSheetsService:
+class _FakeSheetsService:
+    """A minimal spreadsheets().get(...).execute() stand-in. Give it either
+    `result` (returned by every execute() call) or `exception` (raised
+    instead) — covers the transient-failure, genuine-not-found, and
+    real-match fixture shapes that used to be three separate, near-identical
+    hand-rolled classes (PR #754 review)."""
+
+    _http = SimpleNamespace(credentials=None)
+
+    def __init__(self, *, result: dict | None = None, exception: Exception | None = None):
+        self._result = result
+        self._exception = exception
+
+    def spreadsheets(self):
+        return self
+
+    def get(self, spreadsheetId, fields):
+        return self
+
+    def execute(self, **kwargs):
+        if self._exception is not None:
+            raise self._exception
+        return self._result
+
+
+_ONE_OTHER_SHEET = {"sheets": [{"properties": {"title": "Other", "sheetId": 0}}]}
+_TWO_SHEETS = {
+    "sheets": [
+        {"properties": {"title": "Sheet1", "sheetId": 0, "index": 0}},
+        {"properties": {"title": "Sheet2", "sheetId": 123456, "index": 1}},
+    ]
+}
+
+
+def _raising_service() -> _FakeSheetsService:
     """Simulates a transient API failure (rate limit, timeout, auth hiccup)."""
-
-    _http = SimpleNamespace(credentials=None)
-
-    class _Spreadsheets:
-        class _Request:
-            def execute(self, **kwargs):
-                raise TimeoutError("simulated transient API failure")
-
-        def get(self, spreadsheetId, fields):
-            return self._Request()
-
-    def spreadsheets(self):
-        return self._Spreadsheets()
+    return _FakeSheetsService(exception=TimeoutError("simulated transient API failure"))
 
 
-class _EmptySheetsService:
+def _empty_service() -> _FakeSheetsService:
     """A real API response where the sheet genuinely doesn't exist."""
-
-    _http = SimpleNamespace(credentials=None)
-
-    class _Spreadsheets:
-        class _Request:
-            def execute(self, **kwargs):
-                return {"sheets": [{"properties": {"title": "Other", "sheetId": 0}}]}
-
-        def get(self, spreadsheetId, fields):
-            return self._Request()
-
-    def spreadsheets(self):
-        return self._Spreadsheets()
+    return _FakeSheetsService(result=_ONE_OTHER_SHEET)
 
 
-class _MatchingSheetsService:
+def _matching_service() -> _FakeSheetsService:
     """A real API response with more than one sheet, so a happy-path lookup
     exercises picking the right match rather than trivially returning the
     only entry present."""
-
-    _http = SimpleNamespace(credentials=None)
-
-    class _Spreadsheets:
-        class _Request:
-            def execute(self, **kwargs):
-                return {
-                    "sheets": [
-                        {"properties": {"title": "Sheet1", "sheetId": 0, "index": 0}},
-                        {"properties": {"title": "Sheet2", "sheetId": 123456, "index": 1}},
-                    ]
-                }
-
-        def get(self, spreadsheetId, fields):
-            return self._Request()
-
-    def spreadsheets(self):
-        return self._Spreadsheets()
+    return _FakeSheetsService(result=_TWO_SHEETS)
 
 
 class TestGetSheetIdExceptionPropagation:
@@ -172,10 +165,10 @@ class TestGetSheetIdExceptionPropagation:
 
     async def test_no_cache_transient_api_error_propagates(self):
         with pytest.raises(TimeoutError):
-            await _get_sheet_id(_RaisingSheetsService(), "sid", "Sheet1")
+            await _get_sheet_id(_raising_service(), "sid", "Sheet1")
 
     async def test_no_cache_genuine_missing_sheet_still_returns_none(self):
-        sheet_id = await _get_sheet_id(_EmptySheetsService(), "sid", "Sheet1")
+        sheet_id = await _get_sheet_id(_empty_service(), "sid", "Sheet1")
         assert sheet_id is None
 
     async def test_no_cache_matching_sheet_returns_its_id(self):
@@ -183,11 +176,11 @@ class TestGetSheetIdExceptionPropagation:
         exception-propagation/not-found tests never exercised a genuine
         match, so a bug in the match/return logic itself (wrong dict key,
         returning the wrong sheet's id) would have passed unnoticed."""
-        sheet_id = await _get_sheet_id(_MatchingSheetsService(), "sid", "Sheet2")
+        sheet_id = await _get_sheet_id(_matching_service(), "sid", "Sheet2")
         assert sheet_id == 123456
 
     async def test_with_cache_matching_sheet_returns_its_id(self):
-        # _RaisingSheetsService here proves the cache path never touches the
+        # _raising_service() here proves the cache path never touches the
         # API at all for a fresh, matching cache entry — if it did, this
         # would raise TimeoutError instead of returning.
         cache = SheetStructureCache(db_path=":memory:", ttl=1000)
@@ -195,13 +188,13 @@ class TestGetSheetIdExceptionPropagation:
             "sid",
             [SheetInfo(title="Sheet1", sheet_id=0), SheetInfo(title="Sheet2", sheet_id=123456)],
         )
-        sheet_id = await _get_sheet_id(_RaisingSheetsService(), "sid", "Sheet2", cache)
+        sheet_id = await _get_sheet_id(_raising_service(), "sid", "Sheet2", cache)
         assert sheet_id == 123456
 
     async def test_with_cache_transient_api_error_propagates(self):
         cache = SheetStructureCache(db_path=":memory:", ttl=1000)
         with pytest.raises(TimeoutError):
-            await _get_sheet_id(_RaisingSheetsService(), "sid", "Sheet1", cache)
+            await _get_sheet_id(_raising_service(), "sid", "Sheet1", cache)
 
     async def test_with_cache_stale_fallback_still_returns_none_for_missing_sheet(self):
         # A stale cache entry exists but doesn't contain "Missing" — the API
@@ -212,7 +205,7 @@ class TestGetSheetIdExceptionPropagation:
         cache.store("sid", [SheetInfo(title="Other", sheet_id=0)])
         cache.mark_dirty("sid")  # force a refetch attempt that will fail
 
-        sheet_id = await _get_sheet_id(_RaisingSheetsService(), "sid", "Missing", cache)
+        sheet_id = await _get_sheet_id(_raising_service(), "sid", "Missing", cache)
 
         assert sheet_id is None
 
@@ -225,14 +218,14 @@ class TestGetSheetIndexExceptionPropagation:
 
     async def test_transient_api_error_propagates(self):
         with pytest.raises(TimeoutError):
-            await _get_sheet_index(_RaisingSheetsService(), "sid", 0)
+            await _get_sheet_index(_raising_service(), "sid", 0)
 
     async def test_genuine_missing_sheet_still_returns_none(self):
-        sheet_index = await _get_sheet_index(_EmptySheetsService(), "sid", 999)
+        sheet_index = await _get_sheet_index(_empty_service(), "sid", 999)
         assert sheet_index is None
 
     async def test_matching_sheet_returns_its_index(self):
         """Happy-path coverage (PR #442 review, issue #442) — same gap as
         TestGetSheetIdExceptionPropagation above."""
-        sheet_index = await _get_sheet_index(_MatchingSheetsService(), "sid", 123456)
+        sheet_index = await _get_sheet_index(_matching_service(), "sid", 123456)
         assert sheet_index == 1

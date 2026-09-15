@@ -1,5 +1,5 @@
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from ...auth import execute_in_thread
 from ..docs.indices import utf16_len
@@ -88,7 +88,7 @@ def _parse_a1_notation(range_str: str) -> dict[str, int]:
 async def _find_sheet_properties(
     sheets_service: Any,
     spreadsheet_id: str,
-    match_key: str,
+    match_key: Literal["title", "sheetId"],
     match_value: Any,
 ) -> dict[str, Any] | None:
     """Fetch spreadsheet metadata and return the properties dict of the one
@@ -102,6 +102,12 @@ async def _find_sheet_properties(
     failure (rate limit, timeout, auth hiccup) propagates as an exception
     here instead of being swallowed into None, so callers don't misreport
     it as "not found" (#384/#391, now enforced in one place — #442).
+
+    match_key is indexed with `properties[match_key]`, not `.get()` — a
+    sheet whose properties genuinely lack the field raises KeyError rather
+    than being silently treated as "no match," preserving the same
+    raise-on-missing-field guarantee #384/#391 established for the original
+    bracket-access code this replaced (PR #754 review round 1).
     """
     spreadsheet = await execute_in_thread(
         sheets_service.spreadsheets()
@@ -111,7 +117,7 @@ async def _find_sheet_properties(
     )
     for sheet in spreadsheet.get("sheets", []):
         properties = sheet["properties"]
-        if properties.get(match_key) == match_value:
+        if properties[match_key] == match_value:
             return properties
     return None
 

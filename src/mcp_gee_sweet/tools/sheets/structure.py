@@ -462,17 +462,8 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        src = await execute_in_thread(
-            sheets_service.spreadsheets().get(spreadsheetId=src_spreadsheet).execute,
-            sheets_service,
-        )
-        src_sheet_id = next(
-            (
-                s["properties"]["sheetId"]
-                for s in src["sheets"]
-                if s["properties"]["title"] == src_sheet
-            ),
-            None,
+        src_sheet_id = await _get_sheet_id(
+            sheets_service, src_spreadsheet, src_sheet, lc.cache, lc.drive_service
         )
 
         if src_sheet_id is None:
@@ -600,19 +591,9 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
-        spreadsheet_data = await execute_in_thread(
-            sheets_service.spreadsheets().get(spreadsheetId=spreadsheet).execute,
-            sheets_service,
+        sheet_id = await _get_sheet_id(
+            sheets_service, spreadsheet, sheet, lc.cache, lc.drive_service
         )
-        sheet_id = next(
-            (
-                s["properties"]["sheetId"]
-                for s in spreadsheet_data["sheets"]
-                if s["properties"]["title"] == sheet
-            ),
-            None,
-        )
-
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
