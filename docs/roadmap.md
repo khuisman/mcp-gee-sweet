@@ -211,7 +211,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [x] `update_borders` hardening + dedup follow-ups from PR #325's review ([#330](https://github.com/khuisman/mcp-gee-sweet/issues/330)) (PR #738)
 - [x] No tool clears a data validation rule, and no tool exposes a range's numeric `sheetId` ([#365](https://github.com/khuisman/mcp-gee-sweet/issues/365)) (PR #745)
 - [x] `add_data_validation`: validate the `values` count/shape against `condition_type` before the API call ([#366](https://github.com/khuisman/mcp-gee-sweet/issues/366)) (PR #750)
-- [ ] Dedupe `_get_sheet_id`/`_get_sheet_index` lookup logic; add happy-path test coverage ([#442](https://github.com/khuisman/mcp-gee-sweet/issues/442))
+- [x] Dedupe `_get_sheet_id`/`_get_sheet_index` lookup logic; add happy-path test coverage ([#442](https://github.com/khuisman/mcp-gee-sweet/issues/442)) (PR #754)
 - [ ] `_parse_a1_notation`/`_grid_range` raise an uncaught `ValueError` on invalid A1 notation instead of returning `{"error": ...}`, across ~10 call sites in `data.py`/`structure.py` (PR #745 follow-up) ([#747](https://github.com/khuisman/mcp-gee-sweet/issues/747))
 - [ ] `add_data_validation`'s docstring and `_CONDITION_VALUE_COUNTS` are two independently-maintained sources of the same per-`condition_type` fact, no derivation link — needs a design pass (PR #750 follow-up) ([#751](https://github.com/khuisman/mcp-gee-sweet/issues/751))
 
