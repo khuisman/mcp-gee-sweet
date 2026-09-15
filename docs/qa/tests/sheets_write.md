@@ -210,6 +210,20 @@ data=[] → {"error":"data cannot be empty"}; no write
 
 ---
 
+### TC-W40: Invalid A1 notation range returns a clean error, not a raw exception (issue #747)
+
+**Prompt**
+> "Call `update_cells` on {SPREADSHEET_ID}'s Sales sheet, range `Sheet1!F9`, with `data` set to `[[\"plain\", [{\"text\": \"link\", \"hyperlink\": \"https://example.com\"}]]]` (a mixed plain + rich-text call, so both of `update_cells`' two internal `_parse_a1_notation` call sites are exercised)"
+
+**Checks**
+- Returns `{"error": "Invalid A1 notation: Sheet1!F9"}` — a sheet-qualified range isn't valid A1 notation for the `range` param, which expects only the cell range (the `sheet` param already supplies the sheet name)
+- No `values().batchUpdate()` or `spreadsheets().batchUpdate()` call is made — F9 is unchanged
+- Before this fix, `_parse_a1_notation`'s `ValueError` propagated uncaught through the async tool to the MCP client instead of this `{"error": ...}` shape
+
+**Cleanup:** none — no write occurred.
+
+---
+
 ## `batch_update_cells`
 
 ### TC-W06: Multiple ranges in one call

@@ -180,7 +180,12 @@ async def _apply_data_validation(
     if sheet_id is None:
         return {"error": f"Sheet '{sheet}' not found"}
 
-    set_data_validation: dict[str, Any] = {"range": _grid_range(sheet_id, range_str)}
+    try:
+        grid_range = _grid_range(sheet_id, range_str)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    set_data_validation: dict[str, Any] = {"range": grid_range}
     if rule is not None:
         set_data_validation["rule"] = rule
 
@@ -1324,6 +1329,11 @@ def register(tool):
         if not fields:
             return {"error": "No formatting parameters provided"}
 
+        try:
+            grid_range = _grid_range(sheet_id, range)
+        except ValueError as e:
+            return {"error": str(e)}
+
         return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
@@ -1332,7 +1342,7 @@ def register(tool):
                     "requests": [
                         {
                             "repeatCell": {
-                                "range": _grid_range(sheet_id, range),
+                                "range": grid_range,
                                 "cell": {"userEnteredFormat": cell_format},
                                 "fields": ",".join(fields),
                             }
@@ -1415,7 +1425,10 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        update_borders_request["range"] = _grid_range(sheet_id, range)
+        try:
+            update_borders_request["range"] = _grid_range(sheet_id, range)
+        except ValueError as e:
+            return {"error": str(e)}
 
         return await execute_in_thread(
             sheets_service.spreadsheets()
@@ -1646,6 +1659,11 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
+        try:
+            grid_range = _grid_range(sheet_id, range)
+        except ValueError as e:
+            return {"error": str(e)}
+
         return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
@@ -1654,7 +1672,7 @@ def register(tool):
                     "requests": [
                         {
                             "mergeCells": {
-                                "range": _grid_range(sheet_id, range),
+                                "range": grid_range,
                                 "mergeType": merge_type.upper(),
                             }
                         }
@@ -1692,11 +1710,16 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
+        try:
+            grid_range = _grid_range(sheet_id, range)
+        except ValueError as e:
+            return {"error": str(e)}
+
         return await execute_in_thread(
             sheets_service.spreadsheets()
             .batchUpdate(
                 spreadsheetId=spreadsheet_id,
-                body={"requests": [{"unmergeCells": {"range": _grid_range(sheet_id, range)}}]},
+                body={"requests": [{"unmergeCells": {"range": grid_range}}]},
             )
             .execute,
             sheets_service,
@@ -1870,7 +1893,10 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        grid_range = _grid_range(sheet_id, range)
+        try:
+            grid_range = _grid_range(sheet_id, range)
+        except ValueError as e:
+            return {"error": str(e)}
         col_start = grid_range["startColumnIndex"]
 
         if sort_order is None:

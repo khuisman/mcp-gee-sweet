@@ -672,7 +672,10 @@ def register(tool):
             # restored and the rich-text cells' prior content was lost for good.
             # Per-cell targeting means the two calls never touch each other's
             # cells, so either one failing can't corrupt the other's data.
-            indices = _parse_a1_notation(range)
+            try:
+                indices = _parse_a1_notation(range)
+            except ValueError as e:
+                return {"error": str(e)}
             start_row = indices.get("startRowIndex", 0)
             start_col = indices.get("startColumnIndex", 0)
             plain_data = [
@@ -702,7 +705,10 @@ def register(tool):
             if sheet_id is None:
                 return {"error": f"Sheet '{sheet}' not found"}
 
-            indices = _parse_a1_notation(range)
+            try:
+                indices = _parse_a1_notation(range)
+            except ValueError as e:
+                return {"error": str(e)}
             start_row = indices.get("startRowIndex", 0)
             start_col = indices.get("startColumnIndex", 0)
 

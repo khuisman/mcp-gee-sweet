@@ -553,6 +553,31 @@ class TestUpdateCells:
             "rich_text_update": {"replies": [{}]},
         }
 
+    async def test_mixed_cells_invalid_range_returns_error_without_api_call(self):
+        svc = self._service()
+        ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
+        runs = [{"text": "link", "hyperlink": "https://example.com"}]
+        result = await _data_tools["update_cells"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="Sheet1!A1:B1",
+            data=[["plain", runs]],
+            ctx=ctx,
+        )
+        assert "error" in result
+        svc.spreadsheets.return_value.values.return_value.batchUpdate.assert_not_called()
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
+    async def test_rich_text_only_invalid_range_returns_error_without_api_call(self):
+        svc = self._service()
+        ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
+        runs = [{"text": "See "}, {"text": "docs", "hyperlink": "https://example.com"}]
+        result = await _data_tools["update_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="Sheet1!A1", data=[[runs]], ctx=ctx
+        )
+        assert "error" in result
+        svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
     async def test_malformed_run_missing_text_key_returns_error(self):
         svc = self._service()
         ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())

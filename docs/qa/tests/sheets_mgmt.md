@@ -1231,6 +1231,15 @@ format_cells(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
 
 ---
 
+### TC-S123: format_cells — invalid A1 notation range returns a clean error (issue #747, unit test)
+
+**Checks (unit test)**
+- `format_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", bold=True)` → `{"error": "Invalid A1 notation: Sheet1!A1"}`, not an uncaught `ValueError`
+- No `batchUpdate` API call is made
+- Covered by `test_invalid_range_returns_error_without_api_call` in `TestFormatCells`
+
+---
+
 ## `merge_cells` / `unmerge_cells`
 
 ### TC-S38: Merge a header row range ⚠️ destructive
@@ -1293,6 +1302,16 @@ unmerge_cells(Empty!E1:G2) → replies:[{}], no error
 
 **Result (2026-09-04) ✅ PASS**
 merge_cells(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}
+
+---
+
+### TC-S124: merge_cells / unmerge_cells — invalid A1 notation range returns a clean error (issue #747, unit test)
+
+**Checks (unit test)**
+- `merge_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")` → `{"error": "Invalid A1 notation: Sheet1!A1"}`, not an uncaught `ValueError`
+- `unmerge_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")` → same error shape
+- Neither call makes a `batchUpdate` API call
+- Covered by `test_invalid_range_returns_error_without_api_call` in `TestMergeCells` and `TestUnmergeCells`
 
 ---
 
@@ -1421,6 +1440,15 @@ update_borders(top={"style":5}) non-string → {"error":"Border spec for 'top' h
 - Covered by `test_validation_runs_before_sheet_lookup` in `TestUpdateBorders`
 
 **Result (2026-09-13) ✅** — unit tests pass (158/158). Live-verified via `mcp-gee-sweet-kit` against the QA fixture spreadsheet: `update_borders(sheet="NoSuchSheet", range="A1", top={"style": "SQUIGGLY"})` returned `{"error": "Invalid border style 'SQUIGGLY' for 'top'. Must be one of: ..."}`, not the sheet-not-found error — confirming validation still runs before the sheet lookup after PR #738 round 2's dedup fix (`_enum_value_error` now takes an explicit `context` string rather than auto-quoting).
+
+---
+
+### TC-S125: update_borders — invalid A1 notation range returns a clean error (issue #747, unit test)
+
+**Checks (unit test)**
+- `update_borders(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", top={"style": "SOLID"})` → `{"error": "Invalid A1 notation: Sheet1!A1"}`, not an uncaught `ValueError`
+- No `batchUpdate` API call is made
+- Covered by `test_invalid_range_returns_error_without_api_call` in `TestUpdateBorders`
 
 ---
 
@@ -1607,6 +1635,15 @@ Same as TC-S100 — re-confirms clean-error fix (duplicate coverage in test file
 
 ---
 
+### TC-S126: add_data_validation — invalid A1 notation range returns a clean error (issue #747, unit test)
+
+**Checks (unit test)**
+- `add_data_validation(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", condition_type="NOT_BLANK")` → `{"error": "Invalid A1 notation: Sheet1!A1"}`, not an uncaught `ValueError`
+- No `batchUpdate` API call is made
+- Covered by `test_invalid_range_returns_error_without_api_call` in `TestAddDataValidation` — exercises the shared `_apply_data_validation` helper's `_grid_range` call
+
+---
+
 ## `clear_data_validation`
 
 ### TC-S119: clear_data_validation removes an existing rule ⚠️ destructive
@@ -1652,6 +1689,15 @@ Confirmed F1:F5 had no rule beforehand (`get_data_validation` → `[]`), then `c
 **Checks (unit test)**
 - Sheet name not in spreadsheet → `{"error": "Sheet 'X' not found"}`, before any API call
 - Covered by `TestClearDataValidation::test_returns_error_when_sheet_not_found`
+
+---
+
+### TC-S127: clear_data_validation — invalid A1 notation range returns a clean error (issue #747, unit test)
+
+**Checks (unit test)**
+- `clear_data_validation(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")` → `{"error": "Invalid A1 notation: Sheet1!A1"}`, not an uncaught `ValueError`
+- No `batchUpdate` API call is made
+- Covered by `test_invalid_range_returns_error_without_api_call` in `TestClearDataValidation` — exercises the same shared `_apply_data_validation` helper as TC-S126
 
 ---
 
@@ -1947,4 +1993,13 @@ Matches `update_borders`'s validation depth (missing-key + isinstance + enum-mem
 
 **Result (2026-09-04) ✅ PASS**
 All 5 live sub-cases match PR #452 round-2 fix exactly: non-string order → clean error; missing column_index → clean error; non-int column_index (string "0") → clean error; bool column_index → clean error (not silently accepted as int); invalid order enum "banana" → clean error naming valid values. No batchUpdate/data mutation in any case (confirmed via post-check read)
+
+---
+
+### TC-S128: sort_range — invalid A1 notation range returns a clean error (issue #747, unit test)
+
+**Checks (unit test)**
+- `sort_range(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")` → `{"error": "Invalid A1 notation: Sheet1!A1"}`, not an uncaught `ValueError`
+- No `batchUpdate` API call is made
+- Covered by `test_invalid_range_returns_error_without_api_call` in `TestSortRange`
 
