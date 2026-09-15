@@ -10,6 +10,7 @@ from .helpers import (
     _get_sheet_id,
     _get_sheet_index,
     _parse_a1_notation,
+    _parse_a1_notation_or_error,
     _quote_sheet_name,
 )
 
@@ -159,6 +160,23 @@ def _grid_range(sheet_id: int, range_str: str) -> dict[str, Any]:
     return grid_range
 
 
+def _grid_range_or_error(
+    sheet_id: int, range_str: str
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Same as _grid_range, but returns (error, None) on invalid A1 notation
+    instead of raising, matching _parse_a1_notation_or_error's shape and
+    this codebase's established error-or-None convention (_enum_value_error,
+    _resolve_end_index_or_error above) instead of requiring every call site
+    to wrap this in its own try/except ValueError (issue #747 QA round 1).
+
+    Returns (None, grid_range) on success, or (error, None) on failure.
+    """
+    try:
+        return None, _grid_range(sheet_id, range_str)
+    except ValueError as e:
+        return {"error": str(e)}, None
+
+
 async def _apply_data_validation(
     sheets_service,
     spreadsheet_id: str,
@@ -180,10 +198,9 @@ async def _apply_data_validation(
     if sheet_id is None:
         return {"error": f"Sheet '{sheet}' not found"}
 
-    try:
-        grid_range = _grid_range(sheet_id, range_str)
-    except ValueError as e:
-        return {"error": str(e)}
+    error, grid_range = _grid_range_or_error(sheet_id, range_str)
+    if error:
+        return error
 
     set_data_validation: dict[str, Any] = {"range": grid_range}
     if rule is not None:
@@ -1329,10 +1346,9 @@ def register(tool):
         if not fields:
             return {"error": "No formatting parameters provided"}
 
-        try:
-            grid_range = _grid_range(sheet_id, range)
-        except ValueError as e:
-            return {"error": str(e)}
+        error, grid_range = _grid_range_or_error(sheet_id, range)
+        if error:
+            return error
 
         return await execute_in_thread(
             sheets_service.spreadsheets()
@@ -1425,10 +1441,10 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        try:
-            update_borders_request["range"] = _grid_range(sheet_id, range)
-        except ValueError as e:
-            return {"error": str(e)}
+        error, grid_range = _grid_range_or_error(sheet_id, range)
+        if error:
+            return error
+        update_borders_request["range"] = grid_range
 
         return await execute_in_thread(
             sheets_service.spreadsheets()
@@ -1659,10 +1675,9 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        try:
-            grid_range = _grid_range(sheet_id, range)
-        except ValueError as e:
-            return {"error": str(e)}
+        error, grid_range = _grid_range_or_error(sheet_id, range)
+        if error:
+            return error
 
         return await execute_in_thread(
             sheets_service.spreadsheets()
@@ -1710,10 +1725,9 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        try:
-            grid_range = _grid_range(sheet_id, range)
-        except ValueError as e:
-            return {"error": str(e)}
+        error, grid_range = _grid_range_or_error(sheet_id, range)
+        if error:
+            return error
 
         return await execute_in_thread(
             sheets_service.spreadsheets()
@@ -1893,10 +1907,9 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found"}
 
-        try:
-            grid_range = _grid_range(sheet_id, range)
-        except ValueError as e:
-            return {"error": str(e)}
+        error, grid_range = _grid_range_or_error(sheet_id, range)
+        if error:
+            return error
         col_start = grid_range["startColumnIndex"]
 
         if sort_order is None:
@@ -2028,10 +2041,9 @@ def register(tool):
         if sheet_id is None:
             return {"error": f"Sheet '{sheet}' not found in spreadsheet"}
 
-        try:
-            range_indices = _parse_a1_notation(data_range)
-        except ValueError as e:
-            return {"error": str(e)}
+        error, range_indices = _parse_a1_notation_or_error(data_range)
+        if error:
+            return error
 
         col_ranges = _per_column_ranges(sheet_id, range_indices)
         domain_col = col_ranges[0]

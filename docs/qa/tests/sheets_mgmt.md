@@ -2003,3 +2003,32 @@ All 5 live sub-cases match PR #452 round-2 fix exactly: non-string order → cle
 - No `batchUpdate` API call is made
 - Covered by `test_invalid_range_returns_error_without_api_call` in `TestSortRange`
 
+---
+
+### TC-S129: `_parse_a1_notation` rejects semantically-invalid ranges — row 0, and end-before-start ordering (issue #747 QA round 1, unit test)
+
+**Background:** TC-S123–TC-S128 and TC-W40 cover *syntactically* malformed A1 notation (e.g. `Sheet1!A1`). QA round 1 on PR #756 found `_parse_a1_notation` also accepted *syntactically*-valid-but-*semantically*-invalid strings without raising: a row of `0` (regex-matched by the bare `\d+`, but not a valid 1-based A1 row) silently computed `startRowIndex = -1`, and an inverted range like `A5:A2` produced `endRowIndex < startRowIndex` — both bypassed the try/except this PR added at every call site and would still surface as a raw Sheets API `HttpError`, the exact failure class #747 is about, just for different malformed inputs. Fixed directly in `_parse_a1_notation` (not per call site) — it now raises `ValueError` for a row below 1, or an end bound at or before its start bound, so the fix flows through the try/except infrastructure already in place everywhere.
+
+**Checks (unit test)**
+- `_parse_a1_notation("A0")` → raises `ValueError` (row 0)
+- `_parse_a1_notation("A1:A0")` → raises `ValueError` (end row 0)
+- `_parse_a1_notation("A5:A2")` → raises `ValueError` (inverted row range)
+- `_parse_a1_notation("A5:A4")` → raises `ValueError` (zero-width row range — generalized beyond the reported inverted case, since both represent "no valid rows selected")
+- `_parse_a1_notation("C1:A1")` → raises `ValueError` (inverted column range)
+- `_parse_a1_notation("B1:A1")` → raises `ValueError` (zero-width column range)
+- Every existing valid-input test in `TestParseA1Notation` still passes unchanged (no false positives on well-formed ranges, open-ended ranges, or bare column/row forms)
+- Covered by `test_row_zero_raises`, `test_end_row_zero_raises`, `test_inverted_row_range_raises`, `test_zero_width_row_range_raises`, `test_inverted_column_range_raises`, `test_zero_width_column_range_raises` in `TestParseA1Notation` (`tests/sheets/test_helpers.py`)
+
+---
+
+### TC-S130: A1-notation error handling factored into a shared `_or_error` helper, not duplicated per call site (issue #747 QA round 1, unit test)
+
+**Background:** QA round 1 also found the `try: ... except ValueError as e: return {"error": str(e)}` block this PR added was identically duplicated at 8 call sites (2 in `data.py`, 6 in `structure.py`), instead of factored into a shared helper matching this codebase's established error-or-None convention (`_enum_value_error`, `_positive_value_error`, `_non_negative_value_error`, `_resolve_end_index_or_error`). Fixed via `_parse_a1_notation_or_error` (`helpers.py`) and `_grid_range_or_error` (`structure.py`), each returning `(error, None)` on failure or `(None, result)` on success — every call site (`add_data_validation`/`clear_data_validation` via `_apply_data_validation`, `format_cells`, `update_borders`, `merge_cells`, `unmerge_cells`, `sort_range`, `add_chart`, and both `update_cells` sites) now calls the shared helper instead of wrapping the raw `_parse_a1_notation`/`_grid_range` itself — including `add_chart`, which had its own pre-existing inline try/except predating this PR.
+
+Separately, `update_cells`'s two `_parse_a1_notation` call sites (mixed-cell branch and rich-text branch) were consolidated into one: both branches key off the same `range` string, and `rich_text_cells` being non-empty is exactly the condition under which either branch needs the parse, so it's now done once, up front, and reused — closing the "unreachable in practice" redundancy QA round 1 flagged as not blocking on its own (TC-W40's own description was updated to match).
+
+**Checks (unit test)**
+- No `try`/`except ValueError` remains anywhere in `data.py` or `structure.py` outside `_parse_a1_notation_or_error`/`_grid_range_or_error` themselves
+- All TC-S123–TC-S130/TC-W40 error-path unit tests still pass through the shared helpers
+- `uv run python -m pytest tests/sheets/` passes in full
+
