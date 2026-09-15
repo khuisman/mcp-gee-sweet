@@ -2407,6 +2407,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-s123-format_cells-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S123: format_cells — invalid A1 notation range returns a clean error (issue #747, unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2462,6 +2473,17 @@
     <span class="md-ellipsis">
       
         TC-S41: merge_cells — sheet not found returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s124-merge_cells-unmerge_cells-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S124: merge_cells / unmerge_cells — invalid A1 notation range returns a clean error (issue #747, unit test)
       
     </span>
   </a>
@@ -2578,6 +2600,17 @@
     <span class="md-ellipsis">
       
         TC-S118: update_borders — cheap param validation now runs before the sheet lookup (unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s125-update_borders-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S125: update_borders — invalid A1 notation range returns a clean error (issue #747, unit test)
       
     </span>
   </a>
@@ -2722,6 +2755,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-s126-add_data_validation-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S126: add_data_validation — invalid A1 notation range returns a clean error (issue #747, unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2766,6 +2810,17 @@
     <span class="md-ellipsis">
       
         TC-S121: clear_data_validation — sheet not found returns error (unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s127-clear_data_validation-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S127: clear_data_validation — invalid A1 notation range returns a clean error (issue #747, unit test)
       
     </span>
   </a>
@@ -3004,6 +3059,39 @@
     <span class="md-ellipsis">
       
         TC-S103: sort_range — malformed sort spec fields return a clean error, do not crash
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s128-sort_range-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S128: sort_range — invalid A1 notation range returns a clean error (issue #747, unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s129-_parse_a1_notation-rejects-semantically-invalid-ranges-row-0-and-end-before-start-ordering-issue-747-qa-round-1-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S129: _parse_a1_notation rejects semantically-invalid ranges — row 0, and end-before-start ordering (issue #747 QA round 1, unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s130-a1-notation-error-handling-factored-into-a-shared-_or_error-helper-not-duplicated-per-call-site-issue-747-qa-round-1-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S130: A1-notation error handling factored into a shared _or_error helper, not duplicated per call site (issue #747 QA round 1, unit test)
       
     </span>
   </a>
@@ -4005,6 +4093,12 @@ format_cells(A1:D1) no formatting params → {"error":"No formatting parameters 
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 format_cells(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
 <hr />
+<h3 id="tc-s123-format_cells-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S123: format_cells — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s123-format_cells-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- <code>format_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", bold=True)</code> → <code>{"error": "Invalid A1 notation: Sheet1!A1"}</code>, not an uncaught <code>ValueError</code>
+- No <code>batchUpdate</code> API call is made
+- Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestFormatCells</code></p>
+<hr />
 <h2 id="merge_cells-unmerge_cells"><code>merge_cells</code> / <code>unmerge_cells</code><a class="headerlink" href="#merge_cells-unmerge_cells" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s38-merge-a-header-row-range-destructive">TC-S38: Merge a header row range ⚠️ destructive<a class="headerlink" href="#tc-s38-merge-a-header-row-range-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong>
@@ -4051,6 +4145,13 @@ unmerge_cells(Empty!E1:G2) → replies:[{}], no error</p>
 <p><strong>Result (2026-06-21) ✅</strong> Unit test confirms error.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 merge_cells(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p>
+<hr />
+<h3 id="tc-s124-merge_cells-unmerge_cells-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S124: merge_cells / unmerge_cells — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s124-merge_cells-unmerge_cells-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- <code>merge_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")</code> → <code>{"error": "Invalid A1 notation: Sheet1!A1"}</code>, not an uncaught <code>ValueError</code>
+- <code>unmerge_cells(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")</code> → same error shape
+- Neither call makes a <code>batchUpdate</code> API call
+- Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestMergeCells</code> and <code>TestUnmergeCells</code></p>
 <hr />
 <h2 id="update_borders"><code>update_borders</code><a class="headerlink" href="#update_borders" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s85-apply-a-solid-border-around-all-four-edges-of-a-range-destructive">TC-S85: Apply a solid border around all four edges of a range ⚠️ destructive<a class="headerlink" href="#tc-s85-apply-a-solid-border-around-all-four-edges-of-a-range-destructive" title="Permanent link">&para;</a></h3>
@@ -4137,6 +4238,12 @@ update_borders(top={"style":5}) non-string → {"error":"Border spec for 'top' h
 - Previously <code>update_borders</code> resolved the sheet name (a network/cache round trip) before checking whether any border params were provided or validating <code>style</code>, unlike <code>add_chart</code>/<code>resize_rows</code>/<code>resize_columns</code> which validate cheap params first — a bad sheet name paired with an invalid style masked the more fundamental problem (issue #330)
 - Covered by <code>test_validation_runs_before_sheet_lookup</code> in <code>TestUpdateBorders</code></p>
 <p><strong>Result (2026-09-13) ✅</strong> — unit tests pass (158/158). Live-verified via <code>mcp-gee-sweet-kit</code> against the QA fixture spreadsheet: <code>update_borders(sheet="NoSuchSheet", range="A1", top={"style": "SQUIGGLY"})</code> returned <code>{"error": "Invalid border style 'SQUIGGLY' for 'top'. Must be one of: ..."}</code>, not the sheet-not-found error — confirming validation still runs before the sheet lookup after PR #738 round 2's dedup fix (<code>_enum_value_error</code> now takes an explicit <code>context</code> string rather than auto-quoting).</p>
+<hr />
+<h3 id="tc-s125-update_borders-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S125: update_borders — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s125-update_borders-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- <code>update_borders(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", top={"style": "SOLID"})</code> → <code>{"error": "Invalid A1 notation: Sheet1!A1"}</code>, not an uncaught <code>ValueError</code>
+- No <code>batchUpdate</code> API call is made
+- Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestUpdateBorders</code></p>
 <hr />
 <h2 id="add_data_validation-get_data_validation"><code>add_data_validation</code> / <code>get_data_validation</code><a class="headerlink" href="#add_data_validation-get_data_validation" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s93-one_of_list-sets-a-dropdown-and-get_data_validation-reads-it-back-destructive">TC-S93: ONE_OF_LIST sets a dropdown and get_data_validation reads it back ⚠️ destructive<a class="headerlink" href="#tc-s93-one_of_list-sets-a-dropdown-and-get_data_validation-reads-it-back-destructive" title="Permanent link">&para;</a></h3>
@@ -4270,6 +4377,12 @@ Same as TC-S99 — re-confirms auto-prepend fix (duplicate coverage in test file
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 Same as TC-S100 — re-confirms clean-error fix (duplicate coverage in test file)</p>
 <hr />
+<h3 id="tc-s126-add_data_validation-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S126: add_data_validation — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s126-add_data_validation-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- <code>add_data_validation(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1", condition_type="NOT_BLANK")</code> → <code>{"error": "Invalid A1 notation: Sheet1!A1"}</code>, not an uncaught <code>ValueError</code>
+- No <code>batchUpdate</code> API call is made
+- Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestAddDataValidation</code> — exercises the shared <code>_apply_data_validation</code> helper's <code>_grid_range</code> call</p>
+<hr />
 <h2 id="clear_data_validation"><code>clear_data_validation</code><a class="headerlink" href="#clear_data_validation" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s119-clear_data_validation-removes-an-existing-rule-destructive">TC-S119: clear_data_validation removes an existing rule ⚠️ destructive<a class="headerlink" href="#tc-s119-clear_data_validation-removes-an-existing-rule-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Background:</strong> Issue #365 — before this tool, the only way to remove a data
@@ -4307,6 +4420,12 @@ Confirmed F1:F5 had no rule beforehand (<code>get_data_validation</code> → <co
 <p><strong>Checks (unit test)</strong>
 - Sheet name not in spreadsheet → <code>{"error": "Sheet 'X' not found"}</code>, before any API call
 - Covered by <code>TestClearDataValidation::test_returns_error_when_sheet_not_found</code></p>
+<hr />
+<h3 id="tc-s127-clear_data_validation-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S127: clear_data_validation — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s127-clear_data_validation-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- <code>clear_data_validation(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")</code> → <code>{"error": "Invalid A1 notation: Sheet1!A1"}</code>, not an uncaught <code>ValueError</code>
+- No <code>batchUpdate</code> API call is made
+- Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestClearDataValidation</code> — exercises the same shared <code>_apply_data_validation</code> helper as TC-S126</p>
 <hr />
 <h2 id="freeze"><code>freeze</code><a class="headerlink" href="#freeze" title="Permanent link">&para;</a></h2>
 <h3 id="tc-s42-freeze-the-header-row-destructive">TC-S42: Freeze the header row ⚠️ destructive<a class="headerlink" href="#tc-s42-freeze-the-header-row-destructive" title="Permanent link">&para;</a></h3>
@@ -4523,6 +4642,32 @@ sort_range(sheet="NoSuchSheet") → {"error":"Sheet 'NoSuchSheet' not found"}</p
 - <code>uv run python -m pytest tests/sheets/test_structure.py -k SortRange</code> → 10/10 passed.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 All 5 live sub-cases match PR #452 round-2 fix exactly: non-string order → clean error; missing column_index → clean error; non-int column_index (string "0") → clean error; bool column_index → clean error (not silently accepted as int); invalid order enum "banana" → clean error naming valid values. No batchUpdate/data mutation in any case (confirmed via post-check read)</p>
+<hr />
+<h3 id="tc-s128-sort_range-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test">TC-S128: sort_range — invalid A1 notation range returns a clean error (issue #747, unit test)<a class="headerlink" href="#tc-s128-sort_range-invalid-a1-notation-range-returns-a-clean-error-issue-747-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Checks (unit test)</strong>
+- <code>sort_range(spreadsheet_id, sheet="Sheet1", range="Sheet1!A1")</code> → <code>{"error": "Invalid A1 notation: Sheet1!A1"}</code>, not an uncaught <code>ValueError</code>
+- No <code>batchUpdate</code> API call is made
+- Covered by <code>test_invalid_range_returns_error_without_api_call</code> in <code>TestSortRange</code></p>
+<hr />
+<h3 id="tc-s129-_parse_a1_notation-rejects-semantically-invalid-ranges-row-0-and-end-before-start-ordering-issue-747-qa-round-1-unit-test">TC-S129: <code>_parse_a1_notation</code> rejects semantically-invalid ranges — row 0, and end-before-start ordering (issue #747 QA round 1, unit test)<a class="headerlink" href="#tc-s129-_parse_a1_notation-rejects-semantically-invalid-ranges-row-0-and-end-before-start-ordering-issue-747-qa-round-1-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> TC-S123–TC-S128 and TC-W40 cover <em>syntactically</em> malformed A1 notation (e.g. <code>Sheet1!A1</code>). QA round 1 on PR #756 found <code>_parse_a1_notation</code> also accepted <em>syntactically</em>-valid-but-<em>semantically</em>-invalid strings without raising: a row of <code>0</code> (regex-matched by the bare <code>\d+</code>, but not a valid 1-based A1 row) silently computed <code>startRowIndex = -1</code>, and an inverted range like <code>A5:A2</code> produced <code>endRowIndex &lt; startRowIndex</code> — both bypassed the try/except this PR added at every call site and would still surface as a raw Sheets API <code>HttpError</code>, the exact failure class #747 is about, just for different malformed inputs. Fixed directly in <code>_parse_a1_notation</code> (not per call site) — it now raises <code>ValueError</code> for a row below 1, or an end bound at or before its start bound, so the fix flows through the try/except infrastructure already in place everywhere.</p>
+<p><strong>Checks (unit test)</strong>
+- <code>_parse_a1_notation("A0")</code> → raises <code>ValueError</code> (row 0)
+- <code>_parse_a1_notation("A1:A0")</code> → raises <code>ValueError</code> (end row 0)
+- <code>_parse_a1_notation("A5:A2")</code> → raises <code>ValueError</code> (inverted row range)
+- <code>_parse_a1_notation("A5:A4")</code> → raises <code>ValueError</code> (zero-width row range — generalized beyond the reported inverted case, since both represent "no valid rows selected")
+- <code>_parse_a1_notation("C1:A1")</code> → raises <code>ValueError</code> (inverted column range)
+- <code>_parse_a1_notation("B1:A1")</code> → raises <code>ValueError</code> (zero-width column range)
+- Every existing valid-input test in <code>TestParseA1Notation</code> still passes unchanged (no false positives on well-formed ranges, open-ended ranges, or bare column/row forms)
+- Covered by <code>test_row_zero_raises</code>, <code>test_end_row_zero_raises</code>, <code>test_inverted_row_range_raises</code>, <code>test_zero_width_row_range_raises</code>, <code>test_inverted_column_range_raises</code>, <code>test_zero_width_column_range_raises</code> in <code>TestParseA1Notation</code> (<code>tests/sheets/test_helpers.py</code>)</p>
+<hr />
+<h3 id="tc-s130-a1-notation-error-handling-factored-into-a-shared-_or_error-helper-not-duplicated-per-call-site-issue-747-qa-round-1-unit-test">TC-S130: A1-notation error handling factored into a shared <code>_or_error</code> helper, not duplicated per call site (issue #747 QA round 1, unit test)<a class="headerlink" href="#tc-s130-a1-notation-error-handling-factored-into-a-shared-_or_error-helper-not-duplicated-per-call-site-issue-747-qa-round-1-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> QA round 1 also found the <code>try: ... except ValueError as e: return {"error": str(e)}</code> block this PR added was identically duplicated at 8 call sites (2 in <code>data.py</code>, 6 in <code>structure.py</code>), instead of factored into a shared helper matching this codebase's established error-or-None convention (<code>_enum_value_error</code>, <code>_positive_value_error</code>, <code>_non_negative_value_error</code>, <code>_resolve_end_index_or_error</code>). Fixed via <code>_parse_a1_notation_or_error</code> (<code>helpers.py</code>) and <code>_grid_range_or_error</code> (<code>structure.py</code>), each returning <code>(error, None)</code> on failure or <code>(None, result)</code> on success — every call site (<code>add_data_validation</code>/<code>clear_data_validation</code> via <code>_apply_data_validation</code>, <code>format_cells</code>, <code>update_borders</code>, <code>merge_cells</code>, <code>unmerge_cells</code>, <code>sort_range</code>, <code>add_chart</code>, and both <code>update_cells</code> sites) now calls the shared helper instead of wrapping the raw <code>_parse_a1_notation</code>/<code>_grid_range</code> itself — including <code>add_chart</code>, which had its own pre-existing inline try/except predating this PR.</p>
+<p>Separately, <code>update_cells</code>'s two <code>_parse_a1_notation</code> call sites (mixed-cell branch and rich-text branch) were consolidated into one: both branches key off the same <code>range</code> string, and <code>rich_text_cells</code> being non-empty is exactly the condition under which either branch needs the parse, so it's now done once, up front, and reused — closing the "unreachable in practice" redundancy QA round 1 flagged as not blocking on its own (TC-W40's own description was updated to match).</p>
+<p><strong>Checks (unit test)</strong>
+- No <code>try</code>/<code>except ValueError</code> remains anywhere in <code>data.py</code> or <code>structure.py</code> outside <code>_parse_a1_notation_or_error</code>/<code>_grid_range_or_error</code> themselves
+- All TC-S123–TC-S130/TC-W40 error-path unit tests still pass through the shared helpers
+- <code>uv run python -m pytest tests/sheets/</code> passes in full</p>
 
 
 
