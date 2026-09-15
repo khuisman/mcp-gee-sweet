@@ -1968,6 +1968,18 @@ def register(tool):
         # (no await between read and write) — this is purely a style match.
         completed = [0]
         bytes_completed = [0]
+        # Separate from bytes_completed (real bytes transferred, message-text-only,
+        # success-only — see below): this one backs the structured progress field
+        # when report_bytes is true, and must reach total_bytes_expected exactly
+        # once every candidate has been attempted, success or fail, the same way
+        # completed[0] reaches `total` unconditionally in file-count mode. Advancing
+        # it by the candidate's own *declared* size on every outcome (not just on
+        # success, unlike bytes_completed) is what guarantees that — a failed
+        # candidate's size would otherwise stay baked into the denominator
+        # (total_bytes_expected sums every candidate) while never being added to
+        # the numerator, so the final call would report less than 100% even though
+        # the operation is fully done (#741 QA review, finding #1).
+        bytes_accounted = [0]
         # A reliable upfront total requires every candidate's size to be known
         # (see _DownloadCandidate's docstring for why one can be None) — with one
         # unknown, the message falls back to a running count with no denominator
@@ -2026,13 +2038,20 @@ def register(tool):
             completed[0] += 1
             if result["kind"] == "ok":
                 bytes_completed[0] += result["bytes"]
-            # progress/total stay file-count-based (see the docstring's #352 note);
-            # bytes transferred so far are supplementary context in the message only.
+            # bytes_accounted advances on every outcome (see its own comment above)
+            # so byte-mode progress still reaches full completion when a candidate
+            # fails; candidate.size is never None here when report_bytes is true
+            # (bytes_total_known already guarantees it).
+            bytes_accounted[0] += candidate.size or 0
+            # progress/total stay file-count-based by default (see the docstring's
+            # #352 note) — bytes transferred so far are supplementary context in the
+            # message only. With progress_unit='bytes' (#741) the structured fields
+            # below use byte totals instead; the message text is unaffected either way.
             bytes_note = _format_bytes_note(
                 bytes_completed[0], total_bytes_expected if bytes_total_known else None
             )
             try:
-                progress = bytes_completed[0] if report_bytes else completed[0]
+                progress = bytes_accounted[0] if report_bytes else completed[0]
                 progress_total = total_bytes_expected if report_bytes else total
                 await ctx.report_progress(
                     progress,

@@ -3006,6 +3006,66 @@ class TestDownloadFolder:
         for c in ctx.report_progress.await_args_list:
             assert c.args[1] == 2  # falls back to file-count total, not bytes
 
+    async def test_progress_unit_bytes_reaches_full_total_even_when_a_candidate_fails(
+        self, tmp_path, monkeypatch
+    ):
+        """#741 QA review, finding #1: bytes_completed only advanced on success,
+        while total_bytes_expected sums every candidate's declared size regardless
+        of outcome — a failed candidate's size stayed baked into the denominator
+        while never counted toward the numerator, so the final report_progress
+        call reported less than 100% even though the whole batch had finished.
+        bytes_accounted (distinct from bytes_completed, which stays success-only
+        for the message text) now advances by each candidate's own declared size
+        on every outcome, matching file-count mode's "final call always reports
+        full completion" guarantee."""
+        svc = MagicMock()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "bin1",
+                    "name": "a.bin",
+                    "mimeType": "application/octet-stream",
+                    "size": "5",
+                },
+                {
+                    "id": "bin2",
+                    "name": "b.bin",
+                    "mimeType": "application/octet-stream",
+                    "size": "7",
+                },
+            ]
+        }
+        svc.files.return_value.get_media.side_effect = lambda fileId: MagicMock(fileId=fileId)
+
+        class _FakeDownloader:
+            def __init__(self, fh, request):
+                self._fh = fh
+                self._fid = request.fileId
+
+            def next_chunk(self):
+                if self._fid == "bin2":
+                    raise RuntimeError("simulated download failure")
+                self._fh.write(b"x" * 5)
+                return None, True
+
+        monkeypatch.setattr(transfer_module, "MediaIoBaseDownload", _FakeDownloader)
+        ctx = self._ctx(svc)
+
+        result = await _transfer_tools["download_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            progress_unit="bytes",
+            ctx=ctx,
+        )
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["name"] == "b.bin"
+        # Both candidates' declared sizes (5 + 7 = 12) are accounted for by the
+        # final call, matching total_bytes_expected exactly — never stuck below it.
+        progress_values = [c.args[0] for c in ctx.report_progress.await_args_list]
+        assert 12 in progress_values
+        for c in ctx.report_progress.await_args_list:
+            assert c.args[1] == 12  # total stays fixed regardless of outcome
+
     async def test_duplicate_drive_filenames_do_not_race_or_double_count(self, tmp_path):
         """PR #351 review, live-reproduced: Drive allows two files with the same
         name (distinct IDs) in one folder; the local filesystem doesn't. The old
