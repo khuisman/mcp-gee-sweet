@@ -213,7 +213,7 @@ data=[] → {"error":"data cannot be empty"}; no write
 ### TC-W40: Invalid A1 notation range returns a clean error, not a raw exception (issue #747)
 
 **Prompt**
-> "Call `update_cells` on {SPREADSHEET_ID}'s Sales sheet, range `Sheet1!F9`, with `data` set to `[[\"plain\", [{\"text\": \"link\", \"hyperlink\": \"https://example.com\"}]]]` (a mixed plain + rich-text call, so both of `update_cells`' two internal `_parse_a1_notation` call sites are exercised)"
+> "Call `update_cells` on {SPREADSHEET_ID}'s Sales sheet, range `Sheet1!F9`, with `data` set to `[[\"plain\", [{\"text\": \"link\", \"hyperlink\": \"https://example.com\"}]]]` (a mixed plain + rich-text call — this exercises `update_cells`' mixed-branch `_parse_a1_notation` call site, which returns immediately on a parse error; the rich-text-only branch's own separate call site is never reached from this scenario, since it's only hit when `data` has no plain cells at all)"
 
 **Checks**
 - Returns `{"error": "Invalid A1 notation: Sheet1!F9"}` — a sheet-qualified range isn't valid A1 notation for the `range` param, which expects only the cell range (the `sheet` param already supplies the sheet name)
