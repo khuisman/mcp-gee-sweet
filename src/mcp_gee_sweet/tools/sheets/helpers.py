@@ -54,6 +54,13 @@ def _parse_a1_notation(range_str: str) -> dict[str, int]:
     startColumnIndex, endColumnIndex. Not all keys present for all formats.
     Open-ended ranges (e.g. "B2:D") omit endRowIndex so the API treats them
     as extending to the last row of the sheet.
+
+    Raises ValueError for empty/malformed strings, a row number below 1
+    (matched by the regex's bare \\d+ but not a valid 1-based A1 row, e.g.
+    "A0"), or an end bound at or before its start bound (e.g. "A5:A2" or
+    "A5:A4") — otherwise these reach the Sheets API as a raw HttpError
+    instead of the local {"error": ...} every call site returns on a
+    ValueError from this function (issue #747 QA round 1).
     """
     if not range_str:
         raise ValueError("Invalid A1 notation: empty string")
@@ -65,6 +72,10 @@ def _parse_a1_notation(range_str: str) -> dict[str, int]:
 
     start_col, start_row, end_col, end_row = match.groups()
     has_colon = ":" in range_str
+
+    if (start_row is not None and int(start_row) < 1) or (end_row is not None and int(end_row) < 1):
+        raise ValueError(f"Invalid A1 notation: row must be 1 or greater: {range_str}")
+
     result = {}
 
     if start_col:
@@ -82,7 +93,29 @@ def _parse_a1_notation(range_str: str) -> dict[str, int]:
         # Single cell or bare row — close the range to one row
         result["endRowIndex"] = result["startRowIndex"] + 1
 
+    if "endRowIndex" in result and result["endRowIndex"] <= result.get("startRowIndex", 0):
+        raise ValueError(f"Invalid A1 notation: end row precedes start row: {range_str}")
+    if "endColumnIndex" in result and result["endColumnIndex"] <= result.get("startColumnIndex", 0):
+        raise ValueError(f"Invalid A1 notation: end column precedes start column: {range_str}")
+
     return result
+
+
+def _parse_a1_notation_or_error(
+    range_str: str,
+) -> tuple[dict[str, Any] | None, dict[str, int] | None]:
+    """Same as _parse_a1_notation, but returns (error, None) on invalid input
+    instead of raising, matching this codebase's established error-or-None
+    convention (_enum_value_error, _resolve_end_index_or_error in
+    structure.py) instead of requiring every call site to wrap this in its
+    own try/except ValueError (issue #747 QA round 1).
+
+    Returns (None, indices) on success, or (error, None) on failure.
+    """
+    try:
+        return None, _parse_a1_notation(range_str)
+    except ValueError as e:
+        return {"error": str(e)}, None
 
 
 async def _find_sheet_properties(

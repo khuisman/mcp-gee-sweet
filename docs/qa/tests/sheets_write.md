@@ -210,6 +210,21 @@ data=[] → {"error":"data cannot be empty"}; no write
 
 ---
 
+### TC-W40: Invalid A1 notation range returns a clean error, not a raw exception (issue #747)
+
+**Prompt**
+> "Call `update_cells` on {SPREADSHEET_ID}'s Sales sheet, range `Sheet1!F9`, with `data` set to `[[\"plain\", [{\"text\": \"link\", \"hyperlink\": \"https://example.com\"}]]]` (a mixed plain + rich-text call)"
+
+**Checks**
+- Returns `{"error": "Invalid A1 notation: Sheet1!F9"}` — a sheet-qualified range isn't valid A1 notation for the `range` param, which expects only the cell range (the `sheet` param already supplies the sheet name)
+- No `values().batchUpdate()` or `spreadsheets().batchUpdate()` call is made — F9 is unchanged
+- Before this fix, `_parse_a1_notation`'s `ValueError` propagated uncaught through the async tool to the MCP client instead of this `{"error": ...}` shape
+- QA round 1 found `update_cells` parsed `range` twice (once in the mixed-cell branch, once again in the rich-text branch) whenever both cell kinds were present in the same call — harmless but redundant, since the first parse already returns on failure before the second is ever reached. Fixed by parsing once, up front, whenever `rich_text_cells` is non-empty (the exact condition under which either branch needs it), and reusing the result — `update_cells` now has exactly one `_parse_a1_notation_or_error` call site, not two.
+
+**Cleanup:** none — no write occurred.
+
+---
+
 ## `batch_update_cells`
 
 ### TC-W06: Multiple ranges in one call
