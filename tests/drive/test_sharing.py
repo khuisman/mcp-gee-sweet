@@ -1,7 +1,7 @@
 """Tests for tools/drive/sharing.py (share_spreadsheet, share_file, list_permissions, etc.)."""
 
 import json
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from googleapiclient.errors import HttpError
 
@@ -37,6 +37,12 @@ def _http_error(status: int, message: str = "error") -> HttpError:
     resp = MagicMock()
     resp.status = status
     content = json.dumps({"error": {"message": message}}).encode()
+    return HttpError(resp=resp, content=content)
+
+
+def _http_error_with_raw_content(status: int, content: bytes) -> HttpError:
+    resp = MagicMock()
+    resp.status = status
     return HttpError(resp=resp, content=content)
 
 
@@ -104,6 +110,26 @@ class TestShareSpreadsheet:
         assert len(result["successes"]) == 0
         assert "Failed to share" in result["failures"][0]["error"]
 
+    async def test_http_error_with_non_dict_json_content_does_not_crash(self):
+        """QA review, PR #758, finding #3: json.loads(e.content) can return valid
+        JSON that isn't a dict (e.g. `null` or a JSON array) — the old
+        `except json.JSONDecodeError` didn't catch the AttributeError that
+        `.get()` then raises on that non-dict value, so the exception escaped
+        _share_one entirely and completed[0]/report_progress were skipped for
+        that item."""
+        drive = MagicMock()
+        drive.permissions.return_value.create.return_value.execute.side_effect = (
+            _http_error_with_raw_content(500, b"null")
+        )
+        ctx = _make_ctx(drive_service=drive)
+        result = await _sharing_tools["share_spreadsheet"](
+            spreadsheet_id="ss1",
+            recipients=[{"email_address": "user@example.com", "role": "reader"}],
+            ctx=ctx,
+        )
+        assert len(result["failures"]) == 1
+        assert "Failed to share" in result["failures"][0]["error"]
+
     async def test_mixed_batch_produces_independent_successes_and_failures(self):
         """Valid recipient succeeds and bad-role recipient fails independently."""
         drive = self._drive_svc()
@@ -155,6 +181,42 @@ class TestShareSpreadsheet:
         )
         _, kwargs = drive.permissions.return_value.create.call_args
         assert kwargs["supportsAllDrives"] is True
+
+    async def test_reports_progress_per_recipient(self):
+        """#355: extends #316/#319's per-item ctx.report_progress pattern to
+        share_spreadsheet's concurrent shares."""
+        drive = self._drive_svc()
+        ctx = _make_ctx(drive_service=drive)
+        ctx.report_progress = AsyncMock()
+        await _sharing_tools["share_spreadsheet"](
+            spreadsheet_id="ss1",
+            recipients=[
+                {"email_address": "alice@example.com", "role": "writer"},
+                {"email_address": "bob@example.com", "role": "reader"},
+            ],
+            ctx=ctx,
+        )
+        assert ctx.report_progress.await_count == 2
+        completed_values = sorted(c.args[0] for c in ctx.report_progress.await_args_list)
+        assert completed_values == [1, 2]
+        for c in ctx.report_progress.await_args_list:
+            assert c.args[1] == 2  # total recipients
+            assert ": success" in c.args[2]
+
+    async def test_report_progress_failure_does_not_demote_a_successful_share(self):
+        """PR #351's review established this guard for download_folder/sync_folder:
+        a broken notification channel must not turn an already-successful item into
+        a failure. #355 extends the same pattern here."""
+        drive = self._drive_svc(perm_id="perm-xyz")
+        ctx = _make_ctx(drive_service=drive)
+        ctx.report_progress = AsyncMock(side_effect=RuntimeError("connection dropped"))
+        result = await _sharing_tools["share_spreadsheet"](
+            spreadsheet_id="ss1",
+            recipients=[{"email_address": "alice@example.com", "role": "writer"}],
+            ctx=ctx,
+        )
+        assert len(result["successes"]) == 1
+        assert result["successes"][0]["permissionId"] == "perm-xyz"
 
 
 class TestListPermissions:
@@ -300,6 +362,26 @@ class TestShareFile:
         mock.permissions.return_value.create.return_value.execute.return_value = {"id": perm_id}
         return mock
 
+    async def test_http_error_with_non_dict_json_content_does_not_crash(self):
+        """QA review, PR #758, finding #3: json.loads(e.content) can return valid
+        JSON that isn't a dict (e.g. a JSON array) — the old
+        `except json.JSONDecodeError` didn't catch the AttributeError that
+        `.get()` then raises on that non-dict value, so the exception escaped
+        _share_one entirely and completed[0]/report_progress were skipped for
+        that item."""
+        drive = MagicMock()
+        drive.permissions.return_value.create.return_value.execute.side_effect = (
+            _http_error_with_raw_content(500, b"[1, 2, 3]")
+        )
+        ctx = _make_ctx(drive_service=drive)
+        result = await _sharing_tools["share_file"](
+            file_id="file-1",
+            permissions=[{"type": "anyone", "role": "reader"}],
+            ctx=ctx,
+        )
+        assert len(result["failures"]) == 1
+        assert "Failed to share" in result["failures"][0]["error"]
+
     async def test_anyone_type_suppresses_notification_even_when_caller_passes_true(self):
         """type='anyone' must pass sendNotificationEmail=False regardless of send_notification."""
         drive = self._drive_svc()
@@ -379,3 +461,39 @@ class TestShareFile:
         assert len(result["successes"]) == 1
         assert len(result["failures"]) == 1
         assert result["failures"][0]["entry"] == "not-a-dict"
+
+    async def test_reports_progress_per_permission(self):
+        """#355: extends #316/#319's per-item ctx.report_progress pattern to
+        share_file's concurrent shares."""
+        drive = self._drive_svc()
+        ctx = _make_ctx(drive_service=drive)
+        ctx.report_progress = AsyncMock()
+        await _sharing_tools["share_file"](
+            file_id="file-1",
+            permissions=[
+                {"type": "anyone", "role": "reader"},
+                {"type": "domain", "domain": "example.com", "role": "reader"},
+            ],
+            ctx=ctx,
+        )
+        assert ctx.report_progress.await_count == 2
+        completed_values = sorted(c.args[0] for c in ctx.report_progress.await_args_list)
+        assert completed_values == [1, 2]
+        for c in ctx.report_progress.await_args_list:
+            assert c.args[1] == 2  # total permissions
+            assert ": success" in c.args[2]
+
+    async def test_report_progress_failure_does_not_demote_a_successful_share(self):
+        """PR #351's review established this guard for download_folder/sync_folder:
+        a broken notification channel must not turn an already-successful item into
+        a failure. #355 extends the same pattern here."""
+        drive = self._drive_svc(perm_id="perm-abc")
+        ctx = _make_ctx(drive_service=drive)
+        ctx.report_progress = AsyncMock(side_effect=RuntimeError("connection dropped"))
+        result = await _sharing_tools["share_file"](
+            file_id="file-1",
+            permissions=[{"type": "anyone", "role": "reader"}],
+            ctx=ctx,
+        )
+        assert len(result["successes"]) == 1
+        assert result["successes"][0]["permissionId"] == "perm-abc"

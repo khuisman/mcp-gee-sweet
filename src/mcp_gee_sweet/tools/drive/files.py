@@ -10,6 +10,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from ..concurrency import gather_with_fallback, report_progress_safe
 from ..sheets.helpers import _quote_sheet_name
 from . import _SA_QUOTA_ERROR
 
@@ -93,6 +94,10 @@ def register(tool):
         Reads the CSV, creates the spreadsheet, expands the sheet's grid to fit
         the data (avoiding the default 1000-row/26-column limit), and writes
         every row in one or more batched value updates.
+
+        Row chunks write concurrently rather than one at a time (#183). If the
+        caller supplied a progressToken, a `notifications/progress` update is sent
+        as each chunk finishes (#355).
 
         Args:
             local_path: Absolute path to the local .csv file.
@@ -215,7 +220,21 @@ def register(tool):
 
         quoted_sheet = _quote_sheet_name(sheet_name)
 
-        async def _write_chunk(start: int, chunk: list[list]) -> dict[str, Any]:
+        # Safe to parallelize: each chunk writes a disjoint row range of the same
+        # sheet (A{start+1} onward, non-overlapping), so there's no read-modify-write
+        # race between chunks. Unlike the old sequential loop — where a failure left a
+        # clean truncated prefix — a concurrent failure can leave a hole mid-sheet (an
+        # earlier chunk can still be in flight when a later one succeeds), so failures
+        # are reported per-range rather than as a single opaque exception.
+        chunks = [
+            (start, rows[start : start + _CSV_IMPORT_CHUNK_ROWS])
+            for start in range(0, len(rows), _CSV_IMPORT_CHUNK_ROWS)
+        ]
+        total_chunks = len(chunks)
+        completed = [0]
+
+        async def _write_chunk(item: tuple[int, list[list]]) -> dict[str, Any]:
+            start, chunk = item
             row_range = {"start_row": start + 1, "end_row": start + len(chunk)}
             try:
                 await execute_in_thread(
@@ -230,36 +249,37 @@ def register(tool):
                     .execute,
                     sheets_service,
                 )
-                return {**row_range, "ok": True}
+                result = {**row_range, "ok": True}
             except Exception as e:
-                return {**row_range, "ok": False, "error": str(e)}
+                result = {**row_range, "ok": False, "error": str(e)}
 
-        # Safe to parallelize: each chunk writes a disjoint row range of the same
-        # sheet (A{start+1} onward, non-overlapping), so there's no read-modify-write
-        # race between chunks. Unlike the old sequential loop — where a failure left a
-        # clean truncated prefix — a concurrent failure can leave a hole mid-sheet (an
-        # earlier chunk can still be in flight when a later one succeeds), so failures
-        # are reported per-range rather than as a single opaque exception.
-        chunks = [
-            (start, rows[start : start + _CSV_IMPORT_CHUNK_ROWS])
-            for start in range(0, len(rows), _CSV_IMPORT_CHUNK_ROWS)
-        ]
-        chunk_results: list[dict[str, Any]] = []
-        if chunks:
-            raw = await asyncio.gather(
-                *(_write_chunk(start, chunk) for start, chunk in chunks), return_exceptions=True
+            # Reported here, inside the per-item coroutine, so updates stream in as
+            # each concurrent chunk write finishes rather than arriving in one burst
+            # after asyncio.gather resolves — see #316/#319's original rationale,
+            # extended to this tool by #355.
+            completed[0] += 1
+            row_label = f"rows {row_range['start_row']}-{row_range['end_row']}"
+            await report_progress_safe(
+                ctx,
+                completed[0],
+                total_chunks,
+                f"{row_label}: {'ok' if result['ok'] else 'error'}",
+                row_label,
             )
-            chunk_results = [
-                r
-                if not isinstance(r, BaseException)
-                else {
-                    "start_row": start + 1,
-                    "end_row": start + len(chunk),
-                    "ok": False,
-                    "error": str(r),
-                }
-                for (start, chunk), r in zip(chunks, raw, strict=True)
-            ]
+            return result
+
+        def _chunk_fallback(item: tuple[int, list[list]], exc: BaseException) -> dict[str, Any]:
+            start, chunk = item
+            return {
+                "start_row": start + 1,
+                "end_row": start + len(chunk),
+                "ok": False,
+                "error": str(exc),
+            }
+
+        chunk_results: list[dict[str, Any]] = (
+            await gather_with_fallback(chunks, _write_chunk, _chunk_fallback) if chunks else []
+        )
 
         if target_folder_id:
             lc.drive_folder_cache.mark_dirty(target_folder_id)

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import Any
 
@@ -7,6 +6,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME, SheetInfo, fetch_sheets, get_modified_time
+from ..concurrency import gather_with_fallback, report_progress_safe
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .helpers import (
     _column_index_to_letter,
@@ -214,6 +214,10 @@ def register(tool):
         """
         Get data from multiple specific ranges in Google Spreadsheets.
 
+        Queries fetch concurrently rather than one at a time. If the caller supplied
+        a progressToken, a `notifications/progress` update is sent as each query
+        finishes (#355).
+
         Args:
             queries: A list of dictionaries, each specifying a query.
                      Each dictionary must have 'spreadsheet_id' and 'sheet' keys.
@@ -235,36 +239,75 @@ def register(tool):
         """
         sheets_service = ctx.request_context.lifespan_context.sheets_service
 
+        total = len(queries)
+        completed = [0]
+
         async def _fetch_one(query: dict[str, str]) -> dict[str, Any]:
-            spreadsheet_id = query.get("spreadsheet_id")
-            sheet = query.get("sheet")
-            range_str = query.get("range")
-
-            if not all([spreadsheet_id, sheet]):
-                return {**query, "error": "Missing required keys (spreadsheet_id, sheet)"}
-
+            # The whole body (including the query.get() calls) runs inside this
+            # try/except — a malformed entry (e.g. not a dict) raises from those very
+            # first attribute accesses, before reaching the validation-failure branch
+            # below (QA review, PR #758, finding #1).
+            spreadsheet_id = None
+            sheet = None
+            had_error = False
             try:
-                quoted = _quote_sheet_name(str(sheet))
-                full_range = f"{quoted}!{range_str}" if range_str else quoted
-                result = await execute_in_thread(
-                    sheets_service.spreadsheets()
-                    .values()
-                    .get(spreadsheetId=spreadsheet_id, range=full_range)
-                    .execute,
-                    sheets_service,
-                )
-                return {**query, "data": result.get("values", [])}
-            except Exception as e:
-                return {**query, "error": str(e)}
+                spreadsheet_id = query.get("spreadsheet_id")
+                sheet = query.get("sheet")
+                range_str = query.get("range")
 
-        # return_exceptions=True: each _fetch_one already catches its own errors and
-        # returns a tagged dict, but this also lets any genuinely unexpected exception
-        # finish alongside the rest of the batch instead of orphaning in-flight tasks.
-        raw = await asyncio.gather(*(_fetch_one(q) for q in queries), return_exceptions=True)
-        results = [
-            r if not isinstance(r, BaseException) else {**q, "error": str(r)}
-            for q, r in zip(queries, raw, strict=True)
-        ]
+                if not all([spreadsheet_id, sheet]):
+                    had_error = True
+                    item_result = {
+                        **query,
+                        "error": "Missing required keys (spreadsheet_id, sheet)",
+                    }
+                else:
+                    quoted = _quote_sheet_name(str(sheet))
+                    full_range = f"{quoted}!{range_str}" if range_str else quoted
+                    api_result = await execute_in_thread(
+                        sheets_service.spreadsheets()
+                        .values()
+                        .get(spreadsheetId=spreadsheet_id, range=full_range)
+                        .execute,
+                        sheets_service,
+                    )
+                    item_result = {**query, "data": api_result.get("values", [])}
+            except Exception as e:
+                had_error = True
+                # `query` may not even be a dict (e.g. a malformed entry raised from
+                # the .get() calls above) — spreading it into the result would itself
+                # raise, so echo it as `entry` instead of trying to preserve its
+                # original key shape (QA review, PR #758, finding #1).
+                item_result = (
+                    {**query, "error": str(e)}
+                    if isinstance(query, dict)
+                    else {"entry": query, "error": str(e)}
+                )
+
+            # Reported here, inside the per-item coroutine, so updates stream in as
+            # each concurrent fetch finishes rather than arriving in one burst after
+            # asyncio.gather resolves — see #316/#319's original rationale, extended
+            # to this tool by #355. `had_error` (not `"error" in item_result`) drives
+            # the outcome label — a genuinely successful query whose own input dict
+            # happened to carry a stray "error" key (e.g. a resubmitted prior-failure
+            # entry) must not be misreported (QA review, PR #758, finding #4).
+            completed[0] += 1
+            outcome = "error" if had_error else "ok"
+            await report_progress_safe(
+                ctx,
+                completed[0],
+                total,
+                f"{spreadsheet_id}/{sheet}: {outcome}",
+                f"{spreadsheet_id}/{sheet}",
+            )
+            return item_result
+
+        def _fetch_fallback(q: dict[str, str], exc: BaseException) -> dict[str, Any]:
+            return (
+                {**q, "error": str(exc)} if isinstance(q, dict) else {"entry": q, "error": str(exc)}
+            )
+
+        results = await gather_with_fallback(queries, _fetch_one, _fetch_fallback)
 
         if local_path:
             return await write_capped_result_to_disk(
@@ -287,6 +330,10 @@ def register(tool):
         """
         Get a summary of multiple Google Spreadsheets, including sheet names,
         headers, and the first few rows of data for each sheet.
+
+        Spreadsheets summarize concurrently rather than one at a time. If the caller
+        supplied a progressToken, a `notifications/progress` update is sent as each
+        summary finishes (#355).
 
         Args:
             spreadsheet_ids: A list of spreadsheet IDs to summarize.
@@ -311,6 +358,9 @@ def register(tool):
         drive_service = lc.drive_service
         data_cache = lc.sheet_data_cache
         structure_cache = lc.cache
+
+        total = len(spreadsheet_ids)
+        completed = [0]
 
         async def _summarize_one(spreadsheet_id: str) -> dict[str, Any]:
             summary_data = {
@@ -436,25 +486,31 @@ def register(tool):
             except Exception as e:
                 summary_data["error"] = f"Error fetching spreadsheet {spreadsheet_id}: {e}"
 
+            # Reported here, inside the per-item coroutine, so updates stream in as
+            # each concurrent summary finishes rather than arriving in one burst
+            # after asyncio.gather resolves — see #316/#319's original rationale,
+            # extended to this tool by #355. Checks every per-sheet error too, not
+            # just the whole-spreadsheet fetch error — a spreadsheet whose title/
+            # sheet-list fetch succeeds but where one sheet's data fetch fails must
+            # still report outcome="error" (QA review, PR #758, finding #2).
+            completed[0] += 1
+            had_sheet_error = any(s["error"] for s in summary_data["sheets"])
+            outcome = "error" if (summary_data["error"] or had_sheet_error) else "ok"
+            await report_progress_safe(
+                ctx, completed[0], total, f"{spreadsheet_id}: {outcome}", spreadsheet_id
+            )
+
             return summary_data
 
-        # return_exceptions=True: _summarize_one already catches its own errors, but this
-        # also lets any genuinely unexpected exception finish alongside the rest of the
-        # batch instead of orphaning in-flight tasks. gather() preserves input order.
-        raw = await asyncio.gather(
-            *(_summarize_one(sid) for sid in spreadsheet_ids), return_exceptions=True
-        )
-        summaries = [
-            r
-            if not isinstance(r, BaseException)
-            else {
+        def _summary_fallback(sid: str, exc: BaseException) -> dict[str, Any]:
+            return {
                 "spreadsheet_id": sid,
                 "title": None,
                 "sheets": [],
-                "error": f"Error fetching spreadsheet {sid}: {r}",
+                "error": f"Error fetching spreadsheet {sid}: {exc}",
             }
-            for sid, r in zip(spreadsheet_ids, raw, strict=True)
-        ]
+
+        summaries = await gather_with_fallback(spreadsheet_ids, _summarize_one, _summary_fallback)
 
         if local_path:
             return await write_capped_result_to_disk(

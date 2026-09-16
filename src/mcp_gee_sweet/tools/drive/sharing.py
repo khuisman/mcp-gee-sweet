@@ -7,6 +7,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from ..concurrency import report_progress_safe
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,10 @@ def register(tool):
     ) -> dict[str, list[dict[str, Any]]]:
         """
         Share a Google Spreadsheet with multiple users via email, assigning specific roles.
+
+        Recipients share concurrently rather than one at a time. If the caller
+        supplied a progressToken, a `notifications/progress` update is sent as each
+        share finishes (#355).
 
         Args:
             spreadsheet_id: The ID of the spreadsheet to share.
@@ -38,6 +43,9 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
+        total = len(recipients)
+        completed = [0]
+
         async def _share_one(recipient: dict[str, str]) -> dict[str, Any]:
             # The whole body (including the recipient.get() calls) runs inside this
             # try/except — a malformed entry (e.g. not a dict) raises from those very
@@ -51,53 +59,70 @@ def register(tool):
                 role = recipient.get("role", "writer")
 
                 if not email_address:
-                    return {
+                    item_result = {
                         "_kind": "failure",
                         "email_address": None,
                         "entry": recipient,
                         "error": "Missing email_address in recipient entry.",
                     }
-
-                if role not in ["reader", "commenter", "writer"]:
-                    return {
+                elif role not in ["reader", "commenter", "writer"]:
+                    item_result = {
                         "_kind": "failure",
                         "email_address": email_address,
                         "entry": recipient,
                         "error": f"Invalid role '{role}'. Must be 'reader', 'commenter', or 'writer'.",
                     }
-
-                result = await execute_in_thread(
-                    drive_service.permissions()
-                    .create(
-                        fileId=spreadsheet_id,
-                        body={"type": "user", "role": role, "emailAddress": email_address},
-                        sendNotificationEmail=send_notification,
-                        supportsAllDrives=True,
-                        fields="id",
+                else:
+                    api_result = await execute_in_thread(
+                        drive_service.permissions()
+                        .create(
+                            fileId=spreadsheet_id,
+                            body={"type": "user", "role": role, "emailAddress": email_address},
+                            sendNotificationEmail=send_notification,
+                            supportsAllDrives=True,
+                            fields="id",
+                        )
+                        .execute,
+                        drive_service,
                     )
-                    .execute,
-                    drive_service,
-                )
-                return {
-                    "_kind": "success",
-                    "email_address": email_address,
-                    "role": role,
-                    "permissionId": result.get("id"),
-                }
+                    item_result = {
+                        "_kind": "success",
+                        "email_address": email_address,
+                        "role": role,
+                        "permissionId": api_result.get("id"),
+                    }
             except Exception as e:
                 error_details = str(e)
                 if hasattr(e, "content"):
                     try:
                         error_content = json.loads(e.content)
                         error_details = error_content.get("error", {}).get("message", error_details)
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, AttributeError, TypeError):
+                        # AttributeError/TypeError: e.content parsed as valid JSON
+                        # that isn't a dict (e.g. `null` or a JSON array), so .get()
+                        # itself raises — this except must not let that escape
+                        # _share_one uncaught (QA review, PR #758, finding #3).
                         pass
-                return {
+                item_result = {
                     "_kind": "failure",
                     "email_address": email_address,
                     "entry": recipient,
                     "error": f"Failed to share: {error_details}",
                 }
+
+            # Reported here, inside the per-item coroutine, so updates stream in as
+            # each concurrent share finishes rather than arriving in one burst after
+            # asyncio.gather resolves — see #316/#319's original rationale, extended
+            # to this tool by #355.
+            completed[0] += 1
+            await report_progress_safe(
+                ctx,
+                completed[0],
+                total,
+                f"{email_address}: {item_result['_kind']}",
+                str(email_address),
+            )
+            return item_result
 
         # return_exceptions=True: _share_one already catches its own errors, but this
         # also lets every in-flight share finish before surfacing an unexpected
@@ -282,6 +307,10 @@ def register(tool):
         """
         Share any file or folder with one or more principals.
 
+        Permission entries share concurrently rather than one at a time. If the
+        caller supplied a progressToken, a `notifications/progress` update is sent
+        as each share finishes (#355).
+
         Args:
             file_id: The Google Drive file or folder ID.
             permissions: List of permission entries. Each must have 'type' and 'role'.
@@ -309,11 +338,15 @@ def register(tool):
         _VALID_TYPES = ("user", "group", "domain", "anyone")
         _VALID_ROLES = ("reader", "commenter", "writer")
 
+        total = len(permissions)
+        completed = [0]
+
         async def _share_one(perm: dict[str, str]) -> dict[str, Any]:
             # Whole body runs inside this try/except — a malformed entry (e.g. not a
             # dict) raises from the perm.get() calls below, before any validation-
             # failure return is reached. Catching it here too keeps `entry` echoing
             # the raw input so the failure stays attributable to a specific item.
+            perm_type = None
             try:
                 perm_type = perm.get("type")
                 role = perm.get("role", "reader")
@@ -321,77 +354,89 @@ def register(tool):
                 domain = perm.get("domain")
 
                 if perm_type not in _VALID_TYPES:
-                    return {
+                    item_result = {
                         "_kind": "failure",
                         "entry": perm,
                         "error": (
                             f"Invalid type '{perm_type}'. Must be one of: {', '.join(_VALID_TYPES)}"
                         ),
                     }
-
-                if role not in _VALID_ROLES:
-                    return {
+                elif role not in _VALID_ROLES:
+                    item_result = {
                         "_kind": "failure",
                         "entry": perm,
                         "error": f"Invalid role '{role}'. Must be one of: {', '.join(_VALID_ROLES)}",
                     }
-
-                if perm_type in ("user", "group") and not email_address:
-                    return {
+                elif perm_type in ("user", "group") and not email_address:
+                    item_result = {
                         "_kind": "failure",
                         "entry": perm,
                         "error": f"'email_address' required for type='{perm_type}'",
                     }
-
-                if perm_type == "domain" and not domain:
-                    return {
+                elif perm_type == "domain" and not domain:
+                    item_result = {
                         "_kind": "failure",
                         "entry": perm,
                         "error": "'domain' required for type='domain'",
                     }
+                else:
+                    body: dict[str, str] = {"type": perm_type, "role": role}
+                    if perm_type in ("user", "group"):
+                        body["emailAddress"] = email_address
+                    elif perm_type == "domain":
+                        body["domain"] = domain
 
-                body: dict[str, str] = {"type": perm_type, "role": role}
-                if perm_type in ("user", "group"):
-                    body["emailAddress"] = email_address
-                elif perm_type == "domain":
-                    body["domain"] = domain
-
-                result = await execute_in_thread(
-                    drive_service.permissions()
-                    .create(
-                        fileId=file_id,
-                        body=body,
-                        sendNotificationEmail=send_notification and perm_type in ("user", "group"),
-                        supportsAllDrives=True,
-                        fields="id",
+                    api_result = await execute_in_thread(
+                        drive_service.permissions()
+                        .create(
+                            fileId=file_id,
+                            body=body,
+                            sendNotificationEmail=send_notification
+                            and perm_type in ("user", "group"),
+                            supportsAllDrives=True,
+                            fields="id",
+                        )
+                        .execute,
+                        drive_service,
                     )
-                    .execute,
-                    drive_service,
-                )
-                entry: dict[str, Any] = {
-                    "_kind": "success",
-                    "type": perm_type,
-                    "role": role,
-                    "permissionId": result.get("id"),
-                }
-                if email_address:
-                    entry["email_address"] = email_address
-                if domain:
-                    entry["domain"] = domain
-                return entry
+                    entry: dict[str, Any] = {
+                        "_kind": "success",
+                        "type": perm_type,
+                        "role": role,
+                        "permissionId": api_result.get("id"),
+                    }
+                    if email_address:
+                        entry["email_address"] = email_address
+                    if domain:
+                        entry["domain"] = domain
+                    item_result = entry
             except Exception as e:
                 error_details = str(e)
                 if hasattr(e, "content"):
                     try:
                         error_content = json.loads(e.content)
                         error_details = error_content.get("error", {}).get("message", error_details)
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, AttributeError, TypeError):
+                        # AttributeError/TypeError: e.content parsed as valid JSON
+                        # that isn't a dict (e.g. `null` or a JSON array), so .get()
+                        # itself raises — this except must not let that escape
+                        # _share_one uncaught (QA review, PR #758, finding #3).
                         pass
-                return {
+                item_result = {
                     "_kind": "failure",
                     "entry": perm,
                     "error": f"Failed to share: {error_details}",
                 }
+
+            # Reported here, inside the per-item coroutine, so updates stream in as
+            # each concurrent share finishes rather than arriving in one burst after
+            # asyncio.gather resolves — see #316/#319's original rationale, extended
+            # to this tool by #355.
+            completed[0] += 1
+            await report_progress_safe(
+                ctx, completed[0], total, f"{perm_type}: {item_result['_kind']}", str(perm_type)
+            )
+            return item_result
 
         # Same return_exceptions=True + tagged-result pattern as share_spreadsheet.
         raw = await asyncio.gather(*(_share_one(p) for p in permissions), return_exceptions=True)

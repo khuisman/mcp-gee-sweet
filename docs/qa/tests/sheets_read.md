@@ -354,6 +354,24 @@ No fixture setup needed — query 5 different single-cell ranges from the `Sales
 
 ---
 
+### TC-R39: `get_multiple_sheet_data` emits `notifications/progress` updates as each query completes (issue #355)
+
+**Background:** #355 extends #316/#319's per-item `ctx.report_progress()` pattern (originally added to `download_folder`/`sync_folder` — see TC-D199) to `get_multiple_sheet_data`'s concurrent per-query fetches: `ctx.report_progress(completed, total, f"{spreadsheet_id}/{sheet}: {outcome}")` fires from inside each query's own coroutine as it finishes, wrapped in try/except so a broken notification channel can't demote an already-successful fetch. The exact per-query call count, `total`, and message content are asserted against a mocked `ctx` in `tests/sheets/test_data.py::TestGetMultipleSheetData::test_reports_progress_per_query`/`test_report_progress_failure_does_not_demote_a_successful_fetch`.
+
+**Note:** Same protocol-level caveat as TC-D199 — `notifications/progress` isn't part of the tool's JSON response, so visibility depends on whether this QA client sets a `progressToken`. If it doesn't, this check can only confirm the call still completes normally with the new `ctx.report_progress(...)` call path in place.
+
+**Prompt**
+> "In one call, get these 2 ranges from {SPREADSHEET_ID}: Sales!A1:B2 and Notes & Misc!A1"
+
+**Checks**
+- Call completes normally, returns 2 results, no error
+- If progress notifications are visible in the client: 2 discrete updates appear, one per query, not a single update at the very end
+
+**Teardown**
+None.
+
+---
+
 ## `get_multiple_spreadsheet_summary`
 
 ### TC-R16: Happy path — multiple spreadsheet IDs
@@ -481,6 +499,24 @@ Valid → normal summary; "invalidid123xyz" → error field; both present
 
 **Result (2026-09-04) ✅ PASS**
 rows_to_fetch=3 → Sales header + 2 data rows (Widget, Gadget); cols B/C/D present
+
+---
+
+### TC-R40: `get_multiple_spreadsheet_summary` emits `notifications/progress` updates as each spreadsheet finishes (issue #355)
+
+**Background:** Same #355 pattern as TC-R39, applied to `get_multiple_spreadsheet_summary`'s concurrent per-spreadsheet outer loop (the same loop TC-R37 exercises for cross-attribution): `ctx.report_progress(completed, total, f"{spreadsheet_id}: {outcome}")` fires from inside each spreadsheet's own coroutine as its summary finishes. Unit-tested against a mocked `ctx` in `tests/sheets/test_data.py::TestGetMultipleSpreadsheetSummary::test_reports_progress_per_spreadsheet`/`test_report_progress_failure_does_not_demote_a_successful_summary`.
+
+**Note:** Same protocol-level caveat as TC-D199/TC-R39 — visibility depends on whether this QA client sets a `progressToken`.
+
+**Prompt**
+> "Give me summaries of {SPREADSHEET_ID} and 'invalidid123xyz' in one call"
+
+**Checks**
+- Call completes normally, returns 2 entries (one with an `error` field for the invalid ID), no top-level error
+- If progress notifications are visible in the client: 2 discrete updates appear, one per spreadsheet, not a single update at the very end
+
+**Teardown**
+None.
 
 ---
 
