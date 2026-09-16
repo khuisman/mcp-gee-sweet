@@ -40,6 +40,12 @@ def _http_error(status: int, message: str = "error") -> HttpError:
     return HttpError(resp=resp, content=content)
 
 
+def _http_error_with_raw_content(status: int, content: bytes) -> HttpError:
+    resp = MagicMock()
+    resp.status = status
+    return HttpError(resp=resp, content=content)
+
+
 class TestShareSpreadsheet:
     """share_spreadsheet validates roles and emails client-side before any API call."""
 
@@ -102,6 +108,26 @@ class TestShareSpreadsheet:
         )
         assert len(result["failures"]) == 1
         assert len(result["successes"]) == 0
+        assert "Failed to share" in result["failures"][0]["error"]
+
+    async def test_http_error_with_non_dict_json_content_does_not_crash(self):
+        """QA review, PR #758, finding #3: json.loads(e.content) can return valid
+        JSON that isn't a dict (e.g. `null` or a JSON array) — the old
+        `except json.JSONDecodeError` didn't catch the AttributeError that
+        `.get()` then raises on that non-dict value, so the exception escaped
+        _share_one entirely and completed[0]/report_progress were skipped for
+        that item."""
+        drive = MagicMock()
+        drive.permissions.return_value.create.return_value.execute.side_effect = (
+            _http_error_with_raw_content(500, b"null")
+        )
+        ctx = _make_ctx(drive_service=drive)
+        result = await _sharing_tools["share_spreadsheet"](
+            spreadsheet_id="ss1",
+            recipients=[{"email_address": "user@example.com", "role": "reader"}],
+            ctx=ctx,
+        )
+        assert len(result["failures"]) == 1
         assert "Failed to share" in result["failures"][0]["error"]
 
     async def test_mixed_batch_produces_independent_successes_and_failures(self):
@@ -335,6 +361,26 @@ class TestShareFile:
         mock = MagicMock()
         mock.permissions.return_value.create.return_value.execute.return_value = {"id": perm_id}
         return mock
+
+    async def test_http_error_with_non_dict_json_content_does_not_crash(self):
+        """QA review, PR #758, finding #3: json.loads(e.content) can return valid
+        JSON that isn't a dict (e.g. a JSON array) — the old
+        `except json.JSONDecodeError` didn't catch the AttributeError that
+        `.get()` then raises on that non-dict value, so the exception escaped
+        _share_one entirely and completed[0]/report_progress were skipped for
+        that item."""
+        drive = MagicMock()
+        drive.permissions.return_value.create.return_value.execute.side_effect = (
+            _http_error_with_raw_content(500, b"[1, 2, 3]")
+        )
+        ctx = _make_ctx(drive_service=drive)
+        result = await _sharing_tools["share_file"](
+            file_id="file-1",
+            permissions=[{"type": "anyone", "role": "reader"}],
+            ctx=ctx,
+        )
+        assert len(result["failures"]) == 1
+        assert "Failed to share" in result["failures"][0]["error"]
 
     async def test_anyone_type_suppresses_notification_even_when_caller_passes_true(self):
         """type='anyone' must pass sendNotificationEmail=False regardless of send_notification."""

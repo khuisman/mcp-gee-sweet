@@ -287,6 +287,40 @@ class TestGetMultipleSheetData:
         result = await _data_tools["get_multiple_sheet_data"](queries=[], ctx=ctx)
         assert result == []
 
+    async def test_malformed_non_dict_query_does_not_crash_the_whole_call(self):
+        """QA review, PR #758, finding #1: a non-dict entry in `queries` used to
+        raise uncaught from `query.get(...)` (before the validation-failure branch
+        could even run), and the gather fallback's `{**q, ...}` then also raised on
+        the same non-dict `q` — crashing the entire call instead of degrading to a
+        per-item error the way share_spreadsheet/share_file already do."""
+        ctx = self._ctx([["ok"]])
+        result = await _data_tools["get_multiple_sheet_data"](
+            queries=[
+                {"spreadsheet_id": "abc", "sheet": "Sheet1"},
+                "not-a-dict",
+            ],
+            ctx=ctx,
+        )
+        assert "error" not in result[0]
+        assert result[1]["entry"] == "not-a-dict"
+        assert "error" in result[1]
+
+    async def test_outcome_reported_via_had_error_not_stray_error_key(self):
+        """QA review, PR #758, finding #4: a successful item_result is
+        `{**query, "data": ...}` — if the caller's own query dict already carried a
+        stray "error" key (e.g. a resubmitted prior-failure entry), the old
+        `"error" in item_result` check misreported a genuinely successful fetch as
+        outcome="error". Covered here via report_progress's own message text, since
+        the returned result itself doesn't carry the outcome label directly."""
+        ctx = self._ctx([["A"]])
+        ctx.report_progress = AsyncMock()
+        result = await _data_tools["get_multiple_sheet_data"](
+            queries=[{"spreadsheet_id": "abc", "sheet": "Sheet1", "error": "stale"}],
+            ctx=ctx,
+        )
+        assert result[0]["data"] == [["A"]]
+        assert ": ok" in ctx.report_progress.await_args_list[0].args[2]
+
     async def test_oversized_result_raises(self, monkeypatch):
         monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
         ctx = self._ctx([["x" * 1000]])
@@ -398,6 +432,26 @@ class TestGetMultipleSpreadsheetSummary:
         for c in ctx.report_progress.await_args_list:
             assert c.args[1] == 2  # total spreadsheets
             assert ": ok" in c.args[2]
+
+    async def test_progress_outcome_reflects_a_per_sheet_error(self):
+        """QA review, PR #758, finding #2: outcome used to check only the
+        whole-spreadsheet fetch error (`summary_data["error"]`), never a per-sheet
+        error set inside the per-sheet loop — a spreadsheet whose title/sheet-list
+        fetch succeeds but whose one sheet's data fetch fails streamed an
+        "{id}: ok" progress notification despite the returned summary carrying a
+        real per-sheet error."""
+        ctx = self._ctx(self._spreadsheet_meta(), [["A"]])
+        ctx.report_progress = AsyncMock()
+        sheets_service = ctx.request_context.lifespan_context.sheets_service
+        sheets_service.spreadsheets.return_value.values.return_value.get.return_value.execute.side_effect = RuntimeError(
+            "boom"
+        )
+        result = await _data_tools["get_multiple_spreadsheet_summary"](
+            spreadsheet_ids=["abc"], ctx=ctx
+        )
+        assert result[0]["error"] is None  # whole-spreadsheet fetch itself succeeded
+        assert result[0]["sheets"][0]["error"] is not None  # but the one sheet failed
+        assert ": error" in ctx.report_progress.await_args_list[0].args[2]
 
     async def test_report_progress_failure_does_not_demote_a_successful_summary(self):
         """PR #351's review established this guard for download_folder/sync_folder:

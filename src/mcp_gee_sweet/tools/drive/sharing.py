@@ -7,6 +7,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from ..concurrency import report_progress_safe
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,11 @@ def register(tool):
                     try:
                         error_content = json.loads(e.content)
                         error_details = error_content.get("error", {}).get("message", error_details)
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, AttributeError, TypeError):
+                        # AttributeError/TypeError: e.content parsed as valid JSON
+                        # that isn't a dict (e.g. `null` or a JSON array), so .get()
+                        # itself raises — this except must not let that escape
+                        # _share_one uncaught (QA review, PR #758, finding #3).
                         pass
                 item_result = {
                     "_kind": "failure",
@@ -110,15 +115,13 @@ def register(tool):
             # asyncio.gather resolves — see #316/#319's original rationale, extended
             # to this tool by #355.
             completed[0] += 1
-            try:
-                await ctx.report_progress(
-                    completed[0], total, f"{email_address}: {item_result['_kind']}"
-                )
-            except Exception:
-                # The share already succeeded or failed on its own terms — a broken
-                # notification channel must not overwrite that outcome (#316/#319
-                # review, PR #351).
-                logger.debug("report_progress failed for %s", email_address, exc_info=True)
+            await report_progress_safe(
+                ctx,
+                completed[0],
+                total,
+                f"{email_address}: {item_result['_kind']}",
+                str(email_address),
+            )
             return item_result
 
         # return_exceptions=True: _share_one already catches its own errors, but this
@@ -413,7 +416,11 @@ def register(tool):
                     try:
                         error_content = json.loads(e.content)
                         error_details = error_content.get("error", {}).get("message", error_details)
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, AttributeError, TypeError):
+                        # AttributeError/TypeError: e.content parsed as valid JSON
+                        # that isn't a dict (e.g. `null` or a JSON array), so .get()
+                        # itself raises — this except must not let that escape
+                        # _share_one uncaught (QA review, PR #758, finding #3).
                         pass
                 item_result = {
                     "_kind": "failure",
@@ -426,15 +433,9 @@ def register(tool):
             # asyncio.gather resolves — see #316/#319's original rationale, extended
             # to this tool by #355.
             completed[0] += 1
-            try:
-                await ctx.report_progress(
-                    completed[0], total, f"{perm_type}: {item_result['_kind']}"
-                )
-            except Exception:
-                # The share already succeeded or failed on its own terms — a broken
-                # notification channel must not overwrite that outcome (#316/#319
-                # review, PR #351).
-                logger.debug("report_progress failed for %s", perm_type, exc_info=True)
+            await report_progress_safe(
+                ctx, completed[0], total, f"{perm_type}: {item_result['_kind']}", str(perm_type)
+            )
             return item_result
 
         # Same return_exceptions=True + tagged-result pattern as share_spreadsheet.

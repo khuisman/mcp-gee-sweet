@@ -10,6 +10,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from ..concurrency import gather_with_fallback, report_progress_safe
 from ..sheets.helpers import _quote_sheet_name
 from . import _SA_QUOTA_ERROR
 
@@ -94,9 +95,9 @@ def register(tool):
         the data (avoiding the default 1000-row/26-column limit), and writes
         every row in one or more batched value updates.
 
-        Row chunks write concurrently rather than one at a time. If the caller
-        supplied a progressToken, a `notifications/progress` update is sent as each
-        chunk finishes (#355).
+        Row chunks write concurrently rather than one at a time (#183). If the
+        caller supplied a progressToken, a `notifications/progress` update is sent
+        as each chunk finishes (#355).
 
         Args:
             local_path: Absolute path to the local .csv file.
@@ -232,7 +233,8 @@ def register(tool):
         total_chunks = len(chunks)
         completed = [0]
 
-        async def _write_chunk(start: int, chunk: list[list]) -> dict[str, Any]:
+        async def _write_chunk(item: tuple[int, list[list]]) -> dict[str, Any]:
+            start, chunk = item
             row_range = {"start_row": start + 1, "end_row": start + len(chunk)}
             try:
                 await execute_in_thread(
@@ -256,41 +258,28 @@ def register(tool):
             # after asyncio.gather resolves — see #316/#319's original rationale,
             # extended to this tool by #355.
             completed[0] += 1
-            try:
-                await ctx.report_progress(
-                    completed[0],
-                    total_chunks,
-                    f"rows {row_range['start_row']}-{row_range['end_row']}: "
-                    f"{'ok' if result['ok'] else 'error'}",
-                )
-            except Exception:
-                # The chunk write already succeeded or failed on its own terms — a
-                # broken notification channel must not overwrite that outcome
-                # (#316/#319 review, PR #351).
-                logger.debug(
-                    "report_progress failed for rows %s-%s",
-                    row_range["start_row"],
-                    row_range["end_row"],
-                    exc_info=True,
-                )
+            row_label = f"rows {row_range['start_row']}-{row_range['end_row']}"
+            await report_progress_safe(
+                ctx,
+                completed[0],
+                total_chunks,
+                f"{row_label}: {'ok' if result['ok'] else 'error'}",
+                row_label,
+            )
             return result
 
-        chunk_results: list[dict[str, Any]] = []
-        if chunks:
-            raw = await asyncio.gather(
-                *(_write_chunk(start, chunk) for start, chunk in chunks), return_exceptions=True
-            )
-            chunk_results = [
-                r
-                if not isinstance(r, BaseException)
-                else {
-                    "start_row": start + 1,
-                    "end_row": start + len(chunk),
-                    "ok": False,
-                    "error": str(r),
-                }
-                for (start, chunk), r in zip(chunks, raw, strict=True)
-            ]
+        def _chunk_fallback(item: tuple[int, list[list]], exc: BaseException) -> dict[str, Any]:
+            start, chunk = item
+            return {
+                "start_row": start + 1,
+                "end_row": start + len(chunk),
+                "ok": False,
+                "error": str(exc),
+            }
+
+        chunk_results: list[dict[str, Any]] = (
+            await gather_with_fallback(chunks, _write_chunk, _chunk_fallback) if chunks else []
+        )
 
         if target_folder_id:
             lc.drive_folder_cache.mark_dirty(target_folder_id)
