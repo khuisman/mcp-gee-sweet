@@ -2431,6 +2431,19 @@ Delete the <code>QA-CSV-Concurrent-183</code> spreadsheet.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 import_csv_to_sheet(12001-row CSV → 'QA-CSV-Concurrent-183') → rows_written=12001, no error. Boundary spot-checks: A2=row-1; A5000..A5003=row-4999/5000/5001/5002; A10000..A10003=row-9999/10000/10001/10002; A12001=row-12000. Every marker matches its expected row number — no chunk landed at a wrong offset, no overlap, no gaps across the 3 concurrent 5000/5000/2000-row chunks.</p>
 <hr />
+<h3 id="tc-d257-import_csv_to_sheet-emits-notificationsprogress-updates-as-each-row-chunk-completes-requires-oauth-local-filesystem-issue-355">TC-D257: <code>import_csv_to_sheet</code> emits <code>notifications/progress</code> updates as each row chunk completes ⚠️ requires-oauth ⚠️ local-filesystem (issue #355)<a class="headerlink" href="#tc-d257-import_csv_to_sheet-emits-notificationsprogress-updates-as-each-row-chunk-completes-requires-oauth-local-filesystem-issue-355" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #355 extends #316/#319's per-item <code>ctx.report_progress()</code> pattern (originally added to <code>download_folder</code>/<code>sync_folder</code> — see TC-D199) to <code>import_csv_to_sheet</code>'s concurrent chunk writes (the same concurrent loop TC-D179 stress-tests for correctness): <code>ctx.report_progress(completed, total_chunks, f"rows {start}-{end}: {outcome}")</code> fires from inside each chunk's own coroutine as its write finishes, wrapped in try/except so a broken notification channel can't demote an already-successful write. Unit-tested against a mocked <code>ctx</code> in <code>tests/drive/test_files.py::TestImportCsvToSheet::test_reports_progress_per_chunk</code>/<code>test_report_progress_failure_does_not_demote_a_successful_chunk</code>.</p>
+<p><strong>Note:</strong> Same protocol-level caveat as TC-D199 — <code>notifications/progress</code> isn't part of the tool's JSON response, so visibility depends on whether this QA client sets a <code>progressToken</code>. If it doesn't, this check can only confirm the call still completes normally with the new <code>ctx.report_progress(...)</code> call path in place.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Import <code>/tmp/qa-import-355.csv</code> into a new spreadsheet called 'QA-CSV-Progress-355'" <em>(a small CSV, e.g. header + 3 rows, is enough — this checks that progress reporting doesn't break the call, not chunk-boundary correctness, already covered by TC-D179)</em></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call completes normally, <code>rows_written</code> matches the CSV's row count, no error
+- If progress notifications are visible in the client: at least one discrete update appears per chunk written</p>
+<p><strong>Teardown</strong>
+Delete the <code>QA-CSV-Progress-355</code> spreadsheet.</p>
+<hr />
 <h2 id="create_shortcut-issue-141"><code>create_shortcut</code> (issue #141)<a class="headerlink" href="#create_shortcut-issue-141" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d206-create-a-shortcut-with-explicit-name-and-folder-requires-oauth-destructive">TC-D206: Create a shortcut with explicit name and folder ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-d206-create-a-shortcut-with-explicit-name-and-folder-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
 <p><strong>Setup:</strong> Create a throwaway spreadsheet to be the shortcut's target — do not use the fixture spreadsheet.</p>

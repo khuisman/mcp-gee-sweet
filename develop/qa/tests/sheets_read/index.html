@@ -1498,6 +1498,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-r39-get_multiple_sheet_data-emits-notificationsprogress-updates-as-each-query-completes-issue-355" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-R39: get_multiple_sheet_data emits notifications/progress updates as each query completes (issue #355)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1597,6 +1608,17 @@
     <span class="md-ellipsis">
       
         TC-R22: Range format verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-r40-get_multiple_spreadsheet_summary-emits-notificationsprogress-updates-as-each-spreadsheet-finishes-issue-355" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-R40: get_multiple_spreadsheet_summary emits notifications/progress updates as each spreadsheet finishes (issue #355)
       
     </span>
   </a>
@@ -2203,6 +2225,19 @@ No fixture setup needed — query 5 different single-cell ranges from the <code>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 5 ranges A1/B1/C1/A2/B2 → 5 results in order, each correct (Product/Q1/Q2/Widget/100), zero errors. Fresh pass supersedes 2026-07-12 FAIL</p>
 <hr />
+<h3 id="tc-r39-get_multiple_sheet_data-emits-notificationsprogress-updates-as-each-query-completes-issue-355">TC-R39: <code>get_multiple_sheet_data</code> emits <code>notifications/progress</code> updates as each query completes (issue #355)<a class="headerlink" href="#tc-r39-get_multiple_sheet_data-emits-notificationsprogress-updates-as-each-query-completes-issue-355" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #355 extends #316/#319's per-item <code>ctx.report_progress()</code> pattern (originally added to <code>download_folder</code>/<code>sync_folder</code> — see TC-D199) to <code>get_multiple_sheet_data</code>'s concurrent per-query fetches: <code>ctx.report_progress(completed, total, f"{spreadsheet_id}/{sheet}: {outcome}")</code> fires from inside each query's own coroutine as it finishes, wrapped in try/except so a broken notification channel can't demote an already-successful fetch. The exact per-query call count, <code>total</code>, and message content are asserted against a mocked <code>ctx</code> in <code>tests/sheets/test_data.py::TestGetMultipleSheetData::test_reports_progress_per_query</code>/<code>test_report_progress_failure_does_not_demote_a_successful_fetch</code>.</p>
+<p><strong>Note:</strong> Same protocol-level caveat as TC-D199 — <code>notifications/progress</code> isn't part of the tool's JSON response, so visibility depends on whether this QA client sets a <code>progressToken</code>. If it doesn't, this check can only confirm the call still completes normally with the new <code>ctx.report_progress(...)</code> call path in place.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"In one call, get these 2 ranges from {SPREADSHEET_ID}: Sales!A1:B2 and Notes &amp; Misc!A1"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call completes normally, returns 2 results, no error
+- If progress notifications are visible in the client: 2 discrete updates appear, one per query, not a single update at the very end</p>
+<p><strong>Teardown</strong>
+None.</p>
+<hr />
 <h2 id="get_multiple_spreadsheet_summary"><code>get_multiple_spreadsheet_summary</code><a class="headerlink" href="#get_multiple_spreadsheet_summary" title="Permanent link">&para;</a></h2>
 <h3 id="tc-r16-happy-path-multiple-spreadsheet-ids">TC-R16: Happy path — multiple spreadsheet IDs<a class="headerlink" href="#tc-r16-happy-path-multiple-spreadsheet-ids" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2303,6 +2338,19 @@ Valid → normal summary; "invalidid123xyz" → error field; both present</p>
 - 🔍 <strong>Product decision:</strong> <code>A1:3</code> range format — does the API return all columns or just column A? See <a href="../../../notes-read/">notes-read.md</a></p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 rows_to_fetch=3 → Sales header + 2 data rows (Widget, Gadget); cols B/C/D present</p>
+<hr />
+<h3 id="tc-r40-get_multiple_spreadsheet_summary-emits-notificationsprogress-updates-as-each-spreadsheet-finishes-issue-355">TC-R40: <code>get_multiple_spreadsheet_summary</code> emits <code>notifications/progress</code> updates as each spreadsheet finishes (issue #355)<a class="headerlink" href="#tc-r40-get_multiple_spreadsheet_summary-emits-notificationsprogress-updates-as-each-spreadsheet-finishes-issue-355" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Same #355 pattern as TC-R39, applied to <code>get_multiple_spreadsheet_summary</code>'s concurrent per-spreadsheet outer loop (the same loop TC-R37 exercises for cross-attribution): <code>ctx.report_progress(completed, total, f"{spreadsheet_id}: {outcome}")</code> fires from inside each spreadsheet's own coroutine as its summary finishes. Unit-tested against a mocked <code>ctx</code> in <code>tests/sheets/test_data.py::TestGetMultipleSpreadsheetSummary::test_reports_progress_per_spreadsheet</code>/<code>test_report_progress_failure_does_not_demote_a_successful_summary</code>.</p>
+<p><strong>Note:</strong> Same protocol-level caveat as TC-D199/TC-R39 — visibility depends on whether this QA client sets a <code>progressToken</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Give me summaries of {SPREADSHEET_ID} and 'invalidid123xyz' in one call"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Call completes normally, returns 2 entries (one with an <code>error</code> field for the invalid ID), no top-level error
+- If progress notifications are visible in the client: 2 discrete updates appear, one per spreadsheet, not a single update at the very end</p>
+<p><strong>Teardown</strong>
+None.</p>
 <hr />
 <h2 id="find_in_spreadsheet"><code>find_in_spreadsheet</code><a class="headerlink" href="#find_in_spreadsheet" title="Permanent link">&para;</a></h2>
 <h3 id="tc-r23-match-found-in-specific-sheet">TC-R23: Match found in specific sheet<a class="headerlink" href="#tc-r23-match-found-in-specific-sheet" title="Permanent link">&para;</a></h3>
