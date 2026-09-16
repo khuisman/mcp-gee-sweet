@@ -105,6 +105,33 @@ class TestParseA1Notation:
         with pytest.raises(ValueError):
             _parse_a1_notation("??!!")
 
+    def test_row_zero_raises(self):
+        # The regex's bare \d+ matches "0", but row 0 isn't valid 1-based A1
+        # notation — int(start_row) - 1 would silently compute -1 and reach
+        # the Sheets API as a raw HttpError instead (issue #747 QA round 1).
+        with pytest.raises(ValueError):
+            _parse_a1_notation("A0")
+
+    def test_end_row_zero_raises(self):
+        with pytest.raises(ValueError):
+            _parse_a1_notation("A1:A0")
+
+    def test_inverted_row_range_raises(self):
+        with pytest.raises(ValueError):
+            _parse_a1_notation("A5:A2")
+
+    def test_zero_width_row_range_raises(self):
+        with pytest.raises(ValueError):
+            _parse_a1_notation("A5:A4")
+
+    def test_inverted_column_range_raises(self):
+        with pytest.raises(ValueError):
+            _parse_a1_notation("C1:A1")
+
+    def test_zero_width_column_range_raises(self):
+        with pytest.raises(ValueError):
+            _parse_a1_notation("B1:A1")
+
 
 class _FakeSheetsService:
     """A minimal spreadsheets().get(...).execute() stand-in. Give it either

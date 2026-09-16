@@ -11,7 +11,7 @@ from ..response_limits import enforce_response_size_cap, write_capped_result_to_
 from .helpers import (
     _column_index_to_letter,
     _get_sheet_id,
-    _parse_a1_notation,
+    _parse_a1_notation_or_error,
     _quote_sheet_name,
     _utf16_len,
 )
@@ -703,6 +703,19 @@ def register(tool):
 
         result: dict[str, Any] = {}
 
+        # Parsed once up front and reused by both branches below, rather than
+        # separately by each — the mixed-cells branch and the rich-text branch
+        # both key off the same `range` string, and rich_text_cells being
+        # truthy is exactly the condition under which either branch needs it
+        # (the plain-only fast path below never parses range locally at all,
+        # relying on the Sheets API's own range validation instead — see #757
+        # for that separate, broader gap).
+        indices: dict[str, int] | None = None
+        if rich_text_cells:
+            error, indices = _parse_a1_notation_or_error(range)
+            if error:
+                return error
+
         if plain_cells and not rich_text_cells:
             # Plain-only: write the whole rectangle in one call, same as before
             # rich-text cells existed.
@@ -728,7 +741,6 @@ def register(tool):
             # restored and the rich-text cells' prior content was lost for good.
             # Per-cell targeting means the two calls never touch each other's
             # cells, so either one failing can't corrupt the other's data.
-            indices = _parse_a1_notation(range)
             start_row = indices.get("startRowIndex", 0)
             start_col = indices.get("startColumnIndex", 0)
             plain_data = [
@@ -758,7 +770,6 @@ def register(tool):
             if sheet_id is None:
                 return {"error": f"Sheet '{sheet}' not found"}
 
-            indices = _parse_a1_notation(range)
             start_row = indices.get("startRowIndex", 0)
             start_col = indices.get("startColumnIndex", 0)
 

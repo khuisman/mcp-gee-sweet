@@ -1334,6 +1334,15 @@ class TestFormatCells:
         )
         assert "error" in result
 
+    async def test_invalid_range_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["format_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="Sheet1!A1", bold=True, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
     async def test_multiple_format_params_produce_multiple_fields(self):
         svc = self._sheets_service()
         ctx = _make_ctx(sheets_service=svc, cache=None)
@@ -1483,6 +1492,15 @@ class TestUpdateBorders:
             spreadsheet_id="ss1", sheet="Missing", range="A1", top={"style": "SOLID"}, ctx=ctx
         )
         assert "error" in result
+
+    async def test_invalid_range_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["update_borders"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="Sheet1!A1", top={"style": "SOLID"}, ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
 
     async def test_validation_runs_before_sheet_lookup(self):
         # A bad style paired with a bad sheet name should surface the (cheap,
@@ -1784,6 +1802,19 @@ class TestAddDataValidation:
         )
         assert "error" in result
 
+    async def test_invalid_range_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["add_data_validation"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="Sheet1!A1",
+            condition_type="NOT_BLANK",
+            ctx=ctx,
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
 
 class TestGetDataValidation:
     def _sheets_service(self, grid_data, sheet_id=0, sheet_exists=True):
@@ -1937,6 +1968,15 @@ class TestClearDataValidation:
         )
         assert result == {"error": "Sheet 'Missing' not found"}
 
+    async def test_invalid_range_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["clear_data_validation"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="Sheet1!A1", ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
 
 class TestMergeCells:
     def _sheets_service(self, sheet_id=0):
@@ -1986,6 +2026,15 @@ class TestMergeCells:
         )
         assert "error" in result
 
+    async def test_invalid_range_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["merge_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="Sheet1!A1", ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
 
 class TestUnmergeCells:
     def _sheets_service(self):
@@ -2012,6 +2061,15 @@ class TestUnmergeCells:
             spreadsheet_id="ss1", sheet="Missing", range="A1:B2", ctx=ctx
         )
         assert "error" in result
+
+    async def test_invalid_range_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["unmerge_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="Sheet1!A1", ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
 
 
 class TestFreeze:
@@ -2262,6 +2320,15 @@ class TestSortRange:
             spreadsheet_id="ss1", sheet="Missing", range="A1:D10", ctx=ctx
         )
         assert "error" in result
+
+    async def test_invalid_range_returns_error_without_api_call(self):
+        svc = self._sheets_service()
+        ctx = _make_ctx(sheets_service=svc, cache=None)
+        result = await _structure_tools["sort_range"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="Sheet1!A1", ctx=ctx
+        )
+        assert "error" in result
+        assert not svc.spreadsheets.return_value.batchUpdate.called
 
     async def test_returns_error_for_non_string_order_instead_of_crashing(self):
         svc = self._sheets_service()
