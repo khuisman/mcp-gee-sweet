@@ -666,7 +666,7 @@ rename_file('invalidid123xyz', 'SomeName') → HttpError 404 propagates cleanly,
 
 ## `star_file` / `unstar_file` (issue #139)
 
-**Note:** neither `get_file_metadata` nor `list_files` currently exposes a `starred` field, so verification is round-trip only — the tool's own response is the only readable signal for these checks.
+**Note:** TC-D202/TC-D203 below predate #388 — at the time they were run, neither `get_file_metadata` nor `list_files` exposed a `starred` field, so verification was round-trip only (the tool's own response was the only readable signal). #388 (TC-D260 below) fixed that; `get_file_metadata`/`list_files`/`search_files` all now surface `starred`.
 
 ### TC-D202: `star_file` marks an existing file as starred
 **Prompt**
@@ -694,6 +694,27 @@ rename_file('invalidid123xyz', 'SomeName') → HttpError 404 propagates cleanly,
 - Response `starred` is `false`
 
 **Result:** PASS (2026-07-21) — `unstar_file` on the same fixture spreadsheet (already starred from TC-D202) returned `{"fileId": "<matches>", "name": "mcp-gee-sweet-qa-fixtures", "starred": false}`, no error. Fixture left in its normal unstarred state.
+
+---
+
+### TC-D260: `get_file_metadata`/`list_files`/`search_files` surface the `starred` field (issue #388)
+
+**Background:** TC-D202/TC-D203 above could only verify `star_file`/`unstar_file` round-trip via the mutating tool's own response — there was no way to independently read a file's starred state. #388 adds `starred` to `get_file_metadata`'s, `list_files`'s, and `search_files`'s response fields.
+
+**Setup**
+Star {SPREADSHEET_ID} first (`star_file`), so this test starts from a known `starred=true` state.
+
+**Prompt**
+> "Get metadata for {SPREADSHEET_ID}, then list files in {FOLDER_ID}, then search for it by name"
+
+**Checks**
+- `get_file_metadata({SPREADSHEET_ID})` response includes `"starred": true`
+- `list_files({FOLDER_ID})` includes an entry for {SPREADSHEET_ID} with `"starred": true`
+- `search_files` (matching the fixture's name) includes an entry for {SPREADSHEET_ID} with `"starred": true`
+- Unstar {SPREADSHEET_ID} (`unstar_file`), then re-run `get_file_metadata` — `"starred": false`
+
+**Teardown**
+Ensure {SPREADSHEET_ID} ends unstarred (matches TC-D202/TC-D203's own convention of restoring fixture state).
 
 ---
 

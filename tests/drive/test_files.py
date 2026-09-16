@@ -79,6 +79,38 @@ class TestSearchSpreadsheets:
         assert result == [{"error": "Search failed: simulated API failure"}]
 
 
+class TestSearchFiles:
+    def _drive_service(self, files=None):
+        mock = MagicMock()
+        mock.files.return_value.list.return_value.execute.return_value = {"files": files or []}
+        return mock
+
+    async def test_requests_starred_field(self):
+        """#388: get_file_metadata/list_files/search_files now surface starred."""
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        await _drive_tools["search_files"](query="budget", ctx=ctx)
+        fields_arg = svc.files.return_value.list.call_args.kwargs["fields"]
+        assert "starred" in fields_arg
+
+    async def test_result_includes_starred_field(self):
+        svc = self._drive_service(
+            files=[
+                {
+                    "id": "fid1",
+                    "name": "budget.pdf",
+                    "mimeType": "application/pdf",
+                    "modifiedTime": "2026-06-01T00:00:00Z",
+                    "webViewLink": "https://drive.google.com/fid1",
+                    "starred": True,
+                }
+            ]
+        )
+        ctx = _make_ctx(drive_service=svc)
+        result = await _drive_tools["search_files"](query="budget", ctx=ctx)
+        assert result[0]["starred"] is True
+
+
 class TestFileMutations:
     """Mutating file ops (create_folder, move_file, delete_file) must invalidate the folder cache."""
 
@@ -609,6 +641,47 @@ class TestListFiles:
         result = await _drive_tools["list_files"](folder_id="folder1", ctx=ctx)
         assert result[0]["md5_checksum"] is None
 
+    async def test_requests_starred_field(self):
+        """#388: get_file_metadata/list_files/search_files now surface starred."""
+        svc = self._drive_service()
+        ctx = self._ctx(svc)
+        await _drive_tools["list_files"](folder_id="folder1", ctx=ctx)
+        fields_arg = svc.files.return_value.list.call_args.kwargs["fields"]
+        assert "starred" in fields_arg
+
+    async def test_result_includes_starred_field(self):
+        svc = self._drive_service(
+            files=[
+                {
+                    "id": "fid1",
+                    "name": "report.pdf",
+                    "mimeType": "application/pdf",
+                    "modifiedTime": "2026-06-01T00:00:00Z",
+                    "webViewLink": "https://drive.google.com/fid1",
+                    "starred": True,
+                }
+            ]
+        )
+        ctx = self._ctx(svc)
+        result = await _drive_tools["list_files"](folder_id="folder1", ctx=ctx)
+        assert result[0]["starred"] is True
+
+    async def test_result_starred_defaults_false_when_absent(self):
+        svc = self._drive_service(
+            files=[
+                {
+                    "id": "fid2",
+                    "name": "Notes",
+                    "mimeType": "application/vnd.google-apps.document",
+                    "modifiedTime": "2026-06-01T00:00:00Z",
+                    "webViewLink": "https://docs.google.com/fid2",
+                }
+            ]
+        )
+        ctx = self._ctx(svc)
+        result = await _drive_tools["list_files"](folder_id="folder1", ctx=ctx)
+        assert result[0]["starred"] is False
+
     async def test_mime_type_single_quote_is_escaped(self):
         """Regression test — mime_type was interpolated with zero escaping (not
         even the broken quote-doubling list_shared_with_me/list_recent_files had),
@@ -794,6 +867,40 @@ class TestGetFileMetadata:
         ctx = _make_ctx(drive_service=svc)
         result = await _drive_tools["get_file_metadata"](file_id="fid2", ctx=ctx)
         assert result["md5_checksum"] is None
+
+    async def test_requests_starred_field(self):
+        """#388: previously there was no way to read a file's starred state
+        independently of star_file/unstar_file's own mutation response."""
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        await _drive_tools["get_file_metadata"](file_id="fid1", ctx=ctx)
+        fields_arg = svc.files.return_value.get.call_args.kwargs["fields"]
+        assert "starred" in fields_arg
+
+    async def test_result_includes_starred_true(self):
+        svc = self._drive_service(
+            file={
+                "id": "fid1",
+                "name": "report.pdf",
+                "mimeType": "application/pdf",
+                "starred": True,
+            }
+        )
+        ctx = _make_ctx(drive_service=svc)
+        result = await _drive_tools["get_file_metadata"](file_id="fid1", ctx=ctx)
+        assert result["starred"] is True
+
+    async def test_result_starred_defaults_false_when_absent(self):
+        svc = self._drive_service(
+            file={
+                "id": "fid1",
+                "name": "report.pdf",
+                "mimeType": "application/pdf",
+            }
+        )
+        ctx = _make_ctx(drive_service=svc)
+        result = await _drive_tools["get_file_metadata"](file_id="fid1", ctx=ctx)
+        assert result["starred"] is False
 
 
 class TestGetStorageQuota:
