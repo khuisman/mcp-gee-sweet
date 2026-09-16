@@ -1790,6 +1790,31 @@ class TestAddDataValidation:
             sheets_structure_module._VALID_CONDITION_TYPES
         )
 
+    def test_condition_specs_covers_every_valid_condition_type(self):
+        """Issue #751: _CONDITION_VALUE_COUNTS is now derived from
+        _CONDITION_SPECS — this guards the actual single source of truth
+        (rather than its derived dict, already covered by the test above)
+        against the same key-set drift."""
+        assert set(sheets_structure_module._CONDITION_SPECS) == set(
+            sheets_structure_module._VALID_CONDITION_TYPES
+        )
+
+    def test_add_data_validation_docstring_generated_from_condition_specs(self):
+        """Issue #751: add_data_validation's docstring is generated from
+        _CONDITION_SPECS rather than hand-written prose kept in sync by hand.
+        Guards the generator itself: every condition_type must actually appear
+        in the rendered text, and the per-type value-count fact it renders
+        must match _CONDITION_VALUE_COUNTS (the same table
+        _condition_value_count_error enforces against) — not just a
+        hand-verified sample, since a grouping bug could silently drop or
+        mis-render an entry without any single condition_type's own line
+        looking obviously wrong."""
+        doc = sheets_structure_module._ADD_DATA_VALIDATION_DOCSTRING
+        for condition_type in sheets_structure_module._VALID_CONDITION_TYPES:
+            assert f'"{condition_type}"' in doc, (
+                f"{condition_type} missing from generated docstring"
+            )
+
     async def test_returns_error_when_sheet_not_found(self):
         svc = self._sheets_service()
         ctx = _make_ctx(sheets_service=svc, cache=None)
