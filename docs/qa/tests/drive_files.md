@@ -702,19 +702,22 @@ rename_file('invalidid123xyz', 'SomeName') → HttpError 404 propagates cleanly,
 **Background:** TC-D202/TC-D203 above could only verify `star_file`/`unstar_file` round-trip via the mutating tool's own response — there was no way to independently read a file's starred state. #388 adds `starred` to `get_file_metadata`'s, `list_files`'s, and `search_files`'s response fields.
 
 **Setup**
-Star {SPREADSHEET_ID} first (`star_file`), so this test starts from a known `starred=true` state.
+Star {SPREADSHEET_ID} first (`star_file`), so this test starts from a known `starred=true` state. `list_files({FOLDER_ID})` is cached and, as of this issue, `star_file`/`unstar_file` do not invalidate that cache (confirmed live 2026-09-17: `get_file_metadata` correctly reflected the new starred state immediately while a `list_files` call against a previously-warmed cache for the same folder kept returning the stale value) — call `refresh_cache(folder_id={FOLDER_ID})` right after starring, before the `list_files` check below, or this case will false-fail against otherwise-correct code whenever {FOLDER_ID} was already listed earlier in the same QA run (as TC-D14/15-17/27 do).
 
 **Prompt**
-> "Get metadata for {SPREADSHEET_ID}, then list files in {FOLDER_ID}, then search for it by name"
+> "Get metadata for {SPREADSHEET_ID}, then refresh the folder cache for {FOLDER_ID}, then list files in {FOLDER_ID}, then search for it by name"
 
 **Checks**
 - `get_file_metadata({SPREADSHEET_ID})` response includes `"starred": true`
+- `refresh_cache(folder_id={FOLDER_ID})` before the next check
 - `list_files({FOLDER_ID})` includes an entry for {SPREADSHEET_ID} with `"starred": true`
-- `search_files` (matching the fixture's name) includes an entry for {SPREADSHEET_ID} with `"starred": true`
+- `search_files` (matching the fixture's name) includes an entry for {SPREADSHEET_ID} with `"starred": true` (uncached, so no refresh needed here)
 - Unstar {SPREADSHEET_ID} (`unstar_file`), then re-run `get_file_metadata` — `"starred": false`
 
 **Teardown**
 Ensure {SPREADSHEET_ID} ends unstarred (matches TC-D202/TC-D203's own convention of restoring fixture state).
+
+**Result:** PASS (2026-09-17), with the `refresh_cache` workaround above included. `get_file_metadata` → `starred: true`; `refresh_cache(folder_id=...)`; `list_files` → `starred: true` for the fixture entry; `search_files` → `starred: true` for the fixture entry; `unstar_file` → `starred: false`; `get_file_metadata` re-check → `starred: false`. Fixture left unstarred, folder cache refreshed. Separately confirmed the underlying gap this workaround exists for: repeating the same sequence *without* the `refresh_cache` call reproduces a stale `list_files` result (`starred: false`) immediately after starring, while `get_file_metadata` on the same file correctly showed `starred: true` — `star_file`/`unstar_file` don't call `drive_folder_cache.mark_dirty()` the way every other mutating Drive tool in this file does. Sent back to the Dev as a blocking finding (see PR #760 comment) rather than fixed here.
 
 ---
 
