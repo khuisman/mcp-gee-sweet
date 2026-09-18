@@ -336,6 +336,22 @@ search_spreadsheets('ZZZAbsolutelyNoMatch12345') returned `[]` — not an error.
 
 ---
 
+### TC-D261: `search_spreadsheets` surfaces the `starred` field (issue #388)
+
+**Background:** `search_spreadsheets` is a narrower wrapper around `search_files` pre-filtered to the spreadsheet MIME type (per its own docstring); #388 added `starred` to `search_files`'s response but initially missed this sibling, silently breaking that "same as search_files" framing for the one field. Uncached (unlike `list_files`), so no `refresh_cache` step is needed here.
+
+**Setup:** star {SPREADSHEET_ID} first (`star_file`), so this test starts from a known `starred=true` state.
+
+**Prompt**
+> "Search spreadsheets for 'qa-fixtures'"
+
+**Checks**
+- Result entry for {SPREADSHEET_ID} includes `"starred": true`
+
+**Teardown:** unstar {SPREADSHEET_ID} (matches TC-D202/TC-D203's convention of restoring fixture state).
+
+---
+
 ### TC-D35: API error
 
 **Prompt**

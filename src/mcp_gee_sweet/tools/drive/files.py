@@ -663,7 +663,8 @@ def register(tool):
             max_results: Maximum number of results to return (default 20, max 100)
 
         Returns:
-            List of matching spreadsheets with their ID, name, and metadata
+            List of matching spreadsheets with their ID, name, metadata, and
+            starred status.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
         max_results = min(max(1, max_results), 100)
@@ -683,7 +684,7 @@ def register(tool):
                     spaces="drive",
                     includeItemsFromAllDrives=True,
                     supportsAllDrives=True,
-                    fields="files(id, name, createdTime, modifiedTime, owners, webViewLink)",
+                    fields="files(id, name, createdTime, modifiedTime, owners, webViewLink, starred)",
                     orderBy="modifiedTime desc",
                 )
                 .execute,
@@ -698,6 +699,7 @@ def register(tool):
                     "modified_time": f.get("modifiedTime"),
                     "owners": [owner.get("emailAddress") for owner in f.get("owners", [])],
                     "web_link": f.get("webViewLink"),
+                    "starred": f.get("starred", False),
                 }
                 for f in results.get("files", [])
             ]
@@ -1041,12 +1043,14 @@ def register(tool):
                 fileId=file_id,
                 body={"starred": True},
                 supportsAllDrives=True,
-                fields="id, name, starred",
+                fields="id, name, starred, parents",
             )
             .execute,
             drive_service,
         )
 
+        for parent in updated.get("parents", []):
+            lc.drive_folder_cache.mark_dirty(parent)
         logger.debug("Starred file %s", file_id)
         return {
             "fileId": updated.get("id"),
@@ -1074,12 +1078,14 @@ def register(tool):
                 fileId=file_id,
                 body={"starred": False},
                 supportsAllDrives=True,
-                fields="id, name, starred",
+                fields="id, name, starred, parents",
             )
             .execute,
             drive_service,
         )
 
+        for parent in updated.get("parents", []):
+            lc.drive_folder_cache.mark_dirty(parent)
         logger.debug("Unstarred file %s", file_id)
         return {
             "fileId": updated.get("id"),

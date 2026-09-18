@@ -78,12 +78,39 @@ class TestSearchSpreadsheets:
         result = await _drive_tools["search_spreadsheets"](query="budget 2024", ctx=ctx)
         assert result == [{"error": "Search failed: simulated API failure"}]
 
+    async def test_requests_starred_field(self):
+        """#388: search_spreadsheets shares search_files' starred exposure."""
+        drive_svc = self._drive_service()
+        ctx = _make_ctx(drive_service=drive_svc)
+        await _drive_tools["search_spreadsheets"](query="budget", ctx=ctx)
+        fields_arg = drive_svc.files.return_value.list.call_args.kwargs["fields"]
+        assert "starred" in fields_arg
+
+    async def test_result_includes_starred_field(self):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "fid1",
+                    "name": "budget.gsheet",
+                    "webViewLink": "https://drive.google.com/fid1",
+                    "starred": True,
+                }
+            ]
+        }
+        ctx = _make_ctx(drive_service=drive_svc)
+        result = await _drive_tools["search_spreadsheets"](query="budget", ctx=ctx)
+        assert result[0]["starred"] is True
+
 
 class TestSearchFiles:
     def _drive_service(self, files=None):
         mock = MagicMock()
         mock.files.return_value.list.return_value.execute.return_value = {"files": files or []}
         return mock
+
+    def _captured_q(self, drive_svc):
+        return drive_svc.files.return_value.list.call_args.kwargs["q"]
 
     async def test_requests_starred_field(self):
         """#388: get_file_metadata/list_files/search_files now surface starred."""
@@ -109,6 +136,54 @@ class TestSearchFiles:
         ctx = _make_ctx(drive_service=svc)
         result = await _drive_tools["search_files"](query="budget", ctx=ctx)
         assert result[0]["starred"] is True
+
+    async def test_single_quote_is_escaped(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        await _drive_tools["search_files"](query="it's a test", ctx=ctx)
+        q = self._captured_q(svc)
+        assert "\\'" in q  # literal backslash-apostrophe present in query string
+
+    async def test_escaped_form_used_not_raw(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        await _drive_tools["search_files"](query="O'Brien", ctx=ctx)
+        q = self._captured_q(svc)
+        assert "O\\'Brien" in q
+        # The apostrophe in 'O'Brien' must be preceded by a backslash
+        idx = q.index("'Brien")
+        assert q[idx - 1] == "\\"
+
+    async def test_query_without_quotes_passes_through(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        await _drive_tools["search_files"](query="budget 2024", ctx=ctx)
+        q = self._captured_q(svc)
+        assert "budget 2024" in q
+
+    async def test_mime_type_filter_added_to_query(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        await _drive_tools["search_files"](query="budget", mime_type="application/pdf", ctx=ctx)
+        q = self._captured_q(svc)
+        assert "mimeType='application/pdf'" in q
+
+    async def test_folder_id_filter_added_to_query(self):
+        svc = self._drive_service()
+        ctx = _make_ctx(drive_service=svc)
+        await _drive_tools["search_files"](query="budget", folder_id="folder1", ctx=ctx)
+        q = self._captured_q(svc)
+        assert "'folder1' in parents" in q
+
+    async def test_api_error_returns_error_dict_not_raised(self):
+        """An API/auth failure must surface as [{"error": ...}], not propagate."""
+        svc = self._drive_service()
+        svc.files.return_value.list.return_value.execute.side_effect = RuntimeError(
+            "simulated API failure"
+        )
+        ctx = _make_ctx(drive_service=svc)
+        result = await _drive_tools["search_files"](query="budget", ctx=ctx)
+        assert result == [{"error": "Search failed: simulated API failure"}]
 
 
 class TestFileMutations:
@@ -321,7 +396,8 @@ class TestCreateShortcut:
 
 
 class TestStarFile:
-    """star_file/unstar_file (#139) set starred via files().update, no folder-cache impact."""
+    """star_file/unstar_file (#139) set starred via files().update and mark the
+    file's parent folder(s) dirty in drive_folder_cache (#388, TC-D260)."""
 
     async def test_star_file_sets_starred_true(self):
         mock = MagicMock()
@@ -329,16 +405,32 @@ class TestStarFile:
             "id": "fid1",
             "name": "file.txt",
             "starred": True,
+            "parents": ["par1"],
         }
-        ctx = _make_ctx(drive_service=mock)
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
         result = await _drive_tools["star_file"](file_id="fid1", ctx=ctx)
         mock.files.return_value.update.assert_called_once_with(
             fileId="fid1",
             body={"starred": True},
             supportsAllDrives=True,
-            fields="id, name, starred",
+            fields="id, name, starred, parents",
         )
         assert result == {"fileId": "fid1", "name": "file.txt", "starred": True}
+        folder_cache.mark_dirty.assert_called_once_with("par1")
+
+    async def test_star_file_no_parents_no_dirty_call(self):
+        mock = MagicMock()
+        mock.files.return_value.update.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "file.txt",
+            "starred": True,
+            "parents": [],
+        }
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
+        await _drive_tools["star_file"](file_id="fid1", ctx=ctx)
+        folder_cache.mark_dirty.assert_not_called()
 
     async def test_unstar_file_sets_starred_false(self):
         mock = MagicMock()
@@ -346,16 +438,32 @@ class TestStarFile:
             "id": "fid1",
             "name": "file.txt",
             "starred": False,
+            "parents": ["par1"],
         }
-        ctx = _make_ctx(drive_service=mock)
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
         result = await _drive_tools["unstar_file"](file_id="fid1", ctx=ctx)
         mock.files.return_value.update.assert_called_once_with(
             fileId="fid1",
             body={"starred": False},
             supportsAllDrives=True,
-            fields="id, name, starred",
+            fields="id, name, starred, parents",
         )
         assert result == {"fileId": "fid1", "name": "file.txt", "starred": False}
+        folder_cache.mark_dirty.assert_called_once_with("par1")
+
+    async def test_unstar_file_no_parents_no_dirty_call(self):
+        mock = MagicMock()
+        mock.files.return_value.update.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "file.txt",
+            "starred": False,
+            "parents": [],
+        }
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
+        await _drive_tools["unstar_file"](file_id="fid1", ctx=ctx)
+        folder_cache.mark_dirty.assert_not_called()
 
 
 def _quota_http_error():
