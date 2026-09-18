@@ -1,3 +1,5 @@
+import textwrap
+from itertools import groupby
 from typing import Any, NamedTuple
 
 from mcp.server.mcpserver import Context
@@ -67,93 +69,115 @@ class _ConditionSpec(NamedTuple):
 
     `counts`: valid values-list lengths, or None meaning "at least 1, no
     upper bound" (ONE_OF_LIST's dropdown items). `doc`: text describing what
-    `values` means for this condition_type. Both are consumed from this one
-    place — `counts` by `_condition_value_count_error`, `doc` (grouped by
+    `values` means for this condition_type. `group`: an explicit tag naming
+    which docstring line this condition_type renders on — deliberately
+    independent of (counts, doc) equality. Two condition_types can end up
+    with identical counts and doc text while remaining semantically distinct
+    (TEXT_IS_EMAIL/TEXT_IS_URL vs. BLANK/NOT_BLANK both render "no values",
+    but text-format validity and blank-cell checks aren't the same concept)
+    — grouping on the explicit tag instead of incidental text equality means
+    the two can never silently merge onto one line just because their
+    rendered text happens to coincide (PR #759 review, live-confirmed
+    regression in an earlier version of this fix).
+
+    All three fields are consumed from this one place — `counts` by
+    `_condition_value_count_error`, `doc`/`group` (via
     `_condition_type_doc_block`) by add_data_validation's generated
-    docstring — so the two facts can no longer drift apart the way the old
+    docstring — so the facts can no longer drift apart the way the old
     separately hand-maintained _CONDITION_VALUE_COUNTS dict and docstring
     prose could (issue #751).
     """
 
     counts: tuple[int, ...] | None
     doc: str
+    group: str
 
 
 _CONDITION_SPECS: dict[str, _ConditionSpec] = {
-    "ONE_OF_LIST": _ConditionSpec(None, "dropdown of custom values (values = the list items)"),
+    "ONE_OF_LIST": _ConditionSpec(
+        None, "dropdown of custom values (values = the list items)", "one_of_list"
+    ),
     "ONE_OF_RANGE": _ConditionSpec(
         (1,),
         "dropdown sourced from another range (values = one item, the source range "
         'in A1 notation, e.g. ["Sheet2!A:A"] — a leading "=" is added automatically '
         "if you omit it)",
+        "one_of_range",
     ),
     "BOOLEAN": _ConditionSpec(
         (0, 2),
         "checkbox (omit values for a plain TRUE/FALSE checkbox, or give two values "
         "for custom checked/unchecked labels)",
+        "boolean",
     ),
-    "NUMBER_GREATER": _ConditionSpec((1,), "one numeric value"),
-    "NUMBER_GREATER_THAN_EQ": _ConditionSpec((1,), "one numeric value"),
-    "NUMBER_LESS": _ConditionSpec((1,), "one numeric value"),
-    "NUMBER_LESS_THAN_EQ": _ConditionSpec((1,), "one numeric value"),
-    "NUMBER_EQ": _ConditionSpec((1,), "one numeric value"),
-    "NUMBER_NOT_EQ": _ConditionSpec((1,), "one numeric value"),
-    "NUMBER_BETWEEN": _ConditionSpec((2,), "two numeric values"),
-    "NUMBER_NOT_BETWEEN": _ConditionSpec((2,), "two numeric values"),
-    "DATE_EQ": _ConditionSpec((1,), 'one date value, e.g. "2025-01-01"'),
-    "DATE_BEFORE": _ConditionSpec((1,), 'one date value, e.g. "2025-01-01"'),
-    "DATE_AFTER": _ConditionSpec((1,), 'one date value, e.g. "2025-01-01"'),
-    "DATE_ON_OR_BEFORE": _ConditionSpec((1,), 'one date value, e.g. "2025-01-01"'),
-    "DATE_ON_OR_AFTER": _ConditionSpec((1,), 'one date value, e.g. "2025-01-01"'),
-    "DATE_BETWEEN": _ConditionSpec((2,), "two date values"),
-    "DATE_NOT_BETWEEN": _ConditionSpec((2,), "two date values"),
-    "DATE_IS_VALID": _ConditionSpec((0,), "no values; any parseable date passes"),
-    "TEXT_CONTAINS": _ConditionSpec((1,), "one text value"),
-    "TEXT_NOT_CONTAINS": _ConditionSpec((1,), "one text value"),
-    "TEXT_STARTS_WITH": _ConditionSpec((1,), "one text value"),
-    "TEXT_ENDS_WITH": _ConditionSpec((1,), "one text value"),
-    "TEXT_EQ": _ConditionSpec((1,), "one text value"),
-    "TEXT_IS_EMAIL": _ConditionSpec((0,), "no values"),
-    "TEXT_IS_URL": _ConditionSpec((0,), "no values"),
-    "BLANK": _ConditionSpec((0,), "no values"),
-    "NOT_BLANK": _ConditionSpec((0,), "no values"),
-    "CUSTOM_FORMULA": _ConditionSpec((1,), 'one formula string, e.g. "=A1>0"'),
-}
-
-# Derived, not hand-maintained — kept under this name because
-# _condition_value_count_error and existing tests already key off it.
-_CONDITION_VALUE_COUNTS: dict[str, tuple[int, ...] | None] = {
-    condition_type: spec.counts for condition_type, spec in _CONDITION_SPECS.items()
+    "NUMBER_GREATER": _ConditionSpec((1,), "one numeric value", "number_single"),
+    "NUMBER_GREATER_THAN_EQ": _ConditionSpec((1,), "one numeric value", "number_single"),
+    "NUMBER_LESS": _ConditionSpec((1,), "one numeric value", "number_single"),
+    "NUMBER_LESS_THAN_EQ": _ConditionSpec((1,), "one numeric value", "number_single"),
+    "NUMBER_EQ": _ConditionSpec((1,), "one numeric value", "number_single"),
+    "NUMBER_NOT_EQ": _ConditionSpec((1,), "one numeric value", "number_single"),
+    "NUMBER_BETWEEN": _ConditionSpec((2,), "two numeric values", "number_pair"),
+    "NUMBER_NOT_BETWEEN": _ConditionSpec((2,), "two numeric values", "number_pair"),
+    "DATE_EQ": _ConditionSpec((1,), 'one date value, e.g. "2025-01-01"', "date_single"),
+    "DATE_BEFORE": _ConditionSpec((1,), 'one date value, e.g. "2025-01-01"', "date_single"),
+    "DATE_AFTER": _ConditionSpec((1,), 'one date value, e.g. "2025-01-01"', "date_single"),
+    "DATE_ON_OR_BEFORE": _ConditionSpec((1,), 'one date value, e.g. "2025-01-01"', "date_single"),
+    "DATE_ON_OR_AFTER": _ConditionSpec((1,), 'one date value, e.g. "2025-01-01"', "date_single"),
+    "DATE_BETWEEN": _ConditionSpec((2,), "two date values", "date_pair"),
+    "DATE_NOT_BETWEEN": _ConditionSpec((2,), "two date values", "date_pair"),
+    "DATE_IS_VALID": _ConditionSpec((0,), "no values; any parseable date passes", "date_valid"),
+    "TEXT_CONTAINS": _ConditionSpec((1,), "one text value", "text_single"),
+    "TEXT_NOT_CONTAINS": _ConditionSpec((1,), "one text value", "text_single"),
+    "TEXT_STARTS_WITH": _ConditionSpec((1,), "one text value", "text_single"),
+    "TEXT_ENDS_WITH": _ConditionSpec((1,), "one text value", "text_single"),
+    "TEXT_EQ": _ConditionSpec((1,), "one text value", "text_single"),
+    "TEXT_IS_EMAIL": _ConditionSpec((0,), "no values", "text_format"),
+    "TEXT_IS_URL": _ConditionSpec((0,), "no values", "text_format"),
+    "BLANK": _ConditionSpec((0,), "no values", "blank"),
+    "NOT_BLANK": _ConditionSpec((0,), "no values", "blank"),
+    "CUSTOM_FORMULA": _ConditionSpec((1,), 'one formula string, e.g. "=A1>0"', "custom_formula"),
 }
 
 
 def _condition_type_doc_block(indent: str = " " * 16) -> str:
     """Render add_data_validation's `condition_type` docstring bullet list
-    from _CONDITION_SPECS, grouping consecutive condition_types that share
-    the exact same (counts, doc) onto one line — e.g. every one-numeric-value
+    from _CONDITION_SPECS, grouping consecutive condition_types by their
+    explicit `group` tag (dict insertion order already puts each group's
+    members together) onto one line each — e.g. every one-numeric-value
     NUMBER_* type — the same grouping the original hand-written prose used,
     so the generated text reads the same way but can't drift from what
-    _condition_value_count_error actually enforces (issue #751).
+    _condition_value_count_error actually enforces (issue #751). Asserts
+    every member of a group shares an identical spec, since two entries
+    tagged with the same group but different counts/doc would be a
+    _CONDITION_SPECS authoring bug, not a legitimate grouping.
     """
     lines: list[str] = []
-    group_types: list[str] = []
-    group_spec: _ConditionSpec | None = None
-    for condition_type, spec in _CONDITION_SPECS.items():
-        if group_types and spec != group_spec:
-            assert group_spec is not None
-            lines.append(_render_condition_group(group_types, group_spec, indent))
-            group_types = []
-        group_types.append(condition_type)
-        group_spec = spec
-    if group_types:
-        assert group_spec is not None
-        lines.append(_render_condition_group(group_types, group_spec, indent))
+    for _, entries_iter in groupby(_CONDITION_SPECS.items(), key=lambda kv: kv[1].group):
+        entries = list(entries_iter)
+        specs = {spec for _, spec in entries}
+        assert len(specs) == 1, f"inconsistent specs sharing one group tag: {entries!r}"
+        types = [condition_type for condition_type, _ in entries]
+        lines.append(_render_condition_group(types, entries[0][1], indent))
     return "\n".join(lines)
 
 
-def _render_condition_group(types: list[str], spec: _ConditionSpec, indent: str) -> str:
+def _render_condition_group(
+    types: list[str], spec: _ConditionSpec, indent: str, width: int = 92
+) -> str:
+    """Render one group's line(s), soft-wrapping like the rest of this file's
+    hand-written docstrings do for a long line (PR #759 review) rather than
+    emitting one unwrapped ~115-char line."""
     names = ", ".join(f'"{t}"' for t in types)
-    return f"{indent}{names} — {spec.doc}"
+    text = f"{names} — {spec.doc}"
+    wrapped = textwrap.wrap(
+        text,
+        width=width,
+        initial_indent=indent,
+        subsequent_indent=indent,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+    return "\n".join(wrapped)
 
 
 _ADD_DATA_VALIDATION_DOCSTRING = f"""Set a data validation rule on a cell range — dropdown lists, checkboxes, or
@@ -188,16 +212,16 @@ def _condition_value_count_error(
     condition_type expects. Assumes condition_type is already a valid,
     upper-cased member of _VALID_CONDITION_TYPES.
 
-    condition_type not being a key in _CONDITION_VALUE_COUNTS (a future
-    desync between the two tables — guarded against by
-    TestAddDataValidation::test_condition_value_counts_covers_every_valid_condition_type)
+    condition_type not being a key in _CONDITION_SPECS (a future desync
+    between it and _VALID_CONDITION_TYPES — guarded against by
+    TestAddDataValidation::test_condition_specs_covers_every_valid_condition_type)
     skips the local check rather than raising a KeyError; the real Sheets
     API still validates the request either way (PR #750 review).
     """
-    if condition_type not in _CONDITION_VALUE_COUNTS:
+    if condition_type not in _CONDITION_SPECS:
         return None
     count = len(values) if values else 0
-    expected = _CONDITION_VALUE_COUNTS[condition_type]
+    expected = _CONDITION_SPECS[condition_type].counts
     if expected is None:
         if count < 1:
             return {
