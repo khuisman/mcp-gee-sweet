@@ -1,4 +1,6 @@
-from typing import Any
+import textwrap
+from itertools import groupby
+from typing import Any, NamedTuple
 
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
@@ -60,43 +62,147 @@ _VALID_CONDITION_TYPES = [
     "CUSTOM_FORMULA",
 ]
 
-# Expected `values` count per condition_type, per add_data_validation's own
-# docstring (issue #366) — None means "at least 1, no upper bound"
-# (ONE_OF_LIST's dropdown items), a tuple means "exactly one of these counts"
-# (BOOLEAN accepts 0 for a plain checkbox or 2 for custom checked/unchecked
-# labels). Without this, a mismatched call still fails, just as a raw Sheets
-# API 400 after a round-trip instead of a local, immediate {"error": ...}.
-_CONDITION_VALUE_COUNTS: dict[str, tuple[int, ...] | None] = {
-    "BOOLEAN": (0, 2),
-    "TEXT_CONTAINS": (1,),
-    "TEXT_NOT_CONTAINS": (1,),
-    "TEXT_STARTS_WITH": (1,),
-    "TEXT_ENDS_WITH": (1,),
-    "TEXT_EQ": (1,),
-    "TEXT_IS_EMAIL": (0,),
-    "TEXT_IS_URL": (0,),
-    "DATE_EQ": (1,),
-    "DATE_BEFORE": (1,),
-    "DATE_AFTER": (1,),
-    "DATE_ON_OR_BEFORE": (1,),
-    "DATE_ON_OR_AFTER": (1,),
-    "DATE_BETWEEN": (2,),
-    "DATE_NOT_BETWEEN": (2,),
-    "DATE_IS_VALID": (0,),
-    "NUMBER_GREATER": (1,),
-    "NUMBER_GREATER_THAN_EQ": (1,),
-    "NUMBER_LESS": (1,),
-    "NUMBER_LESS_THAN_EQ": (1,),
-    "NUMBER_EQ": (1,),
-    "NUMBER_NOT_EQ": (1,),
-    "NUMBER_BETWEEN": (2,),
-    "NUMBER_NOT_BETWEEN": (2,),
-    "ONE_OF_RANGE": (1,),
-    "ONE_OF_LIST": None,
-    "BLANK": (0,),
-    "NOT_BLANK": (0,),
-    "CUSTOM_FORMULA": (1,),
+
+class _ConditionSpec(NamedTuple):
+    """One entry in _CONDITION_SPECS: the expected `values` shape for a
+    condition_type, plus the prose describing it.
+
+    `counts`: valid values-list lengths, or None meaning "at least 1, no
+    upper bound" (ONE_OF_LIST's dropdown items). `doc`: text describing what
+    `values` means for this condition_type. `group`: an explicit tag naming
+    which docstring line this condition_type renders on — deliberately
+    independent of (counts, doc) equality. Two condition_types can end up
+    with identical counts and doc text while remaining semantically distinct
+    (TEXT_IS_EMAIL/TEXT_IS_URL vs. BLANK/NOT_BLANK both render "no values",
+    but text-format validity and blank-cell checks aren't the same concept)
+    — grouping on the explicit tag instead of incidental text equality means
+    the two can never silently merge onto one line just because their
+    rendered text happens to coincide (PR #759 review, live-confirmed
+    regression in an earlier version of this fix).
+
+    All three fields are consumed from this one place — `counts` by
+    `_condition_value_count_error`, `doc`/`group` (via
+    `_condition_type_doc_block`) by add_data_validation's generated
+    docstring — so the facts can no longer drift apart the way the old
+    separately hand-maintained _CONDITION_VALUE_COUNTS dict and docstring
+    prose could (issue #751).
+    """
+
+    counts: tuple[int, ...] | None
+    doc: str
+    group: str
+
+
+_CONDITION_SPECS: dict[str, _ConditionSpec] = {
+    "ONE_OF_LIST": _ConditionSpec(
+        None, "dropdown of custom values (values = the list items)", "one_of_list"
+    ),
+    "ONE_OF_RANGE": _ConditionSpec(
+        (1,),
+        "dropdown sourced from another range (values = one item, the source range "
+        'in A1 notation, e.g. ["Sheet2!A:A"] — a leading "=" is added automatically '
+        "if you omit it)",
+        "one_of_range",
+    ),
+    "BOOLEAN": _ConditionSpec(
+        (0, 2),
+        "checkbox (omit values for a plain TRUE/FALSE checkbox, or give two values "
+        "for custom checked/unchecked labels)",
+        "boolean",
+    ),
+    "NUMBER_GREATER": _ConditionSpec((1,), "one numeric value", "number_single"),
+    "NUMBER_GREATER_THAN_EQ": _ConditionSpec((1,), "one numeric value", "number_single"),
+    "NUMBER_LESS": _ConditionSpec((1,), "one numeric value", "number_single"),
+    "NUMBER_LESS_THAN_EQ": _ConditionSpec((1,), "one numeric value", "number_single"),
+    "NUMBER_EQ": _ConditionSpec((1,), "one numeric value", "number_single"),
+    "NUMBER_NOT_EQ": _ConditionSpec((1,), "one numeric value", "number_single"),
+    "NUMBER_BETWEEN": _ConditionSpec((2,), "two numeric values", "number_pair"),
+    "NUMBER_NOT_BETWEEN": _ConditionSpec((2,), "two numeric values", "number_pair"),
+    "DATE_EQ": _ConditionSpec((1,), 'one date value, e.g. "2025-01-01"', "date_single"),
+    "DATE_BEFORE": _ConditionSpec((1,), 'one date value, e.g. "2025-01-01"', "date_single"),
+    "DATE_AFTER": _ConditionSpec((1,), 'one date value, e.g. "2025-01-01"', "date_single"),
+    "DATE_ON_OR_BEFORE": _ConditionSpec((1,), 'one date value, e.g. "2025-01-01"', "date_single"),
+    "DATE_ON_OR_AFTER": _ConditionSpec((1,), 'one date value, e.g. "2025-01-01"', "date_single"),
+    "DATE_BETWEEN": _ConditionSpec((2,), "two date values", "date_pair"),
+    "DATE_NOT_BETWEEN": _ConditionSpec((2,), "two date values", "date_pair"),
+    "DATE_IS_VALID": _ConditionSpec((0,), "no values; any parseable date passes", "date_valid"),
+    "TEXT_CONTAINS": _ConditionSpec((1,), "one text value", "text_single"),
+    "TEXT_NOT_CONTAINS": _ConditionSpec((1,), "one text value", "text_single"),
+    "TEXT_STARTS_WITH": _ConditionSpec((1,), "one text value", "text_single"),
+    "TEXT_ENDS_WITH": _ConditionSpec((1,), "one text value", "text_single"),
+    "TEXT_EQ": _ConditionSpec((1,), "one text value", "text_single"),
+    "TEXT_IS_EMAIL": _ConditionSpec((0,), "no values", "text_format"),
+    "TEXT_IS_URL": _ConditionSpec((0,), "no values", "text_format"),
+    "BLANK": _ConditionSpec((0,), "no values", "blank"),
+    "NOT_BLANK": _ConditionSpec((0,), "no values", "blank"),
+    "CUSTOM_FORMULA": _ConditionSpec((1,), 'one formula string, e.g. "=A1>0"', "custom_formula"),
 }
+
+
+def _condition_type_doc_block(indent: str = " " * 16) -> str:
+    """Render add_data_validation's `condition_type` docstring bullet list
+    from _CONDITION_SPECS, grouping consecutive condition_types by their
+    explicit `group` tag (dict insertion order already puts each group's
+    members together) onto one line each — e.g. every one-numeric-value
+    NUMBER_* type — the same grouping the original hand-written prose used,
+    so the generated text reads the same way but can't drift from what
+    _condition_value_count_error actually enforces (issue #751). Asserts
+    every member of a group shares an identical spec, since two entries
+    tagged with the same group but different counts/doc would be a
+    _CONDITION_SPECS authoring bug, not a legitimate grouping.
+    """
+    lines: list[str] = []
+    for _, entries_iter in groupby(_CONDITION_SPECS.items(), key=lambda kv: kv[1].group):
+        entries = list(entries_iter)
+        specs = {spec for _, spec in entries}
+        assert len(specs) == 1, f"inconsistent specs sharing one group tag: {entries!r}"
+        types = [condition_type for condition_type, _ in entries]
+        lines.append(_render_condition_group(types, entries[0][1], indent))
+    return "\n".join(lines)
+
+
+def _render_condition_group(
+    types: list[str], spec: _ConditionSpec, indent: str, width: int = 92
+) -> str:
+    """Render one group's line(s), soft-wrapping like the rest of this file's
+    hand-written docstrings do for a long line (PR #759 review) rather than
+    emitting one unwrapped ~115-char line."""
+    names = ", ".join(f'"{t}"' for t in types)
+    text = f"{names} — {spec.doc}"
+    wrapped = textwrap.wrap(
+        text,
+        width=width,
+        initial_indent=indent,
+        subsequent_indent=indent,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+    return "\n".join(wrapped)
+
+
+_ADD_DATA_VALIDATION_DOCSTRING = f"""Set a data validation rule on a cell range — dropdown lists, checkboxes, or
+        date/number/text constraints.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet
+            sheet: The name of the sheet
+            range: A1 notation range to validate (e.g. "A2:A100")
+            condition_type: One of the Sheets API's condition types:
+{_condition_type_doc_block()}
+            values: Condition values as plain strings — see condition_type above for
+                    how many each type expects. Numbers and dates are passed as
+                    strings; the Sheets API parses them per the cell's format.
+            input_message: Optional help text shown when a user selects a cell in range.
+            strict: If True (default), reject input that fails the rule. If False,
+                    show a warning but still allow it.
+            show_custom_ui: If True (default), show the built-in dropdown/checkbox UI
+                    for condition types that support one (ONE_OF_LIST, ONE_OF_RANGE,
+                    BOOLEAN). Ignored by condition types with no UI (e.g. NUMBER_*,
+                    TEXT_*).
+
+        Returns:
+            Result of the batchUpdate operation.
+        """
 
 
 def _condition_value_count_error(
@@ -106,16 +212,16 @@ def _condition_value_count_error(
     condition_type expects. Assumes condition_type is already a valid,
     upper-cased member of _VALID_CONDITION_TYPES.
 
-    condition_type not being a key in _CONDITION_VALUE_COUNTS (a future
-    desync between the two tables — guarded against by
-    TestAddDataValidation::test_condition_value_counts_covers_every_valid_condition_type)
+    condition_type not being a key in _CONDITION_SPECS (a future desync
+    between it and _VALID_CONDITION_TYPES — guarded against by
+    TestAddDataValidation::test_condition_specs_covers_every_valid_condition_type)
     skips the local check rather than raising a KeyError; the real Sheets
     API still validates the request either way (PR #750 review).
     """
-    if condition_type not in _CONDITION_VALUE_COUNTS:
+    if condition_type not in _CONDITION_SPECS:
         return None
     count = len(values) if values else 0
-    expected = _CONDITION_VALUE_COUNTS[condition_type]
+    expected = _CONDITION_SPECS[condition_type].counts
     if expected is None:
         if count < 1:
             return {
@@ -1456,7 +1562,6 @@ def register(tool):
             sheets_service,
         )
 
-    @tool(annotations=ToolAnnotations(title="Add Data Validation", destructiveHint=True))
     async def add_data_validation(
         spreadsheet_id: str,
         sheet: str,
@@ -1468,49 +1573,6 @@ def register(tool):
         show_custom_ui: bool = True,
         ctx: Context = None,
     ) -> dict[str, Any]:
-        """
-        Set a data validation rule on a cell range — dropdown lists, checkboxes, or
-        date/number/text constraints.
-
-        Args:
-            spreadsheet_id: The ID of the spreadsheet
-            sheet: The name of the sheet
-            range: A1 notation range to validate (e.g. "A2:A100")
-            condition_type: One of the Sheets API's condition types:
-                "ONE_OF_LIST"      — dropdown of custom values (values = the list items)
-                "ONE_OF_RANGE"     — dropdown sourced from another range (values = one
-                                     item, the source range in A1 notation, e.g.
-                                     ["Sheet2!A:A"] — a leading "=" is added
-                                     automatically if you omit it)
-                "BOOLEAN"          — checkbox (omit values for a plain TRUE/FALSE
-                                     checkbox, or give two values for custom
-                                     checked/unchecked labels)
-                "NUMBER_GREATER", "NUMBER_GREATER_THAN_EQ", "NUMBER_LESS",
-                "NUMBER_LESS_THAN_EQ", "NUMBER_EQ", "NUMBER_NOT_EQ" — one numeric value
-                "NUMBER_BETWEEN", "NUMBER_NOT_BETWEEN" — two numeric values
-                "DATE_EQ", "DATE_BEFORE", "DATE_AFTER", "DATE_ON_OR_BEFORE",
-                "DATE_ON_OR_AFTER" — one date value, e.g. "2025-01-01"
-                "DATE_BETWEEN", "DATE_NOT_BETWEEN" — two date values
-                "DATE_IS_VALID"    — no values; any parseable date passes
-                "TEXT_CONTAINS", "TEXT_NOT_CONTAINS", "TEXT_STARTS_WITH",
-                "TEXT_ENDS_WITH", "TEXT_EQ" — one text value
-                "TEXT_IS_EMAIL", "TEXT_IS_URL" — no values
-                "BLANK", "NOT_BLANK" — no values
-                "CUSTOM_FORMULA"   — one formula string, e.g. "=A1>0"
-            values: Condition values as plain strings — see condition_type above for
-                    how many each type expects. Numbers and dates are passed as
-                    strings; the Sheets API parses them per the cell's format.
-            input_message: Optional help text shown when a user selects a cell in range.
-            strict: If True (default), reject input that fails the rule. If False,
-                    show a warning but still allow it.
-            show_custom_ui: If True (default), show the built-in dropdown/checkbox UI
-                    for condition types that support one (ONE_OF_LIST, ONE_OF_RANGE,
-                    BOOLEAN). Ignored by condition types with no UI (e.g. NUMBER_*,
-                    TEXT_*).
-
-        Returns:
-            Result of the batchUpdate operation.
-        """
         lc = ctx.request_context.lifespan_context
         sheets_service = lc.sheets_service
 
@@ -1547,6 +1609,16 @@ def register(tool):
         return await _apply_data_validation(
             sheets_service, spreadsheet_id, sheet, range, lc.cache, lc.drive_service, rule
         )
+
+    # Docstring is generated from _CONDITION_SPECS (issue #751), so it can't be a
+    # plain literal — assigned here, before `tool()` wraps the function, since
+    # functools.wraps (inside _timed, which tool() applies) copies __doc__ at
+    # wrap time; mutating it after wrapping wouldn't reach the wrapper mcp.tool()
+    # actually registers.
+    add_data_validation.__doc__ = _ADD_DATA_VALIDATION_DOCSTRING
+    add_data_validation = tool(
+        annotations=ToolAnnotations(title="Add Data Validation", destructiveHint=True)
+    )(add_data_validation)
 
     @tool(annotations=ToolAnnotations(title="Get Data Validation", readOnlyHint=True))
     async def get_data_validation(

@@ -1,5 +1,6 @@
 """Tests for tools/sheets/structure.py (add_chart, copy_sheet, and related)."""
 
+from itertools import groupby
 from unittest.mock import AsyncMock, MagicMock
 
 from mcp_gee_sweet.cache import SheetInfo
@@ -1779,16 +1780,91 @@ class TestAddDataValidation:
                 assert "error" in result, f"{condition_type} with {bad_values} should error"
             assert not svc.spreadsheets.return_value.batchUpdate.called
 
-    def test_condition_value_counts_covers_every_valid_condition_type(self):
-        """PR #750 review: _condition_value_count_error indexes
-        _CONDITION_VALUE_COUNTS by condition_type with no .get()/fallback —
-        this guards the two tables never drifting apart, so a future
+    def test_condition_specs_covers_every_valid_condition_type(self):
+        """Originally PR #750's guard on _CONDITION_VALUE_COUNTS (indexed by
+        _condition_value_count_error with no .get()/fallback); issue #751
+        made _CONDITION_SPECS the actual single source of truth and
+        _condition_value_count_error now reads it directly, so this test
+        moved to guard _CONDITION_SPECS's own key set instead — a future
         condition_type added to _VALID_CONDITION_TYPES without a matching
-        _CONDITION_VALUE_COUNTS entry fails this test instead of silently
-        skipping the local check (or, pre-fix, raising a KeyError) in prod."""
-        assert set(sheets_structure_module._CONDITION_VALUE_COUNTS) == set(
+        _CONDITION_SPECS entry fails this test instead of silently skipping
+        the local check (or raising a KeyError) in prod."""
+        assert set(sheets_structure_module._CONDITION_SPECS) == set(
             sheets_structure_module._VALID_CONDITION_TYPES
         )
+
+    def test_add_data_validation_docstring_matches_condition_specs(self):
+        """Issue #751: add_data_validation's docstring is generated from
+        _CONDITION_SPECS rather than hand-written prose kept in sync by hand.
+        For every group of condition_types (grouped by their own explicit
+        `group` tag — the source of truth for what belongs together, already
+        covered separately by
+        test_condition_type_doc_block_never_merges_different_groups), checks
+        that group's canonical rendered text — names plus its own spec.doc,
+        the exact thing add_data_validation's docstring is supposed to say —
+        actually appears in the generated docstring, not just that each
+        type's name appears somewhere in it (PR #759 review: a
+        name-presence-only check passed even while a grouping bug silently
+        merged four semantically distinct condition_types onto one line).
+        Both sides are whitespace-normalized so word-wrapping inside a long
+        group's line(s) can't cause a false failure."""
+        normalized_doc = " ".join(sheets_structure_module._ADD_DATA_VALIDATION_DOCSTRING.split())
+        specs = sheets_structure_module._CONDITION_SPECS
+        for _, entries_iter in groupby(specs.items(), key=lambda kv: kv[1].group):
+            entries = list(entries_iter)
+            types = [condition_type for condition_type, _ in entries]
+            spec = entries[0][1]
+            expected = sheets_structure_module._render_condition_group(
+                types, spec, indent="", width=10_000
+            )
+            normalized_expected = " ".join(expected.split())
+            assert normalized_expected in normalized_doc, (
+                f"expected group text not found in generated docstring: {normalized_expected!r}"
+            )
+
+    def test_condition_type_doc_block_never_merges_different_groups(self):
+        """PR #759 review, live-confirmed regression: TEXT_IS_EMAIL,
+        TEXT_IS_URL, BLANK, and NOT_BLANK all share the identical
+        (counts=(0,), doc="no values") spec and sit adjacent in
+        _CONDITION_SPECS, so grouping on spec equality alone silently
+        collapsed two semantically unrelated condition_type families (text
+        format validity vs. blank-cell checks) onto a single generated line
+        — diverging from the original hand-written docstring's two separate
+        lines. _ConditionSpec's `group` field is the fix: grouping now keys
+        on that explicit tag instead of incidental (counts, doc) equality,
+        so two families can never merge just because their rendered text
+        happens to coincide. This asserts that invariant directly rather
+        than re-testing today's specific four type names."""
+        doc = sheets_structure_module._ADD_DATA_VALIDATION_DOCSTRING
+        for line in doc.splitlines():
+            types_on_line = [
+                condition_type
+                for condition_type in sheets_structure_module._CONDITION_SPECS
+                if f'"{condition_type}"' in line
+            ]
+            groups_on_line = {
+                sheets_structure_module._CONDITION_SPECS[condition_type].group
+                for condition_type in types_on_line
+            }
+            assert len(groups_on_line) <= 1, f"line merges multiple groups: {line!r}"
+
+    def test_add_data_validation_registered_docstring_survives_timed_wrapping(self):
+        """PR #759 review: add_data_validation sets __doc__ explicitly and
+        then applies tool() manually (rather than via @tool(...) sugar),
+        because the generated docstring can't be a literal — see
+        docs/decisions/decision-condition-type-docstring-generation.md. That
+        ordering has no direct test: if the two lines were ever swapped,
+        mcp.tool() would register the function with no docstring, silently,
+        since _timed's functools.wraps(func) copies __doc__ at wrap time.
+        The fake tool registry this test module uses (_make_tool_registry)
+        never wraps at all, so it can't catch that — this wraps the captured
+        function with the real _timed and confirms the docstring, already
+        set at capture time, survives the same wrapping the live server
+        applies."""
+        from mcp_gee_sweet.server import _timed
+
+        wrapped = _timed(_structure_tools["add_data_validation"])
+        assert wrapped.__doc__ == sheets_structure_module._ADD_DATA_VALIDATION_DOCSTRING
 
     async def test_returns_error_when_sheet_not_found(self):
         svc = self._sheets_service()
