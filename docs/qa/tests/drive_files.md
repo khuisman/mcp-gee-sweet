@@ -350,6 +350,8 @@ search_spreadsheets('ZZZAbsolutelyNoMatch12345') returned `[]` — not an error.
 
 **Teardown:** unstar {SPREADSHEET_ID} (matches TC-D202/TC-D203's convention of restoring fixture state).
 
+**Result:** PASS (2026-09-17) — `search_spreadsheets(query="qa-fixtures")` returned the fixture entry with `"starred": true` immediately after `star_file`, no cache step needed (uncached tool, as expected). Fixture left unstarred.
+
 ---
 
 ### TC-D35: API error
@@ -718,7 +720,7 @@ rename_file('invalidid123xyz', 'SomeName') → HttpError 404 propagates cleanly,
 **Background:** TC-D202/TC-D203 above could only verify `star_file`/`unstar_file` round-trip via the mutating tool's own response — there was no way to independently read a file's starred state. #388 adds `starred` to `get_file_metadata`'s, `list_files`'s, and `search_files`'s response fields.
 
 **Setup**
-Star {SPREADSHEET_ID} first (`star_file`), so this test starts from a known `starred=true` state. `list_files({FOLDER_ID})` is cached and, as of this issue, `star_file`/`unstar_file` do not invalidate that cache (confirmed live 2026-09-17: `get_file_metadata` correctly reflected the new starred state immediately while a `list_files` call against a previously-warmed cache for the same folder kept returning the stale value) — call `refresh_cache(folder_id={FOLDER_ID})` right after starring, before the `list_files` check below, or this case will false-fail against otherwise-correct code whenever {FOLDER_ID} was already listed earlier in the same QA run (as TC-D14/15-17/27 do).
+Star {SPREADSHEET_ID} first (`star_file`), so this test starts from a known `starred=true` state. As of this issue's QA round 2 fix, `star_file`/`unstar_file` mark the file's parent folder(s) dirty in `drive_folder_cache`, so `list_files({FOLDER_ID})` reflects the new state immediately with no manual cache step (confirmed live 2026-09-17, both directions). The explicit `refresh_cache(folder_id={FOLDER_ID})` step below is kept anyway — harmless once the fix is in, and it's what round 1's QA pass used to catch the gap before the fix landed.
 
 **Prompt**
 > "Get metadata for {SPREADSHEET_ID}, then refresh the folder cache for {FOLDER_ID}, then list files in {FOLDER_ID}, then search for it by name"
@@ -733,7 +735,9 @@ Star {SPREADSHEET_ID} first (`star_file`), so this test starts from a known `sta
 **Teardown**
 Ensure {SPREADSHEET_ID} ends unstarred (matches TC-D202/TC-D203's own convention of restoring fixture state).
 
-**Result:** PASS (2026-09-17), with the `refresh_cache` workaround above included. `get_file_metadata` → `starred: true`; `refresh_cache(folder_id=...)`; `list_files` → `starred: true` for the fixture entry; `search_files` → `starred: true` for the fixture entry; `unstar_file` → `starred: false`; `get_file_metadata` re-check → `starred: false`. Fixture left unstarred, folder cache refreshed. Separately confirmed the underlying gap this workaround exists for: repeating the same sequence *without* the `refresh_cache` call reproduces a stale `list_files` result (`starred: false`) immediately after starring, while `get_file_metadata` on the same file correctly showed `starred: true` — `star_file`/`unstar_file` don't call `drive_folder_cache.mark_dirty()` the way every other mutating Drive tool in this file does. Sent back to the Dev as a blocking finding (see PR #760 comment) rather than fixed here.
+**Result:** PASS (round 1, 2026-09-17, with the `refresh_cache` step above included). `get_file_metadata` → `starred: true`; `refresh_cache(folder_id=...)`; `list_files` → `starred: true` for the fixture entry; `search_files` → `starred: true` for the fixture entry; `unstar_file` → `starred: false`; `get_file_metadata` re-check → `starred: false`. Round 1 separately confirmed the underlying gap this step existed for: repeating the same sequence *without* `refresh_cache` reproduced a stale `list_files` result (`starred: false`) immediately after starring, while `get_file_metadata` on the same file correctly showed `starred: true`. Sent back to the Dev as a blocking finding (PR #760 comment).
+
+**Result:** PASS (round 2, 2026-09-17, commit `6bad917`) — re-ran the round-1 gap repro *without* any manual `refresh_cache` call: `list_files({FOLDER_ID})` warmed cold, `star_file`, then `list_files({FOLDER_ID})` again with no cache call in between → correctly returned `starred: true` for the fixture entry. Repeated for `unstar_file` → correctly returned `starred: false`, no manual cache call either time. The fix (`star_file`/`unstar_file` now fetch `parents` and call `drive_folder_cache.mark_dirty()` per parent) works as intended. Fixture left unstarred.
 
 ---
 
