@@ -1584,6 +1584,18 @@ search_spreadsheets('ZZZAbsolutelyNoMatch12345') returned <code>[]</code> — no
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 🔍 search_spreadsheets("") returned all accessible spreadsheets (7), not an error. Behavior: empty query = list-all.</p>
 <hr />
+<h3 id="tc-d261-search_spreadsheets-surfaces-the-starred-field-issue-388">TC-D261: <code>search_spreadsheets</code> surfaces the <code>starred</code> field (issue #388)<a class="headerlink" href="#tc-d261-search_spreadsheets-surfaces-the-starred-field-issue-388" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>search_spreadsheets</code> is a narrower wrapper around <code>search_files</code> pre-filtered to the spreadsheet MIME type (per its own docstring); #388 added <code>starred</code> to <code>search_files</code>'s response but initially missed this sibling, silently breaking that "same as search_files" framing for the one field. Uncached (unlike <code>list_files</code>), so no <code>refresh_cache</code> step is needed here.</p>
+<p><strong>Setup:</strong> star {SPREADSHEET_ID} first (<code>star_file</code>), so this test starts from a known <code>starred=true</code> state.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Search spreadsheets for 'qa-fixtures'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Result entry for {SPREADSHEET_ID} includes <code>"starred": true</code></p>
+<p><strong>Teardown:</strong> unstar {SPREADSHEET_ID} (matches TC-D202/TC-D203's convention of restoring fixture state).</p>
+<p><strong>Result:</strong> PASS (2026-09-17) — <code>search_spreadsheets(query="qa-fixtures")</code> returned the fixture entry with <code>"starred": true</code> immediately after <code>star_file</code>, no cache step needed (uncached tool, as expected). Fixture left unstarred.</p>
+<hr />
 <h3 id="tc-d35-api-error">TC-D35: API error<a class="headerlink" href="#tc-d35-api-error" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
 <blockquote>
@@ -1837,7 +1849,7 @@ rename_file(QA-Folder-Cache → 'QA-Folder-Renamed') → response name 'QA-Folde
 rename_file('invalidid123xyz', 'SomeName') → HttpError 404 propagates cleanly, no crash/silent failure.</p>
 <hr />
 <h2 id="star_file-unstar_file-issue-139"><code>star_file</code> / <code>unstar_file</code> (issue #139)<a class="headerlink" href="#star_file-unstar_file-issue-139" title="Permanent link">&para;</a></h2>
-<p><strong>Note:</strong> neither <code>get_file_metadata</code> nor <code>list_files</code> currently exposes a <code>starred</code> field, so verification is round-trip only — the tool's own response is the only readable signal for these checks.</p>
+<p><strong>Note:</strong> TC-D202/TC-D203 below predate #388 — at the time they were run, neither <code>get_file_metadata</code> nor <code>list_files</code> exposed a <code>starred</code> field, so verification was round-trip only (the tool's own response was the only readable signal). #388 (TC-D260 below) fixed that; <code>get_file_metadata</code>/<code>list_files</code>/<code>search_files</code> all now surface <code>starred</code>.</p>
 <h3 id="tc-d202-star_file-marks-an-existing-file-as-starred">TC-D202: <code>star_file</code> marks an existing file as starred<a class="headerlink" href="#tc-d202-star_file-marks-an-existing-file-as-starred" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
 <blockquote>
@@ -1860,6 +1872,25 @@ rename_file('invalidid123xyz', 'SomeName') → HttpError 404 propagates cleanly,
 - Response has no <code>error</code>
 - Response <code>starred</code> is <code>false</code></p>
 <p><strong>Result:</strong> PASS (2026-07-21) — <code>unstar_file</code> on the same fixture spreadsheet (already starred from TC-D202) returned <code>{"fileId": "&lt;matches&gt;", "name": "mcp-gee-sweet-qa-fixtures", "starred": false}</code>, no error. Fixture left in its normal unstarred state.</p>
+<hr />
+<h3 id="tc-d260-get_file_metadatalist_filessearch_files-surface-the-starred-field-issue-388">TC-D260: <code>get_file_metadata</code>/<code>list_files</code>/<code>search_files</code> surface the <code>starred</code> field (issue #388)<a class="headerlink" href="#tc-d260-get_file_metadatalist_filessearch_files-surface-the-starred-field-issue-388" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> TC-D202/TC-D203 above could only verify <code>star_file</code>/<code>unstar_file</code> round-trip via the mutating tool's own response — there was no way to independently read a file's starred state. #388 adds <code>starred</code> to <code>get_file_metadata</code>'s, <code>list_files</code>'s, and <code>search_files</code>'s response fields.</p>
+<p><strong>Setup</strong>
+Star {SPREADSHEET_ID} first (<code>star_file</code>), so this test starts from a known <code>starred=true</code> state. As of this issue's QA round 2 fix, <code>star_file</code>/<code>unstar_file</code> mark the file's parent folder(s) dirty in <code>drive_folder_cache</code>, so <code>list_files({FOLDER_ID})</code> reflects the new state immediately with no manual cache step (confirmed live 2026-09-17, both directions). The explicit <code>refresh_cache(folder_id={FOLDER_ID})</code> step below is kept anyway — harmless once the fix is in, and it's what round 1's QA pass used to catch the gap before the fix landed.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get metadata for {SPREADSHEET_ID}, then refresh the folder cache for {FOLDER_ID}, then list files in {FOLDER_ID}, then search for it by name"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>get_file_metadata({SPREADSHEET_ID})</code> response includes <code>"starred": true</code>
+- <code>refresh_cache(folder_id={FOLDER_ID})</code> before the next check
+- <code>list_files({FOLDER_ID})</code> includes an entry for {SPREADSHEET_ID} with <code>"starred": true</code>
+- <code>search_files</code> (matching the fixture's name) includes an entry for {SPREADSHEET_ID} with <code>"starred": true</code> (uncached, so no refresh needed here)
+- Unstar {SPREADSHEET_ID} (<code>unstar_file</code>), then re-run <code>get_file_metadata</code> — <code>"starred": false</code></p>
+<p><strong>Teardown</strong>
+Ensure {SPREADSHEET_ID} ends unstarred (matches TC-D202/TC-D203's own convention of restoring fixture state).</p>
+<p><strong>Result:</strong> PASS (round 1, 2026-09-17, with the <code>refresh_cache</code> step above included). <code>get_file_metadata</code> → <code>starred: true</code>; <code>refresh_cache(folder_id=...)</code>; <code>list_files</code> → <code>starred: true</code> for the fixture entry; <code>search_files</code> → <code>starred: true</code> for the fixture entry; <code>unstar_file</code> → <code>starred: false</code>; <code>get_file_metadata</code> re-check → <code>starred: false</code>. Round 1 separately confirmed the underlying gap this step existed for: repeating the same sequence <em>without</em> <code>refresh_cache</code> reproduced a stale <code>list_files</code> result (<code>starred: false</code>) immediately after starring, while <code>get_file_metadata</code> on the same file correctly showed <code>starred: true</code>. Sent back to the Dev as a blocking finding (PR #760 comment).</p>
+<p><strong>Result:</strong> PASS (round 2, 2026-09-17, commit <code>6bad917</code>) — re-ran the round-1 gap repro <em>without</em> any manual <code>refresh_cache</code> call: <code>list_files({FOLDER_ID})</code> warmed cold, <code>star_file</code>, then <code>list_files({FOLDER_ID})</code> again with no cache call in between → correctly returned <code>starred: true</code> for the fixture entry. Repeated for <code>unstar_file</code> → correctly returned <code>starred: false</code>, no manual cache call either time. The fix (<code>star_file</code>/<code>unstar_file</code> now fetch <code>parents</code> and call <code>drive_folder_cache.mark_dirty()</code> per parent) works as intended. Fixture left unstarred.</p>
 <hr />
 <h2 id="copy_file"><code>copy_file</code><a class="headerlink" href="#copy_file" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d67-copy-with-auto-assigned-name-requires-oauth">TC-D67: Copy with auto-assigned name ⚠️ requires-oauth<a class="headerlink" href="#tc-d67-copy-with-auto-assigned-name-requires-oauth" title="Permanent link">&para;</a></h3>
