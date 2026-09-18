@@ -246,7 +246,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [x] Unify the two progress-counter idioms in `transfer.py` (nonlocal vs. list-box) ([#354](https://github.com/khuisman/mcp-gee-sweet/issues/354)) (PR #746)
 - [x] Extend notifications/progress to the remaining `asyncio.gather`-based multi-call tools ([#355](https://github.com/khuisman/mcp-gee-sweet/issues/355)) (PR #758)
 - [x] `sync_folder`'s `plan`/`step` dicts have the same untyped-access fragility #740's dataclass fix addressed for `download_folder` (PR #748 follow-up) ([#749](https://github.com/khuisman/mcp-gee-sweet/issues/749)) (PR #755)
-- [ ] Expose starred state via `get_file_metadata`/`list_files` — `star_file`/`unstar_file` (#139) set it but nothing reads it back ([#388](https://github.com/khuisman/mcp-gee-sweet/issues/388))
+- [x] Expose starred state via `get_file_metadata`/`list_files` — `star_file`/`unstar_file` (#139) set it but nothing reads it back ([#388](https://github.com/khuisman/mcp-gee-sweet/issues/388)) (PR #760)
 - [ ] `drive`: consolidate `convert_markdown`'s duplicated matching/messaging logic in `transfer.py` (PR #414 follow-up) ([#424](https://github.com/khuisman/mcp-gee-sweet/issues/424))
 - [ ] `sync_folder`: `is_workspace` recomputed inline in the `use_checksum` block instead of reusing `drive_map`'s stashed value ([#474](https://github.com/khuisman/mcp-gee-sweet/issues/474))
 - [ ] `upload_local_folder`: `convert` skip logic has a duplicate-name edge case + logic duplication vs. `_upload_local_file` ([#514](https://github.com/khuisman/mcp-gee-sweet/issues/514))
