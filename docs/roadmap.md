@@ -217,7 +217,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [x] `update_cells`'s plain-cells branch (+ `get_sheet_data`/`get_sheet_formulas`/`get_multiple_sheet_data`/`clear_values`) hand a raw range string to the Sheets values API with no local validation, leaking a raw `HttpError` on malformed input (PR #756 follow-up) ([#757](https://github.com/khuisman/mcp-gee-sweet/issues/757)) (PR #764)
 
 **Docs hardening & dedup** _(triaged out of `backlog` 2026-09-11)_
-- [ ] `html_parser.py`: readability + reset-consistency nits in `_emit_block_node`/`_block_had_unsupported_content` ([#417](https://github.com/khuisman/mcp-gee-sweet/issues/417))
+- [x] `html_parser.py`: readability + reset-consistency nits in `_emit_block_node`/`_block_had_unsupported_content` ([#417](https://github.com/khuisman/mcp-gee-sweet/issues/417)) (PR #766)
 - [ ] `emitter.py`: non-blocking cleanup findings from PR #432's nested-bullet review ([#434](https://github.com/khuisman/mcp-gee-sweet/issues/434))
 - [ ] `html_parser`: a resumed block's genuine trailing `&nbsp;` is still silently dropped after #402's fix ([#444](https://github.com/khuisman/mcp-gee-sweet/issues/444))
 - [ ] `docs/style.py`/`docs/content.py`: no shared helper for the "omit key but keep field mask" link-clear pattern ([#448](https://github.com/khuisman/mcp-gee-sweet/issues/448))
