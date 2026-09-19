@@ -14,7 +14,11 @@ from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.drive import transfer as transfer_module
-from mcp_gee_sweet.tools.drive.transfer import _upload_local_file, _xlsx_range_values
+from mcp_gee_sweet.tools.drive.transfer import (
+    _should_skip_existing_upload,
+    _upload_local_file,
+    _xlsx_range_values,
+)
 
 
 def _make_tool_registry():
@@ -101,6 +105,45 @@ class TestUploadFile:
             name="doc.txt", content="hello", folder_id="target_folder", ctx=ctx
         )
         folder_cache.mark_dirty.assert_called_once_with("target_folder")
+
+
+class TestShouldSkipExistingUpload:
+    """Direct tests for _should_skip_existing_upload — the skip-decision helper
+    shared by _upload_local_file's own skip_if_exists check and
+    upload_local_folder's bulk one (#514, extracted after PR #505's review of
+    #411 found the two independently duplicating this same comparison)."""
+
+    def test_no_existing_entries_never_skips(self):
+        assert _should_skip_existing_upload(None, []) is False
+        assert (
+            _should_skip_existing_upload(
+                ("text/csv", "application/vnd.google-apps.spreadsheet"), []
+            )
+            is False
+        )
+
+    def test_no_convert_skips_on_any_existing_entry(self):
+        assert _should_skip_existing_upload(None, ["text/plain"]) is True
+
+    def test_convert_skips_only_when_target_mimetype_present(self):
+        convert_mime = ("text/csv", "application/vnd.google-apps.spreadsheet")
+        assert _should_skip_existing_upload(convert_mime, ["text/csv"]) is False
+        assert (
+            _should_skip_existing_upload(convert_mime, ["application/vnd.google-apps.spreadsheet"])
+            is True
+        )
+
+    def test_convert_skips_when_target_mimetype_present_among_several(self):
+        """Multiple existing entries (e.g. two Drive files sharing a name) —
+        skip as soon as any one of them is already in the target format,
+        regardless of position."""
+        convert_mime = ("text/csv", "application/vnd.google-apps.spreadsheet")
+        assert (
+            _should_skip_existing_upload(
+                convert_mime, ["text/csv", "application/vnd.google-apps.spreadsheet"]
+            )
+            is True
+        )
 
 
 class TestUploadLocalFileCore:
@@ -881,6 +924,57 @@ class TestUploadLocalFolder:
         assert result["skipped"] == ["data.csv"]
         assert result["uploaded"] == []
         drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_convert_recognizes_already_converted_when_two_drive_files_share_a_name(
+        self, tmp_path
+    ):
+        """#514 (surfaced during PR #505's review of #411): Drive allows more
+        than one file to share a literal name. The old existing_by_name dict
+        comprehension kept only the *last*-iterated entry for a given name,
+        so whichever of the raw/converted duplicates Drive happened to list
+        last decided the (wrong, order-dependent) skip outcome. Here both
+        entries are literally named "data.csv" — the raw one listed *after*
+        the already-converted one, the ordering under which the old
+        last-write-wins dict would have silently lost the converted
+        classification and reconverted a duplicate."""
+        (tmp_path / "data.csv").write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {"name": "data.csv", "mimeType": "application/vnd.google-apps.spreadsheet"},
+                {"name": "data.csv", "mimeType": "text/csv"},
+            ]
+        }
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["skipped"] == ["data.csv"]
+        assert result["uploaded"] == []
+        drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_skip_if_exists_false_uploads_despite_colliding_existing_files(self, tmp_path):
+        """#514: the per-candidate skip check is gated explicitly on
+        skip_if_exists rather than relying on existing_by_name being empty
+        when it's False, so a future change that populates existing_by_name
+        for an unrelated reason can't silently reintroduce skip behavior a
+        caller explicitly opted out of."""
+        (tmp_path / "data.csv").write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "data.csv",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", skip_if_exists=False, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["uploaded"] == ["data.csv"]
+        assert result["skipped"] == []
+        drive_svc.files.return_value.list.assert_not_called()
 
     async def test_file_deleted_mid_loop_reported_as_failed_not_raised(self, tmp_path, monkeypatch):
         """_upload_local_file raises ValueError uncaught if the local file is

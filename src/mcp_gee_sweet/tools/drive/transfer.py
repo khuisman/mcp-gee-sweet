@@ -5,6 +5,7 @@ import io
 import logging
 import mimetypes
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -188,6 +189,33 @@ def _format_bytes_note(so_far: int, total: int | None) -> str:
     return ""
 
 
+def _should_skip_existing_upload(
+    convert_mime: tuple[str, str] | None, existing_mime_types: Iterable[str]
+) -> bool:
+    """Whether an upload can be skipped because the destination name is
+    already taken, given the mimeTypes of every existing Drive entry sharing
+    that name.
+
+    Without convert (convert_mime is None), any existing entry means skip —
+    name presence alone. With convert, only an entry already in the target
+    Workspace mimeType counts: a same-named file still in its original
+    (unconverted) format isn't the converted duplicate skip_if_exists is
+    meant to detect (#188 QA review, PR #410).
+
+    Shared by _upload_local_file's own skip_if_exists check and
+    upload_local_folder's bulk one below — previously hand-duplicated between
+    the two with no shared helper, so a future change to one (e.g.
+    case-insensitive mimeType comparison, a new _CONVERT_MIME entry) could
+    silently leave the other diverged with nothing flagging the drift (#514,
+    surfaced during PR #505's review of #411)."""
+    existing_mime_types = set(existing_mime_types)
+    if not existing_mime_types:
+        return False
+    if convert_mime is None:
+        return True
+    return convert_mime[1] in existing_mime_types
+
+
 async def _upload_local_file(
     drive_service,
     local_path: str,
@@ -245,12 +273,7 @@ async def _upload_local_file(
             drive_service,
         )
         hits = existing.get("files", [])
-        # When converting, a name-only match isn't good enough — an existing file
-        # with the same name but the *raw* (unconverted) mimeType isn't actually
-        # the converted duplicate skip_if_exists is meant to detect (#188 QA review,
-        # PR #410). Only skip if it's already in the target Workspace format;
-        # otherwise fall through and upload/convert normally.
-        if hits and (convert_mime is None or hits[0].get("mimeType") == convert_mime[1]):
+        if _should_skip_existing_upload(convert_mime, (h.get("mimeType", "") for h in hits)):
             logger.debug("Skipping upload — %s already exists as %s", file_name, hits[0]["id"])
             return {
                 "fileId": hits[0]["id"],
@@ -1706,6 +1729,13 @@ def register(tool):
         failed: list[dict[str, str]] = []
         any_created = False
 
+        # dict[str, set[str]], not a single mimeType per name — Drive allows more
+        # than one file to share a name, and collapsing to one (the previous
+        # shape) meant an already-converted duplicate could be masked by an
+        # unrelated same-named raw file's mimeType winning the dict slot
+        # depending on response ordering, silently reconverting or skipping the
+        # wrong thing (#514, surfaced during PR #505's review of #411).
+        existing_by_name: dict[str, set[str]] = {}
         if skip_if_exists and candidates:
             # fields includes mimeType (not just name) so the convert=True case below
             # can tell an already-converted duplicate apart from a same-named file
@@ -1724,31 +1754,38 @@ def register(tool):
                 .execute,
                 drive_service,
             )
-            existing_by_name = {
-                f["name"]: f.get("mimeType") for f in existing_resp.get("files", [])
-            }
-        else:
-            existing_by_name = {}
+            for f in existing_resp.get("files", []):
+                existing_by_name.setdefault(f["name"], set()).add(f.get("mimeType", ""))
 
         for p in sorted(candidates):
-            if convert:
-                target_mime = _CONVERT_MIME.get(p.suffix.lower())
-                # Drive's native import-conversion strips the source extension from
-                # some converted types' display name (confirmed live for CSV,
-                # TC-D215/TC-D243) but keeps it for others (.md, TC-D240) — check
-                # both the original name and the extension-stripped stem
-                # independently so either naming behavior, or both existing at
-                # once (a raw duplicate alongside an already-converted one), is
-                # recognized correctly (PR #505 review, issue #411).
-                if target_mime is not None and (
-                    existing_by_name.get(p.name) == target_mime[1]
-                    or existing_by_name.get(p.stem) == target_mime[1]
-                ):
+            # Gated explicitly on skip_if_exists here, rather than relying on
+            # existing_by_name being empty when it's False — a future change
+            # that populates existing_by_name for an unrelated reason (e.g.
+            # always fetching it for logging) would otherwise silently
+            # re-enable skip behavior even when a caller explicitly passed
+            # skip_if_exists=False (#514).
+            if skip_if_exists:
+                if convert:
+                    target_mime = _CONVERT_MIME.get(p.suffix.lower())
+                    # Drive's native import-conversion strips the source extension
+                    # from some converted types' display name (confirmed live for
+                    # CSV, TC-D215/TC-D243) but keeps it for others (.md,
+                    # TC-D240) — check both the original name and the
+                    # extension-stripped stem independently so either naming
+                    # behavior, or both existing at once (a raw duplicate
+                    # alongside an already-converted one), is recognized
+                    # correctly (PR #505 review, issue #411).
+                    existing_mimes = existing_by_name.get(p.name, set()) | existing_by_name.get(
+                        p.stem, set()
+                    )
+                    if target_mime is not None and _should_skip_existing_upload(
+                        target_mime, existing_mimes
+                    ):
+                        skipped.append(p.name)
+                        continue
+                elif p.name in existing_by_name:
                     skipped.append(p.name)
                     continue
-            elif p.name in existing_by_name:
-                skipped.append(p.name)
-                continue
 
             # skip_if_exists=False here — existence was already decided above from the
             # single bulk list() call, so _upload_local_file doesn't need its own
