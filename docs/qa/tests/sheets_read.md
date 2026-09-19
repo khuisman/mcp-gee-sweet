@@ -154,11 +154,13 @@ Formatted A1:Z23 on scratch sheet; get_sheet_data(grid) returned 428,765-char re
 
 ### TC-R04: Non-existent sheet name
 
+**Background:** The 2026-09-04 result below found this call leaked a raw `HttpError` instead of the `{"error": ...}` shape every other validation failure in these tools returns — this is `get_sheet_data`'s own instance of the broader gap tracked as issue #757 (no local validation on the raw range string handed to the Sheets values API). Fixed by wrapping this call site (and its `include_grid_data=True` sibling — see TC-R41) in `try/except HttpError`. The Checks below describe the post-fix expected behavior; the dated Result above predates the fix.
+
 **Prompt**
 > "Get data from a sheet called 'DoesNotExist' in {SPREADSHEET_ID}"
 
 **Checks**
-- Returns a clear error — not an empty result
+- Returns `{"error": "<HttpError text, e.g. ...Unable to parse range: DoesNotExist...>"}`  — a clean `{"error": ...}` dict, not a raw exception propagating to the client
 - Error message references the sheet name or indicates it was not found
 
 **Result (2026-09-04) ✅ PASS**
@@ -206,6 +208,21 @@ A100:Z200 → values: [], no error
 
 **Result (2026-09-04) ✅ PASS**
 'Notes & Misc' resolved (spaces + &); 2 rows; date cell computed
+
+---
+
+### TC-R41: Malformed range with include_grid_data=True returns a clean error (issue #757)
+
+**Background:** TC-R04 covers this same defect class on `get_sheet_data`'s non-grid (`values().get()`) call site. The `include_grid_data=True` path uses a separate call (`spreadsheets().get(..., includeGridData=True)`) and had the identical gap — no local validation on the raw caller-supplied `range` string, so a malformed one reached the client as an uncaught `HttpError`. Fixed in the same PR, same `try/except HttpError` pattern.
+
+**Prompt**
+> "Get data from the Sales sheet of {SPREADSHEET_ID}, range '!!!BadRange!!!', with include_grid_data=True"
+
+**Checks**
+- Returns `{"error": "<HttpError text>"}` — not a raw exception
+- No response-size-cap check runs (the call fails before the grid data is ever fetched)
+
+**Cleanup:** none — no write occurred.
 
 ---
 
@@ -265,6 +282,20 @@ A2 → "=TODAY()"; B2 → "Setup complete" literal
 
 **Result (2026-09-04) ✅ PASS**
 No range → all 6 rows, row 6 formula strings; matches TC-R08
+
+---
+
+### TC-R42: Malformed range returns a clean error, not a raw exception (issue #757)
+
+**Background:** `get_sheet_formulas` had the same gap as TC-R04/TC-R41 — no local validation on the raw caller-supplied `range` string before handing it to `values().get(..., valueRenderOption="FORMULA")`.
+
+**Prompt**
+> "Get formulas from the Sales sheet of {SPREADSHEET_ID}, range '!!!BadRange!!!'"
+
+**Checks**
+- Returns `{"error": "<HttpError text>"}` — not a raw exception propagating to the client
+
+**Cleanup:** none — no write occurred.
 
 ---
 

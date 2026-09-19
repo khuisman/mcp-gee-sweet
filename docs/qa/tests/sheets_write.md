@@ -72,11 +72,13 @@ A7→"CacheTest" then summary shows "CacheTest" in first_rows — cache invalida
 
 ### TC-W05: Non-existent sheet name
 
+**Background:** The 2026-09-04 result below found `update_cells`' plain-only branch leaked a raw `HttpError` instead of the `{"error": ...}` shape every other validation failure in these tools returns — this is `update_cells`' own instance of issue #757 (no local validation on the raw range string handed to the plain-cells `values().update()` call). Fixed via `try/except HttpError` around that call — see TC-W41 for the sibling `clear_values` fix. The Checks below describe the post-fix expected behavior; the dated Result above predates the fix.
+
 **Prompt**
 > "Write 'Hello' into cell A1 of a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"
 
 **Checks**
-- Returns a clear API error
+- Returns `{"error": "<HttpError text, e.g. ...Unable to parse range: NoSuchSheet!A1...>"}` — a clean `{"error": ...}` dict, not a raw exception
 - Does not silently succeed or create the sheet
 
 **Result (2026-09-04) ✅ PASS**
@@ -632,4 +634,19 @@ clear B2:D4 of 'Notes & Misc' → clearedRange "'Notes & Misc'!B2:D4" (sheet nam
 
 **Result (2026-09-04) ✅ PASS**
 clear Z100:Z200 of Sales → {"clearedRange":"Sales!Z100:Z200"} — out-of-bounds accepted, no error
+
+---
+
+### TC-W41: Malformed range returns a clean error, not a raw exception (issue #757)
+
+**Background:** `clear_values` had the same gap as TC-W05 — no local validation on the raw caller-supplied `range` string before handing it to `values().clear()`.
+
+**Prompt**
+> "Clear cells '!!!BadRange!!!' from the Sales sheet in {SPREADSHEET_ID}"
+
+**Checks**
+- Returns `{"error": "<HttpError text>"}` — not a raw exception propagating to the client
+- No values are cleared (call fails before the API mutates anything)
+
+**Cleanup:** none — no write occurred.
 

@@ -1,6 +1,7 @@
 import logging
 from typing import Any
 
+from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
@@ -133,12 +134,23 @@ def register(tool):
         full_range = f"{quoted}!{range}" if range else quoted
 
         if include_grid_data:
-            result = await execute_in_thread(
-                sheets_service.spreadsheets()
-                .get(spreadsheetId=spreadsheet_id, ranges=[full_range], includeGridData=True)
-                .execute,
-                sheets_service,
-            )
+            try:
+                result = await execute_in_thread(
+                    sheets_service.spreadsheets()
+                    .get(spreadsheetId=spreadsheet_id, ranges=[full_range], includeGridData=True)
+                    .execute,
+                    sheets_service,
+                )
+            except HttpError as e:
+                # `range` here is a raw caller-supplied A1/R1C1/named-range string handed
+                # straight to the API with no local validation (unlike the tools that call
+                # _parse_a1_notation_or_error, which would reject a malformed range before
+                # ever reaching here — pre-validating here too would incorrectly reject a
+                # named range, which this parameter also legitimately accepts) — a malformed
+                # value otherwise reaches the caller as a raw HttpError instead of the
+                # {"error": ...} shape every other validation failure in these tools returns
+                # (issue #757).
+                return {"error": str(e)}
             # Cell count doesn't predict response size — a blank padded range costs almost
             # nothing, a densely formatted one can blow past a client's size limit even at a
             # modest cell count (issue #235). Check the real serialized size, not an estimate.
@@ -151,13 +163,17 @@ def register(tool):
                     "connection. Narrow the range, or ",
                 )
         else:
-            values_result = await execute_in_thread(
-                sheets_service.spreadsheets()
-                .values()
-                .get(spreadsheetId=spreadsheet_id, range=full_range)
-                .execute,
-                sheets_service,
-            )
+            try:
+                values_result = await execute_in_thread(
+                    sheets_service.spreadsheets()
+                    .values()
+                    .get(spreadsheetId=spreadsheet_id, range=full_range)
+                    .execute,
+                    sheets_service,
+                )
+            except HttpError as e:
+                # See the include_grid_data branch's comment above (issue #757).
+                return {"error": str(e)}
             result = {
                 "spreadsheetId": spreadsheet_id,
                 "valueRanges": [{"range": full_range, "values": values_result.get("values", [])}],
@@ -180,7 +196,7 @@ def register(tool):
     @tool(annotations=ToolAnnotations(title="Get Sheet Formulas", readOnlyHint=True))
     async def get_sheet_formulas(
         spreadsheet_id: str, sheet: str, range: str | None = None, ctx: Context = None
-    ) -> list[list[Any]]:
+    ) -> list[list[Any]] | dict[str, Any]:
         """
         Get formulas from a specific sheet in a Google Spreadsheet.
 
@@ -190,20 +206,25 @@ def register(tool):
             range: Optional cell range in A1 notation (e.g., 'A1:C10'). If not provided, gets all formulas from the sheet.
 
         Returns:
-            A 2D array of the sheet formulas.
+            A 2D array of the sheet formulas, or {"error": ...} if the range is
+            rejected by the Sheets API (issue #757).
         """
         sheets_service = ctx.request_context.lifespan_context.sheets_service
 
         quoted = _quote_sheet_name(sheet)
         full_range = f"{quoted}!{range}" if range else quoted
 
-        result = await execute_in_thread(
-            sheets_service.spreadsheets()
-            .values()
-            .get(spreadsheetId=spreadsheet_id, range=full_range, valueRenderOption="FORMULA")
-            .execute,
-            sheets_service,
-        )
+        try:
+            result = await execute_in_thread(
+                sheets_service.spreadsheets()
+                .values()
+                .get(spreadsheetId=spreadsheet_id, range=full_range, valueRenderOption="FORMULA")
+                .execute,
+                sheets_service,
+            )
+        except HttpError as e:
+            # See get_sheet_data's include_grid_data branch comment (issue #757).
+            return {"error": str(e)}
 
         return result.get("values", [])
 
@@ -641,13 +662,17 @@ def register(tool):
         quoted = _quote_sheet_name(sheet)
         full_range = f"{quoted}!{range}" if range else quoted
 
-        return await execute_in_thread(
-            lc.sheets_service.spreadsheets()
-            .values()
-            .clear(spreadsheetId=spreadsheet_id, range=full_range, body={})
-            .execute,
-            lc.sheets_service,
-        )
+        try:
+            return await execute_in_thread(
+                lc.sheets_service.spreadsheets()
+                .values()
+                .clear(spreadsheetId=spreadsheet_id, range=full_range, body={})
+                .execute,
+                lc.sheets_service,
+            )
+        except HttpError as e:
+            # See get_sheet_data's include_grid_data branch comment (issue #757).
+            return {"error": str(e)}
 
     @tool(annotations=ToolAnnotations(title="Update Cells", destructiveHint=True))
     async def update_cells(
@@ -708,8 +733,8 @@ def register(tool):
         # both key off the same `range` string, and rich_text_cells being
         # truthy is exactly the condition under which either branch needs it
         # (the plain-only fast path below never parses range locally at all,
-        # relying on the Sheets API's own range validation instead — see #757
-        # for that separate, broader gap).
+        # relying on the Sheets API's own range validation instead, caught by
+        # the try/except HttpError around that branch's own call — issue #757).
         indices: dict[str, int] | None = None
         if rich_text_cells:
             error, indices = _parse_a1_notation_or_error(range)
@@ -719,18 +744,22 @@ def register(tool):
         if plain_cells and not rich_text_cells:
             # Plain-only: write the whole rectangle in one call, same as before
             # rich-text cells existed.
-            result["values_update"] = await execute_in_thread(
-                sheets_service.spreadsheets()
-                .values()
-                .update(
-                    spreadsheetId=spreadsheet_id,
-                    range=f"{_quote_sheet_name(sheet)}!{range}",
-                    valueInputOption="USER_ENTERED",
-                    body={"values": data},
+            try:
+                result["values_update"] = await execute_in_thread(
+                    sheets_service.spreadsheets()
+                    .values()
+                    .update(
+                        spreadsheetId=spreadsheet_id,
+                        range=f"{_quote_sheet_name(sheet)}!{range}",
+                        valueInputOption="USER_ENTERED",
+                        body={"values": data},
+                    )
+                    .execute,
+                    sheets_service,
                 )
-                .execute,
-                sheets_service,
-            )
+            except HttpError as e:
+                # See get_sheet_data's include_grid_data branch comment (issue #757).
+                return {"error": str(e)}
             lc.sheet_data_cache.mark_dirty(spreadsheet_id)
         elif plain_cells:
             # Mixed call: write only the actual plain-cell positions, addressed
