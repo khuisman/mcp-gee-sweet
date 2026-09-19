@@ -120,10 +120,13 @@ def _is_workspace_entry(f: dict) -> bool:
     Computed on demand rather than cached onto drive_map, for the same reason
     _is_converted_md_entry is (#421 finding #6, #424) — _sync_level's own
     drive_map-build loop and its two nested execution closures (_run_one's
-    both-sides and download branches) each independently recomputed this same
-    `.startswith(...)` check inline (#474); centralizing it here gives all
-    three exactly one place to agree with, without reintroducing a synthetic
-    key on drive_map's entries."""
+    both-sides and download branches), plus export_file/download_file's own
+    fetched-metadata dicts and download_folder's own files().list() results,
+    each independently recomputed this same `.startswith(...)` check inline
+    (#474, extended to the latter three during QA on PR #765); centralizing
+    it here gives all six exactly one place to agree with, without
+    reintroducing a synthetic key on drive_map's entries. Works against any
+    dict carrying Drive's own "mimeType" field, not just a drive_map entry."""
     return f["mimeType"].startswith("application/vnd.google-apps.")
 
 
@@ -1332,7 +1335,7 @@ def register(tool):
             drive_service,
         )
         file_mime = metadata.get("mimeType", "")
-        is_google_workspace = file_mime.startswith("application/vnd.google-apps.")
+        is_google_workspace = _is_workspace_entry(metadata)
 
         if export_format == "raw" or not is_google_workspace:
 
@@ -1827,8 +1830,7 @@ def register(tool):
             drive_service,
         )
         drive_name = metadata["name"]
-        file_mime = metadata.get("mimeType", "")
-        is_workspace = file_mime.startswith("application/vnd.google-apps.")
+        is_workspace = _is_workspace_entry(metadata)
 
         dest = Path(local_path)
 
@@ -1987,7 +1989,7 @@ def register(tool):
                 skipped.append(fname)
                 continue
 
-            is_workspace = fmime.startswith("application/vnd.google-apps.")
+            is_workspace = _is_workspace_entry(f)
 
             if is_workspace and not export_format:
                 skipped.append(fname)
