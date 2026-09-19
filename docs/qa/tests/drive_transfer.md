@@ -436,6 +436,23 @@ Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
 
 ---
 
+### TC-D262: convert=True — two Drive files sharing the exact same name don't hide each other's classification (#514) ⚠️ local-filesystem
+**Background:** Drive allows more than one file to share a literal name. `upload_local_folder`'s bulk existence check used to key `existing_by_name` by name with one mimeType value per key — when two Drive entries shared a name (e.g. an unrelated Google Sheet that happens to also be named `dup.csv`, alongside the raw `dup.csv` this tool itself uploaded), whichever entry the `files().list()` response happened to return last silently won the dict slot, so the correct classification could be masked depending on response ordering (#514, surfaced during PR #505's review of #411). Distinct from TC-D242/TC-D243, which cover the name-vs-stripped-stem lookup — this covers two entries sharing the identical name string.
+
+**Prompt**
+> Step 1: "Upload the directory `/tmp/qa-folder-262/` to {FOLDER_ID}" *(no convert — creates a raw `text/csv` file named `dup.csv`)*
+> Step 2: "Create a new Google Sheet named `dup.csv` directly in {FOLDER_ID}" *(not via upload — simulates an unrelated Sheet that happens to share the raw file's exact name)*
+> Step 3: "Upload the directory `/tmp/qa-folder-262/` to {FOLDER_ID} with convert set to true"
+
+**Checks**
+- Step 3's `dup.csv` appears in `skipped`, not `uploaded` — the Sheet from step 2 already satisfies the converted-duplicate check even though a second, unconverted `dup.csv` also shares its name
+- `list_files` on `{FOLDER_ID}` still shows exactly 2 files named `dup.csv` (the raw one from step 1, the Sheet from step 2) — no third file created by step 3
+
+**Teardown**
+Delete both `dup.csv` files from `{FOLDER_ID}`. Remove `/tmp/qa-folder-262/`.
+
+---
+
 ## `download_file`
 
 ### TC-D101: Download a non-Google file ⚠️ local-filesystem
