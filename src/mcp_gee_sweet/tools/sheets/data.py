@@ -1,6 +1,7 @@
 import logging
 from typing import Any
 
+from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
@@ -17,6 +18,21 @@ from .helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def _execute_or_error(func, service) -> tuple[dict[str, Any] | None, Any]:
+    """Runs execute_in_thread(func, service) and returns (error, result): a clean
+    {"error": ...} dict on HttpError instead of letting it propagate uncaught, or
+    (None, result) on success — matching this codebase's established error-or-None
+    convention (_parse_a1_notation_or_error, _grid_range_or_error) instead of
+    duplicating try/except HttpError at every call site in this file that hands a
+    raw caller-supplied range/request straight to the Sheets API with no local
+    validation (issue #757)."""
+    try:
+        return None, await execute_in_thread(func, service)
+    except HttpError as e:
+        return {"error": str(e)}, None
+
 
 # Cell count turned out not to predict response size at all: a live test found a
 # 26,000-cell *blank* range (a fresh sheet's default 1000x26 padding) returns almost
@@ -113,16 +129,26 @@ def register(tool):
 
         quoted = _quote_sheet_name(sheet)
 
+        # `range`/`quoted` below are raw caller-supplied strings (A1/R1C1/named-range —
+        # unlike the tools that call _parse_a1_notation_or_error, pre-validating here
+        # would incorrectly reject a named range, which this parameter also legitimately
+        # accepts) handed straight to the API with no local validation, so every call
+        # below goes through _execute_or_error rather than execute_in_thread directly —
+        # a malformed value (or a nonexistent `sheet`) otherwise reaches the caller as a
+        # raw HttpError instead of the {"error": ...} shape every other validation
+        # failure in these tools returns (issue #757).
         if include_grid_data and not range:
             # Auto-detect the used range so we don't fetch formatting for the sheet's full
             # padded grid (often 1000x26 by default, regardless of actual content) — issue #235.
-            values_result = await execute_in_thread(
+            error, values_result = await _execute_or_error(
                 sheets_service.spreadsheets()
                 .values()
                 .get(spreadsheetId=spreadsheet_id, range=quoted)
                 .execute,
                 sheets_service,
             )
+            if error:
+                return error
             values = values_result.get("values", [])
             if values:
                 last_col_index = max(len(row) for row in values) - 1
@@ -133,12 +159,14 @@ def register(tool):
         full_range = f"{quoted}!{range}" if range else quoted
 
         if include_grid_data:
-            result = await execute_in_thread(
+            error, result = await _execute_or_error(
                 sheets_service.spreadsheets()
                 .get(spreadsheetId=spreadsheet_id, ranges=[full_range], includeGridData=True)
                 .execute,
                 sheets_service,
             )
+            if error:
+                return error
             # Cell count doesn't predict response size — a blank padded range costs almost
             # nothing, a densely formatted one can blow past a client's size limit even at a
             # modest cell count (issue #235). Check the real serialized size, not an estimate.
@@ -151,13 +179,15 @@ def register(tool):
                     "connection. Narrow the range, or ",
                 )
         else:
-            values_result = await execute_in_thread(
+            error, values_result = await _execute_or_error(
                 sheets_service.spreadsheets()
                 .values()
                 .get(spreadsheetId=spreadsheet_id, range=full_range)
                 .execute,
                 sheets_service,
             )
+            if error:
+                return error
             result = {
                 "spreadsheetId": spreadsheet_id,
                 "valueRanges": [{"range": full_range, "values": values_result.get("values", [])}],
@@ -180,7 +210,7 @@ def register(tool):
     @tool(annotations=ToolAnnotations(title="Get Sheet Formulas", readOnlyHint=True))
     async def get_sheet_formulas(
         spreadsheet_id: str, sheet: str, range: str | None = None, ctx: Context = None
-    ) -> list[list[Any]]:
+    ) -> list[list[Any]] | dict[str, Any]:
         """
         Get formulas from a specific sheet in a Google Spreadsheet.
 
@@ -190,20 +220,23 @@ def register(tool):
             range: Optional cell range in A1 notation (e.g., 'A1:C10'). If not provided, gets all formulas from the sheet.
 
         Returns:
-            A 2D array of the sheet formulas.
+            A 2D array of the sheet formulas, or {"error": ...} if the range is
+            rejected by the Sheets API (issue #757).
         """
         sheets_service = ctx.request_context.lifespan_context.sheets_service
 
         quoted = _quote_sheet_name(sheet)
         full_range = f"{quoted}!{range}" if range else quoted
 
-        result = await execute_in_thread(
+        error, result = await _execute_or_error(
             sheets_service.spreadsheets()
             .values()
             .get(spreadsheetId=spreadsheet_id, range=full_range, valueRenderOption="FORMULA")
             .execute,
             sheets_service,
         )
+        if error:
+            return error
 
         return result.get("values", [])
 
@@ -641,13 +674,16 @@ def register(tool):
         quoted = _quote_sheet_name(sheet)
         full_range = f"{quoted}!{range}" if range else quoted
 
-        return await execute_in_thread(
+        error, result = await _execute_or_error(
             lc.sheets_service.spreadsheets()
             .values()
             .clear(spreadsheetId=spreadsheet_id, range=full_range, body={})
             .execute,
             lc.sheets_service,
         )
+        if error:
+            return error
+        return result
 
     @tool(annotations=ToolAnnotations(title="Update Cells", destructiveHint=True))
     async def update_cells(
@@ -708,8 +744,13 @@ def register(tool):
         # both key off the same `range` string, and rich_text_cells being
         # truthy is exactly the condition under which either branch needs it
         # (the plain-only fast path below never parses range locally at all,
-        # relying on the Sheets API's own range validation instead — see #757
-        # for that separate, broader gap).
+        # relying on the Sheets API's own range validation instead, caught by
+        # _execute_or_error around that branch's own call — issue #757). Note
+        # _parse_a1_notation_or_error only checks A1 *syntax* — it can't validate
+        # against the sheet's real grid bounds, so the two batchUpdate calls below
+        # (mixed-cells and rich-text) can still hit an out-of-bounds HttpError from
+        # the API itself and also go through _execute_or_error, same as every other
+        # raw Sheets API call in this file.
         indices: dict[str, int] | None = None
         if rich_text_cells:
             error, indices = _parse_a1_notation_or_error(range)
@@ -719,7 +760,7 @@ def register(tool):
         if plain_cells and not rich_text_cells:
             # Plain-only: write the whole rectangle in one call, same as before
             # rich-text cells existed.
-            result["values_update"] = await execute_in_thread(
+            error, values_update = await _execute_or_error(
                 sheets_service.spreadsheets()
                 .values()
                 .update(
@@ -731,6 +772,9 @@ def register(tool):
                 .execute,
                 sheets_service,
             )
+            if error:
+                return error
+            result["values_update"] = values_update
             lc.sheet_data_cache.mark_dirty(spreadsheet_id)
         elif plain_cells:
             # Mixed call: write only the actual plain-cell positions, addressed
@@ -741,6 +785,13 @@ def register(tool):
             # restored and the rich-text cells' prior content was lost for good.
             # Per-cell targeting means the two calls never touch each other's
             # cells, so either one failing can't corrupt the other's data.
+            #
+            # A failure here is stored under "values_update" (as an {"error": ...}
+            # dict) rather than returned immediately, and the rich-text branch below
+            # still runs — the two calls are independent per the same rationale, so
+            # one failing shouldn't silently drop the chance for the other to still
+            # succeed, and neither result should be silently dropped either way
+            # (this tool's own documented return-shape contract).
             start_row = indices.get("startRowIndex", 0)
             start_col = indices.get("startColumnIndex", 0)
             plain_data = [
@@ -751,7 +802,7 @@ def register(tool):
                 }
                 for row_idx, col_idx, cell in plain_cells
             ]
-            result["values_update"] = await execute_in_thread(
+            error, values_update = await _execute_or_error(
                 sheets_service.spreadsheets()
                 .values()
                 .batchUpdate(
@@ -761,7 +812,11 @@ def register(tool):
                 .execute,
                 sheets_service,
             )
-            lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+            if error:
+                result["values_update"] = error
+            else:
+                result["values_update"] = values_update
+                lc.sheet_data_cache.mark_dirty(spreadsheet_id)
 
         if rich_text_cells:
             sheet_id = await _get_sheet_id(
@@ -791,13 +846,17 @@ def register(tool):
                 for row_idx, col_idx, runs in rich_text_cells
             ]
 
-            result["rich_text_update"] = await execute_in_thread(
+            error, rich_text_update = await _execute_or_error(
                 sheets_service.spreadsheets()
                 .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
                 .execute,
                 sheets_service,
             )
-            lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+            if error:
+                result["rich_text_update"] = error
+            else:
+                result["rich_text_update"] = rich_text_update
+                lc.sheet_data_cache.mark_dirty(spreadsheet_id)
 
         if len(result) == 1:
             return next(iter(result.values()))
@@ -835,7 +894,10 @@ def register(tool):
             for range_str, values in ranges.items()
         ]
 
-        result = await execute_in_thread(
+        # `ranges`' keys are raw caller-supplied range strings handed straight to the
+        # API with no local validation — see the module-level _execute_or_error
+        # docstring (issue #757).
+        error, result = await _execute_or_error(
             sheets_service.spreadsheets()
             .values()
             .batchUpdate(
@@ -845,6 +907,8 @@ def register(tool):
             .execute,
             sheets_service,
         )
+        if error:
+            return error
 
         lc.sheet_data_cache.mark_dirty(spreadsheet_id)
 

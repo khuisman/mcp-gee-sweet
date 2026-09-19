@@ -4,9 +4,22 @@ import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.sheets import data as sheets_data_module
+
+
+def _bad_range_http_error():
+    """A raw 400 the Sheets API returns for a malformed range string, e.g. an
+    out-of-bounds or syntactically invalid A1 range (issue #757)."""
+    resp = MagicMock()
+    resp.status = 400
+    return HttpError(
+        resp=resp,
+        content=b'{"error": {"message": "Unable to parse range: Sheet1!ZZZZ9999999999999", '
+        b'"status": "INVALID_ARGUMENT"}}',
+    )
 
 
 def _make_tool_registry():
@@ -216,6 +229,84 @@ class TestGetSheetData:
         )
         call_kwargs = svc.spreadsheets.return_value.values.return_value.get.call_args.kwargs
         assert call_kwargs["range"] == "Sheet1!A1:B1"
+
+    async def test_malformed_range_returns_error_without_grid_data(self):
+        # No local range validation on this raw caller-supplied string (issue #757) —
+        # the Sheets API rejects it and the raw HttpError must not leak uncaught.
+        svc = self._service()
+        svc.spreadsheets.return_value.values.return_value.get.return_value.execute.side_effect = (
+            _bad_range_http_error()
+        )
+        ctx = _make_ctx(sheets_service=svc)
+        result = await _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="ZZZZ9999999999999", ctx=ctx
+        )
+        assert "error" in result
+        assert "Unable to parse range" in result["error"]
+
+    async def test_malformed_range_returns_error_with_grid_data(self):
+        svc = self._service()
+        svc.spreadsheets.return_value.get.return_value.execute.side_effect = _bad_range_http_error()
+        ctx = _make_ctx(sheets_service=svc)
+        result = await _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="ZZZZ9999999999999",
+            include_grid_data=True,
+            ctx=ctx,
+        )
+        assert "error" in result
+        assert "Unable to parse range" in result["error"]
+
+    async def test_malformed_sheet_name_returns_error_during_auto_detect(self):
+        # The auto-detect-used-range probe (include_grid_data=True, no range) makes
+        # its own values().get() call before either of the two branches above ever
+        # run — a bad `sheet` name still reaches the Sheets API raw through this call
+        # (issue #757 QA round 1: missed on the first pass of this fix).
+        svc = self._service()
+        svc.spreadsheets.return_value.values.return_value.get.return_value.execute.side_effect = (
+            _bad_range_http_error()
+        )
+        ctx = _make_ctx(sheets_service=svc)
+        result = await _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1", sheet="DoesNotExist", include_grid_data=True, ctx=ctx
+        )
+        assert "error" in result
+        assert "Unable to parse range" in result["error"]
+        svc.spreadsheets.return_value.get.assert_not_called()
+
+
+class TestGetSheetFormulas:
+    def _service(self, values=None):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.values.return_value.get.return_value.execute.return_value = {
+            "values": values or []
+        }
+        return mock
+
+    async def test_returns_values_from_formula_render_option(self):
+        svc = self._service(values=[["=SUM(A1:A2)"]])
+        ctx = _make_ctx(sheets_service=svc)
+        result = await _data_tools["get_sheet_formulas"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", ctx=ctx
+        )
+        assert result == [["=SUM(A1:A2)"]]
+        call_kwargs = svc.spreadsheets.return_value.values.return_value.get.call_args.kwargs
+        assert call_kwargs["valueRenderOption"] == "FORMULA"
+        assert call_kwargs["range"] == "Sheet1!A1"
+
+    async def test_malformed_range_returns_error_not_raw_exception(self):
+        # No local range validation on this raw caller-supplied string (issue #757).
+        svc = self._service()
+        svc.spreadsheets.return_value.values.return_value.get.return_value.execute.side_effect = (
+            _bad_range_http_error()
+        )
+        ctx = _make_ctx(sheets_service=svc)
+        result = await _data_tools["get_sheet_formulas"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="ZZZZ9999999999999", ctx=ctx
+        )
+        assert "error" in result
+        assert "Unable to parse range" in result["error"]
 
 
 class TestGetMultipleSheetData:
@@ -561,6 +652,44 @@ class TestBatchUpdate:
         mock_data_cache.mark_dirty.assert_called_once_with("abc123")
 
 
+class TestBatchUpdateCells:
+    def _service(self, batch_result=None):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.values.return_value.batchUpdate.return_value.execute.return_value = (
+            batch_result or {"totalUpdatedCells": 2}
+        )
+        return mock
+
+    async def test_writes_multiple_ranges_in_one_call(self):
+        svc = self._service()
+        ctx = _make_ctx(sheets_service=svc, sheet_data_cache=MagicMock())
+        result = await _data_tools["batch_update_cells"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            ranges={"A1:B2": [[1, 2], [3, 4]]},
+            ctx=ctx,
+        )
+        assert result == {"totalUpdatedCells": 2}
+        body = svc.spreadsheets.return_value.values.return_value.batchUpdate.call_args.kwargs[
+            "body"
+        ]
+        assert body["data"] == [{"range": "Sheet1!A1:B2", "values": [[1, 2], [3, 4]]}]
+
+    async def test_malformed_range_key_returns_error_not_raw_exception(self):
+        # No local validation on these raw caller-supplied range-dict keys (issue #757).
+        svc = self._service()
+        svc.spreadsheets.return_value.values.return_value.batchUpdate.return_value.execute.side_effect = _bad_range_http_error()
+        ctx = _make_ctx(sheets_service=svc, sheet_data_cache=MagicMock())
+        result = await _data_tools["batch_update_cells"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            ranges={"ZZZZ9999999999999": [[1]]},
+            ctx=ctx,
+        )
+        assert "error" in result
+        assert "Unable to parse range" in result["error"]
+
+
 class TestUpdateCells:
     """Rich-text cells (issue #89): a cell value that's a list of
     {"text", "hyperlink"} run dicts builds a textFormatRuns updateCells request
@@ -754,6 +883,80 @@ class TestUpdateCells:
         )
         assert result == {"error": "Sheet 'Missing' not found"}
 
+    async def test_plain_only_malformed_range_returns_error_not_raw_exception(self):
+        # The plain-only fast path never locally validates `range` (issue #757) —
+        # relies entirely on the Sheets API's own rejection, which must not leak
+        # uncaught.
+        svc = self._service()
+        svc.spreadsheets.return_value.values.return_value.update.return_value.execute.side_effect = _bad_range_http_error()
+        ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
+        result = await _data_tools["update_cells"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="ZZZZ9999999999999",
+            data=[["a"]],
+            ctx=ctx,
+        )
+        assert "error" in result
+        assert "Unable to parse range" in result["error"]
+
+    async def test_rich_text_only_updatecells_httperror_returns_error(self):
+        # updateCells doesn't auto-expand the grid the way values API calls do —
+        # _parse_a1_notation_or_error only validates A1 *syntax*, not real grid
+        # bounds, so an out-of-bounds index still reaches the API raw (issue #757).
+        svc = self._service(sheet_id=42)
+        svc.spreadsheets.return_value.batchUpdate.return_value.execute.side_effect = (
+            _bad_range_http_error()
+        )
+        ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
+        runs = [{"text": "x"}]
+        result = await _data_tools["update_cells"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", data=[[runs]], ctx=ctx
+        )
+        assert "error" in result
+        assert "Unable to parse range" in result["error"]
+
+    async def test_mixed_cells_rich_text_httperror_preserves_plain_success(self):
+        # A mixed call makes two independent API calls (issue #380) — one failing
+        # must not silently drop the other's already-successful result (issue #757
+        # QA round 1: a naive "return error immediately" fix would have done exactly
+        # that for this branch specifically).
+        svc = self._service(sheet_id=42)
+        svc.spreadsheets.return_value.batchUpdate.return_value.execute.side_effect = (
+            _bad_range_http_error()
+        )
+        ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
+        runs = [{"text": "link", "hyperlink": "https://example.com"}]
+        result = await _data_tools["update_cells"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:B1",
+            data=[["plain", runs]],
+            ctx=ctx,
+        )
+        assert result["values_update"] == {"totalUpdatedCells": 1}
+        assert "error" in result["rich_text_update"]
+        assert "Unable to parse range" in result["rich_text_update"]["error"]
+
+    async def test_mixed_cells_plain_httperror_still_attempts_rich_text(self):
+        # The inverse of the case above — the plain-cell batchUpdate failing must
+        # not skip the independent rich-text write.
+        svc = self._service(sheet_id=42)
+        svc.spreadsheets.return_value.values.return_value.batchUpdate.return_value.execute.side_effect = _bad_range_http_error()
+        ctx = _make_ctx(sheets_service=svc, cache=None, sheet_data_cache=MagicMock())
+        runs = [{"text": "link", "hyperlink": "https://example.com"}]
+        result = await _data_tools["update_cells"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1:B1",
+            data=[["plain", runs]],
+            ctx=ctx,
+        )
+        assert "error" in result["values_update"]
+        assert "Unable to parse range" in result["values_update"]["error"]
+        assert result["rich_text_update"] == {"replies": [{}]}
+        svc.spreadsheets.return_value.batchUpdate.assert_called_once()
+
 
 class TestClearValues:
     def _sheets_service(self):
@@ -793,3 +996,16 @@ class TestClearValues:
         )
         kw = self._clear_call_kwargs(svc)
         assert kw["range"].startswith("'My Data'!")
+
+    async def test_malformed_range_returns_error_not_raw_exception(self):
+        # No local range validation on this raw caller-supplied string (issue #757).
+        svc = self._sheets_service()
+        svc.spreadsheets.return_value.values.return_value.clear.return_value.execute.side_effect = (
+            _bad_range_http_error()
+        )
+        ctx = _make_ctx(sheets_service=svc)
+        result = await _data_tools["clear_values"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="ZZZZ9999999999999", ctx=ctx
+        )
+        assert "error" in result
+        assert "Unable to parse range" in result["error"]
