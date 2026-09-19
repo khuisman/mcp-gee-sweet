@@ -3,12 +3,26 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 
 from ...auth import execute_in_thread
 from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Row, Run, Table
 from .indices import isolated_bullet_run_wrap_requests, utf16_len
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _PendingTable:
+    """One Table node awaiting its insertTable request, plus the two bookkeeping
+    values needed to place it — kept together in one list (#434 finding 5/7)
+    instead of three separately-appended parallel lists (tables/table_positions/
+    table_tab_offsets) indexed by a shared position, which a future edit could
+    append to only one or two of without anything enforcing equal length."""
+
+    node: Table
+    position: int  # doc index where this table starts, before tab-consumption adjustment
+    tab_offset: int  # cumulative synthetic bullet-tabs consumed ahead of it by insertTable time
 
 
 def _is_code_paragraph(node: DocNode) -> bool:
@@ -53,10 +67,22 @@ def ast_to_requests(
 ) -> tuple[list[dict], list[Table]]:
     """Convert AST nodes to phase-1 batchUpdate requests and a list of Table nodes.
 
-    Phase-1 requests cover all non-table text (one insertText), paragraph/heading styles,
-    bullets, inline link styles, and insertTable + insertInlineImage requests (applied
-    together in one descending-document-position pass, so an earlier insertion's target
-    position is never invalidated by a later one — see the combined pass below).
+    Requests are built in three ordering-sensitive stages, applied in this order:
+
+      1. Styling requests (paragraph/heading/NamedBlock styles, blockquote styling,
+         inline run styles) — these assume no position has shifted yet, since every
+         index they reference was computed against the freshly-built full_text before
+         any other request has run.
+      2. createParagraphBullets calls for BulletItem nesting (#336) — grouped into
+         one call per contiguous same-preset run and applied in descending document
+         order (see the grouping loop below). Each call consumes/removes its own
+         leading tab characters, shifting every later position backward, so this
+         stage must run after stage 1 (which assumes nothing has shifted) but before
+         stage 3 (whose own positions are pre-adjusted for exactly this shift).
+      3. A combined descending-position pass for insertTable + insertInlineImage
+         requests (#333) — both shift later positions the same way stage 2 does, so
+         they're interleaved by true final position rather than processed as two
+         separate blocks.
 
     Tables are NOT filled here. The caller must execute a second pass using fill_tables()
     after running the phase-1 batchUpdate, so that live cell indices are available.
@@ -76,14 +102,13 @@ def ast_to_requests(
     text_parts: list[str] = []
     utf16_offset = 0
     segment_meta: list[tuple] = []  # (node, doc_start, doc_end, skip_len, tabs_through)
-    tables: list[Table] = []
-    table_positions: list[int] = []  # doc index for each table
     # Nested-bullet leading tabs (see below) are consumed/removed by their own
     # createParagraphBullets call, shifting everything after them backward — including
-    # any table (or image — #333) positioned later in the doc. Track, for each table, how
-    # many such tabs will have been consumed ahead of it by the time insertTable actually
-    # runs; segment_meta's own tabs_through field does the same for images (see below).
-    table_tab_offsets: list[int] = []
+    # any table (or image — #333) positioned later in the doc. pending_tables tracks,
+    # for each table, how many such tabs will have been consumed ahead of it by the
+    # time insertTable actually runs; segment_meta's own tabs_through field does the
+    # same for images (see below).
+    pending_tables: list[_PendingTable] = []
     cumulative_tabs = 0
 
     for node in nodes:
@@ -92,20 +117,25 @@ def ast_to_requests(
             num_cols = max((sum(c.colspan for c in row.cells) for row in node.rows), default=0)
             if num_rows == 0 or num_cols == 0:
                 # No insertTable request is emitted below for a degenerate table, so it must
-                # not be added to `tables` either — fill_tables() zips this list positionally
-                # against the tables actually present in the live doc, and a table with no
-                # insertTable request never shows up there.
+                # not be added to pending_tables either — fill_tables() zips the returned
+                # tables list positionally against the tables actually present in the live
+                # doc, and a table with no insertTable request never shows up there.
                 continue
-            tables.append(node)
-            table_positions.append(start_index + utf16_offset)
-            table_tab_offsets.append(cumulative_tabs)
+            pending_tables.append(_PendingTable(node, start_index + utf16_offset, cumulative_tabs))
         else:
             doc_start = start_index + utf16_offset
             # Leading tab characters encode a bullet's nesting depth for
             # createParagraphBullets, which infers (and removes) nesting level from
             # leading tabs in each paragraph — the only mechanism the Docs API exposes
             # for setting it (#336). Consumed later by the nested-bullet pass below.
-            tabs = "\t" * node.depth if isinstance(node, BulletItem) else ""
+            # max(..., 0): an orphan <li> outside any <ul>/<ol> (html_parser.py treats
+            # "li" as an ordinary _BLOCK_TAGS entry, so this is reachable) computes
+            # depth = len(_list_ordered) - 1 = -1. Clamped here rather than left
+            # negative so it takes the same direct min_depth==0 path a normal depth-0
+            # item does below, instead of needlessly falling into the isolated-run
+            # wrap path (#434 finding 3) purely because -1 != 0.
+            depth = max(node.depth, 0) if isinstance(node, BulletItem) else 0
+            tabs = "\t" * depth if isinstance(node, BulletItem) else ""
             # Checkbox glyph prefix for task list items
             prefix = ""
             if isinstance(node, BulletItem) and node.checked is not None:
@@ -113,7 +143,21 @@ def ast_to_requests(
             # Images (#333) contribute zero characters here — they're not part of the
             # text at all, just a positional marker resolved into its own
             # insertInlineImage request below, exactly like a Table.
-            text = prefix + "".join(r.text for r in node.runs if isinstance(r, Run))
+            run_text = "".join(r.text for r in node.runs if isinstance(r, Run))
+            if isinstance(node, BulletItem) and run_text.startswith("\t"):
+                # A literal leading tab in the item's own source text (e.g.
+                # hand-formatted HTML/markdown) is indistinguishable, once
+                # concatenated with `tabs` above, from our own synthesized
+                # depth-tabs — createParagraphBullets reads *all* leading tab
+                # characters in the paragraph to infer nesting level, not just the
+                # ones this function intended as depth markers. Left un-stripped,
+                # it would nest the item one level deeper than intended AND get
+                # consumed/removed by that same call without being counted in
+                # cumulative_tabs, desyncing every later table/image position
+                # (#434 finding 1). Stripped instead of preserved, since the
+                # alternative silently corrupts nesting depth for the whole item.
+                run_text = run_text.lstrip("\t")
+            text = prefix + run_text
             # A multi-line fenced code block is one Paragraph node whose Run text
             # carries embedded "\n" line breaks (html_parser.py's <pre> handling) —
             # but the Docs API treats every "\n" in inserted text as a new paragraph
@@ -248,14 +292,18 @@ def ast_to_requests(
                 continue
             ordered = node.ordered
             j = i
-            min_depth = node.depth
+            # max(..., 0): see the matching clamp where `tabs` is built above (#434
+            # finding 3) — an orphan <li>'s node.depth of -1 must route through the
+            # same min_depth==0 path a normal depth-0 item does, not the isolated-run
+            # wrap path purely because raw -1 != 0.
+            min_depth = max(node.depth, 0)
             while (
                 j < len(segment_meta)
                 and isinstance(segment_meta[j][0], BulletItem)
                 and segment_meta[j][0].ordered == ordered
             ):
                 run_end = segment_meta[j][2]
-                min_depth = min(min_depth, segment_meta[j][0].depth)
+                min_depth = min(min_depth, max(segment_meta[j][0].depth, 0))
                 j += 1
             preset = "NUMBERED_DECIMAL_ALPHA_ROMAN" if ordered else "BULLET_DISC_CIRCLE_SQUARE"
             if min_depth == 0:
@@ -307,17 +355,18 @@ def ast_to_requests(
     # consumed ahead of it (those requests precede this combined pass in the array, so by
     # the time it runs, that many characters have already been removed from in front of
     # this table).
-    for i, table in enumerate(tables):
-        num_rows = len(table.rows)
-        num_cols = max((sum(c.colspan for c in row.cells) for row in table.rows), default=0)
+    for pending in pending_tables:
+        num_rows = len(pending.node.rows)
+        num_cols = max((sum(c.colspan for c in row.cells) for row in pending.node.rows), default=0)
+        position = pending.position - pending.tab_offset
         positional_inserts.append(
             (
-                table_positions[i] - table_tab_offsets[i],
+                position,
                 {
                     "insertTable": {
                         "rows": num_rows,
                         "columns": num_cols,
-                        "location": {"index": table_positions[i] - table_tab_offsets[i]},
+                        "location": {"index": position},
                     }
                 },
             )
@@ -332,7 +381,7 @@ def ast_to_requests(
     for _, insert_request in sorted(positional_inserts, key=lambda item: item[0], reverse=True):
         requests.append(insert_request)
 
-    return requests, tables
+    return requests, [pending.node for pending in pending_tables]
 
 
 # Left-border quote bar + per-level indent (#476). Confirmed live (scratch doc round
