@@ -1054,6 +1054,74 @@ class TestNestedBulletDepthEmitsIndentation:
         assert insert["insertText"]["text"] == "Parent\n\tChild\n"
 
 
+class TestBulletDepthEdgeCases:
+    """#434: non-blocking cleanup findings surfaced by PR #432's own code review,
+    covering two BulletItem edge cases the original nested-bullet fix didn't
+    account for."""
+
+    def test_literal_leading_tab_in_item_text_does_not_double_the_depth_tabs(self):
+        # Finding 1: a literal leading tab in the item's own source text (e.g.
+        # hand-formatted HTML/markdown) is indistinguishable, once concatenated,
+        # from the synthesized depth-tabs above it — createParagraphBullets reads
+        # every leading tab character in the paragraph to infer nesting level, not
+        # just the ones this function intended as depth markers. Left un-stripped,
+        # a depth=1 item with its own literal leading tab would read as 2 leading
+        # tabs (nested one level too deep) instead of the 1 its depth actually
+        # calls for.
+        nodes = [BulletItem(runs=[Run("\tHello")], depth=1)]
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "\tHello\n"
+
+    def test_literal_leading_tab_does_not_desync_following_table_position(self):
+        # Same finding, checked from the other side: the extra un-stripped literal
+        # tab would also get silently consumed by createParagraphBullets without
+        # being counted in cumulative_tabs, desyncing a later table's insertTable
+        # position by exactly the extra tab's own length.
+        nodes = [
+            BulletItem(runs=[Run("\tChild")], depth=1),
+            Table(rows=[Row(cells=[Cell(children=[Run("X")])])]),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        table_req = next(r for r in requests if "insertTable" in r)
+        # "\tChild\n" is 7 chars; table's raw position 1+7=8, minus the 1 synthetic
+        # tab consumed ahead of it by createParagraphBullets = 7.
+        assert insert["insertText"]["text"] == "\tChild\n"
+        assert table_req["insertTable"]["location"]["index"] == 7
+
+    def test_negative_depth_orphan_li_does_not_take_isolated_wrap_path(self):
+        # Finding 3: an orphan <li> outside any <ul>/<ol> gets depth=-1 from
+        # html_parser.py's _make_bullet_item (len(_list_ordered) - 1 with an empty
+        # stack). Clamped to 0 here so it takes the same single-call min_depth==0
+        # path a normal depth-0 item does, rather than the 3-request isolated-run
+        # wrap path purely because raw -1 != 0 — both produce the identical
+        # nestingLevel 0 result once the API sees 0 literal leading tab characters
+        # either way, so the wrap path's extra insert/delete pair buys nothing here.
+        nodes = [BulletItem(runs=[Run("Orphan")], depth=-1)]
+        requests, _ = ast_to_requests(nodes)
+        bullet_reqs = [r for r in requests if "createParagraphBullets" in r]
+        assert len(bullet_reqs) == 1
+        assert not any("deleteContentRange" in r for r in requests)
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "Orphan\n"
+
+    def test_negative_depth_orphan_li_groups_with_depth_zero_sibling(self):
+        # A negative-depth orphan immediately followed by a normal depth-0 item of
+        # the same preset must still be treated as one contiguous run at
+        # min_depth==0 — an un-clamped raw min(-1, 0) == -1 would also route this
+        # pair into the isolated wrap path even though a real depth-0 member is
+        # right there to anchor nesting level 0 the normal way.
+        nodes = [
+            BulletItem(runs=[Run("Orphan")], depth=-1),
+            BulletItem(runs=[Run("Normal")], depth=0),
+        ]
+        requests, _ = ast_to_requests(nodes)
+        bullet_reqs = [r for r in requests if "createParagraphBullets" in r]
+        assert len(bullet_reqs) == 1
+        assert not any("deleteContentRange" in r for r in requests)
+
+
 class TestIsolatedDepthRunGlyph:
     """#439: a contiguous createParagraphBullets run whose every item is at depth > 0
     (no depth-0 sibling in the same call) rendered the depth-0 glyph (disc) instead of
