@@ -788,6 +788,7 @@ class _AstParser(HTMLParser):
             # (e.g. "<span>no blocks</span>") intentionally is.
             self._block_tag = "p"
             self._block_named_style = None
+            self._block_had_unsupported_content = False
             self._run_buf.append(data)
 
     def handle_entityref(self, name):
