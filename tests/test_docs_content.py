@@ -735,6 +735,34 @@ class TestBareTopLevelText:
         texts = ["".join(r.text for r in n.runs) for n in nodes]
         assert texts == ["plain", "tagged", "trailing"]
 
+    async def test_implicit_paragraph_open_resets_unsupported_content_flag(self):
+        # #417: every other block-open path (pre, _BLOCK_TAGS, resume) resets
+        # self._block_had_unsupported_content — the implicit top-level
+        # paragraph opened for bare text (#343) didn't, leaving it stale from
+        # whatever block closed just before. A dropped <img> (no src) inside
+        # the preceding <p> sets the flag True; it must not still read True
+        # once the following bare text opens its own implicit paragraph.
+        from mcp_gee_sweet.tools.docs.html_parser import _AstParser
+
+        parser = _AstParser()
+        parser.feed("<p>Real text<img></p>Bare text")
+        assert parser._block_had_unsupported_content is False
+
+    async def test_implicit_paragraph_open_resets_resumed_flag(self):
+        # #417 round 2: the same implicit-paragraph open path fixed above
+        # also left self._block_resumed stale — a <table> interrupting an
+        # open <p> and then closing sets self._block_resumed = True via
+        # _resume_interrupted_block; the following </p> close doesn't touch
+        # the flag at all, so it's still True by the time bare top-level
+        # text opens its own implicit paragraph right after. Confirmed
+        # live against the pre-round-2 code that this reproduces (True);
+        # the shared _open_block() reset now clears it to False here too.
+        from mcp_gee_sweet.tools.docs.html_parser import _AstParser
+
+        parser = _AstParser()
+        parser.feed("<p>Before<table><tr><td>cell</td></tr></table>After</p>Bare text")
+        assert parser._block_resumed is False
+
     async def test_bare_text_after_unclosed_void_tag_still_wrapped(self):
         # Regression guard (found in PR #385's own review round): a void
         # element written without a self-closing slash (e.g. "<meta ...>",
