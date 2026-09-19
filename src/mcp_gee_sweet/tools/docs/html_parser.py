@@ -188,6 +188,27 @@ class _AstParser(HTMLParser):
         runs, self._pending_runs = self._pending_runs, []
         return runs
 
+    def _open_block(self, tag: str, *, resumed: bool, named_style: str | None):
+        """Reset every piece of per-segment block-open state together, in the
+        one place all four sites that begin buffering a block's content route
+        through: a fresh `_BLOCK_TAGS`/`pre` start tag, `_resume_interrupted_
+        block`, and the implicit top-level paragraph opened for bare text
+        (#343). Each of these six fields used to be hand-duplicated at every
+        call site — the actual root cause behind #417: `_block_had_
+        unsupported_content` was forgotten at the implicit-paragraph site in
+        round 1, then `_block_resumed` was forgotten at the very same site in
+        round 2, because nothing forced the two sites' lists to stay in sync.
+        Routing every site through this one setter makes omitting a field
+        here structurally impossible instead of relying on each call site's
+        own manual list matching the others going forward.
+        """
+        self._block_tag = tag
+        self._block_resumed = resumed
+        self._block_had_unsupported_content = False
+        self._block_named_style = named_style
+        self._run_buf = []
+        self._pending_runs = []
+
     def _make_bullet_item(self, runs: list[Run | Image]) -> BulletItem:
         ordered = self._list_ordered[-1] if self._list_ordered else False
         depth = len(self._list_ordered) - 1
@@ -436,12 +457,7 @@ class _AstParser(HTMLParser):
         self._block_stack.pop()
         if not resumes:
             return
-        self._block_tag = frame.outer_tag
-        self._block_resumed = True
-        self._block_had_unsupported_content = False
-        self._run_buf = []
-        self._pending_runs = []
-        self._block_named_style = frame.named_style
+        self._open_block(frame.outer_tag, resumed=True, named_style=frame.named_style)
 
     # ------------------------------------------------------------------
     # HTMLParser callbacks
@@ -519,27 +535,18 @@ class _AstParser(HTMLParser):
         # --- pre / code block ---
         if tag == "pre" and self._table_depth == 0:
             self._interrupt_open_block("pre")
-            self._block_tag = "pre"
-            self._block_resumed = False
-            self._block_had_unsupported_content = False
+            self._open_block("pre", resumed=False, named_style=None)
             self._in_pre = True
-            self._run_buf = []
-            self._pending_runs = []
             return
 
         # --- block elements ---
         if tag in _BLOCK_TAGS and self._table_depth == 0:
             self._interrupt_open_block(tag)
-            self._block_tag = tag
-            self._block_resumed = False
-            self._block_had_unsupported_content = False
-            self._run_buf = []
-            self._pending_runs = []
+            named_style = None
             if tag == "p":
                 style = (attr_dict.get("data-style") or "").lower()
-                self._block_named_style = _NAMED_BLOCK_STYLES.get(style)
-            else:
-                self._block_named_style = None
+                named_style = _NAMED_BLOCK_STYLES.get(style)
+            self._open_block(tag, resumed=False, named_style=named_style)
             return
 
         # --- thematic break (<hr>) with no open block ---
@@ -786,9 +793,7 @@ class _AstParser(HTMLParser):
             # any kind (#343). Implicitly open a paragraph so it isn't
             # silently dropped the way inline-only content
             # (e.g. "<span>no blocks</span>") intentionally is.
-            self._block_tag = "p"
-            self._block_named_style = None
-            self._block_had_unsupported_content = False
+            self._open_block("p", resumed=False, named_style=None)
             self._run_buf.append(data)
 
     def handle_entityref(self, name):

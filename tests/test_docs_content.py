@@ -748,6 +748,21 @@ class TestBareTopLevelText:
         parser.feed("<p>Real text<img></p>Bare text")
         assert parser._block_had_unsupported_content is False
 
+    async def test_implicit_paragraph_open_resets_resumed_flag(self):
+        # #417 round 2: the same implicit-paragraph open path fixed above
+        # also left self._block_resumed stale — a <table> interrupting an
+        # open <p> and then closing sets self._block_resumed = True via
+        # _resume_interrupted_block; the following </p> close doesn't touch
+        # the flag at all, so it's still True by the time bare top-level
+        # text opens its own implicit paragraph right after. Confirmed
+        # live against the pre-round-2 code that this reproduces (True);
+        # the shared _open_block() reset now clears it to False here too.
+        from mcp_gee_sweet.tools.docs.html_parser import _AstParser
+
+        parser = _AstParser()
+        parser.feed("<p>Before<table><tr><td>cell</td></tr></table>After</p>Bare text")
+        assert parser._block_resumed is False
+
     async def test_bare_text_after_unclosed_void_tag_still_wrapped(self):
         # Regression guard (found in PR #385's own review round): a void
         # element written without a self-closing slash (e.g. "<meta ...>",
