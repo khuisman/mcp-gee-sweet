@@ -214,7 +214,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [x] Dedupe `_get_sheet_id`/`_get_sheet_index` lookup logic; add happy-path test coverage ([#442](https://github.com/khuisman/mcp-gee-sweet/issues/442)) (PR #754)
 - [x] `_parse_a1_notation`/`_grid_range` raise an uncaught `ValueError` on invalid A1 notation instead of returning `{"error": ...}`, across ~10 call sites in `data.py`/`structure.py` (PR #745 follow-up) ([#747](https://github.com/khuisman/mcp-gee-sweet/issues/747)) (PR #756)
 - [x] `add_data_validation`'s docstring and `_CONDITION_VALUE_COUNTS` are two independently-maintained sources of the same per-`condition_type` fact, no derivation link — needs a design pass (PR #750 follow-up) ([#751](https://github.com/khuisman/mcp-gee-sweet/issues/751)) (PR #759)
-- [ ] `update_cells`'s plain-cells branch (+ `get_sheet_data`/`get_sheet_formulas`/`get_multiple_sheet_data`/`clear_values`) hand a raw range string to the Sheets values API with no local validation, leaking a raw `HttpError` on malformed input (PR #756 follow-up) ([#757](https://github.com/khuisman/mcp-gee-sweet/issues/757))
+- [x] `update_cells`'s plain-cells branch (+ `get_sheet_data`/`get_sheet_formulas`/`get_multiple_sheet_data`/`clear_values`) hand a raw range string to the Sheets values API with no local validation, leaking a raw `HttpError` on malformed input (PR #756 follow-up) ([#757](https://github.com/khuisman/mcp-gee-sweet/issues/757)) (PR #764)
 
 **Docs hardening & dedup** _(triaged out of `backlog` 2026-09-11)_
 - [ ] `html_parser.py`: readability + reset-consistency nits in `_emit_block_node`/`_block_had_unsupported_content` ([#417](https://github.com/khuisman/mcp-gee-sweet/issues/417))
