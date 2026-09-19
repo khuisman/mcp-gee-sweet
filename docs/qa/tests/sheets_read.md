@@ -226,6 +226,21 @@ A100:Z200 → values: [], no error
 
 ---
 
+### TC-R43: Malformed sheet name during auto-detection returns a clean error (issue #757)
+
+**Background:** QA round 1 on PR #764 found a third, earlier call site the first pass missed: `include_grid_data=True` with no `range` triggers an auto-detect-used-range probe (`values().get()`, issue #235) *before* either TC-R04's or TC-R41's own call ever runs. A bad `sheet` name reaches this probe call raw, same gap, same fix.
+
+**Prompt**
+> "Get data from a sheet called 'DoesNotExist' in {SPREADSHEET_ID}, with include_grid_data=True and no range"
+
+**Checks**
+- Returns `{"error": "<HttpError text>"}` — not a raw exception
+- The `spreadsheets().get(..., includeGridData=True)` call is never made (the probe fails first)
+
+**Cleanup:** none — no write occurred.
+
+---
+
 ## `get_sheet_formulas`
 
 ### TC-R08: Sheet with formulas — returns formula strings

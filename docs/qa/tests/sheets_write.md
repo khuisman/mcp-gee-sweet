@@ -227,6 +227,34 @@ data=[] → {"error":"data cannot be empty"}; no write
 
 ---
 
+### TC-W43: Out-of-bounds rich-text index returns a clean error, not a raw exception (issue #757)
+
+**Background:** `_parse_a1_notation_or_error` (TC-W40) only validates A1 *syntax* — it can't know the sheet's real grid bounds. Unlike the values API (which auto-expands the grid on write), `updateCells`' `range` request field doesn't, so a syntactically-valid but out-of-bounds row/column still reaches the API raw. QA round 1 on PR #764 found this branch's `spreadsheets().batchUpdate()` call was left unwrapped.
+
+**Prompt**
+> "Call `update_cells` on {SPREADSHEET_ID}'s Sales sheet, range F10000000 (10 million), with `data` set to `[[[{\"text\": \"x\"}]]]` (a single rich-text cell)"
+
+**Checks**
+- Returns `{"error": "<HttpError text>"}` — not a raw exception
+- No values are written (F10000000 is well beyond the sheet's actual grid — adjust the row number upward if the fixture sheet's grid has been resized since this was written, the point is triggering the API's own out-of-bounds rejection)
+
+**Cleanup:** none — no write occurred.
+
+---
+
+### TC-W44: Mixed call — one branch's HttpError doesn't drop the other branch's result (issue #757, unit test)
+
+**Background:** A mixed call makes two independent API calls (issue #380's own design — neither result should be silently dropped if the other fails). QA round 1 on PR #764 flagged that a naive fix wrapping each branch (returning the failing branch's error immediately) would have violated that exact contract by dropping the *other* branch's already-successful result. Fixed by storing each branch's outcome under its own `values_update`/`rich_text_update` key instead of short-circuiting — the plain-cell batchUpdate and rich-text `updateCells` batchUpdate are now each independently caught, and the branch that follows still runs regardless of whether the one before it failed.
+
+Not written as a live prompt: reliably forcing one specific branch to fail while the other succeeds in a *live* mixed call (e.g. via an out-of-bounds index) isn't something this pass could confirm reproduces deterministically for both directions without risking an inaccurate Checks section — see `test_mixed_cells_rich_text_httperror_preserves_plain_success` and `test_mixed_cells_plain_httperror_still_attempts_rich_text` (`tests/sheets/test_data.py::TestUpdateCells`) for both directions, mocked.
+
+**Checks (unit test)**
+- Rich-text branch raises `HttpError`, plain branch already succeeded → response is `{"values_update": <plain success>, "rich_text_update": {"error": ...}}`, not a bare error that drops the plain result
+- Plain branch raises `HttpError` → the rich-text `spreadsheets().batchUpdate()` call is still made (not skipped) and its own success is preserved under `rich_text_update`; response is `{"values_update": {"error": ...}, "rich_text_update": <rich-text success>}`
+- Covered by `test_mixed_cells_rich_text_httperror_preserves_plain_success`, `test_mixed_cells_plain_httperror_still_attempts_rich_text` in `TestUpdateCells`
+
+---
+
 ## `batch_update_cells`
 
 ### TC-W06: Multiple ranges in one call
@@ -293,6 +321,21 @@ batch A8="dirty" then summary reflects "dirty" — mark_dirty fired
 - `updatedRange` in the response is `Sales!A8:B10`, not `Sales!A8:B8`
 - Rows A9 and A10 are cleared (blank) in the sheet
 - No duplicate row appended after the write
+
+---
+
+### TC-W42: Malformed range key returns a clean error, not a raw exception (issue #757)
+
+**Background:** QA round 1 on PR #764 found `batch_update_cells` had the identical unvalidated-raw-range-string gap as the rest of `data.py` — the ranges dict's own keys are handed straight to `values().batchUpdate()` with no local validation, left unwrapped by the PR's first pass since the issue's own list didn't name this tool explicitly.
+
+**Prompt**
+> "Batch update {SPREADSHEET_ID}'s Sales sheet with ranges `{\"!!!BadRange!!!\": [[\"x\"]]}`"
+
+**Checks**
+- Returns `{"error": "<HttpError text>"}` — not a raw exception propagating to the client
+- No values are written (call fails before the API mutates anything)
+
+**Cleanup:** none — no write occurred.
 
 ---
 
