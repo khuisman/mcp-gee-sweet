@@ -1404,6 +1404,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-w43-out-of-bounds-rich-text-index-returns-a-clean-error-not-a-raw-exception-issue-757" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W43: Out-of-bounds rich-text index returns a clean error, not a raw exception (issue #757)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w44-mixed-call-one-branchs-httperror-doesnt-drop-the-other-branchs-result-issue-757-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W44: Mixed call — one branch's HttpError doesn't drop the other branch's result (issue #757, unit test)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1470,6 +1492,17 @@
     <span class="md-ellipsis">
       
         TC-W10: Trailing empty-array rows are normalized
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-w42-malformed-range-key-returns-a-clean-error-not-a-raw-exception-issue-757" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W42: Malformed range key returns a clean error, not a raw exception (issue #757)
       
     </span>
   </a>
@@ -1797,6 +1830,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-w41-malformed-range-returns-a-clean-error-not-a-raw-exception-issue-757" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-W41: Malformed range returns a clean error, not a raw exception (issue #757)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1961,6 +2005,7 @@ Row 7 A–D = Test/A/B/C; 4 cells; rows 1–6 unchanged; no error</p>
 Prompt formula <code>=A2&amp;' '&amp;A3</code> (single-quote string delims) → E2 = <code>#ERROR!</code> "Formula parse error"; expected computed "Widget Gadget". Root cause = test-case bug: Google Sheets requires DOUBLE quotes for string literals. USER_ENTERED mode itself IS confirmed (userEnteredValue.formulaValue stored, not stringValue); re-ran with corrected <code>=A2&amp;" "&amp;A3</code> → E2 = "Widget Gadget". Recommend fixing the test prompt to use double quotes</p>
 <hr />
 <h3 id="tc-w03-range-smaller-than-data-provided">TC-W03: Range smaller than data provided<a class="headerlink" href="#tc-w03-range-smaller-than-data-provided" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Exercises <code>update_cells</code>' plain-only fast path (<code>values().update()</code>, issue #757) — the same call site TC-W05 covers, via an oversized <code>data</code> array instead of an invalid <code>sheet</code> name. Same fix (<code>try/except HttpError</code>, now <code>_execute_or_error</code>) applies; the dated Result below predates the fix and shows the pre-fix raw-<code>HttpError</code> behavior.</p>
 <p><strong>Prompt</strong></p>
 <blockquote>
 <p>"Write these four values — Alpha, Beta, Gamma, Delta — into just cells A8:A9 of the Sales sheet in {SPREADSHEET_ID}"</p>
@@ -1984,12 +2029,13 @@ Prompt formula <code>=A2&amp;' '&amp;A3</code> (single-quote string delims) → 
 A7→"CacheTest" then summary shows "CacheTest" in first_rows — cache invalidated</p>
 <hr />
 <h3 id="tc-w05-non-existent-sheet-name">TC-W05: Non-existent sheet name<a class="headerlink" href="#tc-w05-non-existent-sheet-name" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> The 2026-09-04 result below found <code>update_cells</code>' plain-only branch leaked a raw <code>HttpError</code> instead of the <code>{"error": ...}</code> shape every other validation failure in these tools returns — this is <code>update_cells</code>' own instance of issue #757 (no local validation on the raw range string handed to the plain-cells <code>values().update()</code> call). Fixed via <code>try/except HttpError</code> around that call — see TC-W41 for the sibling <code>clear_values</code> fix. The Checks below describe the post-fix expected behavior; the dated Result above predates the fix.</p>
 <p><strong>Prompt</strong></p>
 <blockquote>
 <p>"Write 'Hello' into cell A1 of a sheet called 'NoSuchSheet' in {SPREADSHEET_ID}"</p>
 </blockquote>
 <p><strong>Checks</strong>
-- Returns a clear API error
+- Returns <code>{"error": "&lt;HttpError text, e.g. ...Unable to parse range: NoSuchSheet!A1...&gt;"}</code> — a clean <code>{"error": ...}</code> dict, not a raw exception
 - Does not silently succeed or create the sheet</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 Sheet "NoSuchSheet" → HttpError 400 "Unable to parse range: NoSuchSheet!A1"; no silent success, no sheet created</p>
@@ -2101,6 +2147,27 @@ data=[] → {"error":"data cannot be empty"}; no write</p>
 - QA round 1 found <code>update_cells</code> parsed <code>range</code> twice (once in the mixed-cell branch, once again in the rich-text branch) whenever both cell kinds were present in the same call — harmless but redundant, since the first parse already returns on failure before the second is ever reached. Fixed by parsing once, up front, whenever <code>rich_text_cells</code> is non-empty (the exact condition under which either branch needs it), and reusing the result — <code>update_cells</code> now has exactly one <code>_parse_a1_notation_or_error</code> call site, not two.</p>
 <p><strong>Cleanup:</strong> none — no write occurred.</p>
 <hr />
+<h3 id="tc-w43-out-of-bounds-rich-text-index-returns-a-clean-error-not-a-raw-exception-issue-757">TC-W43: Out-of-bounds rich-text index returns a clean error, not a raw exception (issue #757)<a class="headerlink" href="#tc-w43-out-of-bounds-rich-text-index-returns-a-clean-error-not-a-raw-exception-issue-757" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>_parse_a1_notation_or_error</code> (TC-W40) only validates A1 <em>syntax</em> — it can't know the sheet's real grid bounds. Unlike the values API (which auto-expands the grid on write), <code>updateCells</code>' <code>range</code> request field doesn't, so a syntactically-valid but out-of-bounds row/column still reaches the API raw. QA round 1 on PR #764 found this branch's <code>spreadsheets().batchUpdate()</code> call was left unwrapped.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call <code>update_cells</code> on {SPREADSHEET_ID}'s Sales sheet, range F10000000 (10 million), with <code>data</code> set to <code>[[[{\"text\": \"x\"}]]]</code> (a single rich-text cell)"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "&lt;HttpError text&gt;"}</code> — not a raw exception
+- No values are written (F10000000 is well beyond the sheet's actual grid — adjust the row number upward if the fixture sheet's grid has been resized since this was written, the point is triggering the API's own out-of-bounds rejection)</p>
+<p><strong>Cleanup:</strong> none — no write occurred.</p>
+<p><strong>Result (2026-09-18) ✅ PASS</strong> — <code>update_cells(spreadsheet_id, sheet="Sales", range="F10000000", data=[[[{"text": "x"}]]])</code> returned <code>{"error": "&lt;HttpError 400 ... Range (Sales!F10000000) exceeds grid limits. Max rows: 996, max columns: 28 ...&gt;"}</code>, not a raw exception.</p>
+<hr />
+<h3 id="tc-w44-mixed-call-one-branchs-httperror-doesnt-drop-the-other-branchs-result-issue-757-unit-test">TC-W44: Mixed call — one branch's HttpError doesn't drop the other branch's result (issue #757, unit test)<a class="headerlink" href="#tc-w44-mixed-call-one-branchs-httperror-doesnt-drop-the-other-branchs-result-issue-757-unit-test" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> A mixed call makes two independent API calls (issue #380's own design — neither result should be silently dropped if the other fails). QA round 1 on PR #764 flagged that a naive fix wrapping each branch (returning the failing branch's error immediately) would have violated that exact contract by dropping the <em>other</em> branch's already-successful result. Fixed by storing each branch's outcome under its own <code>values_update</code>/<code>rich_text_update</code> key instead of short-circuiting — the plain-cell batchUpdate and rich-text <code>updateCells</code> batchUpdate are now each independently caught, and the branch that follows still runs regardless of whether the one before it failed.</p>
+<p>Not written as a live prompt: reliably forcing one specific branch to fail while the other succeeds in a <em>live</em> mixed call (e.g. via an out-of-bounds index) isn't something this pass could confirm reproduces deterministically for both directions without risking an inaccurate Checks section — see <code>test_mixed_cells_rich_text_httperror_preserves_plain_success</code> and <code>test_mixed_cells_plain_httperror_still_attempts_rich_text</code> (<code>tests/sheets/test_data.py::TestUpdateCells</code>) for both directions, mocked.</p>
+<p><strong>Checks (unit test)</strong>
+- Rich-text branch raises <code>HttpError</code>, plain branch already succeeded → response is <code>{"values_update": &lt;plain success&gt;, "rich_text_update": {"error": ...}}</code>, not a bare error that drops the plain result
+- Plain branch raises <code>HttpError</code> → the rich-text <code>spreadsheets().batchUpdate()</code> call is still made (not skipped) and its own success is preserved under <code>rich_text_update</code>; response is <code>{"values_update": {"error": ...}, "rich_text_update": &lt;rich-text success&gt;}</code>
+- Covered by <code>test_mixed_cells_rich_text_httperror_preserves_plain_success</code>, <code>test_mixed_cells_plain_httperror_still_attempts_rich_text</code> in <code>TestUpdateCells</code></p>
+<p><strong>Result (2026-09-18) ✅ PASS</strong> — <code>uv run python -m pytest tests/sheets/test_data.py -q</code>: both unit tests pass, confirming neither branch's result is dropped in either direction.</p>
+<hr />
 <h2 id="batch_update_cells"><code>batch_update_cells</code><a class="headerlink" href="#batch_update_cells" title="Permanent link">&para;</a></h2>
 <h3 id="tc-w06-multiple-ranges-in-one-call">TC-W06: Multiple ranges in one call<a class="headerlink" href="#tc-w06-multiple-ranges-in-one-call" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2154,6 +2221,18 @@ batch A8="dirty" then summary reflects "dirty" — mark_dirty fired</p>
 - <code>updatedRange</code> in the response is <code>Sales!A8:B10</code>, not <code>Sales!A8:B8</code>
 - Rows A9 and A10 are cleared (blank) in the sheet
 - No duplicate row appended after the write</p>
+<hr />
+<h3 id="tc-w42-malformed-range-key-returns-a-clean-error-not-a-raw-exception-issue-757">TC-W42: Malformed range key returns a clean error, not a raw exception (issue #757)<a class="headerlink" href="#tc-w42-malformed-range-key-returns-a-clean-error-not-a-raw-exception-issue-757" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> QA round 1 on PR #764 found <code>batch_update_cells</code> had the identical unvalidated-raw-range-string gap as the rest of <code>data.py</code> — the ranges dict's own keys are handed straight to <code>values().batchUpdate()</code> with no local validation, left unwrapped by the PR's first pass since the issue's own list didn't name this tool explicitly.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Batch update {SPREADSHEET_ID}'s Sales sheet with ranges <code>{\"!!!BadRange!!!\": [[\"x\"]]}</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "&lt;HttpError text&gt;"}</code> — not a raw exception propagating to the client
+- No values are written (call fails before the API mutates anything)</p>
+<p><strong>Cleanup:</strong> none — no write occurred.</p>
+<p><strong>Result (2026-09-18) ✅ PASS</strong> — <code>batch_update_cells(spreadsheet_id, sheet="Sales", ranges={"!!!BadRange!!!": [["x"]]})</code> returned <code>{"error": "&lt;HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!! ...&gt;"}</code>, not a raw exception.</p>
 <hr />
 <h2 id="add_rows"><code>add_rows</code><a class="headerlink" href="#add_rows" title="Permanent link">&para;</a></h2>
 <h3 id="tc-w10-add-row-at-beginning-no-position-specified">TC-W10: Add row at beginning (no position specified)<a class="headerlink" href="#tc-w10-add-row-at-beginning-no-position-specified" title="Permanent link">&para;</a></h3>
@@ -2418,6 +2497,18 @@ clear B2:D4 of 'Notes &amp; Misc' → clearedRange "'Notes &amp; Misc'!B2:D4" (s
 <p><strong>Result (2026-06-21) ✅</strong> Response: <code>{"clearedRange":"Sales!Z100:Z200"}</code> — API accepted the out-of-bounds range and returned it as-is with no error.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 clear Z100:Z200 of Sales → {"clearedRange":"Sales!Z100:Z200"} — out-of-bounds accepted, no error</p>
+<hr />
+<h3 id="tc-w41-malformed-range-returns-a-clean-error-not-a-raw-exception-issue-757">TC-W41: Malformed range returns a clean error, not a raw exception (issue #757)<a class="headerlink" href="#tc-w41-malformed-range-returns-a-clean-error-not-a-raw-exception-issue-757" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>clear_values</code> had the same gap as TC-W05 — no local validation on the raw caller-supplied <code>range</code> string before handing it to <code>values().clear()</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Clear cells '!!!BadRange!!!' from the Sales sheet in {SPREADSHEET_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "&lt;HttpError text&gt;"}</code> — not a raw exception propagating to the client
+- No values are cleared (call fails before the API mutates anything)</p>
+<p><strong>Cleanup:</strong> none — no write occurred.</p>
+<p><strong>Result (2026-09-18) ✅ PASS</strong> — <code>clear_values(spreadsheet_id, sheet="Sales", range="!!!BadRange!!!")</code> returned <code>{"error": "&lt;HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!! ...&gt;"}</code>, not a raw exception.</p>
 
 
 

@@ -1365,6 +1365,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-r41-malformed-range-with-include_grid_datatrue-returns-a-clean-error-issue-757" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-R41: Malformed range with include_grid_data=True returns a clean error (issue #757)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-r43-malformed-sheet-name-during-auto-detection-returns-a-clean-error-issue-757" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-R43: Malformed sheet name during auto-detection returns a clean error (issue #757)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1420,6 +1442,17 @@
     <span class="md-ellipsis">
       
         TC-R11: No range provided — fetches entire sheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-r42-malformed-range-returns-a-clean-error-not-a-raw-exception-issue-757" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-R42: Malformed range returns a clean error, not a raw exception (issue #757)
       
     </span>
   </a>
@@ -2071,17 +2104,19 @@ Apply the same kind of formatting as TC-R03c but to a smaller range — start wi
 Formatted A1:Z23 on scratch sheet; get_sheet_data(grid) returned 428,765-char response with NO server ValueError (between old 40k and new 1M default). Claude Code client-side cap wrote it to a file; rowData + bold:true confirmed present</p>
 <hr />
 <h3 id="tc-r04-non-existent-sheet-name">TC-R04: Non-existent sheet name<a class="headerlink" href="#tc-r04-non-existent-sheet-name" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> The 2026-09-04 result below found this call leaked a raw <code>HttpError</code> instead of the <code>{"error": ...}</code> shape every other validation failure in these tools returns — this is <code>get_sheet_data</code>'s own instance of the broader gap tracked as issue #757 (no local validation on the raw range string handed to the Sheets values API). Fixed by wrapping this call site (and its <code>include_grid_data=True</code> sibling — see TC-R41) in <code>try/except HttpError</code>. The Checks below describe the post-fix expected behavior; the dated Result above predates the fix.</p>
 <p><strong>Prompt</strong></p>
 <blockquote>
 <p>"Get data from a sheet called 'DoesNotExist' in {SPREADSHEET_ID}"</p>
 </blockquote>
 <p><strong>Checks</strong>
-- Returns a clear error — not an empty result
+- Returns <code>{"error": "&lt;HttpError text, e.g. ...Unable to parse range: DoesNotExist...&gt;"}</code>  — a clean <code>{"error": ...}</code> dict, not a raw exception propagating to the client
 - Error message references the sheet name or indicates it was not found</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 Nonexistent sheet → HttpError 400 "Unable to parse range: DoesNotExist" — clear error, names the sheet, not empty result (raw HttpError, not friendly {"error"})</p>
 <hr />
 <h3 id="tc-r05-non-existent-spreadsheet-id">TC-R05: Non-existent spreadsheet ID<a class="headerlink" href="#tc-r05-non-existent-spreadsheet-id" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Exercises the same <code>get_sheet_data</code> non-grid call site as TC-R04 (<code>values().get()</code>, issue #757), via an invalid <code>spreadsheet_id</code> instead of an invalid <code>sheet</code> name — same defect, same fix (<code>try/except HttpError</code>, now <code>_execute_or_error</code>). The dated Result below predates the fix and shows the pre-fix raw-<code>HttpError</code> behavior; post-fix, this returns <code>{"error": "&lt;HttpError 404 ... Requested entity was not found ...&gt;"}</code> instead.</p>
 <p><strong>Prompt</strong></p>
 <blockquote>
 <p>"Get data from the Sales sheet of spreadsheet 'invalidid123xyz'"</p>
@@ -2114,6 +2149,30 @@ A100:Z200 → values: [], no error</p>
 - Date cell shows today's date (computed from <code>=TODAY()</code>)</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 'Notes &amp; Misc' resolved (spaces + &amp;); 2 rows; date cell computed</p>
+<hr />
+<h3 id="tc-r41-malformed-range-with-include_grid_datatrue-returns-a-clean-error-issue-757">TC-R41: Malformed range with include_grid_data=True returns a clean error (issue #757)<a class="headerlink" href="#tc-r41-malformed-range-with-include_grid_datatrue-returns-a-clean-error-issue-757" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> TC-R04 covers this same defect class on <code>get_sheet_data</code>'s non-grid (<code>values().get()</code>) call site. The <code>include_grid_data=True</code> path uses a separate call (<code>spreadsheets().get(..., includeGridData=True)</code>) and had the identical gap — no local validation on the raw caller-supplied <code>range</code> string, so a malformed one reached the client as an uncaught <code>HttpError</code>. Fixed in the same PR, same <code>try/except HttpError</code> pattern.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get data from the Sales sheet of {SPREADSHEET_ID}, range '!!!BadRange!!!', with include_grid_data=True"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "&lt;HttpError text&gt;"}</code> — not a raw exception
+- No response-size-cap check runs (the call fails before the grid data is ever fetched)</p>
+<p><strong>Cleanup:</strong> none — no write occurred.</p>
+<p><strong>Result (2026-09-18) ✅ PASS</strong> — <code>get_sheet_data(spreadsheet_id, sheet="Sales", range="!!!BadRange!!!", include_grid_data=True)</code> returned <code>{"error": "&lt;HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!! ...&gt;"}</code>, not a raw exception.</p>
+<hr />
+<h3 id="tc-r43-malformed-sheet-name-during-auto-detection-returns-a-clean-error-issue-757">TC-R43: Malformed sheet name during auto-detection returns a clean error (issue #757)<a class="headerlink" href="#tc-r43-malformed-sheet-name-during-auto-detection-returns-a-clean-error-issue-757" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> QA round 1 on PR #764 found a third, earlier call site the first pass missed: <code>include_grid_data=True</code> with no <code>range</code> triggers an auto-detect-used-range probe (<code>values().get()</code>, issue #235) <em>before</em> either TC-R04's or TC-R41's own call ever runs. A bad <code>sheet</code> name reaches this probe call raw, same gap, same fix.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get data from a sheet called 'DoesNotExist' in {SPREADSHEET_ID}, with include_grid_data=True and no range"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "&lt;HttpError text&gt;"}</code> — not a raw exception
+- The <code>spreadsheets().get(..., includeGridData=True)</code> call is never made (the probe fails first)</p>
+<p><strong>Cleanup:</strong> none — no write occurred.</p>
+<p><strong>Result (2026-09-18) ✅ PASS</strong> — <code>get_sheet_data(spreadsheet_id, sheet="DoesNotExist", include_grid_data=True)</code> against the fixture spreadsheet returned <code>{"error": "&lt;HttpError 400 ... Unable to parse range: DoesNotExist ...&gt;"}</code>, not a raw exception.</p>
 <hr />
 <h2 id="get_sheet_formulas"><code>get_sheet_formulas</code><a class="headerlink" href="#get_sheet_formulas" title="Permanent link">&para;</a></h2>
 <h3 id="tc-r08-sheet-with-formulas-returns-formula-strings">TC-R08: Sheet with formulas — returns formula strings<a class="headerlink" href="#tc-r08-sheet-with-formulas-returns-formula-strings" title="Permanent link">&para;</a></h3>
@@ -2160,6 +2219,17 @@ A2 → "=TODAY()"; B2 → "Setup complete" literal</p>
 - Equivalent to TC-R08 — confirms default behavior with no range arg</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 No range → all 6 rows, row 6 formula strings; matches TC-R08</p>
+<hr />
+<h3 id="tc-r42-malformed-range-returns-a-clean-error-not-a-raw-exception-issue-757">TC-R42: Malformed range returns a clean error, not a raw exception (issue #757)<a class="headerlink" href="#tc-r42-malformed-range-returns-a-clean-error-not-a-raw-exception-issue-757" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>get_sheet_formulas</code> had the same gap as TC-R04/TC-R41 — no local validation on the raw caller-supplied <code>range</code> string before handing it to <code>values().get(..., valueRenderOption="FORMULA")</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get formulas from the Sales sheet of {SPREADSHEET_ID}, range '!!!BadRange!!!'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "&lt;HttpError text&gt;"}</code> — not a raw exception propagating to the client</p>
+<p><strong>Cleanup:</strong> none — no write occurred.</p>
+<p><strong>Result (2026-09-18) ✅ PASS</strong> — <code>get_sheet_formulas(spreadsheet_id, sheet="Sales", range="!!!BadRange!!!")</code> returned <code>{"error": "&lt;HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!! ...&gt;"}</code>, not a raw exception.</p>
 <hr />
 <h2 id="get_multiple_sheet_data"><code>get_multiple_sheet_data</code><a class="headerlink" href="#get_multiple_sheet_data" title="Permanent link">&para;</a></h2>
 <h3 id="tc-r12-multiple-valid-queries">TC-R12: Multiple valid queries<a class="headerlink" href="#tc-r12-multiple-valid-queries" title="Permanent link">&para;</a></h3>
