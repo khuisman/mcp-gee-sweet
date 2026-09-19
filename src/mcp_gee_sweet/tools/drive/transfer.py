@@ -113,6 +113,20 @@ def _is_converted_md_entry(f: dict) -> bool:
     )
 
 
+def _is_workspace_entry(f: dict) -> bool:
+    """Whether a Drive file resource `f` is a native Google Workspace file
+    (Doc/Sheet/Slide/etc., mimeType starting "application/vnd.google-apps.").
+
+    Computed on demand rather than cached onto drive_map, for the same reason
+    _is_converted_md_entry is (#421 finding #6, #424) — _sync_level's own
+    drive_map-build loop and its two nested execution closures (_run_one's
+    both-sides and download branches) each independently recomputed this same
+    `.startswith(...)` check inline (#474); centralizing it here gives all
+    three exactly one place to agree with, without reintroducing a synthetic
+    key on drive_map's entries."""
+    return f["mimeType"].startswith("application/vnd.google-apps.")
+
+
 def _is_quota_error(exc: Exception) -> bool:
     """True for Drive's storageQuotaExceeded HttpError (403) — the "this identity
     has no personal storage" failure a service account hits on a non-Shared-Drive
@@ -479,7 +493,7 @@ async def _sync_level(
     collision_names: set[str] = set()
     collision_reasons: dict[str, str] = {}
     for f in drive_files:
-        is_workspace = f["mimeType"].startswith("application/vnd.google-apps.")
+        is_workspace = _is_workspace_entry(f)
         # Deliberately independent of this call's convert_markdown flag: a Doc
         # already carries the marker property from whenever it was created, and
         # matching must recognize it on every later sync regardless of whether
@@ -609,7 +623,7 @@ async def _sync_level(
             lmtime = _local_mtime(local_map[name])
             diff = (lmtime - dmtime).total_seconds()
             entry = drive_map[name]
-            is_workspace = entry["mimeType"].startswith("application/vnd.google-apps.")
+            is_workspace = _is_workspace_entry(entry)
 
             # Checked after the (cheap) mtime diff above, and only when mtimes
             # actually disagree — a within-tolerance pair is already resolved by
@@ -966,7 +980,7 @@ async def _sync_level(
             # action == "download"
             entry = drive_map[name]
             fid = entry["id"]
-            is_workspace = entry["mimeType"].startswith("application/vnd.google-apps.")
+            is_workspace = _is_workspace_entry(entry)
             if is_workspace and _is_converted_md_entry(entry):
                 # No reverse conversion exists (Google Doc -> markdown), regardless of
                 # export_format — exporting one of these via export_format would write
