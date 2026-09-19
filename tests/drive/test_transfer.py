@@ -620,6 +620,48 @@ class TestUploadLocalFileConvert:
         }
         drive_svc.files.return_value.create.assert_not_called()
 
+    async def test_skip_if_exists_picks_the_converted_hit_among_several_same_named(self, tmp_path):
+        """#514 QA round 1 (PR #767): _upload_local_file's own existence check
+        used to query with pageSize=1, so it could never see more than one
+        Drive entry sharing the destination name even though Drive allows
+        it — the multi-hit case _should_skip_existing_upload exists to
+        handle was only actually reachable via upload_local_folder's bulk
+        path. Here the raw duplicate is listed *first* and the
+        already-converted one *second* — the ordering under which the old
+        hits[0]-only code would have picked the raw file, seen no mimeType
+        match, and re-converted a duplicate instead of skipping."""
+        local_file = tmp_path / "a.csv"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "id": "existing-raw",
+                    "name": "a.csv",
+                    "webViewLink": "https://x/raw",
+                    "mimeType": "text/csv",
+                },
+                {
+                    "id": "existing-converted",
+                    "name": "a.csv",
+                    "webViewLink": "https://x/converted",
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                },
+            ]
+        }
+
+        result = await _upload_local_file(drive_svc, str(local_file), "folder1", convert=True)
+
+        assert result == {
+            "fileId": "existing-converted",
+            "name": "a.csv",
+            "web_link": "https://x/converted",
+            "skipped": True,
+        }
+        drive_svc.files.return_value.create.assert_not_called()
+        list_kwargs = drive_svc.files.return_value.list.call_args.kwargs
+        assert "pageSize" not in list_kwargs
+
 
 class TestUploadLocalFileToolCacheInvalidation:
     """upload_local_file tool wrapper: drive_folder_cache.mark_dirty gate.
@@ -837,6 +879,34 @@ class TestUploadLocalFolder:
         assert result["failed"][0]["name"] == "archive.zip"
         assert ".zip" in result["failed"][0]["error"]
         drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_convert_unsupported_extension_still_reported_failed_despite_name_collision(
+        self, tmp_path
+    ):
+        """#514 QA round 1 (PR #767): unifying both skip branches through
+        _should_skip_existing_upload must not treat convert=True's
+        unsupported-extension case (target_mime is None) the same as the
+        not-converting case (convert_mime is None means "any existing entry
+        matches") — that would silently skip an unsupported file merely
+        because Drive happens to already have some unrelated entry sharing
+        its name, instead of surfacing the "not supported" error the way
+        test_convert_unsupported_extension_reported_as_failed_not_uploaded
+        above confirms for the no-collision case."""
+        (tmp_path / "archive.zip").write_bytes(b"fake")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"name": "archive.zip", "mimeType": "application/zip"}]
+        }
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["skipped"] == []
+        assert result["uploaded"] == []
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["name"] == "archive.zip"
+        assert ".zip" in result["failed"][0]["error"]
 
     async def test_convert_skips_when_existing_file_already_in_target_mimetype(self, tmp_path):
         (tmp_path / "data.csv").write_text("a,b\n1,2")

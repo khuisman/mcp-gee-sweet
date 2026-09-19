@@ -216,6 +216,22 @@ def _should_skip_existing_upload(
     return convert_mime[1] in existing_mime_types
 
 
+def _existing_upload_match(convert_mime: tuple[str, str] | None, hits: list[dict]) -> dict | None:
+    """Return whichever Drive file resource in `hits` (all sharing the
+    destination name) represents the existing duplicate skip_if_exists is
+    meant to detect, or None if none qualifies — same decision as
+    _should_skip_existing_upload above, but returning the specific matching
+    entry instead of a bool. _upload_local_file needs this: once more than
+    one hit can come back for a shared name, it can no longer assume hits[0]
+    is the one that matched (#514 QA round 1, PR #767 — pageSize=1 previously
+    made this moot by construction, capping the check to a single entry
+    regardless of how many Drive actually returned for the name)."""
+    for h in hits:
+        if _should_skip_existing_upload(convert_mime, [h.get("mimeType", "")]):
+            return h
+    return None
+
+
 async def _upload_local_file(
     drive_service,
     local_path: str,
@@ -267,18 +283,23 @@ async def _upload_local_file(
                 includeItemsFromAllDrives=True,
                 supportsAllDrives=True,
                 fields="files(id, name, webViewLink, mimeType)",
-                pageSize=1,
             )
             .execute,
             drive_service,
         )
         hits = existing.get("files", [])
-        if _should_skip_existing_upload(convert_mime, (h.get("mimeType", "") for h in hits)):
-            logger.debug("Skipping upload — %s already exists as %s", file_name, hits[0]["id"])
+        # pageSize deliberately left at the API default (100), not capped to 1
+        # — Drive allows more than one file to share this name, and the match
+        # (via _existing_upload_match, not necessarily hits[0]) needs every
+        # candidate visible to pick the correct one to report back (#514 QA
+        # round 1, PR #767).
+        match = _existing_upload_match(convert_mime, hits)
+        if match is not None:
+            logger.debug("Skipping upload — %s already exists as %s", file_name, match["id"])
             return {
-                "fileId": hits[0]["id"],
-                "name": hits[0]["name"],
-                "web_link": hits[0].get("webViewLink"),
+                "fileId": match["id"],
+                "name": match["name"],
+                "web_link": match.get("webViewLink"),
                 "skipped": True,
             }
 
@@ -1765,8 +1786,21 @@ def register(tool):
             # re-enable skip behavior even when a caller explicitly passed
             # skip_if_exists=False (#514).
             if skip_if_exists:
-                if convert:
-                    target_mime = _CONVERT_MIME.get(p.suffix.lower())
+                target_mime = _CONVERT_MIME.get(p.suffix.lower()) if convert else None
+                if convert and target_mime is None:
+                    # Unsupported extension under convert=True — this bulk
+                    # shortcut must never skip here regardless of any
+                    # same-named existing entry; fall through so
+                    # _upload_local_file's own unsupported-extension check
+                    # (which runs before its own existence check) reports the
+                    # correct error into `failed` instead of this silently
+                    # skipping it (both branches below funnel through
+                    # _should_skip_existing_upload, per #514 QA round 1, PR
+                    # #767 — collapsing this case into that same call would
+                    # have reintroduced the bug: convert_mime=None there means
+                    # "not converting", not "converting but unsupported").
+                    pass
+                else:
                     # Drive's native import-conversion strips the source extension
                     # from some converted types' display name (confirmed live for
                     # CSV, TC-D215/TC-D243) but keeps it for others (.md,
@@ -1774,18 +1808,15 @@ def register(tool):
                     # extension-stripped stem independently so either naming
                     # behavior, or both existing at once (a raw duplicate
                     # alongside an already-converted one), is recognized
-                    # correctly (PR #505 review, issue #411).
-                    existing_mimes = existing_by_name.get(p.name, set()) | existing_by_name.get(
-                        p.stem, set()
-                    )
-                    if target_mime is not None and _should_skip_existing_upload(
-                        target_mime, existing_mimes
-                    ):
+                    # correctly (PR #505 review, issue #411). Only relevant
+                    # under convert — the stem is the same as the name
+                    # otherwise, so this is a no-op when not converting.
+                    existing_mimes = existing_by_name.get(p.name, set())
+                    if convert:
+                        existing_mimes = existing_mimes | existing_by_name.get(p.stem, set())
+                    if _should_skip_existing_upload(target_mime, existing_mimes):
                         skipped.append(p.name)
                         continue
-                elif p.name in existing_by_name:
-                    skipped.append(p.name)
-                    continue
 
             # skip_if_exists=False here — existence was already decided above from the
             # single bulk list() call, so _upload_local_file doesn't need its own
