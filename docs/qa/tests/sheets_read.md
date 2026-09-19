@@ -170,6 +170,8 @@ Nonexistent sheet → HttpError 400 "Unable to parse range: DoesNotExist" — cl
 
 ### TC-R05: Non-existent spreadsheet ID
 
+**Background:** Exercises the same `get_sheet_data` non-grid call site as TC-R04 (`values().get()`, issue #757), via an invalid `spreadsheet_id` instead of an invalid `sheet` name — same defect, same fix (`try/except HttpError`, now `_execute_or_error`). The dated Result below predates the fix and shows the pre-fix raw-`HttpError` behavior; post-fix, this returns `{"error": "<HttpError 404 ... Requested entity was not found ...>"}` instead.
+
 **Prompt**
 > "Get data from the Sales sheet of spreadsheet 'invalidid123xyz'"
 
@@ -224,6 +226,8 @@ A100:Z200 → values: [], no error
 
 **Cleanup:** none — no write occurred.
 
+**Result (2026-09-18) ✅ PASS** — `get_sheet_data(spreadsheet_id, sheet="Sales", range="!!!BadRange!!!", include_grid_data=True)` returned `{"error": "<HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!! ...>"}`, not a raw exception.
+
 ---
 
 ### TC-R43: Malformed sheet name during auto-detection returns a clean error (issue #757)
@@ -238,6 +242,8 @@ A100:Z200 → values: [], no error
 - The `spreadsheets().get(..., includeGridData=True)` call is never made (the probe fails first)
 
 **Cleanup:** none — no write occurred.
+
+**Result (2026-09-18) ✅ PASS** — `get_sheet_data(spreadsheet_id, sheet="DoesNotExist", include_grid_data=True)` against the fixture spreadsheet returned `{"error": "<HttpError 400 ... Unable to parse range: DoesNotExist ...>"}`, not a raw exception.
 
 ---
 
@@ -311,6 +317,8 @@ No range → all 6 rows, row 6 formula strings; matches TC-R08
 - Returns `{"error": "<HttpError text>"}` — not a raw exception propagating to the client
 
 **Cleanup:** none — no write occurred.
+
+**Result (2026-09-18) ✅ PASS** — `get_sheet_formulas(spreadsheet_id, sheet="Sales", range="!!!BadRange!!!")` returned `{"error": "<HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!! ...>"}`, not a raw exception.
 
 ---
 

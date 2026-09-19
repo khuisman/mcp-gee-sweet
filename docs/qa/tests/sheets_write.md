@@ -43,6 +43,8 @@ Prompt formula `=A2&' '&A3` (single-quote string delims) → E2 = `#ERROR!` "For
 
 ### TC-W03: Range smaller than data provided
 
+**Background:** Exercises `update_cells`' plain-only fast path (`values().update()`, issue #757) — the same call site TC-W05 covers, via an oversized `data` array instead of an invalid `sheet` name. Same fix (`try/except HttpError`, now `_execute_or_error`) applies; the dated Result below predates the fix and shows the pre-fix raw-`HttpError` behavior.
+
 **Prompt**
 > "Write these four values — Alpha, Beta, Gamma, Delta — into just cells A8:A9 of the Sales sheet in {SPREADSHEET_ID}"
 
@@ -240,6 +242,8 @@ data=[] → {"error":"data cannot be empty"}; no write
 
 **Cleanup:** none — no write occurred.
 
+**Result (2026-09-18) ✅ PASS** — `update_cells(spreadsheet_id, sheet="Sales", range="F10000000", data=[[[{"text": "x"}]]])` returned `{"error": "<HttpError 400 ... Range (Sales!F10000000) exceeds grid limits. Max rows: 996, max columns: 28 ...>"}`, not a raw exception.
+
 ---
 
 ### TC-W44: Mixed call — one branch's HttpError doesn't drop the other branch's result (issue #757, unit test)
@@ -252,6 +256,8 @@ Not written as a live prompt: reliably forcing one specific branch to fail while
 - Rich-text branch raises `HttpError`, plain branch already succeeded → response is `{"values_update": <plain success>, "rich_text_update": {"error": ...}}`, not a bare error that drops the plain result
 - Plain branch raises `HttpError` → the rich-text `spreadsheets().batchUpdate()` call is still made (not skipped) and its own success is preserved under `rich_text_update`; response is `{"values_update": {"error": ...}, "rich_text_update": <rich-text success>}`
 - Covered by `test_mixed_cells_rich_text_httperror_preserves_plain_success`, `test_mixed_cells_plain_httperror_still_attempts_rich_text` in `TestUpdateCells`
+
+**Result (2026-09-18) ✅ PASS** — `uv run python -m pytest tests/sheets/test_data.py -q`: both unit tests pass, confirming neither branch's result is dropped in either direction.
 
 ---
 
@@ -336,6 +342,8 @@ batch A8="dirty" then summary reflects "dirty" — mark_dirty fired
 - No values are written (call fails before the API mutates anything)
 
 **Cleanup:** none — no write occurred.
+
+**Result (2026-09-18) ✅ PASS** — `batch_update_cells(spreadsheet_id, sheet="Sales", ranges={"!!!BadRange!!!": [["x"]]})` returned `{"error": "<HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!! ...>"}`, not a raw exception.
 
 ---
 
@@ -692,4 +700,6 @@ clear Z100:Z200 of Sales → {"clearedRange":"Sales!Z100:Z200"} — out-of-bound
 - No values are cleared (call fails before the API mutates anything)
 
 **Cleanup:** none — no write occurred.
+
+**Result (2026-09-18) ✅ PASS** — `clear_values(spreadsheet_id, sheet="Sales", range="!!!BadRange!!!")` returned `{"error": "<HttpError 400 ... Unable to parse range: Sales!!!!BadRange!!! ...>"}`, not a raw exception.
 
