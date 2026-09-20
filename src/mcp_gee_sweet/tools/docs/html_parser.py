@@ -211,7 +211,15 @@ class _AstParser(HTMLParser):
 
     def _make_bullet_item(self, runs: list[Run | Image]) -> BulletItem:
         ordered = self._list_ordered[-1] if self._list_ordered else False
-        depth = len(self._list_ordered) - 1
+        # max(..., 0): an orphan <li> outside any <ul>/<ol> (reachable — "li" is an
+        # ordinary _BLOCK_TAGS entry, not gated on an enclosing list) would otherwise
+        # compute depth -1 here. Clamped at the source rather than left for every
+        # downstream consumer (emitter.py's tab/min_depth math, ast_to_markdown.py's
+        # indent math) to independently remember to clamp — #434 QA round 2 found the
+        # un-clamped value already needed patching at 3 separate emitter.py call
+        # sites, which is exactly the kind of duplication-invites-a-missed-site
+        # pattern #417 was filed to close for block-open state.
+        depth = max(len(self._list_ordered) - 1, 0)
         # Detect task list markers written as literal [x] / [ ] by the markdown library.
         # An image can never be the first child here in practice (markdown always wraps
         # a bare "![]()" in its own <p>, never mixes it as literal leading text before a
