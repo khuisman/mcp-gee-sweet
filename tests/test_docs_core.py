@@ -1090,15 +1090,61 @@ class TestBulletDepthEdgeCases:
         assert insert["insertText"]["text"] == "\tChild\n"
         assert table_req["insertTable"]["location"]["index"] == 7
 
+    def test_literal_leading_tab_still_strips_at_depth_zero(self):
+        # Finding 5: the strip is unconditional on depth, not just depth>0 — a
+        # depth=0 item's own literal leading tab is still misread as a nesting
+        # signal by createParagraphBullets (relative to the rest of its call),
+        # even with no synthetic tabs of emitter.py's own to merge with. No prior
+        # test covered depth=0 specifically (QA round 2 finding).
+        nodes = [BulletItem(runs=[Run("\tHello")], depth=0)]
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "Hello\n"
+
+    def test_literal_leading_tab_stripped_run_does_not_overrun_its_own_style_range(self):
+        # QA round 2 finding 1+2: the leading-tab strip originally only touched
+        # the local `run_text` string used to build the inserted text, not the
+        # actual Run object the style-request loop iterates afterward — so a
+        # styled run's own updateTextStyle range still counted the stripped tab
+        # character(s), overrunning by however many were removed. The correct
+        # range for "Hello" (5 chars, right after the paragraph's skip_len=0 at
+        # depth=0) is [1, 6), not [1, 7).
+        nodes = [BulletItem(runs=[Run("\tHello", bold=True)], depth=0)]
+        requests, _ = ast_to_requests(nodes)
+        insert = next(r for r in requests if "insertText" in r)
+        assert insert["insertText"]["text"] == "Hello\n"
+        bold_req = next(
+            r
+            for r in requests
+            if "updateTextStyle" in r and r["updateTextStyle"]["textStyle"].get("bold") is True
+        )
+        assert bold_req["updateTextStyle"]["range"] == {"startIndex": 1, "endIndex": 6}
+
+    def test_literal_leading_tab_stripped_run_does_not_shift_following_image(self):
+        # Same root cause as the style-range case above, checked against the
+        # image-position math instead: an Image following a tab-stripped Run must
+        # land right after "Hello" (index 6), not one past it (index 7) purely
+        # because the stale, unstripped Run.text was used to compute the offset.
+        img = Image(src="x.png")
+        nodes = [BulletItem(runs=[Run("\tHello"), img], depth=0)]
+        requests, _ = ast_to_requests(nodes, image_uris={id(img): "https://example.com/x.png"})
+        insert = next(r for r in requests if "insertText" in r)
+        image_req = next(r for r in requests if "insertInlineImage" in r)
+        assert insert["insertText"]["text"] == "Hello\n"
+        assert image_req["insertInlineImage"]["location"]["index"] == 6
+
     def test_negative_depth_orphan_li_does_not_take_isolated_wrap_path(self):
-        # Finding 3: an orphan <li> outside any <ul>/<ol> gets depth=-1 from
+        # Finding 3 (as fixed after QA round 2's finding 3+4 fold): an orphan <li>
+        # outside any <ul>/<ol> used to reach ast_to_requests with depth=-1 from
         # html_parser.py's _make_bullet_item (len(_list_ordered) - 1 with an empty
-        # stack). Clamped to 0 here so it takes the same single-call min_depth==0
-        # path a normal depth-0 item does, rather than the 3-request isolated-run
-        # wrap path purely because raw -1 != 0 — both produce the identical
-        # nestingLevel 0 result once the API sees 0 literal leading tab characters
-        # either way, so the wrap path's extra insert/delete pair buys nothing here.
-        nodes = [BulletItem(runs=[Run("Orphan")], depth=-1)]
+        # stack), needing 3 separate emitter.py call sites to each independently
+        # clamp it. Now clamped once at the source in _make_bullet_item itself, so
+        # a real BulletItem can never carry a negative depth in the first place —
+        # this test goes through html_to_ast (not a hand-built BulletItem(depth=-1),
+        # which is no longer a shape emitter.py needs to defend against) to exercise
+        # the actual production path. Takes the single-call min_depth==0 path a
+        # normal depth-0 item does, not the 3-request isolated-run wrap path.
+        nodes = html_to_ast("<li>Orphan</li>")
         requests, _ = ast_to_requests(nodes)
         bullet_reqs = [r for r in requests if "createParagraphBullets" in r]
         assert len(bullet_reqs) == 1
@@ -1107,19 +1153,23 @@ class TestBulletDepthEdgeCases:
         assert insert["insertText"]["text"] == "Orphan\n"
 
     def test_negative_depth_orphan_li_groups_with_depth_zero_sibling(self):
-        # A negative-depth orphan immediately followed by a normal depth-0 item of
-        # the same preset must still be treated as one contiguous run at
-        # min_depth==0 — an un-clamped raw min(-1, 0) == -1 would also route this
-        # pair into the isolated wrap path even though a real depth-0 member is
-        # right there to anchor nesting level 0 the normal way.
-        nodes = [
-            BulletItem(runs=[Run("Orphan")], depth=-1),
-            BulletItem(runs=[Run("Normal")], depth=0),
-        ]
+        # An orphan <li> immediately followed by a normal depth-0 <li> (inside its
+        # own <ul>) of the same preset must still be treated as one contiguous run.
+        nodes = html_to_ast("<li>Orphan</li><ul><li>Normal</li></ul>")
         requests, _ = ast_to_requests(nodes)
         bullet_reqs = [r for r in requests if "createParagraphBullets" in r]
         assert len(bullet_reqs) == 1
         assert not any("deleteContentRange" in r for r in requests)
+
+    def test_orphan_li_depth_is_clamped_at_the_ast_level(self):
+        # Finding 3's actual fix site: html_parser.py's _make_bullet_item clamps
+        # len(_list_ordered) - 1 to a minimum of 0, so an orphan <li>'s own
+        # BulletItem.depth is 0, not -1, before it ever reaches emitter.py — the
+        # invariant the two tests above rely on holding at the source.
+        nodes = html_to_ast("<li>Orphan</li>")
+        (bullet,) = nodes
+        assert isinstance(bullet, BulletItem)
+        assert bullet.depth == 0
 
 
 class TestIsolatedDepthRunGlyph:

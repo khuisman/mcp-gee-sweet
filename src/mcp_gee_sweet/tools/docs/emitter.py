@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ...auth import execute_in_thread
 from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Row, Run, Table
@@ -23,6 +23,61 @@ class _PendingTable:
     node: Table
     position: int  # doc index where this table starts, before tab-consumption adjustment
     tab_offset: int  # cumulative synthetic bullet-tabs consumed ahead of it by insertTable time
+
+
+@dataclass
+class _SegmentMeta:
+    """One non-Table node's own bookkeeping for the two loops below — a typed
+    replacement for what used to be an untyped positional 5-tuple (#434 finding
+    6, following the same rationale _PendingTable above already applies to the
+    table bookkeeping).
+
+    `runs` is deliberately NOT always `node.runs` — for a BulletItem whose own
+    leading text had a literal tab stripped (see the main loop below, #434
+    finding 1), the per-run style/position offset math further down must walk
+    the *stripped* runs, not the node's original ones, or a run's own
+    `utf16_len(item.text)` still counts a tab character that was never actually
+    inserted — a style-range/image-position regression PR #768's QA round 2
+    caught in finding 1's own first version."""
+
+    node: DocNode
+    doc_start: int
+    doc_end: int
+    skip_len: int
+    tabs_through: int
+    runs: list[Run | Image]
+
+
+def _strip_bullet_leading_tabs(runs: list[Run | Image]) -> list[Run | Image]:
+    """Return `runs` with literal leading tab character(s) removed from the
+    start of its own text, without mutating the caller's Run/Image objects —
+    the AST is caller-owned and this function must stay side-effect-free on it
+    (contrast html_parser.py's `_make_bullet_item`, which mutates in place, but
+    only ever on a list it just built from its own fresh buffer, never on an
+    already-finalized AST a caller still holds a reference to).
+
+    A run that becomes empty after stripping is dropped entirely — mirrors
+    `_make_bullet_item`'s own `runs.pop(0)` after its checkbox-marker strip —
+    so a leading tab spanning more than one run (e.g. a tab-only run followed
+    by a run whose own text also starts with a tab) is still fully consumed.
+    Stops at the first run with any remaining text; an Image in between
+    contributes no text and can't itself carry a leading tab, so it's passed
+    through unchanged without stopping the scan.
+    """
+    result: list[Run | Image] = []
+    for i, item in enumerate(runs):
+        if not isinstance(item, Run):
+            result.append(item)
+            continue
+        new_text = item.text.lstrip("\t")
+        if not new_text:
+            continue  # fully consumed — drop and keep scanning
+        if new_text != item.text:
+            item = replace(item, text=new_text)
+        result.append(item)
+        result.extend(runs[i + 1 :])
+        break
+    return result
 
 
 def _is_code_paragraph(node: DocNode) -> bool:
@@ -101,7 +156,7 @@ def ast_to_requests(
         image_uris = {}
     text_parts: list[str] = []
     utf16_offset = 0
-    segment_meta: list[tuple] = []  # (node, doc_start, doc_end, skip_len, tabs_through)
+    segment_meta: list[_SegmentMeta] = []
     # Nested-bullet leading tabs (see below) are consumed/removed by their own
     # createParagraphBullets call, shifting everything after them backward — including
     # any table (or image — #333) positioned later in the doc. pending_tables tracks,
@@ -128,14 +183,13 @@ def ast_to_requests(
             # createParagraphBullets, which infers (and removes) nesting level from
             # leading tabs in each paragraph — the only mechanism the Docs API exposes
             # for setting it (#336). Consumed later by the nested-bullet pass below.
-            # max(..., 0): an orphan <li> outside any <ul>/<ol> (html_parser.py treats
-            # "li" as an ordinary _BLOCK_TAGS entry, so this is reachable) computes
-            # depth = len(_list_ordered) - 1 = -1. Clamped here rather than left
-            # negative so it takes the same direct min_depth==0 path a normal depth-0
-            # item does below, instead of needlessly falling into the isolated-run
-            # wrap path (#434 finding 3) purely because -1 != 0.
-            depth = max(node.depth, 0) if isinstance(node, BulletItem) else 0
-            tabs = "\t" * depth if isinstance(node, BulletItem) else ""
+            # node.depth is never negative — html_parser.py's _make_bullet_item clamps
+            # an orphan <li>'s (outside any <ul>/<ol>) depth to 0 at the source, so it
+            # takes the same direct min_depth==0 path a normal depth-0 item does below
+            # rather than needlessly falling into the isolated-run wrap path (#434
+            # finding 3). Clamping there once, instead of at every consumer here,
+            # closes finding 4 (the clamp used to be repeated 3x in this file alone).
+            tabs = "\t" * node.depth if isinstance(node, BulletItem) else ""
             # Checkbox glyph prefix for task list items
             prefix = ""
             if isinstance(node, BulletItem) and node.checked is not None:
@@ -143,6 +197,7 @@ def ast_to_requests(
             # Images (#333) contribute zero characters here — they're not part of the
             # text at all, just a positional marker resolved into its own
             # insertInlineImage request below, exactly like a Table.
+            offset_runs = node.runs
             run_text = "".join(r.text for r in node.runs if isinstance(r, Run))
             if isinstance(node, BulletItem) and run_text.startswith("\t"):
                 # A literal leading tab in the item's own source text (e.g.
@@ -156,7 +211,31 @@ def ast_to_requests(
                 # cumulative_tabs, desyncing every later table/image position
                 # (#434 finding 1). Stripped instead of preserved, since the
                 # alternative silently corrupts nesting depth for the whole item.
-                run_text = run_text.lstrip("\t")
+                # Applies unconditionally, at every depth including 0 — even with
+                # no synthetic tabs of our own to merge with, a lone literal
+                # leading tab is still misread by createParagraphBullets as a
+                # depth-1 signal relative to the rest of the run's own call. This
+                # IS a real content-loss tradeoff at depth 0 specifically: a
+                # genuinely-authored leading tab character (as opposed to one a
+                # hand-formatted source merely used for indentation) is silently
+                # dropped rather than preserved and escaped some other way — no
+                # visual placeholder is substituted for it. Accepted as the
+                # simpler behavior (#434 finding 5, QA round 2) since the Docs API
+                # gives this function no way to insert a literal leading tab
+                # character into a bulleted paragraph without it being reread as
+                # a nesting-depth signal on the very next createParagraphBullets
+                # call regardless of what emitted it.
+                #
+                # offset_runs (used below by the per-run style/position offset
+                # math, segment_meta.runs) must reflect this exact same strip —
+                # node.runs itself is left untouched (this function must not
+                # mutate the caller's AST), so a style range or image position
+                # computed from node.runs's own unstripped run.text would still
+                # count the removed tab character(s), overrunning by however many
+                # were stripped — PR #768's QA round 2 caught this in finding 1's
+                # own first version.
+                offset_runs = _strip_bullet_leading_tabs(node.runs)
+                run_text = "".join(r.text for r in offset_runs if isinstance(r, Run))
             text = prefix + run_text
             # A multi-line fenced code block is one Paragraph node whose Run text
             # carries embedded "\n" line breaks (html_parser.py's <pre> handling) —
@@ -192,7 +271,14 @@ def ast_to_requests(
             # descending pass images and tables share below — shifts it too, not
             # just tabs from strictly earlier nodes.
             segment_meta.append(
-                (node, doc_start, doc_end, utf16_len(tabs) + utf16_len(prefix), cumulative_tabs)
+                _SegmentMeta(
+                    node=node,
+                    doc_start=doc_start,
+                    doc_end=doc_end,
+                    skip_len=utf16_len(tabs) + utf16_len(prefix),
+                    tabs_through=cumulative_tabs,
+                    runs=offset_runs,
+                )
             )
 
     requests: list[dict] = []
@@ -213,7 +299,9 @@ def ast_to_requests(
     if full_text:
         requests.append({"insertText": {"location": {"index": start_index}, "text": full_text}})
 
-        for node, doc_start, doc_end, skip_len, tabs_through in segment_meta:
+        for seg in segment_meta:
+            node = seg.node
+            doc_start, doc_end = seg.doc_start, seg.doc_end
             rng = {"startIndex": doc_start, "endIndex": doc_end}
 
             if isinstance(node, Heading):
@@ -254,13 +342,17 @@ def ast_to_requests(
             # skip_len skips past any leading nesting tabs and checkbox glyph so run
             # offsets stay accurate. Image entries (#333) contribute 0 to offset (they're
             # not part of the text) and are queued into positional_inserts instead of a
-            # style request.
-            offset = skip_len
-            for item in node.runs:
+            # style request. Walks seg.runs, NOT node.runs — for a BulletItem with a
+            # stripped literal leading tab (#434 finding 1), those differ, and using
+            # node.runs's own unstripped text here would overrun every offset by however
+            # many tab characters were stripped but never actually inserted (the
+            # regression PR #768's QA round 2 caught in finding 1's own first version).
+            offset = seg.skip_len
+            for item in seg.runs:
                 if isinstance(item, Image):
                     uri = image_uris.get(id(item))
                     if uri is not None:
-                        image_position = doc_start + offset - tabs_through
+                        image_position = doc_start + offset - seg.tabs_through
                         positional_inserts.append(
                             (image_position, _image_insert_request(item, uri, image_position))
                         )
@@ -286,24 +378,25 @@ def ast_to_requests(
         # is the pattern Google's own Docs API samples use for building nested lists.
         i = 0
         while i < len(segment_meta):
-            node, run_start, run_end, _, _ = segment_meta[i]
+            node = segment_meta[i].node
+            run_start, run_end = segment_meta[i].doc_start, segment_meta[i].doc_end
             if not isinstance(node, BulletItem):
                 i += 1
                 continue
             ordered = node.ordered
             j = i
-            # max(..., 0): see the matching clamp where `tabs` is built above (#434
-            # finding 3) — an orphan <li>'s node.depth of -1 must route through the
-            # same min_depth==0 path a normal depth-0 item does, not the isolated-run
-            # wrap path purely because raw -1 != 0.
-            min_depth = max(node.depth, 0)
+            # node.depth is never negative — see the matching comment where `tabs`
+            # is built above (#434 finding 3/4): html_parser.py clamps an orphan
+            # <li>'s depth to 0 at the source now, so this always routes through
+            # the same min_depth==0 path a normal depth-0 item does.
+            min_depth = node.depth
             while (
                 j < len(segment_meta)
-                and isinstance(segment_meta[j][0], BulletItem)
-                and segment_meta[j][0].ordered == ordered
+                and isinstance(segment_meta[j].node, BulletItem)
+                and segment_meta[j].node.ordered == ordered
             ):
-                run_end = segment_meta[j][2]
-                min_depth = min(min_depth, max(segment_meta[j][0].depth, 0))
+                run_end = segment_meta[j].doc_end
+                min_depth = min(min_depth, segment_meta[j].node.depth)
                 j += 1
             preset = "NUMBERED_DECIMAL_ALPHA_ROMAN" if ordered else "BULLET_DISC_CIRCLE_SQUARE"
             if min_depth == 0:
