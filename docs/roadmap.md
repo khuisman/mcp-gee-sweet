@@ -250,7 +250,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [x] `drive`: consolidate `convert_markdown`'s duplicated matching/messaging logic in `transfer.py` (PR #414 follow-up) ([#424](https://github.com/khuisman/mcp-gee-sweet/issues/424)) (PR #763)
 - [x] `sync_folder`: `is_workspace` recomputed inline in the `use_checksum` block instead of reusing `drive_map`'s stashed value ([#474](https://github.com/khuisman/mcp-gee-sweet/issues/474)) (PR #765)
 - [x] `upload_local_folder`: `convert` skip logic has a duplicate-name edge case + logic duplication vs. `_upload_local_file` ([#514](https://github.com/khuisman/mcp-gee-sweet/issues/514)) (PR #767)
-- [ ] `sync_folder`: `actions` list built unconditionally even when `dry_run=False` ([#521](https://github.com/khuisman/mcp-gee-sweet/issues/521))
+- [x] `sync_folder`: `actions` list built unconditionally even when `dry_run=False` ([#521](https://github.com/khuisman/mcp-gee-sweet/issues/521)) (PR #770)
 - [ ] Extend the `_GOOGLE_DOC_MIME` sweep to remaining hardcoded-literal and comparison sites (#412 follow-up) ([#544](https://github.com/khuisman/mcp-gee-sweet/issues/544))
 - [ ] `refactor(drive)`: dedupe `mime_type` quote-escaping and list-files response mapping in `files.py` ([#578](https://github.com/khuisman/mcp-gee-sweet/issues/578))
 - [x] `list_folders`/`list_spreadsheets` no-parent + no-`DRIVE_FOLDER_ID` path is unbounded across all drives, no `max_results` (`lane-a`) ([#718](https://github.com/khuisman/mcp-gee-sweet/issues/718)) (PR #736)
