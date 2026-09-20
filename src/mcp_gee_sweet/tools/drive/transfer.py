@@ -811,10 +811,18 @@ async def _sync_level(
                         )
                     )
 
-    for step in plan:
-        actions.append(
-            {"name": f"{rel_prefix}{step.name}", "action": step.action, "reason": step.reason}
-        )
+    # Only dry_run ever reads `actions` (see the result-assembly comment below), so
+    # a real run skips building it entirely rather than paying the cost of a plan
+    # entry per file only to discard the whole list (#521).
+    if dry_run:
+        for step in plan:
+            actions.append(
+                {
+                    "name": f"{rel_prefix}{step.name}",
+                    "action": step.action,
+                    "reason": step.reason,
+                }
+            )
 
     total_bytes = 0
 
