@@ -465,6 +465,60 @@ class TestUnsupportedConstructPreservesParagraphBoundary:
         assert nodes[0].runs[0].text == "Title"
         assert nodes[1].runs[0].text == "Next"
 
+    def test_resumed_list_item_trailing_nbsp_preserved(self):
+        # #444: a resumed block's whitespace-only trailing flush is normally
+        # dropped as markup-formatting noise (test_nested_list_via_markdown_
+        # preserves_parent_text in test_docs_content.py covers that case with
+        # a plain "\n"), but an actual "&nbsp;" placed right after a nested
+        # list, still inside the same <li>, decodes to "\xa0" — a character
+        # no pretty-printer emits as indentation — and must survive instead
+        # of vanishing with no trace, unlike the fresh-<li> case just above.
+        nodes = html_to_ast("<ul><li>Item<ul><li>x</li></ul>&nbsp;</li></ul>")
+        assert len(nodes) == 3
+        assert nodes[0].runs[0].text == "Item"
+        assert nodes[1].runs[0].text == "x"
+        assert nodes[2].runs[0].text == "\xa0"
+
+    def test_resumed_list_item_trailing_plain_whitespace_still_dropped(self):
+        # Control for the test above: plain ASCII whitespace (not an entity)
+        # after the same nested-list interruption is still markup-formatting
+        # noise and must still be dropped — the #444 fix is scoped to a
+        # character _is_formatting_whitespace doesn't recognize, not to
+        # "resumed block has any trailing text at all".
+        nodes = html_to_ast("<ul><li>Item<ul><li>x</li></ul>\n</li></ul>")
+        assert len(nodes) == 2
+        assert nodes[0].runs[0].text == "Item"
+        assert nodes[1].runs[0].text == "x"
+
+    def test_resumed_paragraph_trailing_nbsp_preserved(self):
+        # Same #444 fix, <p> instead of <li> — a resumed <p>'s trailing
+        # "&nbsp;" after a nested table must survive the same way a fresh
+        # <p>&nbsp;</p> already does (test_nbsp_only_paragraph_preserved).
+        html = "<p>Before<table><tr><td>cell</td></tr></table>&nbsp;</p>"
+        nodes = html_to_ast(html)
+        assert nodes[0].runs[0].text == "Before"
+        assert isinstance(nodes[-1], Paragraph)
+        assert nodes[-1].runs[0].text == "\xa0"
+
+    def test_resumed_pre_trailing_nbsp_preserved(self):
+        # Same #444 fix applied to the <pre> close-tag handler's own
+        # independent fresh-vs-resumed whitespace check (#443).
+        html = "<pre>before<table><tr><td>cell</td></tr></table>&nbsp;</pre>"
+        nodes = html_to_ast(html)
+        assert nodes[0].runs[0].text == "before"
+        assert nodes[-1].runs[0].text == "\xa0"
+
+    def test_resumed_pre_trailing_plain_whitespace_still_dropped(self):
+        # Control for the <pre> case: plain ASCII whitespace noise between
+        # the nested table's close and </pre> is still dropped — only the
+        # "before" paragraph and the table itself remain, no trailing node
+        # for the resumed <pre>'s own whitespace-only flush.
+        html = "<pre>before<table><tr><td>cell</td></tr></table>\n</pre>"
+        nodes = html_to_ast(html)
+        assert len(nodes) == 2
+        assert nodes[0].runs[0].text == "before"
+        assert isinstance(nodes[1], Table)
+
     def test_dropped_construct_survives_interruption_by_nested_list(self):
         # #401 follow-up (PR #406, TC-DOC136): _interrupt_open_block flushed
         # the currently-open block before descending into a nested construct

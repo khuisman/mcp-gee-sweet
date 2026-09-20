@@ -39,6 +39,28 @@ _VOID_TAGS = {
     "wbr",
 }
 
+# The literal whitespace characters a markup pretty-printer/renderer can
+# actually emit as structural formatting noise (source indentation, a
+# newline between two tags). Used by _is_formatting_whitespace below (#444)
+# to tell that apart from a non-ASCII space character like "\xa0" (the
+# result of decoding "&nbsp;"/"&#160;" — HTMLParser's default
+# convert_charrefs=True resolves these into plain str.isspace()-true
+# characters before handle_data ever sees them, so handle_entityref/
+# handle_charref never fire for ordinary body text and can't be used as the
+# signal instead): no renderer or hand-formatter has a reason to emit a
+# non-breaking space as indentation, so its presence means a human actually
+# typed it.
+_ASCII_FORMATTING_WHITESPACE = " \t\n\r\v\f"
+
+
+def _is_formatting_whitespace(text: str) -> bool:
+    """True for a non-empty string made up only of the plain ASCII
+    whitespace characters a pretty-printer/renderer would emit as
+    structural noise — False for text.strip() == "" text that still
+    contains something else (e.g. "&nbsp;"'s decoded "\\xa0"), which is
+    real, if invisible, authored content instead (#444)."""
+    return text != "" and all(c in _ASCII_FORMATTING_WHITESPACE for c in text)
+
 
 @dataclass
 class _BlockFrame:
@@ -193,7 +215,7 @@ class _AstParser(HTMLParser):
         one place all four sites that begin buffering a block's content route
         through: a fresh `_BLOCK_TAGS`/`pre` start tag, `_resume_interrupted_
         block`, and the implicit top-level paragraph opened for bare text
-        (#343). Each of these six fields used to be hand-duplicated at every
+        (#343). Each of these fields used to be hand-duplicated at every
         call site — the actual root cause behind #417: `_block_had_
         unsupported_content` was forgotten at the implicit-paragraph site in
         round 1, then `_block_resumed` was forgotten at the very same site in
@@ -302,7 +324,28 @@ class _AstParser(HTMLParser):
         stray "\n". Both the non-`<p>` and resumed-`<p>` cases fall back to
         the same preserve_if_empty gate the runs=[] case already uses (a
         real drop elsewhere in the same segment still earns a boundary
-        node; an ordinary formatting artifact doesn't). Emitter.py's
+        node; an ordinary formatting artifact doesn't) — *unless* the
+        resumed segment's whitespace-only text contains a character
+        `_is_formatting_whitespace` doesn't recognize as ordinary ASCII
+        formatting whitespace (#444) — e.g. the "\xa0" a decoded "&nbsp;"
+        becomes (HTMLParser's default convert_charrefs=True resolves
+        "&nbsp;"/"&#160;" into that plain character before handle_data ever
+        sees it, so handle_entityref/handle_charref never fire for this and
+        can't be used as the signal instead). A markup-formatting artifact
+        (like the stray "\n" above) is always plain ASCII whitespace
+        produced by a parser/pretty-printer — a non-breaking space or other
+        non-ASCII space character has no reason to appear there, so a
+        resumed segment that's whitespace-only *because of* one (e.g. an
+        explicit "&nbsp;" placed right after a nested list/table/pre, still
+        inside the same tag) can only be something a human actually typed —
+        real, if invisible, content to lose, the same rationale the
+        fresh-`<p>` case above already rests on. This deliberately does NOT
+        extend to a *fresh* `<li>`/heading whose only content is such a
+        character (e.g. `<li>&nbsp;</li>` between two real siblings): that's
+        the PR #441 regression above, and the signal doesn't rescue it,
+        since the problem there isn't ambiguity about who produced the
+        character — it's that lists/headings have no blank-line-spacer
+        convention for a standalone empty item to begin with. Emitter.py's
         ast_to_requests() no longer special-cases this text at all — it
         emits whatever text a kept node carries, whitespace or not.
 
@@ -311,11 +354,19 @@ class _AstParser(HTMLParser):
         Run at all, must never hit the empty-drop path below just because
         joining its (nonexistent) Run text yields "".
         """
-        text = "".join(r.text for r in runs if isinstance(r, Run)).strip()
+        raw_text = "".join(r.text for r in runs if isinstance(r, Run))
+        text = raw_text.strip()
         has_image = any(isinstance(r, Image) for r in runs)
         if not text and not has_image:
             is_fresh_paragraph_whitespace = tag == "p" and bool(runs) and not self._block_resumed
-            if not is_fresh_paragraph_whitespace and not preserve_if_empty:
+            is_resumed_authored_whitespace = (
+                self._block_resumed and bool(runs) and not _is_formatting_whitespace(raw_text)
+            )
+            if (
+                not is_fresh_paragraph_whitespace
+                and not is_resumed_authored_whitespace
+                and not preserve_if_empty
+            ):
                 return
         if tag in _HEADING_TAGS:
             level = int(tag[1])
@@ -752,10 +803,27 @@ class _AstParser(HTMLParser):
             # remaining flush is whitespace-only or empty — the same
             # preserve_if_empty guarantee _emit_block_node gives every other
             # block type — otherwise the dropped content leaves no trace at
-            # all in the resulting doc (QA round 1, PR #515).
+            # all in the resulting doc (QA round 1, PR #515). And, mirroring
+            # _emit_block_node's own #444 fix: a resumed <pre> whose trailing
+            # flush is whitespace-only but contains a character
+            # _is_formatting_whitespace doesn't recognize as ordinary ASCII
+            # formatting whitespace (e.g. the "\xa0" a decoded "&nbsp;"
+            # becomes) is still genuinely-authored content, not the
+            # markup-formatting noise this whole check exists to filter out
+            # of the resumed case — an indentation artifact between a
+            # nested table's close tag and this <pre>'s own close tag is
+            # always plain ASCII whitespace.
             text = "".join(r.text for r in runs if isinstance(r, Run))
             is_fresh_pre_whitespace = not self._block_resumed and bool(runs)
-            if text.strip() or is_fresh_pre_whitespace or self._block_had_unsupported_content:
+            is_resumed_authored_whitespace = (
+                self._block_resumed and bool(runs) and not _is_formatting_whitespace(text)
+            )
+            if (
+                text.strip()
+                or is_fresh_pre_whitespace
+                or is_resumed_authored_whitespace
+                or self._block_had_unsupported_content
+            ):
                 self._nodes.append(Paragraph(runs=runs, blockquote_depth=self._blockquote_depth))
             self._block_tag = None
             self._in_pre = False
