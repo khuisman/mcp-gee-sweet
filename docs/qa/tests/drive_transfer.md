@@ -451,6 +451,8 @@ Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
 **Teardown**
 Delete both `dup.csv` files from `{FOLDER_ID}`. Remove `/tmp/qa-folder-262/`.
 
+**Result (2026-09-20) ✅ PASS** — Verified via `mcp-gee-sweet-sky` against a fresh isolated fixture folder (PR #767 QA round 2, after Ash's fix for `_upload_local_file`'s `pageSize=1` and the unified skip branches — round 1 found the new test case had never actually been run; see the retitled TC-D243 above for that history). Step 1 uploaded `dup.csv` raw (`uploaded: ["dup.csv"]`). Step 2 created the unrelated Sheet named `dup.csv` directly. Step 3 (`convert=True`) returned `skipped: ["dup.csv"]`, `uploaded: []`; `list_files` showed exactly the same 2 files from steps 1–2, no third created. Additionally live-tested the fix's own two named findings directly: (1) called `upload_local_file(convert=True)` on the same local `dup.csv` against this same folder (now holding both the raw and converted entries) — correctly returned the *converted* Sheet's `fileId` with `skipped: true`, not the raw file's, confirming `_existing_upload_match` picks the right hit rather than assuming the first one back from Drive; (2) added an unsupported `archive.zip` to the local folder plus a same-named raw file already in Drive, then re-ran `upload_local_folder(convert=True)` — `archive.zip` correctly landed in `failed` ("Conversion not supported..."), not silently `skipped` despite the name collision. `tests/drive/test_transfer.py` — 144/144 passed (includes the 2 new regression tests from the fix commit). Fixture folder trashed as teardown.
+
 ---
 
 ## `download_file`
