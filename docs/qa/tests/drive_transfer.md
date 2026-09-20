@@ -1249,6 +1249,8 @@ Delete the 5 Drive files. Remove `/tmp/qa-512/`.
 
 **Result (2026-08-04) ✅ PASS** — Reproduced with a scratch folder (5 files a–e uploaded via `upload_local_file`; a/b/c copied locally with `cp -p` to preserve the mtime `upload_local_file` had already stamped onto Drive, so they land in-sync without any manual touch; d/e left Drive-only; f added local-only). `sync_folder(..., dry_run=true)` returned all five flat lists empty and `actions` with exactly 6 entries: a/b/c `skip`/"in sync", d/e `download`/"drive only", f `upload`/"local only". Scratch folder trashed after the test.
 
+**Result (2026-09-20, PR #770/issue #521) ✅ PASS** — #521 changed `_sync_level` to only build the `actions` list at all when `dry_run=True` (a real run's `result` never had an `actions` key even before this PR — `result["actions"] = actions` was already gated on `dry_run` — so this is a pure internal skip-the-work optimization, not a contract change). Re-verified both sides of the gate against a fresh scratch folder (1 in-sync file, 1 local-only): `dry_run=false` returned no `actions` key at all; `dry_run=true` returned `actions` with 2 correct entries (`skip`/"in sync", `upload`/"local only"). Contract unchanged. Scratch folder trashed after the test.
+
 ---
 
 ### TC-D245: `result_local_path` bypasses the response-size cap and writes the sync result to disk (issue #512)
