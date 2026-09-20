@@ -436,6 +436,25 @@ Delete the converted file(s) from `{FOLDER_ID}`. Remove `/tmp/qa-folder-243/`.
 
 ---
 
+### TC-D262: convert=True — two Drive files sharing the exact same name don't hide each other's classification (#514) ⚠️ local-filesystem
+**Background:** Drive allows more than one file to share a literal name. `upload_local_folder`'s bulk existence check used to key `existing_by_name` by name with one mimeType value per key — when two Drive entries shared a name (e.g. an unrelated Google Sheet that happens to also be named `dup.csv`, alongside the raw `dup.csv` this tool itself uploaded), whichever entry the `files().list()` response happened to return last silently won the dict slot, so the correct classification could be masked depending on response ordering (#514, surfaced during PR #505's review of #411). Distinct from TC-D242/TC-D243, which cover the name-vs-stripped-stem lookup — this covers two entries sharing the identical name string.
+
+**Prompt**
+> Step 1: "Upload the directory `/tmp/qa-folder-262/` to {FOLDER_ID}" *(no convert — creates a raw `text/csv` file named `dup.csv`)*
+> Step 2: "Create a new Google Sheet named `dup.csv` directly in {FOLDER_ID}" *(not via upload — simulates an unrelated Sheet that happens to share the raw file's exact name)*
+> Step 3: "Upload the directory `/tmp/qa-folder-262/` to {FOLDER_ID} with convert set to true"
+
+**Checks**
+- Step 3's `dup.csv` appears in `skipped`, not `uploaded` — the Sheet from step 2 already satisfies the converted-duplicate check even though a second, unconverted `dup.csv` also shares its name
+- `list_files` on `{FOLDER_ID}` still shows exactly 2 files named `dup.csv` (the raw one from step 1, the Sheet from step 2) — no third file created by step 3
+
+**Teardown**
+Delete both `dup.csv` files from `{FOLDER_ID}`. Remove `/tmp/qa-folder-262/`.
+
+**Result (2026-09-20) ✅ PASS** — Verified via `mcp-gee-sweet-sky` against a fresh isolated fixture folder (PR #767 QA round 2, after Ash's fix for `_upload_local_file`'s `pageSize=1` and the unified skip branches — round 1 found the new test case had never actually been run; see the retitled TC-D243 above for that history). Step 1 uploaded `dup.csv` raw (`uploaded: ["dup.csv"]`). Step 2 created the unrelated Sheet named `dup.csv` directly. Step 3 (`convert=True`) returned `skipped: ["dup.csv"]`, `uploaded: []`; `list_files` showed exactly the same 2 files from steps 1–2, no third created. Additionally live-tested the fix's own two named findings directly: (1) called `upload_local_file(convert=True)` on the same local `dup.csv` against this same folder (now holding both the raw and converted entries) — correctly returned the *converted* Sheet's `fileId` with `skipped: true`, not the raw file's, confirming `_existing_upload_match` picks the right hit rather than assuming the first one back from Drive; (2) added an unsupported `archive.zip` to the local folder plus a same-named raw file already in Drive, then re-ran `upload_local_folder(convert=True)` — `archive.zip` correctly landed in `failed` ("Conversion not supported..."), not silently `skipped` despite the name collision. `tests/drive/test_transfer.py` — 144/144 passed (includes the 2 new regression tests from the fix commit). Fixture folder trashed as teardown.
+
+---
+
 ## `download_file`
 
 ### TC-D101: Download a non-Google file ⚠️ local-filesystem
