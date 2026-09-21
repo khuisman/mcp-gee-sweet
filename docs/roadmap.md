@@ -219,7 +219,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 **Docs hardening & dedup** _(triaged out of `backlog` 2026-09-11)_
 - [x] `html_parser.py`: readability + reset-consistency nits in `_emit_block_node`/`_block_had_unsupported_content` ([#417](https://github.com/khuisman/mcp-gee-sweet/issues/417)) (PR #766)
 - [x] `emitter.py`: non-blocking cleanup findings from PR #432's nested-bullet review ([#434](https://github.com/khuisman/mcp-gee-sweet/issues/434)) (PR #768)
-- [ ] `html_parser`: a resumed block's genuine trailing `&nbsp;` is still silently dropped after #402's fix ([#444](https://github.com/khuisman/mcp-gee-sweet/issues/444))
+- [x] `html_parser`: a resumed block's genuine trailing `&nbsp;` is still silently dropped after #402's fix ([#444](https://github.com/khuisman/mcp-gee-sweet/issues/444)) (PR #772)
 - [ ] `docs/style.py`/`docs/content.py`: no shared helper for the "omit key but keep field mask" link-clear pattern ([#448](https://github.com/khuisman/mcp-gee-sweet/issues/448))
 - [ ] `html_parser`: merge identical `ol`/`ul` close-tag branches in `handle_endtag` ([#451](https://github.com/khuisman/mcp-gee-sweet/issues/451))
 - [ ] Heading-anchor resolution (#409): minor duplication/efficiency cleanups in `anchors.py`/`content.py` ([#454](https://github.com/khuisman/mcp-gee-sweet/issues/454))
