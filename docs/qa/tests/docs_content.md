@@ -22,6 +22,8 @@ These tools operate on document body indices. Use `get_doc_structure` first in a
 **Result (2026-09-04) ✅ PASS**
 QA-Empty-Doc created (docId 10XUmZffu...), no content, no error. Trashed.
 
+**Result (2026-09-20) ✅ PASS — regression spot-check, PR #777 (issue #544)** Verified via `mcp-gee-sweet-sky`. PR #777 replaces `create_doc`'s and `create_doc_from_file`'s hardcoded `"application/vnd.google-apps.document"` literal with the shared `_GOOGLE_DOC_MIME` constant (finishing the sweep started for `upload_file`/`_CONVERT_MIME` under #412). Created `QA-scratch-TC544-create_doc-mime-check` and `QA-scratch-TC544-create_doc_from_file-mime-check`; `get_file_metadata` confirmed `mimeType: application/vnd.google-apps.document` for both. Consistent with `/code-review high`'s finding of zero functional changes (the two literals and the constant are byte-identical) and the full unit suite (1524 passed, 3 skipped). Both trashed.
+
 ---
 
 ### TC-D08: Create with HTML content — formatting preserved ⚠️ requires-oauth

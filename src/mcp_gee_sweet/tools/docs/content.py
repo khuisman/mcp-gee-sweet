@@ -15,7 +15,7 @@ from mcp.types import ToolAnnotations
 from ...auth import execute_in_thread
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME
 from ..drive import _SA_QUOTA_ERROR
-from ..drive.transfer import _upload_local_file
+from ..drive.transfer import _GOOGLE_DOC_MIME, _upload_local_file
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .anchors import resolve_heading_anchor
 from .ast import Run, Table
@@ -815,7 +815,7 @@ def register(tool):
 
         file_body: dict[str, Any] = {
             "name": title,
-            "mimeType": "application/vnd.google-apps.document",
+            "mimeType": _GOOGLE_DOC_MIME,
         }
         if target_folder_id:
             file_body["parents"] = [target_folder_id]
@@ -943,7 +943,7 @@ def register(tool):
 
         file_body: dict[str, Any] = {
             "name": doc_title,
-            "mimeType": "application/vnd.google-apps.document",
+            "mimeType": _GOOGLE_DOC_MIME,
         }
         if target_folder_id:
             file_body["parents"] = [target_folder_id]
