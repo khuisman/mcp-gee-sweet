@@ -1339,6 +1339,7 @@
 - Response includes doc ID and web link</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 QA-Empty-Doc created (docId 10XUmZffu...), no content, no error. Trashed.</p>
+<p><strong>Result (2026-09-20) ✅ PASS — regression spot-check, PR #777 (issue #544)</strong> Verified via <code>mcp-gee-sweet-sky</code>. PR #777 replaces <code>create_doc</code>'s and <code>create_doc_from_file</code>'s hardcoded <code>"application/vnd.google-apps.document"</code> literal with the shared <code>_GOOGLE_DOC_MIME</code> constant (finishing the sweep started for <code>upload_file</code>/<code>_CONVERT_MIME</code> under #412). Created <code>QA-scratch-TC544-create_doc-mime-check</code> and <code>QA-scratch-TC544-create_doc_from_file-mime-check</code>; <code>get_file_metadata</code> confirmed <code>mimeType: application/vnd.google-apps.document</code> for both. Consistent with <code>/code-review high</code>'s finding of zero functional changes (the two literals and the constant are byte-identical) and the full unit suite (1524 passed, 3 skipped). Both trashed.</p>
 <hr />
 <h3 id="tc-d08-create-with-html-content-formatting-preserved-requires-oauth">TC-D08: Create with HTML content — formatting preserved ⚠️ requires-oauth<a class="headerlink" href="#tc-d08-create-with-html-content-formatting-preserved-requires-oauth" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
