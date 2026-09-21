@@ -109,7 +109,7 @@ def _is_converted_md_entry(f: dict) -> bool:
     change, instead of 5 independently-written checks — a duplication that had
     already caused a missed site once (#414 QA review round 3, finding #1) and
     was flagged again on round-3 review as still fragile (#424)."""
-    return f["mimeType"] == _CONVERT_MIME[".md"][1] and (
+    return f["mimeType"] == _GOOGLE_DOC_MIME and (
         (f.get("properties") or {}).get(_CONVERT_MARKDOWN_SOURCE_PROP) is not None
     )
 
