@@ -479,6 +479,21 @@ class TestUnsupportedConstructPreservesParagraphBoundary:
         assert nodes[1].runs[0].text == "x"
         assert nodes[2].runs[0].text == "\xa0"
 
+    def test_resumed_list_item_trailing_nbsp_with_leading_newline_not_split(self):
+        # PR #772 QA round 1, finding 1: a literal newline commonly sits
+        # between a nested list's "</ul>" and the following "&nbsp;" (real
+        # markdown/pretty-printed HTML rarely puts them adjacent with no
+        # whitespace at all, unlike the test above's minimal repro) — the
+        # unstripped "\n\xa0" run text would reach the Docs API as literal
+        # inserted text, which splits on any "\n" into a spurious extra
+        # paragraph (#719) regardless of styling. The preserved run must
+        # carry only the authored "\xa0", with the formatting-noise
+        # newline stripped out before it ever reaches that point.
+        html = "<ul><li>Item<ul><li>x</li></ul>\n&nbsp;</li></ul>"
+        nodes = html_to_ast(html)
+        assert len(nodes) == 3
+        assert nodes[2].runs[0].text == "\xa0"
+
     def test_resumed_list_item_trailing_plain_whitespace_still_dropped(self):
         # Control for the test above: plain ASCII whitespace (not an entity)
         # after the same nested-list interruption is still markup-formatting
@@ -507,6 +522,34 @@ class TestUnsupportedConstructPreservesParagraphBoundary:
         nodes = html_to_ast(html)
         assert nodes[0].runs[0].text == "before"
         assert nodes[-1].runs[0].text == "\xa0"
+
+    def test_resumed_pre_trailing_nbsp_with_leading_newline_not_split(self):
+        # PR #772 QA round 1, finding 1's <pre> sibling case.
+        html = "<pre>before<table><tr><td>cell</td></tr></table>\n&nbsp;</pre>"
+        nodes = html_to_ast(html)
+        assert nodes[-1].runs[0].text == "\xa0"
+
+    def test_resumed_pre_real_multiline_content_not_stripped(self):
+        # Control for the fix above: a resumed <pre> can also carry genuine
+        # multi-line content of its own (not just whitespace-plus-entity) —
+        # its newlines are real, significant <pre> text and must NOT be
+        # stripped just because is_resumed_authored_whitespace is also true
+        # for non-whitespace text (it only checks "not all-formatting-
+        # whitespace", which is trivially true for real content too).
+        html = "<pre>before<table><tr><td>cell</td></tr></table>line1\nline2</pre>"
+        nodes = html_to_ast(html)
+        assert nodes[-1].runs[0].text == "line1\nline2"
+
+    def test_resumed_list_item_trailing_vertical_tab_preserved(self):
+        # PR #772 QA round 1, finding 2: "\v"/"\f" were originally included
+        # in the ASCII-formatting-whitespace whitelist despite qualifying
+        # for the exact same authored-content reasoning as "\xa0" — no
+        # pretty-printer emits either as structural indentation, so a
+        # genuinely-typed one (e.g. pasted from a terminal) must survive
+        # instead of being silently dropped as if it were noise.
+        nodes = html_to_ast("<ul><li>Item<ul><li>x</li></ul>\x0b</li></ul>")
+        assert len(nodes) == 3
+        assert nodes[2].runs[0].text == "\x0b"
 
     def test_resumed_pre_trailing_plain_whitespace_still_dropped(self):
         # Control for the <pre> case: plain ASCII whitespace noise between

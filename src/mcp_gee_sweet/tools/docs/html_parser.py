@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import html as html_module
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from html.parser import HTMLParser
 
 from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Row, Run, Table
@@ -40,26 +40,74 @@ _VOID_TAGS = {
 }
 
 # The literal whitespace characters a markup pretty-printer/renderer can
-# actually emit as structural formatting noise (source indentation, a
-# newline between two tags). Used by _is_formatting_whitespace below (#444)
-# to tell that apart from a non-ASCII space character like "\xa0" (the
-# result of decoding "&nbsp;"/"&#160;" — HTMLParser's default
-# convert_charrefs=True resolves these into plain str.isspace()-true
-# characters before handle_data ever sees them, so handle_entityref/
-# handle_charref never fire for ordinary body text and can't be used as the
-# signal instead): no renderer or hand-formatter has a reason to emit a
-# non-breaking space as indentation, so its presence means a human actually
-# typed it.
-_ASCII_FORMATTING_WHITESPACE = " \t\n\r\v\f"
+# actually emit as structural formatting noise: source indentation (a run of
+# spaces/tabs) or a newline between two tags, plus the "\r" half of a "\r\n"
+# line ending. Used by _is_formatting_whitespace below (#444) to tell that
+# apart from a non-ASCII space character like "\xa0" (the result of decoding
+# "&nbsp;"/"&#160;" — HTMLParser's default convert_charrefs=True resolves
+# these into plain str.isspace()-true characters before handle_data ever
+# sees them, so handle_entityref/handle_charref never fire for ordinary body
+# text and can't be used as the signal instead): no renderer or
+# hand-formatter has a reason to emit a non-breaking space as indentation,
+# so its presence means a human actually typed it. Deliberately excludes
+# "\v"/"\f" (vertical tab / form feed) despite both being ASCII and
+# str.isspace()-true: no pretty-printer emits either as structural
+# whitespace either — the same "nothing legitimate produces this" reasoning
+# that justifies treating "\xa0" as authored applies to these too (PR #772
+# QA round 1, finding 2), so a resumed segment whose only trailing content
+# is a genuinely-typed "\v"/"\f" (e.g. pasted from a terminal) must also
+# survive rather than being silently dropped as if it were noise.
+_ASCII_FORMATTING_WHITESPACE = " \t\n\r"
 
 
 def _is_formatting_whitespace(text: str) -> bool:
     """True for a non-empty string made up only of the plain ASCII
     whitespace characters a pretty-printer/renderer would emit as
     structural noise — False for text.strip() == "" text that still
-    contains something else (e.g. "&nbsp;"'s decoded "\\xa0"), which is
-    real, if invisible, authored content instead (#444)."""
+    contains something else (e.g. "&nbsp;"'s decoded "\\xa0", or a stray
+    "\\v"/"\\f"), which is real, if invisible, authored content instead
+    (#444)."""
     return text != "" and all(c in _ASCII_FORMATTING_WHITESPACE for c in text)
+
+
+def _is_resumed_authored_whitespace(resumed: bool, runs: list[Run | Image], raw_text: str) -> bool:
+    """True when a resumed block's segment is non-empty and its full,
+    unstripped text is whitespace-only per str.strip() but not made up
+    solely of _ASCII_FORMATTING_WHITESPACE characters — i.e. it contains
+    something like the decoded "\\xa0" from an authored "&nbsp;" that no
+    markup pretty-printer/renderer would emit as indentation noise (#444).
+    Shared by _emit_block_node and the <pre> close-tag handler's own
+    parallel fresh/resumed whitespace check so the two definitions can't
+    drift out of sync the way #417 was filed to prevent for block-open
+    state (PR #772 QA round 1, finding 3)."""
+    return resumed and bool(runs) and not _is_formatting_whitespace(raw_text)
+
+
+def _strip_formatting_whitespace(runs: list[Run | Image]) -> list[Run | Image]:
+    """Remove _ASCII_FORMATTING_WHITESPACE characters from each Run's text
+    in a resumed segment being preserved for its genuinely-authored content
+    (#444's _is_resumed_authored_whitespace case). Without this, an
+    incidental newline sitting next to the authored content — e.g. the
+    indentation between a nested list's closing tag and the "&nbsp;" that
+    follows it — would still reach the Docs API as literal inserted text:
+    the API splits on any "\\n" into a new paragraph regardless of styling
+    (#719), producing a spurious extra paragraph for exactly the segment
+    this fix was meant to preserve cleanly (PR #772 QA round 1, finding 1).
+    Only ever called on a segment already confirmed non-empty and
+    whitespace-only-but-authored, so it can never strip a run down to
+    nothing without also having something authored left in a sibling run —
+    a Run that does strip down to empty is dropped outright, mirroring
+    _flush_run's own refusal to create an empty Run. Image entries pass
+    through untouched."""
+    result: list[Run | Image] = []
+    for r in runs:
+        if isinstance(r, Image):
+            result.append(r)
+            continue
+        stripped = "".join(c for c in r.text if c not in _ASCII_FORMATTING_WHITESPACE)
+        if stripped:
+            result.append(replace(r, text=stripped))
+    return result
 
 
 @dataclass
@@ -359,9 +407,11 @@ class _AstParser(HTMLParser):
         has_image = any(isinstance(r, Image) for r in runs)
         if not text and not has_image:
             is_fresh_paragraph_whitespace = tag == "p" and bool(runs) and not self._block_resumed
-            is_resumed_authored_whitespace = (
-                self._block_resumed and bool(runs) and not _is_formatting_whitespace(raw_text)
+            is_resumed_authored_whitespace = _is_resumed_authored_whitespace(
+                self._block_resumed, runs, raw_text
             )
+            if is_resumed_authored_whitespace:
+                runs = _strip_formatting_whitespace(runs)
             if (
                 not is_fresh_paragraph_whitespace
                 and not is_resumed_authored_whitespace
@@ -812,12 +862,24 @@ class _AstParser(HTMLParser):
             # markup-formatting noise this whole check exists to filter out
             # of the resumed case — an indentation artifact between a
             # nested table's close tag and this <pre>'s own close tag is
-            # always plain ASCII whitespace.
+            # always plain ASCII whitespace. As in _emit_block_node, the
+            # preserved runs are then stripped of that formatting whitespace
+            # (PR #772 QA round 1, finding 1) — but only when this segment
+            # is whitespace-only to begin with (`not text.strip()`): a
+            # resumed <pre> can also carry genuine multi-line content of its
+            # own (is_resumed_authored_whitespace is True there too, since
+            # real text isn't all-formatting-whitespace either), and that
+            # content's own newlines are real, significant <pre> text, not
+            # noise to strip — they're handled separately at write time via
+            # the Courier-New "\n"→"\v" substitution (#719), same as any
+            # other code paragraph.
             text = "".join(r.text for r in runs if isinstance(r, Run))
             is_fresh_pre_whitespace = not self._block_resumed and bool(runs)
-            is_resumed_authored_whitespace = (
-                self._block_resumed and bool(runs) and not _is_formatting_whitespace(text)
+            is_resumed_authored_whitespace = _is_resumed_authored_whitespace(
+                self._block_resumed, runs, text
             )
+            if not text.strip() and is_resumed_authored_whitespace:
+                runs = _strip_formatting_whitespace(runs)
             if (
                 text.strip()
                 or is_fresh_pre_whitespace
