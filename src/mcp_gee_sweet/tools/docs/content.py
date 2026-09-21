@@ -30,6 +30,7 @@ from .images import (
     upload_and_share_image,
 )
 from .indices import _collect_doc_paragraphs, decode_code_run_text, utf16_len
+from .style import _add_or_clear_field
 
 logger = logging.getLogger(__name__)
 
@@ -700,36 +701,31 @@ async def _resolve_heading_anchors(docs_service, doc_id: str) -> dict[str, Any]:
     requests: list[dict[str, Any]] = []
     for anchor, start, end in anchor_runs:
         match_idx = resolve_heading_anchor(anchor, heading_texts)
+        text_style: dict[str, Any] = {}
+        fields: list[str] = []
         if match_idx is not None:
             heading_url = (
                 f"https://docs.google.com/document/d/{doc_id}"
                 f"/edit?tab=t.0#heading={heading_ids[match_idx]}"
             )
-            requests.append(
-                {
-                    "updateTextStyle": {
-                        "range": {"startIndex": start, "endIndex": end},
-                        "textStyle": {"link": {"url": heading_url}},
-                        "fields": "link",
-                    }
-                }
-            )
+            _add_or_clear_field(text_style, fields, "link", {"url": heading_url})
             resolved.append({"anchor": anchor, "heading": heading_texts[match_idx]})
         else:
-            # Omit the "link" key while still naming it in the field mask — the
-            # correct way to reset a nested message field to its default (no
-            # link) per Docs API fields-mask semantics; see style.py's identical
-            # #408 fix for why textStyle.link = {} is rejected outright.
-            requests.append(
-                {
-                    "updateTextStyle": {
-                        "range": {"startIndex": start, "endIndex": end},
-                        "textStyle": {},
-                        "fields": "link",
-                    }
-                }
-            )
+            # _add_or_clear_field(..., None) omits "link" from textStyle while
+            # still naming it in fields — see that helper's own docstring
+            # (#408/#448) for why an empty textStyle here is correct, not a
+            # bug, and the single place this "omit but mask" contract lives.
+            _add_or_clear_field(text_style, fields, "link", None)
             stripped.append(anchor)
+        requests.append(
+            {
+                "updateTextStyle": {
+                    "range": {"startIndex": start, "endIndex": end},
+                    "textStyle": text_style,
+                    "fields": ",".join(fields),
+                }
+            }
+        )
 
     await execute_in_thread(
         docs_service.documents()

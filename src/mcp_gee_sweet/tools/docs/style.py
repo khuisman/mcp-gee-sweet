@@ -118,12 +118,39 @@ def _read_named_styles(doc: dict) -> dict:
     return theme
 
 
+def _add_or_clear_field(text_style: dict, fields: list[str], api_field: str, value: dict | None):
+    """Docs API field-mask helper: sets `api_field` to `value` in `text_style`
+    when `value` is truthy, or omits the key entirely while still naming
+    `api_field` in `fields` when it isn't — the documented way to reset a
+    nested message field to its API default. Confirmed for `link` via #408:
+    the API rejects an empty `Link{}` object outright ("must include at
+    least one type"), since that isn't a valid `Link` value, but omitting
+    the key while keeping the field-mask entry clears it correctly. `fields`
+    always gains `api_field` either way, so a caller must gate on whether to
+    send the request on `fields` (or its own local flag), never on whether
+    `text_style` itself is non-empty — a clear-only call legitimately
+    produces an empty `text_style` with a non-empty `fields` list.
+
+    Reused by any nullable nested-message field this shape applies to (not
+    just `link`) so a future one (e.g. `foreground_color: null`) doesn't
+    need to hand-roll the same omit-but-mask trick inline a third time
+    (issue #448) the way both `_text_style_and_fields`'s own `link_url`
+    case and `content.py`'s heading-anchor link-clearing code once did.
+    """
+    if value is not None:
+        text_style[api_field] = value
+    fields.append(api_field)
+
+
 def _text_style_and_fields(style: dict) -> tuple[dict, list[str]]:
     """Build a Docs API textStyle dict + field mask from a flat style dict keyed
     by bold/italic/underline/strikethrough/font_size/foreground_color/link_url.
 
     Shared by style_doc_range and insert_softbreak_paragraph so both tools draw
     per-run styling from the same key vocabulary and request-building logic.
+    May return an empty text_style with a non-empty fields list (a
+    clear-only call, e.g. link_url=None/"") — see _add_or_clear_field's own
+    docstring for why a caller must gate on `fields`, not `text_style`.
     """
     text_style: dict = {}
     fields: list[str] = []
@@ -138,15 +165,8 @@ def _text_style_and_fields(style: dict) -> tuple[dict, list[str]]:
         text_style["foregroundColor"] = {"color": {"rgbColor": style["foreground_color"]}}
         fields.append("foregroundColor")
     if "link_url" in style:
-        # Clearing a link (link_url falsy) must omit "link" from textStyle
-        # entirely rather than setting it to an empty Link{} object — the API
-        # rejects an empty Link ("must include at least one type") since
-        # that's not a valid Link value, but omitting the key while still
-        # naming "link" in the field mask is the documented way to reset a
-        # nested message field to its default (no link) (#408).
-        if style["link_url"]:
-            text_style["link"] = {"url": style["link_url"]}
-        fields.append("link")
+        link = {"url": style["link_url"]} if style["link_url"] else None
+        _add_or_clear_field(text_style, fields, "link", link)
     return text_style, fields
 
 

@@ -248,8 +248,10 @@ def register(tool):
             line_ranges.append({"start_index": line_start, "end_index": line_end})
 
             text_style, fields = _text_style_and_fields(line)
-            # See style_doc_range's identical comment (#408): a link-clear-only
-            # line legitimately produces an empty text_style with fields=["link"].
+            # A link-clear-only line legitimately produces an empty text_style
+            # with fields=["link"] — see _text_style_and_fields's own docstring
+            # (#408), the single source of truth for this contract rather than
+            # a second copy of the same prose (issue #448).
             if fields:
                 requests.append(
                     {

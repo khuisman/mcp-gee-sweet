@@ -16,6 +16,7 @@ from mcp_gee_sweet.tools.docs.emitter import (
     _run_style_requests,
 )
 from mcp_gee_sweet.tools.docs.style import (
+    _add_or_clear_field,
     _build_named_style_requests,
     _read_body_styles,
     _read_named_styles,
@@ -145,6 +146,39 @@ class TestTextStyleAndFieldsLinkClearing:
         text_style, fields = _text_style_and_fields({"bold": True})
         assert "link" not in text_style
         assert "link" not in fields
+
+
+class TestAddOrClearField:
+    """#448: the general "omit key but keep field mask" helper factored out
+    of _text_style_and_fields's link_url case, now also used directly by
+    content.py's heading-anchor link resolve/strip code — tested on its own
+    generic contract (an arbitrary api_field/value), not just "link", since
+    a future nullable field (e.g. foreground_color) is expected to reuse it
+    without ever touching links at all."""
+
+    def test_truthy_value_sets_field_and_masks_it(self):
+        text_style: dict = {}
+        fields: list[str] = []
+        _add_or_clear_field(text_style, fields, "foregroundColor", {"color": "red"})
+        assert text_style == {"foregroundColor": {"color": "red"}}
+        assert fields == ["foregroundColor"]
+
+    def test_none_value_omits_key_but_still_masks_it(self):
+        text_style: dict = {}
+        fields: list[str] = []
+        _add_or_clear_field(text_style, fields, "foregroundColor", None)
+        assert text_style == {}
+        assert fields == ["foregroundColor"]
+
+    def test_accumulates_onto_existing_text_style_and_fields(self):
+        # Callers (e.g. content.py's heading-anchor code) reuse one
+        # text_style/fields pair across a single request's fields — a second
+        # call must not clobber what the first one already added.
+        text_style: dict = {"bold": True}
+        fields: list[str] = ["bold"]
+        _add_or_clear_field(text_style, fields, "link", {"url": "https://x.com"})
+        assert text_style == {"bold": True, "link": {"url": "https://x.com"}}
+        assert fields == ["bold", "link"]
 
 
 class TestRunStylePhase3:
