@@ -170,6 +170,20 @@ class TestAddOrClearField:
         assert text_style == {}
         assert fields == ["foregroundColor"]
 
+    def test_empty_dict_value_is_written_as_is_not_treated_as_clear(self):
+        # PR #778 QA round 1, finding 1: gating on "is not None" rather than
+        # truthiness is deliberate — an explicitly passed empty dict ({}) is
+        # a real value, not a clear request, and must be written into
+        # text_style verbatim rather than silently treated the same as
+        # None. (Whether {} is itself a *valid* Docs API value is the
+        # caller's problem, same as any other value this helper is handed —
+        # not something this generic helper can or should judge.)
+        text_style: dict = {}
+        fields: list[str] = []
+        _add_or_clear_field(text_style, fields, "foregroundColor", {})
+        assert text_style == {"foregroundColor": {}}
+        assert fields == ["foregroundColor"]
+
     def test_accumulates_onto_existing_text_style_and_fields(self):
         # Callers (e.g. content.py's heading-anchor code) reuse one
         # text_style/fields pair across a single request's fields — a second

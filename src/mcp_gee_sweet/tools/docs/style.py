@@ -118,10 +118,12 @@ def _read_named_styles(doc: dict) -> dict:
     return theme
 
 
-def _add_or_clear_field(text_style: dict, fields: list[str], api_field: str, value: dict | None):
+def _add_or_clear_field(
+    text_style: dict, fields: list[str], api_field: str, value: dict | None
+) -> None:
     """Docs API field-mask helper: sets `api_field` to `value` in `text_style`
-    when `value` is truthy, or omits the key entirely while still naming
-    `api_field` in `fields` when it isn't — the documented way to reset a
+    when `value` is not None, or omits the key entirely while still naming
+    `api_field` in `fields` when it is — the documented way to reset a
     nested message field to its API default. Confirmed for `link` via #408:
     the API rejects an empty `Link{}` object outright ("must include at
     least one type"), since that isn't a valid `Link` value, but omitting
@@ -129,7 +131,21 @@ def _add_or_clear_field(text_style: dict, fields: list[str], api_field: str, val
     always gains `api_field` either way, so a caller must gate on whether to
     send the request on `fields` (or its own local flag), never on whether
     `text_style` itself is non-empty — a clear-only call legitimately
-    produces an empty `text_style` with a non-empty `fields` list.
+    produces an empty `text_style` with a non-empty `fields` list. The
+    `is not None` check is deliberate, not just "falsy" — an explicitly
+    passed empty dict (`{}`) is a value, not a clear request, and would
+    otherwise be silently written into `text_style` as an invalid/empty
+    nested object, the exact class of bug (#408) this helper exists to
+    prevent (PR #778 QA round 1, finding 1).
+
+    Mutates `text_style`/`fields` in place and returns nothing — a
+    deliberate deviation from `_text_style_and_fields`'s own
+    build-and-return-a-fresh-tuple convention in this same file, chosen so
+    a caller can accumulate several fields (some set, some cleared) onto
+    one shared `text_style`/`fields` pair across multiple calls, the way
+    `content.py`'s heading-anchor code does — a return-tuple version would
+    force each caller to merge dicts/lists back together itself instead
+    (PR #778 QA round 1, finding 2).
 
     Reused by any nullable nested-message field this shape applies to (not
     just `link`) so a future one (e.g. `foreground_color: null`) doesn't
