@@ -12,11 +12,53 @@ from mcp.types import ToolAnnotations
 from ...auth import execute_in_thread
 from ..concurrency import gather_with_fallback, report_progress_safe
 from ..sheets.helpers import _quote_sheet_name
-from . import _SA_QUOTA_ERROR
+from . import _SA_QUOTA_ERROR, _escape_drive_query_mime_type
 
 logger = logging.getLogger(__name__)
 
 _CSV_IMPORT_CHUNK_ROWS = 5000
+
+
+async def _list_drive_files(
+    drive_service,
+    q: str,
+    max_results: int,
+    error_prefix: str,
+    extra_kwargs: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Shared execute+map+error-handling body for list_shared_with_me/list_recent_files.
+
+    Both tools query files().list() against the same result field set and shape
+    the response identically; only the query string, page size, and (for
+    list_recent_files) the cross-Drive flags differ, passed via extra_kwargs.
+    """
+    try:
+        results = await execute_in_thread(
+            drive_service.files()
+            .list(
+                q=q,
+                pageSize=max_results,
+                spaces="drive",
+                fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
+                orderBy="modifiedTime desc",
+                **(extra_kwargs or {}),
+            )
+            .execute,
+            drive_service,
+        )
+        return [
+            {
+                "id": f["id"],
+                "name": f["name"],
+                "mime_type": f["mimeType"],
+                "modified_time": f.get("modifiedTime"),
+                "owners": [o.get("emailAddress") for o in f.get("owners", [])],
+                "web_link": f.get("webViewLink"),
+            }
+            for f in results.get("files", [])
+        ]
+    except Exception as e:
+        return [{"error": f"{error_prefix} failed: {e!s}"}]
 
 
 def register(tool):
@@ -535,7 +577,7 @@ def register(tool):
 
         query = f"'{folder_id}' in parents and trashed=false"
         if mime_type:
-            safe_mime = mime_type.replace("'", "\\'")
+            safe_mime = _escape_drive_query_mime_type(mime_type)
             query += f" and mimeType='{safe_mime}'"
 
         try:
@@ -605,7 +647,7 @@ def register(tool):
         safe_query = query.replace("\\", "\\\\").replace("'", "\\'")
         parts = [f"(name contains '{safe_query}' or fullText contains '{safe_query}')"]
         if mime_type:
-            safe_mime = mime_type.replace("'", "\\'")
+            safe_mime = _escape_drive_query_mime_type(mime_type)
             parts.append(f"mimeType='{safe_mime}'")
         if folder_id:
             parts.append(f"'{folder_id}' in parents")
@@ -1118,35 +1160,12 @@ def register(tool):
 
         parts = ["sharedWithMe=true", "trashed=false"]
         if mime_type:
-            safe_mime = mime_type.replace("'", "\\'")
+            safe_mime = _escape_drive_query_mime_type(mime_type)
             parts.append(f"mimeType='{safe_mime}'")
 
-        try:
-            results = await execute_in_thread(
-                drive_service.files()
-                .list(
-                    q=" and ".join(parts),
-                    pageSize=max_results,
-                    spaces="drive",
-                    fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
-                    orderBy="modifiedTime desc",
-                )
-                .execute,
-                drive_service,
-            )
-            return [
-                {
-                    "id": f["id"],
-                    "name": f["name"],
-                    "mime_type": f["mimeType"],
-                    "modified_time": f.get("modifiedTime"),
-                    "owners": [o.get("emailAddress") for o in f.get("owners", [])],
-                    "web_link": f.get("webViewLink"),
-                }
-                for f in results.get("files", [])
-            ]
-        except Exception as e:
-            return [{"error": f"List shared with me failed: {e!s}"}]
+        return await _list_drive_files(
+            drive_service, " and ".join(parts), max_results, "List shared with me"
+        )
 
     @tool(annotations=ToolAnnotations(title="List Recent Files", readOnlyHint=True))
     async def list_recent_files(
@@ -1177,37 +1196,16 @@ def register(tool):
             )
             parts.append(f"modifiedTime > '{cutoff}'")
         if mime_type:
-            safe_mime = mime_type.replace("'", "\\'")
+            safe_mime = _escape_drive_query_mime_type(mime_type)
             parts.append(f"mimeType='{safe_mime}'")
 
-        try:
-            results = await execute_in_thread(
-                drive_service.files()
-                .list(
-                    q=" and ".join(parts),
-                    pageSize=max_results,
-                    spaces="drive",
-                    includeItemsFromAllDrives=True,
-                    supportsAllDrives=True,
-                    fields="files(id, name, mimeType, modifiedTime, owners, webViewLink)",
-                    orderBy="modifiedTime desc",
-                )
-                .execute,
-                drive_service,
-            )
-            return [
-                {
-                    "id": f["id"],
-                    "name": f["name"],
-                    "mime_type": f["mimeType"],
-                    "modified_time": f.get("modifiedTime"),
-                    "owners": [o.get("emailAddress") for o in f.get("owners", [])],
-                    "web_link": f.get("webViewLink"),
-                }
-                for f in results.get("files", [])
-            ]
-        except Exception as e:
-            return [{"error": f"List recent files failed: {e!s}"}]
+        return await _list_drive_files(
+            drive_service,
+            " and ".join(parts),
+            max_results,
+            "List recent files",
+            extra_kwargs={"includeItemsFromAllDrives": True, "supportsAllDrives": True},
+        )
 
     @tool(annotations=ToolAnnotations(title="Get Storage Quota", readOnlyHint=True))
     async def get_storage_quota(ctx: Context = None) -> dict[str, Any]:

@@ -19,7 +19,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread, thread_http
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
-from . import _SA_QUOTA_ERROR
+from . import _SA_QUOTA_ERROR, _escape_drive_query_mime_type
 
 logger = logging.getLogger(__name__)
 
@@ -2029,7 +2029,7 @@ def register(tool):
 
         query = f"'{folder_id}' in parents and trashed=false"
         if mime_type_filter:
-            safe = mime_type_filter.replace("'", "\\'")
+            safe = _escape_drive_query_mime_type(mime_type_filter)
             query += f" and mimeType='{safe}'"
 
         results = await execute_in_thread(
