@@ -3853,6 +3853,8 @@ Tool calls: `create_doc_from_file(local_path="<repo-root>/docs/qa/fixtures/tc-do
 **Result (2026-09-04) ✅ PASS**
 create_doc_from_file(tc-doc142-heading-anchors.md). All 4 checks confirmed: HEADING_1/HEADING_2 with own headingIds; "Appendix A" run link_url resolves to Appendix A's own headingId; "Appendix B itself" run link_url resolves to Appendix B's own headingId; "dead link" run link_url:null (stripped). Trashed.
 
+**Result (2026-09-21) ✅ PASS — re-run on PR #783 (issue #454), live via `mcp-gee-sweet-kit`.** PR #783 hoists `resolve_heading_anchor`'s per-anchor slugified-heading-list computation into a new `compute_scheme_slugs` helper (caching across anchors in one document) — this test case exercises the function this refactor changed. `create_doc_from_file(tc-doc142-heading-anchors.md)`: all 4 checks confirmed identical to prior runs — HEADING_1/HEADING_2 own `headingId`s; "Appendix A" and "Appendix B itself" runs' `link_url` resolve to their own headings; "dead link" run `link_url: null` (stripped). No regression from the caching change. Trashed.
+
 ---
 
 ### TC-DOC144: A heading-anchor link inside a table cell is resolved (regression for the table-blind body walk) ⚠️ requires-oauth ⚠️ destructive
