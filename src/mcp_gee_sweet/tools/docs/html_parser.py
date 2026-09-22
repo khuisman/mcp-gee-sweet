@@ -798,15 +798,10 @@ class _AstParser(HTMLParser):
         # now (see _resume_interrupted_block), which needs the already-popped
         # count to tell whether the interrupting list construct — however its
         # own open/close tags were paired — has actually closed.
-        if tag == "ol":
+        if tag in ("ol", "ul"):
             if self._list_ordered:
                 self._list_ordered.pop()
-            self._resume_interrupted_block("ol")
-            return
-        if tag == "ul":
-            if self._list_ordered:
-                self._list_ordered.pop()
-            self._resume_interrupted_block("ul")
+            self._resume_interrupted_block(tag)
             return
 
         # --- blockquote (#476) ---
