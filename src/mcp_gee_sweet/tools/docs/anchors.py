@@ -156,7 +156,12 @@ def resolve_heading_anchor(
     own return value (issue #454) — lets a caller resolving many anchors
     against the same heading list skip re-slugifying it per anchor. Omit it
     (the default) to compute it internally, as before; a one-off caller
-    doesn't need to know this parameter exists.
+    doesn't need to know this parameter exists. A `scheme_slugs` that
+    doesn't actually correspond to `heading_texts` (wrong length, e.g. a
+    caller passing a value computed against a stale or different heading
+    list) is recomputed rather than trusted — a mismatched-but-same-shaped
+    scheme_slugs could otherwise silently resolve to the wrong heading
+    index instead of raising or visibly failing.
     """
     anchor = anchor.lstrip("#")
     if not anchor or not heading_texts:
@@ -168,7 +173,7 @@ def resolve_heading_anchor(
     # a more precise mechanism — e.g. resolving the scheme once per document
     # from the first anchor that disambiguates it, rather than trying every
     # scheme against every anchor.
-    if scheme_slugs is None:
+    if scheme_slugs is None or any(len(slugs) != len(heading_texts) for slugs in scheme_slugs):
         scheme_slugs = compute_scheme_slugs(heading_texts)
 
     for slugs in scheme_slugs:

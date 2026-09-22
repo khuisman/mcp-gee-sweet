@@ -2235,45 +2235,42 @@ class TestHasPendingAnchorLinks:
 
 
 class TestResolveHeadingAnchorsHelper:
+    def _paragraph_elem(self, start, text, *, heading_id=None, link_url=None):
+        """Build one body-content element: a heading paragraph (heading_id
+        given) or a plain paragraph, optionally carrying a same-document
+        '#slug' link on its one run. Shared by every fixture in this class
+        (issue #454 QA finding — was previously duplicated between this
+        helper and _doc_with_anchor below, two independent builders for the
+        same JSON shape)."""
+        end = start + len(text) + 1
+        style = (
+            {"namedStyleType": "HEADING_1", "headingId": heading_id}
+            if heading_id
+            else {"namedStyleType": "NORMAL_TEXT"}
+        )
+        text_style = {"link": {"url": link_url}} if link_url else {}
+        return {
+            "startIndex": start,
+            "endIndex": end,
+            "paragraph": {
+                "paragraphStyle": style,
+                "elements": [
+                    {
+                        "startIndex": start,
+                        "endIndex": end,
+                        "textRun": {"content": text + "\n", "textStyle": text_style},
+                    }
+                ],
+            },
+        }
+
     def _doc_with_anchor(self, anchor_url, heading_text="Overview", heading_id="h.xyz"):
         return {
             "documentId": "doc1",
             "body": {
                 "content": [
-                    {
-                        "startIndex": 1,
-                        "endIndex": 1 + len(heading_text) + 1,
-                        "paragraph": {
-                            "paragraphStyle": {
-                                "namedStyleType": "HEADING_1",
-                                "headingId": heading_id,
-                            },
-                            "elements": [
-                                {
-                                    "startIndex": 1,
-                                    "endIndex": 1 + len(heading_text) + 1,
-                                    "textRun": {"content": heading_text + "\n", "textStyle": {}},
-                                }
-                            ],
-                        },
-                    },
-                    {
-                        "startIndex": 20,
-                        "endIndex": 25,
-                        "paragraph": {
-                            "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
-                            "elements": [
-                                {
-                                    "startIndex": 20,
-                                    "endIndex": 25,
-                                    "textRun": {
-                                        "content": "Link\n",
-                                        "textStyle": {"link": {"url": anchor_url}},
-                                    },
-                                }
-                            ],
-                        },
-                    },
+                    self._paragraph_elem(1, heading_text, heading_id=heading_id),
+                    self._paragraph_elem(20, "Link", link_url=anchor_url),
                 ]
             },
         }
@@ -2460,29 +2457,6 @@ class TestResolveHeadingAnchorsHelper:
         # same convention as _collect_doc_paragraphs) through the run's own
         # 5-UTF-16-unit content "Link\n".
         assert style["range"] == {"startIndex": 1, "endIndex": 6}
-
-    def _paragraph_elem(self, start, text, *, heading_id=None, link_url=None):
-        end = start + len(text) + 1
-        style = (
-            {"namedStyleType": "HEADING_1", "headingId": heading_id}
-            if heading_id
-            else {"namedStyleType": "NORMAL_TEXT"}
-        )
-        text_style = {"link": {"url": link_url}} if link_url else {}
-        return {
-            "startIndex": start,
-            "endIndex": end,
-            "paragraph": {
-                "paragraphStyle": style,
-                "elements": [
-                    {
-                        "startIndex": start,
-                        "endIndex": end,
-                        "textRun": {"content": text + "\n", "textStyle": text_style},
-                    }
-                ],
-            },
-        }
 
     async def test_multiple_anchors_slugify_heading_list_once_per_scheme(self):
         # Regression (#454): resolving N anchors against the same heading

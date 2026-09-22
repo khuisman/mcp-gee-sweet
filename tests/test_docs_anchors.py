@@ -106,11 +106,26 @@ class TestComputeSchemeSlugs:
     def test_precomputed_scheme_slugs_still_falls_back_to_fuzzy_match(self):
         # A precomputed scheme_slugs miss must still fall through to
         # _fuzzy_match, exactly like the default (recompute-internally) path.
-        headings = ["Appendix A: Approved Hashing Algorithms!"]
+        #
+        # "Setup/Installation" genuinely requires the fuzzy fallback: the
+        # '/' is stripped by both known slugify schemes with no separator
+        # left behind ("setupinstallation", no hyphen), so neither scheme's
+        # slug list ever contains "setup-installation" — confirmed directly
+        # against _slugs_with_dedup for both schemes before picking this
+        # fixture. Only _fuzzy_match's word-token normalization (which
+        # treats '/' and '-' as equivalent word breaks) resolves it.
+        headings = ["Setup/Installation"]
         scheme_slugs = compute_scheme_slugs(headings)
-        assert (
-            resolve_heading_anchor(
-                "#appendix-a-approved-hashing-algorithms", headings, scheme_slugs
-            )
-            == 0
+        assert all("setup-installation" not in slugs for slugs in scheme_slugs)
+        assert resolve_heading_anchor("#setup-installation", headings, scheme_slugs) == 0
+
+    def test_stale_scheme_slugs_recomputed_rather_than_trusted(self):
+        # scheme_slugs computed against a different (here: shorter) heading
+        # list than the one actually passed must not be trusted as-is — a
+        # length mismatch means it can't correspond to heading_texts, so
+        # it's silently recomputed instead of risking a wrong-index match.
+        stale = compute_scheme_slugs(["Old Heading"])
+        headings = ["New Heading"]
+        assert resolve_heading_anchor("#new-heading", headings, stale) == resolve_heading_anchor(
+            "#new-heading", headings
         )
