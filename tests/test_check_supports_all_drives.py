@@ -31,6 +31,38 @@ class TestFindViolationsInSource:
         src = 'drive_service.files().get(fileId="x", fields="id", supportsAllDrives=True).execute()'
         assert find_violations_in_source(src) == []
 
+    def test_flags_get_media_missing_kwarg(self):
+        """QA regression (PR #784 round 1): get_media isn't a literal REST method
+        — it's googleapiclient's generated alias for files.get when
+        supportsMediaDownload is set (confirmed live against the discovery doc)
+        — but it takes the same parameters as get, including supportsAllDrives,
+        and 5 real call sites in this codebase omitted it undetected until this
+        gap was found."""
+        src = 'drive_service.files().get_media(fileId="x").execute()'
+        assert find_violations_in_source(src) == [(1, "files", "get_media")]
+
+    def test_does_not_flag_get_media_with_kwarg(self):
+        src = 'drive_service.files().get_media(fileId="x", supportsAllDrives=True).execute()'
+        assert find_violations_in_source(src) == []
+
+    def test_flags_literal_false_the_same_as_missing(self):
+        """QA regression (PR #784 round 1): the first version only checked for
+        the keyword's presence, so supportsAllDrives=False passed clean — just
+        as broken as omitting it outright."""
+        src = 'drive_service.files().get(fileId="x", supportsAllDrives=False).execute()'
+        assert find_violations_in_source(src) == [(1, "files", "get")]
+
+    def test_does_not_flag_non_literal_value(self):
+        """A caller-computed value (not the bare False constant) isn't flagged —
+        this checker only catches the two concrete broken shapes (missing, or
+        literally False), not every possible way a variable could resolve to
+        something falsy at runtime."""
+        src = (
+            "supports = True\n"
+            'drive_service.files().get(fileId="x", supportsAllDrives=supports).execute()'
+        )
+        assert find_violations_in_source(src) == []
+
     def test_does_not_flag_multiline_chained_call_with_kwarg(self):
         """Regression: this codebase's actual style chains the call across lines —
         a naive string/regex check could miss the kwarg depending on formatting;

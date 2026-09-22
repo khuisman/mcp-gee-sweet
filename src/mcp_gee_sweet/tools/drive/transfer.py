@@ -1082,7 +1082,9 @@ async def _sync_level(
                 else:
 
                     def _download_to_completion(fid=fid, dest_file=dest_file) -> None:
-                        request = drive_service.files().get_media(fileId=fid)
+                        request = drive_service.files().get_media(
+                            fileId=fid, supportsAllDrives=True
+                        )
                         request.http = thread_http(drive_service)
                         with dest_file.open("wb") as fh:
                             downloader = MediaIoBaseDownload(fh, request)
@@ -1392,7 +1394,7 @@ def register(tool):
         if export_format == "raw" or not is_google_workspace:
 
             def _download_to_completion() -> bytes:
-                request = drive_service.files().get_media(fileId=file_id)
+                request = drive_service.files().get_media(fileId=file_id, supportsAllDrives=True)
                 request.http = thread_http(drive_service)
                 buf = io.BytesIO()
                 downloader = MediaIoBaseDownload(buf, request)
@@ -1957,7 +1959,7 @@ def register(tool):
         else:
 
             def _download_to_completion() -> None:
-                request = drive_service.files().get_media(fileId=file_id)
+                request = drive_service.files().get_media(fileId=file_id, supportsAllDrives=True)
                 request.http = thread_http(drive_service)
                 with dest.open("wb") as fh:
                     downloader = MediaIoBaseDownload(fh, request)
@@ -2167,7 +2169,9 @@ def register(tool):
                     def _download_to_completion(
                         fid=candidate.file_id, dest_file=candidate.dest_file
                     ) -> None:
-                        request = drive_service.files().get_media(fileId=fid)
+                        request = drive_service.files().get_media(
+                            fileId=fid, supportsAllDrives=True
+                        )
                         request.http = thread_http(drive_service)
                         with dest_file.open("wb") as fh:
                             downloader = MediaIoBaseDownload(fh, request)

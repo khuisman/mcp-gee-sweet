@@ -317,7 +317,7 @@ async def downscale_drive_file(
     or {"error": ...}."""
 
     def _download() -> bytes:
-        request = drive_service.files().get_media(fileId=file_id)
+        request = drive_service.files().get_media(fileId=file_id, supportsAllDrives=True)
         request.http = thread_http(drive_service)
         buf = io.BytesIO()
         downloader = MediaIoBaseDownload(buf, request)
