@@ -2235,45 +2235,42 @@ class TestHasPendingAnchorLinks:
 
 
 class TestResolveHeadingAnchorsHelper:
+    def _paragraph_elem(self, start, text, *, heading_id=None, link_url=None):
+        """Build one body-content element: a heading paragraph (heading_id
+        given) or a plain paragraph, optionally carrying a same-document
+        '#slug' link on its one run. Shared by every fixture in this class
+        (issue #454 QA finding — was previously duplicated between this
+        helper and _doc_with_anchor below, two independent builders for the
+        same JSON shape)."""
+        end = start + len(text) + 1
+        style = (
+            {"namedStyleType": "HEADING_1", "headingId": heading_id}
+            if heading_id
+            else {"namedStyleType": "NORMAL_TEXT"}
+        )
+        text_style = {"link": {"url": link_url}} if link_url else {}
+        return {
+            "startIndex": start,
+            "endIndex": end,
+            "paragraph": {
+                "paragraphStyle": style,
+                "elements": [
+                    {
+                        "startIndex": start,
+                        "endIndex": end,
+                        "textRun": {"content": text + "\n", "textStyle": text_style},
+                    }
+                ],
+            },
+        }
+
     def _doc_with_anchor(self, anchor_url, heading_text="Overview", heading_id="h.xyz"):
         return {
             "documentId": "doc1",
             "body": {
                 "content": [
-                    {
-                        "startIndex": 1,
-                        "endIndex": 1 + len(heading_text) + 1,
-                        "paragraph": {
-                            "paragraphStyle": {
-                                "namedStyleType": "HEADING_1",
-                                "headingId": heading_id,
-                            },
-                            "elements": [
-                                {
-                                    "startIndex": 1,
-                                    "endIndex": 1 + len(heading_text) + 1,
-                                    "textRun": {"content": heading_text + "\n", "textStyle": {}},
-                                }
-                            ],
-                        },
-                    },
-                    {
-                        "startIndex": 20,
-                        "endIndex": 25,
-                        "paragraph": {
-                            "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
-                            "elements": [
-                                {
-                                    "startIndex": 20,
-                                    "endIndex": 25,
-                                    "textRun": {
-                                        "content": "Link\n",
-                                        "textStyle": {"link": {"url": anchor_url}},
-                                    },
-                                }
-                            ],
-                        },
-                    },
+                    self._paragraph_elem(1, heading_text, heading_id=heading_id),
+                    self._paragraph_elem(20, "Link", link_url=anchor_url),
                 ]
             },
         }
@@ -2460,6 +2457,40 @@ class TestResolveHeadingAnchorsHelper:
         # same convention as _collect_doc_paragraphs) through the run's own
         # 5-UTF-16-unit content "Link\n".
         assert style["range"] == {"startIndex": 1, "endIndex": 6}
+
+    async def test_multiple_anchors_slugify_heading_list_once_per_scheme(self):
+        # Regression (#454): resolving N anchors against the same heading
+        # list must slugify that list once per known scheme, not once per
+        # scheme per anchor — the whole point of precomputing scheme_slugs
+        # once in _resolve_heading_anchors and threading it through every
+        # resolve_heading_anchor call in the loop.
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentId": "doc1",
+            "body": {
+                "content": [
+                    self._paragraph_elem(1, "Overview", heading_id="h.one"),
+                    self._paragraph_elem(20, "Notes", heading_id="h.two"),
+                    self._paragraph_elem(40, "Link A", link_url="#overview"),
+                    self._paragraph_elem(60, "Link B", link_url="#notes"),
+                    self._paragraph_elem(80, "Link C", link_url="#totally-unrelated"),
+                ]
+            },
+        }
+
+        from mcp_gee_sweet.tools.docs import anchors as anchors_module
+
+        with patch(
+            "mcp_gee_sweet.tools.docs.anchors._slugs_with_dedup",
+            wraps=anchors_module._slugs_with_dedup,
+        ) as spy:
+            summary = await _resolve_heading_anchors(docs_svc, "doc1")
+
+        assert {r["anchor"] for r in summary["resolved"]} == {"#overview", "#notes"}
+        assert summary["stripped"] == ["#totally-unrelated"]
+        # 3 anchors x 2 known schemes would be 6 calls without caching;
+        # precomputing scheme_slugs once means exactly 2 (one per scheme).
+        assert spy.call_count == 2
 
 
 class TestCreateDocFromFileAnchorResolution:
