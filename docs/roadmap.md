@@ -222,7 +222,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [x] `html_parser`: a resumed block's genuine trailing `&nbsp;` is still silently dropped after #402's fix ([#444](https://github.com/khuisman/mcp-gee-sweet/issues/444)) (PR #772)
 - [x] `docs/style.py`/`docs/content.py`: no shared helper for the "omit key but keep field mask" link-clear pattern ([#448](https://github.com/khuisman/mcp-gee-sweet/issues/448)) (PR #778)
 - [x] `html_parser`: merge identical `ol`/`ul` close-tag branches in `handle_endtag` ([#451](https://github.com/khuisman/mcp-gee-sweet/issues/451)) (PR #779)
-- [ ] Heading-anchor resolution (#409): minor duplication/efficiency cleanups in `anchors.py`/`content.py` ([#454](https://github.com/khuisman/mcp-gee-sweet/issues/454))
+- [x] Heading-anchor resolution (#409): minor duplication/efficiency cleanups in `anchors.py`/`content.py` ([#454](https://github.com/khuisman/mcp-gee-sweet/issues/454)) (PR #783)
 - [ ] `insert_local_images`/`create_doc`: image alt text is parsed but never used ([#508](https://github.com/khuisman/mcp-gee-sweet/issues/508))
 - [ ] `content.py`: image-fetch-failure retry mechanism is fragile, resends the whole document per bad image ([#510](https://github.com/khuisman/mcp-gee-sweet/issues/510))
 - [ ] `content.py`: duplicated image upload/share/revoke logic across `create_doc` and `insert_local_images`, plus an avoidable extra Drive round trip ([#511](https://github.com/khuisman/mcp-gee-sweet/issues/511))
