@@ -1630,6 +1630,8 @@ list_files(FOLDER_ID) unfiltered returned both spreadsheets and Google Docs (qa-
 - Spreadsheets excluded</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 list_files(FOLDER_ID, mime_type=document) returned only the 2 Google Docs; spreadsheets excluded.</p>
+<p><strong>Result (2026-09-21) ✅ PASS</strong> — PR #780 (issue #578, dedupe refactor)
+list_files(FOLDER_ID, mime_type=document) returned only the 2 Google Docs (qa-fixtures-doc, qa-large-doc); spreadsheets excluded. Behavior unchanged after extracting the mime-type escaping into <code>_escape_drive_query_mime_type</code>.</p>
 <hr />
 <h3 id="tc-d38-cache-hit-on-second-call">TC-D38: Cache hit on second call<a class="headerlink" href="#tc-d38-cache-hit-on-second-call" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong> (run twice)</p>
@@ -1737,6 +1739,8 @@ convention and try/except-returns-<code>{"error": ...}</code> wrapping used for 
 <p><strong>Result (2026-08-12) ✅</strong> Live <code>list_files(folder_id=&lt;fixture folder&gt;, mime_type="it's a test")</code> returned <code>[]</code> cleanly, no uncaught exception. 64 unit tests in <code>tests/drive/test_files.py</code> pass. Code-inspection confirms <code>folder_cache.store</code> sits after the list comprehension inside the <code>try</code> block, so an exception path never reaches it — no cache pollution on error.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 list_files(FOLDER_ID, mime_type="it's a test") returned <code>[]</code> cleanly — no HttpError 400 / uncaught exception. Backslash-escape + try/except wrapping confirmed.</p>
+<p><strong>Result (2026-09-21) ✅ PASS</strong> — PR #780 (issue #578, dedupe of the escaping logic into <code>_escape_drive_query_mime_type</code>)
+list_files(FOLDER_ID, mime_type="it's a test") → <code>[]</code> cleanly, no HttpError 400. Regression fix survives the extraction into a shared helper.</p>
 <hr />
 <h2 id="create_folder"><code>create_folder</code><a class="headerlink" href="#create_folder" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d58-create-in-default-folder-requires-oauth">TC-D58: Create in default folder ⚠️ requires-oauth<a class="headerlink" href="#tc-d58-create-in-default-folder-requires-oauth" title="Permanent link">&para;</a></h3>
@@ -2069,6 +2073,8 @@ search_files('QA') no filter → mix of spreadsheets, docs, folders, text/plain;
 - Spreadsheets and folders excluded</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 search_files('QA', mime_type=document) → all results mimeType application/vnd.google-apps.document; no spreadsheets/folders.</p>
+<p><strong>Result (2026-09-21) ✅ PASS</strong> — PR #780 (issue #578, dedupe refactor)
+search_files('QA', mime_type=document) → all 20 results mimeType application/vnd.google-apps.document; no spreadsheets/folders. Behavior unchanged after switching this call site to the shared <code>_escape_drive_query_mime_type</code> helper.</p>
 <hr />
 <h3 id="tc-d77-search-with-folder-filter">TC-D77: Search with folder filter<a class="headerlink" href="#tc-d77-search-with-folder-filter" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -2270,6 +2276,8 @@ call in the same try/except-returns-<code>{"error": ...}</code> pattern those to
 <p><strong>Result (2026-08-11) ✅</strong> Live <code>list_shared_with_me(mime_type="it's a test")</code> returned <code>[]</code> cleanly, no uncaught exception. 62 unit tests in <code>tests/drive/test_files.py</code> pass. Note: <code>list_files</code> (a third sibling, same file) has the identical bug — reported as a blocking finding on PR #577, not covered by this test case.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 list_shared_with_me(mime_type="it's a test") → <code>[]</code> cleanly, no HttpError 400. Backslash-escape + try/except regression fix (#494) confirmed.</p>
+<p><strong>Result (2026-09-21) ✅ PASS</strong> — PR #780 (issue #578, extracted into shared <code>_list_drive_files</code> helper)
+list_shared_with_me(mime_type="it's a test") → <code>[]</code> cleanly, no HttpError 400. Regression fix survives the extraction.</p>
 <hr />
 <h2 id="list_recent_files"><code>list_recent_files</code><a class="headerlink" href="#list_recent_files" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d156-list-recently-modified-files">TC-D156: List recently modified files<a class="headerlink" href="#tc-d156-list-recently-modified-files" title="Permanent link">&para;</a></h3>
@@ -2334,6 +2342,8 @@ try/except-returns-<code>{"error": ...}</code> wrapping.</p>
 <p><strong>Result (2026-08-11) ✅</strong> Live <code>list_recent_files(mime_type="it's a test")</code> returned <code>[]</code> cleanly, no uncaught exception. 62 unit tests in <code>tests/drive/test_files.py</code> pass.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 list_recent_files(mime_type="it's a test") → <code>[]</code> cleanly, no HttpError 400. Backslash-escape + try/except regression fix (#494 sibling) confirmed.</p>
+<p><strong>Result (2026-09-21) ✅ PASS</strong> — PR #780 (issue #578, extracted into shared <code>_list_drive_files</code> helper)
+list_recent_files(mime_type="it's a test") → <code>[]</code> cleanly, no HttpError 400. Regression fix survives the extraction.</p>
 <hr />
 <h2 id="get_storage_quota"><code>get_storage_quota</code><a class="headerlink" href="#get_storage_quota" title="Permanent link">&para;</a></h2>
 <h3 id="tc-d160-get-storage-quota">TC-D160: Get storage quota<a class="headerlink" href="#tc-d160-get-storage-quota" title="Permanent link">&para;</a></h3>
