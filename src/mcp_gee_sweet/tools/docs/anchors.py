@@ -123,7 +123,25 @@ def _fuzzy_match(anchor: str, heading_texts: list[str]) -> int | None:
     return _match_tokens_at_occurrence(anchor_base, heading_texts, occurrence=occurrence)
 
 
-def resolve_heading_anchor(anchor: str, heading_texts: list[str]) -> int | None:
+def compute_scheme_slugs(heading_texts: list[str]) -> list[list[str]]:
+    """Precompute every known slugification scheme's full (deduped) slug
+    list for `heading_texts`, once.
+
+    This is the expensive part of resolve_heading_anchor's exact-match pass
+    (deriving a whole document's slug list per scheme) — a caller resolving
+    several anchors against the same, unchanging heading list (issue #454)
+    should call this once and pass the result to resolve_heading_anchor's
+    own `scheme_slugs` parameter for every anchor, instead of paying that
+    cost again per anchor.
+    """
+    return [_slugs_with_dedup(heading_texts, f) for f in _SLUGIFY_FUNCS]
+
+
+def resolve_heading_anchor(
+    anchor: str,
+    heading_texts: list[str],
+    scheme_slugs: list[list[str]] | None = None,
+) -> int | None:
     """Return the index into heading_texts that `anchor` (a '#slug' fragment,
     leading '#' optional) refers to, or None if no heading matches with
     reasonable confidence.
@@ -133,6 +151,12 @@ def resolve_heading_anchor(anchor: str, heading_texts: list[str]) -> int | None:
     exact match. Falls back to normalized-word-token comparison (see
     _fuzzy_match) for a slug that doesn't exactly match a known scheme's
     output but clearly denotes the same heading.
+
+    `scheme_slugs`, if given, must be compute_scheme_slugs(heading_texts)'s
+    own return value (issue #454) — lets a caller resolving many anchors
+    against the same heading list skip re-slugifying it per anchor. Omit it
+    (the default) to compute it internally, as before; a one-off caller
+    doesn't need to know this parameter exists.
     """
     anchor = anchor.lstrip("#")
     if not anchor or not heading_texts:
@@ -141,11 +165,13 @@ def resolve_heading_anchor(anchor: str, heading_texts: list[str]) -> int | None:
     # TODO(#409 follow-up): this cascading try-each-scheme-then-fall-back-to-
     # fuzzy-tokens approach is a first pass at "support multiple slugifiers
     # without needing to know which one produced a given anchor." Revisit for
-    # a more precise/efficient mechanism — e.g. resolving the scheme once per
-    # document from the first anchor that disambiguates it, instead of
-    # re-deriving every scheme's full slug list per anchor.
-    for slugify_func in _SLUGIFY_FUNCS:
-        slugs = _slugs_with_dedup(heading_texts, slugify_func)
+    # a more precise mechanism — e.g. resolving the scheme once per document
+    # from the first anchor that disambiguates it, rather than trying every
+    # scheme against every anchor.
+    if scheme_slugs is None:
+        scheme_slugs = compute_scheme_slugs(heading_texts)
+
+    for slugs in scheme_slugs:
         if anchor in slugs:
             return slugs.index(anchor)
 

@@ -2461,6 +2461,63 @@ class TestResolveHeadingAnchorsHelper:
         # 5-UTF-16-unit content "Link\n".
         assert style["range"] == {"startIndex": 1, "endIndex": 6}
 
+    def _paragraph_elem(self, start, text, *, heading_id=None, link_url=None):
+        end = start + len(text) + 1
+        style = (
+            {"namedStyleType": "HEADING_1", "headingId": heading_id}
+            if heading_id
+            else {"namedStyleType": "NORMAL_TEXT"}
+        )
+        text_style = {"link": {"url": link_url}} if link_url else {}
+        return {
+            "startIndex": start,
+            "endIndex": end,
+            "paragraph": {
+                "paragraphStyle": style,
+                "elements": [
+                    {
+                        "startIndex": start,
+                        "endIndex": end,
+                        "textRun": {"content": text + "\n", "textStyle": text_style},
+                    }
+                ],
+            },
+        }
+
+    async def test_multiple_anchors_slugify_heading_list_once_per_scheme(self):
+        # Regression (#454): resolving N anchors against the same heading
+        # list must slugify that list once per known scheme, not once per
+        # scheme per anchor — the whole point of precomputing scheme_slugs
+        # once in _resolve_heading_anchors and threading it through every
+        # resolve_heading_anchor call in the loop.
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentId": "doc1",
+            "body": {
+                "content": [
+                    self._paragraph_elem(1, "Overview", heading_id="h.one"),
+                    self._paragraph_elem(20, "Notes", heading_id="h.two"),
+                    self._paragraph_elem(40, "Link A", link_url="#overview"),
+                    self._paragraph_elem(60, "Link B", link_url="#notes"),
+                    self._paragraph_elem(80, "Link C", link_url="#totally-unrelated"),
+                ]
+            },
+        }
+
+        from mcp_gee_sweet.tools.docs import anchors as anchors_module
+
+        with patch(
+            "mcp_gee_sweet.tools.docs.anchors._slugs_with_dedup",
+            wraps=anchors_module._slugs_with_dedup,
+        ) as spy:
+            summary = await _resolve_heading_anchors(docs_svc, "doc1")
+
+        assert {r["anchor"] for r in summary["resolved"]} == {"#overview", "#notes"}
+        assert summary["stripped"] == ["#totally-unrelated"]
+        # 3 anchors x 2 known schemes would be 6 calls without caching;
+        # precomputing scheme_slugs once means exactly 2 (one per scheme).
+        assert spy.call_count == 2
+
 
 class TestCreateDocFromFileAnchorResolution:
     def _make_services(self, doc_id="doc123"):

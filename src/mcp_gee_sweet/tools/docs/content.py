@@ -17,7 +17,7 @@ from ...cache import CACHE_VALIDATE_MODIFIED_TIME
 from ..drive import _SA_QUOTA_ERROR
 from ..drive.transfer import _GOOGLE_DOC_MIME, _upload_local_file
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
-from .anchors import resolve_heading_anchor
+from .anchors import compute_scheme_slugs, resolve_heading_anchor
 from .ast import Run, Table
 from .emitter import ast_to_requests, extract_images, fill_tables
 from .html_parser import html_to_ast
@@ -699,8 +699,12 @@ async def _resolve_heading_anchors(docs_service, doc_id: str) -> dict[str, Any]:
     resolved: list[dict[str, str]] = []
     stripped: list[str] = []
     requests: list[dict[str, Any]] = []
+    # heading_texts is the same for every anchor in this document — compute
+    # each slugify scheme's full slug list once and reuse it per anchor,
+    # rather than paying that cost again for every anchor (issue #454).
+    scheme_slugs = compute_scheme_slugs(heading_texts)
     for anchor, start, end in anchor_runs:
-        match_idx = resolve_heading_anchor(anchor, heading_texts)
+        match_idx = resolve_heading_anchor(anchor, heading_texts, scheme_slugs)
         text_style: dict[str, Any] = {}
         fields: list[str] = []
         if match_idx is not None:
