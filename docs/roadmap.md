@@ -252,7 +252,7 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [x] `upload_local_folder`: `convert` skip logic has a duplicate-name edge case + logic duplication vs. `_upload_local_file` ([#514](https://github.com/khuisman/mcp-gee-sweet/issues/514)) (PR #767)
 - [x] `sync_folder`: `actions` list built unconditionally even when `dry_run=False` ([#521](https://github.com/khuisman/mcp-gee-sweet/issues/521)) (PR #770)
 - [x] Extend the `_GOOGLE_DOC_MIME` sweep to remaining hardcoded-literal and comparison sites (#412 follow-up) ([#544](https://github.com/khuisman/mcp-gee-sweet/issues/544)) (PR #777)
-- [ ] `refactor(drive)`: dedupe `mime_type` quote-escaping and list-files response mapping in `files.py` ([#578](https://github.com/khuisman/mcp-gee-sweet/issues/578))
+- [x] `refactor(drive)`: dedupe `mime_type` quote-escaping and list-files response mapping in `files.py` ([#578](https://github.com/khuisman/mcp-gee-sweet/issues/578)) (PR #780)
 - [x] `list_folders`/`list_spreadsheets` no-parent + no-`DRIVE_FOLDER_ID` path is unbounded across all drives, no `max_results` (`lane-a`) ([#718](https://github.com/khuisman/mcp-gee-sweet/issues/718)) (PR #736)
 - [ ] `download_file` trailing-slash guard: fail-fast ordering, dead `os.altsep` clause, raw `NotADirectoryError` surface (PR #722 follow-up) ([#724](https://github.com/khuisman/mcp-gee-sweet/issues/724))
 - [ ] Deduplicate the `max_results` clamp expression, hand-copied 8x across `drive/files.py` with inconsistent caps (PR #736 follow-up) ([#737](https://github.com/khuisman/mcp-gee-sweet/issues/737))
