@@ -11,6 +11,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ..concurrency import gather_with_fallback, report_progress_safe
+from ..response_limits import clamp_max_results
 from ..sheets.helpers import _quote_sheet_name
 from . import _SA_QUOTA_ERROR, _escape_drive_query_mime_type
 
@@ -395,7 +396,7 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
         target_folder_id = folder_id or ctx.request_context.lifespan_context.folder_id
-        max_results = min(max(1, max_results), 1000)
+        max_results = clamp_max_results(max_results, 1000)
 
         query = "mimeType='application/vnd.google-apps.spreadsheet'"
         if target_folder_id:
@@ -445,7 +446,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
         target_folder_id = parent_folder_id or lc.folder_id
-        max_results = min(max(1, max_results), 1000)
+        max_results = clamp_max_results(max_results, 1000)
 
         query = "mimeType='application/vnd.google-apps.folder' and trashed=false"
         if target_folder_id:
@@ -498,7 +499,7 @@ def register(tool):
             capabilities summary (canAddChildren, canManageMembers, etc.).
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
-        max_results = min(max(1, max_results), 200)
+        max_results = clamp_max_results(max_results, 200)
 
         kwargs: dict[str, Any] = {
             "pageSize": min(max_results, 100),
@@ -569,7 +570,7 @@ def register(tool):
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
         folder_cache = lc.drive_folder_cache
-        max_results = min(max(1, max_results), 1000)
+        max_results = clamp_max_results(max_results, 1000)
 
         cached = folder_cache.get(folder_id, mime_type, max_results)
         if cached is not None:
@@ -642,7 +643,7 @@ def register(tool):
             parent folder, webViewLink, and starred status.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
-        max_results = min(max(1, max_results), 100)
+        max_results = clamp_max_results(max_results, 100)
 
         safe_query = query.replace("\\", "\\\\").replace("'", "\\'")
         parts = [f"(name contains '{safe_query}' or fullText contains '{safe_query}')"]
@@ -709,7 +710,7 @@ def register(tool):
             starred status.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
-        max_results = min(max(1, max_results), 100)
+        max_results = clamp_max_results(max_results, 100)
 
         safe_query = query.replace("\\", "\\\\").replace("'", "\\'")
         search_query = (
@@ -1156,7 +1157,7 @@ def register(tool):
             account email, not files shared with a personal user.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
-        max_results = min(max(1, max_results), 200)
+        max_results = clamp_max_results(max_results, 200)
 
         parts = ["sharedWithMe=true", "trashed=false"]
         if mime_type:
@@ -1187,7 +1188,7 @@ def register(tool):
             ordered by modification time descending.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
-        max_results = min(max(1, max_results), 100)
+        max_results = clamp_max_results(max_results, 100)
 
         parts = ["trashed=false"]
         if days is not None and days > 0:

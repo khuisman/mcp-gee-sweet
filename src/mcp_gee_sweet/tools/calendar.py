@@ -8,7 +8,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ..auth import execute_in_thread
-from .response_limits import enforce_response_size_cap
+from .response_limits import clamp_max_results, enforce_response_size_cap
 
 logger = logging.getLogger(__name__)
 
@@ -529,7 +529,7 @@ def register(tool):
             organizer, attendees, recurrence, html_link, and status.
         """
         lc = ctx.request_context.lifespan_context
-        max_results = min(max(1, max_results), 2500)
+        max_results = clamp_max_results(max_results, 2500)
 
         kwargs: dict[str, Any] = {
             "calendarId": calendar_id,
@@ -965,7 +965,7 @@ def register(tool):
             narrow the time window, pass calendar_ids, or lower max_results_per_calendar.
         """
         lc = ctx.request_context.lifespan_context
-        max_results_per_calendar = min(max(1, max_results_per_calendar), 2500)
+        max_results_per_calendar = clamp_max_results(max_results_per_calendar, 2500)
         resolved_time_min = time_min or datetime.now(timezone.utc).isoformat()
 
         try:
