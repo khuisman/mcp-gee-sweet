@@ -397,6 +397,9 @@ list_files(FOLDER_ID) unfiltered returned both spreadsheets and Google Docs (qa-
 **Result (2026-09-04) ✅ PASS**
 list_files(FOLDER_ID, mime_type=document) returned only the 2 Google Docs; spreadsheets excluded.
 
+**Result (2026-09-21) ✅ PASS** — PR #780 (issue #578, dedupe refactor)
+list_files(FOLDER_ID, mime_type=document) returned only the 2 Google Docs (qa-fixtures-doc, qa-large-doc); spreadsheets excluded. Behavior unchanged after extracting the mime-type escaping into `_escape_drive_query_mime_type`.
+
 ---
 
 ### TC-D38: Cache hit on second call
@@ -533,6 +536,9 @@ convention and try/except-returns-`{"error": ...}` wrapping used for TC-D155/TC-
 
 **Result (2026-09-04) ✅ PASS**
 list_files(FOLDER_ID, mime_type="it's a test") returned `[]` cleanly — no HttpError 400 / uncaught exception. Backslash-escape + try/except wrapping confirmed.
+
+**Result (2026-09-21) ✅ PASS** — PR #780 (issue #578, dedupe of the escaping logic into `_escape_drive_query_mime_type`)
+list_files(FOLDER_ID, mime_type="it's a test") → `[]` cleanly, no HttpError 400. Regression fix survives the extraction into a shared helper.
 
 ---
 
@@ -973,6 +979,9 @@ search_files('QA') no filter → mix of spreadsheets, docs, folders, text/plain;
 **Result (2026-09-04) ✅ PASS**
 search_files('QA', mime_type=document) → all results mimeType application/vnd.google-apps.document; no spreadsheets/folders.
 
+**Result (2026-09-21) ✅ PASS** — PR #780 (issue #578, dedupe refactor)
+search_files('QA', mime_type=document) → all 20 results mimeType application/vnd.google-apps.document; no spreadsheets/folders. Behavior unchanged after switching this call site to the shared `_escape_drive_query_mime_type` helper.
+
 ---
 
 ### TC-D77: Search with folder filter
@@ -1234,6 +1243,9 @@ call in the same try/except-returns-`{"error": ...}` pattern those tools already
 **Result (2026-09-04) ✅ PASS**
 list_shared_with_me(mime_type="it's a test") → `[]` cleanly, no HttpError 400. Backslash-escape + try/except regression fix (#494) confirmed.
 
+**Result (2026-09-21) ✅ PASS** — PR #780 (issue #578, extracted into shared `_list_drive_files` helper)
+list_shared_with_me(mime_type="it's a test") → `[]` cleanly, no HttpError 400. Regression fix survives the extraction.
+
 ---
 
 ## `list_recent_files`
@@ -1320,6 +1332,9 @@ try/except-returns-`{"error": ...}` wrapping.
 
 **Result (2026-09-04) ✅ PASS**
 list_recent_files(mime_type="it's a test") → `[]` cleanly, no HttpError 400. Backslash-escape + try/except regression fix (#494 sibling) confirmed.
+
+**Result (2026-09-21) ✅ PASS** — PR #780 (issue #578, extracted into shared `_list_drive_files` helper)
+list_recent_files(mime_type="it's a test") → `[]` cleanly, no HttpError 400. Regression fix survives the extraction.
 
 ---
 
