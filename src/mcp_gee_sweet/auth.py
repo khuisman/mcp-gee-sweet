@@ -34,6 +34,9 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/drive.activity.readonly",
+    "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.readonly",
 ]
 
 CREDENTIALS_CONFIG = os.environ.get("CREDENTIALS_CONFIG")
@@ -53,6 +56,7 @@ class SpreadsheetContext:
     docs_service: Any
     calendar_service: Any
     activity_service: Any
+    gmail_service: Any
     folder_id: str | None = None
     auth_method: str = "unknown"  # "service_account" | "oauth" | "adc"
     # True whenever the resolved credential has no personal Drive identity —
@@ -243,6 +247,7 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
     docs_service = build("docs", "v1", credentials=creds, cache_discovery=False)
     calendar_service = build("calendar", "v3", credentials=creds, cache_discovery=False)
     activity_service = build("driveactivity", "v2", credentials=creds, cache_discovery=False)
+    gmail_service = build("gmail", "v1", credentials=creds, cache_discovery=False)
 
     global _lifespan_context
     context = SpreadsheetContext(
@@ -251,6 +256,7 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
         docs_service=docs_service,
         calendar_service=calendar_service,
         activity_service=activity_service,
+        gmail_service=gmail_service,
         folder_id=DRIVE_FOLDER_ID if DRIVE_FOLDER_ID else None,
         auth_method=resolved,
         is_service_account_identity=is_service_account_identity,

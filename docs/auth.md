@@ -41,7 +41,7 @@ Authenticates as you — gives full access to your personal Drive. Requires a br
    - `CREDENTIALS_PATH` — path to the downloaded OAuth JSON (default: `credentials.json`)
    - `TOKEN_PATH` — where the refresh token is stored after login (default: `token.json`)
 
-**Re-authenticating after a scope change:** if you've already authenticated and a new scope has been added (e.g. `drive.activity.readonly`), delete `token.json` and restart the server to trigger a fresh OAuth flow.
+**Re-authenticating after a scope change:** if you've already authenticated and a new scope has been added (e.g. `drive.activity.readonly` or the Gmail scopes), delete `token.json` and restart the server to trigger a fresh OAuth flow.
 
 ## Method C: Base64 credential injection
 
@@ -66,7 +66,10 @@ https://www.googleapis.com/auth/spreadsheets,\
 https://www.googleapis.com/auth/drive,\
 https://www.googleapis.com/auth/drive.activity.readonly,\
 https://www.googleapis.com/auth/documents,\
-https://www.googleapis.com/auth/calendar
+https://www.googleapis.com/auth/calendar,\
+https://www.googleapis.com/auth/gmail.modify,\
+https://www.googleapis.com/auth/gmail.send,\
+https://www.googleapis.com/auth/gmail.readonly
 
 gcloud auth application-default set-quota-project YOUR_PROJECT_ID
 ```
@@ -84,6 +87,7 @@ Enable these in GCP Console → APIs & Services → Library:
 - Google Drive Activity API (required for `list_file_activity`)
 - Google Docs API
 - Google Calendar API
+- Gmail API
 
 ## Environment variable summary
 
