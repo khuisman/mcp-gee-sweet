@@ -15,6 +15,19 @@ from typing import Any
 MAX_TOOL_RESPONSE_CHARS = int(os.environ.get("MAX_TOOL_RESPONSE_CHARS", "1000000"))
 
 
+def clamp_max_results(value: int, cap: int) -> int:
+    """Floor a caller-supplied max_results (or similarly-named page-size param) to
+    1 and ceiling it to the calling tool's own cap.
+
+    Shared across packages (originally extracted from drive/files.py's 8
+    call sites, issue #737; also used by calendar.py) since this exact clamp
+    expression tends to get hand-duplicated per tool otherwise — each tool
+    still picks its own cap based on its own result size/cost; this only
+    centralizes the clamp expression itself, not the cap values.
+    """
+    return min(max(1, value), cap)
+
+
 def enforce_response_size_cap(
     result: Any,
     *,
