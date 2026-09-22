@@ -3050,7 +3050,9 @@ class TestDownloadFolder:
             ]
         }
         sizes = {"bin1": 5, "bin2": 7}
-        svc.files.return_value.get_media.side_effect = lambda fileId: MagicMock(fileId=fileId)
+        svc.files.return_value.get_media.side_effect = lambda fileId, supportsAllDrives: MagicMock(
+            fileId=fileId
+        )
 
         class _FakeDownloader:
             def __init__(self, fh, request):
@@ -3105,7 +3107,9 @@ class TestDownloadFolder:
             ]
         }
         sizes = {"bin1": 5, "bin2": 7}
-        svc.files.return_value.get_media.side_effect = lambda fileId: MagicMock(fileId=fileId)
+        svc.files.return_value.get_media.side_effect = lambda fileId, supportsAllDrives: MagicMock(
+            fileId=fileId
+        )
 
         class _FakeDownloader:
             def __init__(self, fh, request):
@@ -3199,7 +3203,9 @@ class TestDownloadFolder:
                 },
             ]
         }
-        svc.files.return_value.get_media.side_effect = lambda fileId: MagicMock(fileId=fileId)
+        svc.files.return_value.get_media.side_effect = lambda fileId, supportsAllDrives: MagicMock(
+            fileId=fileId
+        )
 
         class _FakeDownloader:
             def __init__(self, fh, request):
@@ -3504,7 +3510,9 @@ class TestDownloadFile:
         )
 
         svc.files.return_value.export.assert_not_called()
-        svc.files.return_value.get_media.assert_called_once_with(fileId="bin1")
+        svc.files.return_value.get_media.assert_called_once_with(
+            fileId="bin1", supportsAllDrives=True
+        )
         dest = tmp_path / "photo.png"
         assert result == {"local_path": str(dest), "name": "photo.png", "size_bytes": len(content)}
         assert dest.read_bytes() == content

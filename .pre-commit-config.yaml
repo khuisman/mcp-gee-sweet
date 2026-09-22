@@ -13,3 +13,9 @@ repos:
         language: system
         pass_filenames: false
         files: ^(src/mcp_gee_sweet/tools/.*\.py|docs/tools\.md|docs/configuration\.md)$
+      - id: check-supports-all-drives
+        name: Check supportsAllDrives on Drive API calls
+        entry: uv run python scripts/check_supports_all_drives.py
+        language: system
+        pass_filenames: false
+        files: ^src/mcp_gee_sweet/.*\.py$
