@@ -1070,6 +1070,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#verifying-playwright-is-signed-into-the-right-account" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verifying Playwright is signed into the right account
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#coordinating-playwright-across-parallel-shards" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1627,6 +1638,18 @@
 <li><strong>Permission changes</strong> — sharing confirmations are not visible in the Drive UI without navigating to the file's "Share" dialog. Use <code>list_permissions</code> API response as the confirmation source for share tests.</li>
 <li><strong>Chart-covered grid (Sales sheet)</strong> — repeated <code>add_chart</code> test runs leave floating chart objects on the Sales sheet (they're never cleaned up between runs), and as of 2026-07-15 there were ~12 stacked overlapping charts covering roughly rows 1–22. This blocks visual verification of anything in that region — row-height/column-width changes (<code>resize_rows</code>/<code>resize_columns</code>), cell formatting, etc. are not visible in a screenshot, and Playwright's accessibility snapshot doesn't expose per-cell grid geometry either (only the charts' own accessible text). When a test in that area needs precise confirmation, use <code>get_sheet_data(..., range=&lt;affected range&gt;, include_grid_data=True)</code> instead — the raw response includes <code>rowMetadata</code>/<code>columnMetadata</code> with each row/column's actual <code>pixelSize</code>, which is more precise than a screenshot anyway. The same call also works for border verification (<code>update_borders</code> QA, TC-S85–S87 on 2026-07-16): each cell's <code>userEnteredFormat.borders</code>/<code>effectiveFormat.borders</code> reports <code>top</code>/<code>bottom</code>/<code>left</code>/<code>right</code> style and color directly, so a border-covering-range test doesn't need the screenshot at all — check the per-cell <code>borders</code> dict instead of <code>rowMetadata</code>/<code>columnMetadata</code>. Longer term, <code>add_chart</code> QA test cases should delete the chart they create at the end of each run (see <code>docs/qa/tests/sheets_charts.md</code>) so the fixture doesn't accumulate; that cleanup is not yet in place.</li>
 </ul>
+<h3 id="verifying-playwright-is-signed-into-the-right-account">Verifying Playwright is signed into the right account<a class="headerlink" href="#verifying-playwright-is-signed-into-the-right-account" title="Permanent link">&para;</a></h3>
+<p>"Connected," "signed in," and "signed in <em>as the account that owns the fixtures</em>" are three different states, and only the third makes <code>**Playwright: required**</code> cases meaningful. Playwright MCP keeps a separate persistent browser profile per working directory — the main checkout, each <code>.claude/worktrees/*</code> slot, and every other project on the machine each get their own login. Any one of them can be signed into a Google account that isn't the one owning the <code>mcp-gee-sweet-shared</code> Shared Drive fixtures (see <code>setup.md</code>), or into none at all.</p>
+<p>The check, run once before the first <code>**Playwright: required**</code> case in any QA pass (lane QA or release pass):</p>
+<ol>
+<li>Get the fixture doc's real title via this role's own <code>get_file_metadata(TEST_DOC_ID)</code>.</li>
+<li><code>browser_navigate</code> to <code>https://docs.google.com/document/d/&lt;TEST_DOC_ID&gt;/edit</code> (under the Playwright mutex below, if other shards may be running).</li>
+<li><strong>Pass</strong> only if the page title contains that exact document name.</li>
+<li><strong>Fail</strong> on either:</li>
+<li>a redirect to <code>accounts.google.com</code> — the profile isn't signed in;</li>
+<li>the URL staying on <code>docs.google.com</code> but the page showing "You need access" / "Request access," or a generic "Google Docs" title — the profile is signed into the <strong>wrong account</strong>. This one is easy to misread as a pass, since there's no sign-in redirect; it's what the old "not a sign-in page" check let through (confirmed 2026-09-23: a lane QA session's browser opened on the personal account instead of the Workspace-org one that owns the fixtures).</li>
+</ol>
+<p>On a fail, stop and tell the user which session's browser needs signing in, and to which account (the one that owns the Shared Drive fixtures). Then wait. The sign-in persists in that slot's profile, so this is a one-time fix per slot. Don't fall back to API-only verification for Playwright-required cases unless the user explicitly says to — that's the silent degradation <code>retro-v0.9.0.md</code> describes. Once the user says it's fixed, re-run the check before continuing.</p>
 <h3 id="coordinating-playwright-across-parallel-shards">Coordinating Playwright across parallel shards<a class="headerlink" href="#coordinating-playwright-across-parallel-shards" title="Permanent link">&para;</a></h3>
 <p>A single Playwright MCP instance is one browser tab. If a QA run is split across multiple agents (e.g. one per domain), any two shards that both hit <code>**Playwright: required**</code> cases at the same time will fight over that tab — one shard's navigation clobbers the snapshot the other was about to take. Spinning up a second authenticated Playwright instance to get true parallelism is possible but costly: the browser profile needs its own logged-in Google session (see <code>playwright_oauth.md</code>), so a second instance means cloning that profile rather than just adding a server entry.</p>
 <p>Cheaper fix: a filesystem mutex around Playwright usage, since only one shard needs the tab at a time and each hold is brief (one navigate + snapshot, not the whole run).</p>
@@ -1719,7 +1742,7 @@
 <h2 id="conductor-prompt">Conductor prompt<a class="headerlink" href="#conductor-prompt" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>You are the QA conductor for mcp-gee-sweet. Your job is to execute the full test suite against the live MCP server, record outcomes, and save a results report.
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>You have the mcp-gee-sweet MCP connected. Before starting, check whether Playwright MCP is also connected AND actually authenticated to Google — these are different things: a connected Playwright MCP still runs an unauthenticated browser by default, and navigating it to a Google URL just redirects to `accounts.google.com` sign-in. Do a real check: navigate to a known Google URL (e.g. the fixture doc) and confirm the page title/URL is the real resource, not a sign-in page. If Playwright isn&#39;t connected, or the navigation redirects to sign-in, tell me: &quot;Playwright is not connected / not authenticated — tests marked **Playwright: required** will run without visual verification. Confirm to proceed, or connect/authenticate Playwright first (see `docs/qa/playwright_oauth.md`) and restart.&quot; Wait for my confirmation before continuing. If I tell you mid-run that Playwright is now authenticated, re-verify immediately and switch to using it for all subsequent **Playwright: required** cases — don&#39;t keep treating it as unusable for the rest of the run based on the earlier check.
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>You have the mcp-gee-sweet MCP connected. Before starting, check whether Playwright MCP is also connected AND actually authenticated to Google — these are different things: a connected Playwright MCP still runs an unauthenticated browser by default, and navigating it to a Google URL just redirects to `accounts.google.com` sign-in. Do the real check described in &quot;Verifying Playwright is signed into the right account&quot; (above): the fixture doc&#39;s page title must match its actual name — a sign-in redirect *or* a &quot;You need access&quot; page (wrong account) both fail. If Playwright isn&#39;t connected, or the check fails, tell me: &quot;Playwright is not connected / not authenticated — tests marked **Playwright: required** will run without visual verification. Confirm to proceed, or connect/authenticate Playwright first (see `docs/qa/playwright_oauth.md`) and restart.&quot; Wait for my confirmation before continuing. If I tell you mid-run that Playwright is now authenticated, re-verify immediately and switch to using it for all subsequent **Playwright: required** cases — don&#39;t keep treating it as unusable for the rest of the run based on the earlier check.
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>## Step 0 — Fixture setup
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>

@@ -1331,7 +1331,7 @@
 <li><code>token.json</code> expired and cannot be refreshed (e.g. revoked, scopes changed)</li>
 <li>Starting any QA run — OAuth is required so that Playwright can open Google Sheets/Docs/Drive/Calendar pages as your account for visual verification</li>
 </ul>
-<p>If <code>token.json</code> already exists and is valid, you don't need any of this — the server refreshes the access token automatically. But you should still be logged into your Google account in the Playwright browser session before starting a QA run.</p>
+<p>If <code>token.json</code> already exists and is valid, you don't need any of this — the server refreshes the access token automatically. But the Playwright browser session still needs to be signed into the Google account that owns the Shared Drive fixtures before starting a QA run. Each working directory (main checkout, each worktree slot) has its own browser profile, and a profile signed into a different account fails silently. Verify with <code>run.md</code> §"Verifying Playwright is signed into the right account".</p>
 <hr />
 <h2 id="approach-a-playwright-assisted-browser-flow">Approach A — Playwright-assisted browser flow<a class="headerlink" href="#approach-a-playwright-assisted-browser-flow" title="Permanent link">&para;</a></h2>
 <p>Use <code>oauth_setup.py</code> to start the consent flow without auto-launching a browser, then let the Playwright MCP complete it.</p>
