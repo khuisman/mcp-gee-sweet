@@ -18,10 +18,10 @@ Sheets, Drive, Docs, and Calendar are all covered — see [Tools](tools.md) for 
 | [**v0.8.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8) | ✅ Tier 1 complete — all "frequently needed" items across all domains (84 tools) | Published 2026-06-29 |
 | [**v0.8.1**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.8.1) | Defect & documentation cleanup — no new tools, ships the QA/refactor work already on `develop` plus fixes for #235, #242, #213, #239, #236 | Stabilizes before Tier 2 feature work begins |
 | [**v0.9.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9) | ✅ Tier 2 complete — power-user and structured-work layer, plus defects that surfaced after v0.8.1 shipped ([#248](https://github.com/khuisman/mcp-gee-sweet/issues/248)) | Published 2026-09-08 |
-| [**v0.9.1**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1) | Post-release defect fixes & infrastructure addons — no new tools, same shape as v0.8.1 | Stabilizes before Tier 3 begins |
+| [**v0.9.1**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1) | Post-release defect fixes & infrastructure addons, plus the Gmail domain (pulled forward from v1.1+ 2026-09-23, community PR #786) | Stabilizes before Tier 3 begins |
 | [**v0.9.2**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.2) | Comments as a first-class, cross-suite capability — generalize + complete the Drive `comments`/`replies` surface ([#661](https://github.com/khuisman/mcp-gee-sweet/issues/661)); ships a breaking rename | Closes out the comments story before Tier 3 |
 | [**v1.0.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0) | API stability declaration — Tier 3 items that make the cut + any breaking cleanups from v0.8–0.9 | Backwards-compatibility commitment |
-| [**v1.1.0+**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22v1.1%2B%22) | Future domains — Tasks, Gmail (separate minor releases, each needs a new API client) | Expanded scope |
+| [**v1.1.0+**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22v1.1%2B%22) | Future domains — Tasks (separate minor release, needs a new API client; Gmail pulled forward to v0.9.1) | Expanded scope |
 
 Tier 4 items remain backlog with no assigned version.
 
@@ -182,7 +182,7 @@ No new tools. Stabilize on what Tier 1 shipped before starting Tier 2 feature wo
 
 ### v0.9.1 — Post-release defect fixes & infrastructure addons _(target: [v0.9.1](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1), before Tier 3 begins)_
 
-No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped, plus a handful of infrastructure/tooling additions that don't belong to any specific tool tier. Started because v0.9.0's own scope kept growing past its original Tier 2 definition; splitting this out keeps that pattern from repeating indefinitely.
+Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped, plus a handful of infrastructure/tooling additions that don't belong to any specific tool tier. Started because v0.9.0's own scope kept growing past its original Tier 2 definition; splitting this out keeps that pattern from repeating indefinitely. The one exception to its original "no new tools" scope is the Gmail domain, pulled forward from v1.1+ on 2026-09-23 because a community contributor had already implemented it (see **Gmail domain** below).
 
 **Defects**
 - [x] Isolated depth>0 bullet run renders the wrong glyph (disc instead of circle) despite correct indentation (PR #711) ([#439](https://github.com/khuisman/mcp-gee-sweet/issues/439))
@@ -286,6 +286,35 @@ No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since 
 - [ ] `_SA_LIMITATIONS` (`server.py`) hygiene: no registry tying restricted tools to entries, redundant per-call flatten, duplicated alternatives text — triaged out of `backlog` 2026-09-11 ([#517](https://github.com/khuisman/mcp-gee-sweet/issues/517))
 - [ ] `server.json`/`test_server_json.py`: minor hardening findings from PR #603's review — triaged out of `backlog` 2026-09-11 ([#607](https://github.com/khuisman/mcp-gee-sweet/issues/607))
 - [ ] Restore the explanatory comment for the `annotations=None` stub param in `gen_tool_docs.py` — triaged out of `backlog` 2026-09-11 ([#637](https://github.com/khuisman/mcp-gee-sweet/issues/637))
+
+**Gmail domain** _(pulled forward from v1.1+ 2026-09-23; implementation is community PR #786, not yet merged)_
+- [ ] Gmail domain primitives ([#785](https://github.com/khuisman/mcp-gee-sweet/issues/785)), via community PR #786
+- [ ] Gmail scopes opt-in + verify granted scopes at startup. Existing OAuth tokens weren't granted the new scopes, so refresh likely fails into a surprise browser consent or a headless hang. **Must ship in the same release as #786** ([#790](https://github.com/khuisman/mcp-gee-sweet/issues/790))
+- [ ] `reply_to_message` should honor Reply-To and handle replies to your own sent mail ([#791](https://github.com/khuisman/mcp-gee-sweet/issues/791))
+- [ ] Decode message bodies using the part's charset; tolerate missing base64 padding ([#792](https://github.com/khuisman/mcp-gee-sweet/issues/792))
+- [ ] Release-pass Gmail QA (`docs/qa/tests/gmail.md`, added by #786). Many cases are destructive (send/draft/trash), so they need a dedicated mailbox fixture plan — Aziz
+
+Tool surface (from the original v1.1+ plan):
+
+Requires `gmail/v1` client and `https://www.googleapis.com/auth/gmail.modify` scope (or narrower `gmail.readonly` / `gmail.send` scopes where appropriate). Add `gmail_service` to `SpreadsheetContext` and wire up in `auth.py` lifespan.
+
+**Reading**
+- [ ] `list_messages` — list messages with optional query string (same syntax as Gmail search), label filter, and pagination
+- [ ] `get_message` — fetch a single message by ID; return headers, body (plain text + HTML), and attachment metadata
+- [ ] `list_threads` — list conversation threads with optional query and label filter
+- [ ] `get_thread` — fetch all messages in a thread
+- [ ] `list_labels` — list all labels (system and user-defined)
+
+**Sending and drafts**
+- [ ] `send_message` — send an email (to, cc, bcc, subject, body, optional attachments)
+- [ ] `create_draft` — create a draft without sending
+- [ ] `send_draft` — send an existing draft by ID
+- [ ] `reply_to_message` — send a reply in an existing thread
+
+**Organization**
+- [ ] `modify_labels` — add or remove labels from a message or thread (covers archive, mark read/unread, star, etc.)
+- [ ] `trash_message` — move a message to trash
+- [ ] ~~`delete_message` — permanently delete a message~~ — dropped from #786 in review: needs the full `https://mail.google.com/` scope
 
 **QA & docs** _(moved out of v0.9.0 2026-09-02 so they don't gate the release; see [#629](https://github.com/khuisman/mcp-gee-sweet/issues/629), closed)_
 - [ ] Domain and public sharing tests (TC-D135–D139) — decision landed 2026-09-02: provision a real non-Google test email for external-share coverage; the `type=anyone` public-link tests stay unresolved (exposure risk not yet accepted) ([#49](https://github.com/khuisman/mcp-gee-sweet/issues/49))
@@ -484,28 +513,6 @@ Requires `tasks/v1` client and `https://www.googleapis.com/auth/tasks` scope. Ad
 - [ ] `delete_task` — delete a task
 - [ ] `complete_task` — mark a task as completed (shortcut for `update_task` with `status='completed'`)
 - [ ] `clear_completed` — delete all completed tasks from a list (`tasks().clear()`)
-
-### Gmail
-
-Requires `gmail/v1` client and `https://www.googleapis.com/auth/gmail.modify` scope (or narrower `gmail.readonly` / `gmail.send` scopes where appropriate). Add `gmail_service` to `SpreadsheetContext` and wire up in `auth.py` lifespan.
-
-**Reading**
-- [ ] `list_messages` — list messages with optional query string (same syntax as Gmail search), label filter, and pagination
-- [ ] `get_message` — fetch a single message by ID; return headers, body (plain text + HTML), and attachment metadata
-- [ ] `list_threads` — list conversation threads with optional query and label filter
-- [ ] `get_thread` — fetch all messages in a thread
-- [ ] `list_labels` — list all labels (system and user-defined)
-
-**Sending and drafts**
-- [ ] `send_message` — send an email (to, cc, bcc, subject, body, optional attachments)
-- [ ] `create_draft` — create a draft without sending
-- [ ] `send_draft` — send an existing draft by ID
-- [ ] `reply_to_message` — send a reply in an existing thread
-
-**Organization**
-- [ ] `modify_labels` — add or remove labels from a message or thread (covers archive, mark read/unread, star, etc.)
-- [ ] `trash_message` — move a message to trash
-- [ ] `delete_message` — permanently delete a message
 
 ---
 
