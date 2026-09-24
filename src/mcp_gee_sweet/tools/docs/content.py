@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import re
 import xml.etree.ElementTree as etree
@@ -131,16 +132,40 @@ def _failed_insert_image_request_index(error: HttpError) -> int | None:
     """Extract the failing request's index from a batchUpdate HttpError whose
     message names an insertInlineImage request specifically (#333) — e.g.
     'Invalid requests[28].insertInlineImage: There was a problem retrieving the
-    image...' (confirmed live via TC-DOC102 Case 8's deliberately unreachable
-    URL). Returns None for any other error shape, so the caller re-raises
+    image...'. Returns None for any other error shape, so the caller re-raises
     instead of misinterpreting an unrelated failure as an image-fetch problem.
-    Searches str(error) rather than error.content/error.reason — HttpError's
-    own __str__ is what was confirmed live to carry this exact text; matching
-    against the raw (bytes, JSON-shaped) content directly would need its own
-    separate live confirmation this change doesn't have.
+
+    Reads the structured response (status 400 + the JSON body's error.message),
+    the same fields every other HttpError handler in this codebase matches on,
+    rather than str(error) — HttpError's own display formatting could change
+    independently of the API's error body (#510). Body shape confirmed live:
+    {"error": {"code": 400, "message": "Invalid requests[N].insertInlineImage:
+    ...", "status": "INVALID_ARGUMENT"}}, naming only the first failing image
+    even when several in the same batch are unfetchable.
     """
-    match = _FAILED_INSERT_IMAGE_INDEX_RE.search(str(error))
+    if error.resp.status != 400:
+        return None
+    try:
+        message = json.loads(error.content)["error"]["message"]
+    except (ValueError, KeyError, TypeError):
+        return None
+    if not isinstance(message, str):
+        return None
+    match = _FAILED_INSERT_IMAGE_INDEX_RE.search(message)
     return int(match.group(1)) if match else None
+
+
+_POSITIONAL_INSERT_KEYS = ("insertTable", "insertInlineImage")
+
+
+def _positional_insert_tail_start(requests: list[dict]) -> int:
+    """Index where ast_to_requests's trailing stage-3 pass (the descending-position
+    insertTable + insertInlineImage requests — see its docstring) begins: the start
+    of the maximal suffix made up only of those two request kinds."""
+    start = len(requests)
+    while start > 0 and any(key in requests[start - 1] for key in _POSITIONAL_INSERT_KEYS):
+        start -= 1
+    return start
 
 
 async def _resolve_image_source(
@@ -513,36 +538,69 @@ async def _apply_doc_content(
         # exact same list retried, with no position recomputation needed.
         # Google's own error message gives the failing request's index
         # directly ("Invalid requests[N].insertInlineImage: ..."), which is
-        # what makes this retry loop possible without re-deriving that index
+        # what makes this retry possible without re-deriving that index
         # some other way.
-        remaining_requests = list(content_requests)
-        while True:
-            try:
-                await execute_in_thread(
-                    docs_service.documents()
-                    .batchUpdate(documentId=doc_id, body={"requests": remaining_requests})
-                    .execute,
-                    docs_service,
-                )
-                break
-            except HttpError as e:
-                bad_index = _failed_insert_image_request_index(e)
-                if bad_index is None or bad_index >= len(remaining_requests):
-                    raise
-                bad_request = remaining_requests.pop(bad_index)
-                img_id = request_id_to_img_id.get(id(bad_request))
-                entry = entry_by_id.get(img_id) if img_id is not None else None
-                if entry is not None:
-                    # fileId/shared are left as-is: a local-path/drive: source was
-                    # genuinely uploaded and shared even though embedding it
-                    # failed, so that's still real information for the caller —
-                    # and it still goes through the normal revoke_sharing-
-                    # respecting cleanup below rather than being silently
-                    # orphaned. An https:// source never had either field set — and
-                    # is the one source kind #400's pre-validation doesn't cover, so
-                    # this is its only chance to learn the size-limit cause at all.
-                    entry["error"] = f"doc edit failed: {rewrite_too_large_error(str(e))}"
-        content_requests = remaining_requests
+        #
+        # Only the first failing image is named per error (confirmed live), so K
+        # bad images need K retries. Resending the whole document each time would
+        # be K+1 full-size round trips (#510) — instead, the first image failure
+        # splits the list: everything ahead of ast_to_requests's trailing
+        # descending-position insertTable/insertInlineImage pass is sent once on
+        # its own, and only that (small) tail is retried per bad image. The split
+        # is only safe at that boundary: within the tail, each insert lands at or
+        # before every insert already applied, so dropping one never shifts the
+        # rest, while the prefix (text, styles, bullets) must run before any of it.
+        # The happy path stays one atomic call.
+
+        async def _batch_update(requests: list[dict]) -> None:
+            await execute_in_thread(
+                docs_service.documents()
+                .batchUpdate(documentId=doc_id, body={"requests": requests})
+                .execute,
+                docs_service,
+            )
+
+        def _drop_failed_image(requests: list[dict], e: HttpError, offset: int = 0) -> bool:
+            """Pop the insertInlineImage request `e` names from `requests` (whose own
+            index 0 sat at `offset` in the batch that raised `e`), recording the
+            failure on its image's outcome entry. False if `e` isn't an image-fetch
+            failure within `requests`, so the caller re-raises."""
+            bad_index = _failed_insert_image_request_index(e)
+            if bad_index is None or not 0 <= bad_index - offset < len(requests):
+                return False
+            bad_request = requests.pop(bad_index - offset)
+            img_id = request_id_to_img_id.get(id(bad_request))
+            entry = entry_by_id.get(img_id) if img_id is not None else None
+            if entry is not None:
+                # fileId/shared are left as-is: a local-path/drive: source was
+                # genuinely uploaded and shared even though embedding it
+                # failed, so that's still real information for the caller —
+                # and it still goes through the normal revoke_sharing-
+                # respecting cleanup below rather than being silently
+                # orphaned. An https:// source never had either field set — and
+                # is the one source kind #400's pre-validation doesn't cover, so
+                # this is its only chance to learn the size-limit cause at all.
+                entry["error"] = f"doc edit failed: {rewrite_too_large_error(str(e))}"
+            return True
+
+        try:
+            await _batch_update(content_requests)
+        except HttpError as e:
+            tail_start = _positional_insert_tail_start(content_requests)
+            prefix = content_requests[:tail_start]
+            tail = content_requests[tail_start:]
+            if not _drop_failed_image(tail, e, offset=tail_start):
+                raise
+            if prefix:
+                await _batch_update(prefix)
+            while tail:
+                try:
+                    await _batch_update(tail)
+                    break
+                except HttpError as retry_error:
+                    if not _drop_failed_image(tail, retry_error):
+                        raise
+            content_requests = prefix + tail
     await fill_tables(docs_service, doc_id, tables)
     if _has_pending_anchor_links(content_requests, tables):
         await _resolve_heading_anchors(docs_service, doc_id)

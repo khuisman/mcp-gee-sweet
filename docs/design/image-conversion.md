@@ -69,12 +69,24 @@ rejected `batchUpdate` executes nothing at all, successful or not.
 
 Fixed by treating this as a retryable, not fatal, failure: Google's own error message names the
 failing request's index directly (`"Invalid requests[N].insertInlineImage: ..."`), so
-`_apply_doc_content` catches the `HttpError`, parses that index out via regex
-(`_failed_insert_image_request_index`), strips exactly that request from the list, and retries
-with everything else unchanged. Safe without any position recomputation specifically *because* a
-rejected batch never partially applies — every other request's absolute position is exactly as
-valid on retry as it was on the first attempt. The removed image's outcome entry gets an
-`error` field; every other image/table/text request in the same call is unaffected.
+`_apply_doc_content` catches the `HttpError`, parses that index out of the structured response
+(`_failed_insert_image_request_index` — status 400 plus the JSON body's `error.message`, not
+`HttpError`'s own display string, #510), and strips exactly that request. Safe without any
+position recomputation specifically *because* a rejected batch never partially applies — every
+other request's absolute position is exactly as valid on retry as it was on the first attempt.
+The removed image's outcome entry gets an `error` field; every other image/table/text request in
+the same call is unaffected.
+
+Google names only the *first* failing image per error (confirmed live), so K unreachable images
+need K retries. Rather than resending the whole document each time (K+1 full-size round trips),
+the first image failure splits the request list at the start of `ast_to_requests`'s trailing
+descending-position `insertTable`/`insertInlineImage` pass (`_positional_insert_tail_start`): the
+prefix (text, styles, bullets) is sent once on its own, and only that small tail is retried per
+bad image (#510). That boundary is the only safe split point — every prefix request must run
+before any positional insert, while within the tail each insert lands at or before every insert
+already applied, so dropping one never shifts the rest. The happy path is unchanged: one atomic
+call. Confirmed live that the split produces a document structurally identical to the old
+whole-list retry (text, bullets, table, and the surviving image all in place).
 
 ## Known, deliberate gap: table-cell images
 

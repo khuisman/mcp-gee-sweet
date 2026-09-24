@@ -23,8 +23,10 @@ from mcp_gee_sweet.tools.docs.ast import (
     Table,
 )
 from mcp_gee_sweet.tools.docs.content import (
+    _failed_insert_image_request_index,
     _has_pending_anchor_links,
     _md_to_html,
+    _positional_insert_tail_start,
     _resolve_heading_anchors,
     _resolve_image_source,
     _to_doc_requests,
@@ -1675,18 +1677,119 @@ class TestCreateDocImages:
         assert "error" in outcomes[bad_uri]
         assert "doc edit failed" in outcomes[bad_uri]["error"]
 
-        # The retried (second) batchUpdate call must still contain the good
-        # image's request and everything else — only the bad one was removed.
-        second_call_requests = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"][
-            "requests"
+        # #510: the retry splits at the positional-insert tail — the text/style
+        # prefix goes up once on its own, then only the tail (good image, bad one
+        # removed) is retried, rather than resending the whole document.
+        calls = [
+            c.kwargs["body"]["requests"]
+            for c in docs_svc.documents.return_value.batchUpdate.call_args_list
         ]
-        assert any(
-            r.get("insertInlineImage", {}).get("uri") == good_uri for r in second_call_requests
+        assert len(calls) == 3
+        full, prefix, tail = calls
+        assert prefix + tail == [
+            r for r in full if r.get("insertInlineImage", {}).get("uri") != bad_uri
+        ]
+        assert any("insertText" in r for r in prefix)
+        assert not any("insertInlineImage" in r for r in prefix)
+        assert [r["insertInlineImage"]["uri"] for r in tail] == [good_uri]
+
+    async def test_multiple_bad_images_retry_only_the_insert_tail(self):
+        # #510: Google names only the first failing image per error (confirmed
+        # live), so K bad images need K retries — each must resend only the
+        # positional-insert tail, never the text/style prefix again.
+        drive_svc, docs_svc = self._make_services()
+        good_uri = "https://example.com/good.png"
+        bad_uris = {"https://example.com/bad1.png", "https://example.com/bad2.png"}
+        content = (
+            "Before\n\n![Bad1](https://example.com/bad1.png)\n\n![Good](https://example.com/good.png)"
+            "\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n![Bad2](https://example.com/bad2.png)\n\nAfter"
         )
-        assert not any(
-            r.get("insertInlineImage", {}).get("uri") == bad_uri for r in second_call_requests
-        )
-        assert docs_svc.documents.return_value.batchUpdate.call_count == 2
+
+        def batchupdate_side_effect(documentId, body):
+            m = MagicMock()
+            bad_index = next(
+                (
+                    i
+                    for i, r in enumerate(body["requests"])
+                    if r.get("insertInlineImage", {}).get("uri") in bad_uris
+                ),
+                None,
+            )
+            if bad_index is None:
+                m.execute.return_value = {}
+            else:
+                m.execute.side_effect = self._insert_image_http_error(bad_index)
+            return m
+
+        docs_svc.documents.return_value.batchUpdate.side_effect = batchupdate_side_effect
+        ctx = self._ctx(drive_svc, docs_svc)
+
+        # fill_tables (the table's cell-fill pass) isn't under test here.
+        with patch.object(content_module, "fill_tables"):
+            result = await _docs_tools["create_doc"](
+                title="Doc", content=content, content_format="markdown", ctx=ctx
+            )
+
+        outcomes = {o["src"]: o for o in result["images"]}
+        assert "error" not in outcomes[good_uri]
+        assert all("doc edit failed" in outcomes[uri]["error"] for uri in bad_uris)
+
+        calls = [
+            c.kwargs["body"]["requests"]
+            for c in docs_svc.documents.return_value.batchUpdate.call_args_list
+        ]
+        # 1 full attempt + 1 prefix + K=2 tail attempts (one fails on the
+        # second bad image, the last succeeds).
+        full, prefix, *tail_attempts = calls
+        assert len(tail_attempts) == 2
+        for attempt in tail_attempts:
+            assert all("insertInlineImage" in r or "insertTable" in r for r in attempt)
+        assert not any("insertInlineImage" in r or "insertTable" in r for r in prefix)
+        final_tail = tail_attempts[-1]
+        assert [r["insertInlineImage"]["uri"] for r in final_tail if "insertInlineImage" in r] == [
+            good_uri
+        ]
+        assert any("insertTable" in r for r in final_tail)
+        assert prefix + final_tail == [
+            r for r in full if r.get("insertInlineImage", {}).get("uri") not in bad_uris
+        ]
+
+    async def test_non_image_error_on_tail_retry_propagates(self):
+        # A retry failing for any reason other than a named image fetch must
+        # surface, not loop or get silently swallowed.
+        drive_svc, docs_svc = self._make_services()
+        bad_uri = "https://example.com/bad.png"
+        good_uri = "https://example.com/good.png"
+        content = f"Before\n\n![Bad]({bad_uri})\n\n![Good]({good_uri})"
+        call_count = 0
+
+        def batchupdate_side_effect(documentId, body):
+            nonlocal call_count
+            call_count += 1
+            m = MagicMock()
+            if call_count == 1:
+                bad_index = next(
+                    i
+                    for i, r in enumerate(body["requests"])
+                    if r.get("insertInlineImage", {}).get("uri") == bad_uri
+                )
+                m.execute.side_effect = self._insert_image_http_error(bad_index)
+            elif call_count == 2:
+                m.execute.return_value = {}
+            else:
+                resp = MagicMock()
+                resp.status = 500
+                m.execute.side_effect = HttpError(resp=resp, content=b'{"error": {"message": "x"}}')
+            return m
+
+        docs_svc.documents.return_value.batchUpdate.side_effect = batchupdate_side_effect
+        ctx = self._ctx(drive_svc, docs_svc)
+
+        with pytest.raises(HttpError):
+            await _docs_tools["create_doc"](
+                title="Doc", content=content, content_format="markdown", ctx=ctx
+            )
+        assert call_count == 3
 
     async def test_oversized_uri_image_error_is_rewritten(self):
         # A bare http(s) image source can't be pre-validated (#400's scope boundary
@@ -3002,3 +3105,70 @@ class TestFindInDoc:
         assert result["match_count"] == 3
         written = json.loads(dest.read_text())
         assert len(written) == 3
+
+
+class TestFailedInsertImageRequestIndex:
+    """#510: matched against the structured response (status + JSON body's
+    error.message), not HttpError's own display formatting."""
+
+    @staticmethod
+    def _error(status: int, content: bytes) -> HttpError:
+        resp = MagicMock()
+        resp.status = status
+        return HttpError(resp=resp, content=content)
+
+    def test_extracts_index_from_json_body(self):
+        # Body shape as captured live against the real Docs API.
+        body = {
+            "error": {
+                "code": 400,
+                "message": "Invalid requests[28].insertInlineImage: There was a problem "
+                "retrieving the image.",
+                "status": "INVALID_ARGUMENT",
+            }
+        }
+        assert _failed_insert_image_request_index(self._error(400, json.dumps(body).encode())) == 28
+
+    def test_independent_of_httperror_display_format(self):
+        body = {"error": {"message": "Invalid requests[3].insertInlineImage: nope"}}
+        error = self._error(400, json.dumps(body).encode())
+        with patch.object(HttpError, "__str__", lambda self: "reformatted"):
+            assert _failed_insert_image_request_index(error) == 3
+
+    def test_non_400_status_is_none(self):
+        body = {"error": {"message": "Invalid requests[3].insertInlineImage: nope"}}
+        error = self._error(500, json.dumps(body).encode())
+        assert _failed_insert_image_request_index(error) is None
+
+    def test_other_request_kind_is_none(self):
+        body = {"error": {"message": "Invalid requests[3].insertText: bad index"}}
+        error = self._error(400, json.dumps(body).encode())
+        assert _failed_insert_image_request_index(error) is None
+
+    @pytest.mark.parametrize(
+        "content",
+        [b"not json", b"[]", b'{"error": "flat"}', b"{}"],
+    )
+    def test_malformed_body_is_none(self, content):
+        assert _failed_insert_image_request_index(self._error(400, content)) is None
+
+
+class TestPositionalInsertTailStart:
+    def test_tail_of_tables_and_images(self):
+        requests = [
+            {"insertText": {}},
+            {"updateTextStyle": {}},
+            {"insertInlineImage": {}},
+            {"insertTable": {}},
+            {"insertInlineImage": {}},
+        ]
+        assert _positional_insert_tail_start(requests) == 2
+
+    def test_no_tail(self):
+        assert _positional_insert_tail_start([{"insertText": {}}]) == 1
+
+    def test_all_tail(self):
+        assert _positional_insert_tail_start([{"insertInlineImage": {}}]) == 0
+
+    def test_empty(self):
+        assert _positional_insert_tail_start([]) == 0
