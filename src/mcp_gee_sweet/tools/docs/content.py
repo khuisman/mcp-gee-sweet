@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import re
 import xml.etree.ElementTree as etree
@@ -126,6 +125,7 @@ def _html_to_doc_requests(
 
 
 _FAILED_INSERT_IMAGE_INDEX_RE = re.compile(r"requests\[(\d+)\]\.insertInlineImage")
+_FAILED_REQUEST_PREFIX_RE = re.compile(r"^Invalid requests\[\d+\]\.")
 
 
 def _failed_insert_image_request_index(error: HttpError) -> int | None:
@@ -135,24 +135,25 @@ def _failed_insert_image_request_index(error: HttpError) -> int | None:
     image...'. Returns None for any other error shape, so the caller re-raises
     instead of misinterpreting an unrelated failure as an image-fetch problem.
 
-    Reads the structured response (status 400 + the JSON body's error.message),
-    the same fields every other HttpError handler in this codebase matches on,
-    rather than str(error) — HttpError's own display formatting could change
-    independently of the API's error body (#510). Body shape confirmed live:
-    {"error": {"code": 400, "message": "Invalid requests[N].insertInlineImage:
-    ...", "status": "INVALID_ARGUMENT"}}, naming only the first failing image
-    even when several in the same batch are unfetchable.
+    Matches the status code plus error.reason — which HttpError fills from the
+    JSON body's error.message — rather than str(error), whose display wrapper
+    could change independently of the API's own error body (#510). Body shape
+    confirmed live: {"error": {"code": 400, "message": "Invalid
+    requests[N].insertInlineImage: ...", "status": "INVALID_ARGUMENT"}}, naming
+    only the first failing image even when several in the same batch are
+    unfetchable.
     """
-    if error.resp.status != 400:
+    if error.resp.status != 400 or not isinstance(error.reason, str):
         return None
-    try:
-        message = json.loads(error.content)["error"]["message"]
-    except (ValueError, KeyError, TypeError):
-        return None
-    if not isinstance(message, str):
-        return None
-    match = _FAILED_INSERT_IMAGE_INDEX_RE.search(message)
+    match = _FAILED_INSERT_IMAGE_INDEX_RE.search(error.reason)
     return int(match.group(1)) if match else None
+
+
+def _failed_insert_image_message(error: HttpError) -> str:
+    """Caller-facing text for an image dropped by _apply_doc_content's retry: the
+    API's own message minus its 'Invalid requests[N].' lead-in, since N indexes
+    whichever internal retry batch failed and means nothing to the caller."""
+    return rewrite_too_large_error(_FAILED_REQUEST_PREFIX_RE.sub("", error.reason))
 
 
 _POSITIONAL_INSERT_KEYS = ("insertTable", "insertInlineImage")
@@ -458,8 +459,8 @@ async def _apply_doc_content(
     real_uri_by_id: dict[int, str] = {}
     # (outcome_entry, file_id, permission_id) for images successfully shared —
     # revoked only after the doc edit below actually succeeds. A retry-removed
-    # image (see below) is dropped from this list before revoke runs, since it
-    # was never actually placed.
+    # image (see below) stays in this list: it was still uploaded and shared,
+    # so its temporary share is revoked the same as any other.
     pending_revokes: dict[int, tuple[dict[str, Any], str, str]] = {}
     # ast_to_requests needs *some* URI per resolved image up front to build its
     # insertInlineImage requests — placeholders here (guaranteed unique, unlike
@@ -507,10 +508,11 @@ async def _apply_doc_content(
     content_requests, tables = ast_to_requests(nodes, start_index=1, image_uris=placeholder_uris)
 
     # Swap each request's placeholder URI for the real one, recording which
-    # image produced that exact request *object* (by its own id(), stable
-    # across the `list(content_requests)` shallow copy below) so the retry
-    # loop can trace a failure back to the right image without relying on URI
+    # image produced that exact request *object* (by its own id()) so the retry
+    # below can trace a failure back to the right image without relying on URI
     # or position, both of which two images can share (see the comment above).
+    # The retry's list copies and slices copy references, not the dicts, so id()
+    # still matches — deep-copying any of them would silently break this lookup.
     placeholder_to_img_id = {
         placeholder: img_id for img_id, placeholder in placeholder_uris.items()
     }
@@ -543,14 +545,26 @@ async def _apply_doc_content(
         #
         # Only the first failing image is named per error (confirmed live), so K
         # bad images need K retries. Resending the whole document each time would
-        # be K+1 full-size round trips (#510) — instead, the first image failure
-        # splits the list: everything ahead of ast_to_requests's trailing
-        # descending-position insertTable/insertInlineImage pass is sent once on
-        # its own, and only that (small) tail is retried per bad image. The split
-        # is only safe at that boundary: within the tail, each insert lands at or
-        # before every insert already applied, so dropping one never shifts the
-        # rest, while the prefix (text, styles, bullets) must run before any of it.
-        # The happy path stays one atomic call.
+        # be K+1 full-size round trips (#510). So: the first retry (K=1, the common
+        # case) is still one atomic call of the whole remaining list. Only if that
+        # names a *second* bad image does the list split: everything ahead of
+        # ast_to_requests's trailing descending-position insertTable/
+        # insertInlineImage pass (the "prefix": text, styles, bullets) is sent once
+        # on its own, then only that small tail is retried per further bad image.
+        # That boundary is the only safe split point: every prefix request must run
+        # before any positional insert, while within the tail each insert lands at
+        # or before every insert already applied, so dropping one never shifts the
+        # rest.
+        #
+        # Residual partial-write window (K>=2 only): once the prefix has committed,
+        # a tail retry failing for any *non*-image reason raises with the text
+        # already in the doc but no tables or images (and fill_tables never runs).
+        # Every path through K<=1 stays all-or-nothing.
+        #
+        # A dropped image's error is recorded on its outcome entry as it's dropped.
+        # If a later call raises instead, the exception propagates and no outcome
+        # list reaches the caller at all (same as before #510), so there's no
+        # partially-recorded state to preserve.
 
         async def _batch_update(requests: list[dict]) -> None:
             await execute_in_thread(
@@ -560,15 +574,15 @@ async def _apply_doc_content(
                 docs_service,
             )
 
-        def _drop_failed_image(requests: list[dict], e: HttpError, offset: int = 0) -> bool:
-            """Pop the insertInlineImage request `e` names from `requests` (whose own
-            index 0 sat at `offset` in the batch that raised `e`), recording the
-            failure on its image's outcome entry. False if `e` isn't an image-fetch
-            failure within `requests`, so the caller re-raises."""
+        def _drop_failed_image(requests: list[dict], e: HttpError) -> bool:
+            """Pop the insertInlineImage request `e` names from `requests` (the
+            batch that raised `e`), recording the failure on its image's outcome
+            entry. False if `e` isn't an image-fetch failure, so the caller
+            re-raises."""
             bad_index = _failed_insert_image_request_index(e)
-            if bad_index is None or not 0 <= bad_index - offset < len(requests):
+            if bad_index is None or bad_index >= len(requests):
                 return False
-            bad_request = requests.pop(bad_index - offset)
+            bad_request = requests.pop(bad_index)
             img_id = request_id_to_img_id.get(id(bad_request))
             entry = entry_by_id.get(img_id) if img_id is not None else None
             if entry is not None:
@@ -580,27 +594,35 @@ async def _apply_doc_content(
                 # orphaned. An https:// source never had either field set — and
                 # is the one source kind #400's pre-validation doesn't cover, so
                 # this is its only chance to learn the size-limit cause at all.
-                entry["error"] = f"doc edit failed: {rewrite_too_large_error(str(e))}"
+                entry["error"] = f"doc edit failed: {_failed_insert_image_message(e)}"
             return True
 
-        try:
-            await _batch_update(content_requests)
-        except HttpError as e:
-            tail_start = _positional_insert_tail_start(content_requests)
-            prefix = content_requests[:tail_start]
-            tail = content_requests[tail_start:]
-            if not _drop_failed_image(tail, e, offset=tail_start):
-                raise
-            if prefix:
-                await _batch_update(prefix)
-            while tail:
-                try:
-                    await _batch_update(tail)
-                    break
-                except HttpError as retry_error:
-                    if not _drop_failed_image(tail, retry_error):
-                        raise
-            content_requests = prefix + tail
+        committed: list[dict] = []
+        remaining = list(content_requests)
+        image_failures = 0
+        while remaining:
+            try:
+                await _batch_update(remaining)
+                break
+            except HttpError as e:
+                if not _drop_failed_image(remaining, e):
+                    raise
+                image_failures += 1
+                if image_failures != 2:
+                    continue
+                tail_start = _positional_insert_tail_start(remaining)
+                # Fail-safe: split only if every image request really is in the
+                # tail. If ast_to_requests ever emits something after its
+                # positional-insert pass, the boundary scan comes up short —
+                # fall back to whole-list retries rather than committing an
+                # image-bearing prefix whose image failures couldn't be retried.
+                if any("insertInlineImage" in r for r in remaining[:tail_start]):
+                    continue
+                if tail_start:
+                    await _batch_update(remaining[:tail_start])
+                committed = remaining[:tail_start]
+                remaining = remaining[tail_start:]
+        content_requests = committed + remaining
     await fill_tables(docs_service, doc_id, tables)
     if _has_pending_anchor_links(content_requests, tables):
         await _resolve_heading_anchors(docs_service, doc_id)

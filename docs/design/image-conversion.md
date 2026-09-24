@@ -70,22 +70,37 @@ rejected `batchUpdate` executes nothing at all, successful or not.
 Fixed by treating this as a retryable, not fatal, failure: Google's own error message names the
 failing request's index directly (`"Invalid requests[N].insertInlineImage: ..."`), so
 `_apply_doc_content` catches the `HttpError`, parses that index out of the structured response
-(`_failed_insert_image_request_index` — status 400 plus the JSON body's `error.message`, not
-`HttpError`'s own display string, #510), and strips exactly that request. Safe without any
+(`_failed_insert_image_request_index` — status 400 plus `HttpError.reason`, which the client
+library fills from the JSON body's `error.message`, not `HttpError`'s own display string, #510),
+and strips exactly that request. The dropped image's outcome `error` is built from that same
+field, minus its `Invalid requests[N].` lead-in (`N` indexes an internal retry batch). Safe without any
 position recomputation specifically *because* a rejected batch never partially applies — every
 other request's absolute position is exactly as valid on retry as it was on the first attempt.
 The removed image's outcome entry gets an `error` field; every other image/table/text request in
 the same call is unaffected.
 
 Google names only the *first* failing image per error (confirmed live), so K unreachable images
-need K retries. Rather than resending the whole document each time (K+1 full-size round trips),
-the first image failure splits the request list at the start of `ast_to_requests`'s trailing
-descending-position `insertTable`/`insertInlineImage` pass (`_positional_insert_tail_start`): the
-prefix (text, styles, bullets) is sent once on its own, and only that small tail is retried per
-bad image (#510). That boundary is the only safe split point — every prefix request must run
-before any positional insert, while within the tail each insert lands at or before every insert
-already applied, so dropping one never shifts the rest. The happy path is unchanged: one atomic
-call. Confirmed live that the split produces a document structurally identical to the old
+need K retries. Resending the whole document each time would be K+1 full-size round trips, so
+(#510):
+
+- **K=0 and K=1 stay all-or-nothing.** The happy path is one atomic call; the first retry is
+  still one atomic call of the whole remaining list. K=1, the common case, costs 2 calls, the
+  same as before #510.
+- **From the second bad image on, the list splits** at the start of `ast_to_requests`'s trailing
+  descending-position `insertTable`/`insertInlineImage` pass (`_positional_insert_tail_start`).
+  The prefix (text, styles, bullets) is committed once on its own, and only the small tail is
+  retried per further bad image. That boundary is the only safe split point: every prefix
+  request must run before any positional insert, while within the tail each insert lands at or
+  before every insert already applied, so dropping one never shifts the rest.
+- **Residual partial-write window (K≥2 only):** once the prefix has committed, a tail retry that
+  fails for a *non*-image reason raises with the text already in the doc but no tables or
+  images, and `fill_tables` never runs.
+- **Fail-safe:** the tail boundary is inferred from request kinds, so it silently depends on
+  `ast_to_requests` emitting nothing after its positional-insert pass (pinned by a unit test).
+  If any image request is found outside the inferred tail, the retry never splits and falls
+  back to whole-list retries.
+
+Confirmed live that the split produces a document structurally identical to the old
 whole-list retry (text, bullets, table, and the surviving image all in place).
 
 ## Known, deliberate gap: table-cell images
