@@ -817,10 +817,16 @@ class TestListFiles:
         await _drive_tools["list_files"](folder_id="folder1", ctx=ctx)
         fields_arg = svc.files.return_value.list.call_args.kwargs["fields"]
         assert "nextPageToken" in fields_arg
+        assert "incompleteSearch" in fields_arg
 
     @pytest.mark.parametrize(
         ("response_extra", "expected_exhaustive"),
-        [({}, True), ({"nextPageToken": "tok"}, False)],
+        [
+            ({}, True),
+            ({"nextPageToken": "tok"}, False),
+            # PR #788 QA round 1: Drive flags a possibly-partial result this way.
+            ({"incompleteSearch": True}, False),
+        ],
     )
     async def test_store_exhaustive_flag_follows_next_page_token(
         self, response_extra, expected_exhaustive

@@ -745,9 +745,65 @@ class TestSizedCacheRaces:
         self.folders.store("folder", None, [{"id": "only"}], 5, exhaustive=False)
         assert self.folders.get("folder", None, 1000) is None
 
-    def test_sheet_data_exhaustive_satisfies_larger_rows_to_fetch(self):
-        self.data.store("sid", 0, ["H"], [["r1"]], rows_to_fetch=5, exhaustive=True)
-        assert self.data.get("sid", 0, 500) == {"headers": ["H"], "first_rows": [["r1"]]}
+    def test_sheet_data_short_result_still_misses_larger_rows_to_fetch(self):
+        # PR #788 QA round 1: a short values().get doesn't mean the sheet is out of
+        # data — rows past a gap of empty rows exist beyond the requested range.
+        self.data.store("sid", 0, ["H"], [["r1"]], rows_to_fetch=5)
+        assert self.data.get("sid", 0, 20) is None
+
+    # --- finding 3 (QA round 1): invalidations only block stores they cover ---
+
+    def test_mark_dirty_other_folder_does_not_block_store(self):
+        epoch = self.folders.snapshot_epoch()
+        self.folders.mark_dirty("other")
+        self.folders.store("folder", None, [{"id": "a"}], 10, epoch=epoch)
+        assert self.folders.get("folder", None, 10) == [{"id": "a"}]
+
+    def test_ttl_expiry_does_not_block_in_flight_store(self):
+        self.folders.store("x", None, [{"id": "old"}], 10)
+        epoch = self.folders.snapshot_epoch()
+        self.folders.set_ttl(0)
+        time.sleep(0.01)
+        assert self.folders.get("x", None, 10) is None  # expiry observed mid-fetch
+        self.folders.set_ttl(60)
+        self.folders.store("y", None, [{"id": "y"}], 10, epoch=epoch)
+        self.folders.store("x", None, [{"id": "new"}], 10, epoch=epoch)
+        assert self.folders.get("y", None, 10) == [{"id": "y"}]
+        assert self.folders.get("x", None, 10) == [{"id": "new"}]
+
+    def test_mark_all_dirty_blocks_every_in_flight_store(self):
+        epoch = self.folders.snapshot_epoch()
+        self.folders.mark_all_dirty()
+        self.folders.store("folder", None, [{"id": "a"}], 10, epoch=epoch)
+        assert self.folders.get("folder", None, 10) is None
+
+    def test_sheet_mark_dirty_one_sheet_blocks_only_that_sheet(self):
+        epoch = self.data.snapshot_epoch()
+        self.data.mark_dirty("sid", 1)
+        self.data.store("sid", 1, ["A"], [], rows_to_fetch=5, epoch=epoch)
+        self.data.store("sid", 10, ["B"], [], rows_to_fetch=5, epoch=epoch)
+        assert self.data.get("sid", 1, 5) is None
+        assert self.data.get("sid", 10, 5) is not None  # "sid:1" isn't a prefix of "sid:10"
+
+    def test_sheet_structure_epoch_scoped_to_spreadsheet(self):
+        cache = SheetStructureCache(db_path=DB, ttl=60)
+        epoch = cache.snapshot_epoch()
+        cache.mark_dirty("other")
+        cache.store("sid", [SheetInfo(title="S", sheet_id=0)], epoch=epoch)
+        assert cache.get_sheets("sid") is not None
+        cache.mark_dirty("sid")
+        cache.store("sid", [SheetInfo(title="S", sheet_id=0)], epoch=epoch)
+        assert cache.get_sheets("sid") is None
+
+    # --- finding 4 (QA round 1): _get_sized check order ---
+
+    def test_stale_vs_source_entry_marked_dirty_even_when_request_too_large(self):
+        self.data.store("sid", 0, ["H"], [], rows_to_fetch=5, modified_time="t1")
+        assert self.data.get("sid", 0, 50, current_modified_time="t2") is None
+        # Marked dirty, so a smaller refetch replaces it despite the keep-larger rule.
+        self.data.store("sid", 0, ["H2"], [], rows_to_fetch=2, modified_time="t2")
+        hit = self.data.get("sid", 0, 2, current_modified_time="t2")
+        assert hit is not None and hit["headers"] == ["H2"]
 
     # --- finding 4: compare-and-set on rows_fetched ---
 

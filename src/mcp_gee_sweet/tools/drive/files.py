@@ -591,7 +591,7 @@ def register(tool):
                     spaces="drive",
                     includeItemsFromAllDrives=True,
                     supportsAllDrives=True,
-                    fields="nextPageToken, files(id, name, mimeType, modifiedTime, webViewLink, starred, md5Checksum)",
+                    fields="nextPageToken, incompleteSearch, files(id, name, mimeType, modifiedTime, webViewLink, starred, md5Checksum)",
                     orderBy="name",
                 )
                 .execute,
@@ -610,15 +610,16 @@ def register(tool):
                 }
                 for f in results.get("files", [])
             ]
-            # No nextPageToken means this listing is complete. A short page alone
-            # doesn't prove that — Drive may return fewer than pageSize with more left.
+            # Complete only with no nextPageToken and no incompleteSearch flag. A short
+            # page alone doesn't prove it — Drive may return fewer than pageSize with
+            # more left — and incompleteSearch marks a possibly partial result.
             folder_cache.store(
                 folder_id,
                 mime_type,
                 files,
                 max_results,
                 epoch=epoch,
-                exhaustive=not results.get("nextPageToken"),
+                exhaustive=not results.get("nextPageToken") and not results.get("incompleteSearch"),
             )
             return files
         except Exception as e:

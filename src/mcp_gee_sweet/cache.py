@@ -114,7 +114,7 @@ def _safe_write(conn: sqlite3.Connection, sql: str, params: tuple) -> int:
 
 
 # Stored as `rows_fetched` when a fetch is known to have returned *everything* there
-# was (a Drive listing with no nextPageToken, a sheet range shorter than requested),
+# was (a Drive listing with no nextPageToken and no incompleteSearch flag),
 # so any later request size — however large — is satisfied by it. SQLite's INTEGER
 # max, so the ordinary `rows_fetched >= requested` comparison needs no special case.
 ROWS_EXHAUSTIVE = 2**63 - 1
@@ -164,10 +164,12 @@ async def get_modified_time(drive_service: Any, file_id: str) -> str | None:
 class _BaseCache:
     """Shared connection/TTL/dirty-marking plumbing for the five cache namespaces.
 
-    Subclasses set `_NS` and provide their own `_get_valid`/`get`/`store` methods
-    (key shape and cached payload shape differ per namespace), but share the
-    modifiedTime-comparison and TTL-expiry checks so that fixing one (e.g. a
-    staleness bug) doesn't require hunting down four near-identical copies.
+    Subclasses set `_NS` and provide their own `get`/`store` methods (key shape and
+    cached payload shape differ per namespace), built on the shared pieces here:
+    the modifiedTime-comparison and TTL-expiry checks, the epoch-guarded write
+    (`_store_if_fresh`), and — for caches bounded by a row/result count — the
+    `_get_sized`/`_store_sized` pair, so that fixing one (e.g. a staleness bug)
+    doesn't require hunting down near-identical copies.
     """
 
     _NS: str
@@ -175,13 +177,22 @@ class _BaseCache:
     def __init__(self, db_path: str = CACHE_DB_PATH, ttl: int = CACHE_TTL):
         self._ttl = ttl
         self._conn = _open(db_path)
-        # In-memory only (not persisted) — bumped on every dirty-marking. A read that
-        # snapshots this before an async fetch and passes it to store() afterward lets
-        # store() detect whether a refresh_cache() (or any other invalidation) landed
-        # *during* that fetch's await, and skip overwriting dirty=1 with stale-relative-
-        # to-the-invalidation data. Needed only now that tool calls are async and can
-        # interleave — sync tool execution never left a window for this to happen.
+        # In-memory only (not persisted) — a monotonic counter bumped on every
+        # invalidation. A read that snapshots this before an async fetch and passes it
+        # to store() afterward lets store() detect whether a refresh_cache() (or any
+        # other invalidation) landed *during* that fetch's await, and skip overwriting
+        # dirty=1 with stale-relative-to-the-invalidation data. Needed only now that
+        # tool calls are async and can interleave — sync tool execution never left a
+        # window for this to happen.
         self._epoch = 0
+        # When each exact key / key prefix / the whole namespace was last invalidated
+        # (as an _epoch value), so a store is only rejected by an invalidation that
+        # actually covers its own key — not by one for an unrelated folder or
+        # spreadsheet elsewhere in the same namespace (#698). Grows with the number of
+        # distinct keys ever invalidated in this process: one int per key, negligible.
+        self._key_invalidated: dict[str, int] = {}
+        self._prefix_invalidated: dict[str, int] = {}
+        self._all_invalidated = 0
         logger.debug("%s cache opened: %s", self._NS, db_path)
 
     def set_ttl(self, ttl: int) -> None:
@@ -198,18 +209,26 @@ class _BaseCache:
         as store()'s `epoch` kwarg so it can detect a concurrent invalidation."""
         return self._epoch
 
-    def _store_if_fresh(self, sql: str, params: tuple, epoch: int | None) -> bool:
-        """Run a cache write unless `epoch` is stale — i.e. a mark_dirty() happened
-        after the caller's snapshot_epoch() call. Returns whether it wrote (a
-        conditional upsert that declined also counts as not written).
+    def _invalidated_since(self, key: str, epoch: int) -> bool:
+        """True if an invalidation covering `key` happened after `epoch` was snapshot.
+        Prefixes are `<id>:`, so only the key's own `:`-delimited leading segments
+        can match — checked directly rather than scanning every recorded prefix."""
+        if self._all_invalidated > epoch or self._key_invalidated.get(key, 0) > epoch:
+            return True
+        start = 0
+        while (i := key.find(":", start)) != -1:
+            if self._prefix_invalidated.get(key[: i + 1], 0) > epoch:
+                return True
+            start = i + 1
+        return False
+
+    def _store_if_fresh(self, key: str, sql: str, params: tuple, epoch: int | None) -> bool:
+        """Run a cache write for `key` unless an invalidation covering it happened after
+        the caller's snapshot_epoch() call. Returns whether it wrote (a conditional
+        upsert that declined also counts as not written).
         """
-        if epoch is not None and epoch != self._epoch:
-            logger.debug(
-                "%s cache store skipped — invalidated during fetch (epoch %s != %s)",
-                self._NS,
-                epoch,
-                self._epoch,
-            )
+        if epoch is not None and self._invalidated_since(key, epoch):
+            logger.debug("%s cache store skipped for %s — invalidated during fetch", self._NS, key)
             return False
         return _safe_write(self._conn, sql, params) > 0
 
@@ -234,14 +253,19 @@ class _BaseCache:
         )
         if row is None or row["dirty"]:
             return None
-        value = json.loads(row["value"])
-        if not self._check_modified_time(value, current_modified_time, key):
-            return None
         if not self._check_ttl(row["fetched_at"], key):
             return None
+        value = None
+        if current_modified_time is not None:
+            # Checked before the size test (not after) so a stale-vs-source entry
+            # gets marked dirty even when this request is too large for it — else
+            # the refetch's compare-and-set store would decline to replace it.
+            value = json.loads(row["value"])
+            if not self._check_modified_time(value, current_modified_time, key):
+                return None
         if (row["rows_fetched"] or 0) < requested:
             return None
-        return value
+        return value if value is not None else json.loads(row["value"])
 
     def _store_sized(
         self, key: str, value: Any, requested: int, exhaustive: bool, epoch: int | None
@@ -251,6 +275,7 @@ class _BaseCache:
         entry over a smaller one. Returns whether it wrote."""
         now = time.time()
         return self._store_if_fresh(
+            key,
             _SIZED_UPSERT_SQL,
             (
                 self._NS,
@@ -263,29 +288,35 @@ class _BaseCache:
             epoch,
         )
 
-    def _mark_dirty_key(self, key: str) -> None:
+    def _mark_dirty_key(self, key: str, invalidate_in_flight: bool = True) -> None:
+        """`invalidate_in_flight=False` is for TTL expiry: an entry aging out isn't a
+        change a concurrent fetch's result predates, so it mustn't block that store."""
         _safe_write(
             self._conn,
             "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?",
             (self._NS, key),
         )
-        self._epoch += 1
+        if invalidate_in_flight:
+            self._epoch += 1
+            self._key_invalidated[key] = self._epoch
 
     def _mark_dirty_prefix(self, prefix: str) -> None:
-        """Mark every key starting with `prefix` dirty, bumping the epoch the same way
-        `_mark_dirty_key` does — without the bump, an in-flight fetch's store() would
-        silently overwrite this invalidation (#698). Uses substr rather than LIKE so a
-        `_`/`%` in a Drive/Sheets ID isn't read as a wildcard."""
+        """Mark every key starting with `prefix` (an `<id>:`) dirty, and record the
+        invalidation so an in-flight fetch for a covered key can't overwrite it (#698).
+        Uses substr rather than LIKE so a `_`/`%` in a Drive/Sheets ID isn't read as a
+        wildcard."""
         _safe_write(
             self._conn,
             "UPDATE cache SET dirty=1 WHERE namespace=? AND substr(key, 1, ?)=?",
             (self._NS, len(prefix), prefix),
         )
         self._epoch += 1
+        self._prefix_invalidated[prefix] = self._epoch
 
     def mark_all_dirty(self):
         _safe_write(self._conn, "UPDATE cache SET dirty=1 WHERE namespace=?", (self._NS,))
         self._epoch += 1
+        self._all_invalidated = self._epoch
         logger.debug("Invalidated all %s cache entries", self._NS)
 
     def _check_modified_time(
@@ -308,7 +339,7 @@ class _BaseCache:
         """True if fetched_at is still within TTL; False means expired+marked dirty."""
         if time.time() - fetched_at > self._ttl:
             logger.debug("Cache TTL expired for %s, marking dirty", key)
-            self._mark_dirty_key(key)
+            self._mark_dirty_key(key, invalidate_in_flight=False)
             return False
         return True
 
@@ -371,6 +402,7 @@ class SheetStructureCache(_BaseCache):
         if modified_time is not None:
             value["modified_time"] = modified_time
         wrote = self._store_if_fresh(
+            spreadsheet_id,
             "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty)"
             " VALUES (?,?,?,?,0)",
             (self._NS, spreadsheet_id, json.dumps(value), time.time()),
@@ -431,15 +463,15 @@ class SheetDataCache(_BaseCache):
         rows_to_fetch: int,
         modified_time: str | None = None,
         epoch: int | None = None,
-        exhaustive: bool = False,
     ):
-        """`exhaustive=True` means the fetch returned fewer rows than it asked for —
-        the sheet has no more data — so any later, larger `rows_to_fetch` is a hit."""
+        # Never exhaustive: a values().get on A1:N shorter than N rows only means rows
+        # up to N are trailing-empty, not that the sheet has no data further down
+        # (a gap of empty rows followed by more data) — PR #788 QA round 1.
         value: dict = {"headers": headers, "first_rows": first_rows}
         if modified_time is not None:
             value["modified_time"] = modified_time
         wrote = self._store_sized(
-            self._key(spreadsheet_id, sheet_id), value, rows_to_fetch, exhaustive, epoch
+            self._key(spreadsheet_id, sheet_id), value, rows_to_fetch, False, epoch
         )
         if wrote:
             logger.debug("Cached sheet data for %s/%s", spreadsheet_id, sheet_id)

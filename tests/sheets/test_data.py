@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from googleapiclient.errors import HttpError
 
+from mcp_gee_sweet.cache import SheetDataCache
 from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.sheets import data as sheets_data_module
 
@@ -509,22 +510,27 @@ class TestGetMultipleSpreadsheetSummary:
         written = json.loads(dest.read_text())
         assert written[0]["title"] == "Big"
 
-    @pytest.mark.parametrize(
-        ("values", "expected_exhaustive"),
-        [
-            ([["H"], ["r1"]], True),  # 2 rows back for A1:5 → sheet has no more data
-            ([["H"]] + [[str(i)] for i in range(4)], False),  # full 5 rows → maybe more
-        ],
-    )
-    async def test_store_exhaustive_flag_follows_short_result(self, values, expected_exhaustive):
-        """#698: a values().get shorter than the requested range means the sheet
-        ran out of rows, so the cached entry can satisfy any larger rows_to_fetch."""
-        ctx = self._ctx(self._spreadsheet_meta(), values)
+    async def test_short_result_does_not_hide_rows_below_a_gap(self, tmp_path):
+        """PR #788 QA round 1 (live-confirmed): a values().get on A1:5 that comes back
+        short only means rows up to 5 are trailing-empty — data past a gap of empty
+        rows can still exist. A later rows_to_fetch=20 must refetch, not be served
+        the short cached result."""
+        ctx = self._ctx(self._spreadsheet_meta(), [])
+        lc = ctx.request_context.lifespan_context
+        lc.sheet_data_cache = SheetDataCache(db_path=str(tmp_path / "c.db"), ttl=60)
+        values_get = lc.sheets_service.spreadsheets.return_value.values.return_value.get
+        values_get.return_value.execute.side_effect = [
+            {"values": [["H"], ["r2"]]},  # A1:5 — rows 3-5 empty
+            {"values": [["H"], ["r2"]] + [[]] * 7 + [["row10"]]},  # A1:20
+        ]
         await _data_tools["get_multiple_spreadsheet_summary"](
             spreadsheet_ids=["abc"], rows_to_fetch=5, ctx=ctx
         )
-        data_cache = ctx.request_context.lifespan_context.sheet_data_cache
-        assert data_cache.store.call_args.kwargs["exhaustive"] is expected_exhaustive
+        result = await _data_tools["get_multiple_spreadsheet_summary"](
+            spreadsheet_ids=["abc"], rows_to_fetch=20, ctx=ctx
+        )
+        assert values_get.return_value.execute.call_count == 2
+        assert result[0]["sheets"][0]["first_rows"][-1] == ["row10"]
 
     async def test_reports_progress_per_spreadsheet(self):
         """#355: extends #316/#319's per-item ctx.report_progress pattern to
