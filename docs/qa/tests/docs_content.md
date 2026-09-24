@@ -3627,3 +3627,44 @@ Plus 4 non-blocking cleanup items (finding 3+4 folded, finding 5 folded, finding
 **Cleanup:** write fixture content back
 
 **Result (2026-09-20) ✅ PASS — Kit, PR #772.** Round 1's `/code-review high` found 3 blocking issues before this case was run live: (1) a resumed segment's preserved runs could carry an embedded ASCII newline adjacent to the authored `\xa0`/entity content, which the Docs API splits into a spurious extra paragraph regardless of styling (#719) — reproduces with source shaped `<ul><li>Item<ul><li>x</li></ul>\n&nbsp;</li></ul>` (a newline between the nested list's close tag and the entity); (2) `_ASCII_FORMATTING_WHITESPACE` included `\v`/`\f` despite qualifying for the same authored-content reasoning as `\xa0`; (3) the 3-line `is_resumed_authored_whitespace` expression was duplicated verbatim at both call sites (`_emit_block_node` and the `<pre>` close handler). Jay's round-2 fix (`6dbba4d`) added `_strip_formatting_whitespace` (strips formatting-noise characters from preserved runs before insertion, leaving genuine multi-line `<pre>` content untouched), narrowed the whitelist to `" \t\n\r"`, and deduped the shared check into `_is_resumed_authored_whitespace`. Full suite green (`uv run python -m pytest` → 1533 passed, 3 skipped, including 4 new regression tests). Live-verified against the fixture doc: (a) the finding-1 repro (`<ul><li>Item<ul><li>Child</li></ul>\n&nbsp;</li></ul>`) produced exactly 3 body paragraphs with no spurious split; (b) this case's own original prompt, run for the first time this round, matched every stated check exactly.
+
+### TC-DOC196: Several unreachable image URLs in one document — each fails alone, everything else lands (issue #510) ⚠️ requires-oauth ⚠️ destructive
+
+**Background:** Google's Docs API rejects an entire `batchUpdate` if any one `insertInlineImage` can't be fetched, and names only the *first* failing image per error. `_apply_doc_content` used to resend the whole document once per bad image. It now sends the text/style/bullet prefix once and retries only the trailing table/image insert pass per bad image. The failing index is also now read from the structured error body rather than `HttpError`'s display string. Round-trip counts aren't visible through the tool interface: unit tests cover those (`TestCreateDocImages::test_multiple_bad_images_retry_only_the_insert_tail`, `TestFailedInsertImageRequestIndex`). This case checks the end-to-end outcome with more than one bad image, plus a table in the same tail.
+
+**Prompt**
+**Playwright: required**
+> "Create a Google Doc titled 'TC-DOC196' with this markdown content (content_format markdown):
+> ```
+> # Title
+>
+> Before text with **bold**.
+>
+> ![Bad1](https://example.invalid/bad1.png)
+>
+> - item one
+> - item two
+>
+> ![Good](https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png)
+>
+> | a | b |
+> |---|---|
+> | 1 | 2 |
+>
+> ![Bad2](https://example.invalid/bad2.png)
+>
+> After text.
+> ```"
+
+**Checks**
+- `create_doc` returns `docId`/`web_link` with no top-level `error`
+- `images` has 3 entries in document order: `bad1.png` with an `error` starting `doc edit failed:`, the Google-logo URL with no `error`, and `bad2.png` with an `error` starting `doc edit failed:`
+- `get_doc_structure` shows, in order: the `Title` heading, "Before text with bold." (bold run intact), bulleted "item one"/"item two", the table (cells `a`, `b`, `1`, `2`), and "After text." — nothing truncated
+- The paragraph between the bullets and the table has one extra index slot beyond its text, meaning the good image was embedded (same index-math cross-check as TC-DOC57)
+- Playwright: the Google logo renders between the bullets and the table, and nothing renders where the two bad images were
+
+**Cleanup:** delete the created doc
+
+**Result (2026-09-23) ❌ SENT BACK — Kit, PR #787 round 1.** The live checks themselves all passed. `create_doc` returned no top-level error, and `images` had 3 entries in order: bad1 and bad2 each with `doc edit failed:`, the Google logo clean. `get_doc_structure` showed every element in order with nothing truncated (heading, bold run intact, both bullets, 2×2 table, "After text."). The paragraph at 49–51 has the extra index slot. A raw `documents.get` confirmed exactly 1 `inlineObject`, placed between the bullets and the table. Each bad image left an empty paragraph behind, which the pre-#510 retry did too. Playwright: **SKIPPED.** The browser profile is signed in as the personal account and got a 403 on the Shared-Drive doc (the post-2026-09-01 auth migration). The raw API placement check above stood in for it. Also checked, not a scripted check: review finding 2 (tail inserts inheriting styles after the prefix commits) was probed live with an image right after a `##` heading and a table right after a blockquote. The split-path doc and a no-bad-image control had identical paragraph and text styles, differing only by the dropped image's empty paragraph, so the finding was not reproduced. Also observed live: bad1's per-image error text quotes `requests[2]`, an index into the tail-only retry batch, not the original request list (see the PR comment, finding 9). Sent back for code-review findings 1/3, 4, 5, 6, 7, 8, 9 (see the PR comment), not for a live failure.
+
+**Result (2026-09-23) ✅ PASS — Kit, PR #787 round 2.** Re-verified against Jay's fix `69eff02` (fast path: `git show` plus a live re-run, no second full `/code-review`). Every round-1 finding is addressed in the diff. K=1 retries the whole remaining list as one atomic call, and the prefix/tail split starts only at the second image failure. The K≥2 partial-write window is documented in the code comment and `image-conversion.md`. Detection now uses `status == 400` plus `HttpError.reason`. The caller-facing text drops the `Invalid requests[N].` lead-in and the `HttpError` wrapper, and `rewrite_too_large_error` still fires on the stripped text (spot-checked). A fail-safe falls back to whole-list retries if any image request sits outside the inferred tail, and a unit test pins `ast_to_requests`'s tail invariant. Both stale comments are fixed. Full suite green (`uv run python -m pytest` → 1574 passed, 3 skipped). Live: this case's own prompt, K=2 (split path), matched every API check again. It gave the identical structure to round 1, with exactly 1 `inlineObject` between the bullets and the table (raw `documents.get`). Both bad-image errors read `doc edit failed: insertInlineImage: There was a problem retrieving the image...` with no wrapper and no internal index. An extra K=1 probe (heading, bold text, good image, table, one bad image, trailing text) also landed intact with one `inlineObject` and the same clean error text. Playwright: **SKIPPED**, for the same reason as round 1: the browser profile is signed in as the personal account and gets a 403 on Shared-Drive docs. The raw API placement check stood in for it. Created docs trashed.
