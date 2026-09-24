@@ -506,6 +506,9 @@ def register(tool):
                             rows_to_fetch,
                             modified_time=sheet_mtime,
                             epoch=data_epoch,
+                            # values().get omits trailing empty rows, so a short
+                            # result means the sheet has no more data to fetch.
+                            exhaustive=len(values) < max_row,
                         )
                     except Exception as sheet_e:
                         sheet_summary["error"] = (

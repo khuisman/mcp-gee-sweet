@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from googleapiclient.errors import HttpError
 
+from mcp_gee_sweet.cache import DriveFolderCache
 from mcp_gee_sweet.tools.drive import files as drive_files_module
 
 
@@ -808,6 +809,50 @@ class TestListFiles:
         ctx = self._ctx(svc)
         result = await _drive_tools["list_files"](folder_id="folder1", ctx=ctx)
         assert result == [{"error": "List files failed: simulated API failure"}]
+
+    async def test_requests_next_page_token(self):
+        """#698: nextPageToken's absence is what marks a listing exhaustive."""
+        svc = self._drive_service()
+        ctx = self._ctx(svc)
+        await _drive_tools["list_files"](folder_id="folder1", ctx=ctx)
+        fields_arg = svc.files.return_value.list.call_args.kwargs["fields"]
+        assert "nextPageToken" in fields_arg
+
+    @pytest.mark.parametrize(
+        ("response_extra", "expected_exhaustive"),
+        [({}, True), ({"nextPageToken": "tok"}, False)],
+    )
+    async def test_store_exhaustive_flag_follows_next_page_token(
+        self, response_extra, expected_exhaustive
+    ):
+        svc = self._drive_service()
+        svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [],
+            **response_extra,
+        }
+        ctx = self._ctx(svc)
+        await _drive_tools["list_files"](folder_id="folder1", ctx=ctx)
+        folder_cache = ctx.request_context.lifespan_context.drive_folder_cache
+        assert folder_cache.store.call_args.kwargs["exhaustive"] is expected_exhaustive
+
+    async def test_mark_dirty_during_fetch_is_not_overwritten(self, tmp_path):
+        """#698 finding 1, end to end with a real cache: a mutation that marks the
+        folder dirty while list_files is awaiting Drive must survive the in-flight
+        call's store() — the next list_files refetches instead of serving the
+        pre-mutation listing."""
+        folder_cache = DriveFolderCache(db_path=str(tmp_path / "c.db"), ttl=60)
+        svc = MagicMock()
+
+        def execute_with_concurrent_mutation(*args, **kwargs):
+            folder_cache.mark_dirty("folder1")  # e.g. upload_file into folder1
+            return {"files": [{"id": "old", "name": "old.txt", "mimeType": "text/plain"}]}
+
+        svc.files.return_value.list.return_value.execute.side_effect = (
+            execute_with_concurrent_mutation
+        )
+        ctx = _make_ctx(drive_service=svc, drive_folder_cache=folder_cache)
+        await _drive_tools["list_files"](folder_id="folder1", ctx=ctx)
+        assert folder_cache.get("folder1", None, 100) is None
 
 
 class TestListFolders:

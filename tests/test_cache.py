@@ -685,3 +685,109 @@ class TestOpenFallback:
             assert result[0].title == "S1"
         finally:
             os.chmod(str(ro_dir), 0o755)
+
+
+class TestSizedCacheRaces:
+    """#698: the rows_fetched sufficiency pattern shared by DriveFolderCache and
+    SheetDataCache via _BaseCache._get_sized/_store_sized — epoch guard on every
+    mark_dirty path, exhaustive-fetch tracking, and keep-larger compare-and-set."""
+
+    def setup_method(self):
+        self.folders = DriveFolderCache(db_path=DB, ttl=60)
+        self.data = SheetDataCache(db_path=DB, ttl=60)
+
+    # --- finding 1: epoch guard (plus the prefix mark_dirty epoch gap) ---
+
+    def test_drive_mark_dirty_during_fetch_skips_stale_store(self):
+        self.folders.store("folder", None, [{"id": "old"}], 10)
+        epoch = self.folders.snapshot_epoch()
+        # A concurrent mutation lands while list_files is awaiting Drive.
+        self.folders.mark_dirty("folder")
+        self.folders.store("folder", None, [{"id": "pre-mutation"}], 10, epoch=epoch)
+        assert self.folders.get("folder", None, 10) is None
+
+    def test_drive_store_with_current_epoch_writes(self):
+        epoch = self.folders.snapshot_epoch()
+        self.folders.store("folder", None, [{"id": "a"}], 10, epoch=epoch)
+        assert self.folders.get("folder", None, 10) == [{"id": "a"}]
+
+    def test_sheet_data_whole_spreadsheet_mark_dirty_bumps_epoch(self):
+        # Every sheets/data.py write tool calls mark_dirty(spreadsheet_id) with no
+        # sheet_id; that path used to skip the epoch bump, defeating the guard.
+        epoch = self.data.snapshot_epoch()
+        self.data.mark_dirty("sid")
+        assert self.data.snapshot_epoch() != epoch
+        self.data.store("sid", 0, headers=["A"], first_rows=[], rows_to_fetch=5, epoch=epoch)
+        assert self.data.get("sid", 0, 5) is None
+
+    def test_prefix_mark_dirty_treats_underscore_literally(self):
+        # Drive IDs contain `_`; LIKE would have read it as a single-char wildcard.
+        self.folders.store("a_b", None, [{"id": "1"}], 10)
+        self.folders.store("aXb", None, [{"id": "2"}], 10)
+        self.folders.mark_dirty("a_b")
+        assert self.folders.get("a_b", None, 10) is None
+        assert self.folders.get("aXb", None, 10) == [{"id": "2"}]
+
+    def test_prefix_mark_dirty_does_not_match_longer_id(self):
+        self.folders.store("f1", None, [{"id": "1"}], 10)
+        self.folders.store("f10", None, [{"id": "2"}], 10)
+        self.folders.mark_dirty("f1")
+        assert self.folders.get("f10", None, 10) == [{"id": "2"}]
+
+    # --- finding 3: exhaustive fetches ---
+
+    def test_drive_exhaustive_listing_satisfies_any_larger_request(self):
+        self.folders.store("folder", None, [{"id": "only"}], 5, exhaustive=True)
+        assert self.folders.get("folder", None, 1000) == [{"id": "only"}]
+
+    def test_drive_non_exhaustive_short_listing_still_misses_larger_request(self):
+        # A short page with a nextPageToken isn't proof of completeness.
+        self.folders.store("folder", None, [{"id": "only"}], 5, exhaustive=False)
+        assert self.folders.get("folder", None, 1000) is None
+
+    def test_sheet_data_exhaustive_satisfies_larger_rows_to_fetch(self):
+        self.data.store("sid", 0, ["H"], [["r1"]], rows_to_fetch=5, exhaustive=True)
+        assert self.data.get("sid", 0, 500) == {"headers": ["H"], "first_rows": [["r1"]]}
+
+    # --- finding 4: compare-and-set on rows_fetched ---
+
+    def test_drive_smaller_fetch_finishing_later_does_not_clobber_larger(self):
+        big = [{"id": f"f{i}"} for i in range(50)]
+        self.folders.store("folder", None, big, 50)
+        self.folders.store("folder", None, big[:5], 5)
+        assert self.folders.get("folder", None, 50) == big
+
+    def test_drive_non_exhaustive_does_not_clobber_exhaustive(self):
+        self.folders.store("folder", None, [{"id": "a"}], 100, exhaustive=True)
+        self.folders.store("folder", None, [{"id": "a"}], 10)
+        assert self.folders.get("folder", None, 1000) == [{"id": "a"}]
+
+    def test_drive_equal_size_store_replaces(self):
+        self.folders.store("folder", None, [{"id": "old"}], 10)
+        self.folders.store("folder", None, [{"id": "new"}], 10)
+        assert self.folders.get("folder", None, 10) == [{"id": "new"}]
+
+    def test_drive_smaller_fetch_replaces_dirty_larger(self):
+        self.folders.store("folder", None, [{"id": "stale"}] * 50, 50)
+        self.folders.mark_dirty("folder")
+        self.folders.store("folder", None, [{"id": "fresh"}], 5)
+        assert self.folders.get("folder", None, 5) == [{"id": "fresh"}]
+
+    def test_drive_smaller_fetch_replaces_expired_larger(self):
+        # Expired but not yet marked dirty (no get() has observed the expiry).
+        self.folders.store("folder", None, [{"id": "stale"}] * 50, 50)
+        self.folders.set_ttl(0)
+        time.sleep(0.01)
+        self.folders.store("folder", None, [{"id": "fresh"}], 5)
+        self.folders.set_ttl(60)
+        assert self.folders.get("folder", None, 5) == [{"id": "fresh"}]
+
+    def test_sheet_data_smaller_fetch_does_not_clobber_larger(self):
+        rows = [[str(i)] for i in range(9)]
+        self.data.store("sid", 0, ["H"], rows, rows_to_fetch=10)
+        self.data.store("sid", 0, ["H"], rows[:1], rows_to_fetch=2)
+        assert self.data.get("sid", 0, 10) == {"headers": ["H"], "first_rows": rows}
+
+    def test_declined_store_reports_not_written(self):
+        self.folders.store("folder", None, [{"id": "a"}] * 50, 50)
+        assert self.folders._store_sized("folder:", [], 5, False, None) is False

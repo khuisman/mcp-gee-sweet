@@ -104,6 +104,8 @@ Three sites did blocking disk I/O directly in async tool bodies, with no `to_thr
 
 DriveFolderCache/DocContentCache/CalendarCache's `store()` methods have the identical theoretical race (any tool call is now async, so *any* two calls can interleave, not just gather()'d ones) but weren't part of this fix — out of scope since their tools aren't part of this PR's newly-introduced concurrency and Sky's finding cited only the sheets-side call sites.
 
+**Follow-up (#698):** the "bumped on every `mark_dirty`" claim above was not actually true — `SheetDataCache.mark_dirty(spreadsheet_id)` with no `sheet_id` (the form every `sheets/data.py` write tool calls) went through a raw `UPDATE ... LIKE` with no epoch bump, so the guard never fired for the invalidations it was meant to catch. #698 routed both prefix-invalidation paths through a shared `_BaseCache._mark_dirty_prefix` that bumps the epoch, and extended the guard to `DriveFolderCache` (`list_files` now snapshots the epoch before its Drive call). The size-bounded read/write pattern both caches share moved into `_BaseCache._get_sized`/`_store_sized`, which also add a keep-larger compare-and-set on `rows_fetched` and an exhaustive-fetch marker (`ROWS_EXHAUSTIVE`). `DocContentCache`/`CalendarCache` remain unguarded.
+
 ### Round 2 verification
 
 - Full unit suite (674 tests, up from 665) green; `ruff check`/`ruff format --check` clean; zero unwrapped `.execute()` calls remain.

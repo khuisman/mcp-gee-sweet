@@ -509,6 +509,23 @@ class TestGetMultipleSpreadsheetSummary:
         written = json.loads(dest.read_text())
         assert written[0]["title"] == "Big"
 
+    @pytest.mark.parametrize(
+        ("values", "expected_exhaustive"),
+        [
+            ([["H"], ["r1"]], True),  # 2 rows back for A1:5 → sheet has no more data
+            ([["H"]] + [[str(i)] for i in range(4)], False),  # full 5 rows → maybe more
+        ],
+    )
+    async def test_store_exhaustive_flag_follows_short_result(self, values, expected_exhaustive):
+        """#698: a values().get shorter than the requested range means the sheet
+        ran out of rows, so the cached entry can satisfy any larger rows_to_fetch."""
+        ctx = self._ctx(self._spreadsheet_meta(), values)
+        await _data_tools["get_multiple_spreadsheet_summary"](
+            spreadsheet_ids=["abc"], rows_to_fetch=5, ctx=ctx
+        )
+        data_cache = ctx.request_context.lifespan_context.sheet_data_cache
+        assert data_cache.store.call_args.kwargs["exhaustive"] is expected_exhaustive
+
     async def test_reports_progress_per_spreadsheet(self):
         """#355: extends #316/#319's per-item ctx.report_progress pattern to
         get_multiple_spreadsheet_summary's concurrent fetches."""

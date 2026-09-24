@@ -450,6 +450,22 @@ Both scenarios re-tested against the real fixture folder (3 items): (1) fresh de
 
 ---
 
+### TC-D263: A complete listing serves a later, larger `max_results` from cache (issue #698)
+
+**Background:** `list_files` now requests Drive's `nextPageToken`; a response without one means the listing is complete, and the cache records it as satisfying *any* later `max_results`. Before #698 a small-`max_results` fetch of a folder with fewer items than requested still recorded only the requested count, so a later larger request always re-fetched. A response *with* a `nextPageToken` (a truncated listing) must still be treated as insufficient for a larger request — that half is TC-D40's scenario 2, re-checked here. The epoch guard (a concurrent mutation's `mark_dirty` not being overwritten by an in-flight `list_files`) and the keep-larger compare-and-set are concurrency races with no deterministic live trigger; they're covered by `tests/test_cache.py::TestSizedCacheRaces` and `tests/drive/test_files.py::TestListFiles::test_mark_dirty_during_fetch_is_not_overwritten`.
+
+**Setup:** `DEBUG_LEVEL=DEBUG` with `LOG_FILE` set on the server under test (same log-based check as TC-D38). Note the fixture folder's item count `N` from a plain `list_files(folder_id={FOLDER_ID})`; this test needs `2 <= N < 50`.
+
+**Steps / Checks**
+1. `refresh_cache(folder_id={FOLDER_ID})`, then `list_files(folder_id={FOLDER_ID}, max_results=50)` → returns all `N` items.
+2. `list_files(folder_id={FOLDER_ID}, max_results=1000)` → returns the same `N` items, byte-identical to step 1, and the log shows `Drive folder cache hit: {FOLDER_ID}` for this call (no fresh Drive `files.list`).
+3. `refresh_cache(folder_id={FOLDER_ID})`, then `list_files(folder_id={FOLDER_ID}, max_results=1)` → exactly 1 item.
+4. `list_files(folder_id={FOLDER_ID})` (default `max_results`) → all `N` items, not 1, and the log shows **no** cache hit for this call (the step-3 listing had a `nextPageToken`, so it isn't complete).
+
+**Cleanup:** none (read-only).
+
+---
+
 ### TC-D41: Pagination limit
 
 **Prompt**

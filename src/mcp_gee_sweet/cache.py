@@ -97,17 +97,40 @@ def _safe_fetchone(conn: sqlite3.Connection, sql: str, params: tuple) -> sqlite3
         return None
 
 
-def _safe_write(conn: sqlite3.Connection, sql: str, params: tuple) -> None:
+def _safe_write(conn: sqlite3.Connection, sql: str, params: tuple) -> int:
     """Run a write statement + commit, swallowing sqlite errors (fail-open cache write).
 
     A failed cache write must not fail the tool call that already succeeded against
     the underlying Google API — it just means that result won't be cached this time.
+    Returns the affected row count (0 on error, or when a conditional upsert declined).
     """
     try:
-        conn.execute(sql, params)
+        cur = conn.execute(sql, params)
         conn.commit()
+        return cur.rowcount
     except sqlite3.Error as exc:
         logger.warning("Cache write failed (%s), continuing without caching", exc)
+        return 0
+
+
+# Stored as `rows_fetched` when a fetch is known to have returned *everything* there
+# was (a Drive listing with no nextPageToken, a sheet range shorter than requested),
+# so any later request size — however large — is satisfied by it. SQLite's INTEGER
+# max, so the ordinary `rows_fetched >= requested` comparison needs no special case.
+ROWS_EXHAUSTIVE = 2**63 - 1
+
+_SIZED_UPSERT_SQL = (
+    "INSERT INTO cache (namespace, key, value, fetched_at, dirty, rows_fetched)"
+    " VALUES (?,?,?,?,0,?)"
+    " ON CONFLICT(namespace, key) DO UPDATE SET"
+    " value=excluded.value, fetched_at=excluded.fetched_at, dirty=0,"
+    " rows_fetched=excluded.rows_fetched"
+    # Compare-and-set: never let a smaller fetch clobber a larger, still-valid one
+    # just because it finished later (#698) — only replace a row that's already
+    # invalid (dirty or TTL-expired) or no larger than what's being written.
+    " WHERE cache.dirty=1 OR cache.fetched_at < ?"
+    " OR COALESCE(cache.rows_fetched, 0) <= excluded.rows_fetched"
+)
 
 
 async def get_modified_time(drive_service: Any, file_id: str) -> str | None:
@@ -176,8 +199,9 @@ class _BaseCache:
         return self._epoch
 
     def _store_if_fresh(self, sql: str, params: tuple, epoch: int | None) -> bool:
-        """Run an INSERT OR REPLACE unless `epoch` is stale — i.e. a mark_dirty()
-        happened after the caller's snapshot_epoch() call. Returns whether it wrote.
+        """Run a cache write unless `epoch` is stale — i.e. a mark_dirty() happened
+        after the caller's snapshot_epoch() call. Returns whether it wrote (a
+        conditional upsert that declined also counts as not written).
         """
         if epoch is not None and epoch != self._epoch:
             logger.debug(
@@ -187,14 +211,75 @@ class _BaseCache:
                 self._epoch,
             )
             return False
-        _safe_write(self._conn, sql, params)
-        return True
+        return _safe_write(self._conn, sql, params) > 0
+
+    def _get_sized(
+        self, key: str, requested: int, current_modified_time: str | None = None
+    ) -> Any | None:
+        """Shared read for size-bounded caches (a fetch limited by a row/result count).
+
+        Returns the decoded cached value, or None on miss/dirty/stale-vs-source/
+        expired/insufficient prior fetch size. The size parameter
+        (`max_results`/`rows_to_fetch`) is deliberately not part of the key: an entry
+        records how many results the fetch that produced it asked for (or
+        ROWS_EXHAUSTIVE if it got everything), and a request is a hit only if that
+        covers what it's asking for now — the caller slices the value down to size.
+        Keying on the count instead would either serve a larger cached result
+        unsliced or let a small fetch poison the entry for a later larger one (#688).
+        """
+        row = _safe_fetchone(
+            self._conn,
+            "SELECT value, fetched_at, dirty, rows_fetched FROM cache WHERE namespace=? AND key=?",
+            (self._NS, key),
+        )
+        if row is None or row["dirty"]:
+            return None
+        value = json.loads(row["value"])
+        if not self._check_modified_time(value, current_modified_time, key):
+            return None
+        if not self._check_ttl(row["fetched_at"], key):
+            return None
+        if (row["rows_fetched"] or 0) < requested:
+            return None
+        return value
+
+    def _store_sized(
+        self, key: str, value: Any, requested: int, exhaustive: bool, epoch: int | None
+    ) -> bool:
+        """Shared write for size-bounded caches — see `_get_sized`. Epoch-guarded like
+        `_store_if_fresh`, plus a compare-and-set that keeps a larger still-valid
+        entry over a smaller one. Returns whether it wrote."""
+        now = time.time()
+        return self._store_if_fresh(
+            _SIZED_UPSERT_SQL,
+            (
+                self._NS,
+                key,
+                json.dumps(value),
+                now,
+                ROWS_EXHAUSTIVE if exhaustive else requested,
+                now - self._ttl,
+            ),
+            epoch,
+        )
 
     def _mark_dirty_key(self, key: str) -> None:
         _safe_write(
             self._conn,
             "UPDATE cache SET dirty=1 WHERE namespace=? AND key=?",
             (self._NS, key),
+        )
+        self._epoch += 1
+
+    def _mark_dirty_prefix(self, prefix: str) -> None:
+        """Mark every key starting with `prefix` dirty, bumping the epoch the same way
+        `_mark_dirty_key` does — without the bump, an in-flight fetch's store() would
+        silently overwrite this invalidation (#698). Uses substr rather than LIKE so a
+        `_`/`%` in a Drive/Sheets ID isn't read as a wildcard."""
+        _safe_write(
+            self._conn,
+            "UPDATE cache SET dirty=1 WHERE namespace=? AND substr(key, 1, ?)=?",
+            (self._NS, len(prefix), prefix),
         )
         self._epoch += 1
 
@@ -318,30 +403,6 @@ class SheetDataCache(_BaseCache):
     def _key(self, spreadsheet_id: str, sheet_id: int) -> str:
         return f"{spreadsheet_id}:{sheet_id}"
 
-    def _get_valid(
-        self,
-        spreadsheet_id: str,
-        sheet_id: int,
-        rows_to_fetch: int,
-        current_modified_time: str | None = None,
-    ) -> dict | None:
-        key = self._key(spreadsheet_id, sheet_id)
-        row = _safe_fetchone(
-            self._conn,
-            "SELECT value, fetched_at, dirty, rows_fetched FROM cache WHERE namespace=? AND key=?",
-            (self._NS, key),
-        )
-        if row is None or row["dirty"]:
-            return None
-        value = json.loads(row["value"])
-        if not self._check_modified_time(value, current_modified_time, key):
-            return None
-        if not self._check_ttl(row["fetched_at"], key):
-            return None
-        if (row["rows_fetched"] or 0) < rows_to_fetch:
-            return None
-        return value
-
     def get(
         self,
         spreadsheet_id: str,
@@ -350,7 +411,9 @@ class SheetDataCache(_BaseCache):
         current_modified_time: str | None = None,
     ) -> dict | None:
         """Returns cached {headers, first_rows}, or None on miss/dirty/expired/insufficient rows/stale-vs-source."""
-        value = self._get_valid(spreadsheet_id, sheet_id, rows_to_fetch, current_modified_time)
+        value = self._get_sized(
+            self._key(spreadsheet_id, sheet_id), rows_to_fetch, current_modified_time
+        )
         if value is None:
             return None
         logger.debug("Sheet data cache hit: %s/%s", spreadsheet_id, sheet_id)
@@ -368,21 +431,15 @@ class SheetDataCache(_BaseCache):
         rows_to_fetch: int,
         modified_time: str | None = None,
         epoch: int | None = None,
+        exhaustive: bool = False,
     ):
+        """`exhaustive=True` means the fetch returned fewer rows than it asked for —
+        the sheet has no more data — so any later, larger `rows_to_fetch` is a hit."""
         value: dict = {"headers": headers, "first_rows": first_rows}
         if modified_time is not None:
             value["modified_time"] = modified_time
-        wrote = self._store_if_fresh(
-            "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty, rows_fetched)"
-            " VALUES (?,?,?,?,0,?)",
-            (
-                self._NS,
-                self._key(spreadsheet_id, sheet_id),
-                json.dumps(value),
-                time.time(),
-                rows_to_fetch,
-            ),
-            epoch,
+        wrote = self._store_sized(
+            self._key(spreadsheet_id, sheet_id), value, rows_to_fetch, exhaustive, epoch
         )
         if wrote:
             logger.debug("Cached sheet data for %s/%s", spreadsheet_id, sheet_id)
@@ -392,11 +449,7 @@ class SheetDataCache(_BaseCache):
             self._mark_dirty_key(self._key(spreadsheet_id, sheet_id))
             logger.debug("Marked sheet data dirty for %s/%s", spreadsheet_id, sheet_id)
         else:
-            _safe_write(
-                self._conn,
-                "UPDATE cache SET dirty=1 WHERE namespace=? AND key LIKE ?",
-                (self._NS, f"{spreadsheet_id}:%"),
-            )
+            self._mark_dirty_prefix(f"{spreadsheet_id}:")
             logger.debug("Marked all sheet data dirty for %s", spreadsheet_id)
 
 
@@ -406,15 +459,8 @@ class DriveFolderCache(_BaseCache):
     No modifiedTime-based validation: a folder's own modifiedTime does not
     change when children are added/removed, so it can't detect staleness here.
 
-    `max_results` is deliberately not part of the cache key — mirrors
-    SheetDataCache's own `rows_fetched` sufficiency check instead of keying on
-    the requested count directly. A cached entry records how many results the
-    fetch that produced it asked for; a later request is a hit only if that's
-    >= what it's asking for now (then sliced to size), otherwise it's treated
-    as a miss and refetched at the larger size. Without this, a small-
-    max_results call could either silently ignore its own limit (served a
-    larger prior cached result unsliced) or poison the cache for a later
-    larger-max_results call with its own truncated result (issue #688).
+    Size-bounded by `max_results` via `_BaseCache._get_sized`/`_store_sized` — the
+    same sufficiency/epoch/compare-and-set mechanism SheetDataCache uses (#688, #698).
     """
 
     _NS = "drive_folder"
@@ -422,53 +468,36 @@ class DriveFolderCache(_BaseCache):
     def _key(self, folder_id: str, mime_type: str | None) -> str:
         return f"{folder_id}:{mime_type or ''}"
 
-    def _get_valid(
-        self, folder_id: str, mime_type: str | None, max_results: int
-    ) -> sqlite3.Row | None:
-        key = self._key(folder_id, mime_type)
-        row = _safe_fetchone(
-            self._conn,
-            "SELECT value, fetched_at, dirty, rows_fetched FROM cache WHERE namespace=? AND key=?",
-            (self._NS, key),
-        )
-        if row is None or row["dirty"]:
-            return None
-        if not self._check_ttl(row["fetched_at"], key):
-            return None
-        if (row["rows_fetched"] or 0) < max_results:
-            return None
-        return row
-
     def get(self, folder_id: str, mime_type: str | None, max_results: int) -> list | None:
         """Returns cached file list (sliced to max_results), or None on miss/dirty/
         expired/insufficient prior fetch size."""
-        row = self._get_valid(folder_id, mime_type, max_results)
-        if row is None:
+        files = self._get_sized(self._key(folder_id, mime_type), max_results)
+        if files is None:
             return None
         logger.debug("Drive folder cache hit: %s (mime=%s)", folder_id, mime_type)
-        return json.loads(row["value"])[:max_results]
+        return files[:max_results]
 
-    def store(self, folder_id: str, mime_type: str | None, files: list, max_results: int):
-        _safe_write(
-            self._conn,
-            "INSERT OR REPLACE INTO cache (namespace, key, value, fetched_at, dirty, rows_fetched)"
-            " VALUES (?,?,?,?,0,?)",
-            (
-                self._NS,
-                self._key(folder_id, mime_type),
-                json.dumps(files),
-                time.time(),
-                max_results,
-            ),
+    def store(
+        self,
+        folder_id: str,
+        mime_type: str | None,
+        files: list,
+        max_results: int,
+        epoch: int | None = None,
+        exhaustive: bool = False,
+    ):
+        """`exhaustive=True` means Drive returned no nextPageToken — the listing is
+        complete — so any later, larger `max_results` is a hit."""
+        wrote = self._store_sized(
+            self._key(folder_id, mime_type), files, max_results, exhaustive, epoch
         )
-        logger.debug("Cached %d files for folder %s (mime=%s)", len(files), folder_id, mime_type)
+        if wrote:
+            logger.debug(
+                "Cached %d files for folder %s (mime=%s)", len(files), folder_id, mime_type
+            )
 
     def mark_dirty(self, folder_id: str):
-        _safe_write(
-            self._conn,
-            "UPDATE cache SET dirty=1 WHERE namespace=? AND key LIKE ?",
-            (self._NS, f"{folder_id}:%"),
-        )
+        self._mark_dirty_prefix(f"{folder_id}:")
         logger.debug("Marked drive folder cache dirty for %s", folder_id)
 
 
