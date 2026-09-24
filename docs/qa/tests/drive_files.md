@@ -466,6 +466,8 @@ Both scenarios re-tested against the real fixture folder (3 items): (1) fresh de
 
 **Result (2026-09-23, PR #788 round 1) ✅ PASS** — run against a throwaway folder (`N=2`, a spreadsheet plus a subfolder) instead of `{FOLDER_ID}`, per `run.md`'s fixture-pollution guidance. Run twice. On the second, strictly sequential run: step 1 fetched and logged `Cached 2 files`; step 2 returned the same 2 items with `Drive folder cache hit` and 0.000s; step 3 logged `Cached 1 files`; step 4 returned both items and logged `Cached 2 files` with no cache hit, so it was a fresh fetch. The first run sent some calls in parallel and they ran out of order, but it gave the same hit/miss pattern.
 
+**Result (2026-09-23, PR #788 round 2, `ba3fbb9`) ✅ PASS** — rerun sequentially on the same throwaway folder after reconnecting to the fixed code, which now also requests `incompleteSearch`. The log matched round 1: step 1 `Cached 2 files`, step 2 `Drive folder cache hit`, step 3 `Cached 1 files`, step 4 `Cached 2 files` with no hit. Also re-checked the Sheets gap bug round 1 sent back. On a sheet with data in rows 1–2 and row 10 and rows 3–9 empty, `refresh_cache` → `get_multiple_spreadsheet_summary(rows_to_fetch=5)` → `(rows_to_fetch=20)` now fetches fresh and returns the rows through `["row10a","row10b"]`, where round 1 returned a cached result that hid row 10. A repeat `rows_to_fetch=20` call logged `Sheet data cache hit`. The throwaway fixture was trashed afterwards.
+
 ---
 
 ### TC-D41: Pagination limit
