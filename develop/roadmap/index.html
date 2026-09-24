@@ -1148,17 +1148,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#gmail" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Gmail
-      
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -1732,7 +1721,7 @@
 </tr>
 <tr>
 <td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1"><strong>v0.9.1</strong></a></td>
-<td>Post-release defect fixes &amp; infrastructure addons — no new tools, same shape as v0.8.1</td>
+<td>Post-release defect fixes &amp; infrastructure addons, plus the Gmail domain (pulled forward from v1.1+ 2026-09-23, community PR #786)</td>
 <td>Stabilizes before Tier 3 begins</td>
 </tr>
 <tr>
@@ -1747,7 +1736,7 @@
 </tr>
 <tr>
 <td><a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22v1.1%2B%22"><strong>v1.1.0+</strong></a></td>
-<td>Future domains — Tasks, Gmail (separate minor releases, each needs a new API client)</td>
+<td>Future domains — Tasks (separate minor release, needs a new API client; Gmail pulled forward to v0.9.1)</td>
 <td>Expanded scope</td>
 </tr>
 </tbody>
@@ -1888,7 +1877,7 @@
 - [x] <code>share_spreadsheet</code> fails with "File not found" on any Shared Drive file — missing <code>supportsAllDrives=True</code> on its <code>permissions().create()</code> call, the only one in <code>sharing.py</code> without it (<code>ready-for-development</code>, <code>lane-b</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/687">#687</a>) (PR #695)
 - [x] Folder-listing cache key omits <code>max_results</code> — silent truncation on a cache hit, and a small-limit fetch poisons the cache for later larger-limit calls (<code>ready-for-development</code>, <code>lane-b</code>) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/688">#688</a>) (PR #697)</p>
 <h3 id="v091-post-release-defect-fixes-infrastructure-addons-target-v091-before-tier-3-begins">v0.9.1 — Post-release defect fixes &amp; infrastructure addons <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.1">v0.9.1</a>, before Tier 3 begins)</em><a class="headerlink" href="#v091-post-release-defect-fixes-infrastructure-addons-target-v091-before-tier-3-begins" title="Permanent link">&para;</a></h3>
-<p>No new tools. Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped, plus a handful of infrastructure/tooling additions that don't belong to any specific tool tier. Started because v0.9.0's own scope kept growing past its original Tier 2 definition; splitting this out keeps that pattern from repeating indefinitely.</p>
+<p>Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped, plus a handful of infrastructure/tooling additions that don't belong to any specific tool tier. Started because v0.9.0's own scope kept growing past its original Tier 2 definition; splitting this out keeps that pattern from repeating indefinitely. The one exception to its original "no new tools" scope is the Gmail domain, pulled forward from v1.1+ on 2026-09-23 because a community contributor had already implemented it (see <strong>Gmail domain</strong> below).</p>
 <p><strong>Defects</strong>
 - [x] Isolated depth&gt;0 bullet run renders the wrong glyph (disc instead of circle) despite correct indentation (PR #711) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/439">#439</a>)
 - [x] <code>create_paragraph_bullets</code> (<code>style.py</code>) has the same isolated-run collapse-to-<code>nestingLevel 0</code> bug #439 fixed in <code>emitter.py</code> only — port PR #711's anchor-paragraph approach to the sibling path (PR #723) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/713">#713</a>)
@@ -1985,6 +1974,29 @@
 - [ ] <code>_SA_LIMITATIONS</code> (<code>server.py</code>) hygiene: no registry tying restricted tools to entries, redundant per-call flatten, duplicated alternatives text — triaged out of <code>backlog</code> 2026-09-11 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/517">#517</a>)
 - [ ] <code>server.json</code>/<code>test_server_json.py</code>: minor hardening findings from PR #603's review — triaged out of <code>backlog</code> 2026-09-11 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/607">#607</a>)
 - [ ] Restore the explanatory comment for the <code>annotations=None</code> stub param in <code>gen_tool_docs.py</code> — triaged out of <code>backlog</code> 2026-09-11 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/637">#637</a>)</p>
+<p><strong>Gmail domain</strong> <em>(pulled forward from v1.1+ 2026-09-23; implementation is community PR #786, not yet merged)</em>
+- [ ] Gmail domain primitives (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/785">#785</a>), via community PR #786
+- [ ] Gmail scopes opt-in + verify granted scopes at startup. Existing OAuth tokens weren't granted the new scopes, so refresh likely fails into a surprise browser consent or a headless hang. <strong>Must ship in the same release as #786</strong> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/790">#790</a>)
+- [ ] <code>reply_to_message</code> should honor Reply-To and handle replies to your own sent mail (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/791">#791</a>)
+- [ ] Decode message bodies using the part's charset; tolerate missing base64 padding (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/792">#792</a>)
+- [ ] Release-pass Gmail QA (<code>docs/qa/tests/gmail.md</code>, added by #786). Many cases are destructive (send/draft/trash), so they need a dedicated mailbox fixture plan — Aziz</p>
+<p>Tool surface (from the original v1.1+ plan):</p>
+<p>Requires <code>gmail/v1</code> client and <code>https://www.googleapis.com/auth/gmail.modify</code> scope (or narrower <code>gmail.readonly</code> / <code>gmail.send</code> scopes where appropriate). Add <code>gmail_service</code> to <code>SpreadsheetContext</code> and wire up in <code>auth.py</code> lifespan.</p>
+<p><strong>Reading</strong>
+- [ ] <code>list_messages</code> — list messages with optional query string (same syntax as Gmail search), label filter, and pagination
+- [ ] <code>get_message</code> — fetch a single message by ID; return headers, body (plain text + HTML), and attachment metadata
+- [ ] <code>list_threads</code> — list conversation threads with optional query and label filter
+- [ ] <code>get_thread</code> — fetch all messages in a thread
+- [ ] <code>list_labels</code> — list all labels (system and user-defined)</p>
+<p><strong>Sending and drafts</strong>
+- [ ] <code>send_message</code> — send an email (to, cc, bcc, subject, body, optional attachments)
+- [ ] <code>create_draft</code> — create a draft without sending
+- [ ] <code>send_draft</code> — send an existing draft by ID
+- [ ] <code>reply_to_message</code> — send a reply in an existing thread</p>
+<p><strong>Organization</strong>
+- [ ] <code>modify_labels</code> — add or remove labels from a message or thread (covers archive, mark read/unread, star, etc.)
+- [ ] <code>trash_message</code> — move a message to trash
+- [ ] ~~<code>delete_message</code> — permanently delete a message~~ — dropped from #786 in review: needs the full <code>https://mail.google.com/</code> scope</p>
 <p><strong>QA &amp; docs</strong> <em>(moved out of v0.9.0 2026-09-02 so they don't gate the release; see <a href="https://github.com/khuisman/mcp-gee-sweet/issues/629">#629</a>, closed)</em>
 - [ ] Domain and public sharing tests (TC-D135–D139) — decision landed 2026-09-02: provision a real non-Google test email for external-share coverage; the <code>type=anyone</code> public-link tests stay unresolved (exposure risk not yet accepted) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/49">#49</a>)
 - [ ] Demo screenshot or GIF for the README — routed to Amy; how the asset gets produced is still open (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/589">#589</a>)
@@ -2154,23 +2166,6 @@ The Sheets API requires each series in a COMBO chart to declare its own <code>ty
 - [ ] <code>delete_task</code> — delete a task
 - [ ] <code>complete_task</code> — mark a task as completed (shortcut for <code>update_task</code> with <code>status='completed'</code>)
 - [ ] <code>clear_completed</code> — delete all completed tasks from a list (<code>tasks().clear()</code>)</p>
-<h3 id="gmail">Gmail<a class="headerlink" href="#gmail" title="Permanent link">&para;</a></h3>
-<p>Requires <code>gmail/v1</code> client and <code>https://www.googleapis.com/auth/gmail.modify</code> scope (or narrower <code>gmail.readonly</code> / <code>gmail.send</code> scopes where appropriate). Add <code>gmail_service</code> to <code>SpreadsheetContext</code> and wire up in <code>auth.py</code> lifespan.</p>
-<p><strong>Reading</strong>
-- [ ] <code>list_messages</code> — list messages with optional query string (same syntax as Gmail search), label filter, and pagination
-- [ ] <code>get_message</code> — fetch a single message by ID; return headers, body (plain text + HTML), and attachment metadata
-- [ ] <code>list_threads</code> — list conversation threads with optional query and label filter
-- [ ] <code>get_thread</code> — fetch all messages in a thread
-- [ ] <code>list_labels</code> — list all labels (system and user-defined)</p>
-<p><strong>Sending and drafts</strong>
-- [ ] <code>send_message</code> — send an email (to, cc, bcc, subject, body, optional attachments)
-- [ ] <code>create_draft</code> — create a draft without sending
-- [ ] <code>send_draft</code> — send an existing draft by ID
-- [ ] <code>reply_to_message</code> — send a reply in an existing thread</p>
-<p><strong>Organization</strong>
-- [ ] <code>modify_labels</code> — add or remove labels from a message or thread (covers archive, mark read/unread, star, etc.)
-- [ ] <code>trash_message</code> — move a message to trash
-- [ ] <code>delete_message</code> — permanently delete a message</p>
 <hr />
 <h2 id="potential-under-consideration">Potential / under consideration<a class="headerlink" href="#potential-under-consideration" title="Permanent link">&para;</a></h2>
 <ul>
