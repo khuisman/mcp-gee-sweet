@@ -464,6 +464,8 @@ Both scenarios re-tested against the real fixture folder (3 items): (1) fresh de
 
 **Cleanup:** none (read-only).
 
+**Result (2026-09-23, PR #788 round 1) ✅ PASS** — run against a throwaway folder (`N=2`, a spreadsheet plus a subfolder) instead of `{FOLDER_ID}`, per `run.md`'s fixture-pollution guidance. Run twice. On the second, strictly sequential run: step 1 fetched and logged `Cached 2 files`; step 2 returned the same 2 items with `Drive folder cache hit` and 0.000s; step 3 logged `Cached 1 files`; step 4 returned both items and logged `Cached 2 files` with no cache hit, so it was a fresh fetch. The first run sent some calls in parallel and they ran out of order, but it gave the same hit/miss pattern.
+
 ---
 
 ### TC-D41: Pagination limit
