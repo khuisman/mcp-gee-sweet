@@ -162,11 +162,10 @@ SECTIONS = [
     (
         "Gmail",
         lambda f: f.__module__ == "mcp_gee_sweet.tools.gmail",
-        "**Note:** Gmail with a service account requires [domain-wide delegation]"
-        "(https://developers.google.com/workspace/gmail/api/auth/about-auth) to "
-        "impersonate a user mailbox. OAuth (personal) auth works without delegation. "
-        "Composites such as find-unanswered / send-reminders are out of scope — "
-        "compose them from these primitives (see "
+        "**Note:** Gmail tools require OAuth (personal mailbox) auth today. "
+        "Service-account / domain-wide delegation is not wired yet (no delegated "
+        "subject). Composites such as find-unanswered / send-reminders are out of "
+        "scope — compose them from these primitives (see "
         "[decision-composite-tools](decisions/decision-composite-tools.md)).",
     ),
     (
@@ -275,7 +274,6 @@ SUBSETS = [
             "reply_to_message",
             "modify_labels",
             "trash_message",
-            "delete_message",
         ],
     ),
 ]

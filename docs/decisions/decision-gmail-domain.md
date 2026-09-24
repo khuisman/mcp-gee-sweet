@@ -15,15 +15,15 @@ Give an AI client reliable primitives over a user's mailbox: search and read mes
 
 ## Tool-count cost
 
-**12 tools** in one module (`src/mcp_gee_sweet/tools/gmail.py`):
+**11 tools** in one module (`src/mcp_gee_sweet/tools/gmail.py`):
 
 | Group | Tools | Count |
 |---|---|---|
 | Reading | `list_messages`, `get_message`, `list_threads`, `get_thread`, `list_labels` | 5 |
 | Sending / drafts | `send_message`, `create_draft`, `send_draft`, `reply_to_message` | 4 |
-| Organization | `modify_labels`, `trash_message`, `delete_message` | 3 |
+| Organization | `modify_labels`, `trash_message` | 2 |
 
-This is comparable to Calendar's surface and stays within the "atomic primitives" inclusion test. No cache layer in v1 — list/get responses are live API calls with the shared response-size cap where lists or full bodies can grow large.
+This is comparable to Calendar's surface and stays within the "atomic primitives" inclusion test. No cache layer in v1 — list/get responses are live API calls with the shared response-size cap where lists or full bodies can grow large. Permanent delete (`users.messages.delete`) is intentionally omitted: it requires the full `https://mail.google.com/` scope, which this server does not request — use `trash_message` instead.
 
 ## Auth
 
@@ -33,7 +33,7 @@ Add `gmail_service = build("gmail", "v1", ...)` on `SpreadsheetContext` and thre
 - `https://www.googleapis.com/auth/gmail.send`
 - `https://www.googleapis.com/auth/gmail.readonly`
 
-**Service accounts** need [domain-wide delegation](https://developers.google.com/workspace/gmail/api/auth/about-auth) to impersonate a user mailbox; OAuth (personal) works without delegation. Documented in `docs/auth.md` and the generated Gmail note in `docs/tools.md`.
+**OAuth only for now.** Service-account auth with domain-wide delegation is not supported yet (the auth code has no delegated subject). Documented in the generated Gmail note in `docs/tools.md`.
 
 ## Alternatives considered
 
@@ -43,4 +43,4 @@ Add `gmail_service = build("gmail", "v1", ...)` on `SpreadsheetContext` and thre
 
 ## Decision
 
-Implement the 12 primitives above, mirroring Calendar's registration / `execute_in_thread` / `{"error": str}` patterns. Out of scope for this decision: attachment *download* bytes, watch/push notifications, and the composites named above.
+Implement the 11 primitives above, mirroring Calendar's registration / `execute_in_thread` / `{"error": str}` patterns. Out of scope for this decision: permanent delete, attachment *download* bytes, watch/push notifications, and the composites named above.

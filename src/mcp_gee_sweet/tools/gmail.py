@@ -5,6 +5,7 @@ import logging
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import formataddr, getaddresses
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,63 @@ logger = logging.getLogger(__name__)
 
 _USER = "me"
 _GMAIL_LIST_MAX = 500
+
+
+def _format_address_header(value: str | list[str] | None) -> str | None:
+    """Build a To/Cc/Bcc header with RFC 2047-safe display names via formataddr."""
+    if value is None:
+        return None
+    chunks = value if isinstance(value, list) else [value]
+    formatted = [formataddr((name, addr)) for name, addr in getaddresses(chunks) if addr]
+    return ", ".join(formatted) if formatted else None
+
+
+async def _mailbox_email(gmail_service: Any) -> str | None:
+    """Return the authenticated mailbox address (users.getProfile), or None."""
+    try:
+        profile = await execute_in_thread(
+            gmail_service.users().getProfile(userId=_USER).execute,
+            gmail_service,
+        )
+    except Exception:
+        logger.debug("Could not resolve mailbox email via getProfile", exc_info=True)
+        return None
+    email = (profile or {}).get("emailAddress")
+    return email.strip() if isinstance(email, str) and email.strip() else None
+
+
+def _reply_all_recipients(
+    *,
+    original_from: str,
+    original_to: str,
+    original_cc: str,
+    mailbox: str | None,
+) -> tuple[str | None, str | None]:
+    """Build reply-all To/Cc, excluding the authenticated mailbox."""
+    exclude = {mailbox.lower()} if mailbox else set()
+    seen: set[str] = set(exclude)
+    to_parts: list[str] = []
+    cc_parts: list[str] = []
+
+    def add(target: list[str], header_value: str | None) -> None:
+        if not header_value:
+            return
+        for name, addr in getaddresses([header_value]):
+            if not addr:
+                continue
+            key = addr.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            target.append(formataddr((name, addr)))
+
+    add(to_parts, original_from)
+    add(to_parts, original_to)
+    add(cc_parts, original_cc)
+
+    to = ", ".join(to_parts) if to_parts else None
+    cc = ", ".join(cc_parts) if cc_parts else None
+    return to, cc
 
 
 def _header_map(headers: list[dict[str, str]] | None) -> dict[str, str]:
@@ -136,14 +194,7 @@ def _build_raw_message(
 ) -> str:
     """Build a base64url-encoded RFC 2822 message for the Gmail API `raw` field."""
 
-    def join_addrs(value: str | list[str] | None) -> str | None:
-        if value is None:
-            return None
-        if isinstance(value, list):
-            return ", ".join(value)
-        return value
-
-    to_str = join_addrs(to) or ""
+    to_str = _format_address_header(to) or ""
     has_attachments = bool(attachments)
     use_alternative = body_html is not None
 
@@ -174,9 +225,9 @@ def _build_raw_message(
 
     msg["To"] = to_str
     msg["Subject"] = subject
-    if cc_str := join_addrs(cc):
+    if cc_str := _format_address_header(cc):
         msg["Cc"] = cc_str
-    if bcc_str := join_addrs(bcc):
+    if bcc_str := _format_address_header(bcc):
         msg["Bcc"] = bcc_str
     if in_reply_to:
         msg["In-Reply-To"] = in_reply_to
@@ -605,12 +656,15 @@ def register(tool):
             references = prior_refs or original_message_id or None
 
         if reply_all:
-            # Recipients: original From + original To + original Cc (deduped later by API).
-            recipients = [a for a in [original_from, original_to] if a]
-            to = ", ".join(recipients) if recipients else original_from
-            cc = original_cc or None
+            mailbox = await _mailbox_email(lc.gmail_service)
+            to, cc = _reply_all_recipients(
+                original_from=original_from,
+                original_to=original_to,
+                original_cc=original_cc,
+                mailbox=mailbox,
+            )
         else:
-            to = original_from
+            to = _format_address_header(original_from)
             cc = None
 
         if not to:
@@ -725,7 +779,10 @@ def register(tool):
     @tool(annotations=ToolAnnotations(title="Trash Message", destructiveHint=True))
     async def trash_message(message_id: str, ctx: Context = None) -> dict[str, Any]:
         """
-        Move a message to trash (recoverable). Prefer this over delete_message.
+        Move a message to trash (recoverable).
+
+        Permanent delete is intentionally not exposed — it requires the full
+        https://mail.google.com/ scope, which this server does not request.
 
         Args:
             message_id: The Gmail message ID to trash.
@@ -749,27 +806,3 @@ def register(tool):
             "label_ids": result.get("labelIds") or [],
             "action": "trashed",
         }
-
-    @tool(annotations=ToolAnnotations(title="Delete Message", destructiveHint=True))
-    async def delete_message(message_id: str, ctx: Context = None) -> dict[str, Any]:
-        """
-        Permanently delete a message. This cannot be undone — use trash_message
-        when a recoverable delete is enough.
-
-        Args:
-            message_id: The Gmail message ID to permanently delete.
-
-        Returns:
-            Confirmation with message_id and action 'deleted'. On failure,
-            {"error": "..."}.
-        """
-        lc = ctx.request_context.lifespan_context
-        try:
-            await execute_in_thread(
-                lc.gmail_service.users().messages().delete(userId=_USER, id=message_id).execute,
-                lc.gmail_service,
-            )
-        except Exception as e:
-            return {"error": str(e)}
-
-        return {"message_id": message_id, "action": "deleted"}

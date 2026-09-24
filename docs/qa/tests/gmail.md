@@ -4,7 +4,7 @@ Source: `src/mcp_gee_sweet/tools/gmail.py`
 
 Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute `{MESSAGE_ID}`, `{THREAD_ID}`, and `{DRAFT_ID}` from live calls or `fixtures.local.md` when present.
 
-> **Auth note:** OAuth (personal mailbox) is the practical path for live Gmail QA. Service accounts need domain-wide delegation to impersonate a user — without it, expect auth/mailbox errors. Prefer a dedicated QA inbox; treat `send_message` / `delete_message` as destructive.
+> **Auth note:** Gmail tools require OAuth (personal mailbox) today — service-account / domain-wide delegation is not wired yet. Prefer a dedicated QA inbox; treat `send_message` / `trash_message` as destructive.
 
 ---
 
@@ -279,32 +279,6 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute `{MESSAGE_ID}`, `{TH
 
 **Prompt**
 > "Trash message 'totally-invalid-message-id-xyz'"
-
-**Checks**
-- Returns `{"error": "..."}` — not a top-level exception
-
----
-
-## `delete_message`
-
-### TC-GM23: Permanently delete a trashed disposable message ⚠️ destructive
-
-**Setup:** prefer a message already in trash from TC-GM21; confirm operator intent
-
-**Prompt**
-> "Permanently delete message {MESSAGE_ID}"
-
-**Checks**
-- Returns `{"message_id": ..., "action": "deleted"}`
-- Subsequent `get_message` returns an error
-- No top-level exception
-
----
-
-### TC-GM24: Delete non-existent message
-
-**Prompt**
-> "Permanently delete message 'totally-invalid-message-id-xyz'"
 
 **Checks**
 - Returns `{"error": "..."}` — not a top-level exception

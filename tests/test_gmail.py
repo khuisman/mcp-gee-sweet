@@ -2,6 +2,7 @@
 
 import base64
 from email import message_from_bytes
+from email.utils import getaddresses
 from unittest.mock import MagicMock
 
 from mcp_gee_sweet.tools import gmail as gmail_module
@@ -276,6 +277,30 @@ class TestSendMessage:
         assert parsed["Cc"] == "cc@example.com"
         assert result == {"id": "sent-1", "thread_id": "t-new", "label_ids": ["SENT"]}
 
+    async def test_encodes_non_ascii_display_names_without_mangling_address(self):
+        gmail_svc = MagicMock()
+        gmail_svc.users.return_value.messages.return_value.send.return_value.execute.return_value = {
+            "id": "sent-2",
+            "threadId": "t-new",
+            "labelIds": ["SENT"],
+        }
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["send_message"](
+            to="José García <jose@example.com>",
+            subject="Hola",
+            body="Hi",
+            ctx=ctx,
+        )
+
+        raw = _raw_payload_from_send_call(gmail_svc)
+        # Address must remain cleartext ASCII even when the display name is encoded.
+        assert b"jose@example.com" in raw
+        assert b"=?utf-8?" in raw.lower() or b"=?UTF-8?" in raw
+        parsed = message_from_bytes(raw)
+        assert "jose@example.com" in parsed["To"]
+        assert result["id"] == "sent-2"
+
     async def test_api_error_returns_error_dict(self):
         gmail_svc = MagicMock()
         gmail_svc.users.return_value.messages.return_value.send.return_value.execute.side_effect = (
@@ -374,9 +399,7 @@ class TestReplyToMessage:
         }
         ctx = _make_ctx(gmail_service=gmail_svc)
 
-        result = await _gmail_tools["reply_to_message"](
-            message_id="m1", body="Thanks", ctx=ctx
-        )
+        result = await _gmail_tools["reply_to_message"](message_id="m1", body="Thanks", ctx=ctx)
 
         send_body = gmail_svc.users.return_value.messages.return_value.send.call_args.kwargs["body"]
         assert send_body["threadId"] == "t1"
@@ -387,6 +410,47 @@ class TestReplyToMessage:
         assert "<earlier@example.com>" in parsed["References"]
         assert "<orig@example.com>" in parsed["References"]
         assert result["id"] == "reply-1"
+
+    async def test_reply_all_excludes_authenticated_mailbox(self):
+        gmail_svc = MagicMock()
+        gmail_svc.users.return_value.getProfile.return_value.execute.return_value = {
+            "emailAddress": "me@example.com",
+        }
+        gmail_svc.users.return_value.messages.return_value.get.return_value.execute.return_value = {
+            "id": "m1",
+            "threadId": "t1",
+            "payload": {
+                "headers": [
+                    {"name": "From", "value": "Alice <alice@example.com>"},
+                    {"name": "To", "value": "Me <me@example.com>, Bob <bob@example.com>"},
+                    {"name": "Cc", "value": "Carol <carol@example.com>, me@example.com"},
+                    {"name": "Subject", "value": "Hello"},
+                    {"name": "Message-ID", "value": "<orig@example.com>"},
+                ]
+            },
+        }
+        gmail_svc.users.return_value.messages.return_value.send.return_value.execute.return_value = {
+            "id": "reply-all-1",
+            "threadId": "t1",
+            "labelIds": ["SENT"],
+        }
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["reply_to_message"](
+            message_id="m1", body="Thanks all", reply_all=True, ctx=ctx
+        )
+
+        gmail_svc.users.return_value.getProfile.assert_called_once_with(userId="me")
+        send_body = gmail_svc.users.return_value.messages.return_value.send.call_args.kwargs["body"]
+        parsed = message_from_bytes(base64.urlsafe_b64decode(send_body["raw"].encode("utf-8")))
+        to_addrs = {addr.lower() for _, addr in getaddresses([parsed["To"] or ""]) if addr}
+        cc_addrs = {addr.lower() for _, addr in getaddresses([parsed["Cc"] or ""]) if addr}
+        assert "me@example.com" not in to_addrs
+        assert "me@example.com" not in cc_addrs
+        assert "alice@example.com" in to_addrs
+        assert "bob@example.com" in to_addrs
+        assert "carol@example.com" in cc_addrs
+        assert result["id"] == "reply-all-1"
 
     async def test_api_error_on_fetch_returns_error_dict(self):
         gmail_svc = MagicMock()
@@ -446,8 +510,8 @@ class TestModifyLabels:
 
     async def test_api_error_returns_error_dict(self):
         gmail_svc = MagicMock()
-        gmail_svc.users.return_value.messages.return_value.modify.return_value.execute.side_effect = (
-            Exception("invalid")
+        gmail_svc.users.return_value.messages.return_value.modify.return_value.execute.side_effect = Exception(
+            "invalid"
         )
         ctx = _make_ctx(gmail_service=gmail_svc)
 
@@ -479,38 +543,11 @@ class TestTrashMessage:
 
     async def test_api_error_returns_error_dict(self):
         gmail_svc = MagicMock()
-        gmail_svc.users.return_value.messages.return_value.trash.return_value.execute.side_effect = (
-            Exception("notFound")
+        gmail_svc.users.return_value.messages.return_value.trash.return_value.execute.side_effect = Exception(
+            "notFound"
         )
         ctx = _make_ctx(gmail_service=gmail_svc)
 
         result = await _gmail_tools["trash_message"](message_id="missing", ctx=ctx)
-
-        assert "error" in result
-
-
-class TestDeleteMessage:
-    async def test_deletes_and_returns_confirmation(self):
-        gmail_svc = MagicMock()
-        gmail_svc.users.return_value.messages.return_value.delete.return_value.execute.return_value = (
-            None
-        )
-        ctx = _make_ctx(gmail_service=gmail_svc)
-
-        result = await _gmail_tools["delete_message"](message_id="m1", ctx=ctx)
-
-        gmail_svc.users.return_value.messages.return_value.delete.assert_called_once_with(
-            userId="me", id="m1"
-        )
-        assert result == {"message_id": "m1", "action": "deleted"}
-
-    async def test_api_error_returns_error_dict(self):
-        gmail_svc = MagicMock()
-        gmail_svc.users.return_value.messages.return_value.delete.return_value.execute.side_effect = (
-            Exception("notFound")
-        )
-        ctx = _make_ctx(gmail_service=gmail_svc)
-
-        result = await _gmail_tools["delete_message"](message_id="missing", ctx=ctx)
 
         assert "error" in result
