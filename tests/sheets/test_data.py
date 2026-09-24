@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from googleapiclient.errors import HttpError
 
+from mcp_gee_sweet.cache import SheetDataCache
 from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.sheets import data as sheets_data_module
 
@@ -508,6 +509,28 @@ class TestGetMultipleSpreadsheetSummary:
         assert result["spreadsheet_count"] == 1
         written = json.loads(dest.read_text())
         assert written[0]["title"] == "Big"
+
+    async def test_short_result_does_not_hide_rows_below_a_gap(self, tmp_path):
+        """PR #788 QA round 1 (live-confirmed): a values().get on A1:5 that comes back
+        short only means rows up to 5 are trailing-empty — data past a gap of empty
+        rows can still exist. A later rows_to_fetch=20 must refetch, not be served
+        the short cached result."""
+        ctx = self._ctx(self._spreadsheet_meta(), [])
+        lc = ctx.request_context.lifespan_context
+        lc.sheet_data_cache = SheetDataCache(db_path=str(tmp_path / "c.db"), ttl=60)
+        values_get = lc.sheets_service.spreadsheets.return_value.values.return_value.get
+        values_get.return_value.execute.side_effect = [
+            {"values": [["H"], ["r2"]]},  # A1:5 — rows 3-5 empty
+            {"values": [["H"], ["r2"]] + [[]] * 7 + [["row10"]]},  # A1:20
+        ]
+        await _data_tools["get_multiple_spreadsheet_summary"](
+            spreadsheet_ids=["abc"], rows_to_fetch=5, ctx=ctx
+        )
+        result = await _data_tools["get_multiple_spreadsheet_summary"](
+            spreadsheet_ids=["abc"], rows_to_fetch=20, ctx=ctx
+        )
+        assert values_get.return_value.execute.call_count == 2
+        assert result[0]["sheets"][0]["first_rows"][-1] == ["row10"]
 
     async def test_reports_progress_per_spreadsheet(self):
         """#355: extends #316/#319's per-item ctx.report_progress pattern to

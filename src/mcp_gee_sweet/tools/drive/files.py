@@ -582,6 +582,7 @@ def register(tool):
             query += f" and mimeType='{safe_mime}'"
 
         try:
+            epoch = folder_cache.snapshot_epoch()
             results = await execute_in_thread(
                 drive_service.files()
                 .list(
@@ -590,7 +591,7 @@ def register(tool):
                     spaces="drive",
                     includeItemsFromAllDrives=True,
                     supportsAllDrives=True,
-                    fields="files(id, name, mimeType, modifiedTime, webViewLink, starred, md5Checksum)",
+                    fields="nextPageToken, incompleteSearch, files(id, name, mimeType, modifiedTime, webViewLink, starred, md5Checksum)",
                     orderBy="name",
                 )
                 .execute,
@@ -609,7 +610,17 @@ def register(tool):
                 }
                 for f in results.get("files", [])
             ]
-            folder_cache.store(folder_id, mime_type, files, max_results)
+            # Complete only with no nextPageToken and no incompleteSearch flag. A short
+            # page alone doesn't prove it — Drive may return fewer than pageSize with
+            # more left — and incompleteSearch marks a possibly partial result.
+            folder_cache.store(
+                folder_id,
+                mime_type,
+                files,
+                max_results,
+                epoch=epoch,
+                exhaustive=not results.get("nextPageToken") and not results.get("incompleteSearch"),
+            )
             return files
         except Exception as e:
             return [{"error": f"List files failed: {e!s}"}]

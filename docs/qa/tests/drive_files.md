@@ -450,6 +450,26 @@ Both scenarios re-tested against the real fixture folder (3 items): (1) fresh de
 
 ---
 
+### TC-D263: A complete listing serves a later, larger `max_results` from cache (issue #698)
+
+**Background:** `list_files` now requests Drive's `nextPageToken` and `incompleteSearch`; a response with neither means the listing is complete, and the cache records it as satisfying *any* later `max_results`. Before #698 a small-`max_results` fetch of a folder with fewer items than requested still recorded only the requested count, so a later larger request always re-fetched. A response *with* a `nextPageToken` (a truncated listing) must still be treated as insufficient for a larger request — that half is TC-D40's scenario 2, re-checked here. The epoch guard (a concurrent mutation's `mark_dirty` not being overwritten by an in-flight `list_files`) and the keep-larger compare-and-set are concurrency races with no deterministic live trigger; they're covered by `tests/test_cache.py::TestSizedCacheRaces` and `tests/drive/test_files.py::TestListFiles::test_mark_dirty_during_fetch_is_not_overwritten`.
+
+**Setup:** `DEBUG_LEVEL=DEBUG` with `LOG_FILE` set on the server under test (same log-based check as TC-D38). Note the fixture folder's item count `N` from a plain `list_files(folder_id={FOLDER_ID})`; this test needs `2 <= N < 50`.
+
+**Steps / Checks**
+1. `refresh_cache(folder_id={FOLDER_ID})`, then `list_files(folder_id={FOLDER_ID}, max_results=50)` → returns all `N` items.
+2. `list_files(folder_id={FOLDER_ID}, max_results=1000)` → returns the same `N` items, byte-identical to step 1, and the log shows `Drive folder cache hit: {FOLDER_ID}` for this call (no fresh Drive `files.list`).
+3. `refresh_cache(folder_id={FOLDER_ID})`, then `list_files(folder_id={FOLDER_ID}, max_results=1)` → exactly 1 item.
+4. `list_files(folder_id={FOLDER_ID})` (default `max_results`) → all `N` items, not 1, and the log shows **no** cache hit for this call (the step-3 listing had a `nextPageToken`, so it isn't complete).
+
+**Cleanup:** none (read-only).
+
+**Result (2026-09-23, PR #788 round 1) ✅ PASS** — run against a throwaway folder (`N=2`, a spreadsheet plus a subfolder) instead of `{FOLDER_ID}`, per `run.md`'s fixture-pollution guidance. Run twice. On the second, strictly sequential run: step 1 fetched and logged `Cached 2 files`; step 2 returned the same 2 items with `Drive folder cache hit` and 0.000s; step 3 logged `Cached 1 files`; step 4 returned both items and logged `Cached 2 files` with no cache hit, so it was a fresh fetch. The first run sent some calls in parallel and they ran out of order, but it gave the same hit/miss pattern.
+
+**Result (2026-09-23, PR #788 round 2, `ba3fbb9`) ✅ PASS** — rerun sequentially on the same throwaway folder after reconnecting to the fixed code, which now also requests `incompleteSearch`. The log matched round 1: step 1 `Cached 2 files`, step 2 `Drive folder cache hit`, step 3 `Cached 1 files`, step 4 `Cached 2 files` with no hit. Also re-checked the Sheets gap bug round 1 sent back. On a sheet with data in rows 1–2 and row 10 and rows 3–9 empty, `refresh_cache` → `get_multiple_spreadsheet_summary(rows_to_fetch=5)` → `(rows_to_fetch=20)` now fetches fresh and returns the rows through `["row10a","row10b"]`, where round 1 returned a cached result that hid row 10. A repeat `rows_to_fetch=20` call logged `Sheet data cache hit`. The throwaway fixture was trashed afterwards.
+
+---
+
 ### TC-D41: Pagination limit
 
 **Prompt**
