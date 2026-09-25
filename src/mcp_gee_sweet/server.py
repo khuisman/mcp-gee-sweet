@@ -75,7 +75,12 @@ if _level_name := os.getenv("DEBUG_LEVEL"):
 from mcp.server.mcpserver import Context, MCPServer  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402
 
-from .auth import execute_in_thread, get_lifespan_context, spreadsheet_lifespan  # noqa: E402
+from .auth import (  # noqa: E402
+    execute_in_thread,
+    get_lifespan_context,
+    set_gmail_enabled,
+    spreadsheet_lifespan,
+)
 
 
 def _parse_enabled_tools() -> set | None:
@@ -160,10 +165,16 @@ def _enforce_strict_tool_args(tool_name: str) -> None:
     arg_model.model_rebuild(force=True)
 
 
+# Modules that registered at least one tool, so auth can request a domain's scopes
+# only when that domain has a registered tool (#790).
+_registered_tool_modules: set[str] = set()
+
+
 def tool(annotations: ToolAnnotations | None = None):
     def decorator(func):
         tool_name = func.__name__
         if ENABLED_TOOLS is None or tool_name in ENABLED_TOOLS:
+            _registered_tool_modules.add(func.__module__)
             timed = _timed(func)
             if annotations:
                 mcp.tool(annotations=annotations)(timed)
@@ -177,9 +188,13 @@ def tool(annotations: ToolAnnotations | None = None):
 
 
 # Register all tools
+from .tools import gmail as _gmail_tools  # noqa: E402
 from .tools import register_all  # noqa: E402
 
 register_all(tool)
+# Runs before the lifespan (i.e. before auth), so Gmail's mailbox scope is only
+# requested when an ENABLED_TOOLS filter leaves at least one Gmail tool in (#790).
+set_gmail_enabled(_gmail_tools.__name__ in _registered_tool_modules)
 
 
 # Service-account restrictions fall into distinct failure classes with their own
@@ -222,6 +237,29 @@ _SA_LIMITATIONS = [
         # to ADC" still isn't a *fix* on its own, since a caller would have to
         # additionally know to point ADC at a real user credential specifically.
         "alternatives": "Switch to OAuth (CREDENTIALS_PATH) for full tool coverage.",
+    },
+    {
+        "category": "no_user_mailbox",
+        "tools": [
+            "list_messages",
+            "get_message",
+            "list_threads",
+            "get_thread",
+            "list_labels",
+            "send_message",
+            "create_draft",
+            "send_draft",
+            "reply_to_message",
+            "modify_labels",
+            "trash_message",
+        ],
+        "reason": (
+            "Service accounts have no Gmail mailbox of their own, and acting on a "
+            "user's mailbox via domain-wide delegation isn't wired up yet, so every "
+            "Gmail tool fails."
+        ),
+        # Same reasoning as no_personal_drive_identity above for not offering ADC.
+        "alternatives": "Switch to OAuth (CREDENTIALS_PATH) to use the Gmail tools.",
     },
 ]
 

@@ -648,3 +648,78 @@ Make a trivial change to a source file (e.g. add a space and save).
 **Result (2026-09-04) ⏭️ SKIP**
 SSE hot-reload — pre-approved, manual/live-only known uvicorn+SSE limitation
 
+---
+
+### TC-I31: `server://auth-status` lists every Gmail tool under a `no_user_mailbox` limitation on a service account (issue #790)
+
+**Background:** #786 added Gmail tools and `docs/auth.md` points users at `server://auth-status` to see which tools won't work on a service account, but `_SA_LIMITATIONS` had no Gmail entry. On a service account (or ADC resolving to one), auth-status reported no Gmail limitation while every Gmail tool failed with a cryptic 400. #790 added a `no_user_mailbox` category.
+
+**Setup**
+Server running with `AUTH_METHOD=service_account` (e.g. `mcp-gee-sweet-sa` / `mcp-gee-sweet-kai-sa`), plus any OAuth server for the last check.
+
+**Action**
+Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against the service-account server, then against the OAuth server.
+
+**Checks**
+- `limitations` contains an entry with `category: "no_user_mailbox"`
+- That entry's `tools` is exactly: `list_messages`, `get_message`, `list_threads`, `get_thread`, `list_labels`, `send_message`, `create_draft`, `send_draft`, `reply_to_message`, `modify_labels`, `trash_message` (order not significant)
+- All 11 also appear in the flattened `limited_tools`
+- The entry's `alternatives` names OAuth and does not mention ADC
+- The existing `no_drive_storage_quota` and `no_personal_drive_identity` entries are unchanged (TC-I27)
+- On the OAuth server: `limited_tools: []`, `limitations: []`
+
+---
+
+### TC-I32: a pre-Gmail OAuth token fails at startup with a clear missing-scope error, never a browser consent (issue #790) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** #786 added the Gmail scopes to every auth request. An existing `token.json` was never granted them. Refreshing it with the new scope list returns `invalid_scope` (confirmed live), and the old code then fell into `InstalledAppFlow.run_local_server`: a surprise browser consent, or a hang for a headless/stdio deployment. #790 checks the token's saved `scopes` against what the registered tools need, and fails fast with `MissingOAuthScopesError`. The waterfall does not swallow it into a silent service-account fallback. This reproduces the regression scenario itself.
+
+**Setup**
+- A copy of an OAuth `token.json` whose saved `scopes` lack `https://www.googleapis.com/auth/gmail.modify` (any token authorized before #786 qualifies; the team QA token did as of 2026-09-25). Check with: `python3 -c "import json;print(json.load(open('<copy>'))['scopes'])"`. Work on a copy only, never the shared token.
+- No `ENABLED_TOOLS` / `--include-tools` set (so the Gmail tools are registered).
+
+**Action**
+From the repo checkout under test, with `AUTH_METHOD` unset (waterfall) and a service account also configured if available:
+
+```bash
+TOKEN_PATH=<copy> CREDENTIALS_PATH=<oauth client json> timeout 60 uv run mcp-gee-sweet < /dev/null
+```
+
+Repeat once with `AUTH_METHOD=oauth`.
+
+**Checks**
+- The process exits within the timeout (no hang), and no browser window or `Please visit this URL to authorize` prompt appears
+- stderr contains `MissingOAuthScopesError` with a message naming `https://www.googleapis.com/auth/gmail.modify`, telling you to delete the token file and restart (or run `scripts/oauth_setup.py`), and mentioning leaving the Gmail tools out of `ENABLED_TOOLS` / `--include-tools`
+- Waterfall run: the process does **not** start on a service account instead (no `Waterfall: using service account` line with `DEBUG_LEVEL=DEBUG`)
+- The token copy's contents are unchanged afterwards
+
+**Cleanup:** delete the token copy.
+
+---
+
+### TC-I33: with the Gmail tools filtered out, a pre-Gmail OAuth token keeps working and no Gmail scope is requested (issue #790) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** #790 requests Gmail's mailbox scope only when a Gmail tool is registered. An `ENABLED_TOOLS` filter without Gmail tools must neither require nor request it, so an existing pre-Gmail token keeps working after the upgrade with no re-consent.
+
+**Setup**
+Same token copy as TC-I32 (saved `scopes` lack `gmail.modify`). To exercise the refresh path as well, set the copy's `"expiry"` to `"2000-01-01T00:00:00Z"`.
+
+**Action**
+Register this as a temporary stdio MCP server (or run it under an MCP client) with:
+
+```
+TOKEN_PATH=<copy>
+CREDENTIALS_PATH=<oauth client json>
+AUTH_METHOD=oauth
+ENABLED_TOOLS=list_spreadsheets,get_cache_ttl
+```
+
+Call `list_spreadsheets` with `max_results: 1`, then `ReadMcpResourceTool` with `uri: "server://auth-status"`.
+
+**Checks**
+- The server starts with no browser consent and no `MissingOAuthScopesError`
+- `list_spreadsheets` returns a normal result (the expired token refreshed successfully)
+- The token copy's `scopes` afterwards still lack every `gmail.*` scope (nothing extra was requested on refresh)
+- `auth-status` reports `auth_method: "oauth"`, `limited_tools: []`
+
+**Cleanup:** remove the temporary server registration and delete the token copy.

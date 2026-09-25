@@ -265,6 +265,126 @@ class TestOAuthCreds:
             _oauth_creds()
 
 
+def _token_info(scopes, *, expired=False):
+    info = {
+        "token": "tok",
+        "refresh_token": "refresh-tok",
+        "client_id": "cid",
+        "client_secret": "secret",
+        "expiry": "2000-01-01T00:00:00Z" if expired else "2999-01-01T00:00:00Z",
+    }
+    if scopes is not None:
+        info["scopes"] = scopes
+    return info
+
+
+class TestRequiredScopes:
+    def test_gmail_enabled_requests_gmail_modify_only(self, monkeypatch):
+        monkeypatch.setattr(auth_module, "_gmail_enabled", True)
+        scopes = auth_module.required_scopes()
+        assert "https://www.googleapis.com/auth/gmail.modify" in scopes
+        # #790: modify covers read and send; the narrower scopes were redundant.
+        assert "https://www.googleapis.com/auth/gmail.readonly" not in scopes
+        assert "https://www.googleapis.com/auth/gmail.send" not in scopes
+
+    def test_gmail_disabled_requests_no_gmail_scope(self, monkeypatch):
+        monkeypatch.setattr(auth_module, "_gmail_enabled", False)
+        scopes = auth_module.required_scopes()
+        assert scopes == auth_module.BASE_SCOPES
+        assert not any("gmail" in s for s in scopes)
+
+    def test_service_account_uses_required_scopes(self, monkeypatch):
+        monkeypatch.setattr(auth_module, "_gmail_enabled", False)
+        monkeypatch.setattr(auth_module, "CREDENTIALS_CONFIG", _b64_encode({"type": "x"}))
+        with patch("mcp_gee_sweet.auth.service_account.Credentials.from_service_account_info") as m:
+            _service_account_creds()
+        assert m.call_args.kwargs["scopes"] == auth_module.BASE_SCOPES
+
+
+class TestOAuthScopeCheck:
+    """#790: a token authorized for fewer scopes than the registered tools need
+    fails fast with a clear message instead of refreshing into `invalid_scope` and
+    then opening a browser consent (or hanging a headless deployment)."""
+
+    def _setup(self, monkeypatch, tmp_path, info, *, gmail_enabled=True):
+        token_path = tmp_path / "token.json"
+        token_path.write_text(json.dumps(info))
+        creds_path = tmp_path / "credentials.json"
+        creds_path.write_text("{}")
+        monkeypatch.setattr(auth_module, "TOKEN_PATH", str(token_path))
+        monkeypatch.setattr(auth_module, "CREDENTIALS_PATH", str(creds_path))
+        monkeypatch.setattr(auth_module, "_gmail_enabled", gmail_enabled)
+        return token_path
+
+    def test_pre_gmail_token_with_gmail_enabled_fails_clearly_without_flow(
+        self, monkeypatch, tmp_path
+    ):
+        self._setup(monkeypatch, tmp_path, _token_info(auth_module.BASE_SCOPES))
+        with (
+            patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file") as flow,
+            pytest.raises(auth_module.MissingOAuthScopesError) as exc,
+        ):
+            _oauth_creds()
+        flow.assert_not_called()
+        message = str(exc.value)
+        assert "gmail.modify" in message
+        assert "Delete" in message and "token.json" in message
+        assert "ENABLED_TOOLS" in message  # the no-Gmail way out
+
+    def test_pre_gmail_token_with_gmail_disabled_loads_normally(self, monkeypatch, tmp_path):
+        self._setup(
+            monkeypatch, tmp_path, _token_info(auth_module.BASE_SCOPES), gmail_enabled=False
+        )
+        creds = _oauth_creds()
+        assert isinstance(creds, UserCredentials)
+        assert sorted(creds.scopes) == sorted(auth_module.BASE_SCOPES)
+
+    def test_token_with_all_scopes_loads_with_its_own_saved_scopes(self, monkeypatch, tmp_path):
+        # A token from #786's era also holds gmail.readonly/gmail.send. It passes
+        # the check, and keeps its own scope list, so a later refresh never asks for
+        # anything it wasn't granted.
+        saved = [*auth_module.SCOPES, "https://www.googleapis.com/auth/gmail.readonly"]
+        self._setup(monkeypatch, tmp_path, _token_info(saved))
+        creds = _oauth_creds()
+        assert sorted(creds.scopes) == sorted(saved)
+
+    def test_token_without_saved_scopes_keeps_prior_behavior(self, monkeypatch, tmp_path):
+        self._setup(monkeypatch, tmp_path, _token_info(None))
+        creds = _oauth_creds()
+        assert sorted(creds.scopes) == sorted(auth_module.SCOPES)
+
+    def test_refresh_invalid_scope_fails_clearly_without_flow(self, monkeypatch, tmp_path):
+        # The saved record can overstate the grant (e.g. a hand-built token.json).
+        token_path = self._setup(
+            monkeypatch, tmp_path, _token_info(auth_module.SCOPES, expired=True)
+        )
+        before = token_path.read_text()
+        with (
+            patch(
+                "mcp_gee_sweet.auth.Credentials.refresh",
+                side_effect=Exception("('invalid_scope: Bad Request', {})"),
+            ),
+            patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file") as flow,
+            pytest.raises(auth_module.MissingOAuthScopesError),
+        ):
+            _oauth_creds()
+        flow.assert_not_called()
+        assert token_path.read_text() == before
+
+    def test_no_token_flow_requests_only_required_scopes(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(auth_module, "TOKEN_PATH", str(tmp_path / "token.json"))
+        creds_path = tmp_path / "credentials.json"
+        creds_path.write_text("{}")
+        monkeypatch.setattr(auth_module, "CREDENTIALS_PATH", str(creds_path))
+        monkeypatch.setattr(auth_module, "_gmail_enabled", False)
+        fresh = MagicMock()
+        fresh.to_json.return_value = "{}"
+        with patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file") as m:
+            m.return_value.run_local_server.return_value = fresh
+            _oauth_creds()
+        m.assert_called_once_with(str(creds_path), auth_module.BASE_SCOPES)
+
+
 # ---------------------------------------------------------------------------
 # spreadsheet_lifespan — AUTH_METHOD pinning and waterfall
 # ---------------------------------------------------------------------------
@@ -365,6 +485,20 @@ class TestLifespanAuthMethod:
 
 
 class TestLifespanWaterfall:
+    def test_waterfall_missing_oauth_scopes_is_not_masked_by_service_account(self, monkeypatch):
+        # #790: a token on disk means OAuth is intended; silently switching to a
+        # service account would hide the scope problem behind cryptic Gmail 400s.
+        sa = MagicMock()
+        with pytest.raises(auth_module.MissingOAuthScopesError):
+            _run_lifespan(
+                monkeypatch,
+                None,
+                MagicMock(side_effect=auth_module.MissingOAuthScopesError("missing")),
+                sa,
+                MagicMock(),
+            )
+        sa.assert_not_called()
+
     def test_waterfall_oauth_wins(self, monkeypatch):
         mock_oauth_creds = MagicMock()
         ctx = _run_lifespan(

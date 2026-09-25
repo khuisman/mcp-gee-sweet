@@ -29,15 +29,48 @@ from .http_transport import (  # noqa: F401 — re-exported for tool imports
 
 logger = logging.getLogger(__name__)
 
-SCOPES = [
+BASE_SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/drive.activity.readonly",
-    "https://www.googleapis.com/auth/gmail.modify",
-    "https://www.googleapis.com/auth/gmail.send",
-    "https://www.googleapis.com/auth/gmail.readonly",
 ]
+# gmail.modify alone covers everything tools/gmail.py does (read, compose, send,
+# draft, label, trash — every Gmail operation except permanent deletion, which no
+# tool uses), so the narrower gmail.readonly/gmail.send scopes #786 also requested
+# were redundant (#790).
+GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+# Every scope any tool can need — what a default install (no ENABLED_TOOLS filter)
+# requests, and what scripts/oauth_setup.py authorizes up front.
+SCOPES = BASE_SCOPES + GMAIL_SCOPES
+
+# Whether any Gmail tool is registered. server.py sets this once registration is done
+# (set_gmail_enabled), before the lifespan runs; defaults to True to match the
+# default of every tool being registered.
+_gmail_enabled = True
+
+
+def set_gmail_enabled(enabled: bool) -> None:
+    global _gmail_enabled
+    _gmail_enabled = enabled
+
+
+def required_scopes() -> list[str]:
+    """The scopes the registered tools actually need: Gmail's are requested only
+    when a Gmail tool is registered, so an ENABLED_TOOLS filter that leaves Gmail
+    out never asks for mailbox access (#790)."""
+    return SCOPES if _gmail_enabled else BASE_SCOPES
+
+
+class MissingOAuthScopesError(RuntimeError):
+    """The saved OAuth token wasn't authorized for scopes the registered tools need.
+
+    Raised instead of falling back to the interactive consent flow, which would
+    open a browser unprompted (or hang a headless/stdio deployment) right after an
+    upgrade that added a scope (#790). Deliberately not swallowed by the auth
+    waterfall either: a token file on disk means OAuth is the intended method, so
+    silently switching to a service account would hide the problem."""
+
 
 CREDENTIALS_CONFIG = os.environ.get("CREDENTIALS_CONFIG")
 TOKEN_PATH = os.environ.get("TOKEN_PATH", "token.json")
@@ -112,12 +145,43 @@ def _is_service_account_credential(creds: Any) -> bool:
     )
 
 
+def _missing_scopes_message(missing: list[str]) -> str:
+    gmail_hint = (
+        " The Gmail tools are what need them: to run without Gmail instead, leave "
+        "the Gmail tools out of ENABLED_TOOLS / --include-tools."
+        if any(s in GMAIL_SCOPES for s in missing)
+        else ""
+    )
+    return (
+        f"The OAuth token at {TOKEN_PATH!r} wasn't authorized for scope(s) the "
+        f"enabled tools require: {', '.join(missing)}. Delete {TOKEN_PATH!r} and "
+        f"restart the server (or run scripts/oauth_setup.py) to re-authorize.{gmail_hint}"
+    )
+
+
 def _oauth_creds() -> Credentials:
-    """Obtain OAuth credentials, refreshing or running the interactive flow as needed."""
+    """Obtain OAuth credentials, refreshing or running the interactive flow as needed.
+
+    The interactive flow only runs when there's no usable token at all. A token
+    authorized for fewer scopes than the enabled tools need raises
+    MissingOAuthScopesError instead (#790). The check reads the scopes saved in the
+    token file itself, so the token is loaded with *those* scopes rather than
+    required_scopes(): passing the required ones would both make has_scopes()
+    trivially true and send ungranted scopes on refresh (Google answers that with
+    `invalid_scope`, confirmed live)."""
+    scopes = required_scopes()
     creds = None
     if os.path.exists(TOKEN_PATH):
         with open(TOKEN_PATH) as f:
-            creds = Credentials.from_authorized_user_info(json.load(f), SCOPES)
+            info = json.load(f)
+        if info.get("scopes"):
+            creds = Credentials.from_authorized_user_info(info)
+            missing = [s for s in scopes if not creds.has_scopes([s])]
+            if missing:
+                raise MissingOAuthScopesError(_missing_scopes_message(missing))
+        else:
+            # No saved scope record to check against — keep the pre-#790 behavior.
+            creds = Credentials.from_authorized_user_info(info, scopes)
 
     if creds and creds.expired and creds.refresh_token:
         try:
@@ -128,6 +192,11 @@ def _oauth_creds() -> Credentials:
             logger.debug("Token refreshed successfully")
             return creds
         except Exception as e:
+            # The saved scope record can overstate what was actually granted (e.g. a
+            # hand-built token.json). Same clear failure as above, not a surprise
+            # browser consent.
+            if "invalid_scope" in str(e):
+                raise MissingOAuthScopesError(_missing_scopes_message(scopes)) from e
             logger.warning("Token refresh failed: %s — re-running OAuth flow", e)
             creds = None
 
@@ -136,7 +205,7 @@ def _oauth_creds() -> Credentials:
             raise RuntimeError(
                 f"{CREDENTIALS_PATH!r} not found. Set CREDENTIALS_PATH or provide credentials.json."
             )
-        flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, SCOPES)
+        flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, scopes)
         creds = flow.run_local_server(port=0)
         with open(TOKEN_PATH, "w") as f:
             f.write(creds.to_json())
@@ -149,11 +218,11 @@ def _service_account_creds() -> service_account.Credentials:
     """Load service account credentials from env or file."""
     if CREDENTIALS_CONFIG:
         return service_account.Credentials.from_service_account_info(
-            json.loads(base64.b64decode(CREDENTIALS_CONFIG)), scopes=SCOPES
+            json.loads(base64.b64decode(CREDENTIALS_CONFIG)), scopes=required_scopes()
         )
     if SERVICE_ACCOUNT_PATH and os.path.exists(SERVICE_ACCOUNT_PATH):
         return service_account.Credentials.from_service_account_file(
-            SERVICE_ACCOUNT_PATH, scopes=SCOPES
+            SERVICE_ACCOUNT_PATH, scopes=required_scopes()
         )
     return None
 
@@ -197,7 +266,7 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
 
     elif AUTH_METHOD == "adc":
         try:
-            creds, project = google.auth.default(scopes=SCOPES)
+            creds, project = google.auth.default(scopes=required_scopes())
             logger.debug("ADC resolved project: %s", project)
             resolved = "adc"
         except Exception as e:
@@ -214,6 +283,8 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
             creds = _oauth_creds()
             resolved = "oauth"
             logger.debug("Waterfall: using OAuth")
+        except MissingOAuthScopesError:
+            raise
         except Exception as e:
             logger.debug("Waterfall: OAuth unavailable (%s), trying service account", e)
 
@@ -228,7 +299,7 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
         # 3. ADC
         if not creds:
             try:
-                creds, project = google.auth.default(scopes=SCOPES)
+                creds, project = google.auth.default(scopes=required_scopes())
                 resolved = "adc"
                 logger.debug("Waterfall: using ADC for project: %s", project)
             except Exception as e:
