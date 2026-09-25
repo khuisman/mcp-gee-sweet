@@ -3388,6 +3388,8 @@ Tagged `⚠️ requires-oauth` on every case that reaches the upload step — th
 **Result (2026-09-04) ✅ PASS**
 insert_local_images single marker: results[0] fileId present, index=8 = marker's startIndex, shared:false. get_doc_structure: marker gone, before/after unaffected, middle paragraph span=2 (image+\n). list_permissions confirmed no anyone permission. Uploaded file + doc trashed.
 
+**Result (2026-09-24) ✅ PASS — Kit, PR #801 round 2 (fix `4d5f842`, issue #560).** Run in a scratch doc (not the shared fixture), batched with TC-DOC164's oversized image and the TC-DOC197/198 cases in one `insert_local_images` call. The pixel entry succeeded: `fileId` present, `shared: false`, `index` 8 matching the marker paragraph's `startIndex`. `get_doc_structure`: the marker was gone, its paragraph spanned exactly 2 (8–10), and "before"/"after" and the other markers were untouched. The permission check follows the post-#332 default (share revoked, no `anyone` grant), same as the 2026-09-04 result. Playwright: the pixel rendered as a dot under "before" (account check passed on the fixture doc's title). Doc and upload trashed.
+
 ---
 
 ### TC-DOC119: Two markers are placed in one call, higher index first
@@ -4000,6 +4002,8 @@ Tool call: `create_doc(title="TC-DOC150", content="# Report\n\n![Pixel](<repo-ro
 **Result (2026-09-04) ✅ PASS**
 create_doc markdown local-path image, folder_id set. Response: images=[{fileId, shared:false}], no revoke_error. list_permissions on uploaded file showed only owner+service-account, no anyone grant — confirms revoke actually happened. Doc+image trashed.
 
+**Result (2026-09-24) ✅ PASS — Kit, PR #801 round 2 (fix `4d5f842`, issue #560).** `create_doc` with the local-path markdown image and `folder_id` set gave no `error` and `images=[{fileId, shared: false}]`, with no `revoke_error`. `list_permissions` on the upload showed only the organizer and the service account, no `anyone` grant. Playwright: a pixel dot renders between "Report" and "After the image." Doc and upload trashed.
+
 ---
 
 ### TC-DOC151: `create_doc` markdown image (`drive:` reference) with `revoke_sharing=False` leaves the image shared ⚠️ requires-oauth ⚠️ destructive
@@ -4186,6 +4190,8 @@ Tool call: `insert_inline_image(doc_id={DOC_ID}, index=1, drive_file_id={OVERSIZ
 **Result (2026-09-04) ✅ PASS**
 insert_inline_image(drive_file_id=oversized 6000x6000). Error contained "36.0 megapixels", "25 megapixels", "auto_downscale=True". get_doc_structure before/after byte-identical — no insertInlineImage reached API.
 
+**Result (2026-09-24) ✅ PASS — Kit, PR #801 round 2 (fix `4d5f842`, issue #560).** Fresh upload `qa-oversized-pr801.png` (6000x6000) into a scratch doc. The error named "36.0 megapixels", "25 megapixels" and "auto_downscale=True". Nothing was inserted (the follow-up TC-DOC162 call landed at index 1 on the untouched single-paragraph doc).
+
 ---
 
 ### TC-DOC162: `insert_inline_image` `auto_downscale=True` resizes and embeds a copy, leaving the original untouched ⚠️ requires-oauth ⚠️ destructive
@@ -4209,6 +4215,8 @@ Tool call: `insert_inline_image(doc_id={DOC_ID}, index=1, drive_file_id={OVERSIZ
 
 **Result (2026-09-04) ✅ PASS**
 insert_inline_image(auto_downscale=True) succeeded, resized_file_id distinct from original. get_file_metadata: resized name "qa-oversized.png (resized)"; original file untouched (same checksum/size as upload). Playwright screenshot (tc-doc162.png) confirmed large red image rendered at insertion point. Range deleted, both files trashed.
+
+**Result (2026-09-24) ✅ PASS — Kit, PR #801 round 2 (fix `4d5f842`, issue #560).** This exercises the parent-folder fallback PR #801 folded into `downscale_drive_file`. `resized_file_id` differed from the original, and `get_file_metadata` gave name `"qa-oversized-pr801.png (resized)"` in the same parent folder as the original. The original was unchanged (size 119593, same as the local file, untrashed). Playwright: the red image rendered at the insertion point. Both files and the doc trashed.
 
 ---
 
@@ -4253,6 +4261,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERON
 **Result (2026-09-04) ✅ PASS**
 insert_local_images(oversized local path, no auto_downscale): results[0].error contained "36.0 megapixels"/"25 megapixels", no fileId. list_files(mime_type=image/png) returned empty — no upload. Marker text unchanged.
 
+**Result (2026-09-24) ✅ PASS — Kit, PR #801 round 2 (fix `4d5f842`, issue #560).** `results` entry: "Image is 6000x6000 (36.0 megapixels)… 25 megapixels… auto_downscale=True", no `fileId`. Only today's `qa-fixture-pixel.png` uploads were new in the folder; the `qa-oversized*` files there date from 2026-09-04 (older pollution). The marker text was unchanged.
+
 ---
 
 ### TC-DOC165: `insert_local_images` `auto_downscale=True` uploads and embeds a resized copy ⚠️ requires-oauth ⚠️ destructive
@@ -4275,6 +4285,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERON
 
 **Result (2026-09-04) ✅ PASS**
 insert_local_images(auto_downscale=True): results[0] no error, fileId, downscaled:true, index=1=marker's startIndex. Uploaded file name unsuffixed "qa-oversized.png". Playwright screenshot (tc-doc165.png) confirmed image rendered where marker was. Uploaded file trashed.
+
+**Result (2026-09-24) ✅ PASS — Kit, PR #801 round 2 (fix `4d5f842`, issue #560).** Alone: `fileId`, `downscaled: true`, `shared: false`, `index` 10 = the marker's `startIndex`. Uploaded name unsuffixed `qa-oversized.png`. Playwright: the red image rendered where the marker was. **Transient seen, not a defect:** the first attempt batched this image with TC-DOC167's ~47MB resized copy in one call. Both uploads succeeded, but Docs rejected the atomic batch with "There was a problem retrieving the image". Each passed alone, and the identical two-image call passed on a fresh doc right after. PR #801 doesn't touch the embed batch (only pre-upload validation and where the downscale runs), so this is Google's fetch of a near-limit image flaking, not a regression. Uploads trashed.
 
 ---
 
@@ -4332,6 +4344,8 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBI
 
 **Result (2026-09-04) ✅ PASS**
 Generated real ~76MB 4800x5000 (24.0MP, under 25MP pre-check) noise PNG. Main call (no auto_downscale): results[0] no fileId, error = "Image is 76.0MB, which exceeds ... 50MB limit ... auto_downscale=True" — pre-validation caught it before any upload; list_files confirmed nothing uploaded; marker unchanged. Follow-up call with auto_downscale=True: succeeded, fileId, downscaled:true; uploaded copy's size 47,361,943 bytes (~45.2MB), under 50MB — confirms the byte-size-driven shrink loop converges. Uploaded file trashed, fixture doc restored to seed state.
+
+**Result (2026-09-24) ✅ PASS — Kit, PR #801 round 2 (fix `4d5f842`, issue #560).** A 4800x5000 noise PNG (~76MB). Main call: "Image is 76.0MB, which exceeds… 50MB… auto_downscale=True", no `fileId`, nothing uploaded, marker unchanged. With `auto_downscale=True`: `fileId`, `downscaled: true`, uploaded copy 47,361,547 bytes (under 50MB). (See TC-DOC165's note: the first `auto_downscale` attempt batched with another image hit a transient Docs fetch error; alone and on retry it passed.) Uploads trashed.
 
 ---
 
@@ -4937,6 +4951,52 @@ Plus 4 non-blocking cleanup items (finding 3+4 folded, finding 5 folded, finding
 **Result (2026-09-23) ❌ SENT BACK — Kit, PR #787 round 1.** The live checks themselves all passed. `create_doc` returned no top-level error, and `images` had 3 entries in order: bad1 and bad2 each with `doc edit failed:`, the Google logo clean. `get_doc_structure` showed every element in order with nothing truncated (heading, bold run intact, both bullets, 2×2 table, "After text."). The paragraph at 49–51 has the extra index slot. A raw `documents.get` confirmed exactly 1 `inlineObject`, placed between the bullets and the table. Each bad image left an empty paragraph behind, which the pre-#510 retry did too. Playwright: **SKIPPED.** The browser profile is signed in as the personal account and got a 403 on the Shared-Drive doc (the post-2026-09-01 auth migration). The raw API placement check above stood in for it. Also checked, not a scripted check: review finding 2 (tail inserts inheriting styles after the prefix commits) was probed live with an image right after a `##` heading and a table right after a blockquote. The split-path doc and a no-bad-image control had identical paragraph and text styles, differing only by the dropped image's empty paragraph, so the finding was not reproduced. Also observed live: bad1's per-image error text quotes `requests[2]`, an index into the tail-only retry batch, not the original request list (see the PR comment, finding 9). Sent back for code-review findings 1/3, 4, 5, 6, 7, 8, 9 (see the PR comment), not for a live failure.
 
 **Result (2026-09-23) ✅ PASS — Kit, PR #787 round 2.** Re-verified against Jay's fix `69eff02` (fast path: `git show` plus a live re-run, no second full `/code-review`). Every round-1 finding is addressed in the diff. K=1 retries the whole remaining list as one atomic call, and the prefix/tail split starts only at the second image failure. The K≥2 partial-write window is documented in the code comment and `image-conversion.md`. Detection now uses `status == 400` plus `HttpError.reason`. The caller-facing text drops the `Invalid requests[N].` lead-in and the `HttpError` wrapper, and `rewrite_too_large_error` still fires on the stripped text (spot-checked). A fail-safe falls back to whole-list retries if any image request sits outside the inferred tail, and a unit test pins `ast_to_requests`'s tail invariant. Both stale comments are fixed. Full suite green (`uv run python -m pytest` → 1574 passed, 3 skipped). Live: this case's own prompt, K=2 (split path), matched every API check again. It gave the identical structure to round 1, with exactly 1 `inlineObject` between the bullets and the table (raw `documents.get`). Both bad-image errors read `doc edit failed: insertInlineImage: There was a problem retrieving the image...` with no wrapper and no internal index. An extra K=1 probe (heading, bold text, good image, table, one bad image, trailing text) also landed intact with one `inlineObject` and the same clean error text. Playwright: ✅ PASS (visual confirmed). It was skipped at first, for the same reason as round 1: the browser profile was signed in as the personal account and got a 403 on Shared-Drive docs. After the browser was switched to the Workspace account, this case's prompt was re-run on a fresh doc (post-merge, same code). The screenshot showed the Google logo between the bullets and the table and nothing where either bad image was, with the heading, bold run, table and "After text." all rendering normally. Created docs trashed.
+
+---
+
+### TC-DOC197: `insert_local_images` — a local image over ~179 megapixels is still size-checked, not waved through as "not an image" (PR #801)
+**Background:** Pillow's `Image.open` refuses to identify an image whose header claims more than 2× `Image.MAX_IMAGE_PIXELS` (~179MP) and raises `DecompressionBombError` instead. The local size gate used to swallow that as "not a recognizable image", so the *most* oversized images skipped the megapixel check entirely and failed later with Google's bare "too large" error. `_read_dimensions` now reads the PNG/JPEG/GIF header without that guard, since no pixels are decoded there. `auto_downscale=True` still can't help, because downscaling needs a full decode, which the guard does block. That case must fail with a clear reason, not silently.
+
+**Setup:** generate a 14000x13000 (182MP) PNG. A 1-bit image keeps it tiny on disk:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>uv run python3 -c &quot;
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>from PIL import Image
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>Image.MAX_IMAGE_PIXELS = None
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>Image.new(&#39;1&#39;, (14000, 13000)).save(&#39;/tmp/qa-bomb.png&#39;)
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>&quot;
+</code></pre></div>
+Create a doc with the marker: `create_doc(title=..., content="<p>IMGMARKERBOMB</p>", folder_id={FOLDER_ID})`
+
+**Prompt**
+> "In doc {DOC_ID}, insert local images: marker 'IMGMARKERBOMB', local_path '/tmp/qa-bomb.png', into folder {FOLDER_ID}"
+
+Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBOMB", "local_path": "/tmp/qa-bomb.png"}], folder_id={FOLDER_ID})`
+
+**Checks**
+- `results[0]` has no `fileId` and an `error` containing "14000x13000 (182.0 megapixels)" and "25 megapixels"
+- No `qa-bomb.png` appears in `{FOLDER_ID}`, and the marker text is unchanged
+- Re-run with `auto_downscale=True`: `results[0]` still has no `fileId`, and its `error` ends with "Could not auto-downscale it (unreadable or corrupt image, animated, or too large to decode safely)."
+
+**Cleanup:** trash the doc; `rm /tmp/qa-bomb.png`
+
+**Result (2026-09-24) ✅ PASS — Kit, PR #801 round 2 (fix `4d5f842`, issue #560).** Both checks matched exactly, and nothing was uploaded. (Round 1 reproduced the pre-fix behavior locally: `check_image_file` returned `None` for this file.) Doc trashed.
+
+---
+
+### TC-DOC198: `insert_local_images` — an unreadable local file fails with "failed to read local file", not a raw upload error (PR #801)
+**Background:** PR #801 moved the local size gate from reading the whole file to `stat()` plus a header read. Round 1 found the header read swallowed `OSError`, so a permission-denied file passed the gate as "not an image". It then crashed inside the upload as a bare `[Errno 13]`. The file open is now outside the best-effort guard.
+
+**Setup:** `uv run python3 -c "from PIL import Image; Image.new('RGB', (10, 10)).save('/tmp/qa-noread.png')" && chmod 000 /tmp/qa-noread.png`. Create a doc with the marker `IMGMARKERNOREAD`.
+
+**Prompt**
+> "In doc {DOC_ID}, insert local images: marker 'IMGMARKERNOREAD', local_path '/tmp/qa-noread.png', into folder {FOLDER_ID}"
+
+**Checks**
+- `results[0].error` is exactly `failed to read local file: [Errno 13] Permission denied: '/tmp/qa-noread.png'`, with no `fileId`
+- Nothing uploaded; marker unchanged
+
+**Cleanup:** trash the doc; `chmod 644 /tmp/qa-noread.png && rm /tmp/qa-noread.png`
+
+**Result (2026-09-24) ✅ PASS — Kit, PR #801 round 2 (fix `4d5f842`, issue #560).** The error text matched exactly, with no `fileId` and nothing uploaded. (Round 1 reproduced the pre-fix behavior locally: `prepare_local_image` returned `None` and the file went on to the upload.) Doc trashed.
 
 
 
