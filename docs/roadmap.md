@@ -256,7 +256,7 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 - [x] `refactor(drive)`: dedupe `mime_type` quote-escaping and list-files response mapping in `files.py` ([#578](https://github.com/khuisman/mcp-gee-sweet/issues/578)) (PR #780)
 - [x] `list_folders`/`list_spreadsheets` no-parent + no-`DRIVE_FOLDER_ID` path is unbounded across all drives, no `max_results` (`lane-a`) ([#718](https://github.com/khuisman/mcp-gee-sweet/issues/718)) (PR #736)
 - [ ] `download_file` trailing-slash guard: fail-fast ordering, dead `os.altsep` clause, raw `NotADirectoryError` surface (PR #722 follow-up) ([#724](https://github.com/khuisman/mcp-gee-sweet/issues/724))
-- [ ] `upload_local_folder(convert=True)`: an unrelated Drive file sharing a candidate's extension-stripped name can cause a false-positive skip — decided 2026-09-23: Drive `properties` marker on converted uploads, legacy name-only matches still skip but are flagged as unverified ([#769](https://github.com/khuisman/mcp-gee-sweet/issues/769))
+- [x] `upload_local_folder(convert=True)`: an unrelated Drive file sharing a candidate's extension-stripped name can cause a false-positive skip — decided 2026-09-23: Drive `properties` marker on converted uploads, legacy name-only matches still skip but are flagged as unverified ([#769](https://github.com/khuisman/mcp-gee-sweet/issues/769)) (PR #800)
 - [x] Deduplicate the `max_results` clamp expression, hand-copied 8x across `drive/files.py` with inconsistent caps (PR #736 follow-up) ([#737](https://github.com/khuisman/mcp-gee-sweet/issues/737)) (PR #781)
 
 **Calendar hardening** _(triaged out of `backlog` 2026-09-11)_
