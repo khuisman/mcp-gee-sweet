@@ -10,9 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/qa/results/2026-06-21-drive-discovery/">
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/qa/tests/gmail/">
       
       
+        <link rel="prev" href="../calendar/">
+      
+      
+        <link rel="next" href="../infra/">
       
       
         
@@ -23,7 +27,7 @@
     
     
       
-        <title>QA Run — Drive Discovery Tools - mcp-gee-sweet</title>
+        <title>Gmail - mcp-gee-sweet</title>
       
     
     
@@ -74,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#qa-run-drive-discovery-tools" class="md-skip">
+        <a href="#gmail-tools-qa-test-cases" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              QA Run — Drive Discovery Tools
+              Gmail
             
           </span>
         </div>
@@ -826,8 +830,10 @@
       
   
   
+    
   
   
+  
     
     
     
@@ -838,11 +844,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
         
           
           <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
@@ -863,7 +869,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -990,6 +996,8 @@
                 
   
   
+    
+  
   
   
     
@@ -999,11 +1007,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" checked>
         
           
           <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
@@ -1024,7 +1032,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_6_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1042,7 +1050,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tests/calendar/" class="md-nav__link">
+      <a href="../calendar/" class="md-nav__link">
         
   
   
@@ -1070,7 +1078,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tests/docs.md" class="md-nav__link">
+      <a href="../docs.md" class="md-nav__link">
         
   
   
@@ -1098,7 +1106,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tests/drive.md" class="md-nav__link">
+      <a href="../drive.md" class="md-nav__link">
         
   
   
@@ -1123,10 +1131,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../tests/gmail/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1142,6 +1177,455 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#list_messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_messages
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_messages">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm01-list-recent-inbox-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM01: List recent inbox messages
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm02-invalid-label-filter-returns-api-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM02: Invalid label filter returns API error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get_message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_message
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="get_message">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm03-fetch-a-known-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM03: Fetch a known message
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm04-non-existent-message-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM04: Non-existent message ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#list_threads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_threads
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_threads">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm05-list-threads-with-a-query" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM05: List threads with a query
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm06-invalid-label-filter-returns-api-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM06: Invalid label filter returns API error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get_thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_thread
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="get_thread">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm07-fetch-a-known-thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM07: Fetch a known thread
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm08-non-existent-thread-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM08: Non-existent thread ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#list_labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list_labels
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list_labels">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm09-list-system-and-user-labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM09: List system and user labels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm10-auth-api-failure-surfaces-as-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM10: Auth / API failure surfaces as error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#send_message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        send_message
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="send_message">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm11-send-a-qa-message-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM11: Send a QA message ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm12-send-with-invalid-recipient-returns-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM12: Send with invalid recipient returns error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create_draft" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        create_draft
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="create_draft">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm13-create-a-draft-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM13: Create a draft ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm14-create-draft-with-invalid-attachment-shape" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM14: Create draft with invalid attachment shape
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#send_draft" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        send_draft
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="send_draft">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm15-send-an-existing-draft-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM15: Send an existing draft ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm16-send-non-existent-draft" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM16: Send non-existent draft
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reply_to_message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        reply_to_message
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="reply_to_message">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm17-reply-in-thread-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM17: Reply in-thread ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm18-reply-to-non-existent-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM18: Reply to non-existent message
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#modify_labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        modify_labels
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="modify_labels">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm19-mark-a-message-unread-then-read-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM19: Mark a message unread then read ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm20-missing-target-returns-validation-error" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM20: Missing target returns validation error
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#trash_message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        trash_message
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="trash_message">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm21-trash-a-disposable-message-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM21: Trash a disposable message ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm22-trash-non-existent-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM22: Trash non-existent message
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1154,7 +1638,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tests/infra/" class="md-nav__link">
+      <a href="../infra/" class="md-nav__link">
         
   
   
@@ -1182,7 +1666,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tests/sheets_read/" class="md-nav__link">
+      <a href="../sheets_read/" class="md-nav__link">
         
   
   
@@ -1210,7 +1694,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tests/sheets_write/" class="md-nav__link">
+      <a href="../sheets_write/" class="md-nav__link">
         
   
   
@@ -1238,7 +1722,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tests/sheets_charts/" class="md-nav__link">
+      <a href="../sheets_charts/" class="md-nav__link">
         
   
   
@@ -1266,7 +1750,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tests/sheets_mgmt/" class="md-nav__link">
+      <a href="../sheets_mgmt/" class="md-nav__link">
         
   
   
@@ -1350,105 +1834,227 @@
   
 
 
-<h1 id="qa-run-drive-discovery-tools">QA Run — Drive Discovery Tools<a class="headerlink" href="#qa-run-drive-discovery-tools" title="Permanent link">&para;</a></h1>
-<p><strong>Date:</strong> 2026-06-21
-<strong>Branch:</strong> feat/drive-discovery
-<strong>Tools under test:</strong> <code>list_shared_with_me</code>, <code>list_recent_files</code>, <code>get_storage_quota</code>
-<strong>Auth:</strong> Service account</p>
+<h1 id="gmail-tools-qa-test-cases">Gmail Tools — QA Test Cases<a class="headerlink" href="#gmail-tools-qa-test-cases" title="Permanent link">&para;</a></h1>
+<p>Source: <code>src/mcp_gee_sweet/tools/gmail.py</code></p>
+<p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute <code>{MESSAGE_ID}</code>, <code>{THREAD_ID}</code>, and <code>{DRAFT_ID}</code> from live calls or <code>fixtures.local.md</code> when present.</p>
+<blockquote>
+<p><strong>Auth note:</strong> Gmail tools require OAuth (personal mailbox) today — service-account / domain-wide delegation is not wired yet. Prefer a dedicated QA inbox; treat <code>send_message</code> / <code>trash_message</code> as destructive.</p>
+</blockquote>
 <hr />
-<h2 id="results">Results<a class="headerlink" href="#results" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>TC</th>
-<th>Tool</th>
-<th>Description</th>
-<th>Result</th>
-<th>Notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>TC-D152</td>
-<td><code>list_shared_with_me</code></td>
-<td>List all files shared with me</td>
-<td>✅ pass</td>
-<td>OAuth: 50 files; SA: 5 files explicitly shared with SA</td>
-</tr>
-<tr>
-<td>TC-D153</td>
-<td><code>list_shared_with_me</code></td>
-<td>Filter by MIME type</td>
-<td>✅ pass</td>
-<td>OAuth: 8 spreadsheets, all correct MIME type</td>
-</tr>
-<tr>
-<td>TC-D154</td>
-<td><code>list_shared_with_me</code></td>
-<td>max_results=3</td>
-<td>✅ pass</td>
-<td>OAuth: exactly 3 items returned</td>
-</tr>
-<tr>
-<td>TC-D155</td>
-<td><code>list_shared_with_me</code></td>
-<td>Quote escaping in MIME type</td>
-<td>✅ pass</td>
-<td>Unit test</td>
-</tr>
-<tr>
-<td>TC-D156</td>
-<td><code>list_recent_files</code></td>
-<td>List recently modified files</td>
-<td>✅ pass</td>
-<td>10 files ordered by modifiedTime desc</td>
-</tr>
-<tr>
-<td>TC-D157</td>
-<td><code>list_recent_files</code></td>
-<td>Filter by days</td>
-<td>✅ pass</td>
-<td>All files within 7-day window</td>
-</tr>
-<tr>
-<td>TC-D158</td>
-<td><code>list_recent_files</code></td>
-<td>Filter by MIME type</td>
-<td>✅ pass</td>
-<td>14 spreadsheets, all within 14 days</td>
-</tr>
-<tr>
-<td>TC-D159</td>
-<td><code>list_recent_files</code></td>
-<td>max_results capped at 100</td>
-<td>✅ pass</td>
-<td>Unit test</td>
-</tr>
-<tr>
-<td>TC-D160</td>
-<td><code>get_storage_quota</code></td>
-<td>Get storage quota</td>
-<td>✅ pass</td>
-<td>OAuth: 15 GB limit, real usage. SA: limit_bytes=0 (API returns "0", not None — docstring corrected)</td>
-</tr>
-<tr>
-<td>TC-D161</td>
-<td><code>get_storage_quota</code></td>
-<td>Fields include storageQuota+user</td>
-<td>✅ pass</td>
-<td>Unit test</td>
-</tr>
-<tr>
-<td>TC-D162</td>
-<td><code>get_storage_quota</code></td>
-<td>Byte values are integers</td>
-<td>✅ pass</td>
-<td>Unit test</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Unit tests:</strong> 351 passed (24 drive, 327 other)</p>
-<p><strong>Live tests:</strong> 11/11 passed. One finding: SA <code>get_storage_quota</code> returns <code>limit_bytes=0</code> (not <code>None</code>) — Google API sends <code>"0"</code> for service accounts. Docstring and TC-D160 updated accordingly.</p>
+<h2 id="list_messages"><code>list_messages</code><a class="headerlink" href="#list_messages" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm01-list-recent-inbox-messages">TC-GM01: List recent inbox messages<a class="headerlink" href="#tc-gm01-list-recent-inbox-messages" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List my 5 most recent inbox messages"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>messages</code> as a list (may be empty)
+- Each item has <code>id</code> and <code>thread_id</code>
+- No top-level <code>error</code></p>
+<hr />
+<h3 id="tc-gm02-invalid-label-filter-returns-api-error">TC-GM02: Invalid label filter returns API error<a class="headerlink" href="#tc-gm02-invalid-label-filter-returns-api-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List messages with label_ids=['TOTALLY_INVALID_LABEL_XYZ']"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception
+- Error text comes from the Gmail API</p>
+<hr />
+<h2 id="get_message"><code>get_message</code><a class="headerlink" href="#get_message" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm03-fetch-a-known-message">TC-GM03: Fetch a known message<a class="headerlink" href="#tc-gm03-fetch-a-known-message" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> capture a <code>message_id</code> from TC-GM01 (or <code>{MESSAGE_ID}</code>)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get the full content of message {MESSAGE_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>id</code>, <code>thread_id</code>, <code>headers</code> (at least subject/from), <code>body_plain</code> and/or <code>body_html</code>, <code>attachments</code> (list, may be empty)
+- No <code>error</code> field</p>
+<hr />
+<h3 id="tc-gm04-non-existent-message-id">TC-GM04: Non-existent message ID<a class="headerlink" href="#tc-gm04-non-existent-message-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get message 'totally-invalid-message-id-xyz'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception</p>
+<hr />
+<h2 id="list_threads"><code>list_threads</code><a class="headerlink" href="#list_threads" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm05-list-threads-with-a-query">TC-GM05: List threads with a query<a class="headerlink" href="#tc-gm05-list-threads-with-a-query" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List threads matching query 'in:inbox' with max_results=5"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>threads</code> list; each item has <code>id</code>
+- Optional <code>next_page_token</code> only when more pages exist
+- No top-level <code>error</code></p>
+<hr />
+<h3 id="tc-gm06-invalid-label-filter-returns-api-error">TC-GM06: Invalid label filter returns API error<a class="headerlink" href="#tc-gm06-invalid-label-filter-returns-api-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List threads with label_ids=['TOTALLY_INVALID_LABEL_XYZ']"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception</p>
+<hr />
+<h2 id="get_thread"><code>get_thread</code><a class="headerlink" href="#get_thread" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm07-fetch-a-known-thread">TC-GM07: Fetch a known thread<a class="headerlink" href="#tc-gm07-fetch-a-known-thread" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> capture <code>thread_id</code> from TC-GM01 / TC-GM05</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get all messages in thread {THREAD_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>id</code> and <code>messages</code> (non-empty for a real thread)
+- Each message has <code>id</code> and headers/body fields shaped like <code>get_message</code>
+- No <code>error</code> field</p>
+<hr />
+<h3 id="tc-gm08-non-existent-thread-id">TC-GM08: Non-existent thread ID<a class="headerlink" href="#tc-gm08-non-existent-thread-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Get thread 'totally-invalid-thread-id-xyz'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception</p>
+<hr />
+<h2 id="list_labels"><code>list_labels</code><a class="headerlink" href="#list_labels" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm09-list-system-and-user-labels">TC-GM09: List system and user labels<a class="headerlink" href="#tc-gm09-list-system-and-user-labels" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List all Gmail labels"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns a list including system labels such as <code>INBOX</code> / <code>UNREAD</code> / <code>SENT</code>
+- Each item has <code>id</code>, <code>name</code>, <code>type</code>
+- No top-level <code>error</code></p>
+<hr />
+<h3 id="tc-gm10-auth-api-failure-surfaces-as-error">TC-GM10: Auth / API failure surfaces as error<a class="headerlink" href="#tc-gm10-auth-api-failure-surfaces-as-error" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> only runnable when credentials lack Gmail scope or mailbox access (otherwise note N/A)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"List all Gmail labels"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- If the call fails, result is <code>{"error": "..."}</code> — not a crash
+- 🔍 <strong>Hard to force with valid OAuth</strong> — note if observed</p>
+<hr />
+<h2 id="send_message"><code>send_message</code><a class="headerlink" href="#send_message" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm11-send-a-qa-message-destructive">TC-GM11: Send a QA message ⚠️ destructive<a class="headerlink" href="#tc-gm11-send-a-qa-message-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Send an email to myself with subject 'mcp-gee-sweet-qa-send' and body 'QA send_message test'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>id</code>, <code>thread_id</code>, <code>label_ids</code> (includes <code>SENT</code> or similar)
+- Message appears via follow-up <code>list_messages(query='subject:mcp-gee-sweet-qa-send')</code>
+- No <code>error</code> field</p>
+<hr />
+<h3 id="tc-gm12-send-with-invalid-recipient-returns-error">TC-GM12: Send with invalid recipient returns error<a class="headerlink" href="#tc-gm12-send-with-invalid-recipient-returns-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Send an email to 'not-an-email' with subject 'qa' and body 'x'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception</p>
+<hr />
+<h2 id="create_draft"><code>create_draft</code><a class="headerlink" href="#create_draft" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm13-create-a-draft-destructive">TC-GM13: Create a draft ⚠️ destructive<a class="headerlink" href="#tc-gm13-create-a-draft-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a draft to myself with subject 'mcp-gee-sweet-qa-draft' and body 'QA draft'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns draft <code>id</code> and nested <code>message.id</code>
+- Draft visible in Gmail drafts (or via API follow-up)
+- No <code>error</code> field</p>
+<hr />
+<h3 id="tc-gm14-create-draft-with-invalid-attachment-shape">TC-GM14: Create draft with invalid attachment shape<a class="headerlink" href="#tc-gm14-create-draft-with-invalid-attachment-shape" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Create a draft to myself with subject 'qa' body 'x' and attachments=[{}]"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> mentioning <code>local_path</code> / <code>content_base64</code> (or API error) — not a crash</p>
+<hr />
+<h2 id="send_draft"><code>send_draft</code><a class="headerlink" href="#send_draft" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm15-send-an-existing-draft-destructive">TC-GM15: Send an existing draft ⚠️ destructive<a class="headerlink" href="#tc-gm15-send-an-existing-draft-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> draft from TC-GM13 (<code>{DRAFT_ID}</code>)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Send draft {DRAFT_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns sent message <code>id</code> and <code>thread_id</code>
+- Draft is no longer in drafts
+- No <code>error</code> field</p>
+<hr />
+<h3 id="tc-gm16-send-non-existent-draft">TC-GM16: Send non-existent draft<a class="headerlink" href="#tc-gm16-send-non-existent-draft" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Send draft 'totally-invalid-draft-id-xyz'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception</p>
+<hr />
+<h2 id="reply_to_message"><code>reply_to_message</code><a class="headerlink" href="#reply_to_message" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm17-reply-in-thread-destructive">TC-GM17: Reply in-thread ⚠️ destructive<a class="headerlink" href="#tc-gm17-reply-in-thread-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>{MESSAGE_ID}</code> from TC-GM11 or inbox</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Reply to message {MESSAGE_ID} with body 'mcp-gee-sweet-qa-reply'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>id</code> and same <code>thread_id</code> as the original
+- Follow-up <code>get_thread</code> shows the reply
+- No <code>error</code> field</p>
+<hr />
+<h3 id="tc-gm18-reply-to-non-existent-message">TC-GM18: Reply to non-existent message<a class="headerlink" href="#tc-gm18-reply-to-non-existent-message" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Reply to message 'totally-invalid-message-id-xyz' with body 'hi'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception</p>
+<hr />
+<h2 id="modify_labels"><code>modify_labels</code><a class="headerlink" href="#modify_labels" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm19-mark-a-message-unread-then-read-destructive">TC-GM19: Mark a message unread then read ⚠️ destructive<a class="headerlink" href="#tc-gm19-mark-a-message-unread-then-read-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>{MESSAGE_ID}</code> from an inbox message you may mutate</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Add UNREAD to message {MESSAGE_ID}, then remove UNREAD from it"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Both calls return <code>id</code> / <code>label_ids</code> without <code>error</code>
+- After remove, <code>UNREAD</code> is absent from <code>label_ids</code> (or confirmed via <code>get_message</code>)</p>
+<hr />
+<h3 id="tc-gm20-missing-target-returns-validation-error">TC-GM20: Missing target returns validation error<a class="headerlink" href="#tc-gm20-missing-target-returns-validation-error" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Modify labels: add STARRED but do not pass message_id or thread_id"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> mentioning exactly one of <code>message_id</code> or <code>thread_id</code></p>
+<hr />
+<h2 id="trash_message"><code>trash_message</code><a class="headerlink" href="#trash_message" title="Permanent link">&para;</a></h2>
+<h3 id="tc-gm21-trash-a-disposable-message-destructive">TC-GM21: Trash a disposable message ⚠️ destructive<a class="headerlink" href="#tc-gm21-trash-a-disposable-message-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> send or use a disposable <code>{MESSAGE_ID}</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Trash message {MESSAGE_ID}"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>action: 'trashed'</code> and <code>label_ids</code> including <code>TRASH</code> (or equivalent)
+- No <code>error</code> field</p>
+<hr />
+<h3 id="tc-gm22-trash-non-existent-message">TC-GM22: Trash non-existent message<a class="headerlink" href="#tc-gm22-trash-non-existent-message" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Trash message 'totally-invalid-message-id-xyz'"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>{"error": "..."}</code> — not a top-level exception</p>
 
 
 

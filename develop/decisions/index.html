@@ -1142,6 +1142,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../qa/tests/gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../qa/tests/infra/" class="md-nav__link">
         
   
@@ -1481,6 +1509,12 @@
 <td>2026-09-22</td>
 <td>decided</td>
 <td>AST-based pre-commit check (<code>scripts/check_supports_all_drives.py</code>) over a runtime service wrapper for the recurring <code>supportsAllDrives=True</code> omission foot-gun (#696/#687); method set confirmed live against the Drive v3 discovery doc, not assumed</td>
+</tr>
+<tr>
+<td><a href="decision-gmail-domain/">Gmail Domain</a></td>
+<td>2026-09-21</td>
+<td>decided</td>
+<td>First Gmail domain ship (#785): 11 primitives (read / send-draft / organize) on <code>gmail_service</code> + three Gmail scopes; OAuth-only for now; Calendar wiring as template; composites (find-unanswered, send-reminders) and permanent delete explicitly out of scope</td>
 </tr>
 </tbody>
 </table>
