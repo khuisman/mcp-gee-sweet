@@ -6,8 +6,10 @@ import json
 import os
 from unittest.mock import MagicMock, patch
 
+import pytest
 from googleapiclient.errors import HttpError
 from PIL import Image as PILImage
+from PIL import ImageFile as PILImageFile
 
 from mcp_gee_sweet.tools import docs as docs_module
 from mcp_gee_sweet.tools.docs import images
@@ -134,38 +136,69 @@ class TestTooLargeBytesMessage:
         assert images._DOCS_IMAGE_LIMITS_URL in msg
 
 
-class TestCheckImageBytes:
-    def test_oversized_png_returns_error(self):
-        result = images.check_image_bytes(_png_bytes(6000, 6000))
+class TestCheckImageFile:
+    def test_oversized_png_returns_error(self, tmp_path):
+        path = tmp_path / "big.png"
+        path.write_bytes(_png_bytes(6000, 6000))
+        result = images.check_image_file(path)
         assert result is not None
         assert "36.0 megapixels" in result["error"]
 
-    def test_undersized_png_returns_none(self):
-        assert images.check_image_bytes(_png_bytes(100, 100)) is None
+    def test_undersized_png_returns_none(self, tmp_path):
+        path = tmp_path / "small.png"
+        path.write_bytes(_png_bytes(100, 100))
+        assert images.check_image_file(path) is None
 
-    def test_undecodable_bytes_returns_none(self):
+    def test_undecodable_file_returns_none(self, tmp_path):
         # Validation is additive, not a gate — an unreadable file still gets its
         # real answer straight from the Docs API, same as before #400.
-        assert images.check_image_bytes(b"not an image") is None
+        path = tmp_path / "junk.png"
+        path.write_bytes(b"not an image")
+        assert images.check_image_file(path) is None
 
-    def test_over_byte_limit_but_under_megapixel_limit_returns_byte_error(self, monkeypatch):
+    def test_over_byte_limit_but_under_megapixel_limit_returns_byte_error(
+        self, tmp_path, monkeypatch
+    ):
         # #562's motivating case: a low-compressibility image that's well under the
         # megapixel limit but still oversized in raw bytes — the byte-size check must
         # catch it even though check_dimensions alone would pass it. A tiny threshold
         # stands in for Google's real 50MB ceiling so the test doesn't need to
         # generate an actual multi-megabyte image.
         monkeypatch.setattr(images, "MAX_INLINE_IMAGE_BYTES", 10)
-        result = images.check_image_bytes(_png_bytes(100, 100))
+        path = tmp_path / "small.png"
+        path.write_bytes(_png_bytes(100, 100))
+        result = images.check_image_file(path)
         assert result is not None
         assert "MB" in result["error"]
         assert "megapixels" not in result["error"]  # the byte check fired, not the pixel one
 
-    def test_over_byte_limit_takes_precedence_over_undecodable(self, monkeypatch):
-        # The byte-size check applies to any oversized data, decodable or not —
-        # unlike the megapixel check, which is a no-op for undecodable bytes.
+    def test_over_byte_limit_takes_precedence_over_undecodable(self, tmp_path, monkeypatch):
+        # The byte-size check applies to any oversized file, decodable or not —
+        # unlike the megapixel check, which is a no-op for undecodable content.
         monkeypatch.setattr(images, "MAX_INLINE_IMAGE_BYTES", 5)
-        result = images.check_image_bytes(b"not an image but over the tiny limit")
+        path = tmp_path / "junk.png"
+        path.write_bytes(b"not an image but over the tiny limit")
+        assert images.check_image_file(path) is not None
+
+    def test_reads_header_only_never_whole_file_or_pixels(self, tmp_path, monkeypatch):
+        # #560: validating an image must not pull the whole file into memory or
+        # decode its pixel data — only stat() and the header are needed.
+        path = tmp_path / "big.png"
+        path.write_bytes(_png_bytes(6000, 6000))
+
+        def _boom(*_a, **_k):
+            raise AssertionError("full read/decode during validation")
+
+        monkeypatch.setattr(images.Path, "read_bytes", _boom)
+        monkeypatch.setattr(PILImage.Image, "load", _boom)
+        monkeypatch.setattr(PILImageFile.ImageFile, "load", _boom)
+        result = images.check_image_file(path)
         assert result is not None
+        assert "36.0 megapixels" in result["error"]
+
+    def test_missing_file_raises(self, tmp_path):
+        with pytest.raises(OSError):
+            images.check_image_file(tmp_path / "nope.png")
 
 
 class TestDownscaleImageBytes:
@@ -501,6 +534,101 @@ class TestDownscaleDriveFile:
 
         assert "error" in result
         drive_svc.files.return_value.create.assert_not_called()
+
+
+class TestDownscaleOversizedDriveImage:
+    """#560: the parent-folder fallback shared by insert_inline_image and
+    content.py's _resolve_image_source."""
+
+    async def test_resized_copy_goes_to_originals_first_parent(self):
+        with patch.object(images, "downscale_drive_file", return_value={"uri": "u"}) as m:
+            result = await images.downscale_oversized_drive_image(
+                "svc", "orig1", {"name": "logo.png", "parents": ["p1", "p2"]}, "fallback"
+            )
+        assert result == {"uri": "u"}
+        m.assert_awaited_once_with("svc", "orig1", name="logo.png", parent_folder_id="p1")
+
+    async def test_no_parents_falls_back_to_given_folder(self):
+        with patch.object(images, "downscale_drive_file", return_value={"uri": "u"}) as m:
+            await images.downscale_oversized_drive_image("svc", "orig1", {}, "fallback")
+        # No name either — the file ID stands in for it.
+        m.assert_awaited_once_with("svc", "orig1", name="orig1", parent_folder_id="fallback")
+
+
+class TestPrepareLocalImage:
+    """#560: the local-path read/check/downscale/upload sequence shared by
+    insert_local_images and content.py's _resolve_image_source."""
+
+    async def test_within_limits_returns_none_without_reading_or_uploading(
+        self, tmp_path, monkeypatch
+    ):
+        path = tmp_path / "small.png"
+        path.write_bytes(_png_bytes(100, 100))
+
+        def _boom(*_a, **_k):
+            raise AssertionError("whole file read during validation")
+
+        monkeypatch.setattr(images.Path, "read_bytes", _boom)
+        with patch.object(images, "upload_and_share_image") as upload:
+            result = await images.prepare_local_image(
+                MagicMock(), str(path), "folder1", auto_downscale=True
+            )
+        assert result is None
+        upload.assert_not_called()
+
+    async def test_oversized_without_auto_downscale_returns_size_error(self, tmp_path):
+        path = tmp_path / "big.png"
+        path.write_bytes(_png_bytes(6000, 6000))
+        with patch.object(images, "upload_and_share_image") as upload:
+            result = await images.prepare_local_image(
+                MagicMock(), str(path), "folder1", auto_downscale=False
+            )
+        assert "36.0 megapixels" in result["error"]
+        upload.assert_not_called()
+
+    async def test_oversized_with_auto_downscale_uploads_resized_bytes(self, tmp_path):
+        path = tmp_path / "big.png"
+        path.write_bytes(_png_bytes(6000, 6000))
+        upload_result = {"uri": "u", "file_id": "f1", "permission_id": "p1"}
+        with patch.object(images, "upload_and_share_image", return_value=upload_result) as upload:
+            result = await images.prepare_local_image(
+                "svc", str(path), "folder1", auto_downscale=True
+            )
+        assert result == upload_result
+        args = upload.await_args.args
+        assert args[0] == "svc"
+        assert args[2:] == ("image/png", "big.png", "folder1")
+        with PILImage.open(io.BytesIO(args[1])) as resized:
+            assert resized.size[0] * resized.size[1] <= images.MAX_INLINE_IMAGE_PIXELS
+
+    async def test_upload_orphan_result_passes_through_unchanged(self, tmp_path):
+        # The caller relies on upload_and_share_image's {"error", "file_id"} orphan
+        # shape (#649) reaching it intact.
+        path = tmp_path / "big.png"
+        path.write_bytes(_png_bytes(6000, 6000))
+        orphan = {"error": "share failed", "file_id": "f1"}
+        with patch.object(images, "upload_and_share_image", return_value=orphan):
+            result = await images.prepare_local_image(
+                MagicMock(), str(path), "folder1", auto_downscale=True
+            )
+        assert result == orphan
+
+    async def test_oversized_but_not_downscalable_is_error(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(images, "MAX_INLINE_IMAGE_BYTES", 5)
+        path = tmp_path / "junk.png"
+        path.write_bytes(b"not an image but over the tiny limit")
+        with patch.object(images, "upload_and_share_image") as upload:
+            result = await images.prepare_local_image(
+                MagicMock(), str(path), "folder1", auto_downscale=True
+            )
+        assert "Could not auto-downscale it" in result["error"]
+        upload.assert_not_called()
+
+    async def test_unstatable_file_is_read_error(self, tmp_path):
+        result = await images.prepare_local_image(
+            MagicMock(), str(tmp_path / "gone.png"), "folder1", auto_downscale=False
+        )
+        assert result["error"].startswith("failed to read local file:")
 
 
 # ---------------------------------------------------------------------------

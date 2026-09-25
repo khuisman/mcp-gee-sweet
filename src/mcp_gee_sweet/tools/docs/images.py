@@ -68,13 +68,27 @@ _FORMAT_MIME = {"PNG": "image/png", "JPEG": "image/jpeg", "GIF": "image/gif"}
 
 
 def _decode(data: bytes) -> Image.Image | None:
-    """Best-effort decode — returns None (not an exception) for anything Pillow can't
-    read, since validation here is an additive convenience, not a gate: an undecodable
-    file still gets its real answer straight from the Docs API, same as before #400."""
+    """Best-effort full decode, pixel data included — returns None (not an exception)
+    for anything Pillow can't read, since validation here is an additive convenience,
+    not a gate: an undecodable file still gets its real answer straight from the Docs
+    API, same as before #400. Only downscale_image_bytes needs the pixels; a size check
+    uses _read_dimensions instead."""
     try:
         img = Image.open(io.BytesIO(data))
         img.load()
         return img
+    except Exception:
+        return None
+
+
+def _read_dimensions(path: str | Path) -> tuple[int, int] | None:
+    """Best-effort (width, height) from the image header alone — Image.open is lazy
+    and exposes .size for PNG/JPEG/GIF without decoding any pixel data, unlike
+    _decode's load() (#560). None for anything Pillow can't identify, same as
+    _decode."""
+    try:
+        with Image.open(path) as img:
+            return img.size
     except Exception:
         return None
 
@@ -121,18 +135,23 @@ def check_file_size(size_bytes: int) -> dict[str, Any] | None:
     return None
 
 
-def check_image_bytes(data: bytes) -> dict[str, Any] | None:
-    """Checks `data` against both the file-size limit (always, regardless of whether
-    it decodes as an image) and, if it decodes, the megapixel limit. Returns None (no
-    error, not a skip signal the caller needs to distinguish) when the bytes can't be
-    decoded and are within the size limit."""
-    size_error = check_file_size(len(data))
+def check_image_file(path: str | Path) -> dict[str, Any] | None:
+    """Checks a local image file against both the file-size limit (always, regardless
+    of whether it decodes as an image) and, if Pillow can identify it, the megapixel
+    limit. Returns None (no error, not a skip signal the caller needs to distinguish)
+    when the file isn't a recognizable image and is within the size limit.
+
+    Reads only stat() and the image header, never the whole file (#560): an
+    under-limit image — the common case — is then read from disk exactly once, by the
+    upload itself. Blocking I/O, so call it via asyncio.to_thread. Raises OSError if
+    the file can't be stat'd."""
+    size_error = check_file_size(Path(path).stat().st_size)
     if size_error is not None:
         return size_error
-    img = _decode(data)
-    if img is None:
+    dimensions = _read_dimensions(path)
+    if dimensions is None:
         return None
-    return check_dimensions(*img.size)
+    return check_dimensions(*dimensions)
 
 
 def downscale_image_bytes(data: bytes) -> tuple[bytes, str] | None:
@@ -194,7 +213,7 @@ def downscale_image_bytes(data: bytes) -> tuple[bytes, str] | None:
 def check_drive_image_metadata(metadata: dict[str, Any]) -> dict[str, Any] | None:
     """Checks a Drive file's own reported imageMediaMetadata dimensions and `size`
     field against the inline-image limits, without downloading the file — the
-    metadata-only counterpart to check_image_bytes, shared by every call site that
+    metadata-only counterpart to check_image_file, shared by every call site that
     validates a drive_file_id/"drive:" source before deciding whether to embed it
     directly or downscale it first (issue #562's own consolidation of a pattern that
     used to be duplicated between insert_inline_image here and content.py's
@@ -340,6 +359,64 @@ async def downscale_drive_file(
     )
 
 
+async def downscale_oversized_drive_image(
+    drive_service, file_id: str, metadata: dict[str, Any], fallback_folder_id: str | None
+) -> dict[str, Any]:
+    """downscale_drive_file for a drive_file_id/"drive:" source whose `metadata`
+    (fetched with at least name,parents) already failed check_drive_image_metadata.
+    The resized copy lands next to the original (its first parent), or in
+    fallback_folder_id when Drive reports no parents. Shared by insert_inline_image
+    and content.py's _resolve_image_source so that fallback lives in one place (#560).
+    """
+    parents = metadata.get("parents") or []
+    return await downscale_drive_file(
+        drive_service,
+        file_id,
+        name=metadata.get("name", file_id),
+        parent_folder_id=parents[0] if parents else fallback_folder_id,
+    )
+
+
+async def prepare_local_image(
+    drive_service, path: str, folder_id: str | None, *, auto_downscale: bool
+) -> dict[str, Any] | None:
+    """Size-gates a local image file before it's uploaded for embedding. Returns:
+
+      - None: within both limits (or not an image Pillow recognizes) — the caller
+        uploads the original file through its normal path, the only full read of it.
+      - {"error": ...}: the file couldn't be read, or it's oversized and either
+        auto_downscale=False or it can't be downscaled (unreadable format, animated).
+      - otherwise, upload_and_share_image's own result for the resized bytes:
+        {"uri", "file_id", "permission_id"} on success, or {"error", "file_id"?} on
+        failure — a file_id there is a created-but-unshared orphan (#649).
+
+    Shared by insert_local_images and content.py's _resolve_image_source (#560); each
+    records the outcome in its own shape."""
+    try:
+        size_error = await asyncio.to_thread(check_image_file, path)
+    except Exception as e:
+        return {"error": f"failed to read local file: {e}"}
+    if size_error is None:
+        return None
+    if not auto_downscale:
+        return size_error
+
+    try:
+        data = await asyncio.to_thread(Path(path).read_bytes)
+    except Exception as e:
+        return {"error": f"failed to read local file: {e}"}
+    downscaled = downscale_image_bytes(data)
+    if downscaled is None:
+        return {
+            "error": f"{size_error['error']} Could not auto-downscale it "
+            "(unreadable format, or animated)."
+        }
+    resized_bytes, mime_type = downscaled
+    return await upload_and_share_image(
+        drive_service, resized_bytes, mime_type, Path(path).name, folder_id
+    )
+
+
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Insert Inline Image", destructiveHint=True))
     async def insert_inline_image(
@@ -423,12 +500,8 @@ def register(tool):
             if size_error is not None:
                 if not auto_downscale:
                     return size_error
-                original_parents = metadata.get("parents") or []
-                resized = await downscale_drive_file(
-                    lc.drive_service,
-                    drive_file_id,
-                    name=metadata.get("name", drive_file_id),
-                    parent_folder_id=original_parents[0] if original_parents else lc.folder_id,
+                resized = await downscale_oversized_drive_image(
+                    lc.drive_service, drive_file_id, metadata, lc.folder_id
                 )
                 if "error" in resized:
                     return resized
@@ -635,31 +708,10 @@ def register(tool):
             entry = placement["entry"]
             local_path = placement["local_path"]
 
-            try:
-                data = await asyncio.to_thread(Path(local_path).read_bytes)
-            except Exception as e:
-                entry["error"] = f"failed to read local file: {e}"
-                placement["failed"] = True
-                return
-
-            size_error = check_image_bytes(data)
-            if size_error is not None:
-                if not auto_downscale:
-                    entry["error"] = size_error["error"]
-                    placement["failed"] = True
-                    return
-                downscaled = downscale_image_bytes(data)
-                if downscaled is None:
-                    entry["error"] = (
-                        f"{size_error['error']} Could not auto-downscale it "
-                        "(unreadable format, or animated)."
-                    )
-                    placement["failed"] = True
-                    return
-                resized_bytes, mime_type = downscaled
-                result = await upload_and_share_image(
-                    drive_service, resized_bytes, mime_type, Path(local_path).name, target_folder_id
-                )
+            result = await prepare_local_image(
+                drive_service, local_path, target_folder_id, auto_downscale=auto_downscale
+            )
+            if result is not None:
                 if "error" in result:
                     entry["error"] = result["error"]
                     placement["failed"] = True
