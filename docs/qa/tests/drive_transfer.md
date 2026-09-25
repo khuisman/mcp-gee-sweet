@@ -1771,4 +1771,10 @@ Create a scratch Drive folder `{FOLDER_ID}` containing a Google Sheet named exac
 **Teardown**
 Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-265/`.
 
+**Result (2026-09-24, PR #800 round 2, `5ada0cf`) ✅ PASS** — Ran via `mcp-gee-sweet-sky` against a fresh isolated child folder, after `/mcp reconnect`. The long names differed slightly from the spec but both exceeded the cap: a 108-byte ASCII name (129 bytes with the key) and a 42-character CJK name (130 bytes, 151 with the key). Calls 1–2 returned no `error` and `skipped: false`. A scratch-script `files().get(fields="properties")` showed both carrying `geeSweetConvertSource: "sha256:<64 hex>"`, and `fresh` carrying the raw `"fresh.csv"`. Call 3: the first call uploaded and the second returned `skipped: true` with the same `fileId` and no `skipped_unverified` key. Call 4 returned `skipped: true`, `skipped_unverified: true`, the "unverified" `reason`, and the hand-made `report`'s `fileId`. Call 5 returned `uploaded: []`, `skipped` = the ASCII long name plus `fresh.csv` plus the CJK name, and `skipped_unverified` = `report.csv` only. `list_files` showed exactly 4 files with no orphans. This also re-confirms both TC-D264 round-1 findings are fixed. Unit tests: full suite 1627 passed, 3 skipped.
+
+Side probe (pre-existing, outside this PR's diff): `sync_folder(direction="upload", convert_markdown=True)` on a 97-byte `.md` name (126 bytes with the 29-byte `geeSweetConvertMarkdownSource` key) still fails with `403 propertyLengthLimitExceeded` and still leaves an unmarked orphan Doc. That create site (`transfer.py` `_sync_level`, `body["properties"] = {_CONVERT_MARKDOWN_SOURCE_PROP: name}`) predates #769 and isn't touched by this PR. Filed as #806.
+
+Fixture folder trashed and local dirs removed as teardown.
+
 ---
