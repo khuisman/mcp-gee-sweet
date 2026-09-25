@@ -226,7 +226,7 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 - [x] `insert_local_images`/`create_doc`: image alt text is parsed but never used. Closed as infeasible — no Docs API request can write `EmbeddedObject.title`/`description`, confirmed via live discovery-schema check ([#508](https://github.com/khuisman/mcp-gee-sweet/issues/508))
 - [x] `content.py`: image-fetch-failure retry mechanism is fragile, resends the whole document per bad image ([#510](https://github.com/khuisman/mcp-gee-sweet/issues/510)) (PR #787)
 - [ ] `content.py`: duplicated image upload/share/revoke logic across `create_doc` and `insert_local_images`, plus an avoidable extra Drive round trip ([#511](https://github.com/khuisman/mcp-gee-sweet/issues/511))
-- [ ] `docs/images.py` oversized-image handling: duplicated logic + unneeded full pixel decode (#400 follow-up) ([#560](https://github.com/khuisman/mcp-gee-sweet/issues/560))
+- [x] `docs/images.py` oversized-image handling: duplicated logic + unneeded full pixel decode (#400 follow-up) ([#560](https://github.com/khuisman/mcp-gee-sweet/issues/560)) (PR #801)
 - [ ] `content.py`: `update_doc_from_file` duplicates `create_doc_from_file`'s file-reading logic; `_replace_doc_content` has a wide positional-bool signature ([#567](https://github.com/khuisman/mcp-gee-sweet/issues/567))
 - [ ] Inline-image size validation: shrink-loop postcondition, check-order inconsistency, unguarded size parsing (#562 follow-up) ([#581](https://github.com/khuisman/mcp-gee-sweet/issues/581))
 - [ ] `doc_to_ast.py` duplicates `style.py`'s glyph-inference and color-extraction logic ([#596](https://github.com/khuisman/mcp-gee-sweet/issues/596))
