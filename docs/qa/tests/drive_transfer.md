@@ -1746,3 +1746,29 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-folder-264/`.
 Fixture folder trashed and local dirs removed as teardown.
 
 ---
+
+### TC-D265: `convert=True` — a long or multibyte filename's marker stays within Drive's 124-byte property cap, and `upload_local_file` shares `upload_local_folder`'s stem/marker skip check (PR #800 QA round 1) ⚠️ local-filesystem
+
+**Background:** TC-D264's round-1 QA found two gaps in #769's first version. (1) Drive caps a custom property's key + value at 124 UTF-8 bytes. Stamping the raw filename made any conversion with a name over ~103 bytes fail with `403 propertyLengthLimitExceeded`, and Drive still created the file (an orphan). The generic `geeSweetConvertSource` marker now falls back to a fixed-length `sha256:<hex>` digest of the name when the raw name wouldn't fit, and the markdown key is omitted rather than overflowing. (2) `_upload_local_file`'s own `skip_if_exists` check queried only the full name, so `upload_local_file(convert=True)` re-converted a duplicate of an extension-stripped copy even when the copy carried the marker. Both paths now share `_find_existing_upload`, and the single-file path reports an unmarked stem match with `skipped_unverified: true` plus a `reason`. Unit-tested in `tests/drive/test_transfer.py::TestConvertSourceMarker` / `TestUploadLocalFileStemMatch`. This live check confirms the real Drive API accepts the digested marker and round-trips it.
+
+**Setup**
+Create a scratch Drive folder `{FOLDER_ID}` containing a Google Sheet named exactly `report`, created directly rather than via an upload tool. Locally, create `/tmp/qa-265/fresh.csv`, `/tmp/qa-265/report.csv`, and `/tmp/qa-265/<LONG>.csv`, where `<LONG>` is a 114-character ASCII stem (a 118-byte filename). Also create `/tmp/qa-265/<CJK>.csv`, where `<CJK>` is 40 CJK characters (120 bytes).
+
+**Tool calls**
+1. `upload_local_file(local_path="/tmp/qa-265/<LONG>.csv", parent_folder_id={FOLDER_ID}, convert=True)`
+2. `upload_local_file(local_path="/tmp/qa-265/<CJK>.csv", parent_folder_id={FOLDER_ID}, convert=True)`
+3. `upload_local_file(local_path="/tmp/qa-265/fresh.csv", parent_folder_id={FOLDER_ID}, convert=True)`, then the identical call again
+4. `upload_local_file(local_path="/tmp/qa-265/report.csv", parent_folder_id={FOLDER_ID}, convert=True)`
+5. `upload_local_folder(local_path="/tmp/qa-265/", parent_folder_id={FOLDER_ID}, convert=True)`
+
+**Checks**
+- Calls 1–2: no `error`, `skipped: false`. Each Sheet's `properties.geeSweetConvertSource` (via a scratch-script `files().get(fields="properties")`) starts with `sha256:`.
+- Call 3: the first call uploads (`skipped: false`). The second returns `skipped: true` with the first call's `fileId` and no `skipped_unverified` key. Exactly one `fresh` Sheet exists.
+- Call 4: `skipped: true`, `skipped_unverified: true`, a `reason` containing "unverified", and `fileId` equal to the hand-made `report` Sheet's ID. Nothing is created.
+- Call 5: `uploaded == []`. `skipped` contains `fresh.csv`, `<LONG>.csv`, and `<CJK>.csv` (the digested markers verify on read-back). `skipped_unverified` holds only `report.csv`.
+- `list_files` on `{FOLDER_ID}` shows exactly 4 files: `report`, `fresh`, and the two long-named Sheets. No duplicates, and no orphans left over from a failed create.
+
+**Teardown**
+Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-265/`.
+
+---

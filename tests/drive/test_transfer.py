@@ -688,6 +688,227 @@ class TestUploadLocalFileConvert:
         assert "pageSize" not in list_kwargs
 
 
+class TestConvertSourceMarker:
+    """#769 marker encoding + PR #800 QA round 1: Drive caps a custom
+    property's key + value at 124 UTF-8 bytes, and a create() over the cap
+    fails with 403 propertyLengthLimitExceeded while still creating the file
+    (an orphan). Every stamped property must stay within the cap."""
+
+    def test_property_fits_at_exact_byte_boundary(self):
+        key = "k" * 24
+        assert transfer_module._property_fits(key, "v" * 100)  # 124 bytes
+        assert not transfer_module._property_fits(key, "v" * 101)  # 125 bytes
+
+    def test_property_fits_counts_utf8_bytes_not_characters(self):
+        key = "k" * 4
+        # 40 CJK characters = 120 UTF-8 bytes; + 4-byte key = 124 fits, one more doesn't.
+        assert transfer_module._property_fits(key, "報" * 40)
+        assert not transfer_module._property_fits(key, "報" * 41)
+
+    def test_short_name_marker_is_the_raw_name(self):
+        assert transfer_module._convert_source_marker("report.csv") == "report.csv"
+
+    def test_marker_at_cap_stays_raw_one_byte_over_is_digested(self):
+        key_len = len(transfer_module._CONVERT_SOURCE_PROP.encode("utf-8"))
+        room = transfer_module._DRIVE_PROPERTY_MAX_BYTES - key_len
+        at_cap = "a" * (room - 4) + ".csv"
+        over = "a" * (room - 3) + ".csv"
+        assert transfer_module._convert_source_marker(at_cap) == at_cap
+        assert transfer_module._convert_source_marker(over).startswith("sha256:")
+
+    @pytest.mark.parametrize(
+        "file_name",
+        ["q" * 114 + ".csv", "四半期売上レポート" * 5 + ".csv", "長い" * 30 + ".md"],
+    )
+    def test_every_stamped_property_fits_the_cap(self, file_name):
+        props = transfer_module._convert_properties(file_name)
+        assert transfer_module._CONVERT_SOURCE_PROP in props
+        for key, value in props.items():
+            assert transfer_module._property_fits(key, value), (key, value)
+
+    def test_long_md_name_omits_markdown_key_rather_than_digesting_it(self):
+        """sync_folder reads _CONVERT_MARKDOWN_SOURCE_PROP back verbatim as the
+        local filename, so a digest there would match nothing; the key is
+        dropped instead, and the generic marker (digested) still verifies."""
+        name = "n" * 120 + ".md"
+        props = transfer_module._convert_properties(name)
+        assert transfer_module._CONVERT_MARKDOWN_SOURCE_PROP not in props
+        assert transfer_module._marker_names_source({"properties": props}, name)
+
+    def test_short_md_name_gets_both_keys(self):
+        props = transfer_module._convert_properties("notes.md")
+        assert props == {
+            transfer_module._CONVERT_SOURCE_PROP: "notes.md",
+            transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md",
+        }
+
+    def test_digested_marker_verifies_only_its_own_source(self):
+        name = "x" * 120 + ".csv"
+        f = {"properties": transfer_module._convert_properties(name)}
+        assert transfer_module._marker_names_source(f, name)
+        assert not transfer_module._marker_names_source(f, "y" * 120 + ".csv")
+
+    def test_empty_string_marker_does_not_fall_through_to_the_other_key(self):
+        """An empty generic marker is still a marker (so not "unmarked"), and
+        must not be skipped over in favor of the markdown key — each key is
+        checked explicitly with `is not None` (PR #800 QA round 1, item 5)."""
+        f = {
+            "properties": {
+                transfer_module._CONVERT_SOURCE_PROP: "",
+                transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "",
+            }
+        }
+        assert transfer_module._has_convert_marker(f)
+        assert not transfer_module._marker_names_source(f, "notes.md")
+
+    async def test_long_name_upload_stamps_within_cap(self, tmp_path):
+        """The live repro: a 118-byte .csv name used to send a 139-byte
+        property and fail with 403 after Drive had already created the Sheet."""
+        name = "r" * 114 + ".csv"
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": name[:-4],
+            "webViewLink": "https://example.com",
+        }
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", name=name, skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        props = drive_svc.files.return_value.create.call_args.kwargs["body"]["properties"]
+        for key, value in props.items():
+            assert transfer_module._property_fits(key, value)
+
+
+class TestUploadLocalFileStemMatch:
+    """PR #800 QA round 1, item 2: _upload_local_file's own skip_if_exists
+    check only queried the full name, so upload_local_file(convert=True)
+    re-converted a duplicate of a file whose converted copy Drive had
+    extension-stripped — even when that copy carried the marker naming it.
+    It now shares _find_existing_upload with upload_local_folder."""
+
+    SHEET = "application/vnd.google-apps.spreadsheet"
+
+    def _svc(self, files):
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": files}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid-new",
+            "name": "fresh",
+            "webViewLink": "https://example.com/new",
+        }
+        return drive_svc
+
+    async def test_marked_stem_match_is_a_verified_skip(self, tmp_path):
+        local_file = tmp_path / "fresh.csv"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = self._svc(
+            [
+                {
+                    "id": "existing",
+                    "name": "fresh",
+                    "webViewLink": "https://x/existing",
+                    "mimeType": self.SHEET,
+                    "properties": {transfer_module._CONVERT_SOURCE_PROP: "fresh.csv"},
+                }
+            ]
+        )
+
+        result = await _upload_local_file(drive_svc, str(local_file), "folder1", convert=True)
+
+        assert result == {
+            "fileId": "existing",
+            "name": "fresh",
+            "web_link": "https://x/existing",
+            "skipped": True,
+        }
+        drive_svc.files.return_value.create.assert_not_called()
+        list_kwargs = drive_svc.files.return_value.list.call_args.kwargs
+        assert "name='fresh.csv' or name='fresh'" in list_kwargs["q"]
+        assert "properties" in list_kwargs["fields"]
+
+    async def test_unmarked_stem_match_is_an_unverified_skip(self, tmp_path):
+        local_file = tmp_path / "report.csv"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = self._svc(
+            [
+                {
+                    "id": "unrelated",
+                    "name": "report",
+                    "webViewLink": "https://x/unrelated",
+                    "mimeType": self.SHEET,
+                }
+            ]
+        )
+
+        result = await _upload_local_file(drive_svc, str(local_file), "folder1", convert=True)
+
+        assert result["skipped"] is True
+        assert result["skipped_unverified"] is True
+        assert result["fileId"] == "unrelated"
+        assert "unverified" in result["reason"]
+        drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_stem_match_marked_with_other_source_uploads(self, tmp_path):
+        local_file = tmp_path / "report.csv"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = self._svc(
+            [
+                {
+                    "id": "other",
+                    "name": "report",
+                    "webViewLink": "https://x/other",
+                    "mimeType": self.SHEET,
+                    "properties": {transfer_module._CONVERT_SOURCE_PROP: "report.xlsx"},
+                }
+            ]
+        )
+
+        result = await _upload_local_file(drive_svc, str(local_file), "folder1", convert=True)
+
+        assert result["skipped"] is False
+        assert result["fileId"] == "fid-new"
+
+    async def test_stem_query_escapes_quotes_in_both_names(self, tmp_path):
+        local_file = tmp_path / "it's.csv"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = self._svc([])
+
+        await _upload_local_file(drive_svc, str(local_file), "folder1", convert=True)
+
+        q = drive_svc.files.return_value.list.call_args.kwargs["q"]
+        assert "name='it\\'s.csv' or name='it\\'s'" in q
+
+    async def test_non_convert_check_queries_full_name_only_without_properties(self, tmp_path):
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = self._svc([])
+
+        await _upload_local_file(drive_svc, str(local_file), "folder1")
+
+        list_kwargs = drive_svc.files.return_value.list.call_args.kwargs
+        assert "name='data.csv')" in list_kwargs["q"]
+        assert " or " not in list_kwargs["q"]
+        assert "properties" not in list_kwargs["fields"]
+
+    async def test_non_convert_ignores_a_same_stem_entry(self, tmp_path):
+        """Without convert there's no extension stripping, so a "data" entry
+        is just a different name — no skip."""
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = self._svc(
+            [{"id": "d", "name": "data", "webViewLink": "https://x/d", "mimeType": self.SHEET}]
+        )
+
+        result = await _upload_local_file(drive_svc, str(local_file), "folder1")
+
+        assert result["skipped"] is False
+
+
 class TestUploadLocalFileToolCacheInvalidation:
     """upload_local_file tool wrapper: drive_folder_cache.mark_dirty gate.
 
@@ -1124,6 +1345,44 @@ class TestUploadLocalFolder:
 
         assert result["skipped"] == ["notes.md"]
         assert result["skipped_unverified"] == []
+
+    async def test_non_convert_bulk_list_does_not_fetch_properties(self, tmp_path):
+        """Only the convert stem check reads the marker (PR #800 QA round 1, item 4)."""
+        (tmp_path / "a.txt").write_text("a")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"name": "a.txt", "mimeType": "text/plain"}]
+        }
+
+        result = await self._tool()(str(tmp_path), "folder1", ctx=self._ctx(drive_svc))
+
+        assert result["skipped"] == ["a.txt"]
+        list_kwargs = drive_svc.files.return_value.list.call_args.kwargs
+        assert "properties" not in list_kwargs["fields"]
+
+    async def test_convert_long_name_digested_marker_is_recognized(self, tmp_path):
+        """A name too long for a raw marker gets a digest; the rerun must still
+        read it back as verified (PR #800 QA round 1, item 1)."""
+        name = "L" * 114 + ".csv"
+        (tmp_path / name).write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "name": name[:-4],
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                    "properties": transfer_module._convert_properties(name),
+                }
+            ]
+        }
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["skipped"] == [name]
+        assert result["skipped_unverified"] == []
+        drive_svc.files.return_value.create.assert_not_called()
 
     async def test_convert_skips_when_both_raw_and_converted_duplicates_exist(self, tmp_path):
         """A third convert=True run against a folder that already has both the
