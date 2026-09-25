@@ -2,6 +2,7 @@
 
 import io
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -1192,6 +1193,21 @@ class TestResolveImageSource:
         result = await _resolve_image_source(drive_svc, str(tmp_path / "missing.png"), "folder1")
         assert "error" in result
         assert "No file found" in result["error"]
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+    async def test_local_path_unreadable_is_clean_read_error_without_upload(self, tmp_path):
+        # PR #801 QA round 1: a permission-denied file must fail at the size gate
+        # with a clean read error, not reach the upload.
+        img = tmp_path / "locked.png"
+        img.write_bytes(b"fake")
+        img.chmod(0)
+        drive_svc = MagicMock()
+        try:
+            result = await _resolve_image_source(drive_svc, str(img), "folder1")
+        finally:
+            img.chmod(0o644)
+        assert result["error"].startswith("failed to read local file:")
+        drive_svc.files.return_value.create.assert_not_called()
 
     async def test_local_path_with_no_folder_id_is_error(self, tmp_path):
         img = tmp_path / "pic.png"

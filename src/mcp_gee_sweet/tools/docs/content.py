@@ -23,11 +23,9 @@ from .emitter import ast_to_requests, extract_images, fill_tables
 from .html_parser import html_to_ast
 from .images import (
     check_drive_image_metadata,
-    check_image_bytes,
     downscale_drive_file,
-    downscale_image_bytes,
+    prepare_local_image,
     rewrite_too_large_error,
-    upload_and_share_image,
 )
 from .indices import _collect_doc_paragraphs, decode_code_run_text, utf16_len
 from .style import _add_or_clear_field
@@ -241,12 +239,8 @@ async def _resolve_image_source(
         if size_error is not None:
             if not auto_downscale:
                 return size_error
-            parents = drive_metadata.get("parents") or []
             return await downscale_drive_file(
-                drive_service,
-                file_id,
-                name=drive_metadata.get("name", file_id),
-                parent_folder_id=parents[0] if parents else target_folder_id,
+                drive_service, file_id, drive_metadata, target_folder_id
             )
     else:
         if not Path(src).is_file():
@@ -257,25 +251,11 @@ async def _resolve_image_source(
                 "(no server default folder configured)"
             }
 
-        try:
-            data = await asyncio.to_thread(Path(src).read_bytes)
-        except Exception as e:
-            return {"error": f"failed to read local file: {e}"}
-
-        size_error = check_image_bytes(data)
-        if size_error is not None:
-            if not auto_downscale:
-                return size_error
-            downscaled = downscale_image_bytes(data)
-            if downscaled is None:
-                return {
-                    "error": f"{size_error['error']} Could not auto-downscale it "
-                    "(unreadable format, or animated)."
-                }
-            resized_bytes, mime_type = downscaled
-            return await upload_and_share_image(
-                drive_service, resized_bytes, mime_type, Path(src).name, target_folder_id
-            )
+        prepared = await prepare_local_image(
+            drive_service, src, target_folder_id, auto_downscale=auto_downscale
+        )
+        if prepared is not None:
+            return prepared
 
         upload = await _upload_local_file(
             drive_service, src, target_folder_id, skip_if_exists=False
