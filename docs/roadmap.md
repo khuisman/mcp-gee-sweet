@@ -233,6 +233,7 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 - [ ] `ast_to_markdown.py`: image-render duplication + falsy-based code-block buffer flush ([#600](https://github.com/khuisman/mcp-gee-sweet/issues/600))
 - [ ] `html_parser.py` `handle_data`: a SIM114 lint merge conflates two structurally distinct buffering triggers ([#638](https://github.com/khuisman/mcp-gee-sweet/issues/638))
 - [ ] Docs image-sharing failure paths: unrevocable `anyone:reader` grant + missing folder-cache invalidation in `_replace_doc_content` ([#666](https://github.com/khuisman/mcp-gee-sweet/issues/666))
+- [ ] `_apply_doc_content`: temporary `anyone:reader` image shares aren't revoked when the doc edit raises — revoke pass should run in a `finally`. Same share/revoke surface as #666 and #511 ([#789](https://github.com/khuisman/mcp-gee-sweet/issues/789))
 - [ ] Docstrings: `create_paragraph_bullets` carries internal API-quirk mechanics plus residual bare issue refs in `style.py` tool docstrings ([#683](https://github.com/khuisman/mcp-gee-sweet/issues/683))
 - [ ] `TestIsolatedDepthRunGlyph` asserts request shape, not rendered nesting outcome (PR #711) ([#715](https://github.com/khuisman/mcp-gee-sweet/issues/715))
 - [ ] `style_doc_range` has no `font_family` parameter — can't apply monospace to an existing range ([#720](https://github.com/khuisman/mcp-gee-sweet/issues/720))
@@ -292,6 +293,10 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 - [ ] Gmail scopes opt-in + verify granted scopes at startup. Existing OAuth tokens weren't granted the new scopes, so refresh likely fails into a surprise browser consent or a headless hang. **Must ship in the same release as #786** ([#790](https://github.com/khuisman/mcp-gee-sweet/issues/790))
 - [ ] `reply_to_message` should honor Reply-To and handle replies to your own sent mail ([#791](https://github.com/khuisman/mcp-gee-sweet/issues/791))
 - [ ] Decode message bodies using the part's charset; tolerate missing base64 padding ([#792](https://github.com/khuisman/mcp-gee-sweet/issues/792))
+- [ ] `get_thread`/`get_message`: add a body-less option — a long thread trips the response-size cap and there's no other way to get its message IDs, so it can't be read at all ([#793](https://github.com/khuisman/mcp-gee-sweet/issues/793))
+- [ ] Reply-all self-exclusion (silent `getProfile` failure, send-as aliases), attachment reads blocking the event loop, attachment MIME guessing ([#802](https://github.com/khuisman/mcp-gee-sweet/issues/802))
+- [ ] Deduplicate `send_message`/`create_draft` compose and `list_messages`/`list_threads` kwargs/pagination helpers ([#795](https://github.com/khuisman/mcp-gee-sweet/issues/795))
+- [ ] Local-file read policy across local-path tools — in a remote/SSE deployment these read the server's own filesystem (token, SA key), and Gmail attachments can now mail them out. One consistent policy (e.g. a config switch), not per-tool patches. Decision-needed; Joy scopes ([#796](https://github.com/khuisman/mcp-gee-sweet/issues/796))
 - [ ] Release-pass Gmail QA (`docs/qa/tests/gmail.md`, added by #786). Many cases are destructive (send/draft/trash), so they need a dedicated mailbox fixture plan — Aziz ([#803](https://github.com/khuisman/mcp-gee-sweet/issues/803))
 
 Tool surface (from the original v1.1+ plan):
@@ -381,6 +386,9 @@ Follows the design in [`docs/decisions/decision-comments-first-class.md`](decisi
 - [ ] Watch notifications — webhook push on file changes ([#143](https://github.com/khuisman/mcp-gee-sweet/issues/143))
 - [ ] Labels API — custom metadata labels on Drive files ([#144](https://github.com/khuisman/mcp-gee-sweet/issues/144))
 - [ ] `empty_trash` — optional fan-out across all accessible Shared Drives in one call, instead of one call per drive; considered and deliberately deferred during #386's review ([#389](https://github.com/khuisman/mcp-gee-sweet/issues/389))
+
+**Gmail**
+- [ ] Service-account Gmail via domain-wide delegation (`with_subject()` in `_service_account_creds`) — Gmail is OAuth-only until then ([#794](https://github.com/khuisman/mcp-gee-sweet/issues/794))
 
 ### Tier 3.5 — Planned but bigger-lift _(target: [v1.1+](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22v1.1%2B%22))_
 
