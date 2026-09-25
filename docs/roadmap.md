@@ -287,12 +287,12 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 - [ ] `server.json`/`test_server_json.py`: minor hardening findings from PR #603's review — triaged out of `backlog` 2026-09-11 ([#607](https://github.com/khuisman/mcp-gee-sweet/issues/607))
 - [ ] Restore the explanatory comment for the `annotations=None` stub param in `gen_tool_docs.py` — triaged out of `backlog` 2026-09-11 ([#637](https://github.com/khuisman/mcp-gee-sweet/issues/637))
 
-**Gmail domain** _(pulled forward from v1.1+ 2026-09-23; implementation is community PR #786, not yet merged)_
-- [ ] Gmail domain primitives ([#785](https://github.com/khuisman/mcp-gee-sweet/issues/785)), via community PR #786
+**Gmail domain** _(pulled forward from v1.1+ 2026-09-23; implementation is community PR #786, merged 2026-09-25)_
+- [x] Gmail domain primitives ([#785](https://github.com/khuisman/mcp-gee-sweet/issues/785)), via community PR #786
 - [ ] Gmail scopes opt-in + verify granted scopes at startup. Existing OAuth tokens weren't granted the new scopes, so refresh likely fails into a surprise browser consent or a headless hang. **Must ship in the same release as #786** ([#790](https://github.com/khuisman/mcp-gee-sweet/issues/790))
 - [ ] `reply_to_message` should honor Reply-To and handle replies to your own sent mail ([#791](https://github.com/khuisman/mcp-gee-sweet/issues/791))
 - [ ] Decode message bodies using the part's charset; tolerate missing base64 padding ([#792](https://github.com/khuisman/mcp-gee-sweet/issues/792))
-- [ ] Release-pass Gmail QA (`docs/qa/tests/gmail.md`, added by #786). Many cases are destructive (send/draft/trash), so they need a dedicated mailbox fixture plan — Aziz
+- [ ] Release-pass Gmail QA (`docs/qa/tests/gmail.md`, added by #786). Many cases are destructive (send/draft/trash), so they need a dedicated mailbox fixture plan — Aziz ([#803](https://github.com/khuisman/mcp-gee-sweet/issues/803))
 
 Tool surface (from the original v1.1+ plan):
 
