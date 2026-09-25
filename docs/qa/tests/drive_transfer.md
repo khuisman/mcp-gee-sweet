@@ -1717,3 +1717,64 @@ Code review (`/code-review high`) separately surfaced 2 blocking findings on thi
 **Re-verification (2026-09-14, fix `1788f82`) ✅ PASS** — Added a separate `bytes_accounted` counter that advances by each candidate's declared size on every outcome (success or fail), matching file-count mode's existing full-completion guarantee; stale comment corrected. New unit test (`test_progress_unit_bytes_reaches_full_total_even_when_a_candidate_fails`) covers a 2-candidate batch (sizes 5/7) where the second fails — asserts the final `report_progress` call reports `12/12`, not stuck below total. `tests/drive/test_transfer.py -k "download_folder or progress_unit"` (3 tests) passes. The happy-path live calls above were re-run post-`/mcp reconnect` with identical results (`size_bytes=12` / `size_bytes=30588`); the failing-candidate scenario itself isn't practical to force against a real Drive API call, so it's covered by the new deterministic unit test rather than live.
 
 ---
+
+### TC-D264: `upload_local_folder(convert=True)` — an unrelated file sharing a local file's extension-stripped stem is reported as `skipped_unverified`, not passed off as its converted duplicate (issue #769) ⚠️ local-filesystem
+
+**Background:** `upload_local_folder`'s `convert=True` skip check also looks up the local file's extension-stripped stem (`p.stem`), since Drive's import conversion strips the extension from some converted types' display name (TC-D243). Before #769 that stem lookup matched on name+mimeType alone, so an **unrelated** Sheet literally named `report` made a never-uploaded local `report.csv` land in plain `skipped`. Now every `convert=True` upload stamps a `geeSweetConvertSource` Drive `properties` marker recording its source filename. A stem match counts as "ours" (plain `skipped`) only when that marker names the local file. An unmarked stem match (an unrelated file, or a conversion from before the marker existed) is still skipped but reported under the new `skipped_unverified` list. A stem match marked with a *different* source file uploads normally. Full-name (`p.name`) matches are unchanged. The per-branch logic is unit-tested in `tests/drive/test_transfer.py::TestUploadLocalFolder`. This live check confirms the real Drive API round-trips the marker through `files().list(fields=...properties...)`.
+
+**Setup**
+Create a scratch Drive folder `{FOLDER_ID}`. In it, create a Google Sheet named exactly `report` directly (e.g. `create_spreadsheet(title="report", folder_id={FOLDER_ID})`), not via an upload tool. Locally, create `/tmp/qa-folder-264/report.csv` (any CSV content) and `/tmp/qa-folder-264/fresh.csv`.
+
+**Tool calls**
+1. `upload_local_folder(local_path="/tmp/qa-folder-264/", parent_folder_id={FOLDER_ID}, convert=True)`
+2. `upload_local_folder(local_path="/tmp/qa-folder-264/", parent_folder_id={FOLDER_ID}, convert=True)` (again, unchanged)
+3. `get_file_metadata` on the Sheet created from `fresh.csv` in call 1
+
+**Checks**
+- Call 1: `uploaded == ["fresh.csv"]`, `skipped == []`, and `skipped_unverified` holds exactly one entry with `name: "report.csv"`, `matched_name: "report"`, and a `reason` containing "unverified". Nothing is created for `report.csv`.
+- Call 2: `skipped == ["fresh.csv"]` (verified via the marker call 1 stamped, even though Drive shows its name as `fresh`), `uploaded == []`, and `report.csv` is still the only `skipped_unverified` entry.
+- `list_files` on `{FOLDER_ID}` shows exactly 2 files: the hand-made `report` Sheet and one `fresh` Sheet. No duplicates.
+- Call 3 (or a scratch-script `files().get(fields="properties")` if `get_file_metadata` doesn't surface `properties`): the `fresh` Sheet carries `properties.geeSweetConvertSource == "fresh.csv"`.
+
+**Teardown**
+Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-folder-264/`.
+
+**Result (2026-09-24, PR #800 round 1, `28436cf`) ❌ FAIL (sent back)** — Ran via `mcp-gee-sweet-sky` against a fresh isolated child folder. The case's own checks all passed. Call 1 returned `uploaded: ["fresh.csv"]`, `skipped: []`, and one `skipped_unverified` entry `{name: "report.csv", matched_name: "report", reason: "name-only match, unverified: ..."}`. Call 2 returned `skipped: ["fresh.csv"]` with the same single `skipped_unverified` entry. `list_files` showed only the hand-made `report` plus one `fresh`. A scratch-script `files().get(fields="properties")` showed `fresh` carrying `{"geeSweetConvertSource": "fresh.csv"}`. Unit tests: `tests/drive/test_transfer.py` 150/150 passed. Two further live probes during the same pass failed, so the round is sent back:
+- **124-byte property cap (regression).** `upload_local_file(convert=True)` on a local `.csv` with a 118-byte filename (`geeSweetConvertSource` key 21 bytes, 139 bytes total) returned `HttpError 403 propertyLengthLimitExceeded` ("Properties and app properties are limited to 124 bytes in UTF-8 encoding, counting both the key and the value"). Before this PR, a non-`.md` conversion stamped no property and succeeded. Worse, **Drive still created the Sheet** (no `properties`, confirmed via `files().get`), but the tool reported only `{"error": ...}` with no `fileId`, leaving an untracked orphan. The `.md` path has always had the same exposure with its 29-byte key.
+- **Single-file path ignores the new marker.** After call 2, `upload_local_file("/tmp/qa-folder-264/fresh.csv", convert=True)` against the same folder created a **second** `fresh` Sheet (`skipped: false`), even though an existing `fresh` was marked `geeSweetConvertSource: "fresh.csv"`. `_upload_local_file`'s skip check still queries `name='fresh.csv'` only. This is pre-existing, but the two paths now decide existence differently, contrary to #514's shared-helper intent.
+
+Fixture folder trashed and local dirs removed as teardown.
+
+---
+
+### TC-D265: `convert=True` — a long or multibyte filename's marker stays within Drive's 124-byte property cap, and `upload_local_file` shares `upload_local_folder`'s stem/marker skip check (PR #800 QA round 1) ⚠️ local-filesystem
+
+**Background:** TC-D264's round-1 QA found two gaps in #769's first version. (1) Drive caps a custom property's key + value at 124 UTF-8 bytes. Stamping the raw filename made any conversion with a name over ~103 bytes fail with `403 propertyLengthLimitExceeded`, and Drive still created the file (an orphan). The generic `geeSweetConvertSource` marker now falls back to a fixed-length `sha256:<hex>` digest of the name when the raw name wouldn't fit, and the markdown key is omitted rather than overflowing. (2) `_upload_local_file`'s own `skip_if_exists` check queried only the full name, so `upload_local_file(convert=True)` re-converted a duplicate of an extension-stripped copy even when the copy carried the marker. Both paths now share `_find_existing_upload`, and the single-file path reports an unmarked stem match with `skipped_unverified: true` plus a `reason`. Unit-tested in `tests/drive/test_transfer.py::TestConvertSourceMarker` / `TestUploadLocalFileStemMatch`. This live check confirms the real Drive API accepts the digested marker and round-trips it.
+
+**Setup**
+Create a scratch Drive folder `{FOLDER_ID}` containing a Google Sheet named exactly `report`, created directly rather than via an upload tool. Locally, create `/tmp/qa-265/fresh.csv`, `/tmp/qa-265/report.csv`, and `/tmp/qa-265/<LONG>.csv`, where `<LONG>` is a 114-character ASCII stem (a 118-byte filename). Also create `/tmp/qa-265/<CJK>.csv`, where `<CJK>` is 40 CJK characters (120 bytes).
+
+**Tool calls**
+1. `upload_local_file(local_path="/tmp/qa-265/<LONG>.csv", parent_folder_id={FOLDER_ID}, convert=True)`
+2. `upload_local_file(local_path="/tmp/qa-265/<CJK>.csv", parent_folder_id={FOLDER_ID}, convert=True)`
+3. `upload_local_file(local_path="/tmp/qa-265/fresh.csv", parent_folder_id={FOLDER_ID}, convert=True)`, then the identical call again
+4. `upload_local_file(local_path="/tmp/qa-265/report.csv", parent_folder_id={FOLDER_ID}, convert=True)`
+5. `upload_local_folder(local_path="/tmp/qa-265/", parent_folder_id={FOLDER_ID}, convert=True)`
+
+**Checks**
+- Calls 1–2: no `error`, `skipped: false`. Each Sheet's `properties.geeSweetConvertSource` (via a scratch-script `files().get(fields="properties")`) starts with `sha256:`.
+- Call 3: the first call uploads (`skipped: false`). The second returns `skipped: true` with the first call's `fileId` and no `skipped_unverified` key. Exactly one `fresh` Sheet exists.
+- Call 4: `skipped: true`, `skipped_unverified: true`, a `reason` containing "unverified", and `fileId` equal to the hand-made `report` Sheet's ID. Nothing is created.
+- Call 5: `uploaded == []`. `skipped` contains `fresh.csv`, `<LONG>.csv`, and `<CJK>.csv` (the digested markers verify on read-back). `skipped_unverified` holds only `report.csv`.
+- `list_files` on `{FOLDER_ID}` shows exactly 4 files: `report`, `fresh`, and the two long-named Sheets. No duplicates, and no orphans left over from a failed create.
+
+**Teardown**
+Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-265/`.
+
+**Result (2026-09-24, PR #800 round 2, `5ada0cf`) ✅ PASS** — Ran via `mcp-gee-sweet-sky` against a fresh isolated child folder, after `/mcp reconnect`. The long names differed slightly from the spec but both exceeded the cap: a 108-byte ASCII name (129 bytes with the key) and a 42-character CJK name (130 bytes, 151 with the key). Calls 1–2 returned no `error` and `skipped: false`. A scratch-script `files().get(fields="properties")` showed both carrying `geeSweetConvertSource: "sha256:<64 hex>"`, and `fresh` carrying the raw `"fresh.csv"`. Call 3: the first call uploaded and the second returned `skipped: true` with the same `fileId` and no `skipped_unverified` key. Call 4 returned `skipped: true`, `skipped_unverified: true`, the "unverified" `reason`, and the hand-made `report`'s `fileId`. Call 5 returned `uploaded: []`, `skipped` = the ASCII long name plus `fresh.csv` plus the CJK name, and `skipped_unverified` = `report.csv` only. `list_files` showed exactly 4 files with no orphans. This also re-confirms both TC-D264 round-1 findings are fixed. Unit tests: full suite 1627 passed, 3 skipped.
+
+Side probe (pre-existing, outside this PR's diff): `sync_folder(direction="upload", convert_markdown=True)` on a 97-byte `.md` name (126 bytes with the 29-byte `geeSweetConvertMarkdownSource` key) still fails with `403 propertyLengthLimitExceeded` and still leaves an unmarked orphan Doc. That create site (`transfer.py` `_sync_level`, `body["properties"] = {_CONVERT_MARKDOWN_SOURCE_PROP: name}`) predates #769 and isn't touched by this PR. Filed as #806.
+
+Fixture folder trashed and local dirs removed as teardown.
+
+---

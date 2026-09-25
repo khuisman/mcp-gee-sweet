@@ -51,6 +51,18 @@ _SYNC_MTIME_TOLERANCE = 5  # seconds — absorbs clock skew and upload-time drif
 # (#414 QA review, findings #2 and #7).
 _CONVERT_MARKDOWN_SOURCE_PROP = "geeSweetConvertMarkdownSource"
 
+# Generalization of _CONVERT_MARKDOWN_SOURCE_PROP to every native import
+# conversion _upload_local_file performs (CSV/XLSX/DOCX/MD/HTML/PPTX), recording
+# the exact source filename the converted file was created from. Exists so
+# upload_local_folder's skip_if_exists check can tell a converted file this
+# tool itself created (whose display name Drive may have extension-stripped,
+# e.g. "report.csv" -> "report") apart from an unrelated file that merely
+# shares the stem and target mimeType (#769). A separate key rather than
+# reusing _CONVERT_MARKDOWN_SOURCE_PROP for every type: sync_folder's
+# _is_converted_md_entry treats that marker on any Doc as "converted from a
+# local .md", which a .docx/.html-converted Doc is not.
+_CONVERT_SOURCE_PROP = "geeSweetConvertSource"
+
 # Google Workspace Doc mimeType, requested via Drive's native import-conversion
 # trick (upload with the source format's mimeType while setting the destination
 # file's own mimeType to this target) from two independent places: _CONVERT_MIME
@@ -232,6 +244,120 @@ def _existing_upload_match(convert_mime: tuple[str, str] | None, hits: list[dict
     return None
 
 
+# Drive caps each custom property's key + value at 124 UTF-8 bytes; a create()
+# carrying a longer one fails with 403 propertyLengthLimitExceeded — yet Drive
+# still creates the file, unmarked, leaving an orphan the error result can't
+# name (confirmed live, PR #800 QA round 1).
+_DRIVE_PROPERTY_MAX_BYTES = 124
+
+
+def _property_fits(key: str, value: str) -> bool:
+    """Whether a Drive custom property fits _DRIVE_PROPERTY_MAX_BYTES."""
+    return len(key.encode("utf-8")) + len(value.encode("utf-8")) <= _DRIVE_PROPERTY_MAX_BYTES
+
+
+def _convert_source_marker(source_name: str) -> str:
+    """The _CONVERT_SOURCE_PROP value recorded for (and later compared against)
+    a conversion from `source_name`: the name itself when it fits the property
+    byte cap, otherwise a fixed-length "sha256:<hex>" digest of it — so a long
+    or multibyte filename still gets a verifiable marker instead of either
+    failing the create() or going unmarked (PR #800 QA round 1). Writer and
+    reader both go through here, so the two can't disagree on the encoding."""
+    if _property_fits(_CONVERT_SOURCE_PROP, source_name):
+        return source_name
+    return "sha256:" + hashlib.sha256(source_name.encode("utf-8")).hexdigest()
+
+
+def _convert_properties(file_name: str) -> dict[str, str]:
+    """Drive `properties` to stamp on a conversion of `file_name`.
+
+    Always _CONVERT_SOURCE_PROP (#769), via _convert_source_marker so it never
+    exceeds the byte cap. For a .md source, also _CONVERT_MARKDOWN_SOURCE_PROP
+    so sync_folder recognizes the Doc (#414) — but only when the raw name fits,
+    since sync_folder reads that value back verbatim as the local filename and
+    a digest there would match nothing; an over-long .md name just goes
+    without it rather than failing the whole upload."""
+    props = {_CONVERT_SOURCE_PROP: _convert_source_marker(file_name)}
+    if Path(file_name).suffix.lower() == ".md" and _property_fits(
+        _CONVERT_MARKDOWN_SOURCE_PROP, file_name
+    ):
+        props[_CONVERT_MARKDOWN_SOURCE_PROP] = file_name
+    return props
+
+
+def _has_convert_marker(f: dict) -> bool:
+    """Whether Drive file resource `f` carries either conversion marker."""
+    props = f.get("properties") or {}
+    return (
+        props.get(_CONVERT_SOURCE_PROP) is not None
+        or props.get(_CONVERT_MARKDOWN_SOURCE_PROP) is not None
+    )
+
+
+def _marker_names_source(f: dict, source_name: str) -> bool:
+    """Whether `f`'s conversion marker records `source_name` as its source.
+    Checks _CONVERT_SOURCE_PROP (encoded via _convert_source_marker) and falls
+    back to _CONVERT_MARKDOWN_SOURCE_PROP (raw name) — a .md Doc converted by
+    sync_folder's own convert_markdown path only ever carries the latter, and
+    is just as much "ours" (#769)."""
+    props = f.get("properties") or {}
+    generic = props.get(_CONVERT_SOURCE_PROP)
+    if generic is not None and generic == _convert_source_marker(source_name):
+        return True
+    md = props.get(_CONVERT_MARKDOWN_SOURCE_PROP)
+    return md is not None and md == source_name
+
+
+def _find_existing_upload(
+    convert_mime: tuple[str, str] | None,
+    source_name: str,
+    name_hits: list[dict],
+    stem_hits: list[dict],
+) -> tuple[dict, bool] | None:
+    """The skip_if_exists decision shared by _upload_local_file and
+    upload_local_folder's bulk check, so the two can't drift apart on it (#514,
+    extended to the stem/marker lookup per PR #800 QA round 1). Returns
+    (matching entry, verified) when the upload should be skipped, else None.
+
+    `name_hits` are existing entries whose name equals `source_name`;
+    `stem_hits` those named after its extension-stripped stem (only consulted
+    under convert, since Drive's import conversion strips the extension from
+    some converted types' display name — TC-D215/TC-D243).
+
+    - A full-name match (via _existing_upload_match) is always verified.
+    - A target-mimeType stem hit whose marker names `source_name` is verified —
+      provably the converted duplicate this tool created.
+    - Otherwise, a target-mimeType stem hit with no marker at all is an
+      unverified match: possibly converted before the marker existed, possibly
+      an unrelated file sharing the name. Still skipped (no duplicate
+      re-uploads of legacy conversions), but flagged so the caller can report
+      the ambiguity (#769).
+    - A stem hit marked with a *different* source is provably not this file's
+      duplicate and never matches."""
+    match = _existing_upload_match(convert_mime, name_hits)
+    if match is not None:
+        return match, True
+    if convert_mime is None:
+        return None
+    unverified: dict | None = None
+    for h in stem_hits:
+        if h.get("mimeType") != convert_mime[1]:
+            continue
+        if _marker_names_source(h, source_name):
+            return h, True
+        if unverified is None and not _has_convert_marker(h):
+            unverified = h
+    return (unverified, False) if unverified is not None else None
+
+
+def _unverified_skip_reason(matched_name: str) -> str:
+    return (
+        f"name-only match, unverified: an existing {matched_name!r} in the target "
+        "format has no conversion marker, so it may be an earlier conversion of "
+        "this file or an unrelated file sharing its name"
+    )
+
+
 async def _upload_local_file(
     drive_service,
     local_path: str,
@@ -274,15 +400,29 @@ async def _upload_local_file(
             }
 
     if skip_if_exists:
-        safe_name = file_name.replace("\\", "\\\\").replace("'", "\\'")
+        # Under convert, also look up the extension-stripped stem — Drive's
+        # import conversion drops the extension from some converted types'
+        # display name, and without this a converted duplicate this tool itself
+        # created was invisible here while upload_local_folder's bulk check
+        # already recognized it (PR #800 QA round 1). One query covers both.
+        stem = Path(file_name).stem if convert_mime is not None else None
+        lookup_names = [file_name] if stem is None else [file_name, stem]
+        name_clause = " or ".join(
+            "name='{}'".format(n.replace("\\", "\\\\").replace("'", "\\'")) for n in lookup_names
+        )
         existing = await execute_in_thread(
             drive_service.files()
             .list(
-                q=f"name='{safe_name}' and '{parent_folder_id}' in parents and trashed=false",
+                q=f"({name_clause}) and '{parent_folder_id}' in parents and trashed=false",
                 spaces="drive",
                 includeItemsFromAllDrives=True,
                 supportsAllDrives=True,
-                fields="files(id, name, webViewLink, mimeType)",
+                # properties only under convert — nothing else reads the marker.
+                fields=(
+                    "files(id, name, webViewLink, mimeType, properties)"
+                    if convert_mime is not None
+                    else "files(id, name, webViewLink, mimeType)"
+                ),
             )
             .execute,
             drive_service,
@@ -290,18 +430,28 @@ async def _upload_local_file(
         hits = existing.get("files", [])
         # pageSize deliberately left at the API default (100), not capped to 1
         # — Drive allows more than one file to share this name, and the match
-        # (via _existing_upload_match, not necessarily hits[0]) needs every
+        # (via _find_existing_upload, not necessarily hits[0]) needs every
         # candidate visible to pick the correct one to report back (#514 QA
         # round 1, PR #767).
-        match = _existing_upload_match(convert_mime, hits)
-        if match is not None:
+        found = _find_existing_upload(
+            convert_mime,
+            file_name,
+            [h for h in hits if h.get("name") == file_name],
+            [h for h in hits if stem is not None and h.get("name") == stem],
+        )
+        if found is not None:
+            match, verified = found
             logger.debug("Skipping upload — %s already exists as %s", file_name, match["id"])
-            return {
+            skip_result: dict[str, Any] = {
                 "fileId": match["id"],
                 "name": match["name"],
                 "web_link": match.get("webViewLink"),
                 "skipped": True,
             }
+            if not verified:
+                skip_result["skipped_unverified"] = True
+                skip_result["reason"] = _unverified_skip_reason(match["name"])
+            return skip_result
 
     # Stamped on every upload, not just the convert_mime branch — a plain upload
     # used to get Drive's own creation timestamp instead of the local file's mtime,
@@ -322,15 +472,13 @@ async def _upload_local_file(
     if convert_mime is not None:
         mime, target_mime = convert_mime
         metadata["mimeType"] = target_mime
-        if Path(file_name).suffix.lower() == ".md":
-            # Stamp the same marker sync_folder's own convert_markdown path sets, so
-            # a Doc created here is recognized by sync_folder's matching too — the
-            # docstring calls this "the same mechanism" as sync_folder's
-            # convert_markdown, but before this fix only sync_folder's own create()
-            # call stamped it, leaving upload_local_file's converted Docs invisible
-            # to that matching and silently duplicated on the next sync_folder run
-            # (#414 QA review round 3, finding #2).
-            metadata["properties"] = {_CONVERT_MARKDOWN_SOURCE_PROP: file_name}
+        # Stamped on every conversion, so both skip_if_exists paths can
+        # recognize this file as ours even after Drive strips the source
+        # extension from its display name (#769) — and, for .md, so
+        # sync_folder's convert_markdown matching recognizes it too (#414 QA
+        # review round 3, finding #2). _convert_properties keeps every value
+        # within Drive's per-property byte cap (PR #800 QA round 1).
+        metadata["properties"] = _convert_properties(file_name)
     else:
         mime, _ = mimetypes.guess_type(local_path)
         mime = mime or "application/octet-stream"
@@ -1664,7 +1812,13 @@ def register(tool):
             name: Name to give the file in Drive. Defaults to the local filename.
             skip_if_exists: If True (default), skip the upload and return the
                             existing file's metadata if a file with the same name
-                            already exists in the destination folder.
+                            already exists in the destination folder. With
+                            convert=True, only an existing file already in the
+                            target format counts, and one named after the
+                            extension-stripped stem (Drive strips the extension on
+                            some conversions, e.g. 'report.csv' -> 'report') counts
+                            too — see Returns for how an unverified stem match is
+                            reported.
             convert: If True, request Drive's native import conversion instead of
                      uploading as-is: .csv/.xlsx -> Google Sheets, .docx/.md/.html/.htm
                      -> Google Docs, .pptx -> Google Slides. Any other extension
@@ -1681,7 +1835,11 @@ def register(tool):
 
         Returns:
             fileId, name, webViewLink, and 'skipped' (True if skip_if_exists fired) on
-            success. On failure, 'error' — plus a 'fileId' alongside it in the narrow
+            success. A skip on a stem match whose existing file carries no marker
+            proving this tool converted it from this file (an earlier conversion
+            predating the marker, or an unrelated file sharing the name) also sets
+            'skipped_unverified': True plus a 'reason'; pass skip_if_exists=False to
+            upload anyway. On failure, 'error' — plus a 'fileId' alongside it in the narrow
             case where convert=True and the file was actually created in Drive but a
             follow-up metadata call then failed (#420): that fileId names a real,
             already-created Drive file, not something to retry creating again.
@@ -1734,7 +1892,16 @@ def register(tool):
                      False (upload every file preserving its original format).
 
         Returns:
-            Summary with lists of 'uploaded', 'skipped', and 'failed' filenames. Each
+            Summary with lists of 'uploaded', 'skipped', 'skipped_unverified', and
+            'failed'. 'uploaded'/'skipped' are filenames. 'skipped_unverified' (only
+            ever populated under convert=True) holds {name, matched_name, reason}
+            entries for files skipped because an existing file in the target format is
+            named after the local file's extension-stripped stem (Drive strips the
+            extension on some conversions, e.g. 'report.csv' -> 'report') but carries
+            no marker proving this tool created it from that file — it may be an
+            earlier conversion predating the marker, or an unrelated file sharing the
+            name. Nothing was uploaded for these; pass skip_if_exists=False to upload
+            one anyway (upload_local_file applies the same check). Each
             'failed' entry is {name, error} plus a 'fileId' in the narrow convert=True
             case where the file was actually created in Drive but a follow-up metadata
             call then failed (#420) — see upload_local_file's own Returns docs.
@@ -1757,16 +1924,19 @@ def register(tool):
 
         uploaded: list[str] = []
         skipped: list[str] = []
+        skipped_unverified: list[dict[str, str]] = []
         failed: list[dict[str, str]] = []
         any_created = False
 
-        # dict[str, set[str]], not a single mimeType per name — Drive allows more
+        # dict[str, list[dict]], not a single entry per name — Drive allows more
         # than one file to share a name, and collapsing to one (the previous
         # shape) meant an already-converted duplicate could be masked by an
         # unrelated same-named raw file's mimeType winning the dict slot
         # depending on response ordering, silently reconverting or skipping the
-        # wrong thing (#514, surfaced during PR #505's review of #411).
-        existing_by_name: dict[str, set[str]] = {}
+        # wrong thing (#514, surfaced during PR #505's review of #411). Full
+        # entries rather than just mimeTypes so the stem match below can read
+        # each one's conversion marker (#769).
+        existing_by_name: dict[str, list[dict]] = {}
         if skip_if_exists and candidates:
             # fields includes mimeType (not just name) so the convert=True case below
             # can tell an already-converted duplicate apart from a same-named file
@@ -1779,14 +1949,18 @@ def register(tool):
                     spaces="drive",
                     includeItemsFromAllDrives=True,
                     supportsAllDrives=True,
-                    fields="files(name, mimeType)",
+                    # properties only under convert — nothing else reads the
+                    # conversion marker (PR #800 QA round 1).
+                    fields=(
+                        "files(name, mimeType, properties)" if convert else "files(name, mimeType)"
+                    ),
                     pageSize=1000,
                 )
                 .execute,
                 drive_service,
             )
             for f in existing_resp.get("files", []):
-                existing_by_name.setdefault(f["name"], set()).add(f.get("mimeType", ""))
+                existing_by_name.setdefault(f["name"], []).append(f)
 
         for p in sorted(candidates):
             # Gated explicitly on skip_if_exists here, rather than relying on
@@ -1804,10 +1978,10 @@ def register(tool):
                     # _upload_local_file's own unsupported-extension check
                     # (which runs before its own existence check) reports the
                     # correct error into `failed` instead of this silently
-                    # skipping it (both branches below funnel through
-                    # _should_skip_existing_upload, per #514 QA round 1, PR
-                    # #767 — collapsing this case into that same call would
-                    # have reintroduced the bug: convert_mime=None there means
+                    # skipping it (the branch below funnels through
+                    # _find_existing_upload, per #514 QA round 1, PR #767 —
+                    # collapsing this case into that same call would have
+                    # reintroduced the bug: convert_mime=None there means
                     # "not converting", not "converting but unsupported").
                     pass
                 else:
@@ -1821,11 +1995,36 @@ def register(tool):
                     # correctly (PR #505 review, issue #411). Only relevant
                     # under convert — the stem is the same as the name
                     # otherwise, so this is a no-op when not converting.
-                    existing_mimes = existing_by_name.get(p.name, set())
-                    if convert:
-                        existing_mimes = existing_mimes | existing_by_name.get(p.stem, set())
-                    if _should_skip_existing_upload(target_mime, existing_mimes):
-                        skipped.append(p.name)
+                    #
+                    # The two lookups aren't equally trustworthy, though: a
+                    # full-name match stays unconditional, but a stem match
+                    # alone can't tell this tool's own extension-stripped
+                    # conversion apart from an unrelated file that happens to
+                    # share the stem and target mimeType (#769). So a stem
+                    # match counts as ours only via the conversion marker; an
+                    # unmarked one (e.g. converted before the marker existed)
+                    # is still skipped — no duplicate re-uploads — but
+                    # reported separately in skipped_unverified so the
+                    # ambiguity is visible. Decided by _find_existing_upload,
+                    # shared with _upload_local_file's own per-file check.
+                    found = _find_existing_upload(
+                        target_mime,
+                        p.name,
+                        existing_by_name.get(p.name, []),
+                        existing_by_name.get(p.stem, []) if convert else [],
+                    )
+                    if found is not None:
+                        match, verified = found
+                        if verified:
+                            skipped.append(p.name)
+                        else:
+                            skipped_unverified.append(
+                                {
+                                    "name": p.name,
+                                    "matched_name": match["name"],
+                                    "reason": _unverified_skip_reason(match["name"]),
+                                }
+                            )
                         continue
 
             # skip_if_exists=False here — existence was already decided above from the
@@ -1866,7 +2065,12 @@ def register(tool):
         if any_created:
             lc.drive_folder_cache.mark_dirty(parent_folder_id)
 
-        return {"uploaded": uploaded, "skipped": skipped, "failed": failed}
+        return {
+            "uploaded": uploaded,
+            "skipped": skipped,
+            "skipped_unverified": skipped_unverified,
+            "failed": failed,
+        }
 
     @tool(annotations=ToolAnnotations(title="Download File", readOnlyHint=True))
     async def download_file(
