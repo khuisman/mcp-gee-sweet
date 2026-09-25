@@ -336,7 +336,8 @@ class TestUploadLocalFileConvert:
         assert "error" not in result
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
         assert create_kwargs["body"]["properties"] == {
-            transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"
+            transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md",
+            transfer_module._CONVERT_SOURCE_PROP: "notes.md",
         }
 
     async def test_convert_stamps_modified_time_from_local_mtime_and_restamps_after_create(
@@ -458,7 +459,10 @@ class TestUploadLocalFileConvert:
         assert "create failed" in result["error"]
         assert "fileId" not in result
 
-    async def test_convert_non_md_extension_does_not_stamp_source_property(self, tmp_path):
+    async def test_convert_non_md_extension_stamps_only_generic_source_property(self, tmp_path):
+        """A non-.md conversion gets the generic _CONVERT_SOURCE_PROP marker
+        (#769) but never _CONVERT_MARKDOWN_SOURCE_PROP — sync_folder reads the
+        latter on any Doc as "converted from a local .md", which this isn't."""
         local_file = tmp_path / "data.csv"
         local_file.write_text("a,b\n1,2")
         drive_svc = MagicMock()
@@ -471,6 +475,27 @@ class TestUploadLocalFileConvert:
 
         result = await _upload_local_file(
             drive_svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
+        assert create_kwargs["body"]["properties"] == {
+            transfer_module._CONVERT_SOURCE_PROP: "data.csv"
+        }
+
+    async def test_non_convert_upload_stamps_no_properties(self, tmp_path):
+        """The marker records a conversion's source; a plain upload has none."""
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "data.csv",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", skip_if_exists=False
         )
 
         assert "error" not in result
@@ -960,7 +985,13 @@ class TestUploadLocalFolder:
         (tmp_path / "data.csv").write_text("a,b\n1,2")
         drive_svc = MagicMock()
         drive_svc.files.return_value.list.return_value.execute.return_value = {
-            "files": [{"name": "data", "mimeType": "application/vnd.google-apps.spreadsheet"}]
+            "files": [
+                {
+                    "name": "data",
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                    "properties": {transfer_module._CONVERT_SOURCE_PROP: "data.csv"},
+                }
+            ]
         }
 
         result = await self._tool()(
@@ -968,8 +999,131 @@ class TestUploadLocalFolder:
         )
 
         assert result["skipped"] == ["data.csv"]
+        assert result["skipped_unverified"] == []
         assert result["uploaded"] == []
         drive_svc.files.return_value.create.assert_not_called()
+
+    async def test_convert_unrelated_stem_match_is_reported_unverified(self, tmp_path):
+        """#769's repro: an unrelated Sheet literally named "report" (no
+        conversion marker) must not be passed off as report.csv's converted
+        duplicate. Per the maintainer decision it's still skipped — it could
+        equally be a conversion from before the marker existed, and uploading
+        would duplicate those — but reported under skipped_unverified, not
+        skipped, so the ambiguity is visible."""
+        (tmp_path / "report.csv").write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"name": "report", "mimeType": "application/vnd.google-apps.spreadsheet"}]
+        }
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["skipped"] == []
+        assert result["uploaded"] == []
+        assert len(result["skipped_unverified"]) == 1
+        entry = result["skipped_unverified"][0]
+        assert entry["name"] == "report.csv"
+        assert entry["matched_name"] == "report"
+        assert "unverified" in entry["reason"]
+        drive_svc.files.return_value.create.assert_not_called()
+        # The marker can only be read back if the bulk list() asks for it.
+        list_kwargs = drive_svc.files.return_value.list.call_args.kwargs
+        assert "properties" in list_kwargs["fields"]
+
+    async def test_convert_stem_match_marked_with_other_source_uploads(self, tmp_path):
+        """A stem match whose marker names a *different* source file (here a
+        "report" Sheet this tool converted from report.xlsx) is provably not
+        report.csv's duplicate, so report.csv uploads rather than being
+        skipped either way (#769)."""
+        (tmp_path / "report.csv").write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "name": "report",
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                    "properties": {transfer_module._CONVERT_SOURCE_PROP: "report.xlsx"},
+                }
+            ]
+        }
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "report",
+            "webViewLink": "https://example.com",
+        }
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["uploaded"] == ["report.csv"]
+        assert result["skipped"] == []
+        assert result["skipped_unverified"] == []
+
+    async def test_convert_marked_match_wins_over_unmarked_same_stem_entry(self, tmp_path):
+        """With both an unrelated unmarked "data" Sheet and this tool's own
+        marked conversion present, the file is provably already converted —
+        a plain skip, not an unverified one, regardless of listing order."""
+        (tmp_path / "data.csv").write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {"name": "data", "mimeType": "application/vnd.google-apps.spreadsheet"},
+                {
+                    "name": "data",
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                    "properties": {transfer_module._CONVERT_SOURCE_PROP: "data.csv"},
+                },
+            ]
+        }
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["skipped"] == ["data.csv"]
+        assert result["skipped_unverified"] == []
+
+    async def test_convert_stem_match_recognizes_markdown_only_marker(self, tmp_path):
+        """A Doc converted by sync_folder's convert_markdown path carries only
+        _CONVERT_MARKDOWN_SOURCE_PROP, never the generic marker — it's still
+        this tool's own conversion and must count as verified (#769)."""
+        (tmp_path / "notes.md").write_text("# Heading")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [
+                {
+                    "name": "notes",
+                    "mimeType": "application/vnd.google-apps.document",
+                    "properties": {transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+                }
+            ]
+        }
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["skipped"] == ["notes.md"]
+        assert result["skipped_unverified"] == []
+
+    async def test_full_name_match_stays_unconditional_without_marker(self, tmp_path):
+        """Only the stem lookup needs the marker (#769) — an unmarked entry
+        matching the full local name in the target format is still a plain skip."""
+        (tmp_path / "notes.md").write_text("# Heading")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"name": "notes.md", "mimeType": "application/vnd.google-apps.document"}]
+        }
+
+        result = await self._tool()(
+            str(tmp_path), "folder1", convert=True, ctx=self._ctx(drive_svc)
+        )
+
+        assert result["skipped"] == ["notes.md"]
+        assert result["skipped_unverified"] == []
 
     async def test_convert_skips_when_both_raw_and_converted_duplicates_exist(self, tmp_path):
         """A third convert=True run against a folder that already has both the
@@ -983,7 +1137,11 @@ class TestUploadLocalFolder:
         drive_svc.files.return_value.list.return_value.execute.return_value = {
             "files": [
                 {"name": "data.csv", "mimeType": "text/csv"},
-                {"name": "data", "mimeType": "application/vnd.google-apps.spreadsheet"},
+                {
+                    "name": "data",
+                    "mimeType": "application/vnd.google-apps.spreadsheet",
+                    "properties": {transfer_module._CONVERT_SOURCE_PROP: "data.csv"},
+                },
             ]
         }
 

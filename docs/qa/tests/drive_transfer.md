@@ -1717,3 +1717,26 @@ Code review (`/code-review high`) separately surfaced 2 blocking findings on thi
 **Re-verification (2026-09-14, fix `1788f82`) ✅ PASS** — Added a separate `bytes_accounted` counter that advances by each candidate's declared size on every outcome (success or fail), matching file-count mode's existing full-completion guarantee; stale comment corrected. New unit test (`test_progress_unit_bytes_reaches_full_total_even_when_a_candidate_fails`) covers a 2-candidate batch (sizes 5/7) where the second fails — asserts the final `report_progress` call reports `12/12`, not stuck below total. `tests/drive/test_transfer.py -k "download_folder or progress_unit"` (3 tests) passes. The happy-path live calls above were re-run post-`/mcp reconnect` with identical results (`size_bytes=12` / `size_bytes=30588`); the failing-candidate scenario itself isn't practical to force against a real Drive API call, so it's covered by the new deterministic unit test rather than live.
 
 ---
+
+### TC-D264: `upload_local_folder(convert=True)` — an unrelated file sharing a local file's extension-stripped stem is reported as `skipped_unverified`, not passed off as its converted duplicate (issue #769) ⚠️ local-filesystem
+
+**Background:** `upload_local_folder`'s `convert=True` skip check also looks up the local file's extension-stripped stem (`p.stem`), since Drive's import conversion strips the extension from some converted types' display name (TC-D243). Before #769 that stem lookup matched on name+mimeType alone, so an **unrelated** Sheet literally named `report` made a never-uploaded local `report.csv` land in plain `skipped`. Now every `convert=True` upload stamps a `geeSweetConvertSource` Drive `properties` marker recording its source filename. A stem match counts as "ours" (plain `skipped`) only when that marker names the local file. An unmarked stem match (an unrelated file, or a conversion from before the marker existed) is still skipped but reported under the new `skipped_unverified` list. A stem match marked with a *different* source file uploads normally. Full-name (`p.name`) matches are unchanged. The per-branch logic is unit-tested in `tests/drive/test_transfer.py::TestUploadLocalFolder`. This live check confirms the real Drive API round-trips the marker through `files().list(fields=...properties...)`.
+
+**Setup**
+Create a scratch Drive folder `{FOLDER_ID}`. In it, create a Google Sheet named exactly `report` directly (e.g. `create_spreadsheet(title="report", folder_id={FOLDER_ID})`), not via an upload tool. Locally, create `/tmp/qa-folder-264/report.csv` (any CSV content) and `/tmp/qa-folder-264/fresh.csv`.
+
+**Tool calls**
+1. `upload_local_folder(local_path="/tmp/qa-folder-264/", parent_folder_id={FOLDER_ID}, convert=True)`
+2. `upload_local_folder(local_path="/tmp/qa-folder-264/", parent_folder_id={FOLDER_ID}, convert=True)` (again, unchanged)
+3. `get_file_metadata` on the Sheet created from `fresh.csv` in call 1
+
+**Checks**
+- Call 1: `uploaded == ["fresh.csv"]`, `skipped == []`, and `skipped_unverified` holds exactly one entry with `name: "report.csv"`, `matched_name: "report"`, and a `reason` containing "unverified". Nothing is created for `report.csv`.
+- Call 2: `skipped == ["fresh.csv"]` (verified via the marker call 1 stamped, even though Drive shows its name as `fresh`), `uploaded == []`, and `report.csv` is still the only `skipped_unverified` entry.
+- `list_files` on `{FOLDER_ID}` shows exactly 2 files: the hand-made `report` Sheet and one `fresh` Sheet. No duplicates.
+- Call 3 (or a scratch-script `files().get(fields="properties")` if `get_file_metadata` doesn't surface `properties`): the `fresh` Sheet carries `properties.geeSweetConvertSource == "fresh.csv"`.
+
+**Teardown**
+Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-folder-264/`.
+
+---
