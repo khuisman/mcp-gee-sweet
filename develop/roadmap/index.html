@@ -1953,6 +1953,7 @@
 - [ ] <code>ast_to_markdown.py</code>: image-render duplication + falsy-based code-block buffer flush (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/600">#600</a>)
 - [ ] <code>html_parser.py</code> <code>handle_data</code>: a SIM114 lint merge conflates two structurally distinct buffering triggers (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/638">#638</a>)
 - [ ] Docs image-sharing failure paths: unrevocable <code>anyone:reader</code> grant + missing folder-cache invalidation in <code>_replace_doc_content</code> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/666">#666</a>)
+- [ ] <code>_apply_doc_content</code>: temporary <code>anyone:reader</code> image shares aren't revoked when the doc edit raises — revoke pass should run in a <code>finally</code>. Same share/revoke surface as #666 and #511 (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/789">#789</a>)
 - [ ] Docstrings: <code>create_paragraph_bullets</code> carries internal API-quirk mechanics plus residual bare issue refs in <code>style.py</code> tool docstrings (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/683">#683</a>)
 - [ ] <code>TestIsolatedDepthRunGlyph</code> asserts request shape, not rendered nesting outcome (PR #711) (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/715">#715</a>)
 - [ ] <code>style_doc_range</code> has no <code>font_family</code> parameter — can't apply monospace to an existing range (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/720">#720</a>)
@@ -2007,6 +2008,10 @@
 - [ ] Gmail scopes opt-in + verify granted scopes at startup. Existing OAuth tokens weren't granted the new scopes, so refresh likely fails into a surprise browser consent or a headless hang. <strong>Must ship in the same release as #786</strong> (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/790">#790</a>)
 - [ ] <code>reply_to_message</code> should honor Reply-To and handle replies to your own sent mail (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/791">#791</a>)
 - [ ] Decode message bodies using the part's charset; tolerate missing base64 padding (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/792">#792</a>)
+- [ ] <code>get_thread</code>/<code>get_message</code>: add a body-less option — a long thread trips the response-size cap and there's no other way to get its message IDs, so it can't be read at all (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/793">#793</a>)
+- [ ] Reply-all self-exclusion (silent <code>getProfile</code> failure, send-as aliases), attachment reads blocking the event loop, attachment MIME guessing (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/802">#802</a>)
+- [ ] Deduplicate <code>send_message</code>/<code>create_draft</code> compose and <code>list_messages</code>/<code>list_threads</code> kwargs/pagination helpers (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/795">#795</a>)
+- [ ] Local-file read policy across local-path tools — in a remote/SSE deployment these read the server's own filesystem (token, SA key), and Gmail attachments can now mail them out. One consistent policy (e.g. a config switch), not per-tool patches. Decision-needed; Joy scopes (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/796">#796</a>)
 - [ ] Release-pass Gmail QA (<code>docs/qa/tests/gmail.md</code>, added by #786). Many cases are destructive (send/draft/trash), so they need a dedicated mailbox fixture plan — Aziz (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/803">#803</a>)</p>
 <p>Tool surface (from the original v1.1+ plan):</p>
 <p>Requires <code>gmail/v1</code> client and <code>https://www.googleapis.com/auth/gmail.modify</code> scope (or narrower <code>gmail.readonly</code> / <code>gmail.send</code> scopes where appropriate). Add <code>gmail_service</code> to <code>SpreadsheetContext</code> and wire up in <code>auth.py</code> lifespan.</p>
@@ -2082,6 +2087,8 @@
 - [ ] Watch notifications — webhook push on file changes (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/143">#143</a>)
 - [ ] Labels API — custom metadata labels on Drive files (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/144">#144</a>)
 - [ ] <code>empty_trash</code> — optional fan-out across all accessible Shared Drives in one call, instead of one call per drive; considered and deliberately deferred during #386's review (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/389">#389</a>)</p>
+<p><strong>Gmail</strong>
+- [ ] Service-account Gmail via domain-wide delegation (<code>with_subject()</code> in <code>_service_account_creds</code>) — Gmail is OAuth-only until then (<a href="https://github.com/khuisman/mcp-gee-sweet/issues/794">#794</a>)</p>
 <h3 id="tier-35-planned-but-bigger-lift-target-v11">Tier 3.5 — Planned but bigger-lift <em>(target: <a href="https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22v1.1%2B%22">v1.1+</a>)</em><a class="headerlink" href="#tier-35-planned-but-bigger-lift-target-v11" title="Permanent link">&para;</a></h3>
 <p>Net-new capabilities substantial enough (new subsystem, external infra like webhooks) to warrant their own design pass rather than a single PR — later than Tier 3, still a real target rather than an indefinitely-parked wishlist item.</p>
 <ul>
