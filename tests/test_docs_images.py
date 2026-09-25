@@ -4,6 +4,8 @@ insert_local_images) plus size validation and downscaling (#400)."""
 import io
 import json
 import os
+import struct
+import zlib
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -26,6 +28,19 @@ def _make_png_bytes(width: int, height: int) -> bytes:
     inline-image size-limit tests — Pillow needs to actually decode a header to read
     dimensions, so a fake byte string won't do."""
     return _png_bytes(width, height)
+
+
+def _png_header_only(width: int, height: int) -> bytes:
+    """A PNG claiming the given dimensions with no pixel data, for header-read tests
+    at sizes too big to actually generate (e.g. past Pillow's decompression-bomb
+    threshold)."""
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        body = kind + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", b"") + chunk(b"IEND", b"")
 
 
 def _noise_png_bytes(width: int, height: int) -> bytes:
@@ -200,6 +215,44 @@ class TestCheckImageFile:
         with pytest.raises(OSError):
             images.check_image_file(tmp_path / "nope.png")
 
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+    def test_unreadable_file_raises_instead_of_passing_as_non_image(self, tmp_path):
+        # PR #801 QA round 1: a permission-denied file must not be mistaken for
+        # "not an image" and waved through to the upload.
+        path = tmp_path / "locked.png"
+        path.write_bytes(_png_bytes(100, 100))
+        path.chmod(0)
+        try:
+            with pytest.raises(PermissionError):
+                images.check_image_file(path)
+        finally:
+            path.chmod(0o644)
+
+    def test_decompression_bomb_sized_header_still_reports_dimensions(self, tmp_path):
+        # PR #801 QA round 1: Image.open refuses headers claiming > ~179 megapixels
+        # (Pillow's decompression-bomb guard). The header read must still see the
+        # dimensions, or the largest images skip pre-validation entirely.
+        path = tmp_path / "huge.png"
+        path.write_bytes(_png_header_only(14000, 13000))
+        with pytest.raises(PILImage.DecompressionBombError):
+            PILImage.open(path)
+        result = images.check_image_file(path)
+        assert result is not None
+        assert "14000x13000 (182.0 megapixels)" in result["error"]
+
+    def test_over_both_limits_reports_dimensions_like_drive_check(self, tmp_path, monkeypatch):
+        # PR #801 QA round 1: same order as check_drive_image_metadata, so one image
+        # gets the same error whether passed as a local path or as drive:<id>.
+        monkeypatch.setattr(images, "MAX_INLINE_IMAGE_BYTES", 10)
+        path = tmp_path / "big.png"
+        path.write_bytes(_png_bytes(6000, 6000))
+        local = images.check_image_file(path)
+        drive = images.check_drive_image_metadata(
+            {"imageMediaMetadata": {"width": 6000, "height": 6000}, "size": "999999"}
+        )
+        assert local == drive
+        assert "36.0 megapixels" in local["error"]
+
 
 class TestDownscaleImageBytes:
     def test_oversized_png_downscales_to_within_limit(self):
@@ -285,7 +338,7 @@ class TestCheckDriveImageMetadata:
     def test_no_metadata_available_returns_none(self):
         # A non-image binary, or metadata that doesn't report enough to check —
         # nothing to validate against, so no error (same additive-not-a-gate
-        # philosophy as check_image_bytes' undecodable-bytes case).
+        # philosophy as check_image_file's undecodable-file case).
         assert images.check_drive_image_metadata({}) is None
 
     def test_dimension_violation_checked_before_size(self):
@@ -471,7 +524,7 @@ class TestDownscaleDriveFile:
             patch("mcp_gee_sweet.tools.docs.images.thread_http"),
         ):
             result = await images.downscale_drive_file(
-                drive_svc, "orig1", name="logo.png", parent_folder_id="folder1"
+                drive_svc, "orig1", {"name": "logo.png", "parents": ["folder1"]}, "fallback"
             )
 
         assert result == {
@@ -501,7 +554,7 @@ class TestDownscaleDriveFile:
             patch("mcp_gee_sweet.tools.docs.images.thread_http"),
         ):
             result = await images.downscale_drive_file(
-                drive_svc, "orig1", name="logo.png", parent_folder_id="folder1"
+                drive_svc, "orig1", {"name": "logo.png", "parents": ["folder1"]}, "fallback"
             )
 
         assert "error" in result
@@ -529,30 +582,50 @@ class TestDownscaleDriveFile:
             patch("mcp_gee_sweet.tools.docs.images.thread_http"),
         ):
             result = await images.downscale_drive_file(
-                drive_svc, "orig1", name="logo.png", parent_folder_id="folder1"
+                drive_svc, "orig1", {"name": "logo.png", "parents": ["folder1"]}, "fallback"
             )
 
         assert "error" in result
         drive_svc.files.return_value.create.assert_not_called()
 
+    async def _run_with_metadata(self, metadata):
+        """Run downscale_drive_file on an oversized PNG, returning upload_and_share_image's
+        call args (drive_service, bytes, mime, name, parent_folder_id)."""
+        png_bytes = _png_bytes(6000, 6000)
 
-class TestDownscaleOversizedDriveImage:
-    """#560: the parent-folder fallback shared by insert_inline_image and
-    content.py's _resolve_image_source."""
+        class _FakeDownloader:
+            def __init__(self, fh, request):
+                fh.write(png_bytes)
+
+            def next_chunk(self):
+                return None, True
+
+        with (
+            patch("mcp_gee_sweet.tools.docs.images.MediaIoBaseDownload", _FakeDownloader),
+            patch("mcp_gee_sweet.tools.docs.images.thread_http"),
+            patch.object(images, "upload_and_share_image", return_value={"uri": "u"}) as upload,
+        ):
+            result = await images.downscale_drive_file(MagicMock(), "orig1", metadata, "fallback")
+        assert result == {"uri": "u"}
+        return upload.await_args.args
 
     async def test_resized_copy_goes_to_originals_first_parent(self):
-        with patch.object(images, "downscale_drive_file", return_value={"uri": "u"}) as m:
-            result = await images.downscale_oversized_drive_image(
-                "svc", "orig1", {"name": "logo.png", "parents": ["p1", "p2"]}, "fallback"
-            )
-        assert result == {"uri": "u"}
-        m.assert_awaited_once_with("svc", "orig1", name="logo.png", parent_folder_id="p1")
+        # #560: the parent-folder fallback lives here, shared by insert_inline_image
+        # and content.py's _resolve_image_source.
+        args = await self._run_with_metadata({"name": "logo.png", "parents": ["p1", "p2"]})
+        assert args[3:] == ("logo.png (resized)", "p1")
 
     async def test_no_parents_falls_back_to_given_folder(self):
-        with patch.object(images, "downscale_drive_file", return_value={"uri": "u"}) as m:
-            await images.downscale_oversized_drive_image("svc", "orig1", {}, "fallback")
         # No name either — the file ID stands in for it.
-        m.assert_awaited_once_with("svc", "orig1", name="orig1", parent_folder_id="fallback")
+        args = await self._run_with_metadata({})
+        assert args[3:] == ("orig1 (resized)", "fallback")
+
+    async def test_downscale_runs_off_the_event_loop(self):
+        # PR #801 QA round 1: a full decode + resize + re-encodes must not block the
+        # event loop (and serialize insert_local_images' gather).
+        with patch.object(images.asyncio, "to_thread", wraps=images.asyncio.to_thread) as tt:
+            await self._run_with_metadata({"name": "logo.png", "parents": ["p1"]})
+        assert images.downscale_image_bytes in [c.args[0] for c in tt.call_args_list]
 
 
 class TestPrepareLocalImage:
@@ -629,6 +702,34 @@ class TestPrepareLocalImage:
             MagicMock(), str(tmp_path / "gone.png"), "folder1", auto_downscale=False
         )
         assert result["error"].startswith("failed to read local file:")
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+    async def test_permission_denied_file_is_read_error_not_uploaded(self, tmp_path):
+        # PR #801 QA round 1: must not pass as "not an image" (None) and reach the
+        # upload, which would fail with a bare [Errno 13] instead.
+        path = tmp_path / "locked.png"
+        path.write_bytes(_png_bytes(100, 100))
+        path.chmod(0)
+        try:
+            result = await images.prepare_local_image(
+                MagicMock(), str(path), "folder1", auto_downscale=True
+            )
+        finally:
+            path.chmod(0o644)
+        assert result is not None
+        assert result["error"].startswith("failed to read local file:")
+        assert "Permission denied" in result["error"]
+
+    async def test_downscale_runs_off_the_event_loop(self, tmp_path):
+        # PR #801 QA round 1: the CPU-heavy downscale must go through to_thread.
+        path = tmp_path / "big.png"
+        path.write_bytes(_png_bytes(6000, 6000))
+        with (
+            patch.object(images, "upload_and_share_image", return_value={"uri": "u"}),
+            patch.object(images.asyncio, "to_thread", wraps=images.asyncio.to_thread) as tt,
+        ):
+            await images.prepare_local_image(MagicMock(), str(path), "f", auto_downscale=True)
+        assert images.downscale_image_bytes in [c.args[0] for c in tt.call_args_list]
 
 
 # ---------------------------------------------------------------------------
@@ -1334,6 +1435,30 @@ class TestInsertLocalImages:
         assert [r["marker"] for r in result["results"]] == ["MISSING", "ONE"]
         assert "error" in result["results"][0]
         assert "error" not in result["results"][1]
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+    async def test_unreadable_local_image_is_clean_read_error_without_upload(self, tmp_path):
+        # PR #801 QA round 1: the permission error surfaces at the size gate as
+        # "failed to read local file", never reaching the upload.
+        img = tmp_path / "locked.png"
+        img.write_bytes(_make_png_bytes(10, 10))
+        img.chmod(0)
+        doc, _ = _build_doc_body([["MARKER\n"]])
+        docs_svc = self._docs_svc(doc)
+        drive_svc = self._drive_svc()
+        ctx = self._ctx(docs_svc=docs_svc, drive_svc=drive_svc, folder_id="folder1")
+        try:
+            result = await _docs_tools["insert_local_images"](
+                doc_id="doc1",
+                images=[{"marker": "MARKER", "local_path": str(img)}],
+                ctx=ctx,
+            )
+        finally:
+            img.chmod(0o644)
+
+        assert result["results"][0]["error"].startswith("failed to read local file:")
+        drive_svc.files.return_value.create.assert_not_called()
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
 
     async def test_oversized_local_image_fails_fast_without_upload(self, tmp_path):
         img = tmp_path / "big.png"

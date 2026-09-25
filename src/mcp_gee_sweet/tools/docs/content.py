@@ -23,7 +23,7 @@ from .emitter import ast_to_requests, extract_images, fill_tables
 from .html_parser import html_to_ast
 from .images import (
     check_drive_image_metadata,
-    downscale_oversized_drive_image,
+    downscale_drive_file,
     prepare_local_image,
     rewrite_too_large_error,
 )
@@ -239,7 +239,7 @@ async def _resolve_image_source(
         if size_error is not None:
             if not auto_downscale:
                 return size_error
-            return await downscale_oversized_drive_image(
+            return await downscale_drive_file(
                 drive_service, file_id, drive_metadata, target_folder_id
             )
     else:
