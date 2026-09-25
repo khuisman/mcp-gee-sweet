@@ -38,6 +38,7 @@ Prompt-driven integration tests for mcp-gee-sweet. Each test case is a natural l
 | [tests/docs_layout.md](tests/docs_layout.md) | Docs layout (headers/footers) | TC-DOC## |
 | [tests/infra.md](tests/infra.md) | Infrastructure | TC-I## |
 | [tests/calendar.md](tests/calendar.md) | Calendar tools | TC-CAL## |
+| [tests/gmail.md](tests/gmail.md) | Gmail tools | TC-GM## |
 
 ## Notes
 

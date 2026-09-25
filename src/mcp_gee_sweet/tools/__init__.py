@@ -1,4 +1,4 @@
-from . import calendar
+from . import calendar, gmail
 
 
 def register_all(tool):
@@ -19,3 +19,4 @@ def register_all(tool):
     docs.register(tool)
     cache.register(tool)
     calendar.register(tool)
+    gmail.register(tool)

@@ -21,6 +21,8 @@ fixture_keys:
     - TEST_FOLDER_ID        # needed for: drive group
     - TEST_CALENDAR_ID      # needed for: calendar group
     - TEST_EVENT_ID         # needed for: calendar group
+    - TEST_MESSAGE_ID       # needed for: gmail group (optional; can discover via list_messages)
+    - TEST_THREAD_ID        # needed for: gmail group (optional; can discover via list_threads)
 
 operations:
 
@@ -106,7 +108,7 @@ operations:
     name: Run Full QA Suite
     description: >
       Run all test categories against the live MCP server in order: infra, read,
-      write, sheets, drive, charts, calendar. AI evaluates each check; results
+      write, sheets, drive, charts, calendar, gmail. AI evaluates each check; results
       saved to docs/qa/results/YYYY-MM-DD.md. Groups whose required fixture IDs
       are absent in .env are skipped automatically — you don't have to set everything
       to run a subset.
@@ -134,6 +136,7 @@ operations:
           sheets_charts: "Sheets chart tools (TC-C##) — add_chart"
           drive:         "Drive, Docs, sharing, transfer, and revisions tools (TC-D##) — create/list/search spreadsheets, docs, files, folders; share_spreadsheet, share_file, list/update/remove permissions; upload, download, export_file, sync_folder; list_revisions, export_revision; get_file_metadata, rename_file, move_file, copy_file, delete_file, list_drives. NOTE: many tests are marked ⚠️ requires-oauth or ⚠️ local-filesystem — see pre-run warning."
           calendar:      "Calendar tools (TC-CAL##) — requires TEST_CALENDAR_ID and TEST_EVENT_ID"
+          gmail:         "Gmail tools (TC-GM##) — prefers OAuth; optional TEST_MESSAGE_ID / TEST_THREAD_ID"
           infra:         "Infrastructure (TC-I##) — server startup, auth, caching, tool filtering, refresh_cache"
     preconditions:
       - "mcp-gee-sweet tools available in this session"
@@ -141,6 +144,7 @@ operations:
       - "sheets_read/sheets_write/sheets_mgmt/sheets_charts: TEST_SPREADSHEET_ID"
       - "drive: TEST_SPREADSHEET_ID + TEST_DOC_ID + TEST_FOLDER_ID"
       - "calendar: TEST_CALENDAR_ID + TEST_EVENT_ID"
+      - "gmail: OAuth mailbox recommended; TEST_MESSAGE_ID / TEST_THREAD_ID optional"
       - "infra: no fixture IDs required"
     prompt: |
       Follow the conductor prompt in docs/qa/run.md, but only run
@@ -204,6 +208,7 @@ operations:
           sheets_charts: "Sheets chart tools (TC-C##) — add_chart"
           drive:         "Drive, Docs, sharing, transfer, and revisions tools (TC-D##) — create/list/search spreadsheets, docs, files, folders; share_spreadsheet, share_file, list/update/remove permissions; upload, download, export_file, sync_folder; list_revisions, export_revision; get_file_metadata, rename_file, move_file, copy_file, delete_file, list_drives"
           calendar:      "Calendar tools (TC-CAL##) — requires TEST_CALENDAR_ID and TEST_EVENT_ID"
+          gmail:         "Gmail tools (TC-GM##) — prefers OAuth; optional TEST_MESSAGE_ID / TEST_THREAD_ID"
           infra:         "Infrastructure (TC-I##) — server startup, auth, caching, tool filtering, refresh_cache"
     preconditions:
       - "mcp-gee-sweet tools available in this session"

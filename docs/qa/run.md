@@ -205,6 +205,7 @@ Work through the test files in this order:
 12. `docs/qa/tests/docs_style.md`
 13. `docs/qa/tests/docs_layout.md`
 14. `docs/qa/tests/calendar.md`
+15. `docs/qa/tests/gmail.md`
 
 For each test case:
 

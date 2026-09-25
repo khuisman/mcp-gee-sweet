@@ -69,6 +69,7 @@ nav:
       - Calendar: qa/tests/calendar.md
       - Docs: qa/tests/docs.md
       - Drive: qa/tests/drive.md
+      - Gmail: qa/tests/gmail.md
       - Infrastructure: qa/tests/infra.md
       - Sheets — Read: qa/tests/sheets_read.md
       - Sheets — Write: qa/tests/sheets_write.md

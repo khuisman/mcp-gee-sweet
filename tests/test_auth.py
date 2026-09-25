@@ -425,12 +425,13 @@ class TestLifespanWaterfall:
             mock_adc=MagicMock(side_effect=Exception("should not call")),
         )
         assert ctx.auth_method == "service_account"
-        # Confirm all five services were built
+        # Confirm all six services were built
         assert ctx.sheets_service is not None
         assert ctx.drive_service is not None
         assert ctx.docs_service is not None
         assert ctx.calendar_service is not None
         assert ctx.activity_service is not None
+        assert ctx.gmail_service is not None
 
 
 # ---------------------------------------------------------------------------
