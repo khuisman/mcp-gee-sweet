@@ -1739,4 +1739,10 @@ Create a scratch Drive folder `{FOLDER_ID}`. In it, create a Google Sheet named 
 **Teardown**
 Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-folder-264/`.
 
+**Result (2026-09-24, PR #800 round 1, `28436cf`) ❌ FAIL (sent back)** — Ran via `mcp-gee-sweet-sky` against a fresh isolated child folder. The case's own checks all passed. Call 1 returned `uploaded: ["fresh.csv"]`, `skipped: []`, and one `skipped_unverified` entry `{name: "report.csv", matched_name: "report", reason: "name-only match, unverified: ..."}`. Call 2 returned `skipped: ["fresh.csv"]` with the same single `skipped_unverified` entry. `list_files` showed only the hand-made `report` plus one `fresh`. A scratch-script `files().get(fields="properties")` showed `fresh` carrying `{"geeSweetConvertSource": "fresh.csv"}`. Unit tests: `tests/drive/test_transfer.py` 150/150 passed. Two further live probes during the same pass failed, so the round is sent back:
+- **124-byte property cap (regression).** `upload_local_file(convert=True)` on a local `.csv` with a 118-byte filename (`geeSweetConvertSource` key 21 bytes, 139 bytes total) returned `HttpError 403 propertyLengthLimitExceeded` ("Properties and app properties are limited to 124 bytes in UTF-8 encoding, counting both the key and the value"). Before this PR, a non-`.md` conversion stamped no property and succeeded. Worse, **Drive still created the Sheet** (no `properties`, confirmed via `files().get`), but the tool reported only `{"error": ...}` with no `fileId`, leaving an untracked orphan. The `.md` path has always had the same exposure with its 29-byte key.
+- **Single-file path ignores the new marker.** After call 2, `upload_local_file("/tmp/qa-folder-264/fresh.csv", convert=True)` against the same folder created a **second** `fresh` Sheet (`skipped: false`), even though an existing `fresh` was marked `geeSweetConvertSource: "fresh.csv"`. `_upload_local_file`'s skip check still queries `name='fresh.csv'` only. This is pre-existing, but the two paths now decide existence differently, contrary to #514's shared-helper intent.
+
+Fixture folder trashed and local dirs removed as teardown.
+
 ---
