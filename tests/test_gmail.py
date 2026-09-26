@@ -130,6 +130,7 @@ class TestGetMessage:
             "payload": {
                 "headers": [
                     {"name": "From", "value": "a@example.com"},
+                    {"name": "Reply-To", "value": "r@example.com"},
                     {"name": "To", "value": "b@example.com"},
                     {"name": "Subject", "value": "Hi"},
                     {"name": "Message-ID", "value": "<mid@example.com>"},
@@ -159,6 +160,7 @@ class TestGetMessage:
         assert result["id"] == "m1"
         assert result["thread_id"] == "t1"
         assert result["headers"]["from"] == "a@example.com"
+        assert result["headers"]["reply_to"] == "r@example.com"
         assert result["headers"]["subject"] == "Hi"
         assert result["body_plain"] == "Hello plain"
         assert result["body_html"] == "<p>Hello</p>"
@@ -497,6 +499,231 @@ class TestReplyToMessage:
         )
 
         assert "error" in result
+
+
+def _reply_recipients_for(
+    headers, *, label_ids=None, reply_all=False, mailbox="me@example.com", aliases=()
+):
+    """Run reply_to_message against a stubbed original; return (To, Cc) address sets."""
+    gmail_svc = MagicMock()
+    gmail_svc.users.return_value.settings.return_value.sendAs.return_value.list.return_value.execute.return_value = {
+        "sendAs": [{"sendAsEmail": a} for a in (mailbox, *aliases)],
+    }
+    gmail_svc.users.return_value.getProfile.return_value.execute.return_value = {
+        "emailAddress": mailbox,
+    }
+    gmail_svc.users.return_value.messages.return_value.get.return_value.execute.return_value = {
+        "id": "m1",
+        "threadId": "t1",
+        "labelIds": label_ids or ["INBOX"],
+        "payload": {
+            "headers": [{"name": k, "value": v} for k, v in headers.items()]
+            + [{"name": "Subject", "value": "Hi"}, {"name": "Message-ID", "value": "<o@x>"}]
+        },
+    }
+    gmail_svc.users.return_value.messages.return_value.send.return_value.execute.return_value = {
+        "id": "r1",
+        "threadId": "t1",
+    }
+    ctx = _make_ctx(gmail_service=gmail_svc)
+
+    async def run():
+        result = await _gmail_tools["reply_to_message"](
+            message_id="m1", body="ok", reply_all=reply_all, ctx=ctx
+        )
+        assert "error" not in result, result
+        parsed = message_from_bytes(_raw_payload_from_send_call(gmail_svc))
+        to = {a.lower() for _, a in getaddresses([parsed["To"] or ""]) if a}
+        cc = {a.lower() for _, a in getaddresses([parsed["Cc"] or ""]) if a}
+        return to, cc, gmail_svc
+
+    return run()
+
+
+class TestReplyRecipients:
+    """#791: resolve reply recipients like a standard mail client."""
+
+    async def test_reply_to_header_wins_over_from(self):
+        to, cc, _ = await _reply_recipients_for(
+            {
+                "From": "No Reply <noreply@vendor.example>",
+                "Reply-To": "Support <support@vendor.example>",
+                "To": "me@example.com",
+            }
+        )
+        assert to == {"support@vendor.example"}
+        assert cc == set()
+
+    async def test_plain_reply_without_reply_to_uses_from(self):
+        to, _, gmail_svc = await _reply_recipients_for(
+            {"From": "alice@example.com", "To": "me@example.com"}
+        )
+        assert to == {"alice@example.com"}
+        # sendAs.list includes the primary address, so no getProfile fallback.
+        gmail_svc.users.return_value.getProfile.assert_not_called()
+
+    async def test_plain_reply_drops_own_address(self):
+        # QA round 1 finding 1 (reproduced live): own message To: me, me+x.
+        to, _, _ = await _reply_recipients_for(
+            {"From": "me@example.com", "To": "me@example.com, bob@example.com"},
+            label_ids=["SENT"],
+        )
+        assert to == {"bob@example.com"}
+
+    async def test_plain_reply_drops_own_address_from_reply_to(self):
+        to, _, _ = await _reply_recipients_for(
+            {
+                "From": "alice@example.com",
+                "Reply-To": "me@example.com, team@example.com",
+                "To": "me@example.com",
+            }
+        )
+        assert to == {"team@example.com"}
+
+    async def test_plain_reply_detects_own_message_by_address_without_sent_label(self):
+        # Finding 3: a message the mailbox sent from another client, without SENT.
+        to, _, _ = await _reply_recipients_for(
+            {"From": "Me <ME@example.com>", "To": "bob@example.com"},
+        )
+        assert to == {"bob@example.com"}
+
+    async def test_own_cc_only_message_plain_reply_goes_to_cc(self):
+        # Finding 2 (reproduced live): own message with only a Cc, no To.
+        to, cc, _ = await _reply_recipients_for(
+            {"From": "me@example.com", "Cc": "carol@example.com"},
+            label_ids=["SENT"],
+        )
+        assert to == {"carol@example.com"}
+        assert cc == set()
+
+    async def test_own_cc_only_message_reply_all_promotes_cc_and_excludes_self(self):
+        to, cc, _ = await _reply_recipients_for(
+            {"From": "me@example.com", "Cc": "carol@example.com"},
+            label_ids=["SENT"],
+            reply_all=True,
+        )
+        assert to == {"carol@example.com"}
+        assert cc == set()
+
+    async def test_reply_to_self_falls_back_to_reply_to_not_noreply_from(self):
+        # Finding 4: plain reply and reply_all must agree, and never pick the
+        # no-reply From that Reply-To exists to avoid.
+        headers = {
+            "From": "noreply@tool.example",
+            "Reply-To": "me@example.com",
+            "To": "me@example.com",
+        }
+        plain_to, _, _ = await _reply_recipients_for(headers)
+        all_to, all_cc, _ = await _reply_recipients_for(headers, reply_all=True)
+        assert plain_to == all_to == {"me@example.com"}
+        assert all_cc == set()
+
+    async def test_send_as_aliases_are_excluded_and_mark_own_mail(self):
+        # Finding 5: aliases from sendAs.list count as the mailbox.
+        to, cc, _ = await _reply_recipients_for(
+            {
+                "From": "Work Me <me@work.example>",
+                "To": "bob@example.com, me@example.com",
+                "Cc": "me@work.example, carol@example.com",
+            },
+            reply_all=True,
+            aliases=("me@work.example",),
+        )
+        assert to == {"bob@example.com"}
+        assert cc == {"carol@example.com"}
+
+    async def test_send_as_failure_falls_back_to_profile(self):
+        gmail_svc = MagicMock()
+        gmail_svc.users.return_value.settings.return_value.sendAs.return_value.list.return_value.execute.side_effect = Exception(
+            "forbidden"
+        )
+        gmail_svc.users.return_value.getProfile.return_value.execute.return_value = {
+            "emailAddress": "Me@Example.com",
+        }
+        assert await gmail_module._own_addresses(gmail_svc) == {"me@example.com"}
+
+    async def test_reply_to_with_multiple_addresses_keeps_all(self):
+        to, _, _ = await _reply_recipients_for(
+            {
+                "From": "alice@example.com",
+                "Reply-To": "a@example.com, b@example.com",
+                "To": "me@example.com",
+            }
+        )
+        assert to == {"a@example.com", "b@example.com"}
+
+    async def test_reply_all_uses_reply_to_instead_of_from(self):
+        # Mailing-list shape: From is the poster, Reply-To and To are the list.
+        to, cc, _ = await _reply_recipients_for(
+            {
+                "From": "poster@example.com",
+                "Reply-To": "list@lists.example",
+                "To": "list@lists.example",
+                "Cc": "me@example.com, carol@example.com",
+            },
+            reply_all=True,
+        )
+        assert to == {"list@lists.example"}
+        assert cc == {"carol@example.com"}
+
+    async def test_reply_to_own_sent_message_goes_to_original_to(self):
+        to, _, _ = await _reply_recipients_for(
+            {"From": "Me <me@example.com>", "To": "Bob <bob@example.com>"},
+            label_ids=["SENT"],
+        )
+        assert to == {"bob@example.com"}
+
+    async def test_own_sent_message_ignores_its_own_reply_to(self):
+        to, _, _ = await _reply_recipients_for(
+            {
+                "From": "me@example.com",
+                "Reply-To": "team@example.com",
+                "To": "bob@example.com",
+            },
+            label_ids=["SENT"],
+        )
+        assert to == {"bob@example.com"}
+
+    async def test_reply_all_to_own_sent_message(self):
+        to, cc, _ = await _reply_recipients_for(
+            {
+                "From": "me@example.com",
+                "To": "bob@example.com, dan@example.com",
+                "Cc": "carol@example.com, me@example.com",
+            },
+            label_ids=["SENT"],
+            reply_all=True,
+        )
+        assert to == {"bob@example.com", "dan@example.com"}
+        assert cc == {"carol@example.com"}
+
+    async def test_reply_all_detects_own_message_by_address_without_sent_label(self):
+        # e.g. a message the mailbox sent from another client, filed without SENT.
+        to, _, _ = await _reply_recipients_for(
+            {"From": "Me <ME@example.com>", "To": "bob@example.com"},
+            reply_all=True,
+        )
+        assert to == {"bob@example.com"}
+
+    async def test_message_sent_only_to_self_falls_back_to_self(self):
+        to, _, _ = await _reply_recipients_for(
+            {"From": "me@example.com", "To": "me@example.com"},
+            label_ids=["SENT", "INBOX"],
+            reply_all=True,
+        )
+        assert to == {"me@example.com"}
+
+    async def test_message_to_self_with_cc_goes_to_cc_not_self(self):
+        # Companion to the above: the self fallback applies only when nobody else
+        # is on the message, so it never swallows a Cc'd person.
+        for reply_all in (False, True):
+            to, cc, _ = await _reply_recipients_for(
+                {"From": "me@example.com", "To": "me@example.com", "Cc": "carol@example.com"},
+                label_ids=["SENT", "INBOX"],
+                reply_all=reply_all,
+            )
+            assert to == {"carol@example.com"}, reply_all
+            assert cc == set()
 
 
 class TestModifyLabels:

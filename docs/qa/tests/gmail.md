@@ -235,6 +235,98 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute `{MESSAGE_ID}`, `{TH
 
 ---
 
+### TC-GM23: Reply goes to the original's Reply-To, not its From (issue #791) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** `reply_to_message` used to always reply to `From`, so mail with a `Reply-To` (mailing lists, support desks, no-reply senders) got the reply at the wrong address. #791 resolves `Reply-To` over `From`, like a standard mail client. This reproduces the defect without mailing anyone outside the QA mailbox: the original is *inserted* (not sent) with a fake `From` and a `Reply-To` pointing at a plus-address of the QA mailbox itself.
+
+**Setup:** there's no tool for inserting a message, so insert the fixture with a scratch script from the checkout under test, using the same OAuth token as the server under test (its saved scopes must include `gmail.modify`). Replace `<mailbox>` with the QA mailbox address, e.g. `qa@example.com` → `qa+tc-gm23@example.com`:
+
+```bash
+uv run python3 -c "
+import base64
+from email.mime.text import MIMEText
+from googleapiclient.discovery import build
+from mcp_gee_sweet.auth import _oauth_creds
+m = MIMEText('mcp-gee-sweet TC-GM23 fixture')
+m['From'] = 'No Reply <noreply@example.invalid>'
+m['Reply-To'] = '<mailbox local part>+tc-gm23@<mailbox domain>'
+m['To'] = '<mailbox>'
+m['Subject'] = 'TC-GM23 reply-to fixture'
+g = build('gmail', 'v1', credentials=_oauth_creds(), cache_discovery=False)
+r = g.users().messages().insert(userId='me', body={'raw': base64.urlsafe_b64encode(m.as_bytes()).decode(), 'labelIds': ['INBOX']}).execute()
+print(r['id'])
+"
+```
+
+Record the printed ID as `{REPLY_TO_FIXTURE_ID}`.
+
+**Action**
+1. `get_message` with `message_id: "{REPLY_TO_FIXTURE_ID}"`
+2. `reply_to_message` with `message_id: "{REPLY_TO_FIXTURE_ID}"`, `body: "mcp-gee-sweet TC-GM23 reply"`
+3. `get_message` with `message_id` set to the `id` returned by step 2
+4. `reply_to_message` again with `reply_all: true`, same `message_id`, `body: "mcp-gee-sweet TC-GM23 reply-all"`, then `get_message` on its returned `id`
+
+**Checks**
+- Step 1: `headers.reply_to` is the `+tc-gm23` address and `headers.from` is `noreply@example.invalid`
+- Step 3: `headers.to` is the `+tc-gm23` address only; `noreply@example.invalid` appears nowhere in `to`/`cc`
+- Step 4: `headers.to` contains the `+tc-gm23` address and does **not** contain the bare QA mailbox address (the authenticated mailbox is excluded from reply-all); `noreply@example.invalid` appears nowhere
+- The step-2 reply arrives in the QA inbox (it was addressed to the mailbox's own plus-address), in the same `thread_id` as the fixture
+
+**Cleanup:** `trash_message` the fixture, both replies, and their delivered inbox copies.
+
+**Result (2026-09-26, PR #815 round 1) ✅ PASS** — via `mcp-gee-sweet-kit` (token has `gmail.modify`), fixture inserted with the setup script. Step 1: `reply_to` = `+tc-gm23` address, `from` = `noreply@example.invalid`. Step 3: `to` = `+tc-gm23` address only. Step 4 (reply-all): `to` = `+tc-gm23` address only; the bare mailbox was excluded, and `noreply@example.invalid` appears nowhere. Both replies share the fixture's `thread_id`. A reply to your own plus-address is one message labeled `SENT`+`INBOX`, not a separate delivered copy, so cleanup is just the fixture plus the two replies. All trashed.
+
+**Result (2026-09-26, PR #815 round 2) ✅ PASS (regression)** — re-run against `45530d7`: the plain reply and reply-all both go `to` = `+tc-gm23` only. The bare mailbox and `noreply@example.invalid` appear nowhere. Trashed.
+
+---
+
+### TC-GM24: Replying to your own sent message goes to its original To, not back to you (issue #791) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** a plain reply (`reply_all: false`) to a message the mailbox itself sent used to set `To` to the mailbox's own address. #791 replies to that message's original `To` instead, like a standard mail client. A plus-address of the QA mailbox stands in for the other person, so nothing leaves the mailbox.
+
+**Action**
+1. `send_message` with `to: "<mailbox local part>+tc-gm24@<mailbox domain>"`, `subject: "TC-GM24 own-sent fixture"`, `body: "mcp-gee-sweet TC-GM24 fixture"`. Record its `id` as `{OWN_SENT_ID}`.
+2. `get_message` with `message_id: "{OWN_SENT_ID}"`
+3. `reply_to_message` with `message_id: "{OWN_SENT_ID}"`, `body: "mcp-gee-sweet TC-GM24 reply"`
+4. `get_message` with `message_id` set to the `id` returned by step 3
+
+**Checks**
+- Step 2: `label_ids` includes `SENT`
+- Step 4: `headers.to` is the `+tc-gm24` address, **not** the bare QA mailbox address
+- Step 4: `thread_id` matches `{OWN_SENT_ID}`'s thread
+
+**Cleanup:** `trash_message` the fixture, the reply, and their delivered inbox copies.
+
+**Result (2026-09-26, PR #815 round 1) ✅ PASS** — via `mcp-gee-sweet-kit`. Step 2: `label_ids` includes `SENT`. Step 4: `to` = `+tc-gm24` address, not the bare mailbox; `thread_id` matches. Both trashed. **Scope note:** this case covers only a single-recipient `To`. Live repros of the PR's code-review findings (both plain replies to your own sent mail) failed. `To: <mailbox>, <mailbox>+tc-f3` replied `To: <mailbox>, <mailbox>+tc-f3`, so you get a copy of your own reply. `Cc`-only (no `To`) replied `To: <mailbox>` and dropped the Cc'd recipient. Both were sent back to the Dev on PR #815.
+
+**Result (2026-09-26, PR #815 round 2) ✅ PASS (regression)** — re-run against `45530d7`: the reply goes `to` = `+tc-gm24`, same thread. The round-1 scope-note failures are now covered by TC-GM25, which passes. Trashed.
+
+---
+
+### TC-GM25: Replies to your own multi-recipient or Cc-only sent mail never copy you and never drop the Cc (issue #791) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** PR #815 QA round 1 reproduced two live failures TC-GM24 doesn't cover, both on plain replies to your own sent mail. `To: <mailbox>, <mailbox>+x` replied to both, so you got a copy of your own reply. A `Cc`-only message (no `To`) replied `To: <mailbox>` and dropped the Cc'd person. The fix drops the mailbox's own addresses (primary and send-as aliases) from every reply, and replies to an own message's `Cc` when nobody else is in `To`. Plus-addresses of the QA mailbox stand in for other people, so nothing leaves the mailbox. They count as other people because they aren't send-as aliases.
+
+**Action**
+1. `send_message` with `to: ["<mailbox>", "<mailbox local part>+tc-gm25a@<mailbox domain>"]`, `subject: "TC-GM25 multi-recipient fixture"`, `body: "mcp-gee-sweet TC-GM25 fixture A"`. Record its `id` as `{GM25_A}`.
+2. `reply_to_message` with `message_id: "{GM25_A}"`, `body: "mcp-gee-sweet TC-GM25 reply A"`, then `get_message` on the returned `id`.
+3. `send_message` with `to: ""`, `cc: "<mailbox local part>+tc-gm25b@<mailbox domain>"`, `subject: "TC-GM25 Cc-only fixture"`, `body: "mcp-gee-sweet TC-GM25 fixture B"` (the round-1 Cc-only repro). Record its `id` as `{GM25_B}`.
+4. `reply_to_message` with `message_id: "{GM25_B}"`, `body: "mcp-gee-sweet TC-GM25 reply B"`, then `get_message` on the returned `id`.
+5. `reply_to_message` with `message_id: "{GM25_B}"`, `reply_all: true`, `body: "mcp-gee-sweet TC-GM25 reply-all B"`, then `get_message` on the returned `id`.
+6. Repeat steps 3–5 with `to: "<mailbox>"` instead of `to: ""` and `+tc-gm25c` as the Cc (a message to yourself that also Cc's someone).
+
+**Checks**
+- Step 2: `headers.to` is exactly the `+tc-gm25a` address. The bare mailbox address appears nowhere in `to`/`cc`.
+- Step 4: `headers.to` is exactly the `+tc-gm25b` address, not the bare mailbox. `cc` is empty.
+- Step 5: `headers.to` is exactly the `+tc-gm25b` address. The bare mailbox appears nowhere in `to`/`cc`.
+- Step 6: same as steps 4–5, with the `+tc-gm25c` address.
+
+**Cleanup:** `trash_message` all three fixtures, all five replies, and their delivered inbox copies.
+
+**Result (2026-09-26, PR #815 round 2) ✅ PASS** — via `mcp-gee-sweet-kit` after `/mcp reconnect`, against fix `45530d7`. Step 2: `to` = `+tc-gm25a` only; the bare mailbox appears nowhere. Steps 4 and 5 (Cc-only, sent with `to: []`): both `to` = `+tc-gm25b`, `cc` empty. Step 6 (to-self + Cc): plain reply and reply-all both `to` = `+tc-gm25c`, `cc` empty. Also confirmed live with the same token that `users.settings.sendAs.list` succeeds under `gmail.modify` and returns the primary address (1 entry, `isPrimary: true`), so `_own_addresses` takes its alias-list path rather than the `getProfile` fallback. All fixtures and replies trashed.
+
+---
+
 ## `modify_labels`
 
 ### TC-GM19: Mark a message unread then read ⚠️ destructive
