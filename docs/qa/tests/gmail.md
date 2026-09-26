@@ -274,6 +274,8 @@ Record the printed ID as `{REPLY_TO_FIXTURE_ID}`.
 
 **Cleanup:** `trash_message` the fixture, both replies, and their delivered inbox copies.
 
+**Result (2026-09-26, PR #815 round 1) ✅ PASS** — via `mcp-gee-sweet-kit` (token has `gmail.modify`), fixture inserted with the setup script. Step 1: `reply_to` = `+tc-gm23` address, `from` = `noreply@example.invalid`. Step 3: `to` = `+tc-gm23` address only. Step 4 (reply-all): `to` = `+tc-gm23` address only; the bare mailbox was excluded, and `noreply@example.invalid` appears nowhere. Both replies share the fixture's `thread_id`. A reply to your own plus-address is one message labeled `SENT`+`INBOX`, not a separate delivered copy, so cleanup is just the fixture plus the two replies. All trashed.
+
 ---
 
 ### TC-GM24: Replying to your own sent message goes to its original To, not back to you (issue #791) ⚠️ destructive ⚠️ requires-oauth
@@ -292,6 +294,8 @@ Record the printed ID as `{REPLY_TO_FIXTURE_ID}`.
 - Step 4: `thread_id` matches `{OWN_SENT_ID}`'s thread
 
 **Cleanup:** `trash_message` the fixture, the reply, and their delivered inbox copies.
+
+**Result (2026-09-26, PR #815 round 1) ✅ PASS** — via `mcp-gee-sweet-kit`. Step 2: `label_ids` includes `SENT`. Step 4: `to` = `+tc-gm24` address, not the bare mailbox; `thread_id` matches. Both trashed. **Scope note:** this case covers only a single-recipient `To`. Live repros of the PR's code-review findings (both plain replies to your own sent mail) failed. `To: <mailbox>, <mailbox>+tc-f3` replied `To: <mailbox>, <mailbox>+tc-f3`, so you get a copy of your own reply. `Cc`-only (no `To`) replied `To: <mailbox>` and dropped the Cc'd recipient. Both were sent back to the Dev on PR #815.
 
 ---
 
