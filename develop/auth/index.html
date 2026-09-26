@@ -1515,7 +1515,7 @@
 <li><code>SERVICE_ACCOUNT_PATH</code> — path to the JSON key file</li>
 <li><code>DRIVE_FOLDER_ID</code> — ID of the shared Drive folder</li>
 </ol>
-<p><strong>Limitation:</strong> service accounts cannot create files in a user's personal Drive (no quota). Use OAuth or a Shared Drive when you need to create files. Service accounts also have no personal Drive identity, so <code>transfer_ownership</code> always fails — that one requires OAuth, with no Shared Drive workaround. <strong>Gmail tools require OAuth</strong> — service-account / domain-wide delegation is not wired yet. See <code>server://auth-status</code> to check your active auth method and affected tools.</p>
+<p><strong>Limitation:</strong> service accounts cannot create files in a user's personal Drive (no quota). Use OAuth or a Shared Drive when you need to create files. Service accounts also have no personal Drive identity, so <code>transfer_ownership</code> always fails — that one requires OAuth, with no Shared Drive workaround. <strong>Gmail tools require OAuth</strong> — service-account / domain-wide delegation is not wired yet. See <code>server://auth-status</code> to check your active auth method and affected tools (Gmail's are listed under the <code>no_user_mailbox</code> category).</p>
 <h2 id="method-b-oauth-20-personal-use-local-dev">Method B: OAuth 2.0 (personal use / local dev)<a class="headerlink" href="#method-b-oauth-20-personal-use-local-dev" title="Permanent link">&para;</a></h2>
 <p>Authenticates as you — gives full access to your personal Drive. Requires a browser login on first run.</p>
 <ol>
@@ -1525,7 +1525,13 @@
 <li><code>CREDENTIALS_PATH</code> — path to the downloaded OAuth JSON (default: <code>credentials.json</code>)</li>
 <li><code>TOKEN_PATH</code> — where the refresh token is stored after login (default: <code>token.json</code>)</li>
 </ol>
-<p><strong>Re-authenticating after a scope change:</strong> if you've already authenticated and a new scope has been added (e.g. <code>drive.activity.readonly</code> or the Gmail scopes), delete <code>token.json</code> and restart the server to trigger a fresh OAuth flow.</p>
+<p><strong>Re-authenticating after a scope change:</strong> at startup the server checks that the saved token was authorized for every scope the registered tools need. It never opens a browser to fix a shortfall on its own. What happens depends on which scope is missing:</p>
+<ul>
+<li><strong>Only the Gmail scope is missing</strong> (for example, a token from before the Gmail tools existed): the server starts normally and Sheets, Drive, Docs, Calendar and activity tools keep working. Every Gmail tool returns an error naming the missing scope and how to re-authorize, and <code>server://auth-status</code> lists the Gmail tools under a <code>gmail_not_authorized</code> limitation.</li>
+<li><strong>Any other scope is missing:</strong> startup stops with an error naming the missing scopes. Most tools can't work without them. (Under a stdio client this error goes to stderr, which the client usually doesn't show; the client just reports that the connection closed. Set <code>DEBUG_LEVEL</code> and <code>LOG_FILE</code> to capture it in a file.)</li>
+</ul>
+<p>Either way, delete <code>token.json</code> and restart the server (or run <code>scripts/oauth_setup.py</code>) to re-authorize.</p>
+<p><strong>Gmail scope is only requested when a Gmail tool is registered.</strong> With no <code>ENABLED_TOOLS</code> filter every tool is registered, so the server asks for <code>gmail.modify</code> (read, compose, send, label, trash). If you don't want to grant mailbox access, leave the Gmail tools out of <code>ENABLED_TOOLS</code> / <code>--include-tools</code>. The server then neither requests nor requires the Gmail scope, and an existing pre-Gmail token keeps working.</p>
 <h2 id="method-c-base64-credential-injection">Method C: Base64 credential injection<a class="headerlink" href="#method-c-base64-credential-injection" title="Permanent link">&para;</a></h2>
 <p>Useful in Docker/Kubernetes where file mounts are inconvenient. Encode your service account or OAuth JSON as Base64 and pass it via environment variable.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># macOS / Linux</span>
@@ -1542,11 +1548,9 @@
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>https://www.googleapis.com/auth/drive.activity.readonly,<span class="se">\</span>
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>https://www.googleapis.com/auth/documents,<span class="se">\</span>
 <a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>https://www.googleapis.com/auth/calendar,<span class="se">\</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>https://www.googleapis.com/auth/gmail.modify,<span class="se">\</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>https://www.googleapis.com/auth/gmail.send,<span class="se">\</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>https://www.googleapis.com/auth/gmail.readonly
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>gcloud<span class="w"> </span>auth<span class="w"> </span>application-default<span class="w"> </span>set-quota-project<span class="w"> </span>YOUR_PROJECT_ID
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>https://www.googleapis.com/auth/gmail.modify
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>gcloud<span class="w"> </span>auth<span class="w"> </span>application-default<span class="w"> </span>set-quota-project<span class="w"> </span>YOUR_PROJECT_ID
 </code></pre></div>
 <p>On GCP, attach a service account to your compute resource — ADC picks it up automatically. The <code>GOOGLE_APPLICATION_CREDENTIALS</code> env var (Google's standard) also feeds into ADC.</p>
 <p><strong>ADC can resolve to either a real user or a service identity</strong>, and the two have different limitations: a real user credential (<code>gcloud auth application-default login</code>, or Workforce Identity Federation) has full personal Drive access, while a service identity — a GCE/Cloud Run/GKE attached metadata identity, <code>GOOGLE_APPLICATION_CREDENTIALS</code> pointed at a service account key, Workload Identity Federation, an impersonated service account, or a GDCH service account — has the same restrictions as Method A above. <code>server://auth-status</code> reports which one is actually active — <code>auth_method</code> stays <code>"adc"</code> either way, but <code>is_service_account_identity</code> distinguishes them.</p>

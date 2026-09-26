@@ -1659,6 +1659,50 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-i31-serverauth-status-lists-every-gmail-tool-under-a-no_user_mailbox-limitation-on-a-service-account-issue-790" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I31: server://auth-status lists every Gmail tool under a no_user_mailbox limitation on a service account (issue #790)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i32-a-pre-gmail-oauth-token-starts-the-server-without-gmail-gmail-tools-return-the-re-authorize-error-never-a-browser-consent-issue-790-requires-oauth-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I32: a pre-Gmail OAuth token starts the server without Gmail; Gmail tools return the re-authorize error, never a browser consent (issue #790) ⚠️ requires-oauth ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i33-with-the-gmail-tools-filtered-out-a-pre-gmail-oauth-token-keeps-working-and-no-gmail-scope-is-requested-issue-790-requires-oauth-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I33: with the Gmail tools filtered out, a pre-Gmail OAuth token keeps working and no Gmail scope is requested (issue #790) ⚠️ requires-oauth ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i34-an-oauth-token-missing-a-base-non-gmail-scope-still-fails-at-startup-logs-the-reason-and-never-opens-a-browser-consent-issue-790-requires-oauth-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I34: an OAuth token missing a base (non-Gmail) scope still fails at startup, logs the reason, and never opens a browser consent (issue #790) ⚠️ requires-oauth ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2371,6 +2415,86 @@ Make a trivial change to a source file (e.g. add a space and save).</p>
 - See <a href="../../../roadmap/">roadmap.md</a> for context</p>
 <p><strong>Result (2026-09-04) ⏭️ SKIP</strong>
 SSE hot-reload — pre-approved, manual/live-only known uvicorn+SSE limitation</p>
+<hr />
+<h3 id="tc-i31-serverauth-status-lists-every-gmail-tool-under-a-no_user_mailbox-limitation-on-a-service-account-issue-790">TC-I31: <code>server://auth-status</code> lists every Gmail tool under a <code>no_user_mailbox</code> limitation on a service account (issue #790)<a class="headerlink" href="#tc-i31-serverauth-status-lists-every-gmail-tool-under-a-no_user_mailbox-limitation-on-a-service-account-issue-790" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #786 added Gmail tools and <code>docs/auth.md</code> points users at <code>server://auth-status</code> to see which tools won't work on a service account, but <code>_SA_LIMITATIONS</code> had no Gmail entry. On a service account (or ADC resolving to one), auth-status reported no Gmail limitation while every Gmail tool failed with a cryptic 400. #790 added a <code>no_user_mailbox</code> category.</p>
+<p><strong>Setup</strong>
+Server running with <code>AUTH_METHOD=service_account</code> (e.g. <code>mcp-gee-sweet-sa</code> / <code>mcp-gee-sweet-kai-sa</code>), plus any OAuth server for the last check.</p>
+<p><strong>Action</strong>
+Call <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</code> against the service-account server, then against the OAuth server.</p>
+<p><strong>Checks</strong>
+- <code>limitations</code> contains an entry with <code>category: "no_user_mailbox"</code>
+- That entry's <code>tools</code> is exactly: <code>list_messages</code>, <code>get_message</code>, <code>list_threads</code>, <code>get_thread</code>, <code>list_labels</code>, <code>send_message</code>, <code>create_draft</code>, <code>send_draft</code>, <code>reply_to_message</code>, <code>modify_labels</code>, <code>trash_message</code> (order not significant)
+- All 11 also appear in the flattened <code>limited_tools</code>
+- The entry's <code>alternatives</code> names OAuth and does not mention ADC
+- The existing <code>no_drive_storage_quota</code> and <code>no_personal_drive_identity</code> entries are unchanged (TC-I27)
+- On the OAuth server (whose token includes <code>gmail.modify</code>; otherwise see TC-I32): <code>limited_tools: []</code>, <code>limitations: []</code></p>
+<hr />
+<h3 id="tc-i32-a-pre-gmail-oauth-token-starts-the-server-without-gmail-gmail-tools-return-the-re-authorize-error-never-a-browser-consent-issue-790-requires-oauth-local-filesystem">TC-I32: a pre-Gmail OAuth token starts the server without Gmail; Gmail tools return the re-authorize error, never a browser consent (issue #790) ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-i32-a-pre-gmail-oauth-token-starts-the-server-without-gmail-gmail-tools-return-the-re-authorize-error-never-a-browser-consent-issue-790-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #786 added the Gmail scopes to every auth request. An existing <code>token.json</code> was never granted them. Refreshing it with the new scope list returns <code>invalid_scope</code> (confirmed live), and the old code then fell into <code>InstalledAppFlow.run_local_server</code>: a surprise browser consent, or a hang for a headless/stdio deployment. #790 checks the token's saved <code>scopes</code> against what the registered tools need. PR #807's first version then failed startup with <code>MissingOAuthScopesError</code>, but QA round 1 found that under a stdio client that error goes to stderr, which the client drops: all the user saw was <code>Connection closed</code>. So when <strong>only</strong> the Gmail scope is missing, the server now starts at the token's own granted scopes and every Gmail tool returns the re-authorize message as its tool result. This reproduces the upgrade scenario itself.</p>
+<p><strong>Setup</strong>
+- A copy of an OAuth <code>token.json</code> whose saved <code>scopes</code> lack <code>https://www.googleapis.com/auth/gmail.modify</code> but include the four base scopes (<code>spreadsheets</code>, <code>drive</code>, <code>calendar</code>, <code>drive.activity.readonly</code>). Any token authorized before #786 qualifies; the team QA token did as of 2026-09-25. Check with: <code>python3 -c "import json;print(json.load(open('&lt;copy&gt;'))['scopes'])"</code>. Work on a copy only, never the shared token.
+- To exercise the refresh path as well, set the copy's <code>"expiry"</code> to <code>"2000-01-01T00:00:00Z"</code>.</p>
+<p><strong>Action</strong>
+Register this as a temporary stdio MCP server (or run it under an MCP client) with <strong>no</strong> <code>ENABLED_TOOLS</code> / <code>--include-tools</code> (so the Gmail tools are registered) and <code>AUTH_METHOD</code> unset (waterfall):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>TOKEN_PATH=&lt;copy&gt;
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>CREDENTIALS_PATH=&lt;oauth client json&gt;
+</code></pre></div>
+<p>Then call, in order:
+1. <code>list_spreadsheets</code> with <code>max_results: 1</code>
+2. <code>list_labels</code> (no arguments)
+3. <code>send_message</code> with <code>to: "nobody@example.com"</code>, <code>subject: "TC-I32"</code>, <code>body: "should not send"</code>
+4. <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</code></p>
+<p><strong>Checks</strong>
+- The server connects (no <code>Connection closed</code>), with no browser window and no <code>Please visit this URL to authorize</code> prompt
+- <code>list_spreadsheets</code> returns a normal result (the expired token refreshed at its own scopes)
+- <code>list_labels</code> and <code>send_message</code> each return <code>{"error": ...}</code> whose text names <code>https://www.googleapis.com/auth/gmail.modify</code>, says to delete the token file and restart (or run <code>scripts/oauth_setup.py</code>), and mentions leaving the Gmail tools out of <code>ENABLED_TOOLS</code> / <code>--include-tools</code>. No message is sent.
+- <code>auth-status</code> reports <code>auth_method: "oauth"</code> and a <code>limitations</code> entry with <code>category: "gmail_not_authorized"</code> whose <code>tools</code> lists all 11 Gmail tools; those 11 are also the whole of <code>limited_tools</code>
+- The server did <strong>not</strong> start on a service account instead
+- The token copy's <code>scopes</code> afterwards still lack every <code>gmail.*</code> scope</p>
+<p><strong>Cleanup:</strong> remove the temporary server registration and delete the token copy.</p>
+<p><strong>Result (2026-09-25, PR #807 round 2 @ 8f67604, Kit) ✅ PASS</strong>
+Ran against this worktree's code with a real <code>mcp</code> SDK stdio client (<code>stdio_client</code> + <code>ClientSession</code>, a genuine MCP round trip) instead of a registered Claude Code server. Token copy = the team QA token as of 2026-09-25 (4 base scopes, no <code>gmail.modify</code>), <code>expiry</code> forced to 2000-01-01. <code>AUTH_METHOD</code> unset, <code>SERVICE_ACCOUNT_PATH</code> also set so a silent SA fallback would have been possible, no <code>ENABLED_TOOLS</code> (139 tools registered, Gmail included). Server connected; no browser, no <code>Please visit</code> prompt. Log: <code>WARNING mcp_gee_sweet.auth Gmail tools disabled: ...</code>, then <code>Refreshing expired OAuth token...</code>, then <code>Waterfall: using OAuth</code> (not the service account). <code>list_spreadsheets(max_results=1)</code> → 200, no error (empty list: the fixture folder has no spreadsheets at its root). <code>list_labels</code> and <code>send_message(to=nobody@example.com, ...)</code> each returned <code>{"error": "The OAuth token at '&lt;copy&gt;' wasn't authorized for scope(s) the enabled tools require: https://www.googleapis.com/auth/gmail.modify. Delete '&lt;copy&gt;' and restart the server (or run scripts/oauth_setup.py) to re-authorize. The Gmail tools are what need them: to run without Gmail instead, leave the Gmail tools out of ENABLED_TOOLS / --include-tools."}</code> in 0.000s (no API call, nothing sent). <code>auth-status</code>: <code>auth_method: "oauth"</code>, one <code>gmail_not_authorized</code> limitation listing all 11 Gmail tools, and those 11 are the whole of <code>limited_tools</code>. Token copy afterwards: <code>expiry</code> advanced (refresh succeeded), <code>scopes</code> unchanged with no <code>gmail.*</code>.</p>
+<hr />
+<h3 id="tc-i33-with-the-gmail-tools-filtered-out-a-pre-gmail-oauth-token-keeps-working-and-no-gmail-scope-is-requested-issue-790-requires-oauth-local-filesystem">TC-I33: with the Gmail tools filtered out, a pre-Gmail OAuth token keeps working and no Gmail scope is requested (issue #790) ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-i33-with-the-gmail-tools-filtered-out-a-pre-gmail-oauth-token-keeps-working-and-no-gmail-scope-is-requested-issue-790-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #790 requests Gmail's mailbox scope only when a Gmail tool is registered. An <code>ENABLED_TOOLS</code> filter without Gmail tools must neither require nor request it, so an existing pre-Gmail token keeps working after the upgrade with no re-consent.</p>
+<p><strong>Setup</strong>
+Same token copy as TC-I32 (saved <code>scopes</code> lack <code>gmail.modify</code>). To exercise the refresh path as well, set the copy's <code>"expiry"</code> to <code>"2000-01-01T00:00:00Z"</code>.</p>
+<p><strong>Action</strong>
+Register this as a temporary stdio MCP server (or run it under an MCP client) with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>TOKEN_PATH=&lt;copy&gt;
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>CREDENTIALS_PATH=&lt;oauth client json&gt;
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>AUTH_METHOD=oauth
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>ENABLED_TOOLS=list_spreadsheets,get_cache_ttl
+</code></pre></div>
+<p>Call <code>list_spreadsheets</code> with <code>max_results: 1</code>, then <code>ReadMcpResourceTool</code> with <code>uri: "server://auth-status"</code>.</p>
+<p><strong>Checks</strong>
+- The server starts with no browser consent and no <code>MissingOAuthScopesError</code>
+- <code>list_spreadsheets</code> returns a normal result (the expired token refreshed successfully)
+- The token copy's <code>scopes</code> afterwards still lack every <code>gmail.*</code> scope (nothing extra was requested on refresh)
+- <code>auth-status</code> reports <code>auth_method: "oauth"</code>, <code>limited_tools: []</code></p>
+<p><strong>Cleanup:</strong> remove the temporary server registration and delete the token copy.</p>
+<p><strong>Result (2026-09-25, PR #807 round 2 @ 8f67604, Kit) ✅ PASS</strong>
+Same real-SDK stdio client; separate token copy (4 base scopes, <code>expiry</code> forced to 2000-01-01), <code>AUTH_METHOD=oauth</code>, <code>ENABLED_TOOLS=list_spreadsheets,get_cache_ttl</code>. Connected with 2 tools registered (no Gmail) and no browser consent. <code>list_spreadsheets(max_results=1)</code> → 200, no error. <code>auth-status</code>: <code>auth_method: "oauth"</code>, <code>limited_tools: []</code>, <code>limitations: []</code>. Token copy afterwards: <code>expiry</code> advanced (refreshed), <code>scopes</code> still the 4 base scopes, no <code>gmail.*</code>. Log has 0 <code>Gmail</code>/<code>MissingOAuth</code> lines.</p>
+<hr />
+<h3 id="tc-i34-an-oauth-token-missing-a-base-non-gmail-scope-still-fails-at-startup-logs-the-reason-and-never-opens-a-browser-consent-issue-790-requires-oauth-local-filesystem">TC-I34: an OAuth token missing a base (non-Gmail) scope still fails at startup, logs the reason, and never opens a browser consent (issue #790) ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-i34-an-oauth-token-missing-a-base-non-gmail-scope-still-fails-at-startup-logs-the-reason-and-never-opens-a-browser-consent-issue-790-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> TC-I32's degrade only covers a Gmail-only shortfall. A token missing one of the base scopes can't serve most tools, so startup still stops with <code>MissingOAuthScopesError</code>, and the waterfall does not swallow it into a silent service-account fallback. Because stdio clients drop stderr, the error is also logged through the package logger so <code>LOG_FILE</code> captures it.</p>
+<p><strong>Setup</strong>
+A copy of a full OAuth <code>token.json</code>, hand-edited so its saved <code>scopes</code> list omits <code>https://www.googleapis.com/auth/calendar</code> (leave <code>expiry</code> in the future so no refresh happens). Work on a copy only, never the shared token.</p>
+<p><strong>Action</strong>
+From the repo checkout under test, with <code>AUTH_METHOD</code> unset (waterfall), a service account also configured if available, and no <code>ENABLED_TOOLS</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">TOKEN_PATH</span><span class="o">=</span>&lt;copy&gt;<span class="w"> </span><span class="nv">CREDENTIALS_PATH</span><span class="o">=</span>&lt;oauth<span class="w"> </span>client<span class="w"> </span>json&gt;<span class="w"> </span><span class="nv">DEBUG_LEVEL</span><span class="o">=</span>DEBUG<span class="w"> </span><span class="nv">LOG_FILE</span><span class="o">=</span>&lt;tmp<span class="w"> </span>log&gt;<span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>mcp-gee-sweet<span class="w"> </span>&lt;<span class="w"> </span>/dev/null
+</code></pre></div>
+<p>Repeat once with <code>AUTH_METHOD=oauth</code>.</p>
+<p><strong>Checks</strong>
+- The process exits on its own with a non-zero status within a few seconds (no hang), and no browser window or <code>Please visit this URL to authorize</code> prompt appears
+- stderr contains <code>MissingOAuthScopesError</code> with a message naming <code>https://www.googleapis.com/auth/calendar</code> and telling you to delete the token file and restart (or run <code>scripts/oauth_setup.py</code>)
+- <code>&lt;tmp log&gt;</code> contains an <code>OAuth startup failed:</code> line with the same message
+- Waterfall run: no <code>Waterfall: using service account</code> line
+- The token copy's contents are unchanged afterwards</p>
+<p><strong>Cleanup:</strong> delete the token copy and the temp log.</p>
+<p><strong>Result (2026-09-25, PR #807 round 2 @ 8f67604, Kit) ✅ PASS</strong>
+Token copy: <code>calendar</code> removed from <code>scopes</code> (<code>spreadsheets</code>, <code>drive</code>, <code>drive.activity.readonly</code>, <code>gmail.modify</code> kept), <code>expiry</code> in the future. Waterfall run (<code>AUTH_METHOD</code> unset, <code>SERVICE_ACCOUNT_PATH</code> set): exit 1 after ~2s. stderr has <code>MissingOAuthScopesError: The OAuth token at '&lt;copy&gt;' wasn't authorized for scope(s) the enabled tools require: https://www.googleapis.com/auth/calendar. Delete '&lt;copy&gt;' and restart the server (or run scripts/oauth_setup.py) ...</code>. LOG_FILE has <code>ERROR mcp_gee_sweet.auth OAuth startup failed: &lt;same message&gt;</code>, 0 <code>Waterfall: using service account</code> lines, 0 <code>Please visit</code> prompts. <code>AUTH_METHOD=oauth</code> run: identical (exit 1 after ~2s, same stderr + log line). Token copy's sha1 unchanged across both runs.</p>
 
 
 
