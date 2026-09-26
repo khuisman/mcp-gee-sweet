@@ -235,6 +235,66 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute `{MESSAGE_ID}`, `{TH
 
 ---
 
+### TC-GM23: Reply goes to the original's Reply-To, not its From (issue #791) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** `reply_to_message` used to always reply to `From`, so mail with a `Reply-To` (mailing lists, support desks, no-reply senders) got the reply at the wrong address. #791 resolves `Reply-To` over `From`, like a standard mail client. This reproduces the defect without mailing anyone outside the QA mailbox: the original is *inserted* (not sent) with a fake `From` and a `Reply-To` pointing at a plus-address of the QA mailbox itself.
+
+**Setup:** there's no tool for inserting a message, so insert the fixture with a scratch script from the checkout under test, using the same OAuth token as the server under test (its saved scopes must include `gmail.modify`). Replace `<mailbox>` with the QA mailbox address, e.g. `qa@example.com` → `qa+tc-gm23@example.com`:
+
+```bash
+uv run python3 -c "
+import base64
+from email.mime.text import MIMEText
+from googleapiclient.discovery import build
+from mcp_gee_sweet.auth import _oauth_creds
+m = MIMEText('mcp-gee-sweet TC-GM23 fixture')
+m['From'] = 'No Reply <noreply@example.invalid>'
+m['Reply-To'] = '<mailbox local part>+tc-gm23@<mailbox domain>'
+m['To'] = '<mailbox>'
+m['Subject'] = 'TC-GM23 reply-to fixture'
+g = build('gmail', 'v1', credentials=_oauth_creds(), cache_discovery=False)
+r = g.users().messages().insert(userId='me', body={'raw': base64.urlsafe_b64encode(m.as_bytes()).decode(), 'labelIds': ['INBOX']}).execute()
+print(r['id'])
+"
+```
+
+Record the printed ID as `{REPLY_TO_FIXTURE_ID}`.
+
+**Action**
+1. `get_message` with `message_id: "{REPLY_TO_FIXTURE_ID}"`
+2. `reply_to_message` with `message_id: "{REPLY_TO_FIXTURE_ID}"`, `body: "mcp-gee-sweet TC-GM23 reply"`
+3. `get_message` with `message_id` set to the `id` returned by step 2
+4. `reply_to_message` again with `reply_all: true`, same `message_id`, `body: "mcp-gee-sweet TC-GM23 reply-all"`, then `get_message` on its returned `id`
+
+**Checks**
+- Step 1: `headers.reply_to` is the `+tc-gm23` address and `headers.from` is `noreply@example.invalid`
+- Step 3: `headers.to` is the `+tc-gm23` address only; `noreply@example.invalid` appears nowhere in `to`/`cc`
+- Step 4: `headers.to` contains the `+tc-gm23` address and does **not** contain the bare QA mailbox address (the authenticated mailbox is excluded from reply-all); `noreply@example.invalid` appears nowhere
+- The step-2 reply arrives in the QA inbox (it was addressed to the mailbox's own plus-address), in the same `thread_id` as the fixture
+
+**Cleanup:** `trash_message` the fixture, both replies, and their delivered inbox copies.
+
+---
+
+### TC-GM24: Replying to your own sent message goes to its original To, not back to you (issue #791) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** a plain reply (`reply_all: false`) to a message the mailbox itself sent used to set `To` to the mailbox's own address. #791 replies to that message's original `To` instead, like a standard mail client. A plus-address of the QA mailbox stands in for the other person, so nothing leaves the mailbox.
+
+**Action**
+1. `send_message` with `to: "<mailbox local part>+tc-gm24@<mailbox domain>"`, `subject: "TC-GM24 own-sent fixture"`, `body: "mcp-gee-sweet TC-GM24 fixture"`. Record its `id` as `{OWN_SENT_ID}`.
+2. `get_message` with `message_id: "{OWN_SENT_ID}"`
+3. `reply_to_message` with `message_id: "{OWN_SENT_ID}"`, `body: "mcp-gee-sweet TC-GM24 reply"`
+4. `get_message` with `message_id` set to the `id` returned by step 3
+
+**Checks**
+- Step 2: `label_ids` includes `SENT`
+- Step 4: `headers.to` is the `+tc-gm24` address, **not** the bare QA mailbox address
+- Step 4: `thread_id` matches `{OWN_SENT_ID}`'s thread
+
+**Cleanup:** `trash_message` the fixture, the reply, and their delivered inbox copies.
+
+---
+
 ## `modify_labels`
 
 ### TC-GM19: Mark a message unread then read ⚠️ destructive

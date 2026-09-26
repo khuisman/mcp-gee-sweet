@@ -44,23 +44,42 @@ async def _mailbox_email(gmail_service: Any) -> str | None:
     return email.strip() if isinstance(email, str) and email.strip() else None
 
 
-def _reply_all_recipients(
+def _addresses(header_value: str | None) -> list[str]:
+    return [addr.lower() for _, addr in getaddresses([header_value or ""]) if addr]
+
+
+def _reply_recipients(
     *,
     original_from: str,
+    original_reply_to: str,
     original_to: str,
     original_cc: str,
+    from_self: bool,
+    reply_all: bool,
     mailbox: str | None,
 ) -> tuple[str | None, str | None]:
-    """Build reply-all To/Cc, excluding the authenticated mailbox."""
+    """Resolve a reply's To/Cc the way a standard mail client does (#791).
+
+    - Replying to someone else's message goes to its Reply-To when present (mailing
+      lists, support desks, no-reply senders), otherwise its From.
+    - Replying to a message the mailbox itself sent goes to that message's original
+      To, not back to the mailbox; its Reply-To is ignored, since it pointed other
+      people at us.
+    - reply_all adds the original To (and Cc, as Cc) on top, excluding the
+      authenticated mailbox and duplicates.
+
+    If exclusions leave nothing (e.g. a message the mailbox sent only to itself),
+    the reply falls back to the original sender rather than to no one.
+    """
+    primary = original_to if from_self else (original_reply_to or original_from)
+
     exclude = {mailbox.lower()} if mailbox else set()
-    seen: set[str] = set(exclude)
+    seen: set[str] = set(exclude) if reply_all else set()
     to_parts: list[str] = []
     cc_parts: list[str] = []
 
     def add(target: list[str], header_value: str | None) -> None:
-        if not header_value:
-            return
-        for name, addr in getaddresses([header_value]):
+        for name, addr in getaddresses([header_value or ""]):
             if not addr:
                 continue
             key = addr.lower()
@@ -69,10 +88,15 @@ def _reply_all_recipients(
             seen.add(key)
             target.append(formataddr((name, addr)))
 
-    add(to_parts, original_from)
-    add(to_parts, original_to)
-    add(cc_parts, original_cc)
+    add(to_parts, primary)
+    if reply_all:
+        add(to_parts, original_to)
+        add(cc_parts, original_cc)
 
+    if not to_parts:
+        to_parts = [
+            formataddr((name, addr)) for name, addr in getaddresses([original_from]) if addr
+        ]
     to = ", ".join(to_parts) if to_parts else None
     cc = ", ".join(cc_parts) if cc_parts else None
     return to, cc
@@ -137,6 +161,8 @@ def _shape_message(msg: dict[str, Any], *, include_body: bool = True) -> dict[st
         "size_estimate": msg.get("sizeEstimate"),
         "headers": {
             "from": headers.get("from"),
+            # Surfaced so a caller can see where reply_to_message will send (#791).
+            "reply_to": headers.get("reply-to"),
             "to": headers.get("to"),
             "cc": headers.get("cc"),
             "bcc": headers.get("bcc"),
@@ -637,7 +663,12 @@ def register(tool):
             body: Plain-text reply body.
             body_html: Optional HTML reply body.
             reply_all: When True, include the original To and Cc recipients
-                       (except the authenticated mailbox) in addition to From.
+                       (except the authenticated mailbox) in addition to the
+                       reply target.
+
+        Recipients follow standard mail-client rules: the reply goes to the
+        original's Reply-To if it has one, otherwise its From. Replying to a
+        message you sent yourself goes to that message's original To instead.
 
         Returns:
             Sent message id, thread_id, and label_ids. On failure, {"error": "..."}.
@@ -673,17 +704,22 @@ def register(tool):
         else:
             references = prior_refs or original_message_id or None
 
-        if reply_all:
-            mailbox = await _mailbox_email(lc.gmail_service)
-            to, cc = _reply_all_recipients(
-                original_from=original_from,
-                original_to=original_to,
-                original_cc=original_cc,
-                mailbox=mailbox,
-            )
-        else:
-            to = _format_address_header(original_from)
-            cc = None
+        # reply_all needs the mailbox address to drop it from the recipients. A plain
+        # reply doesn't: Gmail's SENT label already says the mailbox sent the
+        # original (covering send-as aliases too), so no extra getProfile call.
+        mailbox = await _mailbox_email(lc.gmail_service) if reply_all else None
+        from_self = "SENT" in (original.get("labelIds") or []) or (
+            mailbox is not None and mailbox.lower() in _addresses(original_from)
+        )
+        to, cc = _reply_recipients(
+            original_from=original_from,
+            original_reply_to=headers.get("reply-to", ""),
+            original_to=original_to,
+            original_cc=original_cc,
+            from_self=from_self,
+            reply_all=reply_all,
+            mailbox=mailbox,
+        )
 
         if not to:
             return {"error": "Original message has no From header to reply to."}
