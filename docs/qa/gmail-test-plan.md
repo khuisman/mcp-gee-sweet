@@ -67,16 +67,16 @@ Add `scripts/qa_gmail_fixtures.py` (new), modeled on the TC-GM23 setup snippet: 
 
 ### 3.3 Fixture set
 
-**Source** says how each fixture gets made. **Sent** means the sender mailbox sends it with `send_message` through the global `mcp-gee-sweet` server, so Gmail builds and delivers it for real. **Inserted** means the seed script plants it with `messages.insert`, because `send_message` can't express the shape. Prefer sent wherever it's possible: an inserted message is only as realistic as the MIME we write by hand. Two of the open questions depend on exactly that. Whether Gmail hands back a large body by `attachmentId` (GM29), and how it lays out a forwarded message (GM28), are really questions about Gmail's own storage, so their fixtures come from real delivery.
+**Source** says how each fixture gets made. **Sent** means the sender mailbox really sends it, so Gmail builds and delivers it. The seed script does this through the Gmail API with the sender mailbox's token, not with `send_message` tool calls (#821). A 3 MB body can't be passed as a tool argument, and `send_message` can't build a real `message/rfc822` forward. **Inserted** means the seed script plants it with `messages.insert`, because `send_message` can't express the shape. Prefer sent wherever it's possible: an inserted message is only as realistic as the MIME we write by hand. Two of the open questions depend on exactly that. Whether Gmail hands back a large body by `attachmentId` (GM29), and how it lays out a forwarded message (GM28), are really questions about Gmail's own storage, so their fixtures come from real delivery.
 
 | Key | Source | Shape | `.env` key | Used by |
 |---|---|---|---|---|
 | `plain` | Sent | Single `text/plain` from the sender mailbox; lands `INBOX`+`UNREAD` | `TEST_MESSAGE_ID` | GM01, 03, 19 |
 | `alt-unicode` | Sent | `body` + `body_html`, non-ASCII subject and body, astral emoji | `TEST_GMAIL_UNICODE_ID` | GM26 |
 | `attachments` | Sent + Inserted | Sent: body + small PDF + CSV. Inserted: a `multipart/related` inline PNG with `Content-ID` and **no filename** (`send_message` can't build `related`) | `TEST_GMAIL_ATTACH_ID`, `TEST_GMAIL_INLINE_ID` | GM27 |
-| `thread` | Sent (both sides) | Sender sends; the QA mailbox replies with `reply_to_message`; the sender replies with `reply_to_message` again. A real two-party, 3-message thread with Gmail-generated `Message-ID`/`References` | `TEST_THREAD_ID` | GM05, 07, 32, 42 |
+| `thread` | Sent (both sides) | Sender sends; the QA mailbox replies; the sender replies again. A real two-party, 3-message thread with Gmail-generated `Message-ID`/`References` | `TEST_THREAD_ID` | GM05, 07, 32, 42 |
 | `reply-to` | Inserted | Foreign `From: noreply@example.invalid`, `Reply-To` = `+tc-gm23` (`send_message` has no `Reply-To` param) | `TEST_GMAIL_REPLYTO_ID` | GM23 (replaces its inline setup) |
-| `forwarded` | Sent | The sender attaches a prior `[mcp-qa` message as a `.eml` (`mime_type: "message/rfc822"`, via `content_base64`) with its own outer body | `TEST_GMAIL_FWD_ID` | GM28 |
+| `forwarded` | Sent | Outer body, then a forwarded message as a real `message/rfc822` part named `forwarded.eml` | `TEST_GMAIL_FWD_ID` | GM28 |
 | `large-body` | Sent | `body` of ~3 MB plain text | `TEST_GMAIL_LARGE_ID` | GM29 (#803's `attachmentId` question) |
 | `over-cap-thread` | Sent | Several sender↔QA replies, each with a large body, until full-format size exceeds `MAX_TOOL_RESPONSE_CHARS` | `TEST_GMAIL_BIG_THREAD_ID` | GM30 |
 | `latin1` | Inserted | `text/plain; charset=iso-8859-1` body with `é`/`ñ` (`send_message` always writes UTF-8) | `TEST_GMAIL_LATIN1_ID` | GM31 (#792) |
@@ -84,7 +84,9 @@ Add `scripts/qa_gmail_fixtures.py` (new), modeled on the TC-GM23 setup snippet: 
 | `spam` / `trash` | Inserted | One each, inserted with the `SPAM` / `TRASH` label. Don't try to get real spam delivered; filtering isn't deterministic. | — | GM34 |
 | label | Script | User label `mcp-qa-fixture`, applied by the seed script to every fixture in the QA mailbox, sent ones included | `TEST_GMAIL_LABEL_ID` | GM35, all read cases |
 
-The seed script handles the inserted rows and the label. The sent rows are a scripted checklist of `send_message` calls through the global server (in `setup.md`'s Gmail section), since the script only holds the QA mailbox's token. After the sends arrive, rerun the script so it finds them by subject, labels them, and writes their IDs to `.env`.
+`scripts/qa_gmail_fixtures.py` (#821) does all of it: `seed` inserts and labels, `send` delivers the sent rows, and a second `seed` labels those and records their IDs. See `setup.md`'s Gmail section.
+
+**Seeded live 2026-09-26.** Gmail's spam filter put three sent fixtures (`plain`, `attachments`, `large-body`) in Spam, so `seed` now moves every sent fixture back to `INBOX`. That filtering can recur on any reseed.
 
 ---
 
@@ -107,9 +109,9 @@ Keep the IDs and intent. Rewrite each to name the exact tool and params and to r
 | TC | Tool(s) | What it proves | Kind |
 |---|---|---|---|
 | GM26 | `get_message` | Unicode subject/display name/body and emoji decode intact; `body_plain` and `body_html` both populated | read |
-| GM27 | `get_message` | All three attachments listed with filename, MIME type, size, `attachment_id`. The inline PNG with no filename: record whether it's listed. Local probe says it is **dropped** (see §5, P3). | read, may find defect |
-| GM28 | `get_message` | `body_plain` is the *outer* message's body, not the forwarded one's. Local probe says the forwarded body wins if Gmail expands the `message/rfc822` part (§5, P2). | read, may find defect |
-| GM29 | `get_message` | `large-body`: `body_plain` is non-null. If Gmail delivers the part by `attachmentId`, it's a defect: no body and no way to fetch it (§5, P1; #803 item 2). | read, may find defect |
+| GM27 | `get_message` | Both attachments (PDF, CSV) listed with filename, MIME type, size, `attachment_id`. The inline PNG (`inline` fixture) is listed with `filename: null`; Gmail stores it by `attachmentId` (§5, P3: not a defect). | read |
+| GM28 | `get_message` | `body_plain` is the *outer* message's body; the `.eml` is listed as a `message/rfc822` attachment (§5, P2: not a defect with Gmail's real layout) | read |
+| GM29 | `get_message` | `large-body`: `body_plain` is non-null. **Fails today, #825**: Gmail delivers both 3 MB parts by `attachmentId`. Once fixed, expect the size-cap behavior #825 decides on, since 3 MB exceeds the default cap. | read, known defect |
 | GM30 | `get_thread` | Over-cap thread returns the size-cap error, not a dropped connection or a truncated body. Captures #793's motivating failure live. | read |
 | GM31 | `get_message` | Latin-1 body. Expected to **fail** until #792 lands; record as a known-defect repro, not a surprise. | read, known defect |
 | GM32 | `get_thread` | 3 messages in chronological order, each shaped like `get_message`, `in_reply_to`/`references` populated | read |
@@ -162,7 +164,12 @@ Found by reading `test_gmail.py` against `gmail.py` and running the helpers dire
 | P9 | `list_*` `max_results` clamping; `get_*` size-cap path | Not tested. |
 | — | Empty `to` | Emits a bare `To: ` header. Gmail accepted it on TC-GM25 step 3, so no action needed. |
 
-P1–P3 are possible defects; confirm each live (GM27–29) before filing anything. P4–P9 are hardening tests. They can land together as one ticket.
+**Live outcome (2026-09-26, `get_message` on `mcp-gee-sweet-oauth`, raw layout via the seed script's `inspect`):**
+- **P1 is confirmed and filed as #825.** A ~3 MB body arrives by `attachmentId`, while a ~405 KB body still arrives inline.
+- **P2 doesn't reproduce.** Gmail puts the outer body first and the `message/rfc822` part after it.
+- **P3 doesn't reproduce.** Gmail stores the nameless inline image by `attachmentId`, so it's listed.
+
+P2 and P3 remain possible only for hand-built MIME, so they're unit-test material at most. P4–P9 are hardening tests. They can land together as one ticket.
 
 ---
 
@@ -171,7 +178,7 @@ P1–P3 are possible defects; confirm each live (GM27–29) before filing anythi
 1. ~~Enable the Gmail API for the global server~~ (done 2026-09-26). Land the seed script and the `setup.md`/`fixtures.template.md` Gmail section, including the sender-side send checklist.
 2. Rewrite TC-GM01–22 and add TC-GM26–44.
 3. Run the whole file once on an OAuth slot with `gmail.modify` and record results. This closes #803. Repeat GM28/29 on a second, freshly sent seed, since they depend on how Gmail stores delivered mail.
-4. File defects for whatever GM27–29 reproduce, plus the P4–P9 unit-test ticket.
+4. ~~File defects for whatever GM27–29 reproduce, plus the P4–P9 unit-test ticket.~~ Done: #825 (P1) and #823 (P4–P9).
 5. Add the Smoke rows.
 
 ## 7. Out of scope
