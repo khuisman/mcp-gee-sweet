@@ -276,6 +276,8 @@ Record the printed ID as `{REPLY_TO_FIXTURE_ID}`.
 
 **Result (2026-09-26, PR #815 round 1) ✅ PASS** — via `mcp-gee-sweet-kit` (token has `gmail.modify`), fixture inserted with the setup script. Step 1: `reply_to` = `+tc-gm23` address, `from` = `noreply@example.invalid`. Step 3: `to` = `+tc-gm23` address only. Step 4 (reply-all): `to` = `+tc-gm23` address only; the bare mailbox was excluded, and `noreply@example.invalid` appears nowhere. Both replies share the fixture's `thread_id`. A reply to your own plus-address is one message labeled `SENT`+`INBOX`, not a separate delivered copy, so cleanup is just the fixture plus the two replies. All trashed.
 
+**Result (2026-09-26, PR #815 round 2) ✅ PASS (regression)** — re-run against `45530d7`: the plain reply and reply-all both go `to` = `+tc-gm23` only. The bare mailbox and `noreply@example.invalid` appear nowhere. Trashed.
+
 ---
 
 ### TC-GM24: Replying to your own sent message goes to its original To, not back to you (issue #791) ⚠️ destructive ⚠️ requires-oauth
@@ -296,6 +298,8 @@ Record the printed ID as `{REPLY_TO_FIXTURE_ID}`.
 **Cleanup:** `trash_message` the fixture, the reply, and their delivered inbox copies.
 
 **Result (2026-09-26, PR #815 round 1) ✅ PASS** — via `mcp-gee-sweet-kit`. Step 2: `label_ids` includes `SENT`. Step 4: `to` = `+tc-gm24` address, not the bare mailbox; `thread_id` matches. Both trashed. **Scope note:** this case covers only a single-recipient `To`. Live repros of the PR's code-review findings (both plain replies to your own sent mail) failed. `To: <mailbox>, <mailbox>+tc-f3` replied `To: <mailbox>, <mailbox>+tc-f3`, so you get a copy of your own reply. `Cc`-only (no `To`) replied `To: <mailbox>` and dropped the Cc'd recipient. Both were sent back to the Dev on PR #815.
+
+**Result (2026-09-26, PR #815 round 2) ✅ PASS (regression)** — re-run against `45530d7`: the reply goes `to` = `+tc-gm24`, same thread. The round-1 scope-note failures are now covered by TC-GM25, which passes. Trashed.
 
 ---
 
@@ -318,6 +322,8 @@ Record the printed ID as `{REPLY_TO_FIXTURE_ID}`.
 - Step 6: same as steps 4–5, with the `+tc-gm25c` address.
 
 **Cleanup:** `trash_message` all three fixtures, all five replies, and their delivered inbox copies.
+
+**Result (2026-09-26, PR #815 round 2) ✅ PASS** — via `mcp-gee-sweet-kit` after `/mcp reconnect`, against fix `45530d7`. Step 2: `to` = `+tc-gm25a` only; the bare mailbox appears nowhere. Steps 4 and 5 (Cc-only, sent with `to: []`): both `to` = `+tc-gm25b`, `cc` empty. Step 6 (to-self + Cc): plain reply and reply-all both `to` = `+tc-gm25c`, `cc` empty. Also confirmed live with the same token that `users.settings.sendAs.list` succeeds under `gmail.modify` and returns the primary address (1 entry, `isPrimary: true`), so `_own_addresses` takes its alias-list path rather than the `getProfile` fallback. All fixtures and replies trashed.
 
 ---
 
