@@ -182,6 +182,61 @@ Add the returned IDs to `.env` as `TEST_CALENDAR_ID` and `TEST_EVENT_ID`.
 
 ---
 
+## Gmail fixture setup
+
+Gmail cases (`tests/gmail.md`) read from a seeded fixture set instead of the real inbox.
+The design is in [`gmail-test-plan.md`](gmail-test-plan.md) §3. Two mailboxes are involved:
+
+- **QA mailbox**: the Workspace fixture-owning account, the one the OAuth servers
+  (`mcp-gee-sweet-oauth` / `-kai-oauth`) authenticate as. This is the mailbox under test.
+- **Sender mailbox**: a second Google account that only exists to send real mail to the
+  QA mailbox. Mail never goes anywhere else.
+
+Both tokens need the `gmail.modify` scope, and each token's Cloud project needs the Gmail
+API enabled (Step 0). `scripts/qa_gmail_fixtures.py` does everything. It refreshes both
+tokens in memory and never writes them back:
+
+```bash
+S="uv run python scripts/qa_gmail_fixtures.py"
+$S seed                                   # label + 12 inserted fixtures, IDs -> .env
+$S send --sender-token <sender token.json> --dry-run
+$S send --sender-token <sender token.json>  # 10 sends + 1 QA reply, waits for delivery
+$S seed                                   # labels the sent fixtures, un-spams them, IDs -> .env
+$S status                                 # exit 0 only when all 19 fixtures are present
+```
+
+`--qa-token` defaults to `TOKEN_PATH` (else `./token.json`), and `--env-file` defaults
+to the repo-root `.env`. Every run is idempotent: fixtures are found by exact `[mcp-qa:<key>]`
+subject and reused. `send` refuses any recipient except the two mailboxes, with no Cc or Bcc.
+
+- **Inserted** fixtures (`inline`, `reply-to`, `latin1`, `page-1`–`7`, `spam`, `trash`) are
+  planted with `messages.insert`. Nothing is sent.
+- **Sent** fixtures (`plain`, `alt-unicode`, `attachments`, `thread`, `forwarded`,
+  `large-body`, `over-cap-thread`) are really delivered, so their MIME layout is Gmail's own.
+  They go straight through the Gmail API with the sender token, not through `send_message`:
+  a 3 MB body can't travel as a tool argument, and a real `message/rfc822` forward
+  can't be built with `send_message`.
+- Gmail's spam filter junks some sender mail; seen live 2026-09-26 for `plain`,
+  `attachments`, and `large-body`. The second `seed` moves every sent fixture back to
+  `INBOX`. Rerun `seed` if a later `status` or case finds one in Spam again.
+- The `trash` fixture expires after Gmail's 30-day trash retention. `seed` re-inserts it.
+
+`inspect` prints the raw Gmail part tree of every fixture: MIME type, size, and whether the
+body arrives as inline `data` or by `attachmentId`. This is the ground truth for
+TC-GM27–29.
+
+`.env` keys written: `TEST_GMAIL_ADDRESS`, `TEST_GMAIL_SENDER_ADDRESS`,
+`TEST_GMAIL_LABEL_ID`, `TEST_MESSAGE_ID`, `TEST_THREAD_ID`, `TEST_GMAIL_UNICODE_ID`,
+`TEST_GMAIL_ATTACH_ID`, `TEST_GMAIL_INLINE_ID`, `TEST_GMAIL_REPLYTO_ID`,
+`TEST_GMAIL_FWD_ID`, `TEST_GMAIL_LARGE_ID`, `TEST_GMAIL_BIG_THREAD_ID`,
+`TEST_GMAIL_LATIN1_ID`.
+
+**Reset:** `reset` trashes every labeled fixture and any `[mcp-qa` message a test run left
+behind, and deletes `[mcp-qa` drafts. It touches the QA mailbox only. Then run
+`send` and `seed` again.
+
+---
+
 ## OAuth token setup (for `⚠️ requires-oauth` tests)
 
 Tests tagged `⚠️ requires-oauth` need a valid OAuth token (`token.json`). If you're running with a service account or ADC, these tests will be skipped or will fail — they require personal Drive access.

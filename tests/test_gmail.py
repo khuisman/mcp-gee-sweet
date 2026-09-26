@@ -1,6 +1,7 @@
 """Tests for tools/gmail.py (list_messages, send_message, modify_labels, etc.)."""
 
 import base64
+import binascii
 import inspect
 from email import message_from_bytes
 from email.utils import getaddresses
@@ -180,6 +181,135 @@ class TestGetMessage:
         result = await _gmail_tools["get_message"](message_id="missing", ctx=ctx)
 
         assert "error" in result
+
+
+def _b64(raw: bytes, *, pad: bool = True) -> str:
+    encoded = base64.urlsafe_b64encode(raw).decode()
+    return encoded if pad else encoded.rstrip("=")
+
+
+def _text_part(
+    mime_type: str, data: str, *, charset: str | None = None, part_id: str = "0"
+) -> dict:
+    headers = []
+    if charset is not None:
+        headers.append({"name": "Content-Type", "value": f"{mime_type}; charset={charset}"})
+    return {"partId": part_id, "mimeType": mime_type, "headers": headers, "body": {"data": data}}
+
+
+def _message(msg_id: str, *parts: dict) -> dict:
+    return {
+        "id": msg_id,
+        "threadId": "t1",
+        "payload": {
+            "mimeType": "multipart/mixed",
+            "headers": [{"name": "Subject", "value": f"subject {msg_id}"}],
+            "parts": list(parts),
+        },
+    }
+
+
+# 5 base64 characters: no amount of padding makes this valid.
+_CORRUPT_B64 = "abcde"
+
+
+class TestDecodeBody:
+    """#792 / PR #816: always UTF-8 (Gmail pre-transcodes), tolerant of missing padding."""
+
+    @pytest.mark.parametrize("charset", ["iso-8859-1", "windows-1252", "shift_jis", "koi8-r"])
+    async def test_declared_non_utf8_charset_is_ignored(self, charset):
+        # The Gmail API transcodes body.data to UTF-8 but keeps the original charset
+        # label, so the label must not drive decoding (confirmed live, PR #816 QA).
+        text = "Café “quotes” こんにちは Привет"
+        gmail_svc = MagicMock()
+        gmail_svc.users.return_value.messages.return_value.get.return_value.execute.return_value = (
+            _message("m1", _text_part("text/plain", _b64(text.encode("utf-8")), charset=charset))
+        )
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert result["body_plain"] == text
+        assert "body_decode_errors" not in result
+
+    def test_invalid_utf8_uses_replacement_chars(self):
+        assert gmail_module._decode_body_data(_b64(b"a\xffb")) == "a�b"
+
+    @pytest.mark.parametrize("raw", [b"a", b"ab", b"abc", b"abcd", b"Hello plain"])
+    def test_unpadded_input_decodes(self, raw):
+        assert gmail_module._decode_body_data(_b64(raw, pad=False)) == raw.decode()
+
+    @pytest.mark.parametrize("data", ["YWJj\nZA", "YWJj\r\nZA", " YWJjZA ", "YWJj ZA=="])
+    def test_whitespace_does_not_skew_padding(self, data):
+        assert gmail_module._decode_body_data(data) == "abcd"
+
+    def test_irreparable_data_raises_binascii_error(self):
+        with pytest.raises(binascii.Error):
+            gmail_module._decode_body_data(_CORRUPT_B64)
+
+    async def test_get_message_corrupt_part_keeps_rest_of_message(self):
+        gmail_svc = MagicMock()
+        gmail_svc.users.return_value.messages.return_value.get.return_value.execute.return_value = (
+            _message(
+                "m1",
+                _text_part("text/plain", _CORRUPT_B64, part_id="0"),
+                _text_part("text/html", _b64(b"<p>ok</p>"), part_id="1"),
+                {
+                    "partId": "2",
+                    "filename": "note.txt",
+                    "mimeType": "text/plain",
+                    "body": {"attachmentId": "att-1", "size": 4},
+                },
+            )
+        )
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert "error" not in result
+        assert result["headers"]["subject"] == "subject m1"
+        assert result["body_plain"] is None
+        assert result["body_html"] == "<p>ok</p>"
+        assert result["attachments"][0]["attachment_id"] == "att-1"
+        assert len(result["body_decode_errors"]) == 1
+        assert result["body_decode_errors"][0]["part_id"] == "0"
+        assert result["body_decode_errors"][0]["mime_type"] == "text/plain"
+
+    async def test_later_part_of_same_type_fills_body_after_corrupt_one(self):
+        gmail_svc = MagicMock()
+        gmail_svc.users.return_value.messages.return_value.get.return_value.execute.return_value = (
+            _message(
+                "m1",
+                _text_part("text/plain", _CORRUPT_B64, part_id="0"),
+                _text_part("text/plain", _b64(b"second"), part_id="1"),
+            )
+        )
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert result["body_plain"] == "second"
+        assert [e["part_id"] for e in result["body_decode_errors"]] == ["0"]
+
+    async def test_get_thread_corrupt_message_does_not_fail_thread(self):
+        gmail_svc = MagicMock()
+        gmail_svc.users.return_value.threads.return_value.get.return_value.execute.return_value = {
+            "id": "t1",
+            "messages": [
+                _message("m1", _text_part("text/plain", _CORRUPT_B64)),
+                _message("m2", _text_part("text/plain", _b64(b"ab", pad=False))),
+            ],
+        }
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_thread"](thread_id="t1", ctx=ctx)
+
+        assert "error" not in result
+        first, second = result["messages"]
+        assert first["body_plain"] is None
+        assert first["body_decode_errors"][0]["mime_type"] == "text/plain"
+        assert second["body_plain"] == "ab"
+        assert "body_decode_errors" not in second
 
 
 class TestListThreads:

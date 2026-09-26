@@ -340,8 +340,15 @@ class TestUploadLocalFileConvert:
             transfer_module._CONVERT_SOURCE_PROP: "notes.md",
         }
 
+    @pytest.mark.parametrize(
+        ("file_name", "target_mime"),
+        [
+            ("notes.md", "application/vnd.google-apps.document"),
+            ("data.csv", "application/vnd.google-apps.spreadsheet"),
+        ],
+    )
     async def test_convert_stamps_modified_time_from_local_mtime_and_restamps_after_create(
-        self, tmp_path
+        self, tmp_path, file_name, target_mime
     ):
         """#422 finding #2: _upload_local_file never set modifiedTime on a converted
         Doc, so it got Drive's own creation timestamp instead of the local file's
@@ -349,9 +356,13 @@ class TestUploadLocalFileConvert:
         nearly every first sync_folder call afterward, since nothing tied the two
         timestamps together. A metadata-only follow-up update() re-stamps it after
         Drive's native import overwrites the create() request, the same way
-        _sync_level's own convert_markdown upload path already does (TC-D218)."""
-        local_file = tmp_path / "notes.md"
-        local_file.write_text("# Heading")
+        _sync_level's own convert_markdown upload path already does (TC-D218).
+
+        The .csv case guards #435's declined .md-only gate: sync_folder matches a
+        converted Sheet back to its local .csv via export_format's suffix scheme
+        and compares mtimes, so every conversion type must restamp."""
+        local_file = tmp_path / file_name
+        local_file.write_text("a,b\n1,2\n")
         expected_mtime = datetime.fromtimestamp(
             local_file.stat().st_mtime, tz=timezone.utc
         ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
@@ -371,11 +382,33 @@ class TestUploadLocalFileConvert:
         assert "error" not in result
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
         assert create_kwargs["body"]["modifiedTime"] == expected_mtime
+        assert create_kwargs["body"]["mimeType"] == target_mime
 
         update_kwargs = drive_svc.files.return_value.update.call_args.kwargs
         assert update_kwargs["fileId"] == "fid1"
         assert update_kwargs["body"] == {"modifiedTime": expected_mtime}
         assert "media_body" not in update_kwargs
+
+    async def test_unreadable_mtime_returns_error_instead_of_raising(self, tmp_path, monkeypatch):
+        """PR #817 QA round 1: the local mtime used to be read before the create()
+        try, so a file that vanished or became unreadable after the is_file()
+        check raised out of the upload_local_file tool instead of returning
+        {"error": ...}. Nothing is created in Drive."""
+        local_file = tmp_path / "notes.txt"
+        local_file.write_text("x")
+
+        def _boom(_path):
+            raise FileNotFoundError("gone")
+
+        monkeypatch.setattr(transfer_module, "_local_mtime_str", _boom)
+        drive_svc = MagicMock()
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", skip_if_exists=False
+        )
+
+        assert result == {"error": "gone"}
+        drive_svc.files.return_value.create.assert_not_called()
 
     async def test_convert_modified_time_restamp_failure_returns_clean_error_not_raise(
         self, tmp_path
@@ -2662,6 +2695,35 @@ class TestSyncFolderConvertMarkdown:
         assert result["failed"][0]["name"] == "notes.md"
         assert "plain file" in result["failed"][0]["error"]
         assert fs.updated_files == []
+
+    async def test_unreadable_mtime_at_upload_lands_in_failed(self, tmp_path, monkeypatch):
+        """PR #817 QA round 1: _run_one read the local mtime before its try, so a
+        file that vanished or became unreadable between the scan and the upload
+        escaped upload_fail handling. The final failed entry looked the same
+        (the gather's return_exceptions caught it), but the raw exception skipped
+        _run_one_with_progress, so no progress notification went out for it. It
+        must be a real upload_fail: reported as progress, nothing created."""
+        (tmp_path / "notes.txt").write_text("x")
+        fs = _FakeDriveFS({"root": []})
+
+        def _boom(_path):
+            raise PermissionError("denied")
+
+        monkeypatch.setattr(transfer_module, "_local_mtime_str", _boom)
+        ctx = self._ctx(fs)
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            ctx=ctx,
+        )
+
+        assert result["uploaded"] == []
+        assert result["failed"] == [{"name": "notes.txt", "error": "denied"}]
+        assert fs.created_files == []
+        ctx.report_progress.assert_awaited_once()
+        assert ctx.report_progress.await_args.args[2] == "notes.txt: upload_fail"
 
     async def test_restamp_failure_after_successful_create_reports_orphan_fileId(self, tmp_path):
         """#420: sync_folder's convert_markdown upload path wraps the create() call

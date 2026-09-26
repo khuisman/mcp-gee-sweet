@@ -221,6 +221,59 @@ def _restamp_failure_result(file_id: str, exc: Exception) -> dict[str, Any]:
     }
 
 
+def _local_mtime_dt(path: Path) -> datetime:
+    """A local file's mtime as an aware UTC datetime. The one place that reads
+    it, so sync_folder's mtime comparison and every modifiedTime value this
+    module stamps can't drift apart (#435)."""
+    return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+
+
+def _local_mtime_str(path: Path) -> str:
+    """_local_mtime_dt in the RFC 3339 form Drive's modifiedTime field takes."""
+    return _local_mtime_dt(path).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+async def _restamp_modified_time(
+    drive_service: Any, file_id: str, lmtime_str: str
+) -> dict[str, Any] | None:
+    """Re-apply modifiedTime to a file that create() just produced via Drive's
+    native import conversion. Under conversion, create() doesn't keep the
+    modifiedTime requested in its body — the new file carries Drive's own
+    "now" instead — while a metadata-only update() issued afterward doesn't
+    trigger reconversion and does stick (held 40s+ on both a Sheet and a Doc,
+    PR #817 QA round 1). No single call can do both, so every conversion costs
+    this second call (#421 finding #5).
+
+    Needed for every conversion type, not just .md → Doc: sync_folder matches
+    a converted Sheet/Slides/Doc back to its local source through
+    export_format's suffix scheme and compares mtimes, and Drive strips ".csv"
+    from a converted Sheet's display name, so export_format='csv' maps it
+    straight back to the local file. An unrestamped CSV → Sheet would read as
+    "Drive newer" on the next sync exactly the way an unrestamped .md → Doc
+    would (#435 declined gating this on .md for that reason).
+
+    Returns None on success, or _restamp_failure_result's {"error", "fileId"}
+    on failure — create() already succeeded, so the file is real and its ID
+    must not be lost (#420). Shared by _upload_local_file and
+    _sync_level._run_one so a future change to this workaround lands in both
+    (#435)."""
+    try:
+        await execute_in_thread(
+            drive_service.files()
+            .update(
+                fileId=file_id,
+                body={"modifiedTime": lmtime_str},
+                supportsAllDrives=True,
+                fields="id",
+            )
+            .execute,
+            drive_service,
+        )
+    except Exception as e:
+        return _restamp_failure_result(file_id, e)
+    return None
+
+
 def _format_bytes_note(so_far: int, total: int | None) -> str:
     """Progress-message byte-count suffix shared by download_folder's
     _download_one and _sync_level's _run_one_with_progress (#352 QA review,
@@ -502,13 +555,9 @@ async def _upload_local_file(
     # finding #2). Drive honors modifiedTime in the create() body directly for a
     # plain upload (no import-conversion in the way), so no follow-up update() is
     # needed here the way the convert_mime branch below requires.
-    lmtime_str = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).strftime(
-        "%Y-%m-%dT%H:%M:%S.000Z"
-    )
     metadata: dict[str, Any] = {
         "name": file_name,
         "parents": [parent_folder_id],
-        "modifiedTime": lmtime_str,
     }
     if convert_mime is not None:
         mime, target_mime = convert_mime
@@ -523,8 +572,13 @@ async def _upload_local_file(
     else:
         mime, _ = mimetypes.guess_type(local_path)
         mime = mime or "application/octet-stream"
-    media = MediaFileUpload(local_path, mimetype=mime, resumable=True)
     try:
+        # Inside the try, so a file that vanishes or becomes unreadable after
+        # the is_file() check above returns {"error": ...} instead of raising
+        # out of the tool (PR #817 QA).
+        lmtime_str = _local_mtime_str(path)
+        metadata["modifiedTime"] = lmtime_str
+        media = MediaFileUpload(local_path, mimetype=mime, resumable=True)
         result = await execute_in_thread(
             drive_service.files()
             .create(
@@ -539,46 +593,21 @@ async def _upload_local_file(
     except HttpError as e:
         return {"error": _quota_error_detail(e)}
     except Exception as e:
-        # Mirrors _sync_level._run_one's create()+update() pair (its convert_this
-        # branch): the upload_local_file tool (the caller at line ~1189) has no
-        # try/except of its own, so a create() failure must be caught here rather
-        # than propagate uncaught (#422 QA review, finding #1). Nothing was
-        # created in this branch, so a bare error with no fileId is correct — the
-        # follow-up restamp below has its own try/except for the case where
-        # create() *did* succeed (#420).
+        # The upload_local_file tool has no try/except of its own, so a create()
+        # failure must be caught here rather than propagate uncaught (#422 QA
+        # review, finding #1). Nothing was created in this branch, so a bare
+        # error with no fileId is correct — a restamp failure after create()
+        # *did* succeed is reported with its fileId by _restamp_modified_time
+        # (#420).
         return {"error": str(e)}
 
     if convert_mime is not None:
-        # Drive's native import-conversion overwrites the modifiedTime just
-        # requested with its own "now" once the conversion finishes — the same
-        # drift _sync_level's own convert_markdown upload path already works
-        # around (see its create() branch, including the #421 finding #5 note
-        # on why this doubled call is an accepted tradeoff, not a bug). A
-        # metadata-only follow-up update() doesn't trigger reconversion and
-        # re-stamps it correctly. A plain (non-converting) upload has no such
-        # override — the create() body's modifiedTime above already sticks, no
-        # restamp needed.
-        try:
-            await execute_in_thread(
-                drive_service.files()
-                .update(
-                    fileId=result["id"],
-                    body={"modifiedTime": lmtime_str},
-                    supportsAllDrives=True,
-                    fields="id",
-                )
-                .execute,
-                drive_service,
-            )
-        except Exception as e:
-            # Unlike the create() failure above, a Doc now genuinely exists in
-            # Drive — only the metadata restamp on top of it failed. Reporting a
-            # bare error here would leave this Doc an untracked orphan with no
-            # record of its ID; surface fileId alongside the error so a caller
-            # can find and either fix or clean up the orphan (#420). Message +
-            # quota-error handling shared with _sync_level._run_one's identical
-            # restamp except via _restamp_failure_result (#650).
-            return _restamp_failure_result(result["id"], e)
+        # See _restamp_modified_time for why every conversion type needs this.
+        # A plain (non-converting) upload has no such override — the create()
+        # body's modifiedTime above already sticks, no restamp needed.
+        restamp_failure = await _restamp_modified_time(drive_service, result["id"], lmtime_str)
+        if restamp_failure is not None:
+            return restamp_failure
 
     logger.debug("Uploaded %s → %s (%s)", local_path, result.get("id"), mime)
     return {
@@ -800,9 +829,6 @@ async def _sync_level(
     def _drive_mtime(entry: dict) -> datetime:
         return datetime.fromisoformat(entry["modifiedTime"].replace("Z", "+00:00"))
 
-    def _local_mtime(p: Path) -> datetime:
-        return datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc)
-
     plan: list[_SyncStep] = []
     for name in sorted(drive_map.keys() | local_map.keys() | collision_names):
         if name in collision_names:
@@ -859,7 +885,7 @@ async def _sync_level(
 
         else:
             dmtime = _drive_mtime(drive_map[name])
-            lmtime = _local_mtime(local_map[name])
+            lmtime = _local_mtime_dt(local_map[name])
             diff = (lmtime - dmtime).total_seconds()
             entry = drive_map[name]
             is_workspace = _is_workspace_entry(entry)
@@ -1076,11 +1102,11 @@ async def _sync_level(
                 else:
                     mime, _ = mimetypes.guess_type(str(p))
                     mime = mime or "application/octet-stream"
-                lmtime_str = datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc).strftime(
-                    "%Y-%m-%dT%H:%M:%S.000Z"
-                )
-
                 try:
+                    # Inside the try: the file can vanish or become unreadable
+                    # between the scan and here, and that must land as this
+                    # item's upload_fail, not escape the gather (PR #817 QA).
+                    lmtime_str = _local_mtime_str(p)
                     media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
                     if name in drive_map:
                         existing = drive_map[name]
@@ -1148,55 +1174,16 @@ async def _sync_level(
                             drive_service,
                         )
                         if convert_this:
-                            # Drive's native import-conversion on create() overwrites
-                            # the modifiedTime we just requested with its own "now"
-                            # once the conversion finishes (observed ~14.7s later) —
-                            # update() doesn't have this problem, so a metadata-only
-                            # follow-up call re-stamps it correctly. Without this, a
-                            # bidirectional resync with no local changes reads Drive
-                            # as newer, tries to download the (unconvertible) Doc, and
-                            # the file gets stuck 'failed' forever (#414 QA review,
-                            # TC-D218).
-                            #
-                            # This second sequential API call is the doubled per-file
-                            # latency flagged in #421 finding #5 — accepted rather than
-                            # fixed: import-conversion runs asynchronously on Drive's
-                            # side, finishing only after create() has already returned,
-                            # so there's no single call that can request both the
-                            # upload and the post-conversion modifiedTime restamp
-                            # together. The only alternative would be polling the file
-                            # until conversion settles before restamping, which trades
-                            # one predictable extra call for an unpredictable number of
-                            # slower ones — a worse tradeoff. _upload_local_file's
-                            # convert=True path below has the identical constraint.
-                            try:
-                                await execute_in_thread(
-                                    drive_service.files()
-                                    .update(
-                                        fileId=created["id"],
-                                        body={"modifiedTime": lmtime_str},
-                                        supportsAllDrives=True,
-                                        fields="id",
-                                    )
-                                    .execute,
-                                    drive_service,
-                                )
-                            except Exception as e:
-                                # create() already succeeded — the Doc genuinely
-                                # exists in Drive even though this restamp failed.
-                                # A bare upload_fail here would leave it an
-                                # untracked orphan with no record of its ID
-                                # (#420); report fileId alongside the error so a
-                                # caller can find and either fix or clean it up.
-                                # Message + quota-error handling shared with
-                                # _upload_local_file via _restamp_failure_result
-                                # (#650); the kind/name keys are this call site's
-                                # own result-protocol layer on top.
-                                return {
-                                    "kind": "upload_fail",
-                                    "name": name,
-                                    **_restamp_failure_result(created["id"], e),
-                                }
+                            # Without the restamp, a bidirectional resync with
+                            # no local changes reads Drive as newer, tries to
+                            # download the (unconvertible) Doc, and the file
+                            # gets stuck 'failed' forever (#414 QA review,
+                            # TC-D218). See _restamp_modified_time.
+                            restamp_failure = await _restamp_modified_time(
+                                drive_service, created["id"], lmtime_str
+                            )
+                            if restamp_failure is not None:
+                                return {"kind": "upload_fail", "name": name, **restamp_failure}
                         synced_id = created["id"]
                         logger.debug("Synced (create) %s%s → Drive", rel_prefix, name)
                     try:
