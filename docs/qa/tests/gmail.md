@@ -58,42 +58,62 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute `{MESSAGE_ID}`, `{TH
 
 ---
 
-### TC-GM26: Non-UTF-8 bodies decode using each part's own charset (issue #792) ⚠️ requires-oauth
+### TC-GM26: Non-UTF-8-labeled bodies still decode correctly (issue #792) ⚠️ requires-oauth
 
-**Background:** `get_message`/`get_thread` used to decode every body as UTF-8, ignoring the part's `Content-Type` charset, so ISO-8859-1 / Windows-1252 / Shift_JIS mail came back garbled (`Caf� cr�me`). #792 decodes each part with its own declared charset. The fixture is *inserted* (not sent), so nothing leaves the QA mailbox.
+**Background:** #792 assumed `get_message`/`get_thread` garble ISO-8859-1 / Windows-1252 / Shift_JIS mail because they decode `body.data` as UTF-8 regardless of the part's `Content-Type` charset. PR #816 round 1 showed live that the premise is false. The Gmail API already transcodes every text part's `body.data` to UTF-8 but keeps the original charset label, so the UTF-8-only decode is correct and decoding with the declared charset garbles. This case now guards that: a part labeled with a non-UTF-8 charset must still come back as the right text. The fixtures are built from raw bytes, not `MIMEText`. `MIMEText(..., 'shift_jis')` silently emits `charset="iso-2022-jp"`, which never exercised Shift_JIS. The fixtures are *inserted* (not sent), so nothing leaves the QA mailbox.
 
-**Setup:** insert the fixture with a scratch script from the checkout under test, using the same OAuth token as the server under test (its saved scopes must include `gmail.modify`):
+**Setup:** insert both fixtures with a scratch script from the checkout under test, using the same OAuth token as the server under test (its saved scopes must include `gmail.modify`):
 
 ```bash
-uv run python3 -c "
+uv run python3 - <<'EOF'
 import base64
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from googleapiclient.discovery import build
 from mcp_gee_sweet.auth import _oauth_creds
-m = MIMEMultipart('alternative')
-m.attach(MIMEText('Café crème, naïve', 'plain', 'iso-8859-1'))
-m.attach(MIMEText('<p>こんにちは世界</p>', 'html', 'shift_jis'))
-m['Subject'] = 'TC-GM26 charset fixture'
-m['To'] = 'qa@example.invalid'
-g = build('gmail', 'v1', credentials=_oauth_creds(), cache_discovery=False)
-r = g.users().messages().insert(userId='me', body={'raw': base64.urlsafe_b64encode(m.as_bytes()).decode()}).execute()
-print(r['id'], r['threadId'])
-"
+
+def mime(subject, parts):
+    out = [
+        b"MIME-Version: 1.0",
+        b"To: qa@example.invalid",
+        b"Subject: " + subject,
+        b'Content-Type: multipart/alternative; boundary="tcgm26"',
+        b"",
+    ]
+    for ctype, cte, body in parts:
+        out += [b"--tcgm26", b"Content-Type: " + ctype, b"Content-Transfer-Encoding: " + cte, b"", body]
+    out += [b"--tcgm26--", b""]
+    return b"\r\n".join(out)
+
+# A: iso-8859-1 quoted-printable plain part + genuine Shift_JIS base64 html part.
+a = mime(b"TC-GM26 charset fixture A", [
+    (b"text/plain; charset=iso-8859-1", b"quoted-printable", b"Caf=E9 cr=E8me, na=EFve"),
+    (b"text/html; charset=shift_jis", b"base64", base64.b64encode("<p>こんにちは世界</p>".encode("shift_jis"))),
+])
+# B: windows-1252 8bit plain part (smart quotes and en dash are cp1252-only bytes).
+b = mime(b"TC-GM26 charset fixture B", [
+    (b"text/plain; charset=windows-1252", b"8bit", "“Smart quotes” – 5".encode("cp1252")),
+])
+
+g = build("gmail", "v1", credentials=_oauth_creds(), cache_discovery=False)
+for label, raw in (("A", a), ("B", b)):
+    r = g.users().messages().insert(userId="me", body={"raw": base64.urlsafe_b64encode(raw).decode()}).execute()
+    print(label, r["id"], r["threadId"])
+EOF
 ```
 
-Record the printed IDs as `{CHARSET_FIXTURE_ID}` and `{CHARSET_THREAD_ID}`.
+Record fixture A's IDs as `{CHARSET_FIXTURE_A_ID}` / `{CHARSET_THREAD_A_ID}`, and fixture B's message ID as `{CHARSET_FIXTURE_B_ID}`.
 
 **Action**
-1. `get_message` with `message_id: "{CHARSET_FIXTURE_ID}"`
-2. `get_thread` with `thread_id: "{CHARSET_THREAD_ID}"`
+1. `get_message` with `message_id: "{CHARSET_FIXTURE_A_ID}"`
+2. `get_thread` with `thread_id: "{CHARSET_THREAD_A_ID}"`
+3. `get_message` with `message_id: "{CHARSET_FIXTURE_B_ID}"`
 
 **Checks**
-- Step 1: `body_plain` is exactly `Café crème, naïve` and `body_html` is exactly `<p>こんにちは世界</p>`, with no `�` replacement characters
+- Step 1: `body_plain` is `Café crème, naïve` and `body_html` is `<p>こんにちは世界</p>` (ignore trailing whitespace), with no mojibake (`CafÃ©`, `縺薙ｓ…`) and no `�` replacement characters
 - Step 2: the one message in `messages` has the same `body_plain` / `body_html` as step 1
-- No `error` field in either response
+- Step 3: `body_plain` is `“Smart quotes” – 5` (ignore trailing whitespace)
+- No `error` or `body_decode_errors` field in any response
 
-**Cleanup:** `trash_message` the fixture.
+**Cleanup:** `trash_message` both fixtures.
 
 **Result** (2026-09-26, PR #816 round 1, `mcp-gee-sweet-kit`, OAuth token with `gmail.modify`): **FAIL**. Step 1 `body_plain` = `CafÃ© crÃ¨me, naÃ¯ve` (mojibake). `body_html` = `<p>こんにちは世界</p>` (correct). Step 2 identical. No `error` field. Root cause, confirmed via raw `format=full` vs `format=raw` inspection: the Gmail API already transcodes every text part's `body.data` to UTF-8, while the part's `Content-Type` header keeps the original charset label. Wire bytes `Caf=E9` (iso-8859-1 QP) arrive in `body.data` as `Caf\xc3\xa9`, so decoding with the declared charset double-decodes. Note: Python's `MIMEText(..., 'shift_jis')` actually emits `charset="iso-2022-jp"`, so the fixture's HTML part never exercised Shift_JIS. A second probe with a raw base64 `charset=shift_jis` part and an 8bit `charset=windows-1252` part showed the same UTF-8 transcoding. `get_message` returned the Shift_JIS part as `縺薙ｓ縺ｫ縺｡縺ｯ荳也阜` (UTF-8 bytes that happen to be valid Shift_JIS). The cp1252 part came out correct only because byte `0x9d` is undefined in cp1252, which forced the UTF-8 fallback. The pre-#792 UTF-8-only decode was correct for all three. Both fixtures trashed.
 
