@@ -169,8 +169,8 @@ P1–P3 are possible defects; confirm each live (GM27–29) before filing anythi
 ## 6. Execution order
 
 1. ~~Enable the Gmail API for the global server~~ (done 2026-09-26). Land the seed script and the `setup.md`/`fixtures.template.md` Gmail section, including the sender-side send checklist.
-2. Rewrite TC-GM01–22 and add TC-GM26–42.
-3. Run the whole file once on an OAuth slot with `gmail.modify` and record results. This closes #803. Repeat GM28/29 on a second seed, since they depend on how Gmail stores the insert.
+2. Rewrite TC-GM01–22 and add TC-GM26–44.
+3. Run the whole file once on an OAuth slot with `gmail.modify` and record results. This closes #803. Repeat GM28/29 on a second, freshly sent seed, since they depend on how Gmail stores delivered mail.
 4. File defects for whatever GM27–29 reproduce, plus the P4–P9 unit-test ticket.
 5. Add the Smoke rows.
 
