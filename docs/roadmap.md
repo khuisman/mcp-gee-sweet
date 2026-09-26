@@ -292,7 +292,7 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 **Gmail domain** _(pulled forward from v1.1+ 2026-09-23; implementation is community PR #786, merged 2026-09-25)_
 - [x] Gmail domain primitives ([#785](https://github.com/khuisman/mcp-gee-sweet/issues/785)), via community PR #786
 - [x] Gmail scopes opt-in + verify granted scopes at startup. Existing OAuth tokens weren't granted the new scopes, so refresh likely fails into a surprise browser consent or a headless hang. **Must ship in the same release as #786** ([#790](https://github.com/khuisman/mcp-gee-sweet/issues/790)) (PR #807)
-- [ ] `reply_to_message` should honor Reply-To and handle replies to your own sent mail ([#791](https://github.com/khuisman/mcp-gee-sweet/issues/791))
+- [x] `reply_to_message` should honor Reply-To and handle replies to your own sent mail ([#791](https://github.com/khuisman/mcp-gee-sweet/issues/791)) (PR #815)
 - [ ] Decode message bodies using the part's charset; tolerate missing base64 padding ([#792](https://github.com/khuisman/mcp-gee-sweet/issues/792))
 - [ ] `get_thread`/`get_message`: add a body-less option — a long thread trips the response-size cap and there's no other way to get its message IDs, so it can't be read at all ([#793](https://github.com/khuisman/mcp-gee-sweet/issues/793))
 - [ ] Reply-all self-exclusion (silent `getProfile` failure, send-as aliases), attachment reads blocking the event loop, attachment MIME guessing ([#802](https://github.com/khuisman/mcp-gee-sweet/issues/802))
