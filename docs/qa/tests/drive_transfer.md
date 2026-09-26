@@ -1811,3 +1811,11 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-266/`.
 - Final listing: exactly 6 Google Docs, no `text/markdown` files, no orphans or duplicates.
 - Side probe: a 243-byte NFD-form name (`が`×40 decomposed) was uploaded once and recognized on resync. Drive preserved its normalization, so the code review's NFC/NFD concern did not reproduce.
 
+
+**Result** (2026-09-26, Sky, PR #812 round 2 re-verification of `2544c93`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): **PASS**. Ran the full case again from a fresh folder, with the corrected Setup restamp.
+- Call 1: `failed == []`. `uploaded` held the 4 new names, and `legacy.md` was in `skipped`. The markers were identical to round 1.
+- This run, all 4 converted Docs kept their restamped `modifiedTime` (`15:20:33Z`); the #814 race didn't hit.
+- Calls 2 and 3 (with and without `convert_markdown`): `uploaded`/`conflicts`/`failed` were empty, and all 5 names were in `skipped`.
+- Call 4: `upload_local_file(convert=True)` on `<C115>.md` returned no error, and the repeated call 2 listed it in `skipped`.
+- Final listing: exactly 6 Google Docs, no `text/markdown` files, no orphans or duplicates.
+- Unit suite at `2544c93`: 1718 passed, 3 skipped.
