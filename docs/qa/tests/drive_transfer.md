@@ -1839,3 +1839,10 @@ Create a scratch Drive folder `{FOLDER_ID}`. Locally, create `/tmp/qa-267/data.c
 
 **Teardown**
 Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-267/`.
+
+**Result** (2026-09-26, Sky, PR #817 round 1 at `daca371`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): **PASS**.
+- Call 1: no error; `fileId` returned, `name: "data"`.
+- Call 2: `mimeType` is a Google Sheet named `data`; `modified_time` is `2023-01-01T08:00:00.000Z` (local midnight PST in UTC). Re-read more than 40s later, it was unchanged, so the restamp was not overwritten later by the conversion.
+- Call 3: `actions` = `[{name: "data.csv", action: "skip", reason: "in sync"}]`.
+- Extra regression check on `sync_folder(convert_markdown=True)`, which is `_run_one`'s side of the shared helper. It used a separate scratch folder and a `.md` with its mtime set to 2023-01-01. The first sync listed it in `uploaded`, and the resync listed it in `skipped`. After a local edit (mtime set to 2024-01-01), the sync reported `uploaded`, taking the media `update()` reimport path. Dry-run resyncs immediately afterward and about 40s later both reported `skip` / "in sync", so the reimport path doesn't drift either.
+- Unit suite at `daca371`: 1737 passed, 3 skipped; `ruff check` clean.
