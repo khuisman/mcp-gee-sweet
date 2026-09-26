@@ -1778,3 +1778,44 @@ Side probe (pre-existing, outside this PR's diff): `sync_folder(direction="uploa
 Fixture folder trashed and local dirs removed as teardown.
 
 ---
+
+### TC-D266: `sync_folder(convert_markdown=True)` — a long `.md` name converts once, stays within Drive's 124-byte property cap, and is recognized on every resync; a pre-#805 legacy-marked Doc still matches (issue #805) ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** `sync_folder`'s own `convert_markdown` create stamped the raw local filename into `geeSweetConvertMarkdownSource` (a 29-byte key). Any `.md` name over 95 bytes failed with `403 propertyLengthLimitExceeded` after Drive had already created the Doc. The result was an `upload_fail` with no `fileId` and an unmarked orphan Doc, and every rerun added another. The create now stamps through `_convert_properties`, the same helper `upload_local_file` uses. A name too long for the markdown key gets only the generic `geeSweetConvertSource` marker: the raw name if it fits, otherwise a `sha256:` digest. `sync_folder` recognizes a converted Doc through either key. A digest is resolved against the Doc's own display name, which keeps its `.md` suffix. A Doc carrying only the old markdown key (anything converted before this fix) must still match, or the upgrade would upload a duplicate of every existing converted Doc.
+
+**Setup**
+Create a scratch Drive folder `{FOLDER_ID}`. Locally, create `/tmp/qa-266/` containing `short.md`, `<A100>.md` (a 100-character ASCII stem, a 103-byte name: too long for the markdown key, fits the generic key raw), `<B110>.md` (a 110-character stem, 113 bytes: digested), and `<CJK>.md` (48 CJK characters, 147 bytes: digested). Each holds `# Heading`. Then, with a scratch script (`files().create` with `mimeType="application/vnd.google-apps.document"`, a `text/markdown` media body, and `properties={"geeSweetConvertMarkdownSource": "legacy.md"}`), create a Doc named `legacy.md` in `{FOLDER_ID}` carrying **only** the legacy key. Wait for conversion to settle (Drive overwrites the create-time `modifiedTime` a few seconds later, the same drift TC-D218 documents), then restamp it with a metadata-only `files().update(body={"modifiedTime": ...})`. Create the matching local `/tmp/qa-266/legacy.md` and set its mtime to the restamped value. Reading `modifiedTime` from the `create()` response instead leaves the pair more than 5 seconds apart, and `legacy.md` reads as a conflict.
+
+**Tool calls**
+1. `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-266/", direction="upload", convert_markdown=True)`
+2. `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-266/", direction="bidirectional", convert_markdown=True)`
+3. `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-266/", direction="bidirectional")` (flag omitted)
+4. `upload_local_file(local_path="/tmp/qa-266/<C115>.md", parent_folder_id={FOLDER_ID}, convert=True)`, where `<C115>.md` is a new 115-character-stem local file, then call 2 again
+
+**Checks**
+- Call 1: `failed == []`. `uploaded` holds the four new names, and `legacy.md` is in `skipped`, not `uploaded`.
+- A scratch-script `files().list(fields="files(name,properties)")` shows `short.md` carrying both keys. `<A100>.md` carries only `geeSweetConvertSource` with the raw name. `<B110>.md` and `<CJK>.md` carry only `geeSweetConvertSource`, starting with `sha256:`. `legacy.md` still has only its original key.
+- Calls 2 and 3: `uploaded == []`, `conflicts == []`, `failed == []`, and all five names are in `skipped`.
+- Call 4: `upload_local_file` returns no `error`. The repeated call 2 lists `<C115>.md` in `skipped`, not `uploaded`.
+- `list_files` on `{FOLDER_ID}` shows exactly 6 Google Docs and no `text/markdown` files. There are no unmarked orphans or duplicates.
+
+**Teardown**
+Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-266/`.
+
+**Result** (2026-09-26, Sky, PR #812 round 1, `mcp-gee-sweet-sky`, OAuth, Shared Drive): **FAIL (pre-existing restamp race, not a PR regression)**. Recognition checks pass:
+- Setup: the legacy Doc's `modifiedTime` moved from `05:13:38.932Z` (create response) to `05:13:41.154Z` within seconds, confirming the setup-drift issue. Restamped as the updated Setup line above describes.
+- Call 1: `failed == []`. `uploaded` held the 4 new names, and `legacy.md` was in `skipped`. The markers were exactly as specified: `short.md` had both keys, `<A100>.md` had only the raw generic key, `<B110>.md` and `<CJK>.md` had only a `sha256:` generic key, and `legacy.md` had only its original key.
+- Call 2 as run: **FAIL**. `<B110>.md` and `<CJK>.md` landed in `conflicts`. Their Drive `modifiedTime` was `05:14:04.7Z`/`05:14:04.8Z` against a local mtime of `05:13:35`. `_sync_level`'s post-create restamp had been overwritten by Drive's asynchronous import conversion finishing *after* it. This is not name-length-specific: a separate probe folder (4 short plus 4 digested names, `direction=upload`) drifted 1 short (`s3.md`, +7.3s) and 1 digested (+6.8s) name. The race predates this PR, and the PR didn't touch the restamp.
+- After manually restamping the two drifted Docs to their local mtime, calls 2 and 3 pass: `uploaded`/`conflicts`/`failed` were empty and all 5 names were in `skipped`, with and without `convert_markdown`.
+- Call 4: `upload_local_file(convert=True)` on `<C115>.md` returned no error, and the repeated call 2 listed it in `skipped`.
+- Final listing: exactly 6 Google Docs, no `text/markdown` files, no orphans or duplicates.
+- Side probe: a 243-byte NFD-form name (`が`×40 decomposed) was uploaded once and recognized on resync. Drive preserved its normalization, so the code review's NFC/NFD concern did not reproduce.
+
+
+**Result** (2026-09-26, Sky, PR #812 round 2 re-verification of `2544c93`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): **PASS**. Ran the full case again from a fresh folder, with the corrected Setup restamp.
+- Call 1: `failed == []`. `uploaded` held the 4 new names, and `legacy.md` was in `skipped`. The markers were identical to round 1.
+- This run, all 4 converted Docs kept their restamped `modifiedTime` (`15:20:33Z`); the #814 race didn't hit.
+- Calls 2 and 3 (with and without `convert_markdown`): `uploaded`/`conflicts`/`failed` were empty, and all 5 names were in `skipped`.
+- Call 4: `upload_local_file(convert=True)` on `<C115>.md` returned no error, and the repeated call 2 listed it in `skipped`.
+- Final listing: exactly 6 Google Docs, no `text/markdown` files, no orphans or duplicates.
+- Unit suite at `2544c93`: 1718 passed, 3 skipped.
