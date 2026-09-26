@@ -95,6 +95,8 @@ Record the printed IDs as `{CHARSET_FIXTURE_ID}` and `{CHARSET_THREAD_ID}`.
 
 **Cleanup:** `trash_message` the fixture.
 
+**Result** (2026-09-26, PR #816 round 1, `mcp-gee-sweet-kit`, OAuth token with `gmail.modify`): **FAIL**. Step 1 `body_plain` = `CafÃ© crÃ¨me, naÃ¯ve` (mojibake). `body_html` = `<p>こんにちは世界</p>` (correct). Step 2 identical. No `error` field. Root cause, confirmed via raw `format=full` vs `format=raw` inspection: the Gmail API already transcodes every text part's `body.data` to UTF-8, while the part's `Content-Type` header keeps the original charset label. Wire bytes `Caf=E9` (iso-8859-1 QP) arrive in `body.data` as `Caf\xc3\xa9`, so decoding with the declared charset double-decodes. Note: Python's `MIMEText(..., 'shift_jis')` actually emits `charset="iso-2022-jp"`, so the fixture's HTML part never exercised Shift_JIS. A second probe with a raw base64 `charset=shift_jis` part and an 8bit `charset=windows-1252` part showed the same UTF-8 transcoding. `get_message` returned the Shift_JIS part as `縺薙ｓ縺ｫ縺｡縺ｯ荳也阜` (UTF-8 bytes that happen to be valid Shift_JIS). The cp1252 part came out correct only because byte `0x9d` is undefined in cp1252, which forced the UTF-8 fallback. The pre-#792 UTF-8-only decode was correct for all three. Both fixtures trashed.
+
 ---
 
 ## `list_threads`
