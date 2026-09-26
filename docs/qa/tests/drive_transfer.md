@@ -1846,3 +1846,11 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-267/`.
 - Call 3: `actions` = `[{name: "data.csv", action: "skip", reason: "in sync"}]`.
 - Extra regression check on `sync_folder(convert_markdown=True)`, which is `_run_one`'s side of the shared helper. It used a separate scratch folder and a `.md` with its mtime set to 2023-01-01. The first sync listed it in `uploaded`, and the resync listed it in `skipped`. After a local edit (mtime set to 2024-01-01), the sync reported `uploaded`, taking the media `update()` reimport path. Dry-run resyncs immediately afterward and about 40s later both reported `skip` / "in sync", so the reimport path doesn't drift either.
 - Unit suite at `daca371`: 1737 passed, 3 skipped; `ruff check` clean.
+
+**Result** (2026-09-26, Sky, PR #817 round 2 re-verification of `b4e6439`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): **PASS**. Ran the full case again from a fresh folder.
+- Call 1: no error; `fileId` returned.
+- Call 2: a Google Sheet named `data`, with `modified_time` `2023-01-01T08:00:00.000Z`.
+- Call 3: `actions` = `[{name: "data.csv", action: "skip", reason: "in sync"}]`.
+- `convert_markdown` regression check, run again at `b4e6439`: upload, then dry-run resync reports `skip` / "in sync".
+- The round-1 findings are all addressed in `b4e6439`, confirmed from its diff: the docstring is now consistent, the mtime is read inside the `try` at both sites (each with a new unit test), a single `_local_mtime_dt`, the stale comment is dropped, and the restamp test is parametrized.
+- Unit suite at `b4e6439`: 1739 passed, 3 skipped; ruff check and format are clean.
