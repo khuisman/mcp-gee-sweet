@@ -58,6 +58,45 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute `{MESSAGE_ID}`, `{TH
 
 ---
 
+### TC-GM26: Non-UTF-8 bodies decode using each part's own charset (issue #792) ⚠️ requires-oauth
+
+**Background:** `get_message`/`get_thread` used to decode every body as UTF-8, ignoring the part's `Content-Type` charset, so ISO-8859-1 / Windows-1252 / Shift_JIS mail came back garbled (`Caf� cr�me`). #792 decodes each part with its own declared charset. The fixture is *inserted* (not sent), so nothing leaves the QA mailbox.
+
+**Setup:** insert the fixture with a scratch script from the checkout under test, using the same OAuth token as the server under test (its saved scopes must include `gmail.modify`):
+
+```bash
+uv run python3 -c "
+import base64
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from googleapiclient.discovery import build
+from mcp_gee_sweet.auth import _oauth_creds
+m = MIMEMultipart('alternative')
+m.attach(MIMEText('Café crème, naïve', 'plain', 'iso-8859-1'))
+m.attach(MIMEText('<p>こんにちは世界</p>', 'html', 'shift_jis'))
+m['Subject'] = 'TC-GM26 charset fixture'
+m['To'] = 'qa@example.invalid'
+g = build('gmail', 'v1', credentials=_oauth_creds(), cache_discovery=False)
+r = g.users().messages().insert(userId='me', body={'raw': base64.urlsafe_b64encode(m.as_bytes()).decode()}).execute()
+print(r['id'], r['threadId'])
+"
+```
+
+Record the printed IDs as `{CHARSET_FIXTURE_ID}` and `{CHARSET_THREAD_ID}`.
+
+**Action**
+1. `get_message` with `message_id: "{CHARSET_FIXTURE_ID}"`
+2. `get_thread` with `thread_id: "{CHARSET_THREAD_ID}"`
+
+**Checks**
+- Step 1: `body_plain` is exactly `Café crème, naïve` and `body_html` is exactly `<p>こんにちは世界</p>`, with no `�` replacement characters
+- Step 2: the one message in `messages` has the same `body_plain` / `body_html` as step 1
+- No `error` field in either response
+
+**Cleanup:** `trash_message` the fixture.
+
+---
+
 ## `list_threads`
 
 ### TC-GM05: List threads with a query

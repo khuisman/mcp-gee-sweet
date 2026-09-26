@@ -1,7 +1,10 @@
 """Gmail tools — messages, threads, labels, drafts, and organization primitives."""
 
 import base64
+import binascii
+import codecs
 import logging
+from email.message import Message
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -132,10 +135,39 @@ def _header_map(headers: list[dict[str, str]] | None) -> dict[str, str]:
     return {h["name"].lower(): h.get("value", "") for h in (headers or []) if "name" in h}
 
 
-def _decode_body_data(data: str | None) -> str:
+def _part_charset(part: dict[str, Any]) -> str | None:
+    """Return the charset param of a MIME part's own Content-Type header, if any."""
+    for h in part.get("headers") or []:
+        if h.get("name", "").lower() == "content-type":
+            msg = Message()
+            msg["Content-Type"] = h.get("value", "")
+            return msg.get_content_charset()
+    return None
+
+
+def _decode_body_data(data: str | None, charset: str | None = None) -> str:
+    """Decode a Gmail base64url body using the part's declared charset (#792).
+
+    Missing base64 padding is repaired rather than raising. An unknown or absent
+    charset falls back to UTF-8; bytes that don't decode strictly under the declared
+    charset are retried as UTF-8 (common for mislabeled us-ascii mail) before falling
+    back to the declared charset with replacement characters.
+    """
     if not data:
         return ""
-    return base64.urlsafe_b64decode(data.encode("utf-8")).decode("utf-8", errors="replace")
+    raw = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
+    encoding = "utf-8"
+    if charset:
+        try:
+            encoding = codecs.lookup(charset).name
+        except LookupError:
+            logger.debug("unknown body charset %r; decoding as utf-8", charset)
+    for candidate in dict.fromkeys((encoding, "utf-8")):
+        try:
+            return raw.decode(candidate)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode(encoding, errors="replace")
 
 
 def _extract_bodies_and_attachments(
@@ -164,9 +196,9 @@ def _extract_bodies_and_attachments(
                 }
             )
         elif data and mime_type == "text/plain" and plain is None:
-            plain = _decode_body_data(data)
+            plain = _decode_body_data(data, _part_charset(part))
         elif data and mime_type == "text/html" and html is None:
-            html = _decode_body_data(data)
+            html = _decode_body_data(data, _part_charset(part))
 
         for child in part.get("parts") or []:
             walk(child)
@@ -384,7 +416,10 @@ def register(tool):
         except Exception as e:
             return {"error": str(e)}
 
-        shaped = _shape_message(msg, include_body=True)
+        try:
+            shaped = _shape_message(msg, include_body=True)
+        except binascii.Error as e:
+            return {"error": f"Could not decode message {message_id!r} body: {e}"}
         enforce_response_size_cap(
             shaped,
             tool_name="get_message",
@@ -489,11 +524,15 @@ def register(tool):
         except Exception as e:
             return {"error": str(e)}
 
+        try:
+            messages = [_shape_message(m, include_body=True) for m in thread.get("messages", [])]
+        except binascii.Error as e:
+            return {"error": f"Could not decode a message body in thread {thread_id!r}: {e}"}
         shaped = {
             "id": thread["id"],
             "snippet": thread.get("snippet"),
             "history_id": thread.get("historyId"),
-            "messages": [_shape_message(m, include_body=True) for m in thread.get("messages", [])],
+            "messages": messages,
         }
         enforce_response_size_cap(
             shaped,
