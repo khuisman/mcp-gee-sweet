@@ -702,6 +702,9 @@ Then call, in order:
 
 **Cleanup:** remove the temporary server registration and delete the token copy.
 
+**Result (2026-09-25, PR #807 round 2 @ 8f67604, Kit) ✅ PASS**
+Ran against this worktree's code with a real `mcp` SDK stdio client (`stdio_client` + `ClientSession`, a genuine MCP round trip) instead of a registered Claude Code server. Token copy = the team QA token as of 2026-09-25 (4 base scopes, no `gmail.modify`), `expiry` forced to 2000-01-01. `AUTH_METHOD` unset, `SERVICE_ACCOUNT_PATH` also set so a silent SA fallback would have been possible, no `ENABLED_TOOLS` (139 tools registered, Gmail included). Server connected; no browser, no `Please visit` prompt. Log: `WARNING mcp_gee_sweet.auth Gmail tools disabled: ...`, then `Refreshing expired OAuth token...`, then `Waterfall: using OAuth` (not the service account). `list_spreadsheets(max_results=1)` → 200, no error (empty list: the fixture folder has no spreadsheets at its root). `list_labels` and `send_message(to=nobody@example.com, ...)` each returned `{"error": "The OAuth token at '<copy>' wasn't authorized for scope(s) the enabled tools require: https://www.googleapis.com/auth/gmail.modify. Delete '<copy>' and restart the server (or run scripts/oauth_setup.py) to re-authorize. The Gmail tools are what need them: to run without Gmail instead, leave the Gmail tools out of ENABLED_TOOLS / --include-tools."}` in 0.000s (no API call, nothing sent). `auth-status`: `auth_method: "oauth"`, one `gmail_not_authorized` limitation listing all 11 Gmail tools, and those 11 are the whole of `limited_tools`. Token copy afterwards: `expiry` advanced (refresh succeeded), `scopes` unchanged with no `gmail.*`.
+
 ---
 
 ### TC-I33: with the Gmail tools filtered out, a pre-Gmail OAuth token keeps working and no Gmail scope is requested (issue #790) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -731,6 +734,9 @@ Call `list_spreadsheets` with `max_results: 1`, then `ReadMcpResourceTool` with 
 
 **Cleanup:** remove the temporary server registration and delete the token copy.
 
+**Result (2026-09-25, PR #807 round 2 @ 8f67604, Kit) ✅ PASS**
+Same real-SDK stdio client; separate token copy (4 base scopes, `expiry` forced to 2000-01-01), `AUTH_METHOD=oauth`, `ENABLED_TOOLS=list_spreadsheets,get_cache_ttl`. Connected with 2 tools registered (no Gmail) and no browser consent. `list_spreadsheets(max_results=1)` → 200, no error. `auth-status`: `auth_method: "oauth"`, `limited_tools: []`, `limitations: []`. Token copy afterwards: `expiry` advanced (refreshed), `scopes` still the 4 base scopes, no `gmail.*`. Log has 0 `Gmail`/`MissingOAuth` lines.
+
 ---
 
 ### TC-I34: an OAuth token missing a base (non-Gmail) scope still fails at startup, logs the reason, and never opens a browser consent (issue #790) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -757,3 +763,6 @@ Repeat once with `AUTH_METHOD=oauth`.
 - The token copy's contents are unchanged afterwards
 
 **Cleanup:** delete the token copy and the temp log.
+
+**Result (2026-09-25, PR #807 round 2 @ 8f67604, Kit) ✅ PASS**
+Token copy: `calendar` removed from `scopes` (`spreadsheets`, `drive`, `drive.activity.readonly`, `gmail.modify` kept), `expiry` in the future. Waterfall run (`AUTH_METHOD` unset, `SERVICE_ACCOUNT_PATH` set): exit 1 after ~2s. stderr has `MissingOAuthScopesError: The OAuth token at '<copy>' wasn't authorized for scope(s) the enabled tools require: https://www.googleapis.com/auth/calendar. Delete '<copy>' and restart the server (or run scripts/oauth_setup.py) ...`. LOG_FILE has `ERROR mcp_gee_sweet.auth OAuth startup failed: <same message>`, 0 `Waterfall: using service account` lines, 0 `Please visit` prompts. `AUTH_METHOD=oauth` run: identical (exit 1 after ~2s, same stderr + log line). Token copy's sha1 unchanged across both runs.
