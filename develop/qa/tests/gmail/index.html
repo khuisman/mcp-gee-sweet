@@ -1539,6 +1539,39 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-gm23-reply-goes-to-the-originals-reply-to-not-its-from-issue-791-destructive-requires-oauth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM23: Reply goes to the original's Reply-To, not its From (issue #791) ⚠️ destructive ⚠️ requires-oauth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm24-replying-to-your-own-sent-message-goes-to-its-original-to-not-back-to-you-issue-791-destructive-requires-oauth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM24: Replying to your own sent message goes to its original To, not back to you (issue #791) ⚠️ destructive ⚠️ requires-oauth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-gm25-replies-to-your-own-multi-recipient-or-cc-only-sent-mail-never-copy-you-and-never-drop-the-cc-issue-791-destructive-requires-oauth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-GM25: Replies to your own multi-recipient or Cc-only sent mail never copy you and never drop the Cc (issue #791) ⚠️ destructive ⚠️ requires-oauth
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2017,6 +2050,71 @@
 </blockquote>
 <p><strong>Checks</strong>
 - Returns <code>{"error": "..."}</code> — not a top-level exception</p>
+<hr />
+<h3 id="tc-gm23-reply-goes-to-the-originals-reply-to-not-its-from-issue-791-destructive-requires-oauth">TC-GM23: Reply goes to the original's Reply-To, not its From (issue #791) ⚠️ destructive ⚠️ requires-oauth<a class="headerlink" href="#tc-gm23-reply-goes-to-the-originals-reply-to-not-its-from-issue-791-destructive-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>reply_to_message</code> used to always reply to <code>From</code>, so mail with a <code>Reply-To</code> (mailing lists, support desks, no-reply senders) got the reply at the wrong address. #791 resolves <code>Reply-To</code> over <code>From</code>, like a standard mail client. This reproduces the defect without mailing anyone outside the QA mailbox: the original is <em>inserted</em> (not sent) with a fake <code>From</code> and a <code>Reply-To</code> pointing at a plus-address of the QA mailbox itself.</p>
+<p><strong>Setup:</strong> there's no tool for inserting a message, so insert the fixture with a scratch script from the checkout under test, using the same OAuth token as the server under test (its saved scopes must include <code>gmail.modify</code>). Replace <code>&lt;mailbox&gt;</code> with the QA mailbox address, e.g. <code>qa@example.com</code> → <code>qa+tc-gm23@example.com</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="s2">import base64</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="s2">from email.mime.text import MIMEText</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="s2">from googleapiclient.discovery import build</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="s2">from mcp_gee_sweet.auth import _oauth_creds</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="s2">m = MIMEText(&#39;mcp-gee-sweet TC-GM23 fixture&#39;)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="s2">m[&#39;From&#39;] = &#39;No Reply &lt;noreply@example.invalid&gt;&#39;</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="s2">m[&#39;Reply-To&#39;] = &#39;&lt;mailbox local part&gt;+tc-gm23@&lt;mailbox domain&gt;&#39;</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="s2">m[&#39;To&#39;] = &#39;&lt;mailbox&gt;&#39;</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="s2">m[&#39;Subject&#39;] = &#39;TC-GM23 reply-to fixture&#39;</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="s2">g = build(&#39;gmail&#39;, &#39;v1&#39;, credentials=_oauth_creds(), cache_discovery=False)</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="s2">r = g.users().messages().insert(userId=&#39;me&#39;, body={&#39;raw&#39;: base64.urlsafe_b64encode(m.as_bytes()).decode(), &#39;labelIds&#39;: [&#39;INBOX&#39;]}).execute()</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="s2">print(r[&#39;id&#39;])</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="s2">&quot;</span>
+</code></pre></div>
+<p>Record the printed ID as <code>{REPLY_TO_FIXTURE_ID}</code>.</p>
+<p><strong>Action</strong>
+1. <code>get_message</code> with <code>message_id: "{REPLY_TO_FIXTURE_ID}"</code>
+2. <code>reply_to_message</code> with <code>message_id: "{REPLY_TO_FIXTURE_ID}"</code>, <code>body: "mcp-gee-sweet TC-GM23 reply"</code>
+3. <code>get_message</code> with <code>message_id</code> set to the <code>id</code> returned by step 2
+4. <code>reply_to_message</code> again with <code>reply_all: true</code>, same <code>message_id</code>, <code>body: "mcp-gee-sweet TC-GM23 reply-all"</code>, then <code>get_message</code> on its returned <code>id</code></p>
+<p><strong>Checks</strong>
+- Step 1: <code>headers.reply_to</code> is the <code>+tc-gm23</code> address and <code>headers.from</code> is <code>noreply@example.invalid</code>
+- Step 3: <code>headers.to</code> is the <code>+tc-gm23</code> address only; <code>noreply@example.invalid</code> appears nowhere in <code>to</code>/<code>cc</code>
+- Step 4: <code>headers.to</code> contains the <code>+tc-gm23</code> address and does <strong>not</strong> contain the bare QA mailbox address (the authenticated mailbox is excluded from reply-all); <code>noreply@example.invalid</code> appears nowhere
+- The step-2 reply arrives in the QA inbox (it was addressed to the mailbox's own plus-address), in the same <code>thread_id</code> as the fixture</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> the fixture, both replies, and their delivered inbox copies.</p>
+<p><strong>Result (2026-09-26, PR #815 round 1) ✅ PASS</strong> — via <code>mcp-gee-sweet-kit</code> (token has <code>gmail.modify</code>), fixture inserted with the setup script. Step 1: <code>reply_to</code> = <code>+tc-gm23</code> address, <code>from</code> = <code>noreply@example.invalid</code>. Step 3: <code>to</code> = <code>+tc-gm23</code> address only. Step 4 (reply-all): <code>to</code> = <code>+tc-gm23</code> address only; the bare mailbox was excluded, and <code>noreply@example.invalid</code> appears nowhere. Both replies share the fixture's <code>thread_id</code>. A reply to your own plus-address is one message labeled <code>SENT</code>+<code>INBOX</code>, not a separate delivered copy, so cleanup is just the fixture plus the two replies. All trashed.</p>
+<p><strong>Result (2026-09-26, PR #815 round 2) ✅ PASS (regression)</strong> — re-run against <code>45530d7</code>: the plain reply and reply-all both go <code>to</code> = <code>+tc-gm23</code> only. The bare mailbox and <code>noreply@example.invalid</code> appear nowhere. Trashed.</p>
+<hr />
+<h3 id="tc-gm24-replying-to-your-own-sent-message-goes-to-its-original-to-not-back-to-you-issue-791-destructive-requires-oauth">TC-GM24: Replying to your own sent message goes to its original To, not back to you (issue #791) ⚠️ destructive ⚠️ requires-oauth<a class="headerlink" href="#tc-gm24-replying-to-your-own-sent-message-goes-to-its-original-to-not-back-to-you-issue-791-destructive-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> a plain reply (<code>reply_all: false</code>) to a message the mailbox itself sent used to set <code>To</code> to the mailbox's own address. #791 replies to that message's original <code>To</code> instead, like a standard mail client. A plus-address of the QA mailbox stands in for the other person, so nothing leaves the mailbox.</p>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: "&lt;mailbox local part&gt;+tc-gm24@&lt;mailbox domain&gt;"</code>, <code>subject: "TC-GM24 own-sent fixture"</code>, <code>body: "mcp-gee-sweet TC-GM24 fixture"</code>. Record its <code>id</code> as <code>{OWN_SENT_ID}</code>.
+2. <code>get_message</code> with <code>message_id: "{OWN_SENT_ID}"</code>
+3. <code>reply_to_message</code> with <code>message_id: "{OWN_SENT_ID}"</code>, <code>body: "mcp-gee-sweet TC-GM24 reply"</code>
+4. <code>get_message</code> with <code>message_id</code> set to the <code>id</code> returned by step 3</p>
+<p><strong>Checks</strong>
+- Step 2: <code>label_ids</code> includes <code>SENT</code>
+- Step 4: <code>headers.to</code> is the <code>+tc-gm24</code> address, <strong>not</strong> the bare QA mailbox address
+- Step 4: <code>thread_id</code> matches <code>{OWN_SENT_ID}</code>'s thread</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> the fixture, the reply, and their delivered inbox copies.</p>
+<p><strong>Result (2026-09-26, PR #815 round 1) ✅ PASS</strong> — via <code>mcp-gee-sweet-kit</code>. Step 2: <code>label_ids</code> includes <code>SENT</code>. Step 4: <code>to</code> = <code>+tc-gm24</code> address, not the bare mailbox; <code>thread_id</code> matches. Both trashed. <strong>Scope note:</strong> this case covers only a single-recipient <code>To</code>. Live repros of the PR's code-review findings (both plain replies to your own sent mail) failed. <code>To: &lt;mailbox&gt;, &lt;mailbox&gt;+tc-f3</code> replied <code>To: &lt;mailbox&gt;, &lt;mailbox&gt;+tc-f3</code>, so you get a copy of your own reply. <code>Cc</code>-only (no <code>To</code>) replied <code>To: &lt;mailbox&gt;</code> and dropped the Cc'd recipient. Both were sent back to the Dev on PR #815.</p>
+<p><strong>Result (2026-09-26, PR #815 round 2) ✅ PASS (regression)</strong> — re-run against <code>45530d7</code>: the reply goes <code>to</code> = <code>+tc-gm24</code>, same thread. The round-1 scope-note failures are now covered by TC-GM25, which passes. Trashed.</p>
+<hr />
+<h3 id="tc-gm25-replies-to-your-own-multi-recipient-or-cc-only-sent-mail-never-copy-you-and-never-drop-the-cc-issue-791-destructive-requires-oauth">TC-GM25: Replies to your own multi-recipient or Cc-only sent mail never copy you and never drop the Cc (issue #791) ⚠️ destructive ⚠️ requires-oauth<a class="headerlink" href="#tc-gm25-replies-to-your-own-multi-recipient-or-cc-only-sent-mail-never-copy-you-and-never-drop-the-cc-issue-791-destructive-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> PR #815 QA round 1 reproduced two live failures TC-GM24 doesn't cover, both on plain replies to your own sent mail. <code>To: &lt;mailbox&gt;, &lt;mailbox&gt;+x</code> replied to both, so you got a copy of your own reply. A <code>Cc</code>-only message (no <code>To</code>) replied <code>To: &lt;mailbox&gt;</code> and dropped the Cc'd person. The fix drops the mailbox's own addresses (primary and send-as aliases) from every reply, and replies to an own message's <code>Cc</code> when nobody else is in <code>To</code>. Plus-addresses of the QA mailbox stand in for other people, so nothing leaves the mailbox. They count as other people because they aren't send-as aliases.</p>
+<p><strong>Action</strong>
+1. <code>send_message</code> with <code>to: ["&lt;mailbox&gt;", "&lt;mailbox local part&gt;+tc-gm25a@&lt;mailbox domain&gt;"]</code>, <code>subject: "TC-GM25 multi-recipient fixture"</code>, <code>body: "mcp-gee-sweet TC-GM25 fixture A"</code>. Record its <code>id</code> as <code>{GM25_A}</code>.
+2. <code>reply_to_message</code> with <code>message_id: "{GM25_A}"</code>, <code>body: "mcp-gee-sweet TC-GM25 reply A"</code>, then <code>get_message</code> on the returned <code>id</code>.
+3. <code>send_message</code> with <code>to: ""</code>, <code>cc: "&lt;mailbox local part&gt;+tc-gm25b@&lt;mailbox domain&gt;"</code>, <code>subject: "TC-GM25 Cc-only fixture"</code>, <code>body: "mcp-gee-sweet TC-GM25 fixture B"</code> (the round-1 Cc-only repro). Record its <code>id</code> as <code>{GM25_B}</code>.
+4. <code>reply_to_message</code> with <code>message_id: "{GM25_B}"</code>, <code>body: "mcp-gee-sweet TC-GM25 reply B"</code>, then <code>get_message</code> on the returned <code>id</code>.
+5. <code>reply_to_message</code> with <code>message_id: "{GM25_B}"</code>, <code>reply_all: true</code>, <code>body: "mcp-gee-sweet TC-GM25 reply-all B"</code>, then <code>get_message</code> on the returned <code>id</code>.
+6. Repeat steps 3–5 with <code>to: "&lt;mailbox&gt;"</code> instead of <code>to: ""</code> and <code>+tc-gm25c</code> as the Cc (a message to yourself that also Cc's someone).</p>
+<p><strong>Checks</strong>
+- Step 2: <code>headers.to</code> is exactly the <code>+tc-gm25a</code> address. The bare mailbox address appears nowhere in <code>to</code>/<code>cc</code>.
+- Step 4: <code>headers.to</code> is exactly the <code>+tc-gm25b</code> address, not the bare mailbox. <code>cc</code> is empty.
+- Step 5: <code>headers.to</code> is exactly the <code>+tc-gm25b</code> address. The bare mailbox appears nowhere in <code>to</code>/<code>cc</code>.
+- Step 6: same as steps 4–5, with the <code>+tc-gm25c</code> address.</p>
+<p><strong>Cleanup:</strong> <code>trash_message</code> all three fixtures, all five replies, and their delivered inbox copies.</p>
+<p><strong>Result (2026-09-26, PR #815 round 2) ✅ PASS</strong> — via <code>mcp-gee-sweet-kit</code> after <code>/mcp reconnect</code>, against fix <code>45530d7</code>. Step 2: <code>to</code> = <code>+tc-gm25a</code> only; the bare mailbox appears nowhere. Steps 4 and 5 (Cc-only, sent with <code>to: []</code>): both <code>to</code> = <code>+tc-gm25b</code>, <code>cc</code> empty. Step 6 (to-self + Cc): plain reply and reply-all both <code>to</code> = <code>+tc-gm25c</code>, <code>cc</code> empty. Also confirmed live with the same token that <code>users.settings.sendAs.list</code> succeeds under <code>gmail.modify</code> and returns the primary address (1 entry, <code>isPrimary: true</code>), so <code>_own_addresses</code> takes its alias-list path rather than the <code>getProfile</code> fallback. All fixtures and replies trashed.</p>
 <hr />
 <h2 id="modify_labels"><code>modify_labels</code><a class="headerlink" href="#modify_labels" title="Permanent link">&para;</a></h2>
 <h3 id="tc-gm19-mark-a-message-unread-then-read-destructive">TC-GM19: Mark a message unread then read ⚠️ destructive<a class="headerlink" href="#tc-gm19-mark-a-message-unread-then-read-destructive" title="Permanent link">&para;</a></h3>
