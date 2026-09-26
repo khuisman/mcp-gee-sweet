@@ -29,7 +29,7 @@ Best for headless or automated environments. Credentials don't expire.
    - `SERVICE_ACCOUNT_PATH` — path to the JSON key file
    - `DRIVE_FOLDER_ID` — ID of the shared Drive folder
 
-**Limitation:** service accounts cannot create files in a user's personal Drive (no quota). Use OAuth or a Shared Drive when you need to create files. Service accounts also have no personal Drive identity, so `transfer_ownership` always fails — that one requires OAuth, with no Shared Drive workaround. **Gmail tools require OAuth** — service-account / domain-wide delegation is not wired yet. See `server://auth-status` to check your active auth method and affected tools.
+**Limitation:** service accounts cannot create files in a user's personal Drive (no quota). Use OAuth or a Shared Drive when you need to create files. Service accounts also have no personal Drive identity, so `transfer_ownership` always fails — that one requires OAuth, with no Shared Drive workaround. **Gmail tools require OAuth** — service-account / domain-wide delegation is not wired yet. See `server://auth-status` to check your active auth method and affected tools (Gmail's are listed under the `no_user_mailbox` category).
 
 ## Method B: OAuth 2.0 (personal use / local dev)
 
@@ -41,7 +41,14 @@ Authenticates as you — gives full access to your personal Drive. Requires a br
    - `CREDENTIALS_PATH` — path to the downloaded OAuth JSON (default: `credentials.json`)
    - `TOKEN_PATH` — where the refresh token is stored after login (default: `token.json`)
 
-**Re-authenticating after a scope change:** if you've already authenticated and a new scope has been added (e.g. `drive.activity.readonly` or the Gmail scopes), delete `token.json` and restart the server to trigger a fresh OAuth flow.
+**Re-authenticating after a scope change:** at startup the server checks that the saved token was authorized for every scope the registered tools need. It never opens a browser to fix a shortfall on its own. What happens depends on which scope is missing:
+
+- **Only the Gmail scope is missing** (for example, a token from before the Gmail tools existed): the server starts normally and Sheets, Drive, Docs, Calendar and activity tools keep working. Every Gmail tool returns an error naming the missing scope and how to re-authorize, and `server://auth-status` lists the Gmail tools under a `gmail_not_authorized` limitation.
+- **Any other scope is missing:** startup stops with an error naming the missing scopes. Most tools can't work without them. (Under a stdio client this error goes to stderr, which the client usually doesn't show; the client just reports that the connection closed. Set `DEBUG_LEVEL` and `LOG_FILE` to capture it in a file.)
+
+Either way, delete `token.json` and restart the server (or run `scripts/oauth_setup.py`) to re-authorize.
+
+**Gmail scope is only requested when a Gmail tool is registered.** With no `ENABLED_TOOLS` filter every tool is registered, so the server asks for `gmail.modify` (read, compose, send, label, trash). If you don't want to grant mailbox access, leave the Gmail tools out of `ENABLED_TOOLS` / `--include-tools`. The server then neither requests nor requires the Gmail scope, and an existing pre-Gmail token keeps working.
 
 ## Method C: Base64 credential injection
 
@@ -67,9 +74,7 @@ https://www.googleapis.com/auth/drive,\
 https://www.googleapis.com/auth/drive.activity.readonly,\
 https://www.googleapis.com/auth/documents,\
 https://www.googleapis.com/auth/calendar,\
-https://www.googleapis.com/auth/gmail.modify,\
-https://www.googleapis.com/auth/gmail.send,\
-https://www.googleapis.com/auth/gmail.readonly
+https://www.googleapis.com/auth/gmail.modify
 
 gcloud auth application-default set-quota-project YOUR_PROJECT_ID
 ```

@@ -1,10 +1,14 @@
 """Tests for tools/gmail.py (list_messages, send_message, modify_labels, etc.)."""
 
 import base64
+import inspect
 from email import message_from_bytes
 from email.utils import getaddresses
 from unittest.mock import MagicMock
 
+import pytest
+
+from mcp_gee_sweet import auth as auth_module
 from mcp_gee_sweet.tools import gmail as gmail_module
 
 
@@ -36,6 +40,35 @@ def _raw_payload_from_send_call(gmail_svc) -> bytes:
 
 _gmail_tool, _gmail_tools = _make_tool_registry()
 gmail_module.register(_gmail_tool)
+
+
+class TestGmailNotAuthorized:
+    """#790 / PR #807 QA round 1: when the OAuth token lacks only the Gmail scope,
+    the server still starts and every Gmail tool returns the re-authorize message
+    as its error (a tool result the user can see) without touching the API."""
+
+    @pytest.mark.parametrize("name", sorted(_gmail_tools))
+    async def test_every_gmail_tool_returns_message_without_api_call(self, monkeypatch, name):
+        monkeypatch.setattr(auth_module, "_gmail_unauthorized_message", "re-authorize please")
+        fn = _gmail_tools[name]
+        kwargs = {
+            p.name: "x"
+            for p in inspect.signature(fn).parameters.values()
+            if p.default is inspect.Parameter.empty and p.name != "ctx"
+        }
+        gmail_svc = MagicMock()
+        result = await fn(**kwargs, ctx=_make_ctx(gmail_service=gmail_svc))
+        assert result == {"error": "re-authorize please"}
+        gmail_svc.users.assert_not_called()
+
+    async def test_unflagged_gmail_tool_calls_api(self, monkeypatch):
+        monkeypatch.setattr(auth_module, "_gmail_unauthorized_message", None)
+        gmail_svc = MagicMock()
+        gmail_svc.users.return_value.labels.return_value.list.return_value.execute.return_value = {
+            "labels": []
+        }
+        await _gmail_tools["list_labels"](ctx=_make_ctx(gmail_service=gmail_svc))
+        gmail_svc.users.assert_called()
 
 
 class TestListMessages:

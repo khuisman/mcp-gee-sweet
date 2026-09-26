@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import ValidationError
 
+from mcp_gee_sweet import auth as auth_module
 from mcp_gee_sweet import server
 from mcp_gee_sweet.server import (
     _auth_status_json,
@@ -43,6 +44,27 @@ class TestAllToolsAreAsync:
             t.name for t in tools if not inspect.iscoroutinefunction(inspect.unwrap(t.fn))
         )
         assert sync_tools == [], f"non-async tool(s) found: {sync_tools}"
+
+
+class TestGmailScopeGate:
+    """#790: auth requests Gmail's mailbox scope only when a Gmail tool is registered."""
+
+    def test_default_registration_enables_gmail(self):
+        # The test process registers every tool (no ENABLED_TOOLS filter).
+        assert "mcp_gee_sweet.tools.gmail" in server._registered_tool_modules
+        assert auth_module._gmail_enabled is True
+
+    def test_filter_without_gmail_tools_leaves_gmail_module_unregistered(self, monkeypatch):
+        recorded: set[str] = set()
+        monkeypatch.setattr(server, "ENABLED_TOOLS", {"get_sheet_data"})
+        monkeypatch.setattr(server, "_registered_tool_modules", recorded)
+
+        def list_messages():  # stands in for a Gmail tool
+            pass
+
+        list_messages.__module__ = "mcp_gee_sweet.tools.gmail"
+        tool()(list_messages)
+        assert recorded == set()
 
 
 class TestParseEnabledTools:
@@ -143,12 +165,44 @@ class TestAuthStatusResource:
         # service-account-backed credential with the same limitation (see #506).
         assert "adc" not in identity["alternatives"].lower()
 
+    def test_service_account_gmail_limitation_lists_every_gmail_tool(self):
+        # #790: auth-status is what docs/auth.md points users at for "which tools
+        # won't work on a service account". Compared against the tools the gmail
+        # module actually registers, so a new Gmail tool can't be left off.
+        status = self._get_status("service_account")
+        mailbox = next(lim for lim in status["limitations"] if lim["category"] == "no_user_mailbox")
+        gmail_tools = sorted(
+            t.name
+            for t in mcp._tool_manager.list_tools()
+            if inspect.unwrap(t.fn).__module__ == "mcp_gee_sweet.tools.gmail"
+        )
+        assert gmail_tools, "no Gmail tools registered — registration may be broken"
+        assert sorted(mailbox["tools"]) == gmail_tools
+        assert set(gmail_tools) <= set(status["limited_tools"])
+        assert "adc" not in mailbox["alternatives"].lower()
+
+    def test_adc_service_account_identity_also_reports_gmail_limitation(self):
+        status = self._get_status("adc", is_service_account_identity=True)
+        assert "send_message" in status["limited_tools"]
+
     def test_oauth_can_create_in_personal_drive(self):
         status = self._get_status("oauth")
         assert status["auth_method"] == "oauth"
         assert status["can_create_in_personal_drive"] is True
         assert status["limited_tools"] == []
         assert status["limitations"] == []
+
+    def test_oauth_gmail_not_authorized_is_reported(self):
+        # #790: a Gmail-only scope shortfall degrades instead of failing startup;
+        # auth-status surfaces it so a client can see it before calling a Gmail tool.
+        status = json.loads(_auth_status_json("oauth", False, "re-authorize please"))
+        gmail = next(
+            lim for lim in status["limitations"] if lim["category"] == "gmail_not_authorized"
+        )
+        assert gmail["reason"] == "re-authorize please"
+        assert "send_message" in gmail["tools"]
+        assert status["limited_tools"] == gmail["tools"]
+        assert status["can_create_in_personal_drive"] is True
 
     def test_adc_can_create_in_personal_drive(self):
         status = self._get_status("adc")

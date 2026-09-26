@@ -12,7 +12,7 @@ from typing import Any
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
-from ..auth import execute_in_thread
+from ..auth import execute_in_thread, get_gmail_unauthorized_message
 from .response_limits import clamp_max_results, enforce_response_size_cap
 
 logger = logging.getLogger(__name__)
@@ -263,6 +263,8 @@ def register(tool):
             result_size_estimate. Use get_message for headers/body. On API failure,
             returns {"error": "..."}.
         """
+        if unauthorized := get_gmail_unauthorized_message():
+            return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
         max_results = clamp_max_results(max_results, _GMAIL_LIST_MAX)
         kwargs: dict[str, Any] = {
@@ -315,6 +317,8 @@ def register(tool):
             subject/date/message_id), body_plain, body_html, and attachments metadata
             (filename, mime_type, size, attachment_id). On API failure, {"error": "..."}.
         """
+        if unauthorized := get_gmail_unauthorized_message():
+            return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
         try:
             msg = await execute_in_thread(
@@ -360,6 +364,8 @@ def register(tool):
             and result_size_estimate. Use get_thread for full messages. On API failure,
             returns {"error": "..."}.
         """
+        if unauthorized := get_gmail_unauthorized_message():
+            return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
         max_results = clamp_max_results(max_results, _GMAIL_LIST_MAX)
         kwargs: dict[str, Any] = {
@@ -416,6 +422,8 @@ def register(tool):
             Thread with id, snippet, history_id, and messages (same shape as get_message).
             On API failure, {"error": "..."}.
         """
+        if unauthorized := get_gmail_unauthorized_message():
+            return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
         try:
             thread = await execute_in_thread(
@@ -451,6 +459,8 @@ def register(tool):
             List of labels with id, name, type, message_list_visibility, and
             label_list_visibility. On API failure, {"error": "..."}.
         """
+        if unauthorized := get_gmail_unauthorized_message():
+            return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
         try:
             result = await execute_in_thread(
@@ -490,6 +500,8 @@ def register(tool):
         Returns:
             Sent message id, thread_id, and label_ids. On failure, {"error": "..."}.
         """
+        if unauthorized := get_gmail_unauthorized_message():
+            return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
         try:
             raw = _build_raw_message(
@@ -543,6 +555,8 @@ def register(tool):
         Returns:
             Draft id and nested message id/thread_id. On failure, {"error": "..."}.
         """
+        if unauthorized := get_gmail_unauthorized_message():
+            return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
         try:
             raw = _build_raw_message(
@@ -586,6 +600,8 @@ def register(tool):
         Returns:
             Sent message id, thread_id, and label_ids. On failure, {"error": "..."}.
         """
+        if unauthorized := get_gmail_unauthorized_message():
+            return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
         try:
             sent = await execute_in_thread(
@@ -626,6 +642,8 @@ def register(tool):
         Returns:
             Sent message id, thread_id, and label_ids. On failure, {"error": "..."}.
         """
+        if unauthorized := get_gmail_unauthorized_message():
+            return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
         try:
             original = await execute_in_thread(
@@ -727,6 +745,8 @@ def register(tool):
             For a message: id, thread_id, label_ids. For a thread: id and messages
             (id + label_ids each). On failure, {"error": "..."}.
         """
+        if unauthorized := get_gmail_unauthorized_message():
+            return {"error": unauthorized}
         if bool(message_id) == bool(thread_id):
             return {
                 "error": "Provide exactly one of message_id or thread_id.",
@@ -791,6 +811,8 @@ def register(tool):
             Message id, thread_id, label_ids, and action 'trashed'. On failure,
             {"error": "..."}.
         """
+        if unauthorized := get_gmail_unauthorized_message():
+            return {"error": unauthorized}
         lc = ctx.request_context.lifespan_context
         try:
             result = await execute_in_thread(
