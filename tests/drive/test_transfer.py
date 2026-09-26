@@ -377,6 +377,35 @@ class TestUploadLocalFileConvert:
         assert update_kwargs["body"] == {"modifiedTime": expected_mtime}
         assert "media_body" not in update_kwargs
 
+    async def test_convert_restamps_modified_time_for_non_markdown_conversions_too(self, tmp_path):
+        """#435 proposed gating the restamp on .md only. Declined: sync_folder
+        matches a converted Sheet back to its local .csv via export_format's
+        suffix scheme and compares mtimes, so an unrestamped CSV → Sheet would
+        read as "Drive newer" on the next sync. Every conversion type restamps."""
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2\n")
+        expected_mtime = datetime.fromtimestamp(
+            local_file.stat().st_mtime, tz=timezone.utc
+        ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "data",
+            "webViewLink": "https://example.com",
+        }
+        drive_svc.files.return_value.update.return_value.execute.return_value = {"id": "fid1"}
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        create_body = drive_svc.files.return_value.create.call_args.kwargs["body"]
+        assert create_body["mimeType"] == "application/vnd.google-apps.spreadsheet"
+        update_kwargs = drive_svc.files.return_value.update.call_args.kwargs
+        assert update_kwargs["fileId"] == "fid1"
+        assert update_kwargs["body"] == {"modifiedTime": expected_mtime}
+
     async def test_convert_modified_time_restamp_failure_returns_clean_error_not_raise(
         self, tmp_path
     ):

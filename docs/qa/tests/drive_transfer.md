@@ -1819,3 +1819,23 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-266/`.
 - Call 4: `upload_local_file(convert=True)` on `<C115>.md` returned no error, and the repeated call 2 listed it in `skipped`.
 - Final listing: exactly 6 Google Docs, no `text/markdown` files, no orphans or duplicates.
 - Unit suite at `2544c93`: 1718 passed, 3 skipped.
+
+### TC-D267: `upload_local_file(convert=True)` on a CSV restamps the converted Sheet's `modifiedTime`, so a following `sync_folder(export_format='csv')` reads it as in sync (issue #435) ⚠️ local-filesystem
+
+**Background:** Issue #435 proposed restamping `modifiedTime` only for `.md` → Doc conversions, on the premise that `sync_folder` never matches other converted types back to a local file. That premise is false. Drive strips `.csv` from a converted Sheet's display name, so `export_format='csv'` maps the Sheet straight back to the local `.csv`, and the two mtimes are compared. For a Sheet, `create()` ignores the requested `modifiedTime` outright. Without the follow-up metadata-only restamp, the pair reads as "Drive newer" on the very next sync. #435 declined the `.md`-only gate, and both call sites now share one `_restamp_modified_time` helper. This case guards the non-`.md` path.
+
+**Setup**
+Create a scratch Drive folder `{FOLDER_ID}`. Locally, create `/tmp/qa-267/data.csv` containing `a,b\n1,2\n`, and set its mtime at least a day in the past (`touch -t 202301010000 /tmp/qa-267/data.csv`), so an unrestamped Sheet would be far outside the 5-second sync tolerance.
+
+**Tool calls**
+1. `upload_local_file(local_path="/tmp/qa-267/data.csv", parent_folder_id={FOLDER_ID}, convert=True, skip_if_exists=False)`
+2. `get_file_metadata(file_id=<fileId from call 1>)`
+3. `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-267/", direction="bidirectional", export_format="csv", dry_run=True)`
+
+**Checks**
+- Call 1: no `error`, and a `fileId` is returned.
+- Call 2: the file is a Google Sheet named `data` (no `.csv`). Its `modified_time` falls on 2022-12-31 or 2023-01-01 (the local 2023-01-01 00:00 mtime, rendered in UTC), not today.
+- Call 3: `actions` has exactly one entry, for `data.csv`, with `action: "skip"`. It is not `download` or `conflict`.
+
+**Teardown**
+Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-267/`.
