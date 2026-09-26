@@ -761,6 +761,28 @@ class TestConvertSourceMarker:
         assert transfer_module._has_convert_marker(f)
         assert not transfer_module._marker_names_source(f, "notes.md")
 
+    async def test_long_name_upload_stamps_within_cap(self, tmp_path):
+        """The live repro: a 118-byte .csv name used to send a 139-byte
+        property and fail with 403 after Drive had already created the Sheet."""
+        name = "r" * 114 + ".csv"
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": name[:-4],
+            "webViewLink": "https://example.com",
+        }
+
+        result = await _upload_local_file(
+            drive_svc, str(local_file), "folder1", name=name, skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        props = drive_svc.files.return_value.create.call_args.kwargs["body"]["properties"]
+        for key, value in props.items():
+            assert transfer_module._property_fits(key, value)
+
 
 class TestConvertedMdSourceName:
     """#805: sync_folder recognizes a convert_markdown Doc through either
@@ -810,28 +832,6 @@ class TestConvertedMdSourceName:
         assert transfer_module._converted_md_source_name(self._doc("notes.md", {})) is None
         f = {"name": "notes.md", "mimeType": self._DOC}
         assert transfer_module._converted_md_source_name(f) is None
-
-    async def test_long_name_upload_stamps_within_cap(self, tmp_path):
-        """The live repro: a 118-byte .csv name used to send a 139-byte
-        property and fail with 403 after Drive had already created the Sheet."""
-        name = "r" * 114 + ".csv"
-        local_file = tmp_path / "data.csv"
-        local_file.write_text("a,b\n1,2")
-        drive_svc = MagicMock()
-        drive_svc.files.return_value.create.return_value.execute.return_value = {
-            "id": "fid1",
-            "name": name[:-4],
-            "webViewLink": "https://example.com",
-        }
-
-        result = await _upload_local_file(
-            drive_svc, str(local_file), "folder1", name=name, skip_if_exists=False, convert=True
-        )
-
-        assert "error" not in result
-        props = drive_svc.files.return_value.create.call_args.kwargs["body"]["properties"]
-        for key, value in props.items():
-            assert transfer_module._property_fits(key, value)
 
 
 class TestUploadLocalFileStemMatch:

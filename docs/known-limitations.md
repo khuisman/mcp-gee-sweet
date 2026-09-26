@@ -140,7 +140,9 @@ Related: project memory `service_account_limit`.
 
 **What:** `sync_folder(convert_markdown=True)` normally keeps matching a converted Doc to its
 local `.md` file even after the Doc is renamed in Drive. That doesn't hold for a `.md` filename
-longer than about 100 UTF-8 bytes (about 34 CJK characters). If a Doc converted from such a name
+longer than 103 UTF-8 bytes, `.md` included: 101+ ASCII characters, or 34+ CJK characters,
+before the `.md`. (Drive's 124-byte cap, minus the 21-byte `geeSweetConvertSource` key.)
+Names of 103 bytes or less still survive a rename. If a Doc converted from a longer name
 is renamed in Drive, the next sync no longer recognizes it. The local file then reads as "local
 only" and is uploaded again as a new Doc, and the renamed one is left as an ordinary,
 unrelated Doc.

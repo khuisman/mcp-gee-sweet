@@ -737,8 +737,7 @@ async def _sync_level(
         # on the flag (round 2) meant a resync with the flag merely omitted saw
         # the local .md as "local only" and silently created a second, plain-text
         # duplicate next to the existing Doc (#414 QA review round 3, finding #1).
-        md_source = _converted_md_source_name(f) if is_workspace else None
-        is_converted_md = md_source is not None
+        md_source = _converted_md_source_name(f)
         if md_source is not None:
             # The recorded source name, not f["name"] — see _converted_md_source_name.
             local_name = md_source
@@ -766,9 +765,9 @@ async def _sync_level(
             # preview shows this as a `conflict` instead of a `failed` entry that
             # implies something was actually attempted (finding #4).
             existing_is_converted = _is_converted_md_entry(drive_map[local_name])
-            if existing_is_converted != is_converted_md:
+            if existing_is_converted != (md_source is not None):
                 detail = "a plain file and a convert_markdown Doc"
-            elif is_converted_md:
+            elif md_source is not None:
                 detail = "two convert_markdown Docs"
             else:
                 detail = "multiple files"
@@ -783,7 +782,10 @@ async def _sync_level(
         # drive_map stays a plain passthrough of Drive's own file resource — no
         # synthetic "_is_converted_md" key spread in (#421 finding #6); every
         # site below that needs this classification recomputes it on demand via
-        # _is_converted_md_entry, cheap since it's just two dict lookups.
+        # _is_converted_md_entry. That's a few dict lookups plus, for a
+        # digest-marked Doc only, a sha256 of a ~100-byte name (#805):
+        # microseconds, far below the Drive round trip each file already
+        # costs, so not worth a parallel cache that could drift from drive_map.
         drive_map[local_name] = f
 
     local_map: dict[str, Path] = {}
