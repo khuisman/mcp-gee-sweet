@@ -48,7 +48,11 @@ _SYNC_MTIME_TOLERANCE = 5  # seconds — absorbs clock skew and upload-time drif
 # unrelated pre-existing Doc a human happened to name "notes.md" never matches
 # (it lacks the property), and a later Drive-side rename/case-change of the Doc
 # doesn't desync the match either, since the stored source name never changes
-# (#414 QA review, findings #2 and #7).
+# (#414 QA review, findings #2 and #7). Still stamped whenever the raw name fits
+# Drive's per-property byte cap, and still honored on read, but no longer the
+# only way sync_folder recognizes one: a name too long for this key is
+# recognized through _CONVERT_SOURCE_PROP instead (#805) — see
+# _converted_md_source_name.
 _CONVERT_MARKDOWN_SOURCE_PROP = "geeSweetConvertMarkdownSource"
 
 # Generalization of _CONVERT_MARKDOWN_SOURCE_PROP to every native import
@@ -60,7 +64,9 @@ _CONVERT_MARKDOWN_SOURCE_PROP = "geeSweetConvertMarkdownSource"
 # shares the stem and target mimeType (#769). A separate key rather than
 # reusing _CONVERT_MARKDOWN_SOURCE_PROP for every type: sync_folder's
 # _is_converted_md_entry treats that marker on any Doc as "converted from a
-# local .md", which a .docx/.html-converted Doc is not.
+# local .md", which a .docx/.html-converted Doc is not. sync_folder does read
+# this key too (#805), but only accepts it on a Doc whose recorded source is
+# itself a .md name.
 _CONVERT_SOURCE_PROP = "geeSweetConvertSource"
 
 # Google Workspace Doc mimeType, requested via Drive's native import-conversion
@@ -104,12 +110,47 @@ _CONVERT_MIME: dict[str, tuple[str, str]] = {
 _NO_REVERSE_CONVERSION_CLAUSE = "convert_markdown Docs have no reverse conversion"
 
 
+def _converted_md_source_name(f: dict) -> str | None:
+    """The local .md filename a convert_markdown Doc was converted from, or None
+    when Drive file resource `f` isn't one.
+
+    Read from _CONVERT_MARKDOWN_SOURCE_PROP when present: every Doc converted
+    before #805 carries only that key, and must keep matching after upgrade.
+    Otherwise from _CONVERT_SOURCE_PROP, accepted only for a .md source so a
+    .docx/.html-converted Doc never counts. That marker holds either the raw
+    name or, for a name too long for Drive's per-property byte cap, a digest of
+    it (_convert_source_marker). A digest can't be read back, so the source
+    name is then taken from the Doc's own display name, which keeps its ".md"
+    suffix, and accepted only if it re-encodes to the same digest (#805). The
+    raw form survives a Drive-side rename; the digest form doesn't — a renamed
+    over-long Doc stops matching and reads as an unrelated Doc, the same as a
+    human-made one."""
+    if f["mimeType"] != _GOOGLE_DOC_MIME:
+        return None
+    props = f.get("properties") or {}
+    legacy = props.get(_CONVERT_MARKDOWN_SOURCE_PROP)
+    if legacy is not None:
+        return legacy
+    generic = props.get(_CONVERT_SOURCE_PROP)
+    if generic is None:
+        return None
+    # The raw form first, then the display name for a digest. A "sha256:..."
+    # digest is itself short enough to pass as raw, so "does it re-encode to
+    # itself" can't tell the two forms apart; the .md check on each candidate
+    # does, since a digest never ends in ".md".
+    for source in (generic, f["name"]):
+        if Path(source).suffix.lower() == ".md" and _convert_source_marker(source) == generic:
+            return source
+    return None
+
+
 def _is_converted_md_entry(f: dict) -> bool:
     """Whether a Drive file resource `f` (as returned by _list_drive_children,
     carrying mimeType/properties) represents a convert_markdown Doc — a Google
     Doc created via native import conversion from a local .md file, identified
-    by carrying the _CONVERT_MARKDOWN_SOURCE_PROP marker, not by mimeType alone
-    (an ordinary human-created Doc has the identical mimeType).
+    by a conversion marker naming a .md source (see _converted_md_source_name),
+    not by mimeType alone (an ordinary human-created Doc has the identical
+    mimeType).
 
     Computed on demand from the resource's own fields rather than cached as a
     synthetic "_is_converted_md" key spread into drive_map's entries — keeps
@@ -121,9 +162,7 @@ def _is_converted_md_entry(f: dict) -> bool:
     change, instead of 5 independently-written checks — a duplication that had
     already caused a missed site once (#414 QA review round 3, finding #1) and
     was flagged again on round-3 review as still fragile (#424)."""
-    return f["mimeType"] == _GOOGLE_DOC_MIME and (
-        (f.get("properties") or {}).get(_CONVERT_MARKDOWN_SOURCE_PROP) is not None
-    )
+    return _converted_md_source_name(f) is not None
 
 
 def _is_workspace_entry(f: dict) -> bool:
@@ -273,10 +312,12 @@ def _convert_properties(file_name: str) -> dict[str, str]:
 
     Always _CONVERT_SOURCE_PROP (#769), via _convert_source_marker so it never
     exceeds the byte cap. For a .md source, also _CONVERT_MARKDOWN_SOURCE_PROP
-    so sync_folder recognizes the Doc (#414) — but only when the raw name fits,
-    since sync_folder reads that value back verbatim as the local filename and
-    a digest there would match nothing; an over-long .md name just goes
-    without it rather than failing the whole upload."""
+    (#414) — but only when the raw name fits, since that value is read back
+    verbatim as the local filename and a digest there would match nothing. An
+    over-long .md name goes without it, and sync_folder recognizes the Doc
+    through the generic marker instead (#805). Both upload_local_file's convert
+    path and sync_folder's own convert_markdown path stamp through here, so
+    neither can send a property over the cap."""
     props = {_CONVERT_SOURCE_PROP: _convert_source_marker(file_name)}
     if Path(file_name).suffix.lower() == ".md" and _property_fits(
         _CONVERT_MARKDOWN_SOURCE_PROP, file_name
@@ -298,7 +339,7 @@ def _marker_names_source(f: dict, source_name: str) -> bool:
     """Whether `f`'s conversion marker records `source_name` as its source.
     Checks _CONVERT_SOURCE_PROP (encoded via _convert_source_marker) and falls
     back to _CONVERT_MARKDOWN_SOURCE_PROP (raw name) — a .md Doc converted by
-    sync_folder's own convert_markdown path only ever carries the latter, and
+    sync_folder's own convert_markdown path before #805 carries only the latter, and
     is just as much "ours" (#769)."""
     props = f.get("properties") or {}
     generic = props.get(_CONVERT_SOURCE_PROP)
@@ -696,10 +737,11 @@ async def _sync_level(
         # on the flag (round 2) meant a resync with the flag merely omitted saw
         # the local .md as "local only" and silently created a second, plain-text
         # duplicate next to the existing Doc (#414 QA review round 3, finding #1).
-        is_converted_md = is_workspace and _is_converted_md_entry(f)
-        if is_converted_md:
-            # The stored source name, not f["name"] — see _CONVERT_MARKDOWN_SOURCE_PROP.
-            local_name = f["properties"][_CONVERT_MARKDOWN_SOURCE_PROP]
+        md_source = _converted_md_source_name(f) if is_workspace else None
+        is_converted_md = md_source is not None
+        if md_source is not None:
+            # The recorded source name, not f["name"] — see _converted_md_source_name.
+            local_name = md_source
         elif is_workspace:
             if not export_format:
                 continue  # excluded without an export format
@@ -1085,7 +1127,13 @@ async def _sync_level(
                         }
                         if convert_this:
                             body["mimeType"] = convert_target_mime
-                            body["properties"] = {_CONVERT_MARKDOWN_SOURCE_PROP: name}
+                            # Via _convert_properties, never the raw name as a
+                            # property value: Drive rejects a key + value over
+                            # 124 bytes with 403 propertyLengthLimitExceeded
+                            # *after* creating the file, so a long .md name used
+                            # to leave another untracked Doc behind on every
+                            # run (#805).
+                            body["properties"] = _convert_properties(name)
                         created = await execute_in_thread(
                             drive_service.files()
                             .create(

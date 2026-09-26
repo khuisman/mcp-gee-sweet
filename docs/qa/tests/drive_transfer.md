@@ -1778,3 +1778,26 @@ Side probe (pre-existing, outside this PR's diff): `sync_folder(direction="uploa
 Fixture folder trashed and local dirs removed as teardown.
 
 ---
+
+### TC-D266: `sync_folder(convert_markdown=True)` — a long `.md` name converts once, stays within Drive's 124-byte property cap, and is recognized on every resync; a pre-#805 legacy-marked Doc still matches (issue #805) ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** `sync_folder`'s own `convert_markdown` create stamped the raw local filename into `geeSweetConvertMarkdownSource` (a 29-byte key). Any `.md` name over 95 bytes failed with `403 propertyLengthLimitExceeded` after Drive had already created the Doc. The result was an `upload_fail` with no `fileId` and an unmarked orphan Doc, and every rerun added another. The create now stamps through `_convert_properties`, the same helper `upload_local_file` uses. A name too long for the markdown key gets only the generic `geeSweetConvertSource` marker: the raw name if it fits, otherwise a `sha256:` digest. `sync_folder` recognizes a converted Doc through either key. A digest is resolved against the Doc's own display name, which keeps its `.md` suffix. A Doc carrying only the old markdown key (anything converted before this fix) must still match, or the upgrade would upload a duplicate of every existing converted Doc.
+
+**Setup**
+Create a scratch Drive folder `{FOLDER_ID}`. Locally, create `/tmp/qa-266/` containing `short.md`, `<A100>.md` (a 100-character ASCII stem, a 103-byte name: too long for the markdown key, fits the generic key raw), `<B110>.md` (a 110-character stem, 113 bytes: digested), and `<CJK>.md` (48 CJK characters, 147 bytes: digested). Each holds `# Heading`. Then, with a scratch script (`files().create` with `mimeType="application/vnd.google-apps.document"`, a `text/markdown` media body, and `properties={"geeSweetConvertMarkdownSource": "legacy.md"}`), create a Doc named `legacy.md` in `{FOLDER_ID}` carrying **only** the legacy key. Create the matching local `/tmp/qa-266/legacy.md` and set its mtime to that Doc's `modifiedTime`.
+
+**Tool calls**
+1. `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-266/", direction="upload", convert_markdown=True)`
+2. `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-266/", direction="bidirectional", convert_markdown=True)`
+3. `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-266/", direction="bidirectional")` (flag omitted)
+4. `upload_local_file(local_path="/tmp/qa-266/<C115>.md", parent_folder_id={FOLDER_ID}, convert=True)`, where `<C115>.md` is a new 115-character-stem local file, then call 2 again
+
+**Checks**
+- Call 1: `failed == []`. `uploaded` holds the four new names, and `legacy.md` is in `skipped`, not `uploaded`.
+- A scratch-script `files().list(fields="files(name,properties)")` shows `short.md` carrying both keys. `<A100>.md` carries only `geeSweetConvertSource` with the raw name. `<B110>.md` and `<CJK>.md` carry only `geeSweetConvertSource`, starting with `sha256:`. `legacy.md` still has only its original key.
+- Calls 2 and 3: `uploaded == []`, `conflicts == []`, `failed == []`, and all five names are in `skipped`.
+- Call 4: `upload_local_file` returns no `error`. The repeated call 2 lists `<C115>.md` in `skipped`, not `uploaded`.
+- `list_files` on `{FOLDER_ID}` shows exactly 6 Google Docs and no `text/markdown` files. There are no unmarked orphans or duplicates.
+
+**Teardown**
+Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-266/`.

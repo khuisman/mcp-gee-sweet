@@ -761,6 +761,56 @@ class TestConvertSourceMarker:
         assert transfer_module._has_convert_marker(f)
         assert not transfer_module._marker_names_source(f, "notes.md")
 
+
+class TestConvertedMdSourceName:
+    """#805: sync_folder recognizes a convert_markdown Doc through either
+    marker key — the legacy markdown key (every pre-#805 Doc) or the generic
+    one, whose digest form is resolved against the Doc's own display name."""
+
+    _DOC = "application/vnd.google-apps.document"
+
+    def _doc(self, name, props):
+        return {"name": name, "mimeType": self._DOC, "properties": props}
+
+    def test_legacy_markdown_key_alone_is_recognized(self):
+        f = self._doc(
+            "renamed in drive", {transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"}
+        )
+        assert transfer_module._converted_md_source_name(f) == "notes.md"
+
+    def test_raw_generic_marker_names_the_source_even_after_rename(self):
+        f = self._doc("renamed in drive", {transfer_module._CONVERT_SOURCE_PROP: "notes.md"})
+        assert transfer_module._converted_md_source_name(f) == "notes.md"
+
+    def test_digest_marker_resolves_to_the_docs_own_name(self):
+        name = "n" * 120 + ".md"
+        f = self._doc(name, transfer_module._convert_properties(name))
+        assert transfer_module._CONVERT_MARKDOWN_SOURCE_PROP not in f["properties"]
+        assert transfer_module._converted_md_source_name(f) == name
+
+    def test_digest_marker_on_a_renamed_doc_is_not_recognized(self):
+        name = "n" * 120 + ".md"
+        f = self._doc("m" * 120 + ".md", transfer_module._convert_properties(name))
+        assert transfer_module._converted_md_source_name(f) is None
+
+    @pytest.mark.parametrize("source", ["report.docx", "page.html", "x" * 120 + ".html"])
+    def test_non_md_conversion_is_not_a_convert_markdown_doc(self, source):
+        f = self._doc(source, transfer_module._convert_properties(source))
+        assert transfer_module._converted_md_source_name(f) is None
+
+    def test_non_doc_mimetype_is_never_recognized(self):
+        f = {
+            "name": "notes.md",
+            "mimeType": "text/markdown",
+            "properties": {transfer_module._CONVERT_SOURCE_PROP: "notes.md"},
+        }
+        assert transfer_module._converted_md_source_name(f) is None
+
+    def test_unmarked_doc_is_not_recognized(self):
+        assert transfer_module._converted_md_source_name(self._doc("notes.md", {})) is None
+        f = {"name": "notes.md", "mimeType": self._DOC}
+        assert transfer_module._converted_md_source_name(f) is None
+
     async def test_long_name_upload_stamps_within_cap(self, tmp_path):
         """The live repro: a 118-byte .csv name used to send a 139-byte
         property and fail with 403 after Drive had already created the Sheet."""
@@ -2163,7 +2213,8 @@ class TestSyncFolderConvertMarkdown:
         assert fs.created_files[0]["name"] == "notes.md"
         assert fs.created_files[0]["mimeType"] == "application/vnd.google-apps.document"
         assert fs.created_files[0]["properties"] == {
-            transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"
+            transfer_module._CONVERT_SOURCE_PROP: "notes.md",
+            transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md",
         }
         create_kwargs = fs.svc.files.return_value.create.call_args_list[-1].kwargs
         assert create_kwargs["media_body"].mimetype() == "text/markdown"
@@ -2174,6 +2225,75 @@ class TestSyncFolderConvertMarkdown:
         assert fs.updated_files[0]["fileId"] == "new-file-1"
         assert "modifiedTime" in fs.updated_files[0]["body"]
         assert "media_body" not in fs.updated_files[0]
+
+    @pytest.mark.parametrize(
+        ("name", "digested"),
+        [
+            # Too long for the markdown key, still fits the generic key raw.
+            ("n" * 100 + ".md", False),
+            # Too long for either: the generic marker falls back to a digest.
+            ("n" * 110 + ".md", True),
+        ],
+    )
+    async def test_long_md_name_upload_stamps_every_property_within_cap(
+        self, tmp_path, name, digested
+    ):
+        """#805: a .md name over ~95 bytes used to be stamped raw into the
+        markdown key, failing create() with 403 propertyLengthLimitExceeded
+        after Drive had already made the Doc — one more orphan per run."""
+        (tmp_path / name).write_text("# Heading")
+        fs = _FakeDriveFS({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            convert_markdown=True,
+            ctx=self._ctx(fs),
+        )
+
+        assert result["uploaded"] == [name]
+        assert result["failed"] == []
+        props = fs.created_files[0]["properties"]
+        assert transfer_module._CONVERT_MARKDOWN_SOURCE_PROP not in props
+        assert props[transfer_module._CONVERT_SOURCE_PROP].startswith("sha256:") == digested
+        for key, value in props.items():
+            assert transfer_module._property_fits(key, value), (key, value)
+
+    @pytest.mark.parametrize("name", ["n" * 100 + ".md", "n" * 110 + ".md", "長い" * 30 + ".md"])
+    async def test_resync_matches_long_name_doc_via_digest_marker(self, tmp_path, name):
+        """A Doc stamped with only the digested generic marker (a long name,
+        from either sync_folder or upload_local_file's convert path) must
+        still match its local file on resync, not re-upload as a duplicate."""
+        local_file = tmp_path / name
+        local_file.write_text("# Heading")
+        drive_mtime = "2024-06-01T12:00:00.000Z"
+        ts = datetime.fromisoformat(drive_mtime.replace("Z", "+00:00")).timestamp()
+        os.utime(local_file, (ts, ts))
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        name,
+                        "fa",
+                        mtime=drive_mtime,
+                        mime="application/vnd.google-apps.document",
+                        properties=transfer_module._convert_properties(name),
+                    )
+                ]
+            }
+        )
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="bidirectional",
+            ctx=self._ctx(fs),
+        )
+
+        assert result["skipped"] == [name]
+        assert result["uploaded"] == []
+        assert fs.created_files == []
 
     async def test_convert_markdown_false_default_uploads_md_as_plain_text(self, tmp_path):
         (tmp_path / "notes.md").write_text("# Heading")

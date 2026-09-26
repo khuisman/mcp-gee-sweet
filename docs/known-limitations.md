@@ -135,3 +135,23 @@ service account.
 use `write_doc_content` or `update_cells` to populate it. Alternatively, use OAuth authentication
 (`AUTH_METHOD=oauth`) which authenticates as the user and has full personal Drive access.
 Related: project memory `service_account_limit`.
+
+### `sync_folder` — renaming a long-named `convert_markdown` Doc in Drive unlinks it
+
+**What:** `sync_folder(convert_markdown=True)` normally keeps matching a converted Doc to its
+local `.md` file even after the Doc is renamed in Drive. That doesn't hold for a `.md` filename
+longer than about 100 UTF-8 bytes (about 34 CJK characters). If a Doc converted from such a name
+is renamed in Drive, the next sync no longer recognizes it. The local file then reads as "local
+only" and is uploaded again as a new Doc, and the renamed one is left as an ordinary,
+unrelated Doc.
+
+**Why:** `sync_folder` records the source filename in a Drive custom property, and Drive caps
+each property's key + value at 124 bytes. A name too long to fit is stored as a `sha256:`
+digest, which can't be read back. The source name is then taken from the Doc's own display
+name, which keeps its `.md` suffix, and checked against the digest. After a rename, the two no
+longer agree (#805).
+
+**Workaround:** Don't rename these Docs in Drive. To change the name, rename the local file and
+delete the old Doc in Drive; the next sync converts the file again under its new name. Renaming
+both sides to the same new name doesn't restore the link, because the digest still records the
+old name.
