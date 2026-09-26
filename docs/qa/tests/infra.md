@@ -666,34 +666,41 @@ Call `ReadMcpResourceTool` with `uri: "server://auth-status"` against the servic
 - All 11 also appear in the flattened `limited_tools`
 - The entry's `alternatives` names OAuth and does not mention ADC
 - The existing `no_drive_storage_quota` and `no_personal_drive_identity` entries are unchanged (TC-I27)
-- On the OAuth server: `limited_tools: []`, `limitations: []`
+- On the OAuth server (whose token includes `gmail.modify`; otherwise see TC-I32): `limited_tools: []`, `limitations: []`
 
 ---
 
-### TC-I32: a pre-Gmail OAuth token fails at startup with a clear missing-scope error, never a browser consent (issue #790) ⚠️ requires-oauth ⚠️ local-filesystem
+### TC-I32: a pre-Gmail OAuth token starts the server without Gmail; Gmail tools return the re-authorize error, never a browser consent (issue #790) ⚠️ requires-oauth ⚠️ local-filesystem
 
-**Background:** #786 added the Gmail scopes to every auth request. An existing `token.json` was never granted them. Refreshing it with the new scope list returns `invalid_scope` (confirmed live), and the old code then fell into `InstalledAppFlow.run_local_server`: a surprise browser consent, or a hang for a headless/stdio deployment. #790 checks the token's saved `scopes` against what the registered tools need, and fails fast with `MissingOAuthScopesError`. The waterfall does not swallow it into a silent service-account fallback. This reproduces the regression scenario itself.
+**Background:** #786 added the Gmail scopes to every auth request. An existing `token.json` was never granted them. Refreshing it with the new scope list returns `invalid_scope` (confirmed live), and the old code then fell into `InstalledAppFlow.run_local_server`: a surprise browser consent, or a hang for a headless/stdio deployment. #790 checks the token's saved `scopes` against what the registered tools need. PR #807's first version then failed startup with `MissingOAuthScopesError`, but QA round 1 found that under a stdio client that error goes to stderr, which the client drops: all the user saw was `Connection closed`. So when **only** the Gmail scope is missing, the server now starts at the token's own granted scopes and every Gmail tool returns the re-authorize message as its tool result. This reproduces the upgrade scenario itself.
 
 **Setup**
-- A copy of an OAuth `token.json` whose saved `scopes` lack `https://www.googleapis.com/auth/gmail.modify` (any token authorized before #786 qualifies; the team QA token did as of 2026-09-25). Check with: `python3 -c "import json;print(json.load(open('<copy>'))['scopes'])"`. Work on a copy only, never the shared token.
-- No `ENABLED_TOOLS` / `--include-tools` set (so the Gmail tools are registered).
+- A copy of an OAuth `token.json` whose saved `scopes` lack `https://www.googleapis.com/auth/gmail.modify` but include the four base scopes (`spreadsheets`, `drive`, `calendar`, `drive.activity.readonly`). Any token authorized before #786 qualifies; the team QA token did as of 2026-09-25. Check with: `python3 -c "import json;print(json.load(open('<copy>'))['scopes'])"`. Work on a copy only, never the shared token.
+- To exercise the refresh path as well, set the copy's `"expiry"` to `"2000-01-01T00:00:00Z"`.
 
 **Action**
-From the repo checkout under test, with `AUTH_METHOD` unset (waterfall) and a service account also configured if available:
+Register this as a temporary stdio MCP server (or run it under an MCP client) with **no** `ENABLED_TOOLS` / `--include-tools` (so the Gmail tools are registered) and `AUTH_METHOD` unset (waterfall):
 
-```bash
-TOKEN_PATH=<copy> CREDENTIALS_PATH=<oauth client json> timeout 60 uv run mcp-gee-sweet < /dev/null
+```
+TOKEN_PATH=<copy>
+CREDENTIALS_PATH=<oauth client json>
 ```
 
-Repeat once with `AUTH_METHOD=oauth`.
+Then call, in order:
+1. `list_spreadsheets` with `max_results: 1`
+2. `list_labels` (no arguments)
+3. `send_message` with `to: "nobody@example.com"`, `subject: "TC-I32"`, `body: "should not send"`
+4. `ReadMcpResourceTool` with `uri: "server://auth-status"`
 
 **Checks**
-- The process exits within the timeout (no hang), and no browser window or `Please visit this URL to authorize` prompt appears
-- stderr contains `MissingOAuthScopesError` with a message naming `https://www.googleapis.com/auth/gmail.modify`, telling you to delete the token file and restart (or run `scripts/oauth_setup.py`), and mentioning leaving the Gmail tools out of `ENABLED_TOOLS` / `--include-tools`
-- Waterfall run: the process does **not** start on a service account instead (no `Waterfall: using service account` line with `DEBUG_LEVEL=DEBUG`)
-- The token copy's contents are unchanged afterwards
+- The server connects (no `Connection closed`), with no browser window and no `Please visit this URL to authorize` prompt
+- `list_spreadsheets` returns a normal result (the expired token refreshed at its own scopes)
+- `list_labels` and `send_message` each return `{"error": ...}` whose text names `https://www.googleapis.com/auth/gmail.modify`, says to delete the token file and restart (or run `scripts/oauth_setup.py`), and mentions leaving the Gmail tools out of `ENABLED_TOOLS` / `--include-tools`. No message is sent.
+- `auth-status` reports `auth_method: "oauth"` and a `limitations` entry with `category: "gmail_not_authorized"` whose `tools` lists all 11 Gmail tools; those 11 are also the whole of `limited_tools`
+- The server did **not** start on a service account instead
+- The token copy's `scopes` afterwards still lack every `gmail.*` scope
 
-**Cleanup:** delete the token copy.
+**Cleanup:** remove the temporary server registration and delete the token copy.
 
 ---
 
@@ -723,3 +730,30 @@ Call `list_spreadsheets` with `max_results: 1`, then `ReadMcpResourceTool` with 
 - `auth-status` reports `auth_method: "oauth"`, `limited_tools: []`
 
 **Cleanup:** remove the temporary server registration and delete the token copy.
+
+---
+
+### TC-I34: an OAuth token missing a base (non-Gmail) scope still fails at startup, logs the reason, and never opens a browser consent (issue #790) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** TC-I32's degrade only covers a Gmail-only shortfall. A token missing one of the base scopes can't serve most tools, so startup still stops with `MissingOAuthScopesError`, and the waterfall does not swallow it into a silent service-account fallback. Because stdio clients drop stderr, the error is also logged through the package logger so `LOG_FILE` captures it.
+
+**Setup**
+A copy of a full OAuth `token.json`, hand-edited so its saved `scopes` list omits `https://www.googleapis.com/auth/calendar` (leave `expiry` in the future so no refresh happens). Work on a copy only, never the shared token.
+
+**Action**
+From the repo checkout under test, with `AUTH_METHOD` unset (waterfall), a service account also configured if available, and no `ENABLED_TOOLS`:
+
+```bash
+TOKEN_PATH=<copy> CREDENTIALS_PATH=<oauth client json> DEBUG_LEVEL=DEBUG LOG_FILE=<tmp log> uv run mcp-gee-sweet < /dev/null
+```
+
+Repeat once with `AUTH_METHOD=oauth`.
+
+**Checks**
+- The process exits on its own with a non-zero status within a few seconds (no hang), and no browser window or `Please visit this URL to authorize` prompt appears
+- stderr contains `MissingOAuthScopesError` with a message naming `https://www.googleapis.com/auth/calendar` and telling you to delete the token file and restart (or run `scripts/oauth_setup.py`)
+- `<tmp log>` contains an `OAuth startup failed:` line with the same message
+- Waterfall run: no `Waterfall: using service account` line
+- The token copy's contents are unchanged afterwards
+
+**Cleanup:** delete the token copy and the temp log.

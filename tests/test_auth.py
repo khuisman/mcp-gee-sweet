@@ -314,22 +314,63 @@ class TestOAuthScopeCheck:
         monkeypatch.setattr(auth_module, "TOKEN_PATH", str(token_path))
         monkeypatch.setattr(auth_module, "CREDENTIALS_PATH", str(creds_path))
         monkeypatch.setattr(auth_module, "_gmail_enabled", gmail_enabled)
+        monkeypatch.setattr(auth_module, "_gmail_unauthorized_message", None)
         return token_path
 
-    def test_pre_gmail_token_with_gmail_enabled_fails_clearly_without_flow(
-        self, monkeypatch, tmp_path
-    ):
+    def test_pre_gmail_token_with_gmail_enabled_degrades_without_flow(self, monkeypatch, tmp_path):
+        # PR #807 QA round 1: a Gmail-only shortfall must not stop the server from
+        # starting — a stdio client drops stderr and would only see "Connection
+        # closed". The token loads at its own granted scopes and Gmail is flagged.
         self._setup(monkeypatch, tmp_path, _token_info(auth_module.BASE_SCOPES))
+        with patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file") as flow:
+            creds = _oauth_creds()
+        flow.assert_not_called()
+        assert sorted(creds.scopes) == sorted(auth_module.BASE_SCOPES)
+        message = auth_module.get_gmail_unauthorized_message()
+        assert message is not None
+        assert "gmail.modify" in message
+        assert "Delete" in message and "token.json" in message
+        assert "ENABLED_TOOLS" in message  # the no-Gmail way out
+
+    def test_lifespan_starts_on_gmail_only_shortfall(self, monkeypatch, tmp_path):
+        # The whole point of degrading: spreadsheet_lifespan (real _oauth_creds, no
+        # mock) yields a context instead of raising, so the server finishes starting.
+        self._setup(monkeypatch, tmp_path, _token_info(auth_module.BASE_SCOPES))
+        monkeypatch.setattr(auth_module, "AUTH_METHOD", "oauth")
+        with patch("googleapiclient.discovery.build"):
+
+            async def _run():
+                async with spreadsheet_lifespan(MagicMock()) as ctx:
+                    return ctx
+
+            ctx = asyncio.run(_run())
+        assert ctx.auth_method == "oauth"
+        assert auth_module.get_gmail_unauthorized_message() is not None
+
+    def test_missing_base_scope_still_fails_clearly_without_flow(self, monkeypatch, tmp_path):
+        granted = [s for s in auth_module.SCOPES if not s.endswith("/calendar")]
+        self._setup(monkeypatch, tmp_path, _token_info(granted))
         with (
             patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file") as flow,
             pytest.raises(auth_module.MissingOAuthScopesError) as exc,
         ):
             _oauth_creds()
         flow.assert_not_called()
-        message = str(exc.value)
-        assert "gmail.modify" in message
-        assert "Delete" in message and "token.json" in message
-        assert "ENABLED_TOOLS" in message  # the no-Gmail way out
+        assert "auth/calendar" in str(exc.value)
+        assert auth_module.get_gmail_unauthorized_message() is None
+
+    def test_missing_base_and_gmail_scopes_still_fails(self, monkeypatch, tmp_path):
+        granted = [s for s in auth_module.BASE_SCOPES if not s.endswith("/calendar")]
+        self._setup(monkeypatch, tmp_path, _token_info(granted))
+        with pytest.raises(auth_module.MissingOAuthScopesError) as exc:
+            _oauth_creds()
+        assert "auth/calendar" in str(exc.value) and "gmail.modify" in str(exc.value)
+
+    def test_full_token_clears_a_stale_gmail_flag(self, monkeypatch, tmp_path):
+        self._setup(monkeypatch, tmp_path, _token_info(auth_module.SCOPES))
+        monkeypatch.setattr(auth_module, "_gmail_unauthorized_message", "stale")
+        _oauth_creds()
+        assert auth_module.get_gmail_unauthorized_message() is None
 
     def test_pre_gmail_token_with_gmail_disabled_loads_normally(self, monkeypatch, tmp_path):
         self._setup(
@@ -355,6 +396,7 @@ class TestOAuthScopeCheck:
 
     def test_refresh_invalid_scope_fails_clearly_without_flow(self, monkeypatch, tmp_path):
         # The saved record can overstate the grant (e.g. a hand-built token.json).
+        # Here even the Gmail-less retry fails, so a base scope is what's ungranted.
         token_path = self._setup(
             monkeypatch, tmp_path, _token_info(auth_module.SCOPES, expired=True)
         )
@@ -363,13 +405,53 @@ class TestOAuthScopeCheck:
             patch(
                 "mcp_gee_sweet.auth.Credentials.refresh",
                 side_effect=Exception("('invalid_scope: Bad Request', {})"),
-            ),
+            ) as refresh,
             patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file") as flow,
             pytest.raises(auth_module.MissingOAuthScopesError),
         ):
             _oauth_creds()
         flow.assert_not_called()
+        assert refresh.call_count == 2  # original + the Gmail-less retry
         assert token_path.read_text() == before
+        assert auth_module.get_gmail_unauthorized_message() is None
+
+    def test_refresh_invalid_scope_only_for_gmail_degrades(self, monkeypatch, tmp_path):
+        token_path = self._setup(
+            monkeypatch, tmp_path, _token_info(auth_module.SCOPES, expired=True)
+        )
+        before = token_path.read_text()
+        with (
+            patch(
+                "mcp_gee_sweet.auth.Credentials.refresh",
+                side_effect=[Exception("('invalid_scope: Bad Request', {})"), None],
+            ),
+            patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file") as flow,
+        ):
+            creds = _oauth_creds()
+        flow.assert_not_called()
+        assert sorted(creds.scopes) == sorted(auth_module.BASE_SCOPES)
+        assert "gmail.modify" in (auth_module.get_gmail_unauthorized_message() or "")
+        # Saved token keeps its own record; re-authorizing stays delete-and-restart.
+        assert token_path.read_text() == before
+
+    def test_refresh_invalid_scope_with_gmail_disabled_has_nothing_to_drop(
+        self, monkeypatch, tmp_path
+    ):
+        self._setup(
+            monkeypatch,
+            tmp_path,
+            _token_info(auth_module.BASE_SCOPES, expired=True),
+            gmail_enabled=False,
+        )
+        with (
+            patch(
+                "mcp_gee_sweet.auth.Credentials.refresh",
+                side_effect=Exception("('invalid_scope: Bad Request', {})"),
+            ) as refresh,
+            pytest.raises(auth_module.MissingOAuthScopesError),
+        ):
+            _oauth_creds()
+        assert refresh.call_count == 1
 
     def test_no_token_flow_requests_only_required_scopes(self, monkeypatch, tmp_path):
         monkeypatch.setattr(auth_module, "TOKEN_PATH", str(tmp_path / "token.json"))

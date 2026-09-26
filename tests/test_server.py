@@ -192,6 +192,18 @@ class TestAuthStatusResource:
         assert status["limited_tools"] == []
         assert status["limitations"] == []
 
+    def test_oauth_gmail_not_authorized_is_reported(self):
+        # #790: a Gmail-only scope shortfall degrades instead of failing startup;
+        # auth-status surfaces it so a client can see it before calling a Gmail tool.
+        status = json.loads(_auth_status_json("oauth", False, "re-authorize please"))
+        gmail = next(
+            lim for lim in status["limitations"] if lim["category"] == "gmail_not_authorized"
+        )
+        assert gmail["reason"] == "re-authorize please"
+        assert "send_message" in gmail["tools"]
+        assert status["limited_tools"] == gmail["tools"]
+        assert status["can_create_in_personal_drive"] is True
+
     def test_adc_can_create_in_personal_drive(self):
         status = self._get_status("adc")
         assert status["is_service_account_identity"] is False

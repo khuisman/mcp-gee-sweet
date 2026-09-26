@@ -55,6 +55,18 @@ def set_gmail_enabled(enabled: bool) -> None:
     _gmail_enabled = enabled
 
 
+# Set by _oauth_creds when the saved token is missing only Gmail scopes: the server
+# still starts (Sheets/Drive/Calendar/Activity are unaffected) and every Gmail tool
+# returns this message as its error instead of calling the API. A startup failure
+# would be invisible to a stdio client, which drops stderr and just reports
+# "Connection closed" (#790, PR #807 QA round 1).
+_gmail_unauthorized_message: str | None = None
+
+
+def get_gmail_unauthorized_message() -> str | None:
+    return _gmail_unauthorized_message
+
+
 def required_scopes() -> list[str]:
     """The scopes the registered tools actually need: Gmail's are requested only
     when a Gmail tool is registered, so an ENABLED_TOOLS filter that leaves Gmail
@@ -159,26 +171,48 @@ def _missing_scopes_message(missing: list[str]) -> str:
     )
 
 
+def _missing_scopes_error(missing: list[str]) -> MissingOAuthScopesError:
+    # Logged as well as raised: the traceback only reaches stderr, which stdio hosts
+    # drop, so LOG_FILE (with DEBUG_LEVEL set) is where an operator can find why
+    # startup failed.
+    message = _missing_scopes_message(missing)
+    logger.error("OAuth startup failed: %s", message)
+    return MissingOAuthScopesError(message)
+
+
+def _degrade_gmail(missing: list[str]) -> None:
+    global _gmail_unauthorized_message
+    _gmail_unauthorized_message = _missing_scopes_message(missing)
+    logger.warning("Gmail tools disabled: %s", _gmail_unauthorized_message)
+
+
 def _oauth_creds() -> Credentials:
     """Obtain OAuth credentials, refreshing or running the interactive flow as needed.
 
     The interactive flow only runs when there's no usable token at all. A token
     authorized for fewer scopes than the enabled tools need raises
-    MissingOAuthScopesError instead (#790). The check reads the scopes saved in the
-    token file itself, so the token is loaded with *those* scopes rather than
-    required_scopes(): passing the required ones would both make has_scopes()
-    trivially true and send ungranted scopes on refresh (Google answers that with
-    `invalid_scope`, confirmed live)."""
+    MissingOAuthScopesError instead (#790) — unless every missing scope is a Gmail
+    one, in which case the server starts without Gmail and each Gmail tool reports
+    the re-authorize instructions as its own error (see _gmail_unauthorized_message).
+    The check reads the scopes saved in the token file itself, so the token is loaded
+    with *those* scopes rather than required_scopes(): passing the required ones would
+    both make has_scopes() trivially true and send ungranted scopes on refresh (Google
+    answers that with `invalid_scope`, confirmed live)."""
+    global _gmail_unauthorized_message
+    _gmail_unauthorized_message = None
     scopes = required_scopes()
     creds = None
+    info = None
     if os.path.exists(TOKEN_PATH):
         with open(TOKEN_PATH) as f:
             info = json.load(f)
         if info.get("scopes"):
             creds = Credentials.from_authorized_user_info(info)
             missing = [s for s in scopes if not creds.has_scopes([s])]
-            if missing:
-                raise MissingOAuthScopesError(_missing_scopes_message(missing))
+            if missing and all(s in GMAIL_SCOPES for s in missing):
+                _degrade_gmail(missing)
+            elif missing:
+                raise _missing_scopes_error(missing)
         else:
             # No saved scope record to check against — keep the pre-#790 behavior.
             creds = Credentials.from_authorized_user_info(info, scopes)
@@ -194,9 +228,13 @@ def _oauth_creds() -> Credentials:
         except Exception as e:
             # The saved scope record can overstate what was actually granted (e.g. a
             # hand-built token.json). Same clear failure as above, not a surprise
-            # browser consent.
+            # browser consent — and the same Gmail-only split: if the refresh
+            # succeeds once the Gmail scopes are dropped, only Gmail was ungranted.
             if "invalid_scope" in str(e):
-                raise MissingOAuthScopesError(_missing_scopes_message(scopes)) from e
+                creds = _refresh_without_gmail(info, list(creds.scopes or scopes))
+                if creds is None:
+                    raise _missing_scopes_error(scopes) from e
+                return creds
             logger.warning("Token refresh failed: %s — re-running OAuth flow", e)
             creds = None
 
@@ -211,6 +249,27 @@ def _oauth_creds() -> Credentials:
             f.write(creds.to_json())
         logger.debug("OAuth flow completed successfully")
 
+    return creds
+
+
+def _refresh_without_gmail(info: dict | None, attempted: list[str]) -> Credentials | None:
+    """Retry an `invalid_scope` refresh with the Gmail scopes dropped. Returns the
+    refreshed credentials (with Gmail marked unauthorized) if that succeeds, or None
+    if the attempted scopes had no Gmail ones to drop or the retry still fails — a
+    base scope is what's ungranted then, so the caller raises."""
+    gmail = [s for s in attempted if s in GMAIL_SCOPES]
+    base = [s for s in attempted if s not in GMAIL_SCOPES]
+    if info is None or not gmail or not base:
+        return None
+    creds = Credentials.from_authorized_user_info(info, base)
+    try:
+        creds.refresh(Request())
+    except Exception as e:
+        logger.debug("Refresh without Gmail scopes also failed: %s", e)
+        return None
+    # Deliberately not written back to TOKEN_PATH: the saved token keeps its own
+    # scope record, so re-authorizing later is a plain delete-and-restart.
+    _degrade_gmail(gmail)
     return creds
 
 

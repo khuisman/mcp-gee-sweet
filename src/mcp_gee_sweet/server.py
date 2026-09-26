@@ -77,6 +77,7 @@ from mcp.types import ToolAnnotations  # noqa: E402
 
 from .auth import (  # noqa: E402
     execute_in_thread,
+    get_gmail_unauthorized_message,
     get_lifespan_context,
     set_gmail_enabled,
     spreadsheet_lifespan,
@@ -286,8 +287,17 @@ def _sa_limitations_for(auth_method: str) -> list[dict]:
     return adjusted
 
 
-def _auth_status_json(auth_method: str, is_service_account_identity: bool = False) -> str:
+def _auth_status_json(
+    auth_method: str,
+    is_service_account_identity: bool = False,
+    gmail_unauthorized: str | None = None,
+) -> str:
     """Return a JSON string describing the auth method and its Drive limitations.
+
+    `gmail_unauthorized` is `auth.get_gmail_unauthorized_message()`: set when an
+    OAuth token is missing only the Gmail scope, so the server started without Gmail
+    (#790). Reported as its own limitation so a client can see it before calling a
+    Gmail tool, not only from that tool's error.
 
     `is_service_account_identity` covers issue #506: `auth_method == "adc"` alone
     doesn't say whether `google.auth.default()` resolved to a real user or a
@@ -308,13 +318,25 @@ def _auth_status_json(auth_method: str, is_service_account_identity: bool = Fals
             },
             indent=2,
         )
+    limitations = []
+    if gmail_unauthorized:
+        mailbox = next(lim for lim in _SA_LIMITATIONS if lim["category"] == "no_user_mailbox")
+        limitations.append(
+            {
+                "category": "gmail_not_authorized",
+                "tools": mailbox["tools"],
+                "reason": gmail_unauthorized,
+                "alternatives": "Re-authorize (delete the token file and restart, or run "
+                "scripts/oauth_setup.py), or leave the Gmail tools out of ENABLED_TOOLS.",
+            }
+        )
     return json.dumps(
         {
             "auth_method": auth_method,
             "is_service_account_identity": False,
             "can_create_in_personal_drive": True,
-            "limited_tools": [],
-            "limitations": [],
+            "limited_tools": [t for lim in limitations for t in lim["tools"]],
+            "limitations": limitations,
         },
         indent=2,
     )
@@ -333,7 +355,11 @@ def get_auth_status() -> str:
     # against mcp==2.0.0, issue #175). SpreadsheetContext is a process-wide singleton
     # set once by the lifespan, so get_lifespan_context() reads it directly.
     context = get_lifespan_context()
-    return _auth_status_json(context.auth_method, context.is_service_account_identity)
+    return _auth_status_json(
+        context.auth_method,
+        context.is_service_account_identity,
+        get_gmail_unauthorized_message(),
+    )
 
 
 @mcp.resource("spreadsheet://{spreadsheet_id}/info")

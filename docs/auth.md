@@ -41,7 +41,12 @@ Authenticates as you — gives full access to your personal Drive. Requires a br
    - `CREDENTIALS_PATH` — path to the downloaded OAuth JSON (default: `credentials.json`)
    - `TOKEN_PATH` — where the refresh token is stored after login (default: `token.json`)
 
-**Re-authenticating after a scope change:** at startup the server checks that the saved token was authorized for every scope the registered tools need. If it wasn't (for example, a token from before the Gmail tools existed), startup stops with an error naming the missing scopes instead of opening a browser. Delete `token.json` and restart the server (or run `scripts/oauth_setup.py`) to re-authorize.
+**Re-authenticating after a scope change:** at startup the server checks that the saved token was authorized for every scope the registered tools need. It never opens a browser to fix a shortfall on its own. What happens depends on which scope is missing:
+
+- **Only the Gmail scope is missing** (for example, a token from before the Gmail tools existed): the server starts normally and Sheets, Drive, Docs, Calendar and activity tools keep working. Every Gmail tool returns an error naming the missing scope and how to re-authorize, and `server://auth-status` lists the Gmail tools under a `gmail_not_authorized` limitation.
+- **Any other scope is missing:** startup stops with an error naming the missing scopes. Most tools can't work without them. (Under a stdio client this error goes to stderr, which the client usually doesn't show; the client just reports that the connection closed. Set `DEBUG_LEVEL` and `LOG_FILE` to capture it in a file.)
+
+Either way, delete `token.json` and restart the server (or run `scripts/oauth_setup.py`) to re-authorize.
 
 **Gmail scope is only requested when a Gmail tool is registered.** With no `ENABLED_TOOLS` filter every tool is registered, so the server asks for `gmail.modify` (read, compose, send, label, trash). If you don't want to grant mailbox access, leave the Gmail tools out of `ENABLED_TOOLS` / `--include-tools`. The server then neither requests nor requires the Gmail scope, and an existing pre-Gmail token keeps working.
 
