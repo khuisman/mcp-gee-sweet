@@ -1456,6 +1456,24 @@ service account.</p>
 use <code>write_doc_content</code> or <code>update_cells</code> to populate it. Alternatively, use OAuth authentication
 (<code>AUTH_METHOD=oauth</code>) which authenticates as the user and has full personal Drive access.
 Related: project memory <code>service_account_limit</code>.</p>
+<h3 id="sync_folder-renaming-a-long-named-convert_markdown-doc-in-drive-unlinks-it"><code>sync_folder</code> — renaming a long-named <code>convert_markdown</code> Doc in Drive unlinks it<a class="headerlink" href="#sync_folder-renaming-a-long-named-convert_markdown-doc-in-drive-unlinks-it" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> <code>sync_folder(convert_markdown=True)</code> normally keeps matching a converted Doc to its
+local <code>.md</code> file even after the Doc is renamed in Drive. That doesn't hold for a <code>.md</code> filename
+longer than 103 UTF-8 bytes, <code>.md</code> included: 101+ ASCII characters, or 34+ CJK characters,
+before the <code>.md</code>. (Drive's 124-byte cap, minus the 21-byte <code>geeSweetConvertSource</code> key.)
+Names of 103 bytes or less still survive a rename. If a Doc converted from a longer name
+is renamed in Drive, the next sync no longer recognizes it. The local file then reads as "local
+only" and is uploaded again as a new Doc, and the renamed one is left as an ordinary,
+unrelated Doc.</p>
+<p><strong>Why:</strong> <code>sync_folder</code> records the source filename in a Drive custom property, and Drive caps
+each property's key + value at 124 bytes. A name too long to fit is stored as a <code>sha256:</code>
+digest, which can't be read back. The source name is then taken from the Doc's own display
+name, which keeps its <code>.md</code> suffix, and checked against the digest. After a rename, the two no
+longer agree (#805).</p>
+<p><strong>Workaround:</strong> Don't rename these Docs in Drive. To change the name, rename the local file and
+delete the old Doc in Drive; the next sync converts the file again under its new name. Renaming
+both sides to the same new name doesn't restore the link, because the digest still records the
+old name.</p>
 
 
 
