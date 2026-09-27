@@ -4254,6 +4254,28 @@ class TestDownloadFile:
                 ctx=self._ctx(svc),
             )
         assert clash.read_bytes() == b"i am a file"  # untouched
+        # #724: reject the local collision before spending a Drive metadata call.
+        svc.files.return_value.get.assert_not_called()
+
+    async def test_trailing_slash_with_file_in_parent_path_raises_valueerror(self, tmp_path):
+        """#724: an intermediate regular file must produce the same friendly
+        ValueError surface rather than leaking a pathlib/OSError exception."""
+        svc = MagicMock()
+        svc.files.return_value.get.return_value.execute.return_value = self._metadata(
+            "x.bin", "application/octet-stream"
+        )
+        clash = tmp_path / "clash"
+        clash.write_bytes(b"i am a file")
+        target = clash / "sub"
+
+        with pytest.raises(ValueError, match="non-directory exists in its parent path"):
+            await _transfer_tools["download_file"](
+                file_id="bin1",
+                local_path=str(target) + os.sep,
+                ctx=self._ctx(svc),
+            )
+
+        assert clash.read_bytes() == b"i am a file"
 
 
 class TestSyncFolderResponseSizeCap:

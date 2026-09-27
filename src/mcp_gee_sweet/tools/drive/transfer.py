@@ -2142,6 +2142,21 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
+        dest = Path(local_path)
+
+        # A trailing path separator means "this is a directory" even when it
+        # doesn't exist yet -- Path() has already stripped it from `dest`, so the
+        # intent has to be read off the raw string. Without this, a call like
+        # download_file(..., local_path="/new/dir/") writes a plain file literally
+        # named "dir" and every later download to the same local_path silently
+        # clobbers it (#690).
+        wants_dir = local_path.endswith(("/", os.sep))
+        if wants_dir and dest.exists() and not dest.is_dir():
+            raise ValueError(
+                f"local_path {local_path!r} ends in a path separator (implying a "
+                f"directory) but a non-directory already exists at {str(dest)!r}"
+            )
+
         metadata = await execute_in_thread(
             drive_service.files()
             .get(fileId=file_id, fields="name, mimeType", supportsAllDrives=True)
@@ -2151,24 +2166,14 @@ def register(tool):
         drive_name = metadata["name"]
         is_workspace = _is_workspace_entry(metadata)
 
-        dest = Path(local_path)
-
-        # A trailing path separator means "this is a directory" even when it
-        # doesn't exist yet — Path() has already stripped it from `dest`, so the
-        # intent has to be read off the raw string. Without this, a call like
-        # download_file(..., local_path="/new/dir/") writes a plain file literally
-        # named "dir" and every later download to the same local_path silently
-        # clobbers it (#690).
-        wants_dir = local_path.endswith(("/", os.sep)) or (
-            os.altsep is not None and local_path.endswith(os.altsep)
-        )
         if wants_dir:
-            if dest.exists() and not dest.is_dir():
+            try:
+                dest.mkdir(parents=True, exist_ok=True)
+            except (NotADirectoryError, FileExistsError) as exc:
                 raise ValueError(
                     f"local_path {local_path!r} ends in a path separator (implying a "
-                    f"directory) but a non-directory already exists at {str(dest)!r}"
-                )
-            dest.mkdir(parents=True, exist_ok=True)
+                    "directory) but a non-directory exists in its parent path"
+                ) from exc
 
         if dest.is_dir():
             if is_workspace and export_format:
