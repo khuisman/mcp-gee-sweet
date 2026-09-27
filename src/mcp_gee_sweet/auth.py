@@ -92,7 +92,9 @@ def _consent_timeout_seconds() -> int:
     try:
         return max(1, int(raw))
     except ValueError:
-        logger.warning("Ignoring non-integer OAUTH_CONSENT_TIMEOUT_SECONDS=%r; using 300", raw)
+        # Value deliberately not echoed: CodeQL flags logging an OAUTH_* env var as
+        # clear-text logging of sensitive data (PR #828).
+        logger.warning("Ignoring non-integer OAUTH_CONSENT_TIMEOUT_SECONDS; using 300")
         return 300
 
 
