@@ -60,6 +60,12 @@ Logic is split across `src/mcp_gee_sweet/`: `server.py` (MCP setup, tool decorat
 
 **Startup / auth** (`spreadsheet_lifespan`): MCPServer lifespan context manager that authenticates on server start and injects a `SpreadsheetContext` (holding `sheets_service`, `drive_service`, `docs_service`, `calendar_service`, and `activity_service`) into every tool call via `ctx.request_context.lifespan_context`. It also stamps the same `SpreadsheetContext` into a module-level `auth._lifespan_context`, readable via `auth.get_lifespan_context()` — this is what `server.py`'s static `server://auth-status` resource reads instead of going through Context (see the MCP resources note below).
 
+**The lifespan runs once per connection under SSE, not once per process.** mcp v2's `Server.run` enters `spreadsheet_lifespan` for every SSE connection; stdio has exactly one. So per-connection auth outcomes belong on the `SpreadsheetContext` it yields, never in a module global that a later connection's lifespan can overwrite or reset. PR #828 (#811) round 1 kept its degraded-start message in a global, and QA caught a second connection clearing the message the first still relied on. Genuinely process-wide decisions (e.g. "don't retry the blocking consent flow") are the exception, and should say so in a comment.
+
+**No usable OAuth token (#811):** under stdio the server never runs the browser consent (stdout is the JSON-RPC channel). `AUTH_METHOD=oauth`, or the waterfall with no service account/ADC fallback, starts *degraded*: the yielded context has every service `None` and `unauthorized_message` set, and `server.py`'s `_timed` wrapper raises that message before any tool body runs. It raises rather than returns, because a `{"error": ...}` dict would fail a list-typed tool's output schema. Under SSE the consent runs with its prompt on stderr and an `OAUTH_CONSENT_TIMEOUT_SECONDS` bound. Any failure degrades that connection, and consent is never retried in the process, since the wait is synchronous and blocks every connection. The recovery path users are pointed at is the `mcp-gee-sweet auth` subcommand (`auth.run_auth_command`, argv parsing in `server._auth_main`). `scripts/oauth_setup.py` is only a QA wrapper over the same `run_consent_flow`/`write_token_json` (0600) helpers.
+
+**CodeQL flags logging any value whose name looks like a secret.** `py/clear-text-logging-sensitive-data` is a *high* alert that blocks merge. It keys on names, so logging a raw `OAUTH_CONSENT_TIMEOUT_SECONDS` value (an integer) tripped it on PR #828 after QA had already passed. Don't interpolate the value of an `OAUTH_*`/`*TOKEN*`/`*SECRET*`/`*PASSWORD*`-named env var or variable into a log message; name the setting without echoing it.
+
 The project philosophy is to be as powerful and flexible as possible by default, while giving security-conscious users the configuration knobs to lock things down. Two mechanisms reflect this:
 
 - **Auth** (`AUTH_METHOD`): out of the box the waterfall tries everything so the server just works; setting `AUTH_METHOD` restricts it to exactly one method with no fallback.
@@ -68,7 +74,7 @@ The project philosophy is to be as powerful and flexible as possible by default,
 By default (`AUTH_METHOD` unset), auth falls through in order: OAuth (`CREDENTIALS_PATH`/`TOKEN_PATH`) → service account (`CREDENTIALS_CONFIG` or `SERVICE_ACCOUNT_PATH`) → Application Default Credentials. OAuth is tried first because it authenticates as the user (full personal Drive access); service account is a fallback for headless/server deployments.
 
 Set `AUTH_METHOD` to pin a specific method with no fallback — removes ambiguity for security audits, CI, or testing a tool's behavior under a known credential type:
-- `AUTH_METHOD=oauth` — OAuth only; fails fast if credentials are missing
+- `AUTH_METHOD=oauth` — OAuth only; fails fast if the OAuth client JSON is missing, and starts degraded (see above) if there is no usable token
 - `AUTH_METHOD=service_account` — service account only; requires `CREDENTIALS_CONFIG` or `SERVICE_ACCOUNT_PATH`
 - `AUTH_METHOD=adc` — ADC only
 
