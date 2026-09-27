@@ -39,18 +39,56 @@ def enforce_response_size_cap(
     """Raise ValueError if the serialized result exceeds the configured cap."""
     size = len(json.dumps(result))
     if size > MAX_TOOL_RESPONSE_CHARS:
-        local_path_clause = (
-            f"Pass {local_path_param} to write the result to disk instead of returning it "
-            "inline (bypasses this cap), or set"
-            if local_path_available
-            else "set"
+        raise _over_cap_error(
+            f"the response is {size} characters",
+            tool_name=tool_name,
+            hint=hint,
+            local_path_available=local_path_available,
+            local_path_param=local_path_param,
         )
-        raise ValueError(
-            f"{tool_name}: the response is {size} characters, over the "
-            f"{MAX_TOOL_RESPONSE_CHARS}-character safety cap. {hint}"
-            f"{local_path_clause} MAX_TOOL_RESPONSE_CHARS if your MCP client can "
-            "handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS)."
+
+
+def enforce_response_size_floor(
+    min_size: int,
+    *,
+    tool_name: str,
+    hint: str = "",
+    local_path_available: bool = True,
+    local_path_param: str = "local_path",
+) -> None:
+    """Raise the same error as enforce_response_size_cap, before any expensive fetch,
+    when a known lower bound on the response's serialized size already exceeds the cap
+    (e.g. get_message's large Gmail bodies, #825)."""
+    if min_size > MAX_TOOL_RESPONSE_CHARS:
+        raise _over_cap_error(
+            f"the response would be at least {min_size} characters",
+            tool_name=tool_name,
+            hint=hint,
+            local_path_available=local_path_available,
+            local_path_param=local_path_param,
         )
+
+
+def _over_cap_error(
+    size_clause: str,
+    *,
+    tool_name: str,
+    hint: str,
+    local_path_available: bool,
+    local_path_param: str,
+) -> ValueError:
+    local_path_clause = (
+        f"Pass {local_path_param} to write the result to disk instead of returning it "
+        "inline (bypasses this cap), or set"
+        if local_path_available
+        else "set"
+    )
+    return ValueError(
+        f"{tool_name}: {size_clause}, over the "
+        f"{MAX_TOOL_RESPONSE_CHARS}-character safety cap. {hint}"
+        f"{local_path_clause} MAX_TOOL_RESPONSE_CHARS if your MCP client can "
+        "handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS)."
+    )
 
 
 async def write_capped_result_to_disk(

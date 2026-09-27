@@ -8,6 +8,32 @@ import pytest
 from mcp_gee_sweet.tools import response_limits
 
 
+class TestEnforceResponseSizeFloor:
+    """#825: reject a known-over-cap response before fetching it."""
+
+    def test_at_or_under_cap_succeeds(self, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 100)
+        response_limits.enforce_response_size_floor(100, tool_name="some_tool")
+
+    def test_over_cap_raises_with_lower_bound_wording(self, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 100)
+        with pytest.raises(ValueError) as exc_info:
+            response_limits.enforce_response_size_floor(
+                101, tool_name="some_tool", hint="Big body. "
+            )
+        message = str(exc_info.value)
+        assert message.startswith("some_tool: the response would be at least 101 characters")
+        assert "100-character safety cap. Big body. Pass local_path" in message
+
+    def test_local_path_omitted_when_unavailable(self, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 1)
+        with pytest.raises(ValueError) as exc_info:
+            response_limits.enforce_response_size_floor(
+                2, tool_name="some_tool", local_path_available=False
+            )
+        assert "local_path" not in str(exc_info.value)
+
+
 class TestEnforceResponseSizeCap:
     def test_under_cap_succeeds(self):
         response_limits.enforce_response_size_cap({"filler": "x" * 10}, tool_name="some_tool")

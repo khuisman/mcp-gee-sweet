@@ -119,9 +119,9 @@ Record fixture A's IDs as `{CHARSET_FIXTURE_A_ID}` / `{CHARSET_THREAD_A_ID}`, an
 
 **Result** (2026-09-26, PR #816 round 2 at `1daec0a`, `mcp-gee-sweet-kit`, OAuth token with `gmail.modify`): **PASS**. Step 1: `body_plain` = `Café crème, naïve`, `body_html` = `<p>こんにちは世界</p>`. Step 2: the one message has identical bodies. Step 3: `body_plain` = `“Smart quotes” – 5`. No mojibake, no `�`, and no `error` or `body_decode_errors` field in any response. Both fixtures trashed.
 
-### TC-GM29: Large bodies Gmail delivers by `attachmentId` are fetched, capped, and writable via `local_path` (issue #825) ⚠️ requires-oauth
+### TC-GM30: Large bodies Gmail delivers by `attachmentId` are fetched, capped, and writable via `local_path` (issue #825) ⚠️ requires-oauth
 
-**Background:** Gmail returns a large text body (somewhere between ~400 KB and 3 MB) from `messages.get(format=full)` as a nameless part carrying `body.attachmentId`, with no inline `data`. Before #825, `get_message`/`get_thread` listed such parts as nameless attachments and returned `body_plain`/`body_html` as `null`. The fix fetches them with `users.messages.attachments.get`. That endpoint returns the part's raw bytes in its declared charset, unlike inline `body.data`, which Gmail transcodes to UTF-8 (TC-GM26), so the fetched bytes decode with the part's own charset. A ~6 MB message exceeds the default `MAX_TOOL_RESPONSE_CHARS`, so it hits the normal size-cap error, and `local_path` bypasses the cap. Steps 1–4 use the seeded `large-body` fixture (`TEST_GMAIL_LARGE_ID`, a real delivery: both its 3 MB `text/plain` and `text/html` parts arrive by `attachmentId`; check with `uv run python scripts/qa_gmail_fixtures.py inspect`). Steps 5–6 use an *inserted* fixture: `messages.insert` produces the same `attachmentId` layout, confirmed live on #825.
+**Background:** Gmail returns a large text body (somewhere between ~400 KB and 3 MB) from `messages.get(format=full)` as a nameless part carrying `body.attachmentId`, with no inline `data`. Before #825, `get_message`/`get_thread` listed such parts as nameless attachments and returned `body_plain`/`body_html` as `null`. The fix fetches them with `users.messages.attachments.get`. That endpoint returns the part's raw bytes in its declared charset, unlike inline `body.data`, which Gmail transcodes to UTF-8 (TC-GM26), so the fetched bytes decode with the part's own charset. A ~6 MB message exceeds the default `MAX_TOOL_RESPONSE_CHARS`, so it hits the normal size-cap error, and `local_path` bypasses the cap. The parts' own decoded sizes are a lower bound on the response, so without `local_path` the error is raised before anything is downloaded (PR #829 round 2). Round 2 also remaps two common charset mislabels before decoding a fetched body: `us-ascii` is decoded as UTF-8 and `iso-8859-1` as windows-1252. Step 7 checks that. Fetch-failure reporting (`attachment_id` in `body_fetch_errors`, errors copied into the `local_path` manifest, a later inline part used as the fallback), a missing `data` field, and the bounded fetch concurrency can't be forced against the live API; unit tests cover them. Steps 1–4 use the seeded `large-body` fixture (`TEST_GMAIL_LARGE_ID`, a real delivery: both its 3 MB `text/plain` and `text/html` parts arrive by `attachmentId`; check with `uv run python scripts/qa_gmail_fixtures.py inspect`). Steps 5 and 7 use *inserted* fixtures: `messages.insert` produces the same `attachmentId` layout, confirmed live on #825.
 
 **Setup:** confirm the server under test runs with the default `MAX_TOOL_RESPONSE_CHARS` (1,000,000). Pick a scratch directory `{OUT_DIR}` outside the repo. Insert the charset fixture with a scratch script from the checkout under test, using the same OAuth token as the server under test (its saved scopes must include `gmail.modify`):
 
@@ -134,10 +134,10 @@ from googleapiclient.discovery import build
 from mcp_gee_sweet.auth import _oauth_creds
 
 m = MIMEMultipart("alternative")
-m.attach(MIMEText("Café crème brûlée TC-GM29.\n" * 110_000, "plain", "iso-8859-1"))
-m.attach(MIMEText("<p>こんにちは TC-GM29</p>\n" * 200_000, "html", "shift_jis"))
+m.attach(MIMEText("Café crème brûlée TC-GM30.\n" * 110_000, "plain", "iso-8859-1"))
+m.attach(MIMEText("<p>こんにちは TC-GM30</p>\n" * 200_000, "html", "shift_jis"))
 m["To"] = "qa@example.invalid"
-m["Subject"] = "TC-GM29 large charset fixture"
+m["Subject"] = "TC-GM30 large charset fixture"
 g = build("gmail", "v1", credentials=_oauth_creds(), cache_discovery=False)
 r = g.users().messages().insert(userId="me", body={"raw": base64.urlsafe_b64encode(m.as_bytes()).decode()}).execute()
 print(r["id"])
@@ -146,6 +146,31 @@ EOF
 
 Record the printed ID as `{LARGE_CHARSET_ID}`. (Python's `MIMEText` emits the `shift_jis` part as `charset="iso-2022-jp"`, per TC-GM26's note. Either way it's a non-UTF-8 charset that `attachments.get` returns untranscoded.)
 
+Insert the mislabel fixture the same way. Its bytes are built by hand, since `MIMEText` always labels its charset correctly:
+
+```bash
+uv run python3 - <<'EOF'
+import base64
+from googleapiclient.discovery import build
+from mcp_gee_sweet.auth import _oauth_creds
+
+plain = "\u201cSmart\u201d \u2013 quotes TC-GM30.\n" * 120_000  # windows-1252 bytes, labeled iso-8859-1
+html = "<p>Caf\u00e9 \u201cUTF-8\u201d TC-GM30</p>\n" * 120_000  # UTF-8 bytes, labeled us-ascii
+lines = [b"MIME-Version: 1.0", b"To: qa@example.invalid", b"Subject: TC-GM30 mislabel fixture",
+         b'Content-Type: multipart/alternative; boundary="tcgm29"', b""]
+for ctype, body in ((b"text/plain; charset=iso-8859-1", plain.encode("cp1252")),
+                    (b"text/html; charset=us-ascii", html.encode("utf-8"))):
+    lines += [b"--tcgm29", b"Content-Type: " + ctype, b"Content-Transfer-Encoding: base64", b"",
+              base64.encodebytes(body)]
+lines += [b"--tcgm29--", b""]
+g = build("gmail", "v1", credentials=_oauth_creds(), cache_discovery=False)
+r = g.users().messages().insert(userId="me", body={"raw": base64.urlsafe_b64encode(b"\r\n".join(lines)).decode()}).execute()
+print(r["id"])
+EOF
+```
+
+Record the printed ID as `{MISLABEL_ID}`.
+
 **Action**
 1. `get_message` with `message_id: "{TEST_GMAIL_LARGE_ID}"`
 2. `get_message` with `message_id: "{TEST_GMAIL_LARGE_ID}"`, `local_path: "{OUT_DIR}"`, then read the JSON file at the returned `local_path` and record its `thread_id` as `{LARGE_THREAD_ID}`
@@ -153,16 +178,18 @@ Record the printed ID as `{LARGE_CHARSET_ID}`. (Python's `MIMEText` emits the `s
 4. `get_thread` with `thread_id: "{LARGE_THREAD_ID}"`, `local_path: "{OUT_DIR}/thread.json"`, then read that file
 5. `get_message` with `message_id: "{LARGE_CHARSET_ID}"`, `local_path: "{OUT_DIR}/charset.json"`, then read that file
 6. `get_message` with `message_id: "{TEST_GMAIL_ATTACH_ID}"`
+7. `get_message` with `message_id: "{MISLABEL_ID}"`, `local_path: "{OUT_DIR}/mislabel.json"`, then read that file
 
 **Checks**
-- Step 1: the call fails with the size-cap error: it names `get_message`, the response size (about 6,190,000 characters), and says `Pass local_path to write the result to disk`. Not a dropped connection, not a truncated body
+- Step 1: the call fails with the size-cap error: it reads `get_message: the response would be at least 6037989 characters` (the two parts' decoded sizes) and says `Pass local_path to write the result to disk`. It returns in about a second, since nothing is downloaded. Not a dropped connection, not a truncated body
 - Step 2: the response is exactly `{local_path, bytes_written, message_id}`, with `local_path` ending in `message_{TEST_GMAIL_LARGE_ID}.json`. In the file: `body_plain` is 3,000,002 characters and starts `mcp-gee-sweet large-body fixture line.`, `body_html` is 3,037,987 characters and starts `<pre>mcp-gee-sweet large-body fixture line.`, `attachments` is `[]`, and there is no `body_fetch_errors` or `body_decode_errors` key
-- Step 3: the size-cap error naming `get_thread` and `local_path`
+- Step 3: the same pre-download error, naming `get_thread` (`would be at least 6037989 characters`) and `local_path`
 - Step 4: the response has `thread_id` = `{LARGE_THREAD_ID}` and `message_count` = 1, and the file's one message has the same `body_plain` length as step 2
-- Step 5: in the file, `body_plain` starts `Café crème brûlée TC-GM29.` and `body_html` starts `<p>こんにちは TC-GM29</p>`. Neither contains mojibake (`CafÃ©`) or `�`, and `attachments` is `[]`
+- Step 5: in the file, `body_plain` starts `Café crème brûlée TC-GM30.` and `body_html` starts `<p>こんにちは TC-GM30</p>`. Neither contains mojibake (`CafÃ©`) or `�`, and `attachments` is `[]`
 - Step 6 (regression, real attachments unchanged): the PDF and CSV are still listed in `attachments` with their filenames and `attachment_id`s
+- Step 7: the manifest has no `body_fetch_errors` or `body_decode_errors` key. In the file, `body_plain` starts `“Smart” – quotes TC-GM30.` (real curly quotes and an en dash, not C1 control characters such as `\u0093`), `body_html` starts `<p>Café “UTF-8” TC-GM30</p>` (no `Ã©` or `â€œ`), and `attachments` is `[]`
 
-**Cleanup:** `trash_message` with `message_id: "{LARGE_CHARSET_ID}"`. Delete `{OUT_DIR}`. Leave the seeded `large-body` fixture in place.
+**Cleanup:** `trash_message` with `message_id: "{LARGE_CHARSET_ID}"`, then with `message_id: "{MISLABEL_ID}"`. Delete `{OUT_DIR}`. Leave the seeded `large-body` fixture in place.
 
 **Result** (2026-09-26, PR #829 round 1 at `e30c2d1`, `mcp-gee-sweet-kit`, OAuth token with `gmail.modify`): **PASS** on every listed check. Step 1: size-cap error naming `get_message`, 6,190,675 characters, and `Pass local_path`. Step 2: manifest `{local_path, bytes_written: 6190675, message_id}`, file named `message_{TEST_GMAIL_LARGE_ID}.json`. `body_plain` is 3,000,002 characters and `body_html` is 3,037,987 characters, both with the expected prefixes. `attachments` = `[]`, no error keys. The thread ID equals the message ID. Step 3: size-cap error naming `get_thread`, 6,190,757 characters. Step 4: `message_count` = 1, and the file's `body_plain` is 3,000,002 characters. Step 5: `body_plain` (2,970,000 characters) starts `Café crème brûlée TC-GM29.` and `body_html` (4,200,000 characters) starts `<p>こんにちは TC-GM29</p>`. Neither contains `Ã` or `�`, and `attachments` = `[]`. Step 6: `mcp-qa.pdf` and `mcp-qa.csv` are both still listed, with `attachment_id`s. Charset fixture trashed and `{OUT_DIR}` deleted. The PR still went back to the Dev for code-review findings that this case doesn't exercise (fetch-failure reporting, concurrency, charset mislabels, the manifest omitting errors). See the PR #829 comment.
 
