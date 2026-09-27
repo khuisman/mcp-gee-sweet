@@ -111,7 +111,7 @@ Keep the IDs and intent. Rewrite each to name the exact tool and params and to r
 | GM26 | `get_message` | Unicode subject/display name/body and emoji decode intact; `body_plain` and `body_html` both populated | read |
 | GM27 | `get_message` | Both attachments (PDF, CSV) listed with filename, MIME type, size, `attachment_id`. The inline PNG (`inline` fixture) is listed with `filename: null`; Gmail stores it by `attachmentId` (§5, P3: not a defect). | read |
 | GM28 | `get_message` | `body_plain` is the *outer* message's body; the `.eml` is listed as a `message/rfc822` attachment (§5, P2: not a defect with Gmail's real layout) | read |
-| GM29 | `get_message` | `large-body`: `body_plain` is non-null. **Fails today, #825**: Gmail delivers both 3 MB parts by `attachmentId`. Once fixed, expect the size-cap behavior #825 decides on, since 3 MB exceeds the default cap. | read, known defect |
+| GM29 | `get_message`, `get_thread` | `large-body` (Gmail delivers both 3 MB parts by `attachmentId`, #825). Without `local_path`: the size-cap error, naming `local_path`, since ~6 MB exceeds the default cap. With `local_path`: the written JSON has `body_plain` (3,000,002 chars) and `body_html` (3,037,987 chars) filled, `attachments: []`, no `body_fetch_errors`. Same for `get_thread` on its thread. Written as TC-GM29 in the #825 PR. | read |
 | GM30 | `get_thread` | Over-cap thread returns the size-cap error, not a dropped connection or a truncated body. Captures #793's motivating failure live. | read |
 | GM31 | `get_message` | Latin-1 body. Expected to **fail** until #792 lands; record as a known-defect repro, not a surprise. | read, known defect |
 | GM32 | `get_thread` | 3 messages in chronological order, each shaped like `get_message`, `in_reply_to`/`references` populated | read |
@@ -165,7 +165,7 @@ Found by reading `test_gmail.py` against `gmail.py` and running the helpers dire
 | — | Empty `to` | Emits a bare `To: ` header. Gmail accepted it on TC-GM25 step 3, so no action needed. |
 
 **Live outcome (2026-09-26, `get_message` on `mcp-gee-sweet-oauth`, raw layout via the seed script's `inspect`):**
-- **P1 is confirmed and filed as #825.** A ~3 MB body arrives by `attachmentId`, while a ~405 KB body still arrives inline.
+- **P1 is confirmed and filed as #825.** A ~3 MB body arrives by `attachmentId`, while a ~405 KB body still arrives inline. The #825 fix fetches it with `users.messages.attachments.get`, which returns the part's raw bytes in its declared charset, not the UTF-8 that inline `body.data` is transcoded to (confirmed live with a latin-1 and a Shift-JIS body).
 - **P2 doesn't reproduce.** Gmail puts the outer body first and the `message/rfc822` part after it.
 - **P3 doesn't reproduce.** Gmail stores the nameless inline image by `attachmentId`, so it's listed.
 

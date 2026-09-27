@@ -197,9 +197,9 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | Tool | Description | Key parameters |
 |---|---|---|
 | `list_messages` | List messages in the authenticated user's mailbox. | `query?`, `label_ids?`, `max_results?`, `page_token?`, `include_spam_trash?` |
-| `get_message` | Fetch a single message by ID, including headers, body, and attachment metadata. | `message_id` |
+| `get_message` | Fetch a single message by ID, including headers, body, and attachment metadata. | `message_id`, `local_path?` |
 | `list_threads` | List conversation threads in the authenticated user's mailbox. | `query?`, `label_ids?`, `max_results?`, `page_token?`, `include_spam_trash?` |
-| `get_thread` | Fetch all messages in a conversation thread. | `thread_id` |
+| `get_thread` | Fetch all messages in a conversation thread. | `thread_id`, `local_path?` |
 | `list_labels` | List all labels in the authenticated user's mailbox (system and user-defined). | — |
 | `send_message` | Send a new email message. | `to`, `subject`, `body`, `cc?`, `bcc?`, `body_html?`, `attachments?` |
 | `create_draft` | Create a draft email without sending it. | `to`, `subject`, `body`, `cc?`, `bcc?`, `body_html?`, `attachments?` |
