@@ -42,6 +42,10 @@ One happy-path case per tool group — fast, no destructive operations where avo
 | TC-CAL01 | `list_calendars` | `tests/calendar.md` |
 | TC-CAL09 | `list_events` | `tests/calendar.md` |
 | TC-CAL20 | `create_event` | `tests/calendar.md` |
+| TC-GM01 | `list_messages` | `tests/gmail.md` |
+| TC-GM11 | `send_message` | `tests/gmail.md` |
+
+> **Gmail rows:** need an OAuth slot whose token has `gmail.modify` and the seeded fixture set (`setup.md` §"Gmail fixture setup"). Run `list_labels` on the slot first. If it returns the re-authorize error or `403 accessNotConfigured`, record both rows as `SKIP(no-gmail-scope)`, not FAIL: that's the slot's setup, not a regression. TC-GM11 sends only to a plus-address of the QA mailbox and trashes its message.
 
 > **Note:** TC-D152 appears in both `tests/drive_files.md` (`list_shared_with_me`) and `tests/docs_content.md` (`get_doc_structure`) due to a numbering conflict — see #201. Run both; they cover different tools. `get_doc_structure`'s own current numbering is actually `TC-DOC01` (renumbered per #201's resolution) — this row's `TC-D152` label appears to predate that renumbering and was already stale before this file split; not fixed here as it's a numbering-content question, not a file-organization one.
 

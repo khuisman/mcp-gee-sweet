@@ -181,7 +181,7 @@ def build_latin1(qa: str) -> Message:
 def build_page(n: int) -> Callable[[str], Message]:
     def build(qa: str) -> Message:
         msg = MIMEText(f"Pagination fixture {n} of {PAGE_COUNT}.", "plain", "utf-8")
-        # One shared subject prefix so GM33 can match all seven with one query.
+        # One shared subject prefix so GM34 can match all seven with one query.
         return _planted(msg, f"page-{n}", qa, subject_for("page", f"{n}/{PAGE_COUNT}"))
 
     return build
@@ -651,7 +651,7 @@ def part_tree(part: dict[str, Any], depth: int = 0) -> list[str]:
 
 def cmd_inspect(qa: Any) -> int:
     """Raw Gmail part structure of every present fixture: the ground truth for
-    GM27 (inline image), GM28 (rfc822 expansion) and GM29 (#803 attachmentId)."""
+    GM28 (inline image), GM29 (rfc822 expansion) and GM30 (#803 attachmentId)."""
     for fx in FIXTURES:
         m = locate(qa, fx)
         if m is None:
