@@ -798,6 +798,9 @@ Then call `list_spreadsheets` with `max_results: 1`, and read `server://auth-sta
 
 **Cleanup:** delete the temp log.
 
+**Result (2026-09-26, PR #828 round 1 @ 69d6dbf, Sky) ✅ PASS**
+Real `mcp` SDK `stdio_client` + `ClientSession`. `initialize` OK in 1.9s, 0 `Please visit` in stderr or LOG_FILE. `list_spreadsheets` returned an error result: `No usable OAuth token at '<nonexistent>', and this server can't ask for consent itself over the stdio transport. To authorize, run \`mcp-gee-sweet auth\` in a terminal (\`uvx mcp-gee-sweet auth\` for a PyPI install) with the same TOKEN_PATH (...), CREDENTIALS_PATH (...) and ENABLED_TOOLS as this server, then restart the server.` `auth-status`: `auth_method: "none"`, `limited_tools: ["*"]`, one `oauth_not_authorized` limitation. LOG_FILE has `WARNING mcp_gee_sweet.auth Starting without Google access: ...` and `"TOOL list_spreadsheets" 401`. The token path's parent dir was never created.
+
 ---
 
 ### TC-I36: stdio waterfall with no token falls through to a service account, and starts without access only if nothing else works (issue #811) ⚠️ local-filesystem
@@ -816,6 +819,9 @@ Run 2 (`AUTH_METHOD` unset, `SERVICE_ACCOUNT_PATH=<nonexistent>`, `CREDENTIALS_C
 - Neither run shows a browser window or a `Please visit` prompt
 
 **Cleanup:** none.
+
+**Result (2026-09-26, PR #828 round 1 @ 69d6dbf, Sky) ✅ PASS**
+Run 1 (team SA key): `initialize` 1.7s, `list_spreadsheets` normal result (`is_error=False`), `auth-status` `auth_method: "service_account"`; log has `Waterfall: OAuth needs consent (...), trying service account` then `Waterfall: using service account`. Run 2 (SA/ADC paths nonexistent, `CREDENTIALS_CONFIG` empty): same outcome as TC-I35 (error result with the `mcp-gee-sweet auth` instructions, `auth_method: "none"`, `401` access line); log has `Waterfall: ADC unavailable (File <nonexistent> was not found.)` then the `Starting without Google access` warning. 0 `Please visit` in either run.
 
 ---
 
@@ -840,6 +846,9 @@ Run 2 (`AUTH_METHOD` unset, `SERVICE_ACCOUNT_PATH=<nonexistent>`, `CREDENTIALS_C
 
 **Cleanup:** delete `<scratch>`, and revoke the scratch grant at https://myaccount.google.com/permissions if it created a separate entry.
 
+**Result (2026-09-26, PR #828 round 1 @ 69d6dbf, Sky) ⏳ PARTIAL — consent steps deferred to the fix round**
+Step 1 (killed before consent): printed `Credentials :`, `Token target:`, `Scopes      :` with the four base scopes only (no `gmail.modify`), then `Please visit this URL to authorize this application: https://accounts.google.com/o/oauth2/auth?...`; no token written. Error case: nonexistent `CREDENTIALS_PATH` exited 1 with `ERROR: '<path>' not found. Set CREDENTIALS_PATH or provide credentials.json.` on stderr. Steps 2–3 (Playwright consent, then a stdio server using the new token) not run this round: `run_auth_command` changes in the round-1 send-back (code-review findings 4/5/10 on PR #828), so the consent path is re-run against the fixed code. Also observed live (finding 5): `mcp-gee-sweet --include-tools list_spreadsheets auth --no-browser` skipped the auth branch entirely (no `Credentials :` line) and started a stdio MCP server instead.
+
 ---
 
 ### TC-I38: over SSE, a missing token still runs the consent flow, with its prompt on stderr only (issue #811) ⚠️ local-filesystem
@@ -856,3 +865,6 @@ Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PA
 - The stderr file contains `Please visit this URL to authorize this application: https://accounts.google.com/...`
 
 **Cleanup:** make sure nothing is still listening on `<port>` (`lsof -i :<port>`).
+
+**Result (2026-09-26, PR #828 round 1 @ 69d6dbf, Sky) ✅ PASS**
+stdout file 0 bytes. stderr has `Please visit this URL to authorize this application: https://accounts.google.com/o/oauth2/auth?...` (full scope set incl. `gmail.modify`, redirect to a random localhost port), after the uvicorn startup lines and `AUTH_METHOD=oauth`. Process group SIGKILLed; `lsof -i :<port>` empty afterward.
