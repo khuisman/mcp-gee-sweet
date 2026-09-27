@@ -695,7 +695,7 @@ Then call, in order:
 **Checks**
 - The server connects (no `Connection closed`), with no browser window and no `Please visit this URL to authorize` prompt
 - `list_spreadsheets` returns a normal result (the expired token refreshed at its own scopes)
-- `list_labels` and `send_message` each return `{"error": ...}` whose text names `https://www.googleapis.com/auth/gmail.modify`, says to delete the token file and restart (or run `scripts/oauth_setup.py`), and mentions leaving the Gmail tools out of `ENABLED_TOOLS` / `--include-tools`. No message is sent.
+- `list_labels` and `send_message` each return `{"error": ...}` whose text names `https://www.googleapis.com/auth/gmail.modify`, says to run `mcp-gee-sweet auth` with the server's `TOKEN_PATH`/`CREDENTIALS_PATH` and then restart (issue #811; before it, the text said to delete the token file or run `scripts/oauth_setup.py`), and mentions leaving the Gmail tools out of `ENABLED_TOOLS` / `--include-tools`. No message is sent.
 - `auth-status` reports `auth_method: "oauth"` and a `limitations` entry with `category: "gmail_not_authorized"` whose `tools` lists all 11 Gmail tools; those 11 are also the whole of `limited_tools`
 - The server did **not** start on a service account instead
 - The token copy's `scopes` afterwards still lack every `gmail.*` scope
@@ -757,7 +757,7 @@ Repeat once with `AUTH_METHOD=oauth`.
 
 **Checks**
 - The process exits on its own with a non-zero status within a few seconds (no hang), and no browser window or `Please visit this URL to authorize` prompt appears
-- stderr contains `MissingOAuthScopesError` with a message naming `https://www.googleapis.com/auth/calendar` and telling you to delete the token file and restart (or run `scripts/oauth_setup.py`)
+- stderr contains `MissingOAuthScopesError` with a message naming `https://www.googleapis.com/auth/calendar` and telling you to run `mcp-gee-sweet auth` and then restart (issue #811; before it, the text said to delete the token file or run `scripts/oauth_setup.py`)
 - `<tmp log>` contains an `OAuth startup failed:` line with the same message
 - Waterfall run: no `Waterfall: using service account` line
 - The token copy's contents are unchanged afterwards
@@ -766,3 +766,93 @@ Repeat once with `AUTH_METHOD=oauth`.
 
 **Result (2026-09-25, PR #807 round 2 @ 8f67604, Kit) ✅ PASS**
 Token copy: `calendar` removed from `scopes` (`spreadsheets`, `drive`, `drive.activity.readonly`, `gmail.modify` kept), `expiry` in the future. Waterfall run (`AUTH_METHOD` unset, `SERVICE_ACCOUNT_PATH` set): exit 1 after ~2s. stderr has `MissingOAuthScopesError: The OAuth token at '<copy>' wasn't authorized for scope(s) the enabled tools require: https://www.googleapis.com/auth/calendar. Delete '<copy>' and restart the server (or run scripts/oauth_setup.py) ...`. LOG_FILE has `ERROR mcp_gee_sweet.auth OAuth startup failed: <same message>`, 0 `Waterfall: using service account` lines, 0 `Please visit` prompts. `AUTH_METHOD=oauth` run: identical (exit 1 after ~2s, same stderr + log line). Token copy's sha1 unchanged across both runs.
+
+---
+
+### TC-I35: stdio with no token starts without Google access; tools return the `mcp-gee-sweet auth` instructions, never a browser consent (issue #811) ⚠️ local-filesystem
+
+**Background:** with no usable token, `_oauth_creds` used to call `InstalledAppFlow.run_local_server` inside the lifespan. Under stdio that blocked startup with no timeout, `print()`ed the "Please visit this URL" prompt onto stdout (the JSON-RPC channel), and the client gave up (`CONNECT_TIMEOUT` after 30s in Claude Code). #811 turns the in-server consent off for stdio. With `AUTH_METHOD=oauth`, the server starts without Google services, and every tool raises the authorize instructions.
+
+**Setup**
+- An OAuth client JSON (`CREDENTIALS_PATH`). No user token is needed; any client JSON works, since no consent runs.
+- A `TOKEN_PATH` that does not exist.
+
+**Action**
+Run the server under a real MCP stdio client (e.g. the `mcp` SDK's `stdio_client` + `ClientSession`), with `DEBUG_LEVEL=DEBUG` and `LOG_FILE=<tmp log>`:
+
+```
+AUTH_METHOD=oauth
+TOKEN_PATH=<nonexistent path>
+CREDENTIALS_PATH=<oauth client json>
+BROWSER=/usr/bin/true
+```
+
+Then call `list_spreadsheets` with `max_results: 1`, and read `server://auth-status`.
+
+**Checks**
+- `initialize` completes within a few seconds, with no browser window and no `Please visit` text (the stdio stream stays valid JSON-RPC)
+- `list_spreadsheets` returns an error result whose text says there's no usable OAuth token at `<nonexistent path>`, and tells you to run `mcp-gee-sweet auth` (and `uvx mcp-gee-sweet auth` for a PyPI install) with the same `TOKEN_PATH`/`CREDENTIALS_PATH`/`ENABLED_TOOLS`, then restart
+- `auth-status` reports `auth_method: "none"`, `limited_tools: ["*"]`, and one `oauth_not_authorized` limitation
+- `<tmp log>` has a `WARNING ... Starting without Google access:` line and a `"TOOL list_spreadsheets" 401` access line
+- `<nonexistent path>` still does not exist
+
+**Cleanup:** delete the temp log.
+
+---
+
+### TC-I36: stdio waterfall with no token falls through to a service account, and starts without access only if nothing else works (issue #811) ⚠️ local-filesystem
+
+**Background:** in the waterfall, OAuth needing consent is a reason to try the service account and ADC, not to fail. If neither is available, the OAuth client JSON on disk shows OAuth was the intended method, so the server starts without access and reports the OAuth instructions, rather than failing with "All authentication methods failed" (which a stdio client would only see as `Connection closed`).
+
+**Setup:** same as TC-I35, plus the team service-account key file for run 1.
+
+**Action**
+Run 1 (`AUTH_METHOD` unset, `SERVICE_ACCOUNT_PATH=<SA key>`): call `list_spreadsheets` with `max_results: 1`, then read `server://auth-status`.
+Run 2 (`AUTH_METHOD` unset, `SERVICE_ACCOUNT_PATH=<nonexistent>`, `CREDENTIALS_CONFIG` empty, `GOOGLE_APPLICATION_CREDENTIALS=<nonexistent>`): same calls.
+
+**Checks**
+- Run 1: `list_spreadsheets` returns a normal result; `auth-status` reports `auth_method: "service_account"`; the log has `Waterfall: OAuth needs consent` then `Waterfall: using service account`
+- Run 2: same outcome as TC-I35 (error result with the `mcp-gee-sweet auth` instructions, `auth_method: "none"`)
+- Neither run shows a browser window or a `Please visit` prompt
+
+**Cleanup:** none.
+
+---
+
+### TC-I37: `mcp-gee-sweet auth` writes a token a stdio server then uses (issue #811) ⚠️ requires-oauth ⚠️ local-filesystem
+
+**Background:** `scripts/oauth_setup.py` isn't in the wheel, so a PyPI/`uvx` user had no way to authorize except restarting the server and completing a consent flow they might not see. #811 adds the `mcp-gee-sweet auth` subcommand. It runs the consent for the scopes the registered tools need and overwrites `TOKEN_PATH`.
+
+**Setup**
+- The team OAuth client JSON (`CREDENTIALS_PATH`) and a scratch `TOKEN_PATH` that does not exist yet.
+- Playwright to complete the consent page (see `docs/qa/playwright_oauth.md`), respecting the Playwright mutex in `docs/qa/run.md`.
+
+**Action**
+1. In a terminal: `TOKEN_PATH=<scratch> CREDENTIALS_PATH=<client json> ENABLED_TOOLS=list_spreadsheets uv run mcp-gee-sweet auth --no-browser`
+2. Navigate Playwright to the printed URL and complete the consent.
+3. Start a stdio server with the same three env vars and `AUTH_METHOD=oauth`; call `list_spreadsheets` with `max_results: 1`.
+
+**Checks**
+- Step 1 prints `Credentials :`, `Token target:` and `Scopes :` lines. The scopes are the four base scopes only, with no `gmail.modify` (the `ENABLED_TOOLS` filter narrows them), followed by a `Please visit this URL` line with an `accounts.google.com` URL
+- After consent, the command prints `Saved the token to <scratch>` and exits 0; `<scratch>` exists and its `scopes` list the four base scopes
+- Step 3's `list_spreadsheets` returns a normal result, and `auth-status` reports `auth_method: "oauth"`
+- With a nonexistent `CREDENTIALS_PATH`, `mcp-gee-sweet auth` exits 1 with `ERROR: ... not found` on stderr
+
+**Cleanup:** delete `<scratch>`, and revoke the scratch grant at https://myaccount.google.com/permissions if it created a separate entry.
+
+---
+
+### TC-I38: over SSE, a missing token still runs the consent flow, with its prompt on stderr only (issue #811) ⚠️ local-filesystem
+
+**Background:** an SSE server has no protocol traffic on stdout, but #811 still moves the consent prompt to stderr, and bounds the wait at 5 minutes (`_CONSENT_TIMEOUT_SECONDS`). On a timeout, the server starts without access, the same way TC-I35 does.
+
+**Setup:** same as TC-I35.
+
+**Action**
+Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PATH=<nonexistent>`, `CREDENTIALS_PATH=<client json>`, `BROWSER=/usr/bin/true`, `PORT=<free port>`, `PYTHONUNBUFFERED=1`, with stdout and stderr redirected to separate files. Open `http://127.0.0.1:<port>/sse` to trigger the lifespan, wait a few seconds, then kill the process group (`SIGKILL`: SIGTERM doesn't interrupt the synchronous consent wait).
+
+**Checks**
+- The stdout file is empty
+- The stderr file contains `Please visit this URL to authorize this application: https://accounts.google.com/...`
+
+**Cleanup:** make sure nothing is still listening on `<port>` (`lsof -i :<port>`).

@@ -2,8 +2,9 @@ import base64
 import json
 import logging
 import os
+import sys
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, redirect_stdout
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -12,7 +13,7 @@ from google.auth import compute_engine, external_account, impersonated_credentia
 from google.auth.transport.requests import Request
 from google.oauth2 import gdch_credentials, service_account
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import InstalledAppFlow, WSGITimeoutError
 from mcp.server.mcpserver import MCPServer
 
 from .cache import (
@@ -41,7 +42,7 @@ BASE_SCOPES = [
 # were redundant (#790).
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 # Every scope any tool can need — what a default install (no ENABLED_TOOLS filter)
-# requests, and what scripts/oauth_setup.py authorizes up front.
+# requests, and what `mcp-gee-sweet auth` authorizes by default.
 SCOPES = BASE_SCOPES + GMAIL_SCOPES
 
 # Whether any Gmail tool is registered. server.py sets this once registration is done
@@ -67,11 +68,43 @@ def get_gmail_unauthorized_message() -> str | None:
     return _gmail_unauthorized_message
 
 
+# Whether _oauth_creds may run the interactive consent flow when there's no usable
+# token. server.main() turns it off for stdio (#811): there the flow blocked startup
+# with no timeout, and google-auth-oauthlib print()s its "Please visit this URL"
+# prompt to stdout, which is the JSON-RPC channel, so the user never saw it.
+_interactive_consent = True
+
+
+def set_interactive_consent(allowed: bool) -> None:
+    global _interactive_consent
+    _interactive_consent = allowed
+
+
+# How long the interactive flow waits for the browser callback before giving up.
+_CONSENT_TIMEOUT_SECONDS = 300
+
+# Set by spreadsheet_lifespan when OAuth needs consent it couldn't get (stdio, or the
+# flow timed out): the server still starts, with no Google services, and every tool
+# raises this message instead of running. It's the Gmail-only degrade from #790
+# widened to the whole server, for the same reason: a startup failure is invisible
+# to a stdio client.
+_oauth_unauthorized_message: str | None = None
+
+
+def get_oauth_unauthorized_message() -> str | None:
+    return _oauth_unauthorized_message
+
+
 def required_scopes() -> list[str]:
     """The scopes the registered tools actually need: Gmail's are requested only
     when a Gmail tool is registered, so an ENABLED_TOOLS filter that leaves Gmail
     out never asks for mailbox access (#790)."""
     return SCOPES if _gmail_enabled else BASE_SCOPES
+
+
+class OAuthConsentRequiredError(RuntimeError):
+    """There's no usable OAuth token, and the interactive consent flow can't run here
+    (stdio transport) or wasn't completed in time (#811)."""
 
 
 class MissingOAuthScopesError(RuntimeError):
@@ -166,8 +199,19 @@ def _missing_scopes_message(missing: list[str]) -> str:
     )
     return (
         f"The OAuth token at {TOKEN_PATH!r} wasn't authorized for scope(s) the "
-        f"enabled tools require: {', '.join(missing)}. Delete {TOKEN_PATH!r} and "
-        f"restart the server (or run scripts/oauth_setup.py) to re-authorize.{gmail_hint}"
+        f"enabled tools require: {', '.join(missing)}. {reauthorize_instructions()}"
+        f"{gmail_hint}"
+    )
+
+
+def reauthorize_instructions() -> str:
+    """How to (re-)authorize: `mcp-gee-sweet auth`, run with the same settings as this
+    server so it writes the token the server reads and requests the scopes its tools
+    need."""
+    return (
+        "To authorize, run `mcp-gee-sweet auth` in a terminal (`uvx mcp-gee-sweet auth` "
+        f"for a PyPI install) with the same TOKEN_PATH ({TOKEN_PATH!r}), CREDENTIALS_PATH "
+        f"({CREDENTIALS_PATH!r}) and ENABLED_TOOLS as this server, then restart the server."
     )
 
 
@@ -239,17 +283,61 @@ def _oauth_creds() -> Credentials:
             creds = None
 
     if not creds or not creds.valid:
-        if not os.path.exists(CREDENTIALS_PATH):
-            raise RuntimeError(
-                f"{CREDENTIALS_PATH!r} not found. Set CREDENTIALS_PATH or provide credentials.json."
+        _check_client_secrets()
+        if not _interactive_consent:
+            raise OAuthConsentRequiredError(
+                f"No usable OAuth token at {TOKEN_PATH!r}, and this server can't ask for "
+                f"consent itself over the stdio transport. {reauthorize_instructions()}"
             )
-        flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, scopes)
-        creds = flow.run_local_server(port=0)
-        with open(TOKEN_PATH, "w") as f:
-            f.write(creds.to_json())
-        logger.debug("OAuth flow completed successfully")
+        # Even outside stdio, stdout is no place for the prompt: send it to stderr,
+        # and bound the wait so an unattended server doesn't block forever (#811).
+        try:
+            with redirect_stdout(sys.stderr):
+                creds = run_consent_flow(scopes, timeout_seconds=_CONSENT_TIMEOUT_SECONDS)
+        except WSGITimeoutError as e:
+            raise OAuthConsentRequiredError(
+                f"No usable OAuth token at {TOKEN_PATH!r}, and the browser consent wasn't "
+                f"completed within {_CONSENT_TIMEOUT_SECONDS}s. {reauthorize_instructions()}"
+            ) from e
 
     return creds
+
+
+def _check_client_secrets() -> None:
+    if not os.path.exists(CREDENTIALS_PATH):
+        raise RuntimeError(
+            f"{CREDENTIALS_PATH!r} not found. Set CREDENTIALS_PATH or provide credentials.json."
+        )
+
+
+def run_consent_flow(scopes: list[str], **run_kwargs: Any) -> Credentials:
+    """Run the browser consent flow for `scopes` and save the token to TOKEN_PATH.
+    `run_kwargs` go to InstalledAppFlow.run_local_server."""
+    _check_client_secrets()
+    flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, scopes)
+    creds = flow.run_local_server(port=0, **run_kwargs)
+    with open(TOKEN_PATH, "w") as f:
+        f.write(creds.to_json())
+    logger.debug("OAuth flow completed successfully")
+    return creds
+
+
+def run_auth_command(open_browser: bool = True) -> int:
+    """`mcp-gee-sweet auth`: (re-)authorize from a terminal, overwriting any existing
+    token, so a stdio or PyPI install has a way to recover (#811). Requests the scopes
+    the registered tools need, the same set the server checks the token against."""
+    scopes = required_scopes()
+    print(f"Credentials : {CREDENTIALS_PATH}")
+    print(f"Token target: {TOKEN_PATH}")
+    print(f"Scopes      : {', '.join(scopes)}")
+    print()
+    try:
+        run_consent_flow(scopes, open_browser=open_browser)
+    except RuntimeError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+    print(f"\nSaved the token to {TOKEN_PATH}. Restart the server to pick it up.")
+    return 0
 
 
 def _refresh_without_gmail(info: dict | None, attempted: list[str]) -> Credentials | None:
@@ -271,6 +359,13 @@ def _refresh_without_gmail(info: dict | None, attempted: list[str]) -> Credentia
     # scope record, so re-authorizing later is a plain delete-and-restart.
     _degrade_gmail(gmail)
     return creds
+
+
+def _degrade_unauthorized(error: OAuthConsentRequiredError) -> None:
+    global _oauth_unauthorized_message
+    _oauth_unauthorized_message = str(error)
+    # Logged as well: stdio hosts drop stderr, so LOG_FILE is where an operator sees it.
+    logger.warning("Starting without Google access: %s", _oauth_unauthorized_message)
 
 
 def _service_account_creds() -> service_account.Credentials:
@@ -306,13 +401,19 @@ def get_lifespan_context() -> SpreadsheetContext:
 async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetContext]:
     from googleapiclient.discovery import build
 
+    global _lifespan_context, _oauth_unauthorized_message
+    _oauth_unauthorized_message = None
     logger.debug("AUTH_METHOD=%s", AUTH_METHOD or "auto (waterfall)")
 
     # --- Strict override modes (AUTH_METHOD set explicitly) ---
 
     if AUTH_METHOD == "oauth":
-        creds = _oauth_creds()
-        resolved = "oauth"
+        try:
+            creds = _oauth_creds()
+            resolved = "oauth"
+        except OAuthConsentRequiredError as e:
+            creds = None
+            _degrade_unauthorized(e)
 
     elif AUTH_METHOD == "service_account":
         creds = _service_account_creds()
@@ -336,6 +437,7 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
     else:
         creds = None
         resolved = "unknown"
+        consent_required = None
 
         # 1. OAuth
         try:
@@ -344,6 +446,9 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
             logger.debug("Waterfall: using OAuth")
         except MissingOAuthScopesError:
             raise
+        except OAuthConsentRequiredError as e:
+            consent_required = e
+            logger.debug("Waterfall: OAuth needs consent (%s), trying service account", e)
         except Exception as e:
             logger.debug("Waterfall: OAuth unavailable (%s), trying service account", e)
 
@@ -362,9 +467,35 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
                 resolved = "adc"
                 logger.debug("Waterfall: using ADC for project: %s", project)
             except Exception as e:
-                raise RuntimeError(
-                    "All authentication methods failed. Please configure credentials."
-                ) from e
+                # OAuth client secrets on disk mean OAuth was the intended method, so
+                # start without Google access and report how to authorize, rather than
+                # failing startup where a stdio client can't show why.
+                if consent_required is None:
+                    raise RuntimeError(
+                        "All authentication methods failed. Please configure credentials."
+                    ) from e
+                logger.debug("Waterfall: ADC unavailable (%s)", e)
+                _degrade_unauthorized(consent_required)
+
+    if creds is None:
+        # Degraded start: no services to build. server.py's tool wrapper raises
+        # get_oauth_unauthorized_message() before any tool body can reach them.
+        context = SpreadsheetContext(
+            sheets_service=None,
+            drive_service=None,
+            docs_service=None,
+            calendar_service=None,
+            activity_service=None,
+            gmail_service=None,
+            folder_id=DRIVE_FOLDER_ID if DRIVE_FOLDER_ID else None,
+            auth_method="none",
+        )
+        _lifespan_context = context
+        try:
+            yield context
+        finally:
+            _lifespan_context = None
+        return
 
     logger.debug("Auth resolved: %s", resolved)
     is_service_account_identity = _is_service_account_credential(creds)
@@ -379,7 +510,6 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
     activity_service = build("driveactivity", "v2", credentials=creds, cache_discovery=False)
     gmail_service = build("gmail", "v1", credentials=creds, cache_discovery=False)
 
-    global _lifespan_context
     context = SpreadsheetContext(
         sheets_service=sheets_service,
         drive_service=drive_service,

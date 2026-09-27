@@ -329,7 +329,7 @@ class TestOAuthScopeCheck:
         message = auth_module.get_gmail_unauthorized_message()
         assert message is not None
         assert "gmail.modify" in message
-        assert "Delete" in message and "token.json" in message
+        assert "mcp-gee-sweet auth" in message and "token.json" in message
         assert "ENABLED_TOOLS" in message  # the no-Gmail way out
 
     def test_lifespan_starts_on_gmail_only_shortfall(self, monkeypatch, tmp_path):
@@ -705,3 +705,178 @@ class TestGetLifespanContext:
 
         with pytest.raises(RuntimeError, match="has not started"):
             get_lifespan_context()
+
+
+# ---------------------------------------------------------------------------
+# #811: no usable token under stdio (or an unfinished consent) degrades instead of
+# blocking startup on a consent flow whose prompt went to the protocol channel.
+# ---------------------------------------------------------------------------
+
+
+class TestConsentRequired:
+    def _setup(self, monkeypatch, tmp_path):
+        token_path = tmp_path / "token.json"  # does not exist
+        creds_path = tmp_path / "credentials.json"
+        creds_path.write_text("{}")
+        monkeypatch.setattr(auth_module, "TOKEN_PATH", str(token_path))
+        monkeypatch.setattr(auth_module, "CREDENTIALS_PATH", str(creds_path))
+        return token_path
+
+    def test_stdio_no_token_raises_without_running_flow(self, monkeypatch, tmp_path):
+        self._setup(monkeypatch, tmp_path)
+        auth_module.set_interactive_consent(False)
+        with (
+            patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file") as flow,
+            pytest.raises(auth_module.OAuthConsentRequiredError, match="mcp-gee-sweet auth"),
+        ):
+            _oauth_creds()
+        flow.assert_not_called()
+
+    def test_stdio_failed_refresh_raises_without_running_flow(self, monkeypatch, tmp_path):
+        # An expired token whose refresh fails (e.g. invalid_grant) used to fall
+        # through to the consent flow — the same hang, reached from a token on disk.
+        token_path = self._setup(monkeypatch, tmp_path)
+        token_path.write_text(json.dumps({"token": "old"}))
+        auth_module.set_interactive_consent(False)
+        stale = MagicMock(expired=True, refresh_token="r")
+        stale.refresh.side_effect = Exception("invalid_grant")
+        with (
+            patch("mcp_gee_sweet.auth.Credentials.from_authorized_user_info", return_value=stale),
+            patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file") as flow,
+            pytest.raises(auth_module.OAuthConsentRequiredError),
+        ):
+            _oauth_creds()
+        flow.assert_not_called()
+
+    def test_stdio_missing_client_secrets_still_reports_not_found(self, monkeypatch, tmp_path):
+        # No client secrets means OAuth isn't configured at all: a plain failure the
+        # waterfall moves past, not a consent problem.
+        monkeypatch.setattr(auth_module, "TOKEN_PATH", str(tmp_path / "token.json"))
+        monkeypatch.setattr(auth_module, "CREDENTIALS_PATH", str(tmp_path / "missing.json"))
+        auth_module.set_interactive_consent(False)
+        with pytest.raises(RuntimeError, match="not found") as exc:
+            _oauth_creds()
+        assert not isinstance(exc.value, auth_module.OAuthConsentRequiredError)
+
+    def test_interactive_flow_is_bounded_and_prompts_on_stderr(self, monkeypatch, tmp_path, capsys):
+        token_path = self._setup(monkeypatch, tmp_path)
+        fresh = MagicMock()
+        fresh.to_json.return_value = json.dumps({"token": "new"})
+
+        def _run_local_server(**kwargs):
+            print("Please visit this URL to authorize this application: https://x")
+            return fresh
+
+        mock_flow = MagicMock()
+        mock_flow.run_local_server.side_effect = _run_local_server
+        with patch(
+            "mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file", return_value=mock_flow
+        ):
+            assert _oauth_creds() is fresh
+        kwargs = mock_flow.run_local_server.call_args.kwargs
+        assert kwargs["timeout_seconds"] == auth_module._CONSENT_TIMEOUT_SECONDS
+        out, err = capsys.readouterr()
+        assert "Please visit" not in out
+        assert "Please visit" in err
+        assert token_path.exists()
+
+    def test_interactive_flow_timeout_raises_consent_required(self, monkeypatch, tmp_path):
+        self._setup(monkeypatch, tmp_path)
+        mock_flow = MagicMock()
+        mock_flow.run_local_server.side_effect = auth_module.WSGITimeoutError("timed out")
+        with (
+            patch(
+                "mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file",
+                return_value=mock_flow,
+            ),
+            pytest.raises(auth_module.OAuthConsentRequiredError, match="within 300s"),
+        ):
+            _oauth_creds()
+
+
+class TestLifespanDegradesOnConsentRequired:
+    _consent = auth_module.OAuthConsentRequiredError("run mcp-gee-sweet auth")
+
+    def test_pinned_oauth_starts_without_services(self, monkeypatch):
+        build = MagicMock()
+        monkeypatch.setattr(auth_module, "AUTH_METHOD", "oauth")
+        with (
+            patch("mcp_gee_sweet.auth._oauth_creds", side_effect=self._consent),
+            patch("googleapiclient.discovery.build", build),
+        ):
+
+            async def _run():
+                async with spreadsheet_lifespan(MagicMock()) as ctx:
+                    assert get_lifespan_context() is ctx
+                    return ctx
+
+            ctx = asyncio.run(_run())
+        assert ctx.auth_method == "none"
+        assert ctx.sheets_service is None and ctx.gmail_service is None
+        build.assert_not_called()
+        assert auth_module.get_oauth_unauthorized_message() == "run mcp-gee-sweet auth"
+        with pytest.raises(RuntimeError, match="has not started"):
+            get_lifespan_context()
+
+    def test_waterfall_consent_required_still_falls_through_to_service_account(self, monkeypatch):
+        ctx = _run_lifespan(
+            monkeypatch,
+            None,
+            MagicMock(side_effect=self._consent),
+            MagicMock(return_value=MagicMock()),
+            MagicMock(side_effect=Exception("should not call")),
+        )
+        assert ctx.auth_method == "service_account"
+        assert auth_module.get_oauth_unauthorized_message() is None
+
+    def test_waterfall_consent_required_with_nothing_else_degrades(self, monkeypatch):
+        ctx = _run_lifespan(
+            monkeypatch,
+            None,
+            MagicMock(side_effect=self._consent),
+            MagicMock(return_value=None),
+            MagicMock(side_effect=Exception("no ADC")),
+        )
+        assert ctx.auth_method == "none"
+        assert auth_module.get_oauth_unauthorized_message() == "run mcp-gee-sweet auth"
+
+    def test_next_lifespan_clears_a_stale_degrade(self, monkeypatch):
+        monkeypatch.setattr(auth_module, "_oauth_unauthorized_message", "stale")
+        ctx = _run_lifespan(
+            monkeypatch,
+            "oauth",
+            MagicMock(return_value=MagicMock()),
+            MagicMock(),
+            MagicMock(),
+        )
+        assert ctx.auth_method == "oauth"
+        assert auth_module.get_oauth_unauthorized_message() is None
+
+
+class TestRunAuthCommand:
+    def test_runs_flow_for_required_scopes_and_saves_token(self, monkeypatch, tmp_path, capsys):
+        token_path = tmp_path / "token.json"
+        token_path.write_text(json.dumps({"token": "old"}))  # overwritten, not reused
+        creds_path = tmp_path / "credentials.json"
+        creds_path.write_text("{}")
+        monkeypatch.setattr(auth_module, "TOKEN_PATH", str(token_path))
+        monkeypatch.setattr(auth_module, "CREDENTIALS_PATH", str(creds_path))
+        monkeypatch.setattr(auth_module, "_gmail_enabled", False)
+        fresh = MagicMock()
+        fresh.to_json.return_value = json.dumps({"token": "new"})
+        mock_flow = MagicMock()
+        mock_flow.run_local_server.return_value = fresh
+        with patch(
+            "mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file", return_value=mock_flow
+        ) as m:
+            assert auth_module.run_auth_command(open_browser=False) == 0
+        m.assert_called_once_with(str(creds_path), auth_module.BASE_SCOPES)
+        assert mock_flow.run_local_server.call_args.kwargs["open_browser"] is False
+        assert json.loads(token_path.read_text())["token"] == "new"
+        assert str(token_path) in capsys.readouterr().out
+
+    def test_missing_client_secrets_exits_nonzero(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.setattr(auth_module, "TOKEN_PATH", str(tmp_path / "token.json"))
+        monkeypatch.setattr(auth_module, "CREDENTIALS_PATH", str(tmp_path / "missing.json"))
+        assert auth_module.run_auth_command() == 1
+        assert "not found" in capsys.readouterr().err

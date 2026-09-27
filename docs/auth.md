@@ -33,20 +33,33 @@ Best for headless or automated environments. Credentials don't expire.
 
 ## Method B: OAuth 2.0 (personal use / local dev)
 
-Authenticates as you — gives full access to your personal Drive. Requires a browser login on first run.
+Authenticates as you — gives full access to your personal Drive. Requires a one-time browser login.
 
 1. Configure an OAuth consent screen in GCP Console → APIs & Services → OAuth consent screen.
 2. Create an OAuth Client ID credential (type: Desktop app) and download the JSON.
 3. Set environment variables:
    - `CREDENTIALS_PATH` — path to the downloaded OAuth JSON (default: `credentials.json`)
-   - `TOKEN_PATH` — where the refresh token is stored after login (default: `token.json`)
+   - `TOKEN_PATH` — where the refresh token is stored after login (default: `token.json`). Use an absolute path: the default is relative to the working directory, and an MCP client may start the server somewhere other than your shell's directory.
+4. Log in once from a terminal, with the same `CREDENTIALS_PATH`, `TOKEN_PATH` and `ENABLED_TOOLS` the server will use:
+
+   ```bash
+   mcp-gee-sweet auth              # cloned repo: uv run mcp-gee-sweet auth
+   uvx mcp-gee-sweet auth          # PyPI install
+   mcp-gee-sweet auth --no-browser # print the URL instead of opening a browser
+   ```
+
+   This opens the Google consent page, waits for you to finish, and writes the token to `TOKEN_PATH`, replacing any token already there. It requests the scopes the registered tools need, so `--include-tools` / `ENABLED_TOOLS` narrow it the same way they narrow the server.
+
+**Without a usable token, a stdio server doesn't open a browser itself.** Under stdio, stdout is the protocol channel and the client gives up on a slow start, so the server can't show a consent prompt. It starts without Google access instead: every tool returns an error with the `mcp-gee-sweet auth` instructions, and `server://auth-status` reports `auth_method: "none"` with an `oauth_not_authorized` limitation. In the waterfall, the server first tries a service account and ADC, and only starts without access if neither is available. Run `mcp-gee-sweet auth`, then restart the server. An expired token whose refresh fails (for example, a revoked refresh token) is handled the same way.
+
+Over SSE, the server still runs the browser consent itself when there's no usable token. The prompt goes to stderr, and the server waits at most 5 minutes; if consent isn't finished by then, it starts without Google access as described above.
 
 **Re-authenticating after a scope change:** at startup the server checks that the saved token was authorized for every scope the registered tools need. It never opens a browser to fix a shortfall on its own. What happens depends on which scope is missing:
 
 - **Only the Gmail scope is missing** (for example, a token from before the Gmail tools existed): the server starts normally and Sheets, Drive, Docs, Calendar and activity tools keep working. Every Gmail tool returns an error naming the missing scope and how to re-authorize, and `server://auth-status` lists the Gmail tools under a `gmail_not_authorized` limitation.
 - **Any other scope is missing:** startup stops with an error naming the missing scopes. Most tools can't work without them. (Under a stdio client this error goes to stderr, which the client usually doesn't show; the client just reports that the connection closed. Set `DEBUG_LEVEL` and `LOG_FILE` to capture it in a file.)
 
-Either way, delete `token.json` and restart the server (or run `scripts/oauth_setup.py`) to re-authorize.
+Either way, run `mcp-gee-sweet auth` (see step 4 above) and restart the server to re-authorize.
 
 **Gmail scope is only requested when a Gmail tool is registered.** With no `ENABLED_TOOLS` filter every tool is registered, so the server asks for `gmail.modify` (read, compose, send, label, trash). If you don't want to grant mailbox access, leave the Gmail tools out of `ENABLED_TOOLS` / `--include-tools`. The server then neither requests nor requires the Gmail scope, and an existing pre-Gmail token keeps working.
 
