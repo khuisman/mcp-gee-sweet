@@ -164,6 +164,8 @@ Record the printed ID as `{LARGE_CHARSET_ID}`. (Python's `MIMEText` emits the `s
 
 **Cleanup:** `trash_message` with `message_id: "{LARGE_CHARSET_ID}"`. Delete `{OUT_DIR}`. Leave the seeded `large-body` fixture in place.
 
+**Result** (2026-09-26, PR #829 round 1 at `e30c2d1`, `mcp-gee-sweet-kit`, OAuth token with `gmail.modify`): **PASS** on every listed check. Step 1: size-cap error naming `get_message`, 6,190,675 characters, and `Pass local_path`. Step 2: manifest `{local_path, bytes_written: 6190675, message_id}`, file named `message_{TEST_GMAIL_LARGE_ID}.json`. `body_plain` is 3,000,002 characters and `body_html` is 3,037,987 characters, both with the expected prefixes. `attachments` = `[]`, no error keys. The thread ID equals the message ID. Step 3: size-cap error naming `get_thread`, 6,190,757 characters. Step 4: `message_count` = 1, and the file's `body_plain` is 3,000,002 characters. Step 5: `body_plain` (2,970,000 characters) starts `Café crème brûlée TC-GM29.` and `body_html` (4,200,000 characters) starts `<p>こんにちは TC-GM29</p>`. Neither contains `Ã` or `�`, and `attachments` = `[]`. Step 6: `mcp-qa.pdf` and `mcp-qa.csv` are both still listed, with `attachment_id`s. Charset fixture trashed and `{OUT_DIR}` deleted. The PR still went back to the Dev for code-review findings that this case doesn't exercise (fetch-failure reporting, concurrency, charset mislabels, the manifest omitting errors). See the PR #829 comment.
+
 ---
 
 ## `list_threads`
