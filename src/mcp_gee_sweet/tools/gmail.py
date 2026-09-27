@@ -159,6 +159,52 @@ _CHARSET_ALIASES = {"ascii": "utf-8", "iso8859-1": "cp1252"}
 _BODY_FETCH_CONCURRENCY = 4
 
 
+def _codec_for(charset: str) -> str:
+    """The codec a declared charset decodes with: its normalized codecs.lookup() name,
+    remapped via _CHARSET_ALIASES, or UTF-8 for an unknown name."""
+    try:
+        codec = codecs.lookup(charset).name
+    except LookupError:
+        return "utf-8"
+    return _CHARSET_ALIASES.get(codec, codec)
+
+
+# Codecs where every encoded byte serializes to at least one JSON character (#825,
+# PR #829 QA round 2): ASCII-compatible and stateless, so an ASCII byte decodes to one
+# character and every multi-byte sequence (or invalid byte) to a non-ASCII one, which
+# json.dumps escapes to 6+ characters. That makes a part's byte size a lower bound on
+# its serialized size. Deliberately excluded: UTF-16/32 (2-4 bytes per ASCII
+# character), and stateful codecs whose escape/shift sequences decode to nothing
+# (UTF-7, iso-2022-*, hz). Anything not listed is simply left out of the bound.
+_SIZE_FLOOR_CODEC_PREFIXES = ("cp", "iso8859-", "koi8-", "mac-")
+_SIZE_FLOOR_CODECS = frozenset(
+    {
+        "utf-8",
+        "tis-620",
+        "hp-roman8",
+        "kz1048",
+        "ptcp154",
+        "big5",
+        "big5hkscs",
+        "euc_jp",
+        "euc_jis_2004",
+        "euc_jisx0213",
+        "euc_kr",
+        "gb2312",
+        "gbk",
+        "gb18030",
+        "johab",
+        "shift_jis",
+        "shift_jis_2004",
+        "shift_jisx0213",
+    }
+)
+
+
+def _bytes_bound_serialized_size(codec: str) -> bool:
+    return codec in _SIZE_FLOOR_CODECS or codec.startswith(_SIZE_FLOOR_CODEC_PREFIXES)
+
+
 def _decode_body_data(data: str | None, charset: str = "utf-8") -> str:
     """Decode a Gmail base64url body string to text.
 
@@ -181,12 +227,7 @@ def _decode_body_data(data: str | None, charset: str = "utf-8") -> str:
     cleaned = _B64URL_NON_ALPHABET.sub("", data)
     raw = base64.urlsafe_b64decode(cleaned + "=" * (-len(cleaned) % 4))
     try:
-        codec = codecs.lookup(charset).name
-    except LookupError:
-        codec = "utf-8"
-    codec = _CHARSET_ALIASES.get(codec, codec)
-    try:
-        return raw.decode(codec, errors="replace")
+        return raw.decode(_codec_for(charset), errors="replace")
     except (LookupError, UnicodeError):
         # LookupError: a codec that isn't a text encoding (e.g. "base64").
         # UnicodeError: a codec that rejects errors="replace" (e.g. "idna").
@@ -387,13 +428,21 @@ def _start_shaping(msg: dict[str, Any], *, include_body: bool = True) -> _Pendin
 
 
 def _deferred_body_bytes(pending: list[_PendingMessage]) -> int:
-    """Total decoded size of every not-yet-fetched body.
+    """A lower bound on the serialized size of every not-yet-fetched body.
 
-    A lower bound on those bodies' serialized size: json.dumps escapes non-ASCII,
-    so every byte of body text serializes to at least one character. Lets a caller
-    reject an over-cap response before downloading anything (#825 review).
+    Sums the encoded byte size of each part whose codec guarantees at least one JSON
+    character per byte (_bytes_bound_serialized_size); any other part counts as 0.
+    Lets a caller reject an over-cap response before downloading anything (#825
+    review). Undercounting only skips this early exit: the post-fetch cap check
+    still applies.
     """
-    return sum(d.size for p in pending if p.parts for d in p.parts.deferred_bodies)
+    return sum(
+        d.size
+        for p in pending
+        if p.parts
+        for d in p.parts.deferred_bodies
+        if _bytes_bound_serialized_size(_codec_for(d.charset))
+    )
 
 
 async def _finish_shaping(

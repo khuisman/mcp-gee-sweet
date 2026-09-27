@@ -2,8 +2,12 @@
 
 import base64
 import binascii
+import codecs
+import contextlib
+import encodings.aliases
 import inspect
 import json
+import random
 import threading
 import time
 from email import message_from_bytes
@@ -721,6 +725,47 @@ class TestMessageSizeCap:
         attachments = gmail_svc.users.return_value.messages.return_value.attachments
         attachments.return_value.get.assert_not_called()
 
+    @pytest.mark.parametrize(
+        ("charset", "text"),
+        [
+            ("utf-16", "plain ascii body " * 60),
+            ("utf-32", "plain ascii body " * 60),
+            # Alternating scripts force an escape sequence around every character.
+            ("iso-2022-jp", "a\u6f22" * 600),
+        ],
+        ids=["utf-16", "utf-32", "iso-2022-jp"],
+    )
+    async def test_floor_ignores_codecs_whose_bytes_overstate_size(
+        self, monkeypatch, charset, text
+    ):
+        # PR #829 QA round 2: body.size counts bytes in the part's own charset, which
+        # for these codecs exceeds the serialized size, so the floor must not use it.
+        from mcp_gee_sweet.tools import response_limits
+
+        raw = text.encode(charset)
+
+        def service():
+            return _gmail_with_attachments(
+                _message(
+                    "m1", _deferred_part("text/plain", "att-1", charset=charset, size=len(raw))
+                ),
+                {"att-1": _b64(raw)},
+            )
+
+        full = await _gmail_tools["get_message"](
+            message_id="m1", ctx=_make_ctx(gmail_service=service())
+        )
+        assert full["body_plain"] == text
+        serialized = len(json.dumps(full))
+        assert len(raw) > serialized  # the regression's precondition
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", serialized)
+
+        result = await _gmail_tools["get_message"](
+            message_id="m1", ctx=_make_ctx(gmail_service=service())
+        )
+
+        assert result["body_plain"] == text
+
     async def test_post_fetch_cap_still_applies_when_size_underreported(self, small_cap):
         gmail_svc = _gmail_with_attachments(
             _message("m1", _deferred_part("text/plain", "att-1", size=10)),
@@ -810,6 +855,50 @@ class TestMessageSizeCap:
         assert result["thread_id"] == "t1"
         assert result["message_count"] == 1
         assert json.loads(dest.read_text())["messages"][0]["body_plain"] == "x" * 500
+
+
+class TestSizeFloorCodecs:
+    """PR #829 QA round 2: _deferred_body_bytes may count a part's byte size only
+    when its codec guarantees at least one serialized JSON character per byte."""
+
+    @staticmethod
+    def _counted_codecs() -> list[str]:
+        names = set()
+        for alias in set(encodings.aliases.aliases.values()):
+            try:
+                names.add(codecs.lookup(alias).name)
+            except LookupError:
+                continue
+        return sorted(n for n in names if gmail_module._bytes_bound_serialized_size(n))
+
+    def test_every_counted_codec_serializes_at_least_one_char_per_byte(self):
+        rng = random.Random(825)
+        blobs = [bytes(rng.randrange(256) for _ in range(2000)) for _ in range(5)]
+        blobs.append(bytes(range(256)) * 4)
+        texts = [
+            "Hello, world\n",
+            "Caf\u00e9 \u201cq\u201d \u20ac",
+            "\u3053\u3093\u306b\u3061\u306f",
+            "\u041f\u0440\u0438",
+        ]
+        counted = self._counted_codecs()
+        assert "utf-8" in counted and "cp1252" in counted and "shift_jis" in counted
+        for codec in counted:
+            samples = list(blobs)
+            for text in texts:
+                with contextlib.suppress(UnicodeEncodeError):
+                    samples.append(text.encode(codec) * 20)
+            for raw in samples:
+                decoded = raw.decode(codec, errors="replace")
+                assert len(json.dumps(decoded)) - 2 >= len(raw), codec
+
+    @pytest.mark.parametrize(
+        "charset",
+        ["utf-16", "utf-16-le", "utf-32", "utf-7", "iso-2022-jp", "iso-2022-kr", "hz", "idna"],
+    )
+    def test_wide_and_stateful_codecs_are_not_counted(self, charset):
+        codec = gmail_module._codec_for(charset)
+        assert not gmail_module._bytes_bound_serialized_size(codec)
 
 
 class TestListThreads:
