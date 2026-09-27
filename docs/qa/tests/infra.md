@@ -775,7 +775,7 @@ Token copy: `calendar` removed from `scopes` (`spreadsheets`, `drive`, `drive.ac
 
 **Setup**
 - An OAuth client JSON (`CREDENTIALS_PATH`). No user token is needed; any client JSON works, since no consent runs.
-- A `TOKEN_PATH` that does not exist.
+- A `TOKEN_PATH` that does not exist, in a directory that does. A missing parent directory fails the pre-consent writability check instead, which under SSE (TC-I38, TC-I40) degrades before any prompt is printed.
 
 **Action**
 Run the server under a real MCP stdio client (e.g. the `mcp` SDK's `stdio_client` + `ClientSession`), with `DEBUG_LEVEL=DEBUG` and `LOG_FILE=<tmp log>`:
@@ -801,6 +801,9 @@ Then call `list_spreadsheets` with `max_results: 1`, and read `server://auth-sta
 **Result (2026-09-26, PR #828 round 1 @ 69d6dbf, Sky) ✅ PASS**
 Real `mcp` SDK `stdio_client` + `ClientSession`. `initialize` OK in 1.9s, 0 `Please visit` in stderr or LOG_FILE. `list_spreadsheets` returned an error result: `No usable OAuth token at '<nonexistent>', and this server can't ask for consent itself over the stdio transport. To authorize, run \`mcp-gee-sweet auth\` in a terminal (\`uvx mcp-gee-sweet auth\` for a PyPI install) with the same TOKEN_PATH (...), CREDENTIALS_PATH (...) and ENABLED_TOOLS as this server, then restart the server.` `auth-status`: `auth_method: "none"`, `limited_tools: ["*"]`, one `oauth_not_authorized` limitation. LOG_FILE has `WARNING mcp_gee_sweet.auth Starting without Google access: ...` and `"TOOL list_spreadsheets" 401`. The token path's parent dir was never created.
 
+**Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS**
+Same as round 1: `initialize` 1.8s, error result with the instructions (now ending `then restart the server or reconnect to it.`), `auth-status` `none` / `oauth_not_authorized`, `"TOOL list_spreadsheets" 401`, 0 `Please visit`. Gate now reads the connection's own `lifespan_context.unauthorized_message`.
+
 ---
 
 ### TC-I36: stdio waterfall with no token falls through to a service account, and starts without access only if nothing else works (issue #811) ⚠️ local-filesystem
@@ -822,6 +825,9 @@ Run 2 (`AUTH_METHOD` unset, `SERVICE_ACCOUNT_PATH=<nonexistent>`, `CREDENTIALS_C
 
 **Result (2026-09-26, PR #828 round 1 @ 69d6dbf, Sky) ✅ PASS**
 Run 1 (team SA key): `initialize` 1.7s, `list_spreadsheets` normal result (`is_error=False`), `auth-status` `auth_method: "service_account"`; log has `Waterfall: OAuth needs consent (...), trying service account` then `Waterfall: using service account`. Run 2 (SA/ADC paths nonexistent, `CREDENTIALS_CONFIG` empty): same outcome as TC-I35 (error result with the `mcp-gee-sweet auth` instructions, `auth_method: "none"`, `401` access line); log has `Waterfall: ADC unavailable (File <nonexistent> was not found.)` then the `Starting without Google access` warning. 0 `Please visit` in either run.
+
+**Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS**
+Run 1: `list_spreadsheets` normal, `auth_method: "service_account"`, `OAuth needs consent` → `using service account`. Run 2: degraded as TC-I35; the warning now ends `The fallbacks weren't usable either: no service account key file at SERVICE_ACCOUNT_PATH ('<nonexistent>'); ADC failed (File <nonexistent> was not found.).` Extra probe (not a check here): a *malformed* SA key file or `CREDENTIALS_CONFIG` still fails startup outright (stdio client sees `Connection closed`) with the SA exception, since the waterfall's SA step has no try, same as before this PR. That's not masking, so it's not a finding.
 
 ---
 
@@ -851,6 +857,9 @@ Run 1 (team SA key): `initialize` 1.7s, `list_spreadsheets` normal result (`is_e
 **Result (2026-09-26, PR #828 round 1 @ 69d6dbf, Sky) ⏳ PARTIAL — consent steps deferred to the fix round**
 Step 1 (killed before consent): printed `Credentials :`, `Token target:`, `Scopes      :` with the four base scopes only (no `gmail.modify`), then `Please visit this URL to authorize this application: https://accounts.google.com/o/oauth2/auth?...`; no token written. Error case: nonexistent `CREDENTIALS_PATH` exited 1 with `ERROR: '<path>' not found. Set CREDENTIALS_PATH or provide credentials.json.` on stderr. Steps 2–3 (Playwright consent, then a stdio server using the new token) not run this round: `run_auth_command` changes in the round-1 send-back (code-review findings 4/5/10 on PR #828), so the consent path is re-run against the fixed code. Also observed live (finding 5): `mcp-gee-sweet --include-tools list_spreadsheets auth --no-browser` skipped the auth branch entirely (no `Credentials :` line) and started a stdio MCP server instead.
 
+**Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS**
+Playwright signed-in check passed (fixture doc title). Step 1: `Credentials :` / `Token target:` / `Scopes      :` (4 base scopes, no `gmail.modify`) + `Please visit` URL. Step 2: chose the Workspace fixture account, Allow → callback `?state=...&code=...&scope=<4 base scopes>`. Command printed `Saved the token to <scratch>. Restart the server to pick it up.`, exit 0; `stat -f %Lp` = `600`; token `scopes` = the 4 base scopes. Step 3: stdio `list_spreadsheets` normal result, `auth-status` `auth_method: "oauth"`, no limitations. Step 4 (deny): Cancel → callback `?error=access_denied`; exit 1, stderr `ERROR: AccessDeniedError: (access_denied) `, 0 `Traceback`, no token file. Same OAuth client + account as the existing grant, so no separate permissions entry to revoke.
+
 ---
 
 ### TC-I38: over SSE, a missing token still runs the consent flow, with its prompt on stderr only (issue #811) ⚠️ local-filesystem
@@ -871,6 +880,9 @@ Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PA
 **Result (2026-09-26, PR #828 round 1 @ 69d6dbf, Sky) ✅ PASS**
 stdout file 0 bytes. stderr has `Please visit this URL to authorize this application: https://accounts.google.com/o/oauth2/auth?...` (full scope set incl. `gmail.modify`, redirect to a random localhost port), after the uvicorn startup lines and `AUTH_METHOD=oauth`. Process group SIGKILLed; `lsof -i :<port>` empty afterward.
 
+**Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS**
+stdout 0 bytes; stderr has the `Please visit ... https://accounts.google.com/o/oauth2/auth?...` prompt; port released. (A first attempt with `TOKEN_PATH` under a nonexistent directory printed no prompt: the new pre-consent writability check degraded with `the browser consent failed (RuntimeError: The directory for TOKEN_PATH ... doesn't exist...)`, and later connections logged `an earlier browser consent in this server process didn't complete`. Correct behavior; the Setup now says the parent directory must exist.)
+
 ---
 
 ### TC-I39: `mcp-gee-sweet auth` argument handling and pre-consent checks (issue #811) ⚠️ local-filesystem
@@ -889,10 +901,13 @@ stdout file 0 bytes. stderr has `Please visit this URL to authorize this applica
 - 1: prints `Credentials :`, a `Scopes :` line with the four base scopes only, and a `Please visit this URL` line. It's the auth command, not a server
 - 2: exits 2 with `mcp-gee-sweet auth: error: unrecognized arguments: --no-browswer`
 - 3: exits 1 with `ERROR: RuntimeError: The directory for TOKEN_PATH (...) doesn't exist. Create it first.`, and no `Please visit` line (it fails before the consent starts)
-- 4: no `Credentials :` line; the process is a stdio server waiting on stdin
+- 4: no `Credentials :` line; the process runs as a stdio server (with stdin from `/dev/null` it exits on EOF right away, so the evidence is the lifespan's `Starting without Google access` line on stderr, not the process staying alive)
 - No run leaves a token file behind in `<scratch>`
 
 **Cleanup:** delete `<scratch>`.
+
+**Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS**
+1: `Credentials :`, `Scopes      :` with the 4 base scopes, `Please visit` URL (the auth command, not a server). 2: exit 2, `mcp-gee-sweet auth: error: unrecognized arguments: --no-browswer`. 3: exit 1, `ERROR: RuntimeError: The directory for TOKEN_PATH ('<scratch>/no-such-dir/t.json') doesn't exist. Create it first.`, 0 `Please visit`, 0 `Traceback`. 4: 0 `Credentials :` lines; stderr has `WARNING mcp_gee_sweet.auth Starting without Google access: ...` (a stdio server's lifespan), exited on stdin EOF. No token file left in `<scratch>`.
 
 ---
 
@@ -911,10 +926,13 @@ Run 1: start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `T
 Run 2: restart the server the same way. Open a connection (its `initialize` blocks on the consent). While it waits, read the callback port from the `redirect_uri=http%3A%2F%2Flocalhost%3A<port>` in the stderr file, and send `GET http://localhost:<port>/?state=bogus&code=x`.
 
 **Checks**
-- Run 1, A: `initialize` takes about 4s; the tool error says the browser consent wasn't completed within 4s and gives the `mcp-gee-sweet auth` instructions
-- Run 1, B: `initialize` returns in well under a second (no second consent wait); the tool error says an earlier browser consent in this server process didn't complete
+- Run 1, A: opening the connection takes about 4s (the lifespan, and so the consent wait, runs when the SSE stream opens, before `initialize`); the tool error says the browser consent wasn't completed within 4s and gives the `mcp-gee-sweet auth` instructions
+- Run 1, B: the connection opens and initializes in well under a second (no second consent wait); the tool error says an earlier browser consent in this server process didn't complete
 - Run 1, step 3: A's error still says `within 4s` (B didn't overwrite it)
 - Run 1: the stderr file has exactly one `Please visit` prompt
 - Run 2: the connection initializes right after the stray request (no 4s wait), and its tool error says `the browser consent failed` with the `mcp-gee-sweet auth` instructions. The lifespan doesn't crash.
 
 **Cleanup:** SIGKILL each server's process group; confirm `lsof -i :<port>` is empty.
+
+**Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS**
+`mcp` SDK `sse_client`. Run 1: A opened (≈4s consent wait inside the SSE connect; `initialize` itself 0.0s) → error `...the browser consent wasn't completed within 4s. To authorize, run \`mcp-gee-sweet auth\`...`. B (A still open): connected + initialized 0.00s → `...an earlier browser consent in this server process didn't complete (it isn't retried, since waiting for it blocks every connection)`. A again: still `within 4s`. stderr: exactly 1 `Please visit`. Run 2: stray `GET http://localhost:<cb>/?state=bogus&code=x` fired while the connection was opening; connect+init finished 0.02s after it, tool error `...the browser consent failed (MismatchingStateError: (mismatching_state) CSRF Warning! State not equal in request and response.). To authorize, run \`mcp-gee-sweet auth\`...`; lifespan didn't crash. `lsof -i :<port>` empty after both.
