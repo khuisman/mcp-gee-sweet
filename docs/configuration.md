@@ -10,12 +10,13 @@
 | `DRIVE_FOLDER_ID` | Default Drive folder for service account operations | — |
 | `CREDENTIALS_PATH` | Path to OAuth client ID JSON | `credentials.json` |
 | `TOKEN_PATH` | Path to store the OAuth refresh token | `token.json` |
+| `OAUTH_CONSENT_TIMEOUT_SECONDS` | SSE only: how long the server waits for the browser consent when there's no usable OAuth token, before starting without Google access. See [Authentication](auth.md) | `300` |
 | `CREDENTIALS_CONFIG` | Base64-encoded credentials JSON (for containers) | — |
 | `ENABLED_TOOLS` | Comma-separated list of tool names to register | all tools |
 | `CACHE_DB_PATH` | Path to the SQLite cache database | `/tmp/mcp_gee_sweet.db` |
 | `CACHE_TTL` | Cache time-to-live in seconds. Also adjustable at runtime via the `set_cache_ttl` tool, no restart needed | `1800` (30 min) |
 | `CACHE_VALIDATE_MODIFIED_TIME` | Validate sheet/doc cache hits against Drive's `modifiedTime` before serving them, catching edits from other sessions without waiting out the TTL. Costs one extra Drive API call per cache lookup | `true` |
-| `MAX_TOOL_RESPONSE_CHARS` | Safety cap on response size, in characters, for tools that can return large inline payloads (`get_sheet_data`, `get_multiple_sheet_data`, `get_multiple_spreadsheet_summary`, `find_in_spreadsheet`, `get_doc_content`, `find_in_doc`, `list_doc_comments`, `list_file_activity`, `export_file`, `sync_folder`, `list_all_events`). Defense-in-depth against MCP clients that don't degrade gracefully on an oversized tool response — see [decision-response-size-cap-reevaluation-519.md](decisions/decision-response-size-cap-reevaluation-519.md) for why the default was raised and what it does and doesn't protect against | `1000000` |
+| `MAX_TOOL_RESPONSE_CHARS` | Safety cap on response size, in characters, for tools that can return large inline payloads (`get_sheet_data`, `get_multiple_sheet_data`, `get_multiple_spreadsheet_summary`, `find_in_spreadsheet`, `get_doc_content`, `find_in_doc`, `list_doc_comments`, `list_file_activity`, `export_file`, `sync_folder`, `list_all_events`, `get_message`, `get_thread`). Defense-in-depth against MCP clients that don't degrade gracefully on an oversized tool response — see [decision-response-size-cap-reevaluation-519.md](decisions/decision-response-size-cap-reevaluation-519.md) for why the default was raised and what it does and doesn't protect against | `1000000` |
 | `HOST` (or `FASTMCP_HOST`) | Bind address for SSE transport. `FASTMCP_HOST` is a fallback if `HOST` isn't set | `0.0.0.0` |
 | `PORT` (or `FASTMCP_PORT`) | Port for SSE transport. `FASTMCP_PORT` is a fallback if `PORT` isn't set | `8000` |
 | `DEBUG_LEVEL` | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR` — controls package and access logs | — |

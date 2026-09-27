@@ -1,9 +1,13 @@
 """Gmail tools — messages, threads, labels, drafts, and organization primitives."""
 
+import asyncio
 import base64
 import binascii
+import codecs
 import logging
 import re
+from dataclasses import dataclass, field
+from email.message import Message
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -15,7 +19,13 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ..auth import execute_in_thread, get_gmail_unauthorized_message
-from .response_limits import clamp_max_results, enforce_response_size_cap
+from .concurrency import gather_with_fallback
+from .response_limits import (
+    clamp_max_results,
+    enforce_response_size_cap,
+    enforce_response_size_floor,
+    write_capped_result_to_disk,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -136,15 +146,77 @@ def _header_map(headers: list[dict[str, str]] | None) -> dict[str, str]:
 
 _B64URL_NON_ALPHABET = re.compile(r"[^A-Za-z0-9_\-+/]")
 
+# Charset labels commonly wrong in real mail, keyed by codecs.lookup()'s normalized
+# name (#825 review). "us-ascii" is often really UTF-8, a superset that decodes pure
+# ASCII identically. "iso-8859-1" is often really windows-1252, whose smart quotes
+# and dashes would otherwise decode as C1 control characters (the WHATWG Encoding
+# standard maps that label to windows-1252 for the same reason).
+_CHARSET_ALIASES = {"ascii": "utf-8", "iso8859-1": "cp1252"}
 
-def _decode_body_data(data: str | None) -> str:
-    """Decode a Gmail ``body.data`` base64url string to text.
+# Most attachments.get calls one get_message/get_thread call keeps in flight. A long
+# thread of large messages would otherwise fire them all at once and trip Gmail's
+# per-user concurrency limit, nulling out a varying subset of bodies (#825 review).
+_BODY_FETCH_CONCURRENCY = 4
 
-    Always UTF-8, regardless of the part's own ``Content-Type`` charset: the Gmail
-    API transcodes every text part's ``body.data`` to UTF-8 but leaves the original
-    charset label on the header, so decoding with the declared charset would
-    double-decode (confirmed live on PR #816: iso-8859-1 ``Caf=E9`` arrives as
-    ``Caf\\xc3\\xa9``).
+
+def _codec_for(charset: str) -> str:
+    """The codec a declared charset decodes with: its normalized codecs.lookup() name,
+    remapped via _CHARSET_ALIASES, or UTF-8 for an unknown name."""
+    try:
+        codec = codecs.lookup(charset).name
+    except LookupError:
+        return "utf-8"
+    return _CHARSET_ALIASES.get(codec, codec)
+
+
+# Codecs where every encoded byte serializes to at least one JSON character (#825,
+# PR #829 QA round 2): ASCII-compatible and stateless, so an ASCII byte decodes to one
+# character and every multi-byte sequence (or invalid byte) to a non-ASCII one, which
+# json.dumps escapes to 6+ characters. That makes a part's byte size a lower bound on
+# its serialized size. Deliberately excluded: UTF-16/32 (2-4 bytes per ASCII
+# character), and stateful codecs whose escape/shift sequences decode to nothing
+# (UTF-7, iso-2022-*, hz). Anything not listed is simply left out of the bound.
+_SIZE_FLOOR_CODEC_PREFIXES = ("cp", "iso8859-", "koi8-", "mac-")
+_SIZE_FLOOR_CODECS = frozenset(
+    {
+        "utf-8",
+        "tis-620",
+        "hp-roman8",
+        "kz1048",
+        "ptcp154",
+        "big5",
+        "big5hkscs",
+        "euc_jp",
+        "euc_jis_2004",
+        "euc_jisx0213",
+        "euc_kr",
+        "gb2312",
+        "gbk",
+        "gb18030",
+        "johab",
+        "shift_jis",
+        "shift_jis_2004",
+        "shift_jisx0213",
+    }
+)
+
+
+def _bytes_bound_serialized_size(codec: str) -> bool:
+    return codec in _SIZE_FLOOR_CODECS or codec.startswith(_SIZE_FLOOR_CODEC_PREFIXES)
+
+
+def _decode_body_data(data: str | None, charset: str = "utf-8") -> str:
+    """Decode a Gmail base64url body string to text.
+
+    Inline ``body.data`` is always UTF-8, regardless of the part's own
+    ``Content-Type`` charset: the Gmail API transcodes it to UTF-8 but leaves the
+    original charset label on the header, so decoding with the declared charset
+    would double-decode (confirmed live on PR #816: iso-8859-1 ``Caf=E9`` arrives as
+    ``Caf\\xc3\\xa9``). A body fetched via ``users.messages.attachments.get`` is the
+    opposite: raw bytes in the declared charset (confirmed live on #825: the same
+    ``Caf=E9`` arrives as ``Caf\\xe9``), so that caller passes the part's charset.
+    Common mislabels are remapped via ``_CHARSET_ALIASES``; an unknown charset, or
+    one that isn't a text encoding, falls back to UTF-8.
 
     Missing padding is repaired. Characters outside the base64 alphabet (whitespace,
     line breaks, existing ``=``) are stripped first so they don't skew the padding
@@ -154,43 +226,120 @@ def _decode_body_data(data: str | None) -> str:
         return ""
     cleaned = _B64URL_NON_ALPHABET.sub("", data)
     raw = base64.urlsafe_b64decode(cleaned + "=" * (-len(cleaned) % 4))
-    return raw.decode("utf-8", errors="replace")
+    try:
+        return raw.decode(_codec_for(charset), errors="replace")
+    except (LookupError, UnicodeError):
+        # LookupError: a codec that isn't a text encoding (e.g. "base64").
+        # UnicodeError: a codec that rejects errors="replace" (e.g. "idna").
+        return raw.decode("utf-8", errors="replace")
 
 
-def _extract_bodies_and_attachments(
-    payload: dict[str, Any],
-) -> tuple[str | None, str | None, list[dict[str, Any]], list[dict[str, Any]]]:
-    """Walk a Gmail message payload.
+def _part_header_params(part: dict[str, Any]) -> Message:
+    """The part's Content-Type / Content-Disposition headers, parsed for their params."""
+    parsed = Message()
+    for h in part.get("headers") or []:
+        if h.get("name", "").lower() in ("content-type", "content-disposition"):
+            parsed[h["name"]] = h.get("value", "")
+    return parsed
 
-    Returns (plain, html, attachment metadata, body decode errors). A text part whose
-    data can't be decoded is skipped and recorded in the errors list rather than
-    failing the whole message, so its headers, other body part, and attachments
-    still come back; a later part of the same type can still fill that body.
-    """
+
+def _decode_inline_part(part: dict[str, Any], errors: list[dict[str, Any]]) -> str | None:
+    """Decode a part's inline body.data, recording a failure in errors."""
+    try:
+        return _decode_body_data((part.get("body") or {}).get("data"))
+    except binascii.Error as e:
+        errors.append(
+            {"part_id": part.get("partId"), "mime_type": part.get("mimeType"), "error": str(e)}
+        )
+        return None
+
+
+_BODY_SLOTS = {"text/plain": "plain", "text/html": "html"}
+
+
+@dataclass
+class _DeferredBody:
+    """A body part Gmail delivered by attachmentId instead of inline data (#825)."""
+
+    slot: str
+    part_id: str | None
+    mime_type: str
+    attachment_id: str
+    charset: str
+    size: int
+    # The first later inline part of the same type, decoded only if this fetch fails.
+    fallback: dict[str, Any] | None = None
+
+
+def _as_deferred_body(part: dict[str, Any], slot: str) -> _DeferredBody | None:
+    """The part as a deferred body if Gmail delivered it by attachmentId with no inline
+    data and it isn't marked as an attachment; else None. Headers are parsed only
+    here, for the rare part that gets this far (#825 review)."""
+    body = part.get("body") or {}
+    attachment_id = body.get("attachmentId")
+    if not attachment_id or body.get("data"):
+        return None
+    headers = _part_header_params(part)
+    if headers.get_content_disposition() == "attachment":
+        return None
+    return _DeferredBody(
+        slot=slot,
+        part_id=part.get("partId"),
+        mime_type=part.get("mimeType", ""),
+        attachment_id=attachment_id,
+        charset=headers.get_content_charset() or "utf-8",
+        size=body.get("size") or 0,
+    )
+
+
+@dataclass
+class _PayloadParts:
     plain: str | None = None
     html: str | None = None
-    attachments: list[dict[str, Any]] = []
-    decode_errors: list[dict[str, Any]] = []
+    attachments: list[dict[str, Any]] = field(default_factory=list)
+    decode_errors: list[dict[str, Any]] = field(default_factory=list)
+    deferred_bodies: list[_DeferredBody] = field(default_factory=list)
 
-    def decode(part: dict[str, Any], data: str) -> str | None:
-        try:
-            return _decode_body_data(data)
-        except binascii.Error as e:
-            decode_errors.append(
-                {"part_id": part.get("partId"), "mime_type": part.get("mimeType"), "error": str(e)}
-            )
-            return None
 
-    def walk(part: dict[str, Any]) -> None:
-        nonlocal plain, html
+def _extract_bodies_and_attachments(payload: dict[str, Any]) -> _PayloadParts:
+    """Walk a Gmail message payload into bodies, attachment metadata, and errors.
+
+    A text part whose data can't be decoded is skipped and recorded in
+    decode_errors rather than failing the whole message, so its headers, other body
+    part, and attachments still come back; a later part of the same type can still
+    fill that body.
+
+    Gmail delivers a large text body (somewhere between ~400 KB and 3 MB) by
+    ``attachmentId`` with no inline data and no filename (#825). A nameless
+    text/plain or text/html part like that, not marked ``Content-Disposition:
+    attachment`` and not inside an attached ``message/rfc822``, claims its body slot
+    and is listed in deferred_bodies for the caller to fetch, instead of being
+    reported as a nameless attachment. The first part of each type still wins; a
+    later inline part of that type is kept as the fetch's fallback.
+    """
+    out = _PayloadParts()
+    claimed: set[str] = set()
+    pending: dict[str, _DeferredBody] = {}
+
+    def walk(part: dict[str, Any], in_rfc822: bool) -> None:
         mime_type = part.get("mimeType", "")
         filename = part.get("filename") or ""
         body = part.get("body") or {}
         data = body.get("data")
         attachment_id = body.get("attachmentId")
+        slot = _BODY_SLOTS.get(mime_type)
+        deferred = (
+            _as_deferred_body(part, slot)
+            if slot and slot not in claimed and not filename and not in_rfc822
+            else None
+        )
 
-        if filename or attachment_id:
-            attachments.append(
+        if deferred is not None:
+            claimed.add(deferred.slot)
+            pending[deferred.slot] = deferred
+            out.deferred_bodies.append(deferred)
+        elif filename or attachment_id:
+            out.attachments.append(
                 {
                     "filename": filename or None,
                     "mime_type": mime_type or None,
@@ -198,19 +347,58 @@ def _extract_bodies_and_attachments(
                     "attachment_id": attachment_id,
                 }
             )
-        elif data and mime_type == "text/plain" and plain is None:
-            plain = decode(part, data)
-        elif data and mime_type == "text/html" and html is None:
-            html = decode(part, data)
+        elif data and slot and slot not in claimed:
+            text = _decode_inline_part(part, out.decode_errors)
+            if text is not None:
+                claimed.add(slot)
+                setattr(out, slot, text)
+        elif data and slot in pending and pending[slot].fallback is None:
+            pending[slot].fallback = part
 
         for child in part.get("parts") or []:
-            walk(child)
+            walk(child, in_rfc822 or mime_type == "message/rfc822")
 
-    walk(payload or {})
-    return plain, html, attachments, decode_errors
+    walk(payload or {}, False)
+    return out
 
 
-def _shape_message(msg: dict[str, Any], *, include_body: bool = True) -> dict[str, Any]:
+async def _fetch_deferred_body(
+    gmail_service: Any, message_id: str, deferred: _DeferredBody, limit: asyncio.Semaphore
+) -> dict[str, Any]:
+    """Fetch and decode one body part Gmail delivered by attachmentId (#825).
+
+    Returns {"text": str} on success, or {"fetch_error": ...} / {"decode_error": ...}.
+    """
+    async with limit:
+        try:
+            result = await execute_in_thread(
+                gmail_service.users()
+                .messages()
+                .attachments()
+                .get(userId=_USER, messageId=message_id, id=deferred.attachment_id)
+                .execute,
+                gmail_service,
+            )
+        except Exception as e:
+            return {"fetch_error": str(e)}
+    data = (result or {}).get("data")
+    if not data:
+        return {"fetch_error": "attachments.get returned no data"}
+    try:
+        return {"text": _decode_body_data(data, deferred.charset)}
+    except binascii.Error as e:
+        return {"decode_error": str(e)}
+
+
+@dataclass
+class _PendingMessage:
+    """A message shaped except for its deferred bodies, which aren't fetched yet."""
+
+    shaped: dict[str, Any]
+    parts: _PayloadParts | None
+
+
+def _start_shaping(msg: dict[str, Any], *, include_body: bool = True) -> _PendingMessage:
     payload = msg.get("payload") or {}
     headers = _header_map(payload.get("headers"))
     shaped: dict[str, Any] = {
@@ -235,14 +423,83 @@ def _shape_message(msg: dict[str, Any], *, include_body: bool = True) -> dict[st
             "references": headers.get("references"),
         },
     }
-    if include_body:
-        plain, html, attachments, decode_errors = _extract_bodies_and_attachments(payload)
-        shaped["body_plain"] = plain
-        shaped["body_html"] = html
-        shaped["attachments"] = attachments
-        if decode_errors:
-            shaped["body_decode_errors"] = decode_errors
+    parts = _extract_bodies_and_attachments(payload) if include_body else None
+    return _PendingMessage(shaped, parts)
+
+
+def _deferred_body_bytes(pending: list[_PendingMessage]) -> int:
+    """A lower bound on the serialized size of every not-yet-fetched body.
+
+    Sums the encoded byte size of each part whose codec guarantees at least one JSON
+    character per byte (_bytes_bound_serialized_size); any other part counts as 0.
+    Lets a caller reject an over-cap response before downloading anything (#825
+    review). Undercounting only skips this early exit: the post-fetch cap check
+    still applies.
+    """
+    return sum(
+        d.size
+        for p in pending
+        if p.parts
+        for d in p.parts.deferred_bodies
+        if _bytes_bound_serialized_size(_codec_for(d.charset))
+    )
+
+
+async def _finish_shaping(
+    gmail_service: Any, pending: _PendingMessage, limit: asyncio.Semaphore
+) -> dict[str, Any]:
+    shaped, parts = pending.shaped, pending.parts
+    if parts is None:
+        return shaped
+    fetch_errors: list[dict[str, Any]] = []
+    fetched = await gather_with_fallback(
+        parts.deferred_bodies,
+        lambda d: _fetch_deferred_body(gmail_service, shaped["id"], d, limit),
+        lambda _d, exc: {"fetch_error": str(exc)},
+    )
+    for deferred, outcome in zip(parts.deferred_bodies, fetched, strict=True):
+        if "text" in outcome:
+            setattr(parts, deferred.slot, outcome["text"])
+            continue
+        where = {
+            "part_id": deferred.part_id,
+            "mime_type": deferred.mime_type,
+            "attachment_id": deferred.attachment_id,
+        }
+        if "decode_error" in outcome:
+            parts.decode_errors.append({**where, "error": outcome["decode_error"]})
+        else:
+            fetch_errors.append({**where, "error": outcome["fetch_error"]})
+        if deferred.fallback is not None:
+            setattr(
+                parts, deferred.slot, _decode_inline_part(deferred.fallback, parts.decode_errors)
+            )
+    shaped["body_plain"] = parts.plain
+    shaped["body_html"] = parts.html
+    shaped["attachments"] = parts.attachments
+    if parts.decode_errors:
+        shaped["body_decode_errors"] = parts.decode_errors
+    if fetch_errors:
+        shaped["body_fetch_errors"] = fetch_errors
     return shaped
+
+
+async def _finish_shaping_all(
+    gmail_service: Any, pending: list[_PendingMessage]
+) -> list[dict[str, Any]]:
+    limit = asyncio.Semaphore(_BODY_FETCH_CONCURRENCY)
+    return list(await asyncio.gather(*(_finish_shaping(gmail_service, p, limit) for p in pending)))
+
+
+def _manifest_body_errors(messages: list[dict[str, Any]]) -> dict[str, Any]:
+    """Body fetch/decode errors to surface in a local_path manifest, so a failed body
+    doesn't look like success unless the caller opens the written file (#825 review)."""
+    out: dict[str, Any] = {}
+    for key in ("body_fetch_errors", "body_decode_errors"):
+        entries = [{"message_id": m["id"], **e} for m in messages for e in m.get(key, [])]
+        if entries:
+            out[key] = entries
+    return out
 
 
 def _shape_label(label: dict[str, Any]) -> dict[str, Any]:
@@ -395,19 +652,33 @@ def register(tool):
         return out
 
     @tool(annotations=ToolAnnotations(title="Get Message", readOnlyHint=True))
-    async def get_message(message_id: str, ctx: Context = None) -> dict[str, Any]:
+    async def get_message(
+        message_id: str, local_path: str | None = None, ctx: Context = None
+    ) -> dict[str, Any]:
         """
         Fetch a single message by ID, including headers, body, and attachment metadata.
 
         Args:
             message_id: The Gmail message ID (from list_messages or get_thread).
+            local_path: Optional local filesystem path (file or directory) to write the
+                        message JSON to instead of returning it inline. Bypasses the
+                        response-size cap, for messages with very large bodies.
 
         Returns:
             Message with id, thread_id, snippet, label_ids, headers (from/to/cc/bcc/
             subject/date/message_id), body_plain, body_html, and attachments metadata
-            (filename, mime_type, size, attachment_id). A text part whose data can't be
-            decoded leaves its body null and is listed in body_decode_errors (part_id,
-            mime_type, error), present only when non-empty. On API failure,
+            (filename, mime_type, size, attachment_id). A large body that Gmail
+            delivers separately is fetched and returned in body_plain/body_html like
+            any other. A text part whose data can't be decoded leaves its body null
+            and is listed in body_decode_errors; a separately delivered body that
+            can't be fetched leaves its body null and is listed in body_fetch_errors
+            (both: part_id, mime_type, error, plus attachment_id for a separately
+            delivered part; present only when non-empty). Raises an error naming the
+            size if the message is over the response-size cap and local_path is not
+            set; a separately delivered body already over the cap raises before
+            being downloaded. If local_path is set, returns {local_path, message_id,
+            bytes_written} instead, plus body_fetch_errors / body_decode_errors
+            (each entry with message_id) when present. On API failure,
             {"error": "..."}.
         """
         if unauthorized := get_gmail_unauthorized_message():
@@ -424,13 +695,21 @@ def register(tool):
         except Exception as e:
             return {"error": str(e)}
 
-        shaped = _shape_message(msg, include_body=True)
-        enforce_response_size_cap(
-            shaped,
-            tool_name="get_message",
-            hint="The message body is large; ",
-            local_path_available=False,
-        )
+        hint = "The message body is large. "
+        pending = [_start_shaping(msg, include_body=True)]
+        if not local_path:
+            enforce_response_size_floor(
+                _deferred_body_bytes(pending), tool_name="get_message", hint=hint
+            )
+        [shaped] = await _finish_shaping_all(lc.gmail_service, pending)
+        if local_path:
+            return await write_capped_result_to_disk(
+                shaped,
+                local_path,
+                default_filename=f"message_{message_id}.json",
+                manifest_extra={"message_id": message_id, **_manifest_body_errors([shaped])},
+            )
+        enforce_response_size_cap(shaped, tool_name="get_message", hint=hint)
         return shaped
 
     @tool(annotations=ToolAnnotations(title="List Threads", readOnlyHint=True))
@@ -504,16 +783,25 @@ def register(tool):
         return out
 
     @tool(annotations=ToolAnnotations(title="Get Thread", readOnlyHint=True))
-    async def get_thread(thread_id: str, ctx: Context = None) -> dict[str, Any]:
+    async def get_thread(
+        thread_id: str, local_path: str | None = None, ctx: Context = None
+    ) -> dict[str, Any]:
         """
         Fetch all messages in a conversation thread.
 
         Args:
             thread_id: The Gmail thread ID (from list_threads or a message's thread_id).
+            local_path: Optional local filesystem path (file or directory) to write the
+                        thread JSON to instead of returning it inline. Bypasses the
+                        response-size cap, for threads with very large bodies.
 
         Returns:
             Thread with id, snippet, history_id, and messages (same shape as get_message).
-            On API failure, {"error": "..."}.
+            Raises an error naming the size if the thread is over the response-size cap
+            and local_path is not set. If local_path is set, returns {local_path,
+            thread_id, message_count, bytes_written} instead, plus body_fetch_errors /
+            body_decode_errors (each entry with message_id) when present. On API
+            failure, {"error": "..."}.
         """
         if unauthorized := get_gmail_unauthorized_message():
             return {"error": unauthorized}
@@ -529,18 +817,30 @@ def register(tool):
         except Exception as e:
             return {"error": str(e)}
 
+        hint = "The thread is large; use get_message on individual IDs. "
+        pending = [_start_shaping(m, include_body=True) for m in thread.get("messages", [])]
+        if not local_path:
+            enforce_response_size_floor(
+                _deferred_body_bytes(pending), tool_name="get_thread", hint=hint
+            )
         shaped = {
             "id": thread["id"],
             "snippet": thread.get("snippet"),
             "history_id": thread.get("historyId"),
-            "messages": [_shape_message(m, include_body=True) for m in thread.get("messages", [])],
+            "messages": await _finish_shaping_all(lc.gmail_service, pending),
         }
-        enforce_response_size_cap(
-            shaped,
-            tool_name="get_thread",
-            hint="The thread is large; use get_message on individual IDs, or ",
-            local_path_available=False,
-        )
+        if local_path:
+            return await write_capped_result_to_disk(
+                shaped,
+                local_path,
+                default_filename=f"thread_{thread_id}.json",
+                manifest_extra={
+                    "thread_id": thread_id,
+                    "message_count": len(shaped["messages"]),
+                    **_manifest_body_errors(shaped["messages"]),
+                },
+            )
+        enforce_response_size_cap(shaped, tool_name="get_thread", hint=hint)
         return shaped
 
     @tool(annotations=ToolAnnotations(title="List Labels", readOnlyHint=True))

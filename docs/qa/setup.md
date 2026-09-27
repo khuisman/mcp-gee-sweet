@@ -223,7 +223,7 @@ subject and reused. `send` refuses any recipient except the two mailboxes, with 
 
 `inspect` prints the raw Gmail part tree of every fixture: MIME type, size, and whether the
 body arrives as inline `data` or by `attachmentId`. This is the ground truth for
-TC-GM27–29.
+TC-GM28–30.
 
 `.env` keys written: `TEST_GMAIL_ADDRESS`, `TEST_GMAIL_SENDER_ADDRESS`,
 `TEST_GMAIL_LABEL_ID`, `TEST_MESSAGE_ID`, `TEST_THREAD_ID`, `TEST_GMAIL_UNICODE_ID`,

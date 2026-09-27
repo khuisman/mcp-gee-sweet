@@ -206,7 +206,7 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 - [ ] `create_spreadsheet`/`import_csv_to_sheet` response has no web link, unlike sibling create/copy tools — enhancement or fix TC-D01's expectation instead, still open. Found in the v0.9.0 QA pass ([#693](https://github.com/khuisman/mcp-gee-sweet/issues/693))
 - [x] PyPI project page drops the logo — README `<img src>` is a relative path, which PyPI's `readme_renderer` strips. Found on the published v0.9.0 page (PR #707) ([#706](https://github.com/khuisman/mcp-gee-sweet/issues/706))
 - [ ] `sync_folder`/`upload_local_file` convert: Drive's `modifiedTime` for a Google Doc lags real edits by minutes, and the async import can overwrite the post-create restamp. Change detection for `convert_markdown` Docs needs a new signal. Joy scopes; decision doc in PR #819 ([#814](https://github.com/khuisman/mcp-gee-sweet/issues/814))
-- [ ] auth: with no `token.json`, a stdio server blocks on OAuth consent with no timeout, and the consent prompt goes to the protocol channel ([#811](https://github.com/khuisman/mcp-gee-sweet/issues/811))
+- [x] auth: with no `token.json`, a stdio server blocks on OAuth consent with no timeout, and the consent prompt goes to the protocol channel ([#811](https://github.com/khuisman/mcp-gee-sweet/issues/811)) (PR #828)
 
 **Sheets hardening** _(triaged out of `backlog` 2026-09-11 — see the "Backlog triage" note below)_
 - [x] `update_sheet_properties`/dimension-tool hardening + dedup follow-ups from PR #321's review ([#323](https://github.com/khuisman/mcp-gee-sweet/issues/323)) (PR #734)
@@ -296,7 +296,7 @@ Same shape as v0.8.1 — stabilize on defects that surfaced since v0.9.0 shipped
 - [x] Gmail scopes opt-in + verify granted scopes at startup. Existing OAuth tokens weren't granted the new scopes, so refresh likely fails into a surprise browser consent or a headless hang. **Must ship in the same release as #786** ([#790](https://github.com/khuisman/mcp-gee-sweet/issues/790)) (PR #807)
 - [x] `reply_to_message` should honor Reply-To and handle replies to your own sent mail ([#791](https://github.com/khuisman/mcp-gee-sweet/issues/791)) (PR #815)
 - [x] Decode message bodies using the part's charset; tolerate missing base64 padding ([#792](https://github.com/khuisman/mcp-gee-sweet/issues/792)) (PR #816)
-- [ ] `get_message`/`get_thread` return no body when Gmail delivers a large (~MB) `text/plain`/`text/html` part by `attachmentId`. Found in #803's live QA ([#825](https://github.com/khuisman/mcp-gee-sweet/issues/825))
+- [x] `get_message`/`get_thread` return no body when Gmail delivers a large (~MB) `text/plain`/`text/html` part by `attachmentId`. Found in #803's live QA ([#825](https://github.com/khuisman/mcp-gee-sweet/issues/825)) (PR #829)
 - [ ] `get_thread`/`get_message`: add a body-less option — a long thread trips the response-size cap and there's no other way to get its message IDs, so it can't be read at all ([#793](https://github.com/khuisman/mcp-gee-sweet/issues/793))
 - [ ] Reply-all self-exclusion (silent `getProfile` failure, send-as aliases), attachment reads blocking the event loop, attachment MIME guessing ([#802](https://github.com/khuisman/mcp-gee-sweet/issues/802))
 - [ ] Deduplicate `send_message`/`create_draft` compose and `list_messages`/`list_threads` kwargs/pagination helpers ([#795](https://github.com/khuisman/mcp-gee-sweet/issues/795))

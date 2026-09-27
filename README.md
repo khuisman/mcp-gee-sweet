@@ -79,7 +79,11 @@ The server tries auth methods in a waterfall by default, OAuth first — it auth
 
 ```bash
 export CREDENTIALS_PATH="/path/to/credentials.json"
+export TOKEN_PATH="/path/to/token.json"
+mcp-gee-sweet auth   # one-time browser login; `uvx mcp-gee-sweet auth` for a PyPI install
 ```
+
+Pass the same `CREDENTIALS_PATH` and `TOKEN_PATH` in your MCP client's `env`. A stdio server with no token doesn't open a browser itself; its tools return an error telling you to run `mcp-gee-sweet auth`.
 
 Service accounts (recommended for headless server deployments — see Option B above), base64 credential injection, and Application Default Credentials are also supported. See [Authentication](https://khuisman.github.io/mcp-gee-sweet/latest/auth/) for all options.
 
@@ -95,7 +99,8 @@ Service accounts (recommended for headless server deployments — see Option B a
       "command": "uv",
       "args": ["run", "--directory", "/path/to/mcp-gee-sweet", "mcp-gee-sweet"],
       "env": {
-        "CREDENTIALS_PATH": "/path/to/credentials.json"
+        "CREDENTIALS_PATH": "/path/to/credentials.json",
+        "TOKEN_PATH": "/path/to/token.json"
       }
     }
   }

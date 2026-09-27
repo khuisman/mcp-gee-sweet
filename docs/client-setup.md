@@ -18,7 +18,8 @@ Add a block under `mcpServers` in `claude_desktop_config.json`. Choose stdio (cl
         "mcp-gee-sweet"
       ],
       "env": {
-        "CREDENTIALS_PATH": "/path/to/credentials.json"
+        "CREDENTIALS_PATH": "/path/to/credentials.json",
+        "TOKEN_PATH": "/path/to/token.json"
       }
     }
   }
@@ -26,6 +27,8 @@ Add a block under `mcpServers` in `claude_desktop_config.json`. Choose stdio (cl
 ```
 
 Replace `/path/to/mcp-gee-sweet` with your clone path. This uses OAuth (the default waterfall's first method, full personal Drive access) — swap the `env` block for a different auth method — see [Authentication](auth.md).
+
+Before the first connection, log in once from a terminal with the same paths: `CREDENTIALS_PATH=... TOKEN_PATH=... uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet auth`. A stdio server with no token doesn't open a browser itself. It starts without Google access, and its tools return an error telling you to run this command.
 
 ### SSE — Docker
 
@@ -61,7 +64,8 @@ To restrict tools at the client level, pass `--include-tools` as a CLI arg:
         "--include-tools", "get_sheet_data,update_cells,list_sheets,list_spreadsheets"
       ],
       "env": {
-        "CREDENTIALS_PATH": "/path/to/credentials.json"
+        "CREDENTIALS_PATH": "/path/to/credentials.json",
+        "TOKEN_PATH": "/path/to/token.json"
       }
     }
   }

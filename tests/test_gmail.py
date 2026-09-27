@@ -2,7 +2,14 @@
 
 import base64
 import binascii
+import codecs
+import contextlib
+import encodings.aliases
 import inspect
+import json
+import random
+import threading
+import time
 from email import message_from_bytes
 from email.utils import getaddresses
 from unittest.mock import MagicMock
@@ -310,6 +317,588 @@ class TestDecodeBody:
         assert first["body_decode_errors"][0]["mime_type"] == "text/plain"
         assert second["body_plain"] == "ab"
         assert "body_decode_errors" not in second
+
+
+def _deferred_part(
+    mime_type: str,
+    attachment_id: str,
+    *,
+    part_id: str = "0",
+    charset: str | None = "UTF-8",
+    disposition: str | None = None,
+    filename: str = "",
+    size: int = 1000,
+) -> dict:
+    """A text part as Gmail delivers a large body: attachmentId, no data (#825)."""
+    headers = []
+    if charset is not None:
+        headers.append({"name": "Content-Type", "value": f'{mime_type}; charset="{charset}"'})
+    if disposition is not None:
+        headers.append({"name": "Content-Disposition", "value": disposition})
+    return {
+        "partId": part_id,
+        "mimeType": mime_type,
+        "filename": filename,
+        "headers": headers,
+        "body": {"attachmentId": attachment_id, "size": size},
+    }
+
+
+def _gmail_with_attachments(
+    message: dict | None = None, data_by_id: dict[str, str | Exception] | None = None
+) -> MagicMock:
+    """A gmail service whose attachments.get returns data_by_id[id]; an Exception
+    value is raised instead."""
+    data_by_id = data_by_id or {}
+    gmail_svc = MagicMock()
+    messages = gmail_svc.users.return_value.messages.return_value
+    if message is not None:
+        messages.get.return_value.execute.return_value = message
+
+    def get(userId, messageId, id):
+        req = MagicMock()
+        value = data_by_id[id]
+        if isinstance(value, Exception):
+            req.execute.side_effect = value
+        else:
+            req.execute.return_value = {"size": len(value), "data": value}
+        return req
+
+    messages.attachments.return_value.get.side_effect = get
+    return gmail_svc
+
+
+class TestDeferredBody:
+    """#825: Gmail delivers a large text body by attachmentId, with no inline data."""
+
+    async def test_plain_and_html_are_fetched_and_not_listed_as_attachments(self):
+        msg = _message(
+            "m1",
+            _deferred_part("text/plain", "att-plain", part_id="0"),
+            _deferred_part("text/html", "att-html", part_id="1"),
+        )
+        gmail_svc = _gmail_with_attachments(
+            msg, {"att-plain": _b64(b"big plain"), "att-html": _b64(b"<p>big</p>")}
+        )
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert result["body_plain"] == "big plain"
+        assert result["body_html"] == "<p>big</p>"
+        assert result["attachments"] == []
+        assert "body_fetch_errors" not in result
+        get = gmail_svc.users.return_value.messages.return_value.attachments.return_value.get
+        assert sorted(c.kwargs["id"] for c in get.call_args_list) == ["att-html", "att-plain"]
+        assert {c.kwargs["messageId"] for c in get.call_args_list} == {"m1"}
+
+    async def test_single_part_message_body_is_fetched(self):
+        msg = {
+            "id": "m1",
+            "threadId": "t1",
+            "payload": {
+                **_deferred_part("text/plain", "att-1", part_id=""),
+                "headers": [
+                    {"name": "Subject", "value": "big"},
+                    {"name": "Content-Type", "value": "text/plain; charset=UTF-8"},
+                ],
+            },
+        }
+        gmail_svc = _gmail_with_attachments(msg, {"att-1": _b64(b"whole body")})
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert result["body_plain"] == "whole body"
+        assert result["headers"]["subject"] == "big"
+        assert result["attachments"] == []
+
+    @pytest.mark.parametrize("charset", ["iso-8859-1", "windows-1252", "shift_jis", "koi8-r"])
+    async def test_fetched_body_decodes_with_declared_charset(self, charset):
+        # Unlike inline body.data, attachments.get returns the part's raw bytes
+        # untranscoded (confirmed live on #825: latin-1 "Café" arrives as Caf\xe9).
+        text = {"shift_jis": "こんにちは", "koi8-r": "Привет"}.get(charset, "Café crème")
+        msg = _message("m1", _deferred_part("text/plain", "att-1", charset=charset))
+        gmail_svc = _gmail_with_attachments(msg, {"att-1": _b64(text.encode(charset))})
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert result["body_plain"] == text
+
+    @pytest.mark.parametrize("charset", [None, "x-no-such-charset"])
+    async def test_missing_or_unknown_charset_falls_back_to_utf8(self, charset):
+        msg = _message("m1", _deferred_part("text/plain", "att-1", charset=charset))
+        gmail_svc = _gmail_with_attachments(msg, {"att-1": _b64("Café".encode())})
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert result["body_plain"] == "Café"
+
+    @pytest.mark.parametrize(
+        "part",
+        [
+            _deferred_part("text/plain", "att-1", disposition="attachment"),
+            _deferred_part("text/plain", "att-1", filename="notes.txt"),
+            _deferred_part("text/csv", "att-1"),
+        ],
+        ids=["disposition-attachment", "named", "not-a-body-type"],
+    )
+    async def test_real_attachments_are_not_fetched(self, part):
+        gmail_svc = _gmail_with_attachments(_message("m1", part))
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert result["body_plain"] is None
+        assert [a["attachment_id"] for a in result["attachments"]] == ["att-1"]
+        attachments = gmail_svc.users.return_value.messages.return_value.attachments
+        attachments.return_value.get.assert_not_called()
+
+    async def test_inline_body_first_wins_over_later_deferred_part(self):
+        msg = _message(
+            "m1",
+            _text_part("text/plain", _b64(b"inline"), part_id="0"),
+            _deferred_part("text/plain", "att-1", part_id="1"),
+        )
+        gmail_svc = _gmail_with_attachments(msg)
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert result["body_plain"] == "inline"
+        assert [a["attachment_id"] for a in result["attachments"]] == ["att-1"]
+        attachments = gmail_svc.users.return_value.messages.return_value.attachments
+        attachments.return_value.get.assert_not_called()
+
+    async def test_deferred_body_first_wins_over_later_inline_part(self):
+        msg = _message(
+            "m1",
+            _deferred_part("text/plain", "att-1", part_id="0"),
+            _text_part("text/plain", _b64(b"inline"), part_id="1"),
+        )
+        gmail_svc = _gmail_with_attachments(msg, {"att-1": _b64(b"deferred")})
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert result["body_plain"] == "deferred"
+
+    async def test_fetch_failure_keeps_rest_of_message(self):
+        msg = _message(
+            "m1",
+            _deferred_part("text/plain", "att-plain", part_id="0"),
+            _deferred_part("text/html", "att-html", part_id="1"),
+        )
+        gmail_svc = _gmail_with_attachments(
+            msg, {"att-plain": Exception("backendError"), "att-html": _b64(b"<p>ok</p>")}
+        )
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert "error" not in result
+        assert result["body_plain"] is None
+        assert result["body_html"] == "<p>ok</p>"
+        assert result["body_fetch_errors"] == [
+            {
+                "part_id": "0",
+                "mime_type": "text/plain",
+                "attachment_id": "att-plain",
+                "error": "backendError",
+            }
+        ]
+        assert "body_decode_errors" not in result
+
+    async def test_corrupt_fetched_data_is_a_decode_error(self):
+        msg = _message("m1", _deferred_part("text/plain", "att-1", part_id="0"))
+        gmail_svc = _gmail_with_attachments(msg, {"att-1": _CORRUPT_B64})
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert result["body_plain"] is None
+        assert result["body_decode_errors"][0]["part_id"] == "0"
+        assert "body_fetch_errors" not in result
+
+    async def test_fetch_failure_falls_back_to_later_inline_part(self):
+        msg = _message(
+            "m1",
+            _deferred_part("text/plain", "att-1", part_id="0"),
+            _text_part("text/plain", _b64(b"inline fallback"), part_id="1"),
+        )
+        gmail_svc = _gmail_with_attachments(msg, {"att-1": Exception("backendError")})
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert result["body_plain"] == "inline fallback"
+        assert result["body_fetch_errors"][0]["attachment_id"] == "att-1"
+
+    async def test_unused_fallback_part_is_not_decoded(self):
+        # A later corrupt inline part only matters if the fetch fails.
+        msg = _message(
+            "m1",
+            _deferred_part("text/plain", "att-1", part_id="0"),
+            _text_part("text/plain", _CORRUPT_B64, part_id="1"),
+        )
+        gmail_svc = _gmail_with_attachments(msg, {"att-1": _b64(b"fetched")})
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert result["body_plain"] == "fetched"
+        assert "body_decode_errors" not in result
+
+    @pytest.mark.parametrize("response", [{}, {"size": 10}, {"size": 10, "data": ""}, None])
+    async def test_missing_data_is_a_fetch_error(self, response):
+        msg = _message("m1", _deferred_part("text/plain", "att-1", part_id="0"))
+        gmail_svc = _gmail_with_attachments(msg)
+        attachments = gmail_svc.users.return_value.messages.return_value.attachments
+        attachments.return_value.get.side_effect = None
+        attachments.return_value.get.return_value.execute.return_value = response
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert result["body_plain"] is None
+        assert result["body_fetch_errors"] == [
+            {
+                "part_id": "0",
+                "mime_type": "text/plain",
+                "attachment_id": "att-1",
+                "error": "attachments.get returned no data",
+            }
+        ]
+
+    async def test_part_inside_attached_rfc822_is_not_a_body(self):
+        forwarded = {
+            "partId": "1",
+            "mimeType": "message/rfc822",
+            "filename": "",
+            "body": {"size": 0},
+            "parts": [
+                {
+                    "partId": "1.0",
+                    "mimeType": "multipart/alternative",
+                    "parts": [_deferred_part("text/html", "att-inner", part_id="1.0.1")],
+                }
+            ],
+        }
+        msg = _message("m1", _text_part("text/plain", _b64(b"outer"), part_id="0"), forwarded)
+        gmail_svc = _gmail_with_attachments(msg)
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert result["body_plain"] == "outer"
+        assert result["body_html"] is None
+        assert [a["attachment_id"] for a in result["attachments"]] == ["att-inner"]
+        attachments = gmail_svc.users.return_value.messages.return_value.attachments
+        attachments.return_value.get.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("label", "raw", "expected"),
+        [
+            ("us-ascii", "Café “quoted”".encode(), "Café “quoted”"),
+            ("iso-8859-1", "“Smart” \u2013 quotes".encode("cp1252"), "“Smart” \u2013 quotes"),
+            ("latin1", "Café\u2019s".encode("cp1252"), "Café\u2019s"),
+        ],
+    )
+    async def test_common_charset_mislabels_are_remapped(self, label, raw, expected):
+        msg = _message("m1", _deferred_part("text/plain", "att-1", charset=label))
+        gmail_svc = _gmail_with_attachments(msg, {"att-1": _b64(raw)})
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        assert result["body_plain"] == expected
+
+    @pytest.mark.parametrize("charset", ["idna", "base64", "rot13"])
+    def test_non_text_codecs_fall_back_to_utf8(self, charset):
+        assert gmail_module._decode_body_data(_b64("Café".encode()), charset) == "Café"
+
+    async def test_thread_fetches_are_bounded(self, monkeypatch):
+        monkeypatch.setattr(gmail_module, "_BODY_FETCH_CONCURRENCY", 3)
+        lock = threading.Lock()
+        in_flight = 0
+        peak = 0
+
+        def slow_execute(**_kwargs):
+            nonlocal in_flight, peak
+            with lock:
+                in_flight += 1
+                peak = max(peak, in_flight)
+            time.sleep(0.02)
+            with lock:
+                in_flight -= 1
+            return {"size": 1, "data": _b64(b"x")}
+
+        gmail_svc = MagicMock()
+        attachments = gmail_svc.users.return_value.messages.return_value.attachments
+        attachments.return_value.get.return_value.execute.side_effect = slow_execute
+        gmail_svc.users.return_value.threads.return_value.get.return_value.execute.return_value = {
+            "id": "t1",
+            "messages": [
+                _message(
+                    f"m{i}",
+                    _deferred_part("text/plain", f"p{i}", part_id="0"),
+                    _deferred_part("text/html", f"h{i}", part_id="1"),
+                )
+                for i in range(6)
+            ],
+        }
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_thread"](thread_id="t1", ctx=ctx)
+
+        assert [m["body_plain"] for m in result["messages"]] == ["x"] * 6
+        assert attachments.return_value.get.return_value.execute.call_count == 12
+        assert peak == 3
+
+    async def test_get_thread_fetches_each_messages_deferred_body(self):
+        gmail_svc = _gmail_with_attachments(
+            None, {"att-a": _b64(b"body a"), "att-b": _b64(b"body b")}
+        )
+        gmail_svc.users.return_value.threads.return_value.get.return_value.execute.return_value = {
+            "id": "t1",
+            "messages": [
+                _message("m1", _deferred_part("text/plain", "att-a")),
+                _message("m2", _deferred_part("text/plain", "att-b")),
+            ],
+        }
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_thread"](thread_id="t1", ctx=ctx)
+
+        assert [m["body_plain"] for m in result["messages"]] == ["body a", "body b"]
+        get = gmail_svc.users.return_value.messages.return_value.attachments.return_value.get
+        assert sorted((c.kwargs["messageId"], c.kwargs["id"]) for c in get.call_args_list) == [
+            ("m1", "att-a"),
+            ("m2", "att-b"),
+        ]
+
+
+class TestMessageSizeCap:
+    """#825: a fetched large body goes through the normal cap, with a local_path bypass."""
+
+    @pytest.fixture
+    def small_cap(self, monkeypatch):
+        from mcp_gee_sweet.tools import response_limits
+
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 200)
+
+    def _large(self) -> MagicMock:
+        return _gmail_with_attachments(
+            _message("m1", _deferred_part("text/plain", "att-1")), {"att-1": _b64(b"x" * 500)}
+        )
+
+    async def test_get_message_over_cap_raises_and_names_local_path(self, small_cap):
+        ctx = _make_ctx(gmail_service=self._large())
+
+        with pytest.raises(ValueError, match=r"get_message.*Pass local_path"):
+            await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+    async def test_get_message_local_path_writes_full_message(self, small_cap, tmp_path):
+        ctx = _make_ctx(gmail_service=self._large())
+
+        result = await _gmail_tools["get_message"](
+            message_id="m1", local_path=str(tmp_path), ctx=ctx
+        )
+
+        dest = tmp_path / "message_m1.json"
+        assert result == {
+            "local_path": str(dest),
+            "bytes_written": dest.stat().st_size,
+            "message_id": "m1",
+        }
+        assert json.loads(dest.read_text())["body_plain"] == "x" * 500
+
+    async def test_over_cap_deferred_bodies_are_not_downloaded(self, small_cap):
+        gmail_svc = self._large()
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        with pytest.raises(ValueError, match=r"would be at least 1000 characters"):
+            await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+        attachments = gmail_svc.users.return_value.messages.return_value.attachments
+        attachments.return_value.get.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("charset", "text"),
+        [
+            ("utf-16", "plain ascii body " * 60),
+            ("utf-32", "plain ascii body " * 60),
+            # Alternating scripts force an escape sequence around every character.
+            ("iso-2022-jp", "a\u6f22" * 600),
+        ],
+        ids=["utf-16", "utf-32", "iso-2022-jp"],
+    )
+    async def test_floor_ignores_codecs_whose_bytes_overstate_size(
+        self, monkeypatch, charset, text
+    ):
+        # PR #829 QA round 2: body.size counts bytes in the part's own charset, which
+        # for these codecs exceeds the serialized size, so the floor must not use it.
+        from mcp_gee_sweet.tools import response_limits
+
+        raw = text.encode(charset)
+
+        def service():
+            return _gmail_with_attachments(
+                _message(
+                    "m1", _deferred_part("text/plain", "att-1", charset=charset, size=len(raw))
+                ),
+                {"att-1": _b64(raw)},
+            )
+
+        full = await _gmail_tools["get_message"](
+            message_id="m1", ctx=_make_ctx(gmail_service=service())
+        )
+        assert full["body_plain"] == text
+        serialized = len(json.dumps(full))
+        assert len(raw) > serialized  # the regression's precondition
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", serialized)
+
+        result = await _gmail_tools["get_message"](
+            message_id="m1", ctx=_make_ctx(gmail_service=service())
+        )
+
+        assert result["body_plain"] == text
+
+    async def test_post_fetch_cap_still_applies_when_size_underreported(self, small_cap):
+        gmail_svc = _gmail_with_attachments(
+            _message("m1", _deferred_part("text/plain", "att-1", size=10)),
+            {"att-1": _b64(b"x" * 500)},
+        )
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        with pytest.raises(ValueError, match=r"get_message: the response is \d+ characters"):
+            await _gmail_tools["get_message"](message_id="m1", ctx=ctx)
+
+    async def test_get_message_manifest_surfaces_body_errors(self, tmp_path):
+        gmail_svc = _gmail_with_attachments(
+            _message("m1", _deferred_part("text/plain", "att-1", part_id="0")),
+            {"att-1": Exception("backendError")},
+        )
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_message"](
+            message_id="m1", local_path=str(tmp_path), ctx=ctx
+        )
+
+        assert result["body_fetch_errors"] == [
+            {
+                "message_id": "m1",
+                "part_id": "0",
+                "mime_type": "text/plain",
+                "attachment_id": "att-1",
+                "error": "backendError",
+            }
+        ]
+        assert "body_decode_errors" not in result
+
+    async def test_get_thread_manifest_surfaces_each_messages_errors(self, tmp_path):
+        gmail_svc = _gmail_with_attachments(
+            None, {"att-a": Exception("backendError"), "att-b": _CORRUPT_B64}
+        )
+        gmail_svc.users.return_value.threads.return_value.get.return_value.execute.return_value = {
+            "id": "t1",
+            "messages": [
+                _message("m1", _deferred_part("text/plain", "att-a")),
+                _message("m2", _deferred_part("text/plain", "att-b")),
+            ],
+        }
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        result = await _gmail_tools["get_thread"](thread_id="t1", local_path=str(tmp_path), ctx=ctx)
+
+        assert [(e["message_id"], e["attachment_id"]) for e in result["body_fetch_errors"]] == [
+            ("m1", "att-a")
+        ]
+        assert [(e["message_id"], e["attachment_id"]) for e in result["body_decode_errors"]] == [
+            ("m2", "att-b")
+        ]
+
+    async def test_manifest_has_no_error_keys_on_success(self, small_cap, tmp_path):
+        ctx = _make_ctx(gmail_service=self._large())
+
+        result = await _gmail_tools["get_message"](
+            message_id="m1", local_path=str(tmp_path), ctx=ctx
+        )
+
+        assert set(result) == {"local_path", "bytes_written", "message_id"}
+
+    async def test_get_thread_over_cap_raises_and_names_local_path(self, small_cap):
+        gmail_svc = self._large()
+        gmail_svc.users.return_value.threads.return_value.get.return_value.execute.return_value = {
+            "id": "t1",
+            "messages": [_message("m1", _deferred_part("text/plain", "att-1"))],
+        }
+        ctx = _make_ctx(gmail_service=gmail_svc)
+
+        with pytest.raises(ValueError, match=r"get_thread.*Pass local_path"):
+            await _gmail_tools["get_thread"](thread_id="t1", ctx=ctx)
+
+    async def test_get_thread_local_path_writes_full_thread(self, small_cap, tmp_path):
+        gmail_svc = self._large()
+        gmail_svc.users.return_value.threads.return_value.get.return_value.execute.return_value = {
+            "id": "t1",
+            "messages": [_message("m1", _deferred_part("text/plain", "att-1"))],
+        }
+        ctx = _make_ctx(gmail_service=gmail_svc)
+        dest = tmp_path / "out" / "thread.json"
+
+        result = await _gmail_tools["get_thread"](thread_id="t1", local_path=str(dest), ctx=ctx)
+
+        assert result["local_path"] == str(dest)
+        assert result["thread_id"] == "t1"
+        assert result["message_count"] == 1
+        assert json.loads(dest.read_text())["messages"][0]["body_plain"] == "x" * 500
+
+
+class TestSizeFloorCodecs:
+    """PR #829 QA round 2: _deferred_body_bytes may count a part's byte size only
+    when its codec guarantees at least one serialized JSON character per byte."""
+
+    @staticmethod
+    def _counted_codecs() -> list[str]:
+        names = set()
+        for alias in set(encodings.aliases.aliases.values()):
+            try:
+                names.add(codecs.lookup(alias).name)
+            except LookupError:
+                continue
+        return sorted(n for n in names if gmail_module._bytes_bound_serialized_size(n))
+
+    def test_every_counted_codec_serializes_at_least_one_char_per_byte(self):
+        rng = random.Random(825)
+        blobs = [bytes(rng.randrange(256) for _ in range(2000)) for _ in range(5)]
+        blobs.append(bytes(range(256)) * 4)
+        texts = [
+            "Hello, world\n",
+            "Caf\u00e9 \u201cq\u201d \u20ac",
+            "\u3053\u3093\u306b\u3061\u306f",
+            "\u041f\u0440\u0438",
+        ]
+        counted = self._counted_codecs()
+        assert "utf-8" in counted and "cp1252" in counted and "shift_jis" in counted
+        for codec in counted:
+            samples = list(blobs)
+            for text in texts:
+                with contextlib.suppress(UnicodeEncodeError):
+                    samples.append(text.encode(codec) * 20)
+            for raw in samples:
+                decoded = raw.decode(codec, errors="replace")
+                assert len(json.dumps(decoded)) - 2 >= len(raw), codec
+
+    @pytest.mark.parametrize(
+        "charset",
+        ["utf-16", "utf-16-le", "utf-32", "utf-7", "iso-2022-jp", "iso-2022-kr", "hz", "idna"],
+    )
+    def test_wide_and_stateful_codecs_are_not_counted(self, charset):
+        codec = gmail_module._codec_for(charset)
+        assert not gmail_module._bytes_bound_serialized_size(codec)
 
 
 class TestListThreads:

@@ -4,6 +4,7 @@ Google Spreadsheet MCP Server
 A Model Context Protocol (MCP) server built with MCPServer for interacting with Google Sheets.
 """
 
+import argparse
 import functools
 import importlib.metadata
 import json
@@ -76,10 +77,14 @@ from mcp.server.mcpserver import Context, MCPServer  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402
 
 from .auth import (  # noqa: E402
+    OAuthConsentRequiredError,
     execute_in_thread,
     get_gmail_unauthorized_message,
     get_lifespan_context,
+    reauthorize_instructions,
+    run_auth_command,
     set_gmail_enabled,
+    set_interactive_consent,
     spreadsheet_lifespan,
 )
 
@@ -121,13 +126,29 @@ app = mcp.sse_app(host=_resolved_host)
 _tool_access_logger = logging.getLogger("mcp_gee_sweet.access")
 
 
+def _unauthorized_message(ctx) -> str | None:
+    """The degraded-start message on this call's own lifespan context, if any. Per
+    connection: under SSE each connection runs its own lifespan (#811)."""
+    lifespan = getattr(getattr(ctx, "request_context", None), "lifespan_context", None)
+    message = getattr(lifespan, "unauthorized_message", None)
+    return message if isinstance(message, str) else None
+
+
 def _timed(func):
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         start = time.perf_counter()
         status = 200
         try:
+            # Degraded start (#811): this connection has no Google services, so no
+            # tool can run. Raised rather than returned so it works whatever the
+            # tool's return type.
+            if unauthorized := _unauthorized_message(kwargs.get("ctx")):
+                raise OAuthConsentRequiredError(unauthorized)
             return await func(*args, **kwargs)
+        except OAuthConsentRequiredError:
+            status = 401
+            raise
         except Exception:
             status = 500
             raise
@@ -291,8 +312,13 @@ def _auth_status_json(
     auth_method: str,
     is_service_account_identity: bool = False,
     gmail_unauthorized: str | None = None,
+    oauth_unauthorized: str | None = None,
 ) -> str:
     """Return a JSON string describing the auth method and its Drive limitations.
+
+    `oauth_unauthorized` is the context's `unauthorized_message`: set when the
+    server started without any Google access because OAuth needs consent it couldn't
+    ask for (#811). Every tool is limited then, reported as `"*"`.
 
     `gmail_unauthorized` is `auth.get_gmail_unauthorized_message()`: set when an
     OAuth token is missing only the Gmail scope, so the server started without Gmail
@@ -306,6 +332,24 @@ def _auth_status_json(
     exact same Drive limitations as `auth_method == "service_account"`, even though
     the auth *method* used to reach it was ADC.
     """
+    if oauth_unauthorized:
+        return json.dumps(
+            {
+                "auth_method": auth_method,
+                "is_service_account_identity": False,
+                "can_create_in_personal_drive": False,
+                "limited_tools": ["*"],
+                "limitations": [
+                    {
+                        "category": "oauth_not_authorized",
+                        "tools": ["*"],
+                        "reason": oauth_unauthorized,
+                        "alternatives": reauthorize_instructions(),
+                    }
+                ],
+            },
+            indent=2,
+        )
     if auth_method == "service_account" or is_service_account_identity:
         limitations = _sa_limitations_for(auth_method)
         return json.dumps(
@@ -326,8 +370,8 @@ def _auth_status_json(
                 "category": "gmail_not_authorized",
                 "tools": mailbox["tools"],
                 "reason": gmail_unauthorized,
-                "alternatives": "Re-authorize (delete the token file and restart, or run "
-                "scripts/oauth_setup.py), or leave the Gmail tools out of ENABLED_TOOLS.",
+                "alternatives": f"{reauthorize_instructions()} Or leave the Gmail tools "
+                "out of ENABLED_TOOLS.",
             }
         )
     return json.dumps(
@@ -359,6 +403,7 @@ def get_auth_status() -> str:
         context.auth_method,
         context.is_service_account_identity,
         get_gmail_unauthorized_message(),
+        context.unauthorized_message,
     )
 
 
@@ -373,6 +418,8 @@ async def get_spreadsheet_info(spreadsheet_id: str, ctx: Context) -> str:
     Returns:
         JSON string with spreadsheet information
     """
+    if unauthorized := _unauthorized_message(ctx):
+        raise OAuthConsentRequiredError(unauthorized)
     context = ctx.request_context.lifespan_context
     sheets_service = context.sheets_service
 
@@ -395,7 +442,52 @@ async def get_spreadsheet_info(spreadsheet_id: str, ctx: Context) -> str:
     return json.dumps(info, indent=2)
 
 
+# Server options that take a value, so their value isn't mistaken for a subcommand.
+_VALUE_OPTIONS = {"--include-tools", "--transport"}
+
+
+def _is_auth_command(argv: list[str]) -> bool:
+    """Whether the positional `auth` subcommand appears anywhere in argv, so
+    `mcp-gee-sweet --include-tools X auth` works as well as `auth --include-tools X`."""
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg in _VALUE_OPTIONS:
+            i += 2
+            continue
+        if arg == "auth":
+            return True
+        i += 1
+    return False
+
+
+def _auth_main(argv: list[str]) -> int:
+    """`mcp-gee-sweet auth` (#811). Strict about its flags: a typo like --no-browswer
+    would otherwise silently open a browser. Tool registration has already run at
+    import, so --include-tools / ENABLED_TOOLS narrow the scopes the same way they
+    do for the server."""
+    parser = argparse.ArgumentParser(
+        prog="mcp-gee-sweet auth",
+        description="Authorize OAuth access and save the token to TOKEN_PATH.",
+    )
+    parser.add_argument("auth")
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="print the consent URL instead of opening a browser",
+    )
+    parser.add_argument(
+        "--include-tools",
+        help="comma-separated tools the server will register; narrows the scopes",
+    )
+    args = parser.parse_args(argv)
+    return run_auth_command(open_browser=not args.no_browser)
+
+
 def main():
+    if _is_auth_command(sys.argv[1:]):
+        sys.exit(_auth_main(sys.argv[1:]))
+
     try:
         version = importlib.metadata.version("mcp-gee-sweet")
     except importlib.metadata.PackageNotFoundError:
@@ -425,6 +517,9 @@ def main():
             reload=True,
         )
     elif transport == "stdio":
+        # stdout is the protocol channel and nobody is watching for a browser tab, so
+        # a missing token degrades instead of running the consent flow (#811).
+        set_interactive_consent(False)
         mcp.run(transport=transport)
     else:
         # mcp v2 moved host/port from the constructor to call-time kwargs (see the
