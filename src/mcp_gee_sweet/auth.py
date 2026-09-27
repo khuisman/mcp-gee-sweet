@@ -10,6 +10,7 @@ from typing import Any
 
 import google.auth
 from google.auth import compute_engine, external_account, impersonated_credentials
+from google.auth.exceptions import TransportError
 from google.auth.transport.requests import Request
 from google.oauth2 import gdch_credentials, service_account
 from google.oauth2.credentials import Credentials
@@ -73,26 +74,30 @@ def get_gmail_unauthorized_message() -> str | None:
 # with no timeout, and google-auth-oauthlib print()s its "Please visit this URL"
 # prompt to stdout, which is the JSON-RPC channel, so the user never saw it.
 _interactive_consent = True
+_STDIO_NO_CONSENT_REASON = "this server can't ask for consent itself over the stdio transport"
+# Why consent is off, for the error message. The lifespan also turns it off after a
+# failed attempt: under SSE the lifespan runs once per connection, and the wait is
+# synchronous, so retrying would block every session for the timeout again.
+_interactive_consent_off_reason = _STDIO_NO_CONSENT_REASON
 
 
-def set_interactive_consent(allowed: bool) -> None:
-    global _interactive_consent
+def set_interactive_consent(allowed: bool, reason: str = _STDIO_NO_CONSENT_REASON) -> None:
+    global _interactive_consent, _interactive_consent_off_reason
     _interactive_consent = allowed
+    _interactive_consent_off_reason = reason
+
+
+def _consent_timeout_seconds() -> int:
+    raw = os.environ.get("OAUTH_CONSENT_TIMEOUT_SECONDS", "300")
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        logger.warning("Ignoring non-integer OAUTH_CONSENT_TIMEOUT_SECONDS=%r; using 300", raw)
+        return 300
 
 
 # How long the interactive flow waits for the browser callback before giving up.
-_CONSENT_TIMEOUT_SECONDS = 300
-
-# Set by spreadsheet_lifespan when OAuth needs consent it couldn't get (stdio, or the
-# flow timed out): the server still starts, with no Google services, and every tool
-# raises this message instead of running. It's the Gmail-only degrade from #790
-# widened to the whole server, for the same reason: a startup failure is invisible
-# to a stdio client.
-_oauth_unauthorized_message: str | None = None
-
-
-def get_oauth_unauthorized_message() -> str | None:
-    return _oauth_unauthorized_message
+_CONSENT_TIMEOUT_SECONDS = _consent_timeout_seconds()
 
 
 def required_scopes() -> list[str]:
@@ -104,7 +109,7 @@ def required_scopes() -> list[str]:
 
 class OAuthConsentRequiredError(RuntimeError):
     """There's no usable OAuth token, and the interactive consent flow can't run here
-    (stdio transport) or wasn't completed in time (#811)."""
+    (stdio transport) or didn't complete (#811)."""
 
 
 class MissingOAuthScopesError(RuntimeError):
@@ -121,6 +126,9 @@ CREDENTIALS_CONFIG = os.environ.get("CREDENTIALS_CONFIG")
 TOKEN_PATH = os.environ.get("TOKEN_PATH", "token.json")
 CREDENTIALS_PATH = os.environ.get("CREDENTIALS_PATH", "credentials.json")
 SERVICE_ACCOUNT_PATH = os.environ.get("SERVICE_ACCOUNT_PATH", "service_account.json")
+# Whether SERVICE_ACCOUNT_PATH was set on purpose, as opposed to the default: a
+# missing key file then counts as a misconfiguration worth reporting (#811).
+SERVICE_ACCOUNT_PATH_EXPLICIT = "SERVICE_ACCOUNT_PATH" in os.environ
 DRIVE_FOLDER_ID = os.environ.get("DRIVE_FOLDER_ID", "")
 # When unset, auth falls through: OAuth → service_account → ADC.
 # Explicit values pin to one method with no fallback: "oauth" | "service_account" | "adc"
@@ -142,6 +150,11 @@ class SpreadsheetContext:
     # auth_method == "adc" when google.auth.default() itself resolved to a
     # service-account-backed credential (see _is_service_account_credential).
     is_service_account_identity: bool = False
+    # Set when this connection started without Google access because OAuth needs
+    # consent it couldn't get (#811): every service is None, and server.py's tool
+    # wrapper raises this message instead of running any tool. Per context, not
+    # process-wide: under SSE each connection runs its own lifespan.
+    unauthorized_message: str | None = None
     cache: SheetStructureCache = field(default_factory=SheetStructureCache)
     sheet_data_cache: SheetDataCache = field(default_factory=SheetDataCache)
     drive_folder_cache: DriveFolderCache = field(default_factory=DriveFolderCache)
@@ -211,7 +224,8 @@ def reauthorize_instructions() -> str:
     return (
         "To authorize, run `mcp-gee-sweet auth` in a terminal (`uvx mcp-gee-sweet auth` "
         f"for a PyPI install) with the same TOKEN_PATH ({TOKEN_PATH!r}), CREDENTIALS_PATH "
-        f"({CREDENTIALS_PATH!r}) and ENABLED_TOOLS as this server, then restart the server."
+        f"({CREDENTIALS_PATH!r}) and ENABLED_TOOLS as this server, then restart the server "
+        "or reconnect to it."
     )
 
 
@@ -265,9 +279,18 @@ def _oauth_creds() -> Credentials:
         try:
             logger.debug("Refreshing expired OAuth token...")
             creds.refresh(Request())
-            with open(TOKEN_PATH, "w") as f:
-                f.write(creds.to_json())
+            _write_token(creds)
             logger.debug("Token refreshed successfully")
+            return creds
+        except TransportError as e:
+            # Google unreachable (e.g. the network isn't up yet at login) says nothing
+            # about the token itself. Keep it: google-auth refreshes an expired token
+            # before its first API call, so this recovers without re-authorizing (#811).
+            logger.warning(
+                "Couldn't reach Google to refresh the OAuth token (%s); keeping it, "
+                "it will refresh on first use",
+                e,
+            )
             return creds
         except Exception as e:
             # The saved scope record can overstate what was actually granted (e.g. a
@@ -279,15 +302,15 @@ def _oauth_creds() -> Credentials:
                 if creds is None:
                     raise _missing_scopes_error(scopes) from e
                 return creds
-            logger.warning("Token refresh failed: %s — re-running OAuth flow", e)
+            logger.warning("Token refresh failed: %s — the token needs re-authorizing", e)
             creds = None
 
     if not creds or not creds.valid:
         _check_client_secrets()
         if not _interactive_consent:
             raise OAuthConsentRequiredError(
-                f"No usable OAuth token at {TOKEN_PATH!r}, and this server can't ask for "
-                f"consent itself over the stdio transport. {reauthorize_instructions()}"
+                f"No usable OAuth token at {TOKEN_PATH!r}, and "
+                f"{_interactive_consent_off_reason}. {reauthorize_instructions()}"
             )
         # Even outside stdio, stdout is no place for the prompt: send it to stderr,
         # and bound the wait so an unattended server doesn't block forever (#811).
@@ -298,6 +321,14 @@ def _oauth_creds() -> Credentials:
             raise OAuthConsentRequiredError(
                 f"No usable OAuth token at {TOKEN_PATH!r}, and the browser consent wasn't "
                 f"completed within {_CONSENT_TIMEOUT_SECONDS}s. {reauthorize_instructions()}"
+            ) from e
+        except Exception as e:
+            # Denied consent, a scope unticked on the granular-consent screen, a stray
+            # request consuming the one callback, an unwritable TOKEN_PATH: all leave
+            # the server exactly where a timeout does.
+            raise OAuthConsentRequiredError(
+                f"No usable OAuth token at {TOKEN_PATH!r}, and the browser consent "
+                f"failed ({type(e).__name__}: {e}). {reauthorize_instructions()}"
             ) from e
 
     return creds
@@ -310,14 +341,42 @@ def _check_client_secrets() -> None:
         )
 
 
+def _check_token_writable() -> None:
+    """Fail before the consent, not after: a token that can't be saved once the user
+    has consented is a lost refresh token."""
+    parent = os.path.dirname(os.path.abspath(TOKEN_PATH))
+    if not os.path.isdir(parent):
+        raise RuntimeError(
+            f"The directory for TOKEN_PATH ({TOKEN_PATH!r}) doesn't exist. Create it first."
+        )
+    target = TOKEN_PATH if os.path.exists(TOKEN_PATH) else parent
+    if not os.access(target, os.W_OK):
+        raise RuntimeError(f"TOKEN_PATH ({TOKEN_PATH!r}) isn't writable.")
+
+
+def write_token_json(token_json: str) -> None:
+    """Save a token to TOKEN_PATH, readable by its owner only: it holds a refresh
+    token for Drive (and, with Gmail enabled, the mailbox)."""
+    fd = os.open(TOKEN_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        # O_CREAT's mode only applies to a new file; tighten an existing one too.
+        if hasattr(os, "fchmod"):
+            os.fchmod(f.fileno(), 0o600)
+        f.write(token_json)
+
+
+def _write_token(creds: Any) -> None:
+    write_token_json(creds.to_json())
+
+
 def run_consent_flow(scopes: list[str], **run_kwargs: Any) -> Credentials:
     """Run the browser consent flow for `scopes` and save the token to TOKEN_PATH.
     `run_kwargs` go to InstalledAppFlow.run_local_server."""
     _check_client_secrets()
+    _check_token_writable()
     flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, scopes)
     creds = flow.run_local_server(port=0, **run_kwargs)
-    with open(TOKEN_PATH, "w") as f:
-        f.write(creds.to_json())
+    _write_token(creds)
     logger.debug("OAuth flow completed successfully")
     return creds
 
@@ -333,8 +392,10 @@ def run_auth_command(open_browser: bool = True) -> int:
     print()
     try:
         run_consent_flow(scopes, open_browser=open_browser)
-    except RuntimeError as e:
-        print(f"ERROR: {e}", file=sys.stderr)
+    except Exception as e:
+        # Denied consent, an unticked scope, a malformed or web-type client JSON: a
+        # terminal user needs the reason, not a traceback.
+        print(f"ERROR: {type(e).__name__}: {e}", file=sys.stderr)
         return 1
     print(f"\nSaved the token to {TOKEN_PATH}. Restart the server to pick it up.")
     return 0
@@ -356,16 +417,40 @@ def _refresh_without_gmail(info: dict | None, attempted: list[str]) -> Credentia
         logger.debug("Refresh without Gmail scopes also failed: %s", e)
         return None
     # Deliberately not written back to TOKEN_PATH: the saved token keeps its own
-    # scope record, so re-authorizing later is a plain delete-and-restart.
+    # scope record, so re-authorizing later is `mcp-gee-sweet auth` and a restart.
     _degrade_gmail(gmail)
     return creds
 
 
-def _degrade_unauthorized(error: OAuthConsentRequiredError) -> None:
-    global _oauth_unauthorized_message
-    _oauth_unauthorized_message = str(error)
+def _degrade_unauthorized(message: str) -> str:
     # Logged as well: stdio hosts drop stderr, so LOG_FILE is where an operator sees it.
-    logger.warning("Starting without Google access: %s", _oauth_unauthorized_message)
+    logger.warning("Starting without Google access: %s", message)
+    if _interactive_consent:
+        # Only reachable after a failed SSE consent attempt. The lifespan runs per
+        # connection and the wait is synchronous, so a retry would block every
+        # session again; later connections just re-read TOKEN_PATH instead.
+        set_interactive_consent(
+            False,
+            reason="an earlier browser consent in this server process didn't complete "
+            "(it isn't retried, since waiting for it blocks every connection)",
+        )
+    return message
+
+
+def _unusable_fallbacks_note(adc_error: Exception) -> str:
+    """What the waterfall's fallbacks hit, when they were configured on purpose: a
+    degraded start shouldn't hide a broken service-account or ADC setup behind "run
+    mcp-gee-sweet auth" (#811). Unconfigured fallbacks aren't worth mentioning."""
+    notes = []
+    if SERVICE_ACCOUNT_PATH_EXPLICIT and not os.path.exists(SERVICE_ACCOUNT_PATH):
+        notes.append(
+            f"no service account key file at SERVICE_ACCOUNT_PATH ({SERVICE_ACCOUNT_PATH!r})"
+        )
+    if os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+        notes.append(f"ADC failed ({adc_error})")
+    if not notes:
+        return ""
+    return f" The fallbacks weren't usable either: {'; '.join(notes)}."
 
 
 def _service_account_creds() -> service_account.Credentials:
@@ -401,9 +486,10 @@ def get_lifespan_context() -> SpreadsheetContext:
 async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetContext]:
     from googleapiclient.discovery import build
 
-    global _lifespan_context, _oauth_unauthorized_message
-    _oauth_unauthorized_message = None
+    global _lifespan_context
     logger.debug("AUTH_METHOD=%s", AUTH_METHOD or "auto (waterfall)")
+    resolved = "unknown"
+    unauthorized = None
 
     # --- Strict override modes (AUTH_METHOD set explicitly) ---
 
@@ -413,7 +499,7 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
             resolved = "oauth"
         except OAuthConsentRequiredError as e:
             creds = None
-            _degrade_unauthorized(e)
+            unauthorized = _degrade_unauthorized(str(e))
 
     elif AUTH_METHOD == "service_account":
         creds = _service_account_creds()
@@ -436,7 +522,6 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
 
     else:
         creds = None
-        resolved = "unknown"
         consent_required = None
 
         # 1. OAuth
@@ -475,11 +560,13 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
                         "All authentication methods failed. Please configure credentials."
                     ) from e
                 logger.debug("Waterfall: ADC unavailable (%s)", e)
-                _degrade_unauthorized(consent_required)
+                unauthorized = _degrade_unauthorized(
+                    f"{consent_required}{_unusable_fallbacks_note(e)}"
+                )
 
     if creds is None:
         # Degraded start: no services to build. server.py's tool wrapper raises
-        # get_oauth_unauthorized_message() before any tool body can reach them.
+        # context.unauthorized_message before any tool body can reach them.
         context = SpreadsheetContext(
             sheets_service=None,
             drive_service=None,
@@ -489,6 +576,7 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
             gmail_service=None,
             folder_id=DRIVE_FOLDER_ID if DRIVE_FOLDER_ID else None,
             auth_method="none",
+            unauthorized_message=unauthorized,
         )
         _lifespan_context = context
         try:

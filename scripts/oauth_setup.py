@@ -15,6 +15,12 @@ Then either:
 
 The token is saved to TOKEN_PATH (default: token.json) on completion.
 
+This is the QA-automation wrapper around the same consent flow as
+`mcp-gee-sweet auth` (auth.run_consent_flow), which is what users run. It always
+requests every scope (auth.SCOPES) regardless of ENABLED_TOOLS, since the shared
+QA token has to serve every tool, and prints the URL in a fixed OAUTH_URL format
+for the Playwright conductor to pick up.
+
 CI / headless alternative — see docs/qa/playwright_oauth.md for refresh-token
 injection via GOOGLE_OAUTH_REFRESH_TOKEN, which skips this browser flow entirely.
 """
@@ -31,38 +37,36 @@ import dotenv
 
 dotenv.load_dotenv(Path(__file__).parent.parent / "src" / "mcp_gee_sweet" / ".env")
 
-from mcp_gee_sweet.auth import CREDENTIALS_PATH, SCOPES, TOKEN_PATH  # noqa: E402
+from mcp_gee_sweet.auth import (  # noqa: E402
+    CREDENTIALS_PATH,
+    SCOPES,
+    TOKEN_PATH,
+    run_consent_flow,
+    write_token_json,
+)
 
 
 def main() -> None:
-    if not os.path.exists(CREDENTIALS_PATH):
-        print(f"ERROR: credentials file not found at {CREDENTIALS_PATH!r}", file=sys.stderr)
-        print("Set CREDENTIALS_PATH in .env or provide credentials.json", file=sys.stderr)
-        sys.exit(1)
-
-    # Import here so the dotenv load above takes effect first
-    from google_auth_oauthlib.flow import InstalledAppFlow
-
     print(f"Credentials : {CREDENTIALS_PATH}")
     print(f"Token target: {TOKEN_PATH}")
     print()
 
-    flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, SCOPES)
-    creds = flow.run_local_server(
-        port=0,
-        open_browser=False,
-        authorization_prompt_message=(
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "OAUTH_URL: {url}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "Navigate to the URL above (browser or Playwright).\n"
-            "Waiting for callback…"
-        ),
-        success_message=("Authorization complete — you may close this tab."),
-    )
-
-    with open(TOKEN_PATH, "w") as f:
-        f.write(creds.to_json())
+    try:
+        run_consent_flow(
+            SCOPES,
+            open_browser=False,
+            authorization_prompt_message=(
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "OAUTH_URL: {url}\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "Navigate to the URL above (browser or Playwright).\n"
+                "Waiting for callback…"
+            ),
+            success_message="Authorization complete — you may close this tab.",
+        )
+    except Exception as e:
+        print(f"ERROR: {type(e).__name__}: {e}", file=sys.stderr)
+        sys.exit(1)
 
     print(f"\nToken saved to {TOKEN_PATH}")
 
@@ -101,8 +105,7 @@ def from_refresh_token() -> None:
         "universe_domain": "googleapis.com",
     }
 
-    with open(TOKEN_PATH, "w") as f:
-        json.dump(token_data, f, indent=2)
+    write_token_json(json.dumps(token_data, indent=2))
 
     print(f"token.json written from refresh token → {TOKEN_PATH}")
     print("The server will exchange it for an access token on first use.")

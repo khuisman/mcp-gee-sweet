@@ -4,6 +4,7 @@ Google Spreadsheet MCP Server
 A Model Context Protocol (MCP) server built with MCPServer for interacting with Google Sheets.
 """
 
+import argparse
 import functools
 import importlib.metadata
 import json
@@ -80,7 +81,6 @@ from .auth import (  # noqa: E402
     execute_in_thread,
     get_gmail_unauthorized_message,
     get_lifespan_context,
-    get_oauth_unauthorized_message,
     reauthorize_instructions,
     run_auth_command,
     set_gmail_enabled,
@@ -126,15 +126,24 @@ app = mcp.sse_app(host=_resolved_host)
 _tool_access_logger = logging.getLogger("mcp_gee_sweet.access")
 
 
+def _unauthorized_message(ctx) -> str | None:
+    """The degraded-start message on this call's own lifespan context, if any. Per
+    connection: under SSE each connection runs its own lifespan (#811)."""
+    lifespan = getattr(getattr(ctx, "request_context", None), "lifespan_context", None)
+    message = getattr(lifespan, "unauthorized_message", None)
+    return message if isinstance(message, str) else None
+
+
 def _timed(func):
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         start = time.perf_counter()
         status = 200
         try:
-            # Degraded start (#811): no Google services exist, so no tool can run.
-            # Raised rather than returned so it works whatever the tool's return type.
-            if unauthorized := get_oauth_unauthorized_message():
+            # Degraded start (#811): this connection has no Google services, so no
+            # tool can run. Raised rather than returned so it works whatever the
+            # tool's return type.
+            if unauthorized := _unauthorized_message(kwargs.get("ctx")):
                 raise OAuthConsentRequiredError(unauthorized)
             return await func(*args, **kwargs)
         except OAuthConsentRequiredError:
@@ -307,7 +316,7 @@ def _auth_status_json(
 ) -> str:
     """Return a JSON string describing the auth method and its Drive limitations.
 
-    `oauth_unauthorized` is `auth.get_oauth_unauthorized_message()`: set when the
+    `oauth_unauthorized` is the context's `unauthorized_message`: set when the
     server started without any Google access because OAuth needs consent it couldn't
     ask for (#811). Every tool is limited then, reported as `"*"`.
 
@@ -394,7 +403,7 @@ def get_auth_status() -> str:
         context.auth_method,
         context.is_service_account_identity,
         get_gmail_unauthorized_message(),
-        get_oauth_unauthorized_message(),
+        context.unauthorized_message,
     )
 
 
@@ -409,7 +418,7 @@ async def get_spreadsheet_info(spreadsheet_id: str, ctx: Context) -> str:
     Returns:
         JSON string with spreadsheet information
     """
-    if unauthorized := get_oauth_unauthorized_message():
+    if unauthorized := _unauthorized_message(ctx):
         raise OAuthConsentRequiredError(unauthorized)
     context = ctx.request_context.lifespan_context
     sheets_service = context.sheets_service
@@ -433,12 +442,51 @@ async def get_spreadsheet_info(spreadsheet_id: str, ctx: Context) -> str:
     return json.dumps(info, indent=2)
 
 
+# Server options that take a value, so their value isn't mistaken for a subcommand.
+_VALUE_OPTIONS = {"--include-tools", "--transport"}
+
+
+def _is_auth_command(argv: list[str]) -> bool:
+    """Whether the positional `auth` subcommand appears anywhere in argv, so
+    `mcp-gee-sweet --include-tools X auth` works as well as `auth --include-tools X`."""
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg in _VALUE_OPTIONS:
+            i += 2
+            continue
+        if arg == "auth":
+            return True
+        i += 1
+    return False
+
+
+def _auth_main(argv: list[str]) -> int:
+    """`mcp-gee-sweet auth` (#811). Strict about its flags: a typo like --no-browswer
+    would otherwise silently open a browser. Tool registration has already run at
+    import, so --include-tools / ENABLED_TOOLS narrow the scopes the same way they
+    do for the server."""
+    parser = argparse.ArgumentParser(
+        prog="mcp-gee-sweet auth",
+        description="Authorize OAuth access and save the token to TOKEN_PATH.",
+    )
+    parser.add_argument("auth")
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="print the consent URL instead of opening a browser",
+    )
+    parser.add_argument(
+        "--include-tools",
+        help="comma-separated tools the server will register; narrows the scopes",
+    )
+    args = parser.parse_args(argv)
+    return run_auth_command(open_browser=not args.no_browser)
+
+
 def main():
-    if sys.argv[1:2] == ["auth"]:
-        # `mcp-gee-sweet auth [--no-browser]` (#811). Tool registration has already
-        # run at import, so --include-tools / ENABLED_TOOLS narrow the scopes here the
-        # same way they do for the server.
-        sys.exit(run_auth_command(open_browser="--no-browser" not in sys.argv))
+    if _is_auth_command(sys.argv[1:]):
+        sys.exit(_auth_main(sys.argv[1:]))
 
     try:
         version = importlib.metadata.version("mcp-gee-sweet")

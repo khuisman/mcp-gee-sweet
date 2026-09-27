@@ -837,11 +837,13 @@ Run 1 (team SA key): `initialize` 1.7s, `list_spreadsheets` normal result (`is_e
 1. In a terminal: `TOKEN_PATH=<scratch> CREDENTIALS_PATH=<client json> ENABLED_TOOLS=list_spreadsheets uv run mcp-gee-sweet auth --no-browser`
 2. Navigate Playwright to the printed URL and complete the consent.
 3. Start a stdio server with the same three env vars and `AUTH_METHOD=oauth`; call `list_spreadsheets` with `max_results: 1`.
+4. Deny path: delete `<scratch>`, rerun step 1, and on the consent page click **Cancel** / deny instead of allowing.
 
 **Checks**
 - Step 1 prints `Credentials :`, `Token target:` and `Scopes :` lines. The scopes are the four base scopes only, with no `gmail.modify` (the `ENABLED_TOOLS` filter narrows them), followed by a `Please visit this URL` line with an `accounts.google.com` URL
-- After consent, the command prints `Saved the token to <scratch>` and exits 0; `<scratch>` exists and its `scopes` list the four base scopes
+- After consent, the command prints `Saved the token to <scratch>` and exits 0; `<scratch>` exists, its `scopes` list the four base scopes, and its mode is `0600` (`stat -f %Lp <scratch>` on macOS, `stat -c %a` on Linux prints `600`)
 - Step 3's `list_spreadsheets` returns a normal result, and `auth-status` reports `auth_method: "oauth"`
+- Step 4: the command exits 1 with a single `ERROR: ...` line on stderr naming the denial (e.g. `access_denied`), no Python traceback, and `<scratch>` is not created
 - With a nonexistent `CREDENTIALS_PATH`, `mcp-gee-sweet auth` exits 1 with `ERROR: ... not found` on stderr
 
 **Cleanup:** delete `<scratch>`, and revoke the scratch grant at https://myaccount.google.com/permissions if it created a separate entry.
@@ -853,7 +855,7 @@ Step 1 (killed before consent): printed `Credentials :`, `Token target:`, `Scope
 
 ### TC-I38: over SSE, a missing token still runs the consent flow, with its prompt on stderr only (issue #811) ⚠️ local-filesystem
 
-**Background:** an SSE server has no protocol traffic on stdout, but #811 still moves the consent prompt to stderr, and bounds the wait at 5 minutes (`_CONSENT_TIMEOUT_SECONDS`). On a timeout, the server starts without access, the same way TC-I35 does.
+**Background:** an SSE server has no protocol traffic on stdout, but #811 still moves the consent prompt to stderr, and bounds the wait at 5 minutes (`OAUTH_CONSENT_TIMEOUT_SECONDS`). On a timeout, the server starts without access, the same way TC-I35 does (see TC-I40 for that path).
 
 **Setup:** same as TC-I35.
 
@@ -868,3 +870,51 @@ Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PA
 
 **Result (2026-09-26, PR #828 round 1 @ 69d6dbf, Sky) ✅ PASS**
 stdout file 0 bytes. stderr has `Please visit this URL to authorize this application: https://accounts.google.com/o/oauth2/auth?...` (full scope set incl. `gmail.modify`, redirect to a random localhost port), after the uvicorn startup lines and `AUTH_METHOD=oauth`. Process group SIGKILLed; `lsof -i :<port>` empty afterward.
+
+---
+
+### TC-I39: `mcp-gee-sweet auth` argument handling and pre-consent checks (issue #811) ⚠️ local-filesystem
+
+**Background:** PR #828 QA round 1 found that `auth` was only recognized as the first argument. `mcp-gee-sweet --include-tools X auth` started a stdio server instead, although `docs/auth.md` documents `--include-tools` as narrowing the scopes. Unknown flags were silently ignored. A missing `TOKEN_PATH` directory also only failed *after* the consent, losing the refresh token the user had just granted.
+
+**Setup:** any OAuth client JSON (no consent is completed), a scratch directory.
+
+**Action** (each with `CREDENTIALS_PATH=<client json>`, `BROWSER=/usr/bin/true`, stdin from `/dev/null`)
+1. `TOKEN_PATH=<scratch>/t.json uv run mcp-gee-sweet --include-tools list_spreadsheets auth --no-browser`: kill it once the URL is printed
+2. `uv run mcp-gee-sweet auth --no-browswer` (typo intended)
+3. `TOKEN_PATH=<scratch>/no-such-dir/t.json uv run mcp-gee-sweet auth --no-browser`
+4. `uv run mcp-gee-sweet --include-tools auth` with `AUTH_METHOD=oauth TOKEN_PATH=<scratch>/t.json`: kill it after a few seconds (a tool named `auth` is a value here, not the subcommand)
+
+**Checks**
+- 1: prints `Credentials :`, a `Scopes :` line with the four base scopes only, and a `Please visit this URL` line. It's the auth command, not a server
+- 2: exits 2 with `mcp-gee-sweet auth: error: unrecognized arguments: --no-browswer`
+- 3: exits 1 with `ERROR: RuntimeError: The directory for TOKEN_PATH (...) doesn't exist. Create it first.`, and no `Please visit` line (it fails before the consent starts)
+- 4: no `Credentials :` line; the process is a stdio server waiting on stdin
+- No run leaves a token file behind in `<scratch>`
+
+**Cleanup:** delete `<scratch>`.
+
+---
+
+### TC-I40: SSE with no token: one consent attempt per process, per-connection state, and any consent failure degrades (issue #811) ⚠️ local-filesystem
+
+**Background:** mcp v2 runs the lifespan once per SSE connection. PR #828 round 1 kept the degraded state in a process-wide global and re-ran the blocking consent on every connection. A second connection cleared the message the first one relied on, and each attempt blocked every session for the full timeout. Only a timeout degraded; a stray request to the callback port (or a Deny) failed the lifespan outright. Now the state lives on each connection's context, and the consent is attempted at most once per process. After that, connections re-read `TOKEN_PATH`. Any consent failure degrades. `OAUTH_CONSENT_TIMEOUT_SECONDS` shortens the wait for this test.
+
+**Setup:** same as TC-I35. A small script using the `mcp` SDK's `sse_client` + `ClientSession`.
+
+**Action**
+Run 1: start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PATH=<nonexistent>`, `CREDENTIALS_PATH=<client json>`, `BROWSER=/usr/bin/true`, `PORT=<free port>`, `OAUTH_CONSENT_TIMEOUT_SECONDS=4`, stderr to a file, in its own process group.
+1. Open connection A, `initialize`, call `list_spreadsheets` with `max_results: 1`
+2. While A stays open, open connection B, `initialize`, call the same tool, and close B
+3. Call the tool on A again
+
+Run 2: restart the server the same way. Open a connection (its `initialize` blocks on the consent). While it waits, read the callback port from the `redirect_uri=http%3A%2F%2Flocalhost%3A<port>` in the stderr file, and send `GET http://localhost:<port>/?state=bogus&code=x`.
+
+**Checks**
+- Run 1, A: `initialize` takes about 4s; the tool error says the browser consent wasn't completed within 4s and gives the `mcp-gee-sweet auth` instructions
+- Run 1, B: `initialize` returns in well under a second (no second consent wait); the tool error says an earlier browser consent in this server process didn't complete
+- Run 1, step 3: A's error still says `within 4s` (B didn't overwrite it)
+- Run 1: the stderr file has exactly one `Please visit` prompt
+- Run 2: the connection initializes right after the stray request (no 4s wait), and its tool error says `the browser consent failed` with the `mcp-gee-sweet auth` instructions. The lifespan doesn't crash.
+
+**Cleanup:** SIGKILL each server's process group; confirm `lsof -i :<port>` is empty.

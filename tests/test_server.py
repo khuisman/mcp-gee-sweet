@@ -284,7 +284,9 @@ class TestResourcesReadLifespanContext:
         monkeypatch.setattr(
             server,
             "get_lifespan_context",
-            lambda: SimpleNamespace(auth_method="oauth", is_service_account_identity=False),
+            lambda: SimpleNamespace(
+                auth_method="oauth", is_service_account_identity=False, unauthorized_message=None
+            ),
         )
         result = json.loads(get_auth_status())
         assert result["auth_method"] == "oauth"
@@ -311,9 +313,10 @@ class TestResourcesReadLifespanContext:
             {"title": "Sheet1", "sheetId": 0, "gridProperties": {"rowCount": 10, "columnCount": 5}}
         ]
 
-    async def test_get_spreadsheet_info_degraded_start_raises_authorize_message(self, monkeypatch):
-        monkeypatch.setattr(auth_module, "_oauth_unauthorized_message", "run mcp-gee-sweet auth")
-        fake_ctx = self._fake_context(sheets_service=None)
+    async def test_get_spreadsheet_info_degraded_start_raises_authorize_message(self):
+        fake_ctx = self._fake_context(
+            sheets_service=None, unauthorized_message="run mcp-gee-sweet auth"
+        )
         with pytest.raises(auth_module.OAuthConsentRequiredError):
             await get_spreadsheet_info("some-spreadsheet-id", fake_ctx)
 
@@ -321,9 +324,12 @@ class TestResourcesReadLifespanContext:
         monkeypatch.setattr(
             server,
             "get_lifespan_context",
-            lambda: SimpleNamespace(auth_method="none", is_service_account_identity=False),
+            lambda: SimpleNamespace(
+                auth_method="none",
+                is_service_account_identity=False,
+                unauthorized_message="no usable token",
+            ),
         )
-        monkeypatch.setattr(auth_module, "_oauth_unauthorized_message", "no usable token")
         result = json.loads(get_auth_status())
         assert result["limitations"][0]["category"] == "oauth_not_authorized"
 
@@ -435,8 +441,9 @@ class TestTimed:
     async def test_degraded_start_raises_instead_of_running_the_tool(self, monkeypatch):
         # #811: with no Google services, every tool reports how to authorize. Raised,
         # not returned, since a {"error": ...} dict would fail a list-typed tool's
-        # output schema.
-        monkeypatch.setattr(auth_module, "_oauth_unauthorized_message", "run mcp-gee-sweet auth")
+        # output schema. Read from the call's own lifespan context (per connection).
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.unauthorized_message = "run mcp-gee-sweet auth"
         body = MagicMock()
 
         @_timed
@@ -445,9 +452,19 @@ class TestTimed:
             return []
 
         with pytest.raises(auth_module.OAuthConsentRequiredError, match="mcp-gee-sweet auth"):
-            await list_files()
+            await list_files(ctx=ctx)
         body.assert_not_called()
         assert "401" in self._access_messages()[0]
+
+    async def test_healthy_context_runs_the_tool(self):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.unauthorized_message = None
+
+        @_timed
+        async def list_files(**kwargs):
+            return ["ok"]
+
+        assert await list_files(ctx=ctx) == ["ok"]
 
 
 class TestMainAuthAndTransport:
@@ -465,6 +482,48 @@ class TestMainAuthAndTransport:
         assert exc.value.code == 0
         auth_cmd.assert_called_once_with(open_browser=False)
         run.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["--include-tools", "list_spreadsheets", "auth", "--no-browser"],
+            ["auth", "--include-tools", "list_spreadsheets", "--no-browser"],
+            ["--no-browser", "auth"],
+        ],
+    )
+    def test_auth_is_found_wherever_it_appears(self, monkeypatch, argv):
+        # PR #828 QA round 1, reproduced live: with --include-tools first, `auth`
+        # was missed and a stdio server started waiting on stdin.
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", *argv])
+        run = MagicMock()
+        monkeypatch.setattr(mcp, "run", run)
+        auth_cmd = MagicMock(return_value=0)
+        monkeypatch.setattr(server, "run_auth_command", auth_cmd)
+        with pytest.raises(SystemExit):
+            main()
+        auth_cmd.assert_called_once_with(open_browser=False)
+        run.assert_not_called()
+
+    def test_auth_tool_name_is_not_a_subcommand(self, monkeypatch):
+        # A tool called "auth" passed to --include-tools is a value, not the command.
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--include-tools", "auth"])
+        run = MagicMock()
+        monkeypatch.setattr(mcp, "run", run)
+        auth_cmd = MagicMock()
+        monkeypatch.setattr(server, "run_auth_command", auth_cmd)
+        main()
+        auth_cmd.assert_not_called()
+        run.assert_called_once()
+
+    def test_auth_rejects_unknown_flags(self, monkeypatch, capsys):
+        monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "auth", "--no-browswer"])
+        auth_cmd = MagicMock()
+        monkeypatch.setattr(server, "run_auth_command", auth_cmd)
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 2
+        auth_cmd.assert_not_called()
+        assert "--no-browswer" in capsys.readouterr().err
 
     def test_stdio_disables_interactive_consent(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet"])

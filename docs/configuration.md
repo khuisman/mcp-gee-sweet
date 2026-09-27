@@ -10,6 +10,7 @@
 | `DRIVE_FOLDER_ID` | Default Drive folder for service account operations | — |
 | `CREDENTIALS_PATH` | Path to OAuth client ID JSON | `credentials.json` |
 | `TOKEN_PATH` | Path to store the OAuth refresh token | `token.json` |
+| `OAUTH_CONSENT_TIMEOUT_SECONDS` | SSE only: how long the server waits for the browser consent when there's no usable OAuth token, before starting without Google access. See [Authentication](auth.md) | `300` |
 | `CREDENTIALS_CONFIG` | Base64-encoded credentials JSON (for containers) | — |
 | `ENABLED_TOOLS` | Comma-separated list of tool names to register | all tools |
 | `CACHE_DB_PATH` | Path to the SQLite cache database | `/tmp/mcp_gee_sweet.db` |
