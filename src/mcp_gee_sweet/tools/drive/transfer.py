@@ -41,6 +41,12 @@ _SYSTEM_FILES = {".DS_Store", "Thumbs.db", "desktop.ini", ".localized"}
 
 _SYNC_MTIME_TOLERANCE = 5  # seconds — absorbs clock skew and upload-time drift
 
+# use_checksum hashes every both-sides pair with a Drive md5Checksum (#716), so
+# a steady-state folder reads every file back before any transfer starts. The
+# reads run concurrently, capped here so a large folder doesn't queue
+# hundreds of whole-file reads against the same disk at once (PR #841 QA).
+_SYNC_HASH_CONCURRENCY = 8
+
 # Custom Drive file property set on a Google Doc created via convert_markdown's
 # native import conversion, recording the exact local filename it was created
 # from. Matching converted-md Docs back to their local file by this property
@@ -221,11 +227,14 @@ def _restamp_failure_result(file_id: str, exc: Exception) -> dict[str, Any]:
     }
 
 
-def _local_mtime_dt(path: Path) -> datetime:
+def _local_mtime_dt(path: Path, st: os.stat_result | None = None) -> datetime:
     """A local file's mtime as an aware UTC datetime. The one place that reads
     it, so sync_folder's mtime comparison and every modifiedTime value this
-    module stamps can't drift apart (#435)."""
-    return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+    module stamps can't drift apart (#435). Pass `st` to reuse a stat the
+    caller already made (and guarded) instead of statting again."""
+    if st is None:
+        st = path.stat()
+    return datetime.fromtimestamp(st.st_mtime, tz=timezone.utc)
 
 
 def _local_mtime_str(path: Path) -> str:
@@ -654,7 +663,7 @@ async def _list_drive_children(drive_service, folder_id: str) -> tuple[list[dict
     return files, folders
 
 
-_SyncAction = Literal["skip", "conflict", "collision", "checksum_read_fail", "upload", "download"]
+_SyncAction = Literal["skip", "conflict", "collision", "local_read_fail", "upload", "download"]
 
 
 @dataclass
@@ -671,6 +680,76 @@ class _SyncStep:
     name: str
     action: _SyncAction
     reason: str
+
+
+def _diverged_same_mtime_step(name: str, evidence: str) -> _SyncStep:
+    """The conflict for a both-sides pair whose content has diverged while its
+    mtimes agree, whatever showed the divergence (a byte-size mismatch, #659,
+    or an md5 mismatch, #716). Always a conflict, never an auto-transfer: the
+    mtimes agree, so which side is newer is unknown, and the diff-based
+    branches already report a conflict rather than overwrite a target they
+    *can* tell is newer (local-newer + direction='download', drive-newer +
+    direction='upload'). This case knows strictly less, so it must be at least
+    as cautious (PR #712 QA round 1)."""
+    return _SyncStep(
+        name=name,
+        action="conflict",
+        reason=(
+            f"content differs ({evidence}) but mtimes match — can't tell which side "
+            "is newer; touch the newer file, or delete the stale copy, then re-sync"
+        ),
+    )
+
+
+def _mtime_step(name: str, diff: float, direction: str, is_converted_md: bool) -> _SyncStep:
+    """The plan step for a both-sides pair decided from mtimes alone, `diff`
+    being local minus Drive in seconds. Also the fallback a use_checksum
+    mismatch lands on when the mtimes disagree, since content differing
+    doesn't by itself say which side is newer."""
+    if abs(diff) <= _SYNC_MTIME_TOLERANCE:
+        return _SyncStep(name=name, action="skip", reason="in sync")
+    if diff > 0:
+        if direction in ("upload", "bidirectional"):
+            return _SyncStep(name=name, action="upload", reason=f"local newer by {diff:.0f}s")
+        return _SyncStep(
+            name=name,
+            action="conflict",
+            reason=f"local newer by {diff:.0f}s but direction is download",
+        )
+    if is_converted_md:
+        # Same reasoning as the drive-only case in _sync_level: this Doc can't
+        # be downloaded regardless of direction. In steady state the create()-
+        # time modifiedTime fix keeps this from firing, but it's possible in
+        # principle (e.g. residual clock skew), and reporting it as a clean
+        # conflict beats a runtime download_fail.
+        return _SyncStep(
+            name=name,
+            action="conflict",
+            reason=(
+                f"drive newer by {-diff:.0f}s but {_NO_REVERSE_CONVERSION_CLAUSE} — "
+                "re-upload the local file to update Drive"
+            ),
+        )
+    if direction in ("download", "bidirectional"):
+        return _SyncStep(name=name, action="download", reason=f"drive newer by {-diff:.0f}s")
+    return _SyncStep(
+        name=name,
+        action="conflict",
+        reason=f"drive newer by {-diff:.0f}s but direction is upload",
+    )
+
+
+@dataclass
+class _HashJob:
+    """A both-sides pair use_checksum will hash once the plan loop finishes.
+    `index` is its placeholder step's position in the plan (already holding
+    the mtime-based fallback), so the hashes can run concurrently and still
+    land back in name order."""
+
+    index: int
+    name: str
+    drive_md5: str
+    within_tolerance: bool
 
 
 async def _sync_level(
@@ -715,7 +794,11 @@ async def _sync_level(
     use_checksum=True (#274) adds a content check, after the (cheap) mtime diff and
     byte-size check but before the mtime-based direction decision, for names
     present on both sides — skipped when dry_run is True, so a dry_run preview
-    never pays for a hash read (PR #472 review, finding #3). When it runs: if the
+    never pays for a hash read (PR #472 review, finding #3); an affected dry_run
+    step's reason ends in "(checksum not verified in dry_run)" instead, since
+    the real run can reach a different verdict (PR #841 QA). Since this reads
+    every such file, the reads run after the plan loop, concurrently, capped at
+    _SYNC_HASH_CONCURRENCY. When it runs: if the
     local file's md5 hash matches Drive's own md5Checksum, the pair is treated as
     in sync regardless of how far apart their modifiedTimes are — this is what
     actually fixes upload_local_file's non-stamped modifiedTime causing a spurious
@@ -733,9 +816,10 @@ async def _sync_level(
     byte-size case below (#716): an explicit use_checksum=True is an accuracy
     opt-in, so it verifies within-tolerance pairs too instead of trusting mtime
     alone, and that is the only way to catch a same-size, mtime-preserving
-    edit. A local read failure (file vanished, lost
-    permission, etc. between the directory scan and this read) reports that one
-    name under 'failed' instead of raising out of the whole call (finding #1).
+    edit. A local read failure (file vanished, lost permission, etc. between the
+    directory scan and the plan's stat or this read) reports that one name under
+    'failed' instead of raising out of the whole call (finding #1; PR #841 QA
+    extended it to the stat).
 
     Independently of use_checksum (#659): for a both-sides pair whose mtimes are
     within tolerance, the local file's byte size is compared against Drive's
@@ -835,6 +919,7 @@ async def _sync_level(
         return datetime.fromisoformat(entry["modifiedTime"].replace("Z", "+00:00"))
 
     plan: list[_SyncStep] = []
+    hash_jobs: list[_HashJob] = []
     for name in sorted(drive_map.keys() | local_map.keys() | collision_names):
         if name in collision_names:
             # Route through the normal plan machinery (like every other action)
@@ -889,12 +974,21 @@ async def _sync_level(
                 )
 
         else:
+            # One guarded stat feeds both the mtime and the size check. A file
+            # deleted (or made unreadable) between the directory scan above and
+            # here degrades to one 'failed' entry instead of raising out of the
+            # whole call — the same vanish race #817 closed on the upload path
+            # (PR #841 QA).
+            try:
+                st = local_map[name].stat()
+            except OSError as e:
+                plan.append(_SyncStep(name=name, action="local_read_fail", reason=str(e)))
+                continue
             dmtime = _drive_mtime(drive_map[name])
-            lmtime = _local_mtime_dt(local_map[name])
+            lmtime = _local_mtime_dt(local_map[name], st)
             diff = (lmtime - dmtime).total_seconds()
             entry = drive_map[name]
             is_workspace = _is_workspace_entry(entry)
-
             within_tolerance = abs(diff) <= _SYNC_MTIME_TOLERANCE
 
             # Byte-size divergence check, only meaningful once the mtimes agree:
@@ -902,149 +996,79 @@ async def _sync_level(
             # equal-mtime pair whose sizes differ has definitely diverged — most
             # often a rename-in-place (`mv` preserves mtime), which the plain "in
             # sync" skip would otherwise hide forever, since nothing re-bumps the
-            # mtime (#659). One stat, no read, so this still runs during dry_run,
-            # and it runs before the hash block below so a size mismatch never
-            # pays for a read it doesn't need (#716). Workspace /
-            # convert_markdown files report no `size` and fall through.
-            #
-            # A divergence here is always a `conflict`, never an auto-transfer:
-            # the mtimes agree, so we can't tell which side is newer, and the
-            # `diff`-based branches below already report `conflict` rather than
-            # overwrite a target they *can* tell is newer (local-newer +
-            # direction='download', drive-newer + direction='upload'). This
-            # branch knows strictly less, so it must be at least as cautious —
-            # otherwise a routine `direction='download'` after a local rename, or
-            # a `direction='upload'` against a collaborator's newer Drive copy
-            # whose mtime lands within tolerance, silently clobbers it (PR #712
-            # QA round 1).
+            # mtime (#659). No read, so this still runs during dry_run, and it
+            # runs before the hash below so a size mismatch never pays for a
+            # read it doesn't need (#716). Workspace / convert_markdown files
+            # report no `size` and fall through.
             if within_tolerance:
                 drive_size = entry.get("size") if not is_workspace else None
-                if drive_size is not None and local_map[name].stat().st_size != int(drive_size):
+                if drive_size is not None and st.st_size != int(drive_size):
                     plan.append(
-                        _SyncStep(
-                            name=name,
-                            action="conflict",
-                            reason=(
-                                "content differs (local and Drive byte sizes disagree) but "
-                                "mtimes match — can't tell which side is newer; touch the newer "
-                                "file, or delete the stale copy, then re-sync"
-                            ),
-                        )
+                        _diverged_same_mtime_step(name, "local and Drive byte sizes disagree")
                     )
                     continue
+
+            step = _mtime_step(name, diff, direction, _is_converted_md_entry(entry))
 
             # use_checksum is an explicit accuracy opt-in, so it verifies every
             # both-sides pair with a real md5Checksum — including a within-
             # tolerance, same-size one, which is the only way to catch a
             # same-size edit that also preserved mtime (#716; #274/#659 gated it
-            # on the mtimes already disagreeing, leaving that gap). Skipped
-            # during dry_run: dry_run is documented elsewhere as a cheap,
-            # no-transfer preview, and reading every file's full content to hash
-            # it would violate that (#274 PR #472 review, finding #3).
+            # on the mtimes already disagreeing, leaving that gap). The hash is
+            # deferred to a concurrent pass below; `step` sits in the plan as the
+            # mtime-only fallback until then. Skipped during dry_run, which is a
+            # cheap no-read preview (#274 PR #472 review, finding #3) — but the
+            # preview says so, since a real run can reach a different verdict
+            # (a within-tolerance mismatch previews as "in sync" and runs as a
+            # conflict; PR #841 QA).
             drive_md5 = entry.get("md5Checksum") if not is_workspace else None
-            if use_checksum and not dry_run and drive_md5 is not None:
-                try:
-                    local_md5 = await asyncio.to_thread(_local_md5, local_map[name])
-                except OSError as e:
-                    # Every other per-item operation in this loop degrades to a
-                    # 'failed' entry instead of raising — a file that vanishes,
-                    # loses read permission, or is replaced by an unreadable
-                    # special file between the directory scan and this read
-                    # shouldn't take down the whole sync_folder call (#274 PR
-                    # #472 review, finding #1).
-                    plan.append(_SyncStep(name=name, action="checksum_read_fail", reason=str(e)))
-                    continue
-                if local_md5 == drive_md5:
-                    plan.append(
-                        _SyncStep(
+            if use_checksum and drive_md5 is not None:
+                if dry_run:
+                    step.reason += " (checksum not verified in dry_run)"
+                else:
+                    hash_jobs.append(
+                        _HashJob(
+                            index=len(plan),
                             name=name,
-                            action="skip",
-                            reason="content identical (checksum match)",
+                            drive_md5=drive_md5,
+                            within_tolerance=within_tolerance,
                         )
                     )
-                    continue
-                if within_tolerance:
-                    # Same reasoning as the size-mismatch conflict above: the
-                    # content has diverged but the mtimes agree, so recency is
-                    # unknown — report, never auto-transfer, for every direction.
-                    plan.append(
-                        _SyncStep(
-                            name=name,
-                            action="conflict",
-                            reason=(
-                                "content differs (checksum mismatch) but mtimes match — "
-                                "can't tell which side is newer; touch the newer file, or "
-                                "delete the stale copy, then re-sync"
-                            ),
-                        )
-                    )
-                    continue
-                # A mismatch that resolves to 'upload' below reads this same file
-                # a second time (MediaFileUpload streams it for the actual
-                # transfer) — a known, accepted cost (#274 PR #472 review,
-                # finding #4), not fixed here: avoiding it would mean either
-                # buffering the whole file in memory to reuse across both reads
-                # (a worse tradeoff for large files than one extra disk read,
-                # likely already page-cache-warm from the first pass) or hashing
-                # inside MediaFileUpload's own read, which it doesn't support.
-                # The upload_local_file modifiedTime fix above (finding #2)
-                # keeps this path rare in the case that actually motivated
-                # use_checksum, since files it uploads now carry an accurate
-                # modifiedTime and mostly settle into the mtime-only "in sync"
-                # branch without ever reaching this comparison.
-                # Out of tolerance, a mismatch doesn't decide anything by itself —
-                # content differing doesn't say which side is newer — so this
-                # falls straight through to the same mtime-based decision below
-                # used when use_checksum=False, reusing the diff already computed.
+            plan.append(step)
 
-            if within_tolerance:
-                plan.append(_SyncStep(name=name, action="skip", reason="in sync"))
-            elif diff > 0:
-                if direction in ("upload", "bidirectional"):
-                    plan.append(
-                        _SyncStep(name=name, action="upload", reason=f"local newer by {diff:.0f}s")
-                    )
-                else:
-                    plan.append(
-                        _SyncStep(
-                            name=name,
-                            action="conflict",
-                            reason=f"local newer by {diff:.0f}s but direction is download",
-                        )
-                    )
-            elif _is_converted_md_entry(drive_map[name]):
-                # Same reasoning as the drive-only case above: this Doc can't be
-                # downloaded regardless of direction. In steady state the create()-
-                # time modifiedTime fix below keeps this from firing, but it's
-                # possible in principle (e.g. residual clock skew), and reporting
-                # it as a clean conflict beats a runtime download_fail.
-                plan.append(
-                    _SyncStep(
-                        name=name,
-                        action="conflict",
-                        reason=(
-                            f"drive newer by {-diff:.0f}s but {_NO_REVERSE_CONVERSION_CLAUSE} — "
-                            "re-upload the local file to update Drive"
-                        ),
-                    )
+    if hash_jobs:
+        sem = asyncio.Semaphore(_SYNC_HASH_CONCURRENCY)
+
+        async def _hash_one(job: _HashJob) -> str:
+            async with sem:
+                return await asyncio.to_thread(_local_md5, local_map[job.name])
+
+        hashes = await asyncio.gather(*(_hash_one(j) for j in hash_jobs), return_exceptions=True)
+        for job, local_md5 in zip(hash_jobs, hashes, strict=True):
+            if isinstance(local_md5, OSError):
+                # The file vanished, lost read permission, or became an
+                # unreadable special file after it was statted — one 'failed'
+                # entry, not an exception out of the whole call (#274 PR #472
+                # review, finding #1).
+                plan[job.index] = _SyncStep(
+                    name=job.name, action="local_read_fail", reason=str(local_md5)
                 )
-            else:
-                if direction in ("download", "bidirectional"):
-                    plan.append(
-                        _SyncStep(
-                            name=name,
-                            action="download",
-                            reason=f"drive newer by {-diff:.0f}s",
-                        )
-                    )
-                else:
-                    plan.append(
-                        _SyncStep(
-                            name=name,
-                            action="conflict",
-                            reason=f"drive newer by {-diff:.0f}s but direction is upload",
-                        )
-                    )
+            elif isinstance(local_md5, BaseException):
+                raise local_md5
+            elif local_md5 == job.drive_md5:
+                plan[job.index] = _SyncStep(
+                    name=job.name, action="skip", reason="content identical (checksum match)"
+                )
+            elif job.within_tolerance:
+                plan[job.index] = _diverged_same_mtime_step(job.name, "checksum mismatch")
+            # Otherwise the mtimes disagree and the content does too: keep the
+            # mtime-based fallback already in the plan, since a mismatch doesn't
+            # say which side is newer. One that resolves to 'upload' reads this
+            # file a second time (MediaFileUpload streams it for the transfer) —
+            # a known, accepted cost (#274 PR #472 review, finding #4): avoiding
+            # it would mean buffering the whole file in memory across both reads,
+            # a worse tradeoff for large files than one extra, likely
+            # page-cache-warm, disk read.
 
     # Only dry_run ever reads `actions` (see the result-assembly comment below), so
     # a real run skips building it entirely rather than paying the cost of a plan
@@ -1087,12 +1111,12 @@ async def _sync_level(
                 # human to resolve it.
                 return {"kind": "collision_fail", "name": name, "error": step.reason}
 
-            if action == "checksum_read_fail":
+            if action == "local_read_fail":
                 # The local file became unreadable (deleted, permission-denied, a
-                # special file) between the directory scan and use_checksum's hash
-                # read — surfaced as a clean failure for this one name rather than
-                # propagating out of the whole sync_folder call.
-                return {"kind": "checksum_read_fail", "name": name, "error": step.reason}
+                # special file) between the directory scan and the plan's stat or
+                # use_checksum's hash read — surfaced as a clean failure for this
+                # one name rather than propagating out of the whole call.
+                return {"kind": "local_read_fail", "name": name, "error": step.reason}
 
             if action == "upload":
                 p = local_map[name]
@@ -1372,7 +1396,7 @@ async def _sync_level(
                 downloaded.append(rel_name)
                 total_bytes += o["bytes"]
                 level_changed = True
-            else:  # upload_fail / download_fail / collision_fail / checksum_read_fail
+            else:  # upload_fail / download_fail / collision_fail / local_read_fail
                 entry = {"name": rel_name, "error": o["error"]}
                 if "fileId" in o:
                     # Set only for the create()-succeeded-but-restamp-failed case
@@ -2581,9 +2605,12 @@ def register(tool):
         means a same-size, mtime-preserving content change, reported as a
         'conflict' for every direction (recency unknown, same as the byte-size
         row above). A within-tolerance pair whose sizes already differ is
-        reported by the byte-size row without being read. Skipped during
+        reported by the byte-size row without being read. Every such file is
+        read, so this costs a full read of the folder's matched content on
+        every sync (run concurrently, a few files at a time). Skipped during
         dry_run, so this never turns a cheap preview into a full read of every
-        file. This catches cases mtime alone gets wrong: content uploaded via
+        file — an affected step's reason then ends in "(checksum not verified in
+        dry_run)", since the real run may decide differently. This catches cases mtime alone gets wrong: content uploaded via
         upload_local_file reading as "Drive newer" and getting needlessly
         re-downloaded (upload_local_file now also stamps modifiedTime to match the
         local file directly, so this mainly helps for other causes of drift, e.g. a

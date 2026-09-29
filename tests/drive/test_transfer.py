@@ -4,6 +4,7 @@ import io
 import json
 import os
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -3346,6 +3347,12 @@ class TestSyncFolderChecksumWithinTolerance:
         os.utime(p, (dt.timestamp(), dt.timestamp()))
         return p
 
+    def _write_local_named(self, tmp_path, name, content):
+        p = tmp_path / name
+        p.write_bytes(content)
+        dt = datetime.fromisoformat("2024-06-01T00:00:02.000+00:00")
+        os.utime(p, (dt.timestamp(), dt.timestamp()))
+
     def _fs(self, md5=_MD5):
         return _FakeDriveFS(
             {
@@ -3421,7 +3428,8 @@ class TestSyncFolderChecksumWithinTolerance:
 
     async def test_dry_run_does_not_hash_within_tolerance_pair(self, tmp_path, monkeypatch):
         # dry_run stays a cheap preview: the same-size edit previews as a skip
-        # (no read), exactly as with use_checksum=False.
+        # (no read) — but says the checksum wasn't verified, since the real run
+        # reports a conflict for this same state (PR #841 QA).
         spy = MagicMock(side_effect=transfer_module._local_md5)
         monkeypatch.setattr(transfer_module, "_local_md5", spy)
         fs = self._fs()
@@ -3437,6 +3445,96 @@ class TestSyncFolderChecksumWithinTolerance:
         spy.assert_not_called()
         a_txt = [a for a in result["actions"] if a["name"] == "a.txt"]
         assert a_txt[0]["action"] == "skip"
+        assert a_txt[0]["reason"] == "in sync (checksum not verified in dry_run)"
+
+    async def test_dry_run_without_use_checksum_reason_is_unannotated(self, tmp_path):
+        fs = self._fs()
+        self._write_local(tmp_path, self._SAME_SIZE_EDIT)
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            dry_run=True,
+            ctx=self._ctx(fs),
+        )
+        assert result["actions"][0]["reason"] == "in sync"
+
+    async def test_local_file_vanishing_before_stat_reported_as_failed(self, tmp_path, monkeypatch):
+        # PR #841 QA: the plan loop's stat was unguarded, so a file deleted
+        # between the directory scan and the plan raised FileNotFoundError out
+        # of the whole call. Simulate the race by having the scan report a name
+        # that is gone by the time it's statted.
+        ghost = tmp_path / "a.txt"
+        real_iterdir = Path.iterdir
+        real_is_file = Path.is_file
+        monkeypatch.setattr(
+            Path,
+            "iterdir",
+            lambda self: (
+                iter([*real_iterdir(self), ghost]) if self == tmp_path else real_iterdir(self)
+            ),
+        )
+        monkeypatch.setattr(
+            Path, "is_file", lambda self: True if self == ghost else real_is_file(self)
+        )
+        fs = self._fs()
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            ctx=self._ctx(fs),
+        )
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["name"] == "a.txt"
+        assert result["skipped"] == []
+        assert result["downloaded"] == []
+
+    async def test_hashes_run_concurrently_bounded_and_keep_name_order(self, tmp_path, monkeypatch):
+        # PR #841 QA: with every both-sides pair now hashed, hashing them one at
+        # a time put a full serial read of the folder ahead of any transfer.
+        # They now run concurrently, capped at _SYNC_HASH_CONCURRENCY, and each
+        # result still lands on its own name.
+        lock = threading.Lock()
+        state = {"now": 0, "peak": 0}
+        real_md5 = transfer_module._local_md5
+
+        def _slow_md5(path):
+            with lock:
+                state["now"] += 1
+                state["peak"] = max(state["peak"], state["now"])
+            time.sleep(0.05)
+            with lock:
+                state["now"] -= 1
+            return real_md5(path)
+
+        monkeypatch.setattr(transfer_module, "_local_md5", _slow_md5)
+        names = [f"f{i:02d}.txt" for i in range(20)]
+        files = []
+        for i, name in enumerate(names):
+            # Odd-numbered files carry a same-size edit locally.
+            self._write_local_named(
+                tmp_path, name, self._SAME_SIZE_EDIT if i % 2 else self._CONTENT
+            )
+            files.append(
+                _drive_file(
+                    name,
+                    f"id{i}",
+                    mtime="2024-06-01T00:00:00.000Z",
+                    md5=self._MD5,
+                    size=len(self._CONTENT),
+                )
+            )
+        fs = _FakeDriveFS({"root": files})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            use_checksum=True,
+            ctx=self._ctx(fs),
+        )
+        assert 1 < state["peak"] <= transfer_module._SYNC_HASH_CONCURRENCY
+        assert result["skipped"] == names[0::2]
+        assert result["conflicts"] == names[1::2]
 
     async def test_within_tolerance_read_failure_reported_as_failed(self, tmp_path, monkeypatch):
         # The newly-reachable hash read degrades to one 'failed' entry like the
