@@ -285,7 +285,12 @@ def rewrite_too_large_error(message: str) -> str:
 
 
 async def share_image_file(
-    drive_service, file_id: str, uri: str | None, *, created_here: bool
+    drive_service,
+    file_id: str,
+    uri: str | None,
+    existing_permission_ids: list[str] | None,
+    *,
+    created_here: bool,
 ) -> dict[str, Any]:
     """Shares a Drive file anyone:reader so the Docs backend can fetch it — it fetches
     inline images as an anonymous HTTP request regardless of the caller's own access
@@ -298,6 +303,16 @@ async def share_image_file(
     alike, identical before and after sharing (confirmed live on #511), so no
     separate files().get() is needed. A missing link fails before sharing, rather
     than leaving an anyone:reader grant on a file nothing can embed.
+
+    `existing_permission_ids` is the file's permissionIds from that same call. Drive's
+    permissions.create() for an anyone grant that already exists returns the existing
+    grant's fixed ID (e.g. "anyoneWithLink") rather than a new one (confirmed live,
+    PR #842 QA round 1), so a returned ID already in that list means the file was
+    already public before this call: the result then carries "already_shared": True
+    and permission_id None, so nothing revokes a link someone else set up. This holds
+    for a freshly uploaded file too, which can inherit a folder's link sharing.
+    permissionIds, unlike the permissions field, is populated on Shared Drive items
+    (confirmed live, PR #842).
 
     Returns {"uri", "file_id", "permission_id"} on success, else {"error": ...}. When
     created_here is True — the caller just uploaded this file — the error also carries
@@ -322,13 +337,20 @@ async def share_image_file(
         )
     except Exception as e:
         return {"error": f"sharing failed for Drive file {file_id!r}: {e}", **orphan}
-    return {"uri": uri, "file_id": file_id, "permission_id": perm.get("id")}
+    permission_id = perm.get("id")
+    if permission_id in (existing_permission_ids or []):
+        return {"uri": uri, "file_id": file_id, "permission_id": None, "already_shared": True}
+    return {"uri": uri, "file_id": file_id, "permission_id": permission_id}
 
 
-async def revoke_image_shares(drive_service, shares: list[tuple[dict[str, Any], str, str]]) -> None:
+async def revoke_image_shares(
+    drive_service, shares: list[tuple[dict[str, Any], str, str | None]]
+) -> None:
     """Revokes each (outcome_entry, file_id, permission_id) temporary anyone:reader
     grant, concurrently. On success sets entry["shared"] = False; on failure records
-    entry["revoke_error"]. Shared by _apply_doc_content and insert_local_images (#511)."""
+    entry["revoke_error"]. A None permission_id — a grant that pre-existed this call
+    (share_image_file's already_shared) — is skipped, never revoked. Shared by
+    _apply_doc_content and insert_local_images (#511)."""
 
     async def _revoke(entry: dict[str, Any], file_id: str, permission_id: str) -> None:
         try:
@@ -344,7 +366,10 @@ async def revoke_image_shares(drive_service, shares: list[tuple[dict[str, Any], 
 
     # return_exceptions=True: _revoke already catches its own errors; this only
     # guards against anything unexpected escaping one revoke and skipping the rest.
-    await asyncio.gather(*(_revoke(*share) for share in shares), return_exceptions=True)
+    await asyncio.gather(
+        *(_revoke(entry, fid, pid) for entry, fid, pid in shares if pid),
+        return_exceptions=True,
+    )
 
 
 async def upload_and_share_image(
@@ -353,8 +378,11 @@ async def upload_and_share_image(
     """Uploads `data` as a new Drive file and shares it anyone:reader — the same
     requirement every inline-image source needs, since the Docs backend fetches inline
     images as an anonymous HTTP request regardless of the caller's own access
-    (confirmed live in #332/#333's own local-image paths). Returns {"uri": ...,
-    "file_id": ..., "permission_id": ...} on success, {"error": ...} on failure before
+    (confirmed live in #332/#333's own local-image paths). Only ever called with
+    downscaled bytes, so its success result is share_image_file's plus
+    "downscaled": True — the one place every auto_downscale path (local file or
+    drive: source) gets the flag from, so no caller can drop it (PR #842 QA round 1).
+    Returns {"uri": ..., "file_id": ..., "permission_id": ...} on success, {"error": ...} on failure before
     any Drive file was created, or {"error": ..., "file_id": ...} if create() succeeded
     but share_image_file failed afterward (#649): a bare error there would leave the
     newly-created file an untracked orphan with no record of its ID."""
@@ -369,7 +397,7 @@ async def upload_and_share_image(
                 body=file_body,
                 media_body=media,
                 supportsAllDrives=True,
-                fields="id,webContentLink",
+                fields="id,webContentLink,permissionIds",
             )
             .execute,
             drive_service,
@@ -381,9 +409,16 @@ async def upload_and_share_image(
     except Exception as e:
         return {"error": f"failed to upload resized image: {e}"}
 
-    return await share_image_file(
-        drive_service, created["id"], created.get("webContentLink"), created_here=True
+    result = await share_image_file(
+        drive_service,
+        created["id"],
+        created.get("webContentLink"),
+        created.get("permissionIds"),
+        created_here=True,
     )
+    if "error" in result:
+        return result
+    return {**result, "downscaled": True}
 
 
 async def downscale_drive_file(
@@ -478,35 +513,47 @@ async def upload_and_share_local_image(
     both need (#511). Returns share_image_file's shape: {"uri", "file_id",
     "permission_id"} on success (plus "downscaled": True if auto_downscale resized
     it), else {"error": ...}, carrying "file_id" only for a created-but-unshared
-    orphan (#649)."""
+    orphan (#649) — including one _upload_local_file itself reports as fileId after
+    a create() that succeeded before a later step failed (#420)."""
     prepared = await prepare_local_image(
         drive_service, path, folder_id, auto_downscale=auto_downscale
     )
     if prepared is not None:
-        if "error" in prepared:
-            return prepared
-        return {**prepared, "downscaled": True}
+        return prepared
 
-    upload = await _upload_local_file(drive_service, path, folder_id, skip_if_exists=False)
+    upload = await _upload_local_file(
+        drive_service, path, folder_id, skip_if_exists=False, include_permission_ids=True
+    )
     if "error" in upload:
-        return {"error": upload["error"]}
+        error: dict[str, Any] = {"error": upload["error"]}
+        if orphan_id := upload.get("fileId"):
+            error["file_id"] = orphan_id
+        return error
     return await share_image_file(
-        drive_service, upload["fileId"], upload.get("web_content_link"), created_here=True
+        drive_service,
+        upload["fileId"],
+        upload.get("web_content_link"),
+        upload.get("permission_ids"),
+        created_here=True,
     )
 
 
-def record_image_file_id(entry: dict[str, Any], result: dict[str, Any]) -> bool:
+def record_image_outcome(entry: dict[str, Any], result: dict[str, Any]) -> bool:
     """Folds a share_image_file-shaped result into a caller-facing per-image outcome
     entry: its file_id (the shared file, or a created-but-unshared orphan, #649) as
-    entry["fileId"], and any error as entry["error"]. Returns True on success. The
-    one place both image-embedding tools record this (#511), so a failure path can't
-    drop the orphan's ID at one call site but not the other — the drift PR #652's
-    QA round caught."""
+    entry["fileId"], any error as entry["error"], and on success the "downscaled" and
+    "already_shared" flags. Returns True on success. The one place both
+    image-embedding tools record this (#511), so a field can't reach one tool's
+    outcome but not the other's — the drift PR #652's QA round caught for fileId and
+    PR #842's for downscaled."""
     if file_id := result.get("file_id"):
         entry["fileId"] = file_id
     if "error" in result:
         entry["error"] = result["error"]
         return False
+    for flag in ("downscaled", "already_shared"):
+        if result.get(flag):
+            entry[flag] = True
     return True
 
 
@@ -689,7 +736,10 @@ def register(tool):
                 configured default folder.
             revoke_sharing: Whether each image's temporary anyone:reader share is
                 revoked again after it's embedded (default True). Set False to leave
-                images shared instead — matches this tool's original behavior.
+                images shared instead — matches this tool's original behavior. A
+                file that was already link-shared before the call (e.g. inherited
+                from its folder) keeps its link and is reported with
+                already_shared: true.
             auto_downscale: Google Docs rejects any inline image over ~25 megapixels
                 or ~50MB. Each image's local file is checked against both limits
                 before it's ever uploaded. The default (False) fails just that image
@@ -702,7 +752,9 @@ def register(tool):
             Dictionary with docId and results — a list of per-image outcomes in the
             same order as the `images` argument, each echoing marker and local_path
             plus either fileId + index + shared (+ revoke_error if a revoke attempt
-            failed, + downscaled: true if auto_downscale resized it) on success, or
+            failed, + downscaled: true if auto_downscale resized it, +
+            already_shared: true if the file was link-shared before this call) on
+            success, or
             error on failure (marker not found, marker not unique, local file
             missing, oversized with auto_downscale off, upload failure, sharing
             failure, or — rare, since uploads happen first — a failed document edit;
@@ -805,16 +857,16 @@ def register(tool):
                 target_folder_id,
                 auto_downscale=auto_downscale,
             )
-            # A created-but-unshared orphan (#649) still carries file_id: record it
-            # so the cache-invalidation check below still fires for it (mirrors the
-            # gap PR #645's QA round found in transfer.py's analogous gates).
-            if "file_id" in result:
-                placement["file_id"] = result["file_id"]
-            if not record_image_file_id(entry, result):
+            ok = record_image_outcome(entry, result)
+            # A created-but-unshared orphan (#649) still carries file_id: read it
+            # back from the entry so the cache-invalidation check below fires for
+            # it too (mirrors the gap PR #645's QA round found in transfer.py's
+            # analogous gates), from the same value the caller sees.
+            if "fileId" in entry:
+                placement["file_id"] = entry["fileId"]
+            if not ok:
                 placement["failed"] = True
                 return
-            if result.get("downscaled"):
-                entry["downscaled"] = True
             placement["permission_id"] = result["permission_id"]
             placement["uri"] = result["uri"]
 

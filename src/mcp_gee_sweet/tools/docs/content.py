@@ -24,7 +24,7 @@ from .html_parser import html_to_ast
 from .images import (
     check_drive_image_metadata,
     downscale_drive_file,
-    record_image_file_id,
+    record_image_outcome,
     revoke_image_shares,
     rewrite_too_large_error,
     share_image_file,
@@ -224,7 +224,7 @@ async def _resolve_image_source(
                 drive_service.files()
                 .get(
                     fileId=file_id,
-                    fields="name,parents,imageMediaMetadata,size,webContentLink",
+                    fields="name,parents,imageMediaMetadata,size,webContentLink,permissionIds",
                     supportsAllDrives=True,
                 )
                 .execute,
@@ -243,7 +243,11 @@ async def _resolve_image_source(
         # A "drive:" file pre-existed this call, so a sharing failure never reports
         # it as an orphan (created_here=False) — see the docstring.
         return await share_image_file(
-            drive_service, file_id, drive_metadata.get("webContentLink"), created_here=False
+            drive_service,
+            file_id,
+            drive_metadata.get("webContentLink"),
+            drive_metadata.get("permissionIds"),
+            created_here=False,
         )
     else:
         if not Path(src).is_file():
@@ -370,7 +374,9 @@ async def _apply_doc_content(
 
     Returns the per-image outcome list (None if the content had no images at all)
     for the caller to fold into its own response — each entry has src, plus either
-    fileId + shared (+ revoke_error if a revoke attempt failed) on success, or error
+    fileId + shared (+ revoke_error if a revoke attempt failed, + downscaled if
+    auto_downscale resized it, + already_shared if the file was link-shared before
+    this call, so its link was left in place) on success, or error
     on failure (also carrying fileId if the underlying Drive file was already
     created/found before a subsequent sharing failure — #649). Mirrors
     insert_local_images's own outcome shape for consistency.
@@ -418,9 +424,9 @@ async def _apply_doc_content(
             entry: dict[str, Any] = {"src": img.src}
             if isinstance(result, BaseException):
                 entry["error"] = str(result)
-            # record_image_file_id also surfaces a created-but-unshared orphan's
+            # record_image_outcome also surfaces a created-but-unshared orphan's
             # file_id (#649), so the caller isn't left with no record of it.
-            elif record_image_file_id(entry, result):
+            elif record_image_outcome(entry, result):
                 img_id = id(img)
                 entry_by_id[img_id] = entry
                 real_uri_by_id[img_id] = result["uri"]
@@ -430,6 +436,10 @@ async def _apply_doc_content(
                 if file_id and permission_id:
                     entry["shared"] = True
                     pending_revokes[img_id] = (entry, file_id, permission_id)
+                elif result.get("already_shared"):
+                    # Public before this call: still shared, and never revoked —
+                    # that link isn't this call's to remove (PR #842 QA round 1).
+                    entry["shared"] = True
             image_outcomes.append(entry)
 
     content_requests, tables = ast_to_requests(nodes, start_index=1, image_uris=placeholder_uris)
@@ -776,7 +786,9 @@ def register(tool):
                 hyperlink (default True). Set False to leave bare URLs as plain text; to
                 suppress just one URL instead of the whole call, wrap it in backticks.
             revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
-                share is revoked again after it's embedded (default True).
+                share is revoked again after it's embedded (default True). An
+                image file that was already link-shared before the call keeps its
+                link and is reported with already_shared: true.
             auto_downscale: Resize an oversized local-path/drive: image instead of
                 failing it (default False). A drive: source gets a new " (resized)"
                 copy created alongside the original (left untouched); a local-path
@@ -895,7 +907,9 @@ def register(tool):
                 to suppress just one URL, wrap it in backticks instead. No effect on
                 .html files.
             revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
-                share is revoked again after it's embedded (default True).
+                share is revoked again after it's embedded (default True). An
+                image file that was already link-shared before the call keeps its
+                link and is reported with already_shared: true.
             auto_downscale: Resize an oversized local-path/drive: image instead of
                 failing it (default False) — see create_doc's own docstring.
 
@@ -1099,7 +1113,9 @@ def register(tool):
                 becomes a real hyperlink (default True). Set False to leave bare URLs as
                 plain text; to suppress just one URL, wrap it in backticks instead.
             revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
-                share is revoked again after it's embedded (default True).
+                share is revoked again after it's embedded (default True). An
+                image file that was already link-shared before the call keeps its
+                link and is reported with already_shared: true.
             auto_downscale: Resize an oversized local-path/drive: image instead of
                 failing it (default False) — see create_doc's own docstring.
 
@@ -1158,7 +1174,9 @@ def register(tool):
                 text; to suppress just one URL, wrap it in backticks instead. No
                 effect on HTML content.
             revoke_sharing: Whether a local-path/drive: image's temporary anyone:reader
-                share is revoked again after it's embedded (default True).
+                share is revoked again after it's embedded (default True). An
+                image file that was already link-shared before the call keeps its
+                link and is reported with already_shared: true.
             auto_downscale: Resize an oversized local-path/drive: image instead of
                 failing it (default False) — see create_doc's own docstring.
 

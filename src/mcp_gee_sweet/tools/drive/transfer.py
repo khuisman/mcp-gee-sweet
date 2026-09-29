@@ -459,10 +459,17 @@ async def _upload_local_file(
     name: str | None = None,
     skip_if_exists: bool = True,
     convert: bool = False,
+    include_permission_ids: bool = False,
 ) -> dict[str, Any]:
     """Upload a local file to a Drive folder. Shared core behind the upload_local_file
     tool and docs/images.py's insert_local_images (imported cross-package the same
     way docs/content.py imports _SA_QUOTA_ERROR from tools/drive/__init__.py).
+
+    include_permission_ids=True also returns the new file's permissionIds as
+    permission_ids, from the same create() call. docs/images.py's
+    share_image_file needs them to tell a grant it creates from one the file
+    inherited (PR #842). Off by default so the upload_local_file tool's own
+    response stays unchanged.
 
     convert=True requests Drive's native import conversion (CSV/XLSX -> Sheets,
     DOCX/MD/HTML -> Docs, PPTX -> Slides) by uploading with the source format's
@@ -587,7 +594,8 @@ async def _upload_local_file(
                 supportsAllDrives=True,
                 # webContentLink saves an image-embedding caller a follow-up
                 # files().get() (#511); it's absent for a converted Workspace file.
-                fields="id, name, webViewLink, webContentLink",
+                fields="id, name, webViewLink, webContentLink"
+                + (", permissionIds" if include_permission_ids else ""),
             )
             .execute,
             drive_service,
@@ -620,6 +628,8 @@ async def _upload_local_file(
     }
     if web_content_link := result.get("webContentLink"):
         uploaded["web_content_link"] = web_content_link
+    if include_permission_ids:
+        uploaded["permission_ids"] = result.get("permissionIds")
     return uploaded
 
 

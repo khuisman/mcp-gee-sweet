@@ -1390,6 +1390,7 @@ class TestResolveImageSource:
             "uri": "https://drive.google.com/uc?id=resized1",
             "file_id": "resized1",
             "permission_id": "perm-resized",
+            "downscaled": True,
         }
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
         assert create_kwargs["body"]["name"] == "big.png (resized)"
@@ -1502,6 +1503,54 @@ class TestCreateDocImages:
         drive_svc.permissions.return_value.delete.assert_called_once_with(
             fileId="file1", permissionId="perm1", supportsAllDrives=True
         )
+
+    async def test_drive_reference_already_link_shared_is_not_revoked(self):
+        # PR #842 QA round 1 F1 (reproduced live): share_file had already made the
+        # file anyoneWithLink; embedding it must not remove that link.
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "anyoneWithLink"
+        }
+        drive_svc.files.return_value.get.return_value.execute.return_value = {
+            "webContentLink": "https://drive.google.com/uc?id=file1",
+            "permissionIds": ["owner1", "anyoneWithLink"],
+        }
+        ctx = self._ctx(drive_svc, docs_svc)
+        result = await _docs_tools["create_doc"](
+            title="Doc",
+            content="![Alt](drive:file1)",
+            content_format="markdown",
+            ctx=ctx,
+        )
+        assert result["images"] == [
+            {"src": "drive:file1", "fileId": "file1", "shared": True, "already_shared": True}
+        ]
+        drive_svc.permissions.return_value.delete.assert_not_called()
+
+    async def test_auto_downscaled_local_image_reports_downscaled(self, tmp_path):
+        # PR #842 QA round 1 F3 (reproduced live): insert_local_images reported
+        # downscaled for the same file; create_doc dropped it.
+        img = tmp_path / "big.png"
+        img.write_bytes(_make_png_bytes(6000, 6000))
+        drive_svc, docs_svc = self._make_services()
+        drive_svc.files.return_value.create.return_value.execute.side_effect = [
+            {"id": "doc123", "name": "Test", "parents": ["folder1"], "webViewLink": "x"},
+            {"id": "r1", "webContentLink": "https://drive.google.com/uc?id=r1"},
+        ]
+        drive_svc.permissions.return_value.create.return_value.execute.return_value = {
+            "id": "perm1"
+        }
+        ctx = self._ctx(drive_svc, docs_svc, folder_id="folder1")
+        result = await _docs_tools["create_doc"](
+            title="Doc",
+            content=f"![Big]({img})",
+            content_format="markdown",
+            auto_downscale=True,
+            ctx=ctx,
+        )
+        assert result["images"] == [
+            {"src": str(img), "fileId": "r1", "shared": False, "downscaled": True}
+        ]
 
     async def test_revoke_sharing_false_leaves_image_shared(self):
         drive_svc, docs_svc = self._make_services()
