@@ -1631,6 +1631,16 @@ Delete `report.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-268/`.
 
 Unit tests: `tests/drive/test_transfer.py` 196 passed.
 
+**Result** (2026-09-28, Sky, PR #841 round 2 re-verification of `89758eb`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive; fresh throwaway child folder): **PASS**. Ran the full case again, with the updated step-6 check.
+- **Steps 1–3**: `uploaded: ["report.txt"]`; md5 `098890dd…`, `size: "4"`, `modified_time: 2026-09-29T05:03:11.000Z`; `use_checksum=true` gives `skipped: ["report.txt"]`. ✅
+- **Step 4**: local set to `CCCC`, 4 bytes, with the mtime restamped to Drive's exact value.
+- **Step 5** (default): `skipped`. ✅
+- **Step 6** (`use_checksum=true, dry_run=true`): `actions: [{report.txt, skip, "in sync (checksum not verified in dry_run)"}]`. ✅ (round-1 finding 2 fixed)
+- **Steps 7–9** (`upload` / `download` / `bidirectional`): `conflicts: ["report.txt"]` each time, nothing transferred. Drive md5 still `098890dd…`, local still `CCCC`. ✅
+- **Extra check for round-1 finding 1 (concurrent hashing, cap 8)**: 12 more files (`f01`–`f12`) uploaded to the same folder. Then `f07` got a same-size, mtime-preserving edit. A `use_checksum=true` real run gives `conflicts: ["f07.txt", "report.txt"]`, and the other 11 files are in `skipped`, so each hash result maps back to the right name with 13 files hashed concurrently. ✅
+
+Unit tests: full suite 1883 passed / 3 skipped; ruff clean. Fast-path re-verification: the fix diff matches round-1 findings 1–6 one for one, and the `_mtime_step` extraction was checked branch by branch against the removed code. Finding 7 (repo `CLAUDE.md`) goes through Bob's doc-PR gate separately, per team process.
+
 ---
 
 ## `list_revisions`
