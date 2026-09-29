@@ -3763,6 +3763,13 @@ These messages are only reachable through injected Drive failures, so they're co
 - ❌ **`create_doc` drops `downscaled` (code-review F3).** `create_doc(content="![Big](/tmp/qa-oversized.png)", auto_downscale=True)` resized and embedded the image, but `images[0]` had no `downscaled` key. `insert_local_images` reports `downscaled: true` for the same file (TC-DOC165 above).
 All docs, uploads, and grants were trashed or removed.
 
+**Result (2026-09-28) ✅ PASS — Kit, PR #842 round 2 (`07e5139`).** All six round-1 findings are fixed. F1 and F3 were re-verified live via TC-DOC200/TC-DOC201 above. F2/F4/F5/F6/F7 were checked in the fix diff, and the full unit suite passes (1900 passed, 3 skipped). Regression cases on the new code:
+- TC-DOC150: `shared: false`, no `anyone` grant. Playwright: the pixel dot renders between "Report" and "After the image."
+- TC-DOC151: `shared: true`, and `anyoneWithLink` is still present with `revoke_sharing=False`. Embed confirmed via `get_doc_as_markdown`.
+- TC-DOC152: `fileId`, `index` 9, `shared: false`, no `anyone` grant. Embed confirmed via `get_doc_as_markdown` (`Marker: ![](…)`).
+- TC-DOC165: `downscaled: true`, `shared: false`, `index` 1. Playwright: the red image renders where the marker was.
+All artifacts trashed.
+
 ---
 
 ### TC-DOC200: Embedding an image that's already link-shared leaves its link in place (PR #842 QA round 1) ⚠️ requires-oauth ⚠️ destructive
@@ -3785,6 +3792,9 @@ Tool call: `create_doc(title="TC-DOC200", content="![Pixel](drive:{PIXEL_ID})", 
 
 **Cleanup:** trash both docs and `{PIXEL_ID}`
 
+
+**Result (2026-09-28) ✅ PASS — Kit, PR #842 round 2 (`07e5139`).** With `anyoneWithLink` already set via `share_file`: `images=[{src, fileId, already_shared: true, shared: true}]`, no `revoke_error`. `list_permissions` still shows `anyoneWithLink`: the round-1 regression is fixed. Control (after `remove_permission`): TC-DOC200b returned `shared: false` with no `already_shared`, and no `anyone` grant remained. Embed confirmed via `get_doc_as_markdown` (`![](…)`). The 1×1 pixel sits under the cursor at index 1, so a screenshot can't show it. Docs and pixel trashed.
+
 ---
 
 ### TC-DOC201: `create_doc` reports `downscaled` for an auto-downscaled image (PR #842 QA round 1) ⚠️ requires-oauth ⚠️ destructive
@@ -3804,3 +3814,5 @@ Tool call: `create_doc(title="TC-DOC201", content="![Big](/tmp/qa-oversized.png)
 - 🔍 Visual check: a red image renders in the doc
 
 **Cleanup:** trash the doc and `images[0].fileId`; `rm /tmp/qa-oversized.png`
+
+**Result (2026-09-28) ✅ PASS — Kit, PR #842 round 2 (`07e5139`).** `images[0]` had `fileId`, `downscaled: true`, `shared: false`. Playwright: the red image renders. Extra check for the `drive:` half of F3: `create_doc(content="![Big](drive:<oversized upload>)", auto_downscale=True)` also returned `downscaled: true`, with a new resized `fileId`. Docs, the resized copies, and the oversized upload were trashed.
