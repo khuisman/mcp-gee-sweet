@@ -585,7 +585,9 @@ async def _upload_local_file(
                 body=metadata,
                 media_body=media,
                 supportsAllDrives=True,
-                fields="id, name, webViewLink",
+                # webContentLink saves an image-embedding caller a follow-up
+                # files().get() (#511); it's absent for a converted Workspace file.
+                fields="id, name, webViewLink, webContentLink",
             )
             .execute,
             drive_service,
@@ -610,12 +612,15 @@ async def _upload_local_file(
             return restamp_failure
 
     logger.debug("Uploaded %s → %s (%s)", local_path, result.get("id"), mime)
-    return {
+    uploaded = {
         "fileId": result.get("id"),
         "name": result.get("name", file_name),
         "web_link": result.get("webViewLink"),
         "skipped": False,
     }
+    if web_content_link := result.get("webContentLink"):
+        uploaded["web_content_link"] = web_content_link
+    return uploaded
 
 
 def _local_md5(path: Path) -> str:
@@ -1872,7 +1877,8 @@ def register(tool):
 
         Returns:
             fileId, name, webViewLink, and 'skipped' (True if skip_if_exists fired) on
-            success. A skip on a stem match whose existing file carries no marker
+            success, plus web_content_link (a direct download link) for a new
+            non-converted upload. A skip on a stem match whose existing file carries no marker
             proving this tool converted it from this file (an earlier conversion
             predating the marker, or an unrelated file sharing the name) also sets
             'skipped_unverified': True plus a 'reason'; pass skip_if_exists=False to

@@ -3483,10 +3483,10 @@ Mirrors #420's fix in `drive/transfer.py` (see TC-D249/TC-D250 in `docs/qa/tests
 
 **Checks (unit test)**
 - `tests/test_docs_images.py::TestUploadAndShareImage::test_share_failure_after_create_returns_file_id` — `create()` succeeds, `permissions().create()` raises → result carries `file_id` alongside `error`
-- `tests/test_docs_images.py::TestUploadAndShareImage::test_metadata_fetch_failure_after_create_returns_file_id` — `create()` and `permissions().create()` succeed, `files().get()` raises → result still carries `file_id`
+- ~~`tests/test_docs_images.py::TestUploadAndShareImage::test_metadata_fetch_failure_after_create_returns_file_id`~~ — removed by #511: the post-share `files().get()` it exercised no longer exists (the link now comes back from `create()`); `test_does_not_refetch_web_content_link` guards that instead
 - `tests/test_docs_images.py::TestUploadAndShareImage::test_create_failure_returns_bare_error_no_file_id` — regression guard: when `create()` itself fails, no `file_id` key at all (nothing was created, so there's no orphan)
 - `tests/test_docs_images.py::TestInsertLocalImages::test_sharing_failure_reports_per_image_error_and_skips_doc_edit` (updated) and `test_downscaled_upload_share_failure_still_reports_file_id` (new) — both of `insert_local_images`'s upload paths (plain and auto_downscale) surface `fileId` in the per-image outcome entry on a sharing failure
-- `tests/test_docs_images.py::TestInsertLocalImages::test_missing_web_content_link_after_share_still_reports_orphan_file_id` (new, PR #652 QA round 1 finding 1) — `insert_local_images`'s plain path's *second* post-upload failure branch (`if not uri:` — upload and share both succeeded, webContentLink read-back empty) also surfaces `fileId` in the per-image outcome and still marks the folder cache dirty
+- `tests/test_docs_images.py::TestInsertLocalImages::test_missing_web_content_link_after_share_still_reports_orphan_file_id` (new, PR #652 QA round 1 finding 1) — `insert_local_images`'s plain path's *second* post-upload failure branch (`if not uri:` — the upload succeeded but Drive returned no webContentLink; since #511 this fails *before* sharing) also surfaces `fileId` in the per-image outcome and still marks the folder cache dirty
 - `tests/test_docs_images.py::TestInsertLocalImages::test_sharing_failure_orphan_still_marks_folder_cache_dirty` / `test_downscaled_upload_share_failure_still_reports_file_id` (cache assertion) — the folder-listing cache is still marked dirty for the orphan case, mirroring the cache-invalidation-gate fix PR #645's QA round found necessary for the identical shape in `transfer.py`
 - `tests/test_docs_content.py::TestResolveImageSource::test_local_upload_sharing_failure_returns_orphan_file_id` (new) — a local-path source's sharing failure (the true orphan case — the file was freshly created by this call) carries `file_id`
 - `tests/test_docs_content.py::TestResolveImageSource::test_local_upload_missing_web_content_link_returns_orphan_file_id` (new) — same local-path source, the missing-`webContentLink` branch, also carries `file_id`
@@ -3729,3 +3729,21 @@ Tool call: `insert_local_images(doc_id={DOC_ID}, images=[{"marker": "IMGMARKERBO
 **Cleanup:** trash the doc; `chmod 644 /tmp/qa-noread.png && rm /tmp/qa-noread.png`
 
 **Result (2026-09-24) ✅ PASS — Kit, PR #801 round 2 (fix `4d5f842`, issue #560).** The error text matched exactly, with no `fileId` and nothing uploaded. (Round 1 reproduced the pre-fix behavior locally: `prepare_local_image` returned `None` and the file went on to the upload.) Doc trashed.
+
+---
+
+### TC-DOC199: Image embedding shares through one helper and makes two Drive calls per uploaded image, not three (issue #511) ⚠️ requires-oauth ⚠️ destructive
+
+**Background:** #511 consolidated three hand-copied share blocks (`upload_and_share_image`, `insert_local_images`'s plain upload path, `_resolve_image_source`) into `images.py`'s `share_image_file`, the two revoke closures (`_apply_doc_content`, `insert_local_images`) into `revoke_image_shares`, the local-path size-gate → upload → share sequence both `create_doc`'s image resolution and `insert_local_images` ran into `upload_and_share_local_image`, and the per-image `fileId`/`error` fold (including the #649 orphan `fileId` whose hand-copied drift PR #652's QA round caught) into `record_image_file_id`. Each copy used to follow its `permissions().create()` with a `files().get()` just to read `webContentLink`. That field now comes back from the call that created or looked up the file (confirmed live on #511: `create()` returns it, identical to the post-share value), so each uploaded image takes two Drive calls instead of three. Nothing about the tools' outputs should change except: `insert_local_images`'s sharing-failure message now reads `sharing failed for Drive file '<id>': ...` (the wording `create_doc` already used), a file with no `webContentLink` now fails *before* being shared, and `upload_local_file`'s response gains `web_content_link` (TC-D93). The Drive call count isn't visible through the tools, so it's covered by unit tests.
+
+**Action (live regression — the outcomes these paths produce are unchanged)**
+1. Run TC-DOC150 (`create_doc`, local-path image, revoke by default)
+2. Run TC-DOC151 (`create_doc`, `drive:` image, `revoke_sharing=False`)
+3. Run TC-DOC152 (`insert_local_images`, revoke by default)
+4. Run TC-DOC165 (`insert_local_images`, `auto_downscale=True`)
+
+**Checks**
+- Each case above passes exactly as written: images embed, `shared` and `list_permissions` match the case's revoke setting, and there's no `revoke_error`
+- Unit tests: `tests/test_docs_images.py::TestShareImageFile` (success without a `files()` call; missing link fails before sharing; `file_id` on a failure only when `created_here`), `TestRevokeImageShares` (per-entry `shared`/`revoke_error`), `TestUploadAndShareLocalImage` (two Drive calls, orphan `file_id` only after a successful upload, `downscaled` flag), `TestRecordImageFileId`, `TestUploadAndShareImage::test_success_returns_uri_file_id_permission_id` and `TestInsertLocalImages::test_successful_single_image_places_and_deletes_marker` (no `files().get()`), `tests/test_docs_content.py::TestResolveImageSource::test_local_path_uploaded_shared_and_resolved` (no `files().get()`), and `tests/drive/test_transfer.py::TestUploadLocalFileCore::test_returns_web_content_link_when_drive_provides_it`
+
+**Cleanup:** per each referenced case

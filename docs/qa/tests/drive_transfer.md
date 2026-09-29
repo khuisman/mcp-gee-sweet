@@ -186,6 +186,7 @@ heading + real 2×2 table render correctly
 **Checks**
 - File appears in Drive with `mimeType: image/png`
 - `skipped: false` in response
+- Response includes `web_content_link` (Drive's direct-download URL, `https://drive.google.com/uc?id=<fileId>&export=download`) alongside `web_link` (#511)
 - `list_files` for `{FOLDER_ID}` includes the new file after upload
 
 ---

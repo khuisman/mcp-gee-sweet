@@ -187,6 +187,25 @@ class TestUploadLocalFileCore:
         # #274 PR #472 review, finding #2: a plain (non-convert) upload now stamps
         # modifiedTime from the local file's mtime too, not just the convert branch.
         assert "modifiedTime" in body
+        assert "webContentLink" in create_kwargs["fields"]
+
+    async def test_returns_web_content_link_when_drive_provides_it(self, tmp_path):
+        # #511: an image-embedding caller uses this link directly instead of a
+        # follow-up files().get().
+        local_file = tmp_path / "pic.png"
+        local_file.write_bytes(b"fake-bytes")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+        drive_svc.files.return_value.create.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "pic.png",
+            "webViewLink": "https://example.com/pic",
+            "webContentLink": "https://drive.google.com/uc?id=fid1",
+        }
+
+        result = await _upload_local_file(drive_svc, str(local_file), "folder1")
+
+        assert result["web_content_link"] == "https://drive.google.com/uc?id=fid1"
 
     async def test_skip_if_exists_returns_existing_file_without_uploading(self, tmp_path):
         local_file = tmp_path / "pic.png"
