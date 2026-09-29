@@ -189,6 +189,9 @@ heading + real 2×2 table render correctly
 - Response includes `web_content_link` (Drive's direct-download URL, `https://drive.google.com/uc?id=<fileId>&export=download`) alongside `web_link` (#511)
 - `list_files` for `{FOLDER_ID}` includes the new file after upload
 
+
+**Result (2026-09-28) ✅ PASS (`web_content_link` check only) — Kit, PR #842 round 1 (issue #511).** Two `upload_local_file` calls with the pixel PNG and `skip_if_exists=False` each returned `skipped: false` and `web_content_link` = `https://drive.google.com/uc?id=<fileId>&export=download` next to `web_link`. The uploads were used as TC-DOC151/F1 fixtures and then trashed.
+
 ---
 
 ### TC-D94: skip_if_exists prevents re-upload ⚠️ local-filesystem
