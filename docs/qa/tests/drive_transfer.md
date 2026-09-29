@@ -1617,6 +1617,20 @@ _Round 1 (2026-09-09):_ `/code-review high` surfaced a blocking correctness conc
 **Teardown**
 Delete `report.txt` from `{FOLDER_ID}`. Remove `/tmp/qa-sync-268/`.
 
+**Result** (2026-09-28, Sky, PR #841 round 1 at `dcc0f38`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive; run in a throwaway child folder under `TEST_FOLDER_ID`): **PASS** against the case as written. The PR still goes back to Ash because of code-review findings, not live results.
+- **Step 1**: `uploaded: ["report.txt"]`.
+- **Step 2**: `size: "4"`, `modified_time: 2026-09-29T04:16:42.000Z`, md5 `098890dd…` (`AAAA`).
+- **Step 3** (`use_checksum=true`): `skipped: ["report.txt"]`, all other lists empty. ✅
+- **Step 4**: local set to `CCCC` (md5 `b41c1949…`, 4 bytes); `touch -d 2026-09-29T04:16:42Z` (BSD `touch` on macOS takes the ISO form) — the local mtime now matches Drive's exactly.
+- **Step 5** (default): `skipped: ["report.txt"]`. ✅
+- **Step 6** (`use_checksum=true, dry_run=true`): `actions: [{report.txt, skip, "in sync"}]`. ✅ as the case specifies. But this is the dry_run/real-run disagreement flagged in the round-1 review: step 7's real run reports `conflict` for the same state, and the preview reason gives no sign the checksum was skipped.
+- **Step 7** (`upload`): `conflicts: ["report.txt"]`, nothing uploaded; Drive md5 still `098890dd…`. ✅
+- **Step 8** (`download`): `conflicts: ["report.txt"]`, nothing downloaded; local still `CCCC`. ✅
+- **Step 9** (`bidirectional`): `conflicts: ["report.txt"]`, nothing transferred. ✅
+- **Regression (TC-D253 path, same folder)**: local set to 6 bytes with the same mtime. Default `dry_run` gives `conflict`, with the byte-size reason unchanged; `use_checksum=true, direction="upload"` real run gives `conflicts: ["report.txt"]`. ✅
+
+Unit tests: `tests/drive/test_transfer.py` 196 passed.
+
 ---
 
 ## `list_revisions`
