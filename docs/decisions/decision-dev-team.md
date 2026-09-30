@@ -35,6 +35,20 @@ Its existing rule — remove any worktree whose branch has a merged PR and is cl
 
 Decision 4 rejected a `lane:a`/`lane:b` label for QA-finds-Dev's-PR routing — the branch name already resolves that unambiguously at runtime. This addendum adds `lane-a`/`lane-b` labels for a different problem: an *idle* Dev slot picking its *next* ticket, before any branch exists. `dev.md`'s pickup query previously took the lowest-numbered `ready-for-development` issue with no lane awareness, which meant pre-queuing both lanes' next tickets at once (an established, previously-safe pattern) could misroute if a lane happened to free up before its intended ticket, e.g. Jay grabbing a lower-numbered ticket meant for Ash. `dev.md` now filters its pickup query by the matching lane label, and Kai always pairs `ready-for-development` with the correct lane label when queuing — see `.claude/team-roles/kai.md`, `.claude/team-roles/dev.md`.
 
+## Addendum (2026-09-29): per-role MCP configs for `make team-<name>` (#850)
+
+Decision 3 still holds for Agent View: a session spawned from `make claude-team` sees every server. But `make team-<name>` / `make lane-a|lane-b` launch each role directly, so those can be scoped. `scripts/write_team_mcp_configs.sh` (called by `setup_team.sh`) now also writes `.claude/mcp-configs/<name>.mcp.json` with just the servers that role may call: Ash/Jay their own, Sky/Kit their own plus `playwright`, Aziz every server, Amy/Joy/Bob none. The Makefile targets pass it with `--mcp-config ... --strict-mcp-config`. `team-kai` and `claude-team` are unchanged.
+
+Measured with `claude -p --output-format json --strict-mcp-config` from the `jay` worktree, first-turn context (input + cache read + cache write): all team servers 68,227 tokens; `mcp-gee-sweet-jay` only 42,559; no servers 39,068. About 25.7k saved per lane session, before counting the user-global servers `--strict-mcp-config` also drops.
+
+Why a launch flag and not the per-worktree `.mcp.json` #850 first proposed. Both checked live on Claude Code 2.1.285:
+
+- A session keeps the MCP servers of the directory it was launched in. `EnterWorktree` into a worktree with a different `.mcp.json` added no servers. `make team-<name>` launches from the repo root, so a worktree's own `.mcp.json` would never load.
+- A session launched *inside* a worktree loads both that worktree's `.mcp.json` and the repo root's, so the root's full config would leak in regardless.
+- `claude --bg ... --mcp-config <file> --strict-mcp-config` is honored: that session saw only `mcp-gee-sweet-jay`, not the root/worktree `.mcp.json` servers or the user-global ones. The flags go after the prompt, since `--mcp-config` (like `--allowedTools`) takes a variadic list and swallows a prompt that follows it.
+
+The root and per-worktree `.mcp.json` copies stay the combined config, so Agent View spawns behave as before.
+
 ## When to Re-evaluate
 
 - If the shared-MCP-config tool boundary (decision 3) turns out to be leaky in practice (an agent calling another role's tools by mistake), look at per-agent permission allow-lists rather than reintroducing per-role processes — Agent View's constraints haven't changed, so separate processes still won't fit the workflow.
