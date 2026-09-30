@@ -889,7 +889,9 @@ delete_file('invalidid123xyz') → HttpError 404 propagates cleanly, no crash. N
 
 ## `restore_file`
 
-### TC-D202: Restore a trashed file ⚠️ destructive
+### TC-D269: Restore a trashed file ⚠️ destructive
+
+*Formerly TC-D202, which collided with `star_file`'s own TC-D202 above; renumbered per #590.*
 
 **Setup:** Create a throwaway spreadsheet in {FOLDER_ID}, then trash it (`delete_file` with `permanent=False`).
 
@@ -905,7 +907,9 @@ delete_file('invalidid123xyz') → HttpError 404 propagates cleanly, no crash. N
 
 ---
 
-### TC-D203: Restore a non-existent file ID
+### TC-D270: Restore a non-existent file ID
+
+*Formerly TC-D203, which collided with `unstar_file`'s own TC-D203 above; renumbered per #590.*
 
 **Prompt**
 > "Restore file 'invalidid123xyz'"

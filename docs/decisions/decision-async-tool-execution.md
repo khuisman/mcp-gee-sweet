@@ -45,7 +45,7 @@ Confirmed via user decision over two alternatives (anyio pytest plugin, manual `
 
 - Full unit suite (665 tests) green; `ruff check` clean; zero unwrapped `.execute()` calls remaining (`grep -rn "\.execute()" src/mcp_gee_sweet/tools/`).
 - Manual smoke test: 5 concurrent `sync_folder` uploads (each artificially delayed 0.2s in the mock) completed in ~0.22s total, not the ~1.0s a serial implementation would take — confirms real concurrency, not just non-blocking syntax.
-- Live QA: see `docs/qa/tests/infra.md` TC-I24 and the six new per-tool cases (`docs/qa/tests/drive.md` TC-D176–179, `docs/qa/tests/sheets_read.md` TC-R36–37) — each forces enough distinct, identifiable concurrent items to catch cross-item attribution corruption under the real Drive/Sheets transport, which no mock can exercise.
+- Live QA: see `docs/qa/tests/infra.md` TC-I24 and the six new per-tool cases: TC-D176/177 (`docs/qa/tests/drive_sharing.md`), TC-D178 (`drive_transfer.md`), TC-D179 (`drive_files.md`), and TC-R36–37 (`sheets_read.md`). The four TC-D cases were written into a single `drive.md` that PR #582 later split by submodule, which is why they now live in three files. Each case forces enough distinct, identifiable concurrent items to catch cross-item attribution corruption under the real Drive/Sheets transport, which no mock can exercise.
 
 ## Round 2 — QA findings from PR #293 review (2026-07-13)
 
