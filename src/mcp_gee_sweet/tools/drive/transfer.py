@@ -79,15 +79,34 @@ _CONVERT_SOURCE_PROP = "geeSweetConvertSource"
 # Drive's modifiedTime: the Docs backend updates it asynchronously, minutes
 # behind, so it both overwrites the post-create restamp and hides real Drive
 # edits (#814; see docs/decisions/decision-converted-doc-change-detection.md).
-# Instead, every converted-.md upload stamps the local file's mtime (the local
-# side's reference), a re-upload also stamps the Doc's latest revision ID from
-# just before it (the baseline), and the first sync after an upload records
-# the import's own revision ID. A Drive edit then shows as a newer latest
-# revision. A Doc without _CONVERTED_MD_SOURCE_MTIME_PROP (converted before
-# #814) stays on the modifiedTime comparison until its next re-upload.
+# Instead, every converted-.md upload stamps the local file's exact mtime (the
+# local side's reference) and the upload time, a re-upload also stamps the
+# Doc's latest revision ID from just before it (the baseline), and the first
+# sync after an upload records the import's own revision ID. A Drive edit then
+# shows as a newer latest revision. A Doc without
+# _CONVERTED_MD_SOURCE_MTIME_PROP (converted before #814) stays on the
+# modifiedTime comparison until its next re-upload.
 _CONVERTED_MD_SOURCE_MTIME_PROP = "geeSweetSourceMtime"
+_CONVERTED_MD_UPLOADED_AT_PROP = "geeSweetUploadedAt"
 _CONVERTED_MD_BASELINE_REV_PROP = "geeSweetBaselineRevision"
 _CONVERTED_MD_IMPORT_REV_PROP = "geeSweetImportRevision"
+
+# The source-mtime stamp and the local mtime it's compared with both come from
+# a stat() on this machine, at microsecond precision, so there's no clock skew
+# to absorb. _SYNC_MTIME_TOLERANCE's 5s would hide a local save made within 5s
+# of the upload (PR #854 QA round 1). This only absorbs float rounding.
+_CONVERTED_MD_STAMP_TOLERANCE = 0.001
+
+# An import's revision appears seconds after the upload. A candidate import
+# revision timestamped later than this after the upload isn't the import: Drive
+# merged the import into a later edit when it compacted the history, so the Doc
+# was edited (PR #854 QA round 1). Generous, to absorb conversion lag and the
+# skew between this machine's clock (the upload time) and Drive's.
+_CONVERTED_MD_IMPORT_WINDOW = 600
+
+# Backward skew allowed when a pruned baseline forces finding the import by
+# time instead: the first revision no earlier than this before the upload.
+_CONVERTED_MD_CLOCK_SKEW = 60
 
 # One revisions.list per converted Doc present on both sides, run concurrently
 # after the plan loop, capped the same way as use_checksum's hash reads.
@@ -255,9 +274,48 @@ def _local_mtime_dt(path: Path, st: os.stat_result | None = None) -> datetime:
     return datetime.fromtimestamp(st.st_mtime, tz=timezone.utc)
 
 
+def _drive_time_str(dt: datetime) -> str:
+    """`dt` in the RFC 3339 form Drive's modifiedTime field takes, truncated to
+    whole seconds."""
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
 def _local_mtime_str(path: Path) -> str:
     """_local_mtime_dt in the RFC 3339 form Drive's modifiedTime field takes."""
-    return _local_mtime_dt(path).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    return _drive_time_str(_local_mtime_dt(path))
+
+
+def _parse_time(value: str | None) -> datetime | None:
+    """An RFC 3339 timestamp (Drive's, or one this module stamped) as an aware
+    datetime, or None when absent or unreadable."""
+    if value is None:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _converted_md_upload_properties(
+    lmtime: datetime, *, reupload: bool = False, baseline_rev: str | None = None
+) -> dict[str, str | None]:
+    """The #814 change-detection properties a converted-.md upload stamps.
+
+    The source mtime keeps full microsecond precision, so the next sync can
+    compare it exactly (_CONVERTED_MD_STAMP_TOLERANCE). The upload time lets
+    the next sync recognize the import's revision by its timestamp
+    (_CONVERTED_MD_IMPORT_WINDOW). A re-upload also stamps the Doc's latest
+    revision from before the update() as the baseline and clears the previous
+    import revision. A new Doc needs neither: its first revision is the import.
+    Every caller stamps through here, so they can't disagree on the set."""
+    props: dict[str, str | None] = {
+        _CONVERTED_MD_SOURCE_MTIME_PROP: lmtime.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+        _CONVERTED_MD_UPLOADED_AT_PROP: _drive_time_str(datetime.now(timezone.utc)),
+    }
+    if reupload:
+        props[_CONVERTED_MD_BASELINE_REV_PROP] = baseline_rev
+        props[_CONVERTED_MD_IMPORT_REV_PROP] = None
+    return props
 
 
 async def _restamp_modified_time(
@@ -619,13 +677,15 @@ async def _upload_local_file(
         # Inside the try, so a file that vanishes or becomes unreadable after
         # the is_file() check above returns {"error": ...} instead of raising
         # out of the tool (PR #817 QA).
-        lmtime_str = _local_mtime_str(path)
+        lmtime = _local_mtime_dt(path)
+        lmtime_str = _drive_time_str(lmtime)
         metadata["modifiedTime"] = lmtime_str
         if convert_mime is not None and Path(file_name).suffix.lower() == ".md":
-            # sync_folder's reference for whether the local .md changed since
-            # this upload (#814). A new Doc needs no baseline revision: its
-            # first revision is the import.
-            metadata["properties"][_CONVERTED_MD_SOURCE_MTIME_PROP] = lmtime_str
+            # sync_folder's change-detection references for this Doc (#814).
+            metadata["properties"] = {
+                **metadata["properties"],
+                **_converted_md_upload_properties(lmtime),
+            }
         media = MediaFileUpload(local_path, mimetype=mime, resumable=True)
         result = await execute_in_thread(
             drive_service.files()
@@ -811,6 +871,7 @@ class _RevisionJob:
     index: int
     name: str
     entry: dict
+    source_mtime: datetime
     local_diff: float
 
 
@@ -818,46 +879,43 @@ def _converted_md_source_mtime(f: dict) -> datetime | None:
     """The local mtime stamped on convert_markdown Doc `f` at its last upload,
     or None for a Doc converted before #814 (or one whose value is unreadable),
     which stays on the modifiedTime comparison."""
-    value = (f.get("properties") or {}).get(_CONVERTED_MD_SOURCE_MTIME_PROP)
-    if value is None:
-        return None
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
+    return _parse_time((f.get("properties") or {}).get(_CONVERTED_MD_SOURCE_MTIME_PROP))
 
 
-async def _list_revision_ids(drive_service, file_id: str) -> list[str]:
-    """Every revision ID of `file_id`, oldest first, across all pages."""
-    ids: list[str] = []
+async def _list_revisions(drive_service, file_id: str) -> list[dict]:
+    """Every revision of `file_id` as {id, modifiedTime}, oldest first, across
+    all pages."""
+    revisions: list[dict] = []
     page_token: str | None = None
     while True:
         resp = await execute_in_thread(
             drive_service.revisions()
             .list(
                 fileId=file_id,
-                fields="nextPageToken, revisions(id)",
+                fields="nextPageToken, revisions(id, modifiedTime)",
                 pageSize=1000,
                 pageToken=page_token,
             )
             .execute,
             drive_service,
         )
-        ids.extend(r["id"] for r in resp.get("revisions", []))
+        revisions.extend(resp.get("revisions", []))
         page_token = resp.get("nextPageToken")
         if not page_token:
-            return ids
+            return revisions
 
 
 _ConvertedMdDriveState = Literal["unchanged", "changed", "pending", "baseline_missing"]
 
 
 def _converted_md_drive_state(
-    props: dict, revision_ids: list[str]
+    props: dict, revisions: list[dict]
 ) -> tuple[_ConvertedMdDriveState, str | None]:
     """Whether a convert_markdown Doc was edited in Drive since its last upload,
     judged from its revision history rather than modifiedTime (#814). Returns
-    (state, import revision to record, if newly identified).
+    (state, import revision to record, if newly identified). `revisions` must
+    be non-empty; the caller treats an empty history as a read failure, since
+    every Doc has at least its import (PR #854 QA round 1).
 
     Once the import's revision ID is recorded, the Doc was edited in Drive
     exactly when its latest revision is a different one: an edit never merges
@@ -866,24 +924,49 @@ def _converted_md_drive_state(
 
     Until then, the import is the first revision after the baseline stamped
     just before the re-upload, or the Doc's first revision if it has no
-    baseline (a new Doc). No revision after the baseline yet means the sync ran
-    seconds after the upload: 'pending', which the caller treats as unchanged
-    and retries on the next sync. A baseline that no longer appears in the
-    history leaves the import unidentifiable: 'baseline_missing'."""
+    baseline (a new Doc). A baseline Drive has since pruned falls back to the
+    first revision timestamped at or after the upload. No such revision yet
+    means the sync ran seconds after the upload: 'pending', retried next sync.
+    A candidate timestamped well after the upload (past
+    _CONVERTED_MD_IMPORT_WINDOW) isn't the import at all: Drive merged the
+    import into a later edit while compacting the history, which happens only
+    if the first sync comes long after a Drive edit (PR #854 QA round 1), so
+    that's 'changed'. Without the upload time (a Doc stamped by an earlier
+    build of #814), a pruned baseline is 'baseline_missing'."""
+    ids = [r["id"] for r in revisions]
     recorded = props.get(_CONVERTED_MD_IMPORT_REV_PROP)
     if recorded is not None:
-        return ("unchanged" if revision_ids and revision_ids[-1] == recorded else "changed"), None
+        return ("unchanged" if ids[-1] == recorded else "changed"), None
+    uploaded_at = _parse_time(props.get(_CONVERTED_MD_UPLOADED_AT_PROP))
     baseline = props.get(_CONVERTED_MD_BASELINE_REV_PROP)
     if baseline is None:
         start = 0
-    elif baseline in revision_ids:
-        start = revision_ids.index(baseline) + 1
+    elif baseline in ids:
+        start = ids.index(baseline) + 1
+    elif uploaded_at is not None:
+        earliest = uploaded_at.timestamp() - _CONVERTED_MD_CLOCK_SKEW
+        start = next(
+            (
+                i
+                for i, r in enumerate(revisions)
+                if (t := _parse_time(r.get("modifiedTime"))) is not None
+                and t.timestamp() >= earliest
+            ),
+            len(revisions),
+        )
     else:
         return "baseline_missing", None
-    if start >= len(revision_ids):
+    if start >= len(revisions):
         return "pending", None
-    import_rev = revision_ids[start]
-    return ("unchanged" if revision_ids[-1] == import_rev else "changed"), import_rev
+    candidate = revisions[start]
+    candidate_time = _parse_time(candidate.get("modifiedTime"))
+    if (
+        uploaded_at is not None
+        and candidate_time is not None
+        and (candidate_time - uploaded_at).total_seconds() > _CONVERTED_MD_IMPORT_WINDOW
+    ):
+        return "changed", None
+    return ("unchanged" if ids[-1] == candidate["id"] else "changed"), candidate["id"]
 
 
 def _converted_md_step(
@@ -891,14 +974,14 @@ def _converted_md_step(
 ) -> _SyncStep:
     """The plan step for a both-sides convert_markdown Doc that carries #814's
     properties. `local_diff` is the local mtime minus the mtime stamped at the
-    last upload. Drive's modifiedTime is never consulted (see
-    _CONVERTED_MD_SOURCE_MTIME_PROP).
+    last upload, compared exactly (_CONVERTED_MD_STAMP_TOLERANCE). Drive's
+    modifiedTime is never consulted (see _CONVERTED_MD_SOURCE_MTIME_PROP).
 
     A Drive edit is always a conflict: there is no reverse conversion to
     download it, and re-uploading would overwrite it, including when the local
     file changed too (the case the modifiedTime comparison used to upload
     straight over)."""
-    if local_diff < -_SYNC_MTIME_TOLERANCE:
+    if local_diff < -_CONVERTED_MD_STAMP_TOLERANCE:
         return _SyncStep(
             name=name,
             action="conflict",
@@ -908,7 +991,7 @@ def _converted_md_step(
                 "or remove the Doc in Drive, then re-sync"
             ),
         )
-    local_changed = local_diff > _SYNC_MTIME_TOLERANCE
+    local_changed = local_diff > _CONVERTED_MD_STAMP_TOLERANCE
     if drive_state == "baseline_missing":
         return _SyncStep(
             name=name,
@@ -936,6 +1019,14 @@ def _converted_md_step(
         return _SyncStep(name=name, action="conflict", reason=reason)
     if not local_changed:
         return _SyncStep(name=name, action="skip", reason="in sync")
+    if direction not in ("upload", "bidirectional"):
+        # Before the pending check: under 'download' this never uploads, so
+        # "re-sync to upload it" would be wrong (PR #854 QA round 1).
+        return _SyncStep(
+            name=name,
+            action="conflict",
+            reason="local .md changed since the last upload but direction is download",
+        )
     if drive_state == "pending":
         # Re-uploading now would stamp a baseline taken before the previous
         # upload's import revision appeared, so that import would later read
@@ -948,16 +1039,10 @@ def _converted_md_step(
                 "Doc's revision history yet — re-sync in a minute to upload it"
             ),
         )
-    if direction in ("upload", "bidirectional"):
-        return _SyncStep(
-            name=name,
-            action="upload",
-            reason=f"local .md changed {local_diff:.0f}s after the last upload",
-        )
     return _SyncStep(
         name=name,
-        action="conflict",
-        reason="local .md changed since the last upload but direction is download",
+        action="upload",
+        reason=f"local .md changed {local_diff:.0f}s after the last upload",
     )
 
 
@@ -1215,6 +1300,7 @@ async def _sync_level(
                         index=len(plan),
                         name=name,
                         entry=entry,
+                        source_mtime=source_mtime,
                         local_diff=(lmtime - source_mtime).total_seconds(),
                     )
                 )
@@ -1305,57 +1391,82 @@ async def _sync_level(
             # a worse tradeoff for large files than one extra, likely
             # page-cache-warm, disk read.
 
+    # Each converted Doc's latest revision as the plan saw it, so an upload can
+    # tell whether Drive moved on between planning and the update() (PR #854
+    # QA round 1).
+    planned_latest_revision: dict[str, str] = {}
+    # Recording an import revision changes the Doc's properties (and, for an
+    # unedited Doc, re-sends modifiedTime), so the folder cache must be
+    # invalidated like any other metadata write here (PR #854 QA round 1).
+    recorded_metadata = False
     if revision_jobs:
         # Runs during dry_run too: it's one metadata read per Doc, and without
         # it the preview couldn't show a Drive edit at all. Only recording a
         # newly identified import revision (a write) waits for a real run.
         rev_sem = asyncio.Semaphore(_SYNC_REVISION_CONCURRENCY)
 
-        async def _revisions_one(job: _RevisionJob) -> list[str]:
+        async def _revisions_one(job: _RevisionJob) -> list[dict]:
             async with rev_sem:
-                return await _list_revision_ids(drive_service, job.entry["id"])
+                return await _list_revisions(drive_service, job.entry["id"])
 
         revision_lists = await asyncio.gather(
             *(_revisions_one(j) for j in revision_jobs), return_exceptions=True
         )
-        to_record: list[tuple[dict, str]] = []
-        for job, revision_ids in zip(revision_jobs, revision_lists, strict=True):
-            if isinstance(revision_ids, Exception):
+        to_record: list[tuple[_RevisionJob, str, bool]] = []
+        for job, revisions in zip(revision_jobs, revision_lists, strict=True):
+            if isinstance(revisions, BaseException) and not isinstance(revisions, Exception):
+                raise revisions
+            if isinstance(revisions, Exception) or not revisions:
                 # Without revision history the Drive side is unknown, and
                 # guessing "unchanged" could hide an edit this check exists to
-                # catch. One failed entry for this name, not the whole call.
+                # catch. Every Doc has at least its import revision, so an
+                # empty list is a bad read too, not an edit: reading it as one
+                # would point the user at replacing the Doc (PR #854 QA round
+                # 1). One failed entry for this name, not the whole call.
+                detail = (
+                    _quota_error_detail(revisions)
+                    if isinstance(revisions, Exception)
+                    else "Drive returned an empty revision history"
+                )
                 plan[job.index] = _SyncStep(
                     name=job.name,
                     action="drive_read_fail",
-                    reason=(
-                        "couldn't read the Doc's revision history to check for Drive "
-                        f"edits: {_quota_error_detail(revision_ids)}"
-                    ),
+                    reason=f"couldn't read the Doc's revision history to check for Drive edits: {detail}",
                 )
                 continue
-            if isinstance(revision_ids, BaseException):
-                raise revision_ids
+            planned_latest_revision[job.name] = revisions[-1]["id"]
             drive_state, import_rev = _converted_md_drive_state(
-                job.entry.get("properties") or {}, revision_ids
+                job.entry.get("properties") or {}, revisions
             )
             step = _converted_md_step(job.name, job.local_diff, drive_state, direction)
             plan[job.index] = step
             # An upload re-stamps these properties anyway.
             if import_rev is not None and not dry_run and step.action != "upload":
-                to_record.append((job.entry, import_rev))
+                to_record.append((job, import_rev, drive_state == "unchanged"))
 
-        async def _record_import_revision(entry: dict, revision_id: str) -> None:
+        async def _record_import_revision(
+            job: _RevisionJob, revision_id: str, unedited: bool
+        ) -> None:
+            # A property write bumps modifiedTime to "now" (seen live), so it
+            # always re-sends one. An unedited Doc gets the cosmetic restamp
+            # value. A Drive-edited one keeps Drive's own value from the
+            # listing: re-sending the source mtime reset an edit's timestamp
+            # and made the Doc look unedited, and leaving it out stamped the
+            # sync's own time over the edit's (both seen live, PR #854 QA
+            # round 1). If that value still lags the edit, the Docs backend's
+            # own late update lands afterward, as it does without this write.
+            body: dict[str, Any] = {
+                "properties": {_CONVERTED_MD_IMPORT_REV_PROP: revision_id},
+                "modifiedTime": (
+                    _drive_time_str(job.source_mtime) if unedited else job.entry["modifiedTime"]
+                ),
+            }
             async with rev_sem:
                 await execute_in_thread(
                     drive_service.files()
                     .update(
-                        fileId=entry["id"],
-                        body={
-                            "properties": {_CONVERTED_MD_IMPORT_REV_PROP: revision_id},
-                            # A property write bumps modifiedTime to "now"
-                            # (seen live); keep the cosmetic restamp value.
-                            "modifiedTime": entry["properties"][_CONVERTED_MD_SOURCE_MTIME_PROP],
-                        },
+                        fileId=job.entry["id"],
+                        body=body,
                         supportsAllDrives=True,
                         fields="id",
                     )
@@ -1364,18 +1475,20 @@ async def _sync_level(
                 )
 
         recorded = await asyncio.gather(
-            *(_record_import_revision(entry, rid) for entry, rid in to_record),
+            *(_record_import_revision(*args) for args in to_record),
             return_exceptions=True,
         )
-        for (entry, _), outcome in zip(to_record, recorded, strict=True):
+        for (job, _, _), outcome in zip(to_record, recorded, strict=True):
             if isinstance(outcome, Exception):
                 # Harmless: the next sync identifies the same import revision
                 # from the baseline again and retries the write.
                 logger.debug(
-                    "Failed to record import revision on %s", entry["id"], exc_info=outcome
+                    "Failed to record import revision on %s", job.entry["id"], exc_info=outcome
                 )
             elif isinstance(outcome, BaseException):
                 raise outcome
+            else:
+                recorded_metadata = True
 
     # Only dry_run ever reads `actions` (see the result-assembly comment below), so
     # a real run skips building it entirely rather than paying the cost of a plan
@@ -1457,7 +1570,8 @@ async def _sync_level(
                     # Inside the try: the file can vanish or become unreadable
                     # between the scan and here, and that must land as this
                     # item's upload_fail, not escape the gather (PR #817 QA).
-                    lmtime_str = _local_mtime_str(p)
+                    lmtime = _local_mtime_dt(p)
+                    lmtime_str = _drive_time_str(lmtime)
                     media = MediaFileUpload(str(p), mimetype=mime, resumable=True)
                     if name in drive_map:
                         existing = drive_map[name]
@@ -1488,19 +1602,30 @@ async def _sync_level(
                         if convert_this:
                             # #814: the Doc's latest revision from just before
                             # this re-import is the baseline the next sync finds
-                            # the import after. Read here, before the update(),
-                            # so it can't race the import itself. A failed read
-                            # fails this upload before anything changed. The
-                            # previous import revision no longer applies. A
-                            # legacy Doc gains all of this here, too.
-                            revision_ids = await _list_revision_ids(drive_service, fid)
-                            update_body["properties"] = {
-                                _CONVERTED_MD_SOURCE_MTIME_PROP: lmtime_str,
-                                _CONVERTED_MD_BASELINE_REV_PROP: (
-                                    revision_ids[-1] if revision_ids else None
-                                ),
-                                _CONVERTED_MD_IMPORT_REV_PROP: None,
-                            }
+                            # the import after. Read fresh here, before the
+                            # update(), so it can't race the import itself. A
+                            # failed read fails this upload before anything
+                            # changed. A legacy Doc gains the properties here.
+                            revisions = await _list_revisions(drive_service, fid)
+                            latest = revisions[-1]["id"] if revisions else None
+                            planned = planned_latest_revision.get(name)
+                            if planned is not None and latest != planned:
+                                # Edited in Drive after this sync planned the
+                                # upload. Uploading now would overwrite that
+                                # edit and absorb it into the baseline (PR
+                                # #854 QA round 1); the next sync reports it.
+                                logger.debug(
+                                    "Not uploading %s%s: Drive revision moved from %s to %s "
+                                    "since planning",
+                                    rel_prefix,
+                                    name,
+                                    planned,
+                                    latest,
+                                )
+                                return {"kind": "conflict", "name": name}
+                            update_body["properties"] = _converted_md_upload_properties(
+                                lmtime, reupload=True, baseline_rev=latest
+                            )
                         await execute_in_thread(
                             drive_service.files()
                             .update(
@@ -1532,7 +1657,7 @@ async def _sync_level(
                             # reference; a new Doc needs no baseline revision.
                             body["properties"] = {
                                 **_convert_properties(name),
-                                _CONVERTED_MD_SOURCE_MTIME_PROP: lmtime_str,
+                                **_converted_md_upload_properties(lmtime),
                             }
                         created = await execute_in_thread(
                             drive_service.files()
@@ -1707,7 +1832,7 @@ async def _sync_level(
             *(_run_one_with_progress(step) for step in plan), return_exceptions=True
         )
 
-        level_changed = False
+        level_changed = recorded_metadata
         for step, o in zip(plan, raw, strict=True):
             rel_name = f"{rel_prefix}{step.name}"
             if isinstance(o, BaseException):

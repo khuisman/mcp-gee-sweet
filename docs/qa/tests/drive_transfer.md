@@ -1937,7 +1937,7 @@ Create a scratch Drive folder `{FOLDER_ID}`. Locally, create `/tmp/qa-271/` cont
 
 **Checks**
 - Call 1: `uploaded` holds all 6 names, and `failed == []`.
-- A scratch-script `files().list(fields="files(name,properties)")` after call 1 shows `geeSweetSourceMtime` on every Doc, equal to that local file's mtime (`YYYY-MM-DDTHH:MM:SS.000Z`), and no `geeSweetBaselineRevision`.
+- A scratch-script `files().list(fields="files(name,properties)")` after call 1 shows on every Doc `geeSweetSourceMtime`, equal to that local file's mtime to the microsecond (`YYYY-MM-DDTHH:MM:SS.ffffffZ`); `geeSweetUploadedAt`, within a minute of call 1; and no `geeSweetBaselineRevision`.
 - Call 2: all 6 names are in `skipped`, and `conflicts == []` and `failed == []`, even for any Doc whose `get_file_metadata` `modified_time` has drifted from its local mtime. Afterwards each Doc carries `geeSweetImportRevision`, equal to the only revision ID `list_revisions` returns for it.
 - Call 4: the `a.md` action is `conflict`, with a reason starting "edited in Drive since the last upload". The other 5 are `skip`. `get_file_metadata` on `a.md` may still show the pre-edit `modified_time`, which is expected, and is exactly what used to hide the edit.
 - Call 5: `conflicts == ["a.md"]`, the other 5 are in `skipped`, and `uploaded == []`. `get_doc_content` on `a.md` still contains "Drive edit".
@@ -1986,3 +1986,24 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-272/`.
 - Call 4: `conflicts == ["y.md"]` and `uploaded == []`. `get_doc_content` on `y.md` contained "Drive edit" and not "local edit".
 - Call 5 (`direction="download"`, dry run, after another `x.md` edit): `x.md` was a `conflict` with reason "local .md changed since the last upload but direction is download".
 - Side probe (code-review finding 8, reproduced): `x.md` was re-uploaded (stamp `05:10:10`). Another line was then appended, with the mtime set to stamp+3s. After the import revision (`3`) was recorded, a bidirectional sync (real and dry run) still reported `x.md` as `in sync`. The new content never uploaded (`get_doc_content` lacked "second-save"), because the local-vs-stamp comparison uses the 5s clock-skew tolerance.
+
+### TC-D273: `sync_folder(convert_markdown=True)` — recording the import revision leaves a Drive edit's `modifiedTime` alone, and a local save seconds after an upload still uploads (PR #854 QA round 1) ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** PR #854 round 1 reproduced two bugs live. The first sync after an upload records the import's revision ID. It used to re-send the stamped source mtime as `modifiedTime` even on a Doc already edited in Drive, which reset the edit's real timestamp. Also, the local side was compared against its stamp with the 5s Drive clock-skew tolerance, so a save within 5s of the uploaded version never uploaded. The stamp now keeps microsecond precision and is compared exactly, and `modifiedTime` is re-sent only for an unedited Doc.
+
+**Setup**
+Create a scratch Drive folder `{FOLDER_ID}` and `/tmp/qa-273/` containing `g.md` and `x.md`, each holding `# Heading` and one paragraph. Run `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-273/", direction="upload", convert_markdown=True)`.
+
+**Tool calls**
+1. Right after setup, before any other sync: `insert_doc_text(doc_id={ID of g.md}, insertions=[{"index": 1, "text": "Drive edit\n"}])`. Wait until `get_file_metadata` on `g.md` shows a `modified_time` later than the upload (up to about 5 minutes), and note that value.
+2. `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-273/", direction="bidirectional", convert_markdown=True)`
+3. `get_file_metadata(file_id={ID of g.md})`
+4. Append a line to `/tmp/qa-273/x.md`, then set its mtime to 3 seconds after its `geeSweetSourceMtime` value (scratch script: `os.utime`). Then repeat call 2.
+
+**Checks**
+- Call 2: `conflicts` contains `g.md`. `x.md` is in `skipped`.
+- Call 3: `modified_time` is still the value noted in call 1, not reset to the upload's mtime. The scratch-script properties listing shows `geeSweetImportRevision` set on `g.md`.
+- Call 4: `uploaded == ["x.md"]`. `get_doc_content` on `x.md` contains the appended line.
+
+**Teardown**
+Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-273/`.
