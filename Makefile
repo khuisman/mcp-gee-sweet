@@ -79,9 +79,10 @@ claude-team: setup-team ## Launch Claude Code with all dev-team MCP servers conn
 # Each role session loads only its own servers (.claude/mcp-configs/<name>.mcp.json,
 # written by setup_team.sh), not all of team.mcp.json: other roles' tool names cost
 # ~26k tokens per session (#850). The flags go after the prompt because
-# --mcp-config takes a variadic list and would swallow it. team-kai keeps the root
-# .mcp.json (every server).
-team_mcp = --mcp-config $(CURDIR)/.claude/mcp-configs/$(1).mcp.json --strict-mcp-config
+# --mcp-config takes a variadic list and would swallow it. team-kai and team-aziz
+# stay unflagged: they use every team server from the root .mcp.json plus the
+# user-global ones, which --strict-mcp-config would drop.
+team_mcp = --mcp-config "$(CURDIR)/.claude/mcp-configs/$(1).mcp.json" --strict-mcp-config
 
 .PHONY: team-ash
 team-ash: setup-team ## Launch Claude Code backgrounded directly into the Ash persona (Dev, lane A); shows up in `claude agents`.
@@ -101,7 +102,7 @@ team-kit: setup-team ## Launch Claude Code backgrounded directly into the Kit pe
 
 .PHONY: team-aziz
 team-aziz: setup-team ## Launch Claude Code backgrounded directly into the Aziz persona (Release QA lead); shows up in `claude agents`.
-	claude --bg --name "Aziz" "/team-member Aziz" $(call team_mcp,aziz)
+	claude --bg --name "Aziz" "/team-member Aziz"
 
 .PHONY: team-amy
 team-amy: setup-team ## Launch Claude Code backgrounded directly into the Amy persona (Tech writer); shows up in `claude agents`.
