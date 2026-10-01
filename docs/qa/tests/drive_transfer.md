@@ -2007,3 +2007,10 @@ Create a scratch Drive folder `{FOLDER_ID}` and `/tmp/qa-273/` containing `g.md`
 
 **Teardown**
 Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-273/`.
+
+**Result** (2026-10-01, Sky, PR #854 round 2 re-verification of `749c7bb`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**.
+- Setup: both Docs carried `geeSweetSourceMtime` to the microsecond (`…03:45:16.813224Z` / `…03:45:16.813441Z`, matching `os.stat`) and `geeSweetUploadedAt` (`03:45:19.000Z`), with no baseline. The #814 restamp race hit `g.md` this run (`modifiedTime` `03:45:23.614Z`, vs. a source mtime of `03:45:16`).
+- Call 1: the edit added revision `2`. `get_file_metadata` showed `modified_time` `03:45:36.140Z` about 3 minutes later.
+- Call 2: `conflicts == ["g.md"]`, and `x.md` was in `skipped`, even though `g.md` had also drifted.
+- Call 3: `modified_time` was still `03:45:36.140Z`, not reset. `g.md` carried `geeSweetImportRevision: "1"`.
+- Call 4: `uploaded == ["x.md"]`, and `get_doc_content` contained "appended within 5s". An immediate extra resync left `x.md` in `skipped` (no repeat upload), and `g.md` stayed in `conflicts`.
