@@ -76,21 +76,29 @@ setup-team: ## Idempotently provision/refresh dev-team worktree slots and MCP co
 claude-team: setup-team ## Launch Claude Code with all dev-team MCP servers connected (Kai/Ash/Sky/Jay/Kit/Aziz/Amy/Joy/Bob) for Agent View.
 	claude --mcp-config .claude/mcp-configs/team.mcp.json --strict-mcp-config --name "Kai"
 
+# Each role session loads only its own servers (.claude/mcp-configs/<name>.mcp.json,
+# written by setup_team.sh), not all of team.mcp.json: other roles' tool names cost
+# ~26k tokens per session (#850). The flags go after the prompt because
+# --mcp-config takes a variadic list and would swallow it. team-kai and team-aziz
+# stay unflagged: they use every team server from the root .mcp.json plus the
+# user-global ones, which --strict-mcp-config would drop.
+team_mcp = --mcp-config "$(CURDIR)/.claude/mcp-configs/$(1).mcp.json" --strict-mcp-config
+
 .PHONY: team-ash
 team-ash: setup-team ## Launch Claude Code backgrounded directly into the Ash persona (Dev, lane A); shows up in `claude agents`.
-	claude --bg --name "Ash" "/team-member Ash"
+	claude --bg --name "Ash" "/team-member Ash" $(call team_mcp,ash)
 
 .PHONY: team-sky
 team-sky: setup-team ## Launch Claude Code backgrounded directly into the Sky persona (QA, lane A); shows up in `claude agents`.
-	claude --bg --name "Sky" "/team-member Sky"
+	claude --bg --name "Sky" "/team-member Sky" $(call team_mcp,sky)
 
 .PHONY: team-jay
 team-jay: setup-team ## Launch Claude Code backgrounded directly into the Jay persona (Dev, lane B); shows up in `claude agents`.
-	claude --bg --name "Jay" "/team-member Jay"
+	claude --bg --name "Jay" "/team-member Jay" $(call team_mcp,jay)
 
 .PHONY: team-kit
 team-kit: setup-team ## Launch Claude Code backgrounded directly into the Kit persona (QA, lane B); shows up in `claude agents`.
-	claude --bg --name "Kit" "/team-member Kit"
+	claude --bg --name "Kit" "/team-member Kit" $(call team_mcp,kit)
 
 .PHONY: team-aziz
 team-aziz: setup-team ## Launch Claude Code backgrounded directly into the Aziz persona (Release QA lead); shows up in `claude agents`.
@@ -98,15 +106,15 @@ team-aziz: setup-team ## Launch Claude Code backgrounded directly into the Aziz 
 
 .PHONY: team-amy
 team-amy: setup-team ## Launch Claude Code backgrounded directly into the Amy persona (Tech writer); shows up in `claude agents`.
-	claude --bg --name "Amy" "/team-member Amy"
+	claude --bg --name "Amy" "/team-member Amy" $(call team_mcp,amy)
 
 .PHONY: team-joy
 team-joy: setup-team ## Launch Claude Code backgrounded directly into the Joy persona (Lead architect); shows up in `claude agents`.
-	claude --bg --name "Joy" "/team-member Joy"
+	claude --bg --name "Joy" "/team-member Joy" $(call team_mcp,joy)
 
 .PHONY: team-bob
 team-bob: setup-team ## Launch Claude Code backgrounded directly into the Bob persona (Senior prompt engineer); shows up in `claude agents`.
-	claude --bg --name "Bob" "/team-member Bob"
+	claude --bg --name "Bob" "/team-member Bob" $(call team_mcp,bob)
 
 .PHONY: team-kai
 team-kai: setup-team ## Launch Claude Code backgrounded directly into the Kai persona (Orchestrator); shows up in `claude agents`.

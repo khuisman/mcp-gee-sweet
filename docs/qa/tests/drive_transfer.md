@@ -754,6 +754,8 @@ download_folder mime_type_filter=application/vnd.google-apps.document, export_fo
 
 **Result, round 2 (2026-07-25) ✅ PASS** After the fix's metadata-only `files().update()` re-stamp following `create()`: `notes.md` landed in `skipped`, not `failed`, on the immediate resync. `get_file_metadata` confirmed Drive's `modified_time` (`15:47:12.000Z`) now matches the local mtime exactly, byte-for-byte on the seconds field — no drift. Ran a second identical resync immediately after to confirm it's not a one-off race; stayed `skipped` both times.
 
+**Result, PR #854 re-run** (2026-09-30, Sky, PR #854 round 1 at `665b870`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**. Fresh scratch folder and `/tmp/qa-sync-211/notes.md`. The TC-D217 upload put `notes.md` in `uploaded`. The immediate `bidirectional` resync put it in `skipped`, with `conflicts`/`failed` empty. `list_files` showed exactly one `notes.md`, a Google Doc.
+
 ---
 
 ### TC-D219: convert_markdown — local edit re-converts in place, not a new file ⚠️ local-filesystem
@@ -1876,6 +1878,13 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-266/`.
 - Final listing: exactly 6 Google Docs, no `text/markdown` files, no orphans or duplicates.
 - Unit suite at `2544c93`: 1718 passed, 3 skipped.
 
+**Result, PR #854 re-run** (2026-09-30, Sky, PR #854 round 1 at `665b870`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**.
+- Setup: the legacy Doc's `modifiedTime` was restamped to `05:00:00.000Z` about 20s after `create()`, and the local mtime was set to match.
+- Call 1: `failed == []`. `uploaded` held the 4 new names, and `legacy.md` was in `skipped`. The markers were as specified. `short.md` had both keys. `<A100>.md` had only the raw generic key. `<B110>.md` and `<CJK>.md` had only a `sha256:` generic key. `legacy.md` had only its original key. All 4 new Docs also carried `geeSweetSourceMtime`, and the legacy Doc didn't.
+- Calls 2 and 3 (with and without `convert_markdown`): `uploaded`, `conflicts` and `failed` were empty, and all 5 names were in `skipped`.
+- Call 4: `upload_local_file(convert=True)` on `<C115>.md` returned no error, and the repeated call 2 listed it in `skipped`.
+- Final `list_files`: exactly 6 Google Docs, no `text/markdown` files, no orphans or duplicates.
+
 ### TC-D267: `upload_local_file(convert=True)` on a CSV restamps the converted Sheet's `modifiedTime`, so a following `sync_folder(export_format='csv')` reads it as in sync (issue #435) ⚠️ local-filesystem
 
 **Background:** Issue #435 proposed restamping `modifiedTime` only for `.md` → Doc conversions, on the premise that `sync_folder` never matches other converted types back to a local file. That premise is false. Drive strips `.csv` from a converted Sheet's display name, so `export_format='csv'` maps the Sheet straight back to the local `.csv`, and the two mtimes are compared. For a Sheet, `create()` ignores the requested `modifiedTime` outright. Without the follow-up metadata-only restamp, the pair reads as "Drive newer" on the very next sync. #435 declined the `.md`-only gate, and both call sites now share one `_restamp_modified_time` helper. This case guards the non-`.md` path.
@@ -1910,3 +1919,98 @@ Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-267/`.
 - `convert_markdown` regression check, run again at `b4e6439`: upload, then dry-run resync reports `skip` / "in sync".
 - The round-1 findings are all addressed in `b4e6439`, confirmed from its diff: the docstring is now consistent, the mtime is read inside the `try` at both sites (each with a new unit test), a single `_local_mtime_dt`, the stale comment is dropped, and the restamp test is parametrized.
 - Unit suite at `b4e6439`: 1739 passed, 3 skipped; ruff check and format are clean.
+
+### TC-D271: `sync_folder(convert_markdown=True)` — a Drive-side edit made right after a sync is a `conflict` on an immediate re-sync, and an unedited Doc settles into `skipped` whatever its `modifiedTime` does (issue #814) ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** Drive updates a Google Doc's `modifiedTime` from the Docs backend asynchronously, minutes behind. That late update overwrote the post-create restamp (an unedited Doc then sat in `conflicts` on every sync), and it also hid real Drive edits for 1.5–5 minutes, so a sync in that window reported an edited Doc as in sync. A converted Doc now carries `geeSweetSourceMtime` (the local mtime at upload), and its Drive side is judged from revision history. The first sync after an upload records the import's revision ID in `geeSweetImportRevision`, and any later revision is a Drive edit. See `docs/decisions/decision-converted-doc-change-detection.md`.
+
+**Setup**
+Create a scratch Drive folder `{FOLDER_ID}`. Locally, create `/tmp/qa-271/` containing `a.md`, `b.md`, `c.md`, `d.md`, `e.md`, and `f.md`, each holding `# Heading` and one paragraph of body text.
+
+**Tool calls**
+1. `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-271/", direction="upload", convert_markdown=True)`
+2. `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-271/", direction="bidirectional", convert_markdown=True)`. Run it about 10 seconds after call 1.
+3. `insert_doc_text(doc_id={ID of a.md}, insertions=[{"index": 1, "text": "Drive edit\n"}])`
+4. Within 30 seconds of call 3: `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-271/", direction="bidirectional", convert_markdown=True, dry_run=True)`
+5. The same call without `dry_run`.
+6. Wait 5 minutes, then repeat call 5.
+
+**Checks**
+- Call 1: `uploaded` holds all 6 names, and `failed == []`.
+- A scratch-script `files().list(fields="files(name,properties)")` after call 1 shows on every Doc `geeSweetSourceMtime`, equal to that local file's mtime to the microsecond (`YYYY-MM-DDTHH:MM:SS.ffffffZ`); `geeSweetUploadedAt`, within a minute of call 1; and no `geeSweetBaselineRevision`.
+- Call 2: all 6 names are in `skipped`, and `conflicts == []` and `failed == []`, even for any Doc whose `get_file_metadata` `modified_time` has drifted from its local mtime. Afterwards each Doc carries `geeSweetImportRevision`, equal to the only revision ID `list_revisions` returns for it.
+- Call 4: the `a.md` action is `conflict`, with a reason starting "edited in Drive since the last upload". The other 5 are `skip`. `get_file_metadata` on `a.md` may still show the pre-edit `modified_time`, which is expected, and is exactly what used to hide the edit.
+- Call 5: `conflicts == ["a.md"]`, the other 5 are in `skipped`, and `uploaded == []`. `get_doc_content` on `a.md` still contains "Drive edit".
+- Call 6: the same as call 5. No drift-induced conflict appears on `b.md`–`f.md`.
+
+**Teardown**
+Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-271/`.
+
+**Result** (2026-09-30, Sky, PR #854 round 1 at `665b870`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**.
+- Call 1: `uploaded` held all 6 names, and `failed == []`. The scratch-script listing showed `geeSweetSourceMtime` = `2026-09-30T05:08:13.000Z` on every Doc, equal to each local mtime, and no `geeSweetBaselineRevision`. Each Doc had one revision, `1`.
+- Call 2 (about 10s later): all 6 were in `skipped`, with `conflicts` and `failed` empty. Every Doc then carried `geeSweetImportRevision: "1"`, its only revision. The race didn't drift any `modifiedTime` this run.
+- Call 4 (dry run, about 20s after the edit): `a.md` was a `conflict` ("edited in Drive since the last upload, …"), and the other 5 were `skip`. `get_file_metadata` on `a.md` still showed the pre-edit `modified_time` `05:08:13.000Z`: the lag that used to hide the edit.
+- Call 5: `conflicts == ["a.md"]`, the other 5 were in `skipped`, and `uploaded == []`. `get_doc_content` on `a.md` still began with "Drive edit".
+- Call 6 (about 5 minutes later): identical to call 5. By then `a.md`'s `modifiedTime` had caught up to the edit (`05:09:08.894Z`). `b.md`–`f.md` stayed at `05:08:13.000Z` with no drift-induced conflict.
+- Side probe (code-review finding 1, reproduced): a new Doc `g.md` was uploaded and edited in Drive *before* its first bidirectional sync. Once its `modifiedTime` caught up to the edit (`05:11:15.146Z`), the first sync correctly reported it as a `conflict`. But the import-revision write reset `modifiedTime` to the old source mtime `05:10:57.000Z`, hiding the Drive edit's timestamp.
+
+### TC-D272: `sync_folder(convert_markdown=True)` — a local-only change re-uploads and settles; a change on both sides is a `conflict`, never an overwrite of the Drive edit (issue #814) ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** Before #814, a converted Doc edited in Drive *and* locally read as "local newer" and was re-uploaded, silently replacing the Drive edit. Now a re-upload stamps the Doc's latest revision from just before the upload as `geeSweetBaselineRevision`, and clears `geeSweetImportRevision`. The next sync takes the first revision after that baseline as the new import. A local change goes up only when the Drive side is unchanged.
+
+**Setup**
+Create a scratch Drive folder `{FOLDER_ID}` and `/tmp/qa-272/` containing `x.md` and `y.md`, each holding `# Heading` and one paragraph. Run `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-272/", direction="upload", convert_markdown=True)`, wait about 10 seconds, then run the same call with `direction="bidirectional"` so both Docs record their import revision.
+
+**Tool calls**
+1. Append a line `local edit` to `/tmp/qa-272/x.md`. Then `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-272/", direction="bidirectional", convert_markdown=True)`
+2. About 10 seconds later, repeat call 1 with no further edits.
+3. `insert_doc_text(doc_id={ID of y.md}, insertions=[{"index": 1, "text": "Drive edit\n"}])`, and append a line `local edit` to `/tmp/qa-272/y.md`. Then `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-272/", direction="bidirectional", convert_markdown=True, dry_run=True)`
+4. The same call without `dry_run`.
+5. `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-272/", direction="download", convert_markdown=True, dry_run=True)`, after appending another line to `/tmp/qa-272/x.md`.
+
+**Checks**
+- Call 1: `uploaded == ["x.md"]` and `y.md` is in `skipped`. The same file ID is reused (not a new Doc). The scratch-script properties listing shows `x.md` with `geeSweetBaselineRevision` equal to its pre-upload latest revision ID (from `list_revisions` before call 1), a new `geeSweetSourceMtime`, and no `geeSweetImportRevision`.
+- Call 2: both names are in `skipped`, and `x.md` now carries `geeSweetImportRevision`, equal to the revision after the baseline. If call 2 runs before Drive lists the new revision, `x.md` is still `skipped` and the property is recorded on a later sync.
+- Call 3: the `y.md` action is `conflict`, with a reason starting "edited both locally and in Drive".
+- Call 4: `conflicts == ["y.md"]` and `uploaded == []`. `get_doc_content` on `y.md` still contains "Drive edit", and not "local edit".
+- Call 5: the `x.md` action is `conflict`, with reason "local .md changed since the last upload but direction is download".
+
+**Teardown**
+Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-272/`.
+
+**Result** (2026-09-30, Sky, PR #854 round 1 at `665b870`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**. The checks as written all pass. A side probe reproduced code-review finding 8 (see below).
+- Setup: both Docs recorded `geeSweetImportRevision: "1"` on the bidirectional setup sync.
+- Call 1: `uploaded == ["x.md"]`, and `y.md` was in `skipped`. The file ID was unchanged. `x.md` carried `geeSweetBaselineRevision: "1"` (its pre-upload latest), a new `geeSweetSourceMtime` (`05:09:29.000Z`), and no `geeSweetImportRevision`. Revision `2` appeared.
+- Call 2: both were in `skipped`, and `x.md` now carried `geeSweetImportRevision: "2"`.
+- Call 3 (dry run): `y.md` was a `conflict` ("edited both locally and in Drive since the last upload — …"). `x.md` was `skip`.
+- Call 4: `conflicts == ["y.md"]` and `uploaded == []`. `get_doc_content` on `y.md` contained "Drive edit" and not "local edit".
+- Call 5 (`direction="download"`, dry run, after another `x.md` edit): `x.md` was a `conflict` with reason "local .md changed since the last upload but direction is download".
+- Side probe (code-review finding 8, reproduced): `x.md` was re-uploaded (stamp `05:10:10`). Another line was then appended, with the mtime set to stamp+3s. After the import revision (`3`) was recorded, a bidirectional sync (real and dry run) still reported `x.md` as `in sync`. The new content never uploaded (`get_doc_content` lacked "second-save"), because the local-vs-stamp comparison uses the 5s clock-skew tolerance.
+
+### TC-D273: `sync_folder(convert_markdown=True)` — recording the import revision leaves a Drive edit's `modifiedTime` alone, and a local save seconds after an upload still uploads (PR #854 QA round 1) ⚠️ destructive ⚠️ local-filesystem
+
+**Background:** PR #854 round 1 reproduced two bugs live. The first sync after an upload records the import's revision ID. It used to re-send the stamped source mtime as `modifiedTime` even on a Doc already edited in Drive, which reset the edit's real timestamp. Also, the local side was compared against its stamp with the 5s Drive clock-skew tolerance, so a save within 5s of the uploaded version never uploaded. The stamp now keeps microsecond precision and is compared exactly, and `modifiedTime` is re-sent only for an unedited Doc.
+
+**Setup**
+Create a scratch Drive folder `{FOLDER_ID}` and `/tmp/qa-273/` containing `g.md` and `x.md`, each holding `# Heading` and one paragraph. Run `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-273/", direction="upload", convert_markdown=True)`.
+
+**Tool calls**
+1. Right after setup, before any other sync: `insert_doc_text(doc_id={ID of g.md}, insertions=[{"index": 1, "text": "Drive edit\n"}])`. Wait until `get_file_metadata` on `g.md` shows a `modified_time` later than the upload (up to about 5 minutes), and note that value.
+2. `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-273/", direction="bidirectional", convert_markdown=True)`
+3. `get_file_metadata(file_id={ID of g.md})`
+4. Append a line to `/tmp/qa-273/x.md`, then set its mtime to 3 seconds after its `geeSweetSourceMtime` value (scratch script: `os.utime`). Then repeat call 2.
+
+**Checks**
+- Call 2: `conflicts` contains `g.md`. `x.md` is in `skipped`.
+- Call 3: `modified_time` is still the value noted in call 1, not reset to the upload's mtime. The scratch-script properties listing shows `geeSweetImportRevision` set on `g.md`.
+- Call 4: `uploaded == ["x.md"]`. `get_doc_content` on `x.md` contains the appended line.
+
+**Teardown**
+Trash `{FOLDER_ID}` and its contents. Remove `/tmp/qa-273/`.
+
+**Result** (2026-10-01, Sky, PR #854 round 2 re-verification of `749c7bb`, `mcp-gee-sweet-sky` reconnected after reset, OAuth, Shared Drive): ✅ **PASS**.
+- Setup: both Docs carried `geeSweetSourceMtime` to the microsecond (`…03:45:16.813224Z` / `…03:45:16.813441Z`, matching `os.stat`) and `geeSweetUploadedAt` (`03:45:19.000Z`), with no baseline. The #814 restamp race hit `g.md` this run (`modifiedTime` `03:45:23.614Z`, vs. a source mtime of `03:45:16`).
+- Call 1: the edit added revision `2`. `get_file_metadata` showed `modified_time` `03:45:36.140Z` about 3 minutes later.
+- Call 2: `conflicts == ["g.md"]`, and `x.md` was in `skipped`, even though `g.md` had also drifted.
+- Call 3: `modified_time` was still `03:45:36.140Z`, not reset. `g.md` carried `geeSweetImportRevision: "1"`.
+- Call 4: `uploaded == ["x.md"]`, and `get_doc_content` contained "appended within 5s". An immediate extra resync left `x.md` in `skipped` (no repeat upload), and `g.md` stayed in `conflicts`.

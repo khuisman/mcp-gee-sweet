@@ -355,10 +355,31 @@ class TestUploadLocalFileConvert:
 
         assert "error" not in result
         create_kwargs = drive_svc.files.return_value.create.call_args.kwargs
-        assert create_kwargs["body"]["properties"] == {
+        props = dict(create_kwargs["body"]["properties"])
+        _pop_uploaded_at(props)
+        assert props == {
             transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md",
             transfer_module._CONVERT_SOURCE_PROP: "notes.md",
+            # #814: sync_folder's local-side reference for this Doc, exact to
+            # the microsecond (PR #854 QA round 1).
+            transfer_module._CONVERTED_MD_SOURCE_MTIME_PROP: _precise_mtime(local_file),
         }
+
+    async def test_convert_non_md_does_not_stamp_source_mtime(self, tmp_path):
+        """#814's source-mtime property is only for .md → Doc, the one
+        conversion sync_folder tracks through properties; other types (#818)
+        stay on the modifiedTime comparison."""
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2\n")
+        drive_svc = MagicMock()
+        drive_svc.files.return_value.create.return_value.execute.return_value = {"id": "fid1"}
+
+        await _upload_local_file(
+            drive_svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        body = drive_svc.files.return_value.create.call_args.kwargs["body"]
+        assert transfer_module._CONVERTED_MD_SOURCE_MTIME_PROP not in body["properties"]
 
     @pytest.mark.parametrize(
         ("file_name", "target_mime"),
@@ -417,10 +438,10 @@ class TestUploadLocalFileConvert:
         local_file = tmp_path / "notes.txt"
         local_file.write_text("x")
 
-        def _boom(_path):
+        def _boom(_path, _st=None):
             raise FileNotFoundError("gone")
 
-        monkeypatch.setattr(transfer_module, "_local_mtime_str", _boom)
+        monkeypatch.setattr(transfer_module, "_local_mtime_dt", _boom)
         drive_svc = MagicMock()
 
         result = await _upload_local_file(
@@ -1718,7 +1739,9 @@ class TestExportFile:
 
 class _FakeDriveFS:
     """Fakes the slice of the Drive API sync_folder needs: per-folder `files().list`,
-    plus `files().create`/`files().update` that record what would have been written."""
+    plus `files().create`/`files().update` that record what would have been written,
+    and `revisions().list` (#814) serving `revisions[file_id]` (default ["1"]) as
+    a single page, or raising `revision_errors[file_id]` if set."""
 
     def __init__(self, children: dict[str, list[dict]]):
         self.children = children  # folder_id -> Drive API file/folder dicts
@@ -1726,11 +1749,26 @@ class _FakeDriveFS:
         self.created_folders: list[dict] = []
         self.created_files: list[dict] = []
         self.updated_files: list[dict] = []
+        self.revisions: dict[str, list[str]] = {}
+        self.revision_errors: dict[str, Exception] = {}
+        self.revision_list_calls: list[str] = []
 
         self.svc = MagicMock()
         self.svc.files.return_value.list.side_effect = self._list
         self.svc.files.return_value.create.side_effect = self._create
         self.svc.files.return_value.update.side_effect = self._update
+        self.svc.revisions.return_value.list.side_effect = self._list_revisions
+
+    def _list_revisions(self, **kwargs):
+        file_id = kwargs["fileId"]
+        self.revision_list_calls.append(file_id)
+        resp = MagicMock()
+        if file_id in self.revision_errors:
+            resp.execute.side_effect = self.revision_errors[file_id]
+        else:
+            ids = self.revisions.get(file_id, ["1"])
+            resp.execute.return_value = {"revisions": [{"id": i} for i in ids]}
+        return resp
 
     def _list(self, **kwargs):
         folder_id = kwargs["q"].split("'")[1]
@@ -1791,6 +1829,21 @@ def _drive_file(
     if size is not None:
         f["size"] = str(size)  # Drive returns size as a string
     return f
+
+
+def _precise_mtime(path: Path) -> str:
+    """The microsecond-precision source-mtime stamp #814 writes for `path`."""
+    return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%S.%fZ"
+    )
+
+
+def _pop_uploaded_at(props: dict) -> str:
+    """Remove and sanity-check the upload-time stamp (#814), which is "now"."""
+    value = props.pop(transfer_module._CONVERTED_MD_UPLOADED_AT_PROP)
+    stamped = datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    assert abs(stamped - time.time()) < 60
+    return value
 
 
 def _drive_folder(name, folder_id):
@@ -2265,9 +2318,13 @@ class TestSyncFolderConvertMarkdown:
         assert result["uploaded"] == ["notes.md"]
         assert fs.created_files[0]["name"] == "notes.md"
         assert fs.created_files[0]["mimeType"] == "application/vnd.google-apps.document"
-        assert fs.created_files[0]["properties"] == {
+        props = dict(fs.created_files[0]["properties"])
+        _pop_uploaded_at(props)
+        assert props == {
             transfer_module._CONVERT_SOURCE_PROP: "notes.md",
             transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md",
+            # #814: the local-side reference; a new Doc has no baseline.
+            transfer_module._CONVERTED_MD_SOURCE_MTIME_PROP: _precise_mtime(tmp_path / "notes.md"),
         }
         create_kwargs = fs.svc.files.return_value.create.call_args_list[-1].kwargs
         assert create_kwargs["media_body"].mimetype() == "text/markdown"
@@ -2433,6 +2490,17 @@ class TestSyncFolderConvertMarkdown:
         assert len(fs.updated_files) == 1
         assert fs.updated_files[0]["fileId"] == "fa"
         assert fs.updated_files[0]["media_body"].mimetype() == "text/markdown"
+        # #814: a legacy Doc (no source-mtime stamp) gains the properties on
+        # re-upload, with the pre-update latest revision as its baseline and
+        # any stale import revision cleared.
+        props = dict(fs.updated_files[0]["body"]["properties"])
+        _pop_uploaded_at(props)
+        assert props == {
+            transfer_module._CONVERTED_MD_SOURCE_MTIME_PROP: _precise_mtime(local_file),
+            transfer_module._CONVERTED_MD_BASELINE_REV_PROP: "1",
+            transfer_module._CONVERTED_MD_IMPORT_REV_PROP: None,
+        }
+        assert fs.revision_list_calls == ["fa"]
 
     async def test_drive_only_converted_doc_reported_as_conflict_not_downloaded(self, tmp_path):
         """No reverse conversion exists (Google Doc -> markdown). A converted Doc
@@ -2726,10 +2794,10 @@ class TestSyncFolderConvertMarkdown:
         (tmp_path / "notes.txt").write_text("x")
         fs = _FakeDriveFS({"root": []})
 
-        def _boom(_path):
+        def _boom(_path, _st=None):
             raise PermissionError("denied")
 
-        monkeypatch.setattr(transfer_module, "_local_mtime_str", _boom)
+        monkeypatch.setattr(transfer_module, "_local_mtime_dt", _boom)
         ctx = self._ctx(fs)
 
         result = await _transfer_tools["sync_folder"](
@@ -3065,6 +3133,500 @@ class TestSyncFolderConvertMarkdown:
         assert result["skipped"] == ["notes.md"]
         assert result["uploaded"] == []
         assert fs.created_files == []
+
+
+class TestConvertedMdDriveState:
+    """#814: the Drive side of a convert_markdown Doc is judged from revision
+    history, not modifiedTime."""
+
+    @staticmethod
+    def _revs(*ids, times=None):
+        times = times or {}
+        return [{"id": i, **({"modifiedTime": times[i]} if i in times else {})} for i in ids]
+
+    @pytest.mark.parametrize(
+        ("props", "ids", "expected"),
+        [
+            # New Doc, first sync: its first revision is the import.
+            ({}, ["1"], ("unchanged", "1")),
+            ({}, ["1", "2"], ("changed", "1")),
+            # Import already recorded.
+            ({"geeSweetImportRevision": "1"}, ["1"], ("unchanged", None)),
+            ({"geeSweetImportRevision": "1"}, ["1", "2"], ("changed", None)),
+            # Recorded import trimmed away, latest is something else: an edit.
+            ({"geeSweetImportRevision": "1"}, ["5"], ("changed", None)),
+            # Re-upload: the import is the first revision after the baseline.
+            ({"geeSweetBaselineRevision": "2"}, ["1", "2", "3"], ("unchanged", "3")),
+            ({"geeSweetBaselineRevision": "2"}, ["1", "2", "3", "4"], ("changed", "3")),
+            # Import not listed yet.
+            ({"geeSweetBaselineRevision": "2"}, ["1", "2"], ("pending", None)),
+            # Baseline gone and no upload time to fall back on.
+            ({"geeSweetBaselineRevision": "2"}, ["1", "3"], ("baseline_missing", None)),
+        ],
+    )
+    def test_states(self, props, ids, expected):
+        assert transfer_module._converted_md_drive_state(props, self._revs(*ids)) == expected
+
+    _UPLOADED = "2026-01-01T00:00:00.000Z"
+
+    def test_import_merged_into_later_edit_is_changed(self):
+        """PR #854 QA round 1: a Doc edited in Drive and first synced long after,
+        once Drive compacted its history to just the edit. Taking that edit as
+        the import would let the next local change overwrite it."""
+        props = {"geeSweetUploadedAt": self._UPLOADED}
+        revs = self._revs("7", times={"7": "2026-01-20T00:00:00.000Z"})
+
+        assert transfer_module._converted_md_drive_state(props, revs) == ("changed", None)
+
+    def test_import_within_window_is_accepted(self):
+        props = {"geeSweetUploadedAt": self._UPLOADED}
+        revs = self._revs("1", times={"1": "2026-01-01T00:00:04.000Z"})
+
+        assert transfer_module._converted_md_drive_state(props, revs) == ("unchanged", "1")
+
+    def test_pruned_baseline_falls_back_to_upload_time(self):
+        """PR #854 QA round 1: a pruned baseline used to leave an unedited Doc
+        in 'baseline_missing' for good."""
+        props = {"geeSweetBaselineRevision": "2", "geeSweetUploadedAt": self._UPLOADED}
+        revs = self._revs(
+            "1",
+            "3",
+            times={"1": "2025-12-01T00:00:00.000Z", "3": "2026-01-01T00:00:05.000Z"},
+        )
+
+        assert transfer_module._converted_md_drive_state(props, revs) == ("unchanged", "3")
+
+    def test_pruned_baseline_with_no_revision_since_upload_is_pending(self):
+        props = {"geeSweetBaselineRevision": "2", "geeSweetUploadedAt": self._UPLOADED}
+        revs = self._revs("1", times={"1": "2025-12-01T00:00:00.000Z"})
+
+        assert transfer_module._converted_md_drive_state(props, revs) == ("pending", None)
+
+
+class TestSyncFolderConvertedDocChangeDetection:
+    """#814: a convert_markdown Doc carrying the source-mtime stamp is synced
+    without consulting Drive's modifiedTime, which the Docs backend updates
+    minutes behind an edit (so it both overwrote the restamp and hid real Drive
+    edits). The local side compares against the stamped mtime, the Drive side
+    against revision history."""
+
+    _LOCAL_MTIME = datetime(2025, 6, 1, tzinfo=timezone.utc)
+    _STAMP = "2025-06-01T00:00:00.000Z"
+
+    def _ctx(self, fs: _FakeDriveFS):
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context.drive_service = fs.svc
+        ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+        ctx.report_progress = AsyncMock()
+        return ctx
+
+    def _setup(self, tmp_path, *, local_offset=0.0, drive_mtime=None, props=None):
+        """A local notes.md whose mtime is `local_offset` seconds after the
+        stamped source mtime, and a matching converted Doc `fa`. The Doc's
+        modifiedTime defaults to far in the future, which the modifiedTime
+        comparison would read as "Drive newer": every test here therefore also
+        shows that value isn't consulted."""
+        local = tmp_path / "notes.md"
+        local.write_text("# Notes")
+        ts = self._LOCAL_MTIME.timestamp() + local_offset
+        os.utime(local, (ts, ts))
+        all_props = {
+            transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md",
+            transfer_module._CONVERTED_MD_SOURCE_MTIME_PROP: self._STAMP,
+            **(props or {}),
+        }
+        return _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime=drive_mtime or "2030-01-01T00:00:00.000Z",
+                        mime="application/vnd.google-apps.document",
+                        properties=all_props,
+                    )
+                ]
+            }
+        )
+
+    async def _sync(self, fs, tmp_path, direction="bidirectional", dry_run=False):
+        return await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction=direction,
+            dry_run=dry_run,
+            ctx=self._ctx(fs),
+        )
+
+    async def test_unchanged_doc_skipped_despite_drifted_modified_time(self, tmp_path):
+        """The original report: a restamp overwritten by the late async
+        modifiedTime update read as "Drive newer" and sat in conflicts."""
+        fs = self._setup(tmp_path, props={transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "1"})
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["skipped"] == ["notes.md"]
+        assert result["conflicts"] == []
+        assert fs.revision_list_calls == ["fa"]
+        assert fs.updated_files == []  # nothing new to record
+
+    async def test_first_sync_records_import_revision(self, tmp_path):
+        fs = self._setup(tmp_path)
+        fs.revisions["fa"] = ["1"]
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["skipped"] == ["notes.md"]
+        assert fs.updated_files == [
+            {
+                "fileId": "fa",
+                # modifiedTime too: a property write would otherwise bump it
+                # to "now", undoing the cosmetic restamp.
+                "body": {
+                    "properties": {transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "1"},
+                    "modifiedTime": self._STAMP,
+                },
+                "supportsAllDrives": True,
+                "fields": "id",
+            }
+        ]
+
+    async def test_first_sync_after_reupload_records_revision_after_baseline(self, tmp_path):
+        fs = self._setup(tmp_path, props={transfer_module._CONVERTED_MD_BASELINE_REV_PROP: "2"})
+        fs.revisions["fa"] = ["1", "2", "3"]
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["skipped"] == ["notes.md"]
+        assert fs.updated_files[0]["body"] == {
+            "properties": {transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "3"},
+            "modifiedTime": self._STAMP,
+        }
+
+    async def test_failed_import_revision_record_does_not_fail_sync(self, tmp_path):
+        fs = self._setup(tmp_path)
+
+        def _fail(**kwargs):
+            raise RuntimeError("transient")
+
+        fs.svc.files.return_value.update.side_effect = _fail
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["skipped"] == ["notes.md"]
+        assert result["failed"] == []
+
+    async def test_drive_edit_detected_while_modified_time_still_lags(self, tmp_path):
+        """The missed-edit half of #814: Drive's modifiedTime still matches the
+        local file minutes after a Docs edit, which the modifiedTime comparison
+        reported as in sync. The new revision shows it immediately."""
+        fs = self._setup(
+            tmp_path,
+            drive_mtime=self._STAMP,
+            props={transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "1"},
+        )
+        fs.revisions["fa"] = ["1", "2"]
+
+        result = await self._sync(fs, tmp_path, direction="upload")
+
+        assert result["conflicts"] == ["notes.md"]
+        assert result["skipped"] == []
+        assert fs.updated_files == []
+
+    async def test_both_sides_changed_is_conflict_not_overwrite(self, tmp_path):
+        """Local newer used to upload straight over a Drive edit."""
+        fs = self._setup(
+            tmp_path,
+            local_offset=600,
+            props={transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "1"},
+        )
+        fs.revisions["fa"] = ["1", "2"]
+
+        result = await self._sync(fs, tmp_path, dry_run=True)
+
+        assert result["actions"][0]["action"] == "conflict"
+        assert "edited both locally and in Drive" in result["actions"][0]["reason"]
+
+        result = await self._sync(fs, tmp_path)
+        assert result["conflicts"] == ["notes.md"]
+        assert result["uploaded"] == []
+        assert fs.updated_files == []
+
+    async def test_local_change_uploads_with_fresh_baseline(self, tmp_path):
+        fs = self._setup(
+            tmp_path,
+            local_offset=600,
+            props={transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "1"},
+        )
+        fs.revisions["fa"] = ["1"]
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["uploaded"] == ["notes.md"]
+        (update,) = fs.updated_files
+        assert update["fileId"] == "fa"
+        props = dict(update["body"]["properties"])
+        _pop_uploaded_at(props)
+        assert props == {
+            transfer_module._CONVERTED_MD_SOURCE_MTIME_PROP: _precise_mtime(tmp_path / "notes.md"),
+            transfer_module._CONVERTED_MD_BASELINE_REV_PROP: "1",
+            transfer_module._CONVERTED_MD_IMPORT_REV_PROP: None,
+        }
+        assert update["body"]["modifiedTime"] != self._STAMP
+        # One read to plan, one fresh read for the baseline just before update().
+        assert fs.revision_list_calls == ["fa", "fa"]
+
+    async def test_local_change_under_download_direction_is_conflict(self, tmp_path):
+        fs = self._setup(
+            tmp_path,
+            local_offset=600,
+            props={transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "1"},
+        )
+
+        result = await self._sync(fs, tmp_path, direction="download")
+
+        assert result["conflicts"] == ["notes.md"]
+        assert fs.updated_files == []
+
+    async def test_local_rollback_is_conflict(self, tmp_path):
+        fs = self._setup(
+            tmp_path,
+            local_offset=-600,
+            props={transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "1"},
+        )
+
+        result = await self._sync(fs, tmp_path, dry_run=True)
+
+        assert result["actions"][0]["action"] == "conflict"
+        assert "older than the version last uploaded" in result["actions"][0]["reason"]
+
+    async def test_local_change_waits_while_import_revision_pending(self, tmp_path):
+        """Uploading again before the previous import is listed would stamp a
+        baseline that predates it, so that import would later read as a Drive
+        edit."""
+        fs = self._setup(
+            tmp_path,
+            local_offset=600,
+            props={transfer_module._CONVERTED_MD_BASELINE_REV_PROP: "2"},
+        )
+        fs.revisions["fa"] = ["1", "2"]
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["skipped"] == ["notes.md"]
+        assert result["uploaded"] == []
+        assert fs.updated_files == []
+
+    async def test_missing_baseline_is_conflict(self, tmp_path):
+        fs = self._setup(tmp_path, props={transfer_module._CONVERTED_MD_BASELINE_REV_PROP: "2"})
+        fs.revisions["fa"] = ["1", "3"]
+
+        result = await self._sync(fs, tmp_path, dry_run=True)
+
+        assert result["actions"][0]["action"] == "conflict"
+        assert (
+            "revision recorded before its last upload is gone" in (result["actions"][0]["reason"])
+        )
+
+    async def test_revision_read_failure_reported_as_failed(self, tmp_path):
+        fs = self._setup(tmp_path)
+        fs.revision_errors["fa"] = RuntimeError("revisions unavailable")
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["skipped"] == []
+        assert result["failed"] == [
+            {
+                "name": "notes.md",
+                "error": (
+                    "couldn't read the Doc's revision history to check for Drive edits: "
+                    "revisions unavailable"
+                ),
+            }
+        ]
+
+    async def test_dry_run_checks_revisions_but_records_nothing(self, tmp_path):
+        fs = self._setup(tmp_path)
+
+        result = await self._sync(fs, tmp_path, dry_run=True)
+
+        assert result["actions"] == [{"name": "notes.md", "action": "skip", "reason": "in sync"}]
+        assert fs.revision_list_calls == ["fa"]
+        assert fs.updated_files == []
+
+    async def test_baseline_read_failure_fails_upload_before_update(self, tmp_path):
+        fs = self._setup(
+            tmp_path,
+            local_offset=600,
+            props={transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "1"},
+        )
+        calls = []
+        real = fs._list_revisions
+
+        def _second_fails(**kwargs):
+            calls.append(kwargs["fileId"])
+            if len(calls) == 2:
+                raise RuntimeError("revisions unavailable")
+            return real(**kwargs)
+
+        fs.svc.revisions.return_value.list.side_effect = _second_fails
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["uploaded"] == []
+        assert result["failed"] == [{"name": "notes.md", "error": "revisions unavailable"}]
+        assert fs.updated_files == []
+
+    async def test_legacy_doc_without_stamp_keeps_modified_time_path(self, tmp_path):
+        """No migration: a Doc converted before #814 isn't revision-checked."""
+        local = tmp_path / "notes.md"
+        local.write_text("# Notes")
+        ts = self._LOCAL_MTIME.timestamp()
+        os.utime(local, (ts, ts))
+        fs = _FakeDriveFS(
+            {
+                "root": [
+                    _drive_file(
+                        "notes.md",
+                        "fa",
+                        mtime=self._STAMP,
+                        mime="application/vnd.google-apps.document",
+                        properties={transfer_module._CONVERT_MARKDOWN_SOURCE_PROP: "notes.md"},
+                    )
+                ]
+            }
+        )
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["skipped"] == ["notes.md"]
+        assert fs.revision_list_calls == []
+
+    async def test_recording_on_drive_edited_doc_keeps_its_modified_time(self, tmp_path):
+        """PR #854 QA round 1, item 1 (reproduced live): re-sending the stamped
+        mtime on a Doc edited in Drive reset its modifiedTime, so the Drive UI
+        and every other client saw it as unedited."""
+        fs = self._setup(tmp_path)
+        fs.revisions["fa"] = ["1", "2"]
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["conflicts"] == ["notes.md"]
+        (update,) = fs.updated_files
+        # Drive's own modifiedTime from the listing (_setup's default), not the
+        # stamped source mtime, and never left out (which stamps "now").
+        assert update["body"] == {
+            "properties": {transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "1"},
+            "modifiedTime": "2030-01-01T00:00:00.000Z",
+        }
+
+    async def test_local_save_within_seconds_of_upload_is_detected(self, tmp_path):
+        """PR #854 QA round 1, item 2 (reproduced live): the 5s Drive clock-skew
+        tolerance hid a local save made within 5s of the stamped mtime, and it
+        never uploaded."""
+        fs = self._setup(
+            tmp_path,
+            local_offset=3,
+            props={transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "1"},
+        )
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["uploaded"] == ["notes.md"]
+
+    async def test_sub_millisecond_difference_is_in_sync(self, tmp_path):
+        fs = self._setup(
+            tmp_path,
+            local_offset=0.0002,
+            props={transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "1"},
+        )
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["skipped"] == ["notes.md"]
+
+    async def test_pending_local_change_under_download_is_conflict(self, tmp_path):
+        """PR #854 QA round 1, item 3: 'pending' used to win over the
+        direction check and promise an upload that download never makes."""
+        fs = self._setup(
+            tmp_path,
+            local_offset=600,
+            props={transfer_module._CONVERTED_MD_BASELINE_REV_PROP: "2"},
+        )
+        fs.revisions["fa"] = ["1", "2"]
+
+        result = await self._sync(fs, tmp_path, direction="download", dry_run=True)
+
+        assert result["actions"][0]["action"] == "conflict"
+        assert "direction is download" in result["actions"][0]["reason"]
+
+    async def test_recording_import_revision_marks_folder_dirty(self, tmp_path):
+        """PR #854 QA round 1, item 4: the import-revision write changes the
+        Doc's metadata, like every other write here that invalidates the cache."""
+        fs = self._setup(tmp_path)
+        ctx = self._ctx(fs)
+
+        await _transfer_tools["sync_folder"](folder_id="root", local_path=str(tmp_path), ctx=ctx)
+
+        ctx.request_context.lifespan_context.drive_folder_cache.mark_dirty.assert_called_with(
+            "root"
+        )
+
+    async def test_empty_revision_history_is_drive_read_fail(self, tmp_path):
+        """PR #854 QA round 1, item 5: an empty list read as 'changed', a false
+        Drive-edit conflict whose advice changes the Doc's file ID."""
+        fs = self._setup(tmp_path, props={transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "1"})
+        fs.revisions["fa"] = []
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["conflicts"] == []
+        assert result["failed"] == [
+            {
+                "name": "notes.md",
+                "error": (
+                    "couldn't read the Doc's revision history to check for Drive edits: "
+                    "Drive returned an empty revision history"
+                ),
+            }
+        ]
+
+    async def test_drive_edit_between_plan_and_upload_is_conflict(self, tmp_path):
+        """PR #854 QA round 1, item 6: the upload's fresh revision read now
+        checks the plan's view still holds; an edit landing in between used to
+        be absorbed into the baseline and overwritten."""
+        fs = self._setup(
+            tmp_path,
+            local_offset=600,
+            props={transfer_module._CONVERTED_MD_IMPORT_REV_PROP: "1"},
+        )
+        reads = iter([["1"], ["1", "2"]])
+
+        def _moving(**kwargs):
+            resp = MagicMock()
+            resp.execute.return_value = {"revisions": [{"id": i} for i in next(reads)]}
+            return resp
+
+        fs.svc.revisions.return_value.list.side_effect = _moving
+
+        result = await self._sync(fs, tmp_path)
+
+        assert result["conflicts"] == ["notes.md"]
+        assert result["uploaded"] == []
+        assert fs.updated_files == []
+
+    async def test_revision_list_follows_pagination(self):
+        svc = MagicMock()
+        pages = [
+            {"revisions": [{"id": "1"}, {"id": "2"}], "nextPageToken": "t"},
+            {"revisions": [{"id": "3"}]},
+        ]
+        svc.revisions.return_value.list.return_value.execute.side_effect = pages
+
+        revisions = await transfer_module._list_revisions(svc, "fa")
+        assert [r["id"] for r in revisions] == ["1", "2", "3"]
+        tokens = [c.kwargs["pageToken"] for c in svc.revisions.return_value.list.call_args_list]
+        assert tokens == [None, "t"]
 
 
 class TestSyncFolderDownloadMtimeRoundTrip:
