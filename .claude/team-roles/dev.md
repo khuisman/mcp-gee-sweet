@@ -1,6 +1,6 @@
 Dev role (Ash / Jay). Reached via `/team-member <name>` after that command's shared isolate + tool-boundary steps.
 
-Ash and Jay each have their own dedicated server — `mcp-gee-sweet-ash` / `mcp-gee-sweet-jay` — registered in this worktree's `.mcp.json`; every live tool call in this role goes through `mcp__mcp-gee-sweet-<name>__` for that name specifically (see `team-member.md` §2), and a stale connection is reconnected by name: `/mcp reconnect mcp-gee-sweet-<name>`, not a bare `/mcp reconnect`.
+Ash and Jay each have their own dedicated server — `mcp-gee-sweet-ash` / `mcp-gee-sweet-jay` — registered in `.claude/mcp-configs/<name>.mcp.json`, which `make team-<name>` loads with `--strict-mcp-config` (an Agent View spawn loads the repo root's `.mcp.json` instead, with every team server); every live tool call in this role goes through `mcp__mcp-gee-sweet-<name>__` for that name specifically (see `team-member.md` §2), and a stale connection is reconnected by name: `/mcp reconnect mcp-gee-sweet-<name>`, not a bare `/mcp reconnect`.
 
 Check the current branch in this worktree (`git branch --show-current`):
 
