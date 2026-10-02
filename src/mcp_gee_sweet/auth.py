@@ -365,18 +365,30 @@ async def _oauth_creds_async() -> Credentials:
     token load and refresh run on a daemon thread, and so does the consent wait, so
     other connections keep being served and SIGTERM still stops the server. Before,
     a consent wait (or a hanging token endpoint) blocked the loop."""
-    loop = asyncio.get_running_loop()
-    loading = _run_in_daemon_thread(
-        loop, lambda: _oauth_creds(defer_consent=True), name="oauth-token"
-    )
+    successes = _consent_successes
     try:
-        return await _await_unless_shutdown(
-            loading,
-            f"No usable OAuth token yet: the server shut down while loading the token at "
-            f"{TOKEN_PATH!r}.",
-        )
+        return await _load_token()
+    except _ConsentDeferred as deferred:
+        if _consent_successes == successes:
+            return await _await_server_consent(deferred.scopes)
+    # A consent succeeded while this load ran on its thread, so the load may have read
+    # TOKEN_PATH just before the token was written. Read it again rather than start a
+    # second consent (PR #867 QA round 4).
+    try:
+        return await _load_token()
     except _ConsentDeferred as deferred:
         return await _await_server_consent(deferred.scopes)
+
+
+async def _load_token() -> Credentials:
+    loading = _run_in_daemon_thread(
+        asyncio.get_running_loop(), lambda: _oauth_creds(defer_consent=True), name="oauth-token"
+    )
+    return await _await_unless_shutdown(
+        loading,
+        f"No usable OAuth token yet: the server shut down while loading the token at "
+        f"{TOKEN_PATH!r}.",
+    )
 
 
 def _run_server_consent(scopes: list[str], stop: threading.Event) -> Credentials:
@@ -561,9 +573,17 @@ class _ConsentAttempt:
         # sees the failure: not later in the lifespan, which a waterfall fallback
         # skips, and which a connection opening in between would race (PR #867 QA).
         # A stopped attempt (every waiter gave up) isn't a failure.
-        if error is not None and not isinstance(error, _ConsentStopped):
+        # A success is counted here too, so a connection whose token load raced it
+        # reads the saved token instead of starting another consent.
+        global _consent_successes
+        if error is None:
+            _consent_successes += 1
+        elif not isinstance(error, _ConsentStopped):
             _disable_consent_after_failure()
 
+
+# How many consent attempts have succeeded in this process. Read and bumped on the loop.
+_consent_successes = 0
 
 # Process-wide on purpose: one consent wait (one prompt, one callback port) is shared
 # by every connection that arrives while it runs, rather than one per connection.

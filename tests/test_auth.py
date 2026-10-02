@@ -1084,6 +1084,63 @@ class TestConsentOffEventLoop:
             asyncio.run(_run())
         serve.assert_not_called()
 
+    def test_a_load_that_raced_a_successful_consent_reads_the_token_again(self):
+        # PR #867 QA round 4: B's token load runs on its own thread. If it reads
+        # TOKEN_PATH just before A's consent saves the token, B used to reach the loop
+        # after A finished and start a second consent. It now reloads the token.
+        fresh, saved = self._fresh(), self._fresh()
+        b_loading, a_done = threading.Event(), threading.Event()
+        calls = []
+
+        def _load(**kwargs):
+            calls.append(threading.current_thread().name)
+            if len(calls) == 1:  # B: reads before A saves, then stalls past A's success
+                b_loading.set()
+                a_done.wait(5)
+                raise auth_module._ConsentDeferred(auth_module.BASE_SCOPES)
+            if len(calls) == 2:  # A: no token yet
+                raise auth_module._ConsentDeferred(auth_module.BASE_SCOPES)
+            return saved  # B's reload: the token A saved
+
+        serve = MagicMock(return_value=fresh)
+
+        async def _run():
+            b = asyncio.create_task(auth_module._oauth_creds_async())
+            await asyncio.to_thread(b_loading.wait, 5)
+            a = await auth_module._oauth_creds_async()
+            a_done.set()
+            return a, await b
+
+        with (
+            patch("mcp_gee_sweet.auth._oauth_creds", side_effect=_load),
+            patch("mcp_gee_sweet.auth._serve_consent", serve),
+        ):
+            a, b = asyncio.run(_run())
+        assert a is fresh
+        assert b is saved
+        serve.assert_called_once()
+
+    def test_a_consent_needed_after_an_earlier_success_still_runs(self):
+        # The reload is only for a load that overlapped the success. A connection
+        # whose load starts afterwards and still finds no usable token (e.g. the token
+        # was deleted to re-authorize) gets a new consent, not the old credentials.
+        first, second = self._fresh(), self._fresh()
+        serve = MagicMock(side_effect=[first, second])
+
+        async def _run():
+            return await auth_module._oauth_creds_async(), await auth_module._oauth_creds_async()
+
+        with (
+            patch(
+                "mcp_gee_sweet.auth._oauth_creds",
+                side_effect=auth_module._ConsentDeferred(auth_module.BASE_SCOPES),
+            ),
+            patch("mcp_gee_sweet.auth._serve_consent", serve),
+        ):
+            results = asyncio.run(_run())
+        assert results == (first, second)
+        assert serve.call_count == 2
+
     def test_server_shutdown_ends_the_wait_and_stops_the_thread(self):
         from sse_starlette.sse import AppStatus
 
