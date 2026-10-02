@@ -883,6 +883,9 @@ stdout file 0 bytes. stderr has `Please visit this URL to authorize this applica
 **Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS**
 stdout 0 bytes; stderr has the `Please visit ... https://accounts.google.com/o/oauth2/auth?...` prompt; port released. (A first attempt with `TOKEN_PATH` under a nonexistent directory printed no prompt: the new pre-consent writability check degraded with `the browser consent failed (RuntimeError: The directory for TOKEN_PATH ... doesn't exist...)`, and later connections logged `an earlier browser consent in this server process didn't complete`. Correct behavior; the Setup now says the parent directory must exist.)
 
+**Result (2026-10-01, PR #867 round 1 @ 9f34468, Sky) ✅ PASS**
+Stopped with SIGTERM, not SIGKILL. stdout had 0 `Please visit` lines, only uvicorn access lines (`GET /sse 200`, `POST /messages/ 202`). stderr had `Please visit this URL to authorize this application: https://accounts.google.com/...`. Server exited on SIGTERM and the port was released.
+
 ---
 
 ### TC-I39: `mcp-gee-sweet auth` argument handling and pre-consent checks (issue #811) ⚠️ local-filesystem
@@ -937,6 +940,9 @@ Run 2: restart the server the same way. Open a connection (its `initialize` bloc
 **Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS**
 `mcp` SDK `sse_client`. Run 1: A opened (≈4s consent wait inside the SSE connect; `initialize` itself 0.0s) → error `...the browser consent wasn't completed within 4s. To authorize, run \`mcp-gee-sweet auth\`...`. B (A still open): connected + initialized 0.00s → `...an earlier browser consent in this server process didn't complete (it isn't retried, since waiting for it blocks every connection)`. A again: still `within 4s`. stderr: exactly 1 `Please visit`. Run 2: stray `GET http://localhost:<cb>/?state=bogus&code=x` fired while the connection was opening; connect+init finished 0.02s after it, tool error `...the browser consent failed (MismatchingStateError: (mismatching_state) CSRF Warning! State not equal in request and response.). To authorize, run \`mcp-gee-sweet auth\`...`; lifespan didn't crash. `lsof -i :<port>` empty after both.
 
+**Result (2026-10-01, PR #867 round 1 @ 9f34468, Sky) ✅ PASS**
+`mcp` SDK `sse_client`. Run 1: A open+init 4.09s; tool error `...the browser consent wasn't completed within 4s. To authorize, run \`mcp-gee-sweet auth\`...`. B (A still open) open+init 0.01s; error `...an earlier browser consent in this server process didn't complete (it isn't retried, so new connections don't each wait for it again)`. A again: still `within 4s`. stderr had exactly 1 `Please visit`. Run 2: init 0.01s after the stray `GET /?state=bogus&code=x`; error `...the browser consent failed (MismatchingStateError: ...)`, and the lifespan didn't crash. SIGTERM exits took 0.28s each, and `lsof -i :<port>` was empty after both.
+
 ---
 
 ### TC-I43: SSE consent wait doesn't stall other connections, and SIGTERM stops the server (issue #833) ⚠️ local-filesystem
@@ -954,7 +960,7 @@ Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PA
 5. Send the server process `SIGTERM` (not SIGKILL, and not the process group) and time how long it takes to exit
 
 **Checks**
-- 2: the POST answers `400` in well under a second (before #833: no answer until the consent ended)
+- 2: the POST answers `404` (no such session) in well under a second (before #833: no answer until the consent ended)
 - 3: the stderr file has exactly one `Please visit` prompt (B shares A's consent instead of starting a second one)
 - 5: the server exits within a few seconds (before #833: it kept running until the 120s timeout)
 - 5: the stderr file has `Starting without Google access: ... the server shut down before the browser consent completed`
@@ -963,3 +969,6 @@ Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PA
 An `Exception in ASGI application ... Expected ASGI message 'http.response.body', but got 'http.response.start'` traceback during shutdown isn't a failure of this case: any SSE stream open at SIGTERM produces it, with or without a consent wait (pre-existing, seen on `develop` before #833).
 
 **Cleanup:** if the server is still running, SIGKILL its process group and record the case as failed.
+
+**Result (2026-10-01, PR #867 round 1 @ 9f34468, Sky) ✅ PASS**
+`mcp` SDK `sse_client`, `OAUTH_CONSENT_TIMEOUT_SECONDS=120`. Step 2: POST answered `404` in 0.016s. The case said `400`, but an unknown all-zero session id is 404; corrected above. Step 3: exactly 1 `Please visit`. Step 5: SIGTERM to the server pid exited in 4.6s; stderr has `...the server shut down before the browser consent completed`; `lsof` empty for both `<port>` and `<cb>`. A and B both ended with `Connection closed` (expected: the server exited). Probe outside the case (PR comment, finding 1): with `OAUTH_CONSENT_TIMEOUT_SECONDS=4` and a silent TCP connection held open on `<cb>`, A was still waiting after 20s and resolved only once the silent connection closed. SIGTERM still exits (0.56s) because the consent thread is a daemon.
