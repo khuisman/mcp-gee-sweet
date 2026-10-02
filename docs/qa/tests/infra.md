@@ -958,6 +958,9 @@ Run 2: restart the server the same way. Open a connection (its `initialize` bloc
 
 **Cleanup:** remove `<scratch>`. The headless sessions stay in this lane's transcript directory.
 
+**Result (2026-10-01, PR #866 round 1 @ 9e649ac, Kit) ✅ PASS**
+Claude Code 2.1.287, `kit` worktree. Step 1: Stop `hook_response` exit 0, empty `stderr`, `output` `{"systemMessage": "Lane context is ~41k tokens (warning threshold 1k). ... start fresh: /clear, then /team-member Kit."}`; the `assistant` line's three usage fields sum to 41019; `informational` line `Stop says: Lane context is ~41k tokens ...`. State file under `<scratch>/mcp-gee-sweet-lane-context/` held `0`. Step 2 (`--resume`): Stop `output` empty, no `Stop says:` line (`SessionStart:resume` also empty, since no `LANE_RESUME_WARN_TOKENS` override). Step 3 (`cwd` = `.../worktrees/bob`): no output, exit 0.
+
 ---
 
 ### TC-I42: resuming a large lane session whose prompt cache has expired warns before the first request (issue #847) ⚠️ local-filesystem
@@ -975,3 +978,6 @@ Run 2: restart the server the same way. Open a connection (its `initialize` bloc
 - Step 2: the SessionStart `hook_response` has an empty `output` (cache not expired).
 
 **Cleanup:** remove `<scratch>`.
+
+**Result (2026-10-01, PR #866 round 1 @ 9e649ac, Kit) ✅ PASS**
+Claude Code 2.1.287, `kit` worktree. Old session: a ~43k-token `kit` transcript last modified 2026-09-29. Step 1: `hook_name` `SessionStart:fork`, exit 0, `output` `{"systemMessage": "Resuming a ~43k-token lane session with an expired prompt cache: the first request re-writes all of it (~$0.34). If this session's ticket is done or between rounds, /clear, then /team-member Kit is cheaper."}`. Step 2 (fork of step 1's fork, seconds later): `SessionStart:fork` `output` empty.
