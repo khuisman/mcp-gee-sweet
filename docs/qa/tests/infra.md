@@ -950,6 +950,9 @@ Same as round 1. Run 1: A open+init 4.09s with `within 4s`; B 0.01s with `an ear
 **Result (2026-10-01, PR #867 round 3 @ de28f97, Sky) ✅ PASS**
 Run 1: A 4.10s with `within 4s`; B 0.01s with `an earlier browser consent ... didn't complete`; A again still `within 4s`; 1 `Please visit`. Run 2: init 0.01s after the stray request, `the browser consent failed (MismatchingStateError ...)`. SIGTERM exits 0.24s / 0.24s. (Run 1's `lsof -i :<port>` matched an unrelated macOS process, `PowerChime`, on the same port number over IPv6. That was port reuse, not the server.)
 
+**Result (2026-10-01, PR #867 round 5 @ b306ce0, Sky) ✅ PASS**
+Run 1: A 4.08s with `within 4s`; B 0.01s with `an earlier browser consent ... didn't complete`; A again still `within 4s`; 1 `Please visit`. Run 2: init 0.01s after the stray request, `the browser consent failed`. SIGTERM exits 0.29s / 0.27s, and `lsof` was empty.
+
 ---
 
 ### TC-I41: the Stop hook warns a lane session once its context passes the threshold, once per band (issue #847) ⚠️ local-filesystem
@@ -1036,6 +1039,9 @@ Step 2: POST `404` in 0.017s. Step 3: 1 `Please visit`. Step 5: SIGTERM exit in 
 **Result (2026-10-01, PR #867 round 3 @ de28f97, Sky) ✅ PASS**
 Step 2: POST `404` in 0.015s. Step 3: 1 `Please visit`. Step 5: SIGTERM exit 0.60s, the shut-down message was logged, and `lsof` was empty for both ports. The round-1/2 probes still hold: a silent connection on `<cb>` degrades at 5.2s; the waterfall shows 1 prompt across two connections; with the refresh hanging, a POST answers in 0.018s and SIGTERM exits in 0.56s with `shut down while loading the token`.
 
+**Result (2026-10-01, PR #867 round 5 @ b306ce0, Sky) ✅ PASS**
+Step 2: `404` in 0.013s. Step 3: 1 `Please visit`. Step 5: SIGTERM exit 0.65s, the shut-down message was logged, and `lsof` was empty for both ports. The earlier probes still pass: a silent `<cb>` connection degrades at 5.2s; the waterfall shows 1 prompt across two connections; with the refresh hanging, a POST answers in 0.017s and SIGTERM exits in 0.44s. All four states of the shared consent attempt were checked with standalone scripts against the real `_oauth_creds_async`. **Running:** joins it (`test_concurrent_connections_share_one_consent`). **Failed:** consent-off error, no new attempt. **Succeeded, with a token load in flight across the success:** that load re-reads the token, 1 consent in total; `18c839e` ran 2. **Succeeded, then the token deleted:** a new consent runs, as intended. **Stopped (the last waiter cancelled):** the next connection starts a new attempt and gets creds.
+
 ---
 
 ### TC-I44: over SSE, an auth failure starts the connection without Google access, and SIGTERM still exits (PR #867) ⚠️ local-filesystem
@@ -1060,3 +1066,6 @@ Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PA
 
 **Result (2026-10-01, PR #867 round 3 @ de28f97, Sky) ✅ PASS**
 Step 1: `initialize` OK; the tool error is `The OAuth token at ... wasn't authorized for scope(s) the enabled tools require: ...`, and the stderr has the `ERROR mcp_gee_sweet.auth Starting without Google access: The OAuth token at` line. SIGTERM exit 0.23s. Step 2: 10 of 10 POSTs answered `202`, and SIGTERM exited in 0.49–0.56s every time. Control: the same raw-socket race against round 2's `a4c18c9` hung 3 of 3, so the case does exercise the bug. Step 3 (`AUTH_METHOD` unset): same missing-scopes error, SIGTERM exit 0.12s. Also checked: stdio with the same token still exits (code 1, missing-scopes error on stderr, empty stdout), per #790.
+
+**Result (2026-10-01, PR #867 round 5 @ b306ce0, Sky) ✅ PASS**
+Step 1: missing-scopes tool error plus the `ERROR ... Starting without Google access` line; SIGTERM 0.23s. Step 2: 10 of 10 POSTs `202`, SIGTERM 0.50–0.60s. Step 3: same error, SIGTERM 0.18s. Stdio with the same token still exits with code 1.
