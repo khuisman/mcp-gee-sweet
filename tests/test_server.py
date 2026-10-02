@@ -530,12 +530,14 @@ class TestMainAuthAndTransport:
         monkeypatch.setattr(mcp, "run", MagicMock())
         main()
         assert auth_module._interactive_consent is False
+        assert auth_module._raise_auth_failures is True
 
     def test_sse_keeps_interactive_consent(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["mcp-gee-sweet", "--transport", "sse"])
         monkeypatch.setattr(mcp, "run", MagicMock())
         main()
         assert auth_module._interactive_consent is True
+        assert auth_module._raise_auth_failures is False
 
 
 class TestMainLogsVersion:

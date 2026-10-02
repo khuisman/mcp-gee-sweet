@@ -88,6 +88,18 @@ _STDIO_NO_CONSENT_REASON = "this server can't ask for consent itself over the st
 _interactive_consent_off_reason = _STDIO_NO_CONSENT_REASON
 
 
+# Whether an auth failure in the lifespan raises (stdio: the server exits, as #790
+# chose) or starts that connection without Google access (every other transport).
+# server.main() turns it on for stdio. Under SSE a raising lifespan can leave the
+# server unable to shut down (python-sdk#3616), and the server keeps running anyway.
+_raise_auth_failures = False
+
+
+def set_raise_auth_failures(enabled: bool) -> None:
+    global _raise_auth_failures
+    _raise_auth_failures = enabled
+
+
 def set_interactive_consent(allowed: bool, reason: str = _STDIO_NO_CONSENT_REASON) -> None:
     global _interactive_consent, _interactive_consent_off_reason
     _interactive_consent = allowed
@@ -750,11 +762,56 @@ def get_lifespan_context() -> SpreadsheetContext:
     return _lifespan_context
 
 
+def _degraded_context(message: str | None) -> SpreadsheetContext:
+    # No services to build. server.py's tool wrapper raises context.unauthorized_message
+    # before any tool body can reach them.
+    return SpreadsheetContext(
+        sheets_service=None,
+        drive_service=None,
+        docs_service=None,
+        calendar_service=None,
+        activity_service=None,
+        gmail_service=None,
+        folder_id=DRIVE_FOLDER_ID if DRIVE_FOLDER_ID else None,
+        auth_method="none",
+        unauthorized_message=message,
+    )
+
+
+def _auth_failure_message(error: Exception) -> str:
+    message = str(error)
+    if error.__cause__ is not None:
+        message = f"{message} ({type(error.__cause__).__name__}: {error.__cause__})"
+    return message
+
+
 @asynccontextmanager
 async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetContext]:
+    global _lifespan_context
+    try:
+        context = await _build_context()
+    except Exception as e:
+        # Over SSE, raising here leaves a POST that raced in parked forever in mcp's
+        # transport (its per-session stream is never closed when the lifespan fails),
+        # and SIGTERM then waits on it (python-sdk#3616, PR #867 QA round 2). The server
+        # keeps running either way, so start this connection without Google access and
+        # give the client the reason on every tool call instead.
+        if _raise_auth_failures:
+            raise
+        message = _auth_failure_message(e)
+        logger.error("Starting without Google access: %s", message)
+        logger.debug("Auth failure detail", exc_info=True)
+        context = _degraded_context(message)
+    _lifespan_context = context
+    try:
+        yield context
+    finally:
+        _lifespan_context = None
+
+
+async def _build_context() -> SpreadsheetContext:
     from googleapiclient.discovery import build
 
-    global _lifespan_context
     logger.debug("AUTH_METHOD=%s", AUTH_METHOD or "auto (waterfall)")
     resolved = "unknown"
     unauthorized = None
@@ -833,25 +890,7 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
                 )
 
     if creds is None:
-        # Degraded start: no services to build. server.py's tool wrapper raises
-        # context.unauthorized_message before any tool body can reach them.
-        context = SpreadsheetContext(
-            sheets_service=None,
-            drive_service=None,
-            docs_service=None,
-            calendar_service=None,
-            activity_service=None,
-            gmail_service=None,
-            folder_id=DRIVE_FOLDER_ID if DRIVE_FOLDER_ID else None,
-            auth_method="none",
-            unauthorized_message=unauthorized,
-        )
-        _lifespan_context = context
-        try:
-            yield context
-        finally:
-            _lifespan_context = None
-        return
+        return _degraded_context(unauthorized)
 
     logger.debug("Auth resolved: %s", resolved)
     is_service_account_identity = _is_service_account_credential(creds)
@@ -866,7 +905,7 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
     activity_service = build("driveactivity", "v2", credentials=creds, cache_discovery=False)
     gmail_service = build("gmail", "v1", credentials=creds, cache_discovery=False)
 
-    context = SpreadsheetContext(
+    return SpreadsheetContext(
         sheets_service=sheets_service,
         drive_service=drive_service,
         docs_service=docs_service,
@@ -878,8 +917,3 @@ async def spreadsheet_lifespan(server: MCPServer) -> AsyncIterator[SpreadsheetCo
         is_service_account_identity=is_service_account_identity,
         cache=SheetStructureCache(),
     )
-    _lifespan_context = context
-    try:
-        yield context
-    finally:
-        _lifespan_context = None

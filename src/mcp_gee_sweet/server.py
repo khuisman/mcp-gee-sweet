@@ -85,6 +85,7 @@ from .auth import (  # noqa: E402
     run_auth_command,
     set_gmail_enabled,
     set_interactive_consent,
+    set_raise_auth_failures,
     spreadsheet_lifespan,
 )
 
@@ -520,6 +521,9 @@ def main():
         # stdout is the protocol channel and nobody is watching for a browser tab, so
         # a missing token degrades instead of running the consent flow (#811).
         set_interactive_consent(False)
+        # A failed auth stops a stdio server outright (#790); other transports start
+        # the connection without Google access instead (PR #867).
+        set_raise_auth_failures(True)
         mcp.run(transport=transport)
     else:
         # mcp v2 moved host/port from the constructor to call-time kwargs (see the

@@ -59,7 +59,7 @@ Over SSE, the server still runs the browser consent itself when there's no usabl
 **Re-authenticating after a scope change:** at startup the server checks that the saved token was authorized for every scope the registered tools need. It never opens a browser to fix a shortfall on its own. What happens depends on which scope is missing:
 
 - **Only the Gmail scope is missing** (for example, a token from before the Gmail tools existed): the server starts normally and Sheets, Drive, Docs, Calendar and activity tools keep working. Every Gmail tool returns an error naming the missing scope and how to re-authorize, and `server://auth-status` lists the Gmail tools under a `gmail_not_authorized` limitation.
-- **Any other scope is missing:** startup stops with an error naming the missing scopes. Most tools can't work without them. (Under a stdio client this error goes to stderr, which the client usually doesn't show; the client just reports that the connection closed. Set `DEBUG_LEVEL` and `LOG_FILE` to capture it in a file.)
+- **Any other scope is missing:** under stdio, startup stops with an error naming the missing scopes. Most tools can't work without them. (Under a stdio client this error goes to stderr, which the client usually doesn't show; the client just reports that the connection closed. Set `DEBUG_LEVEL` and `LOG_FILE` to capture it in a file.) Over SSE, the server keeps running and the connection starts without Google access: every tool returns that error, with the instructions to re-authorize. The same applies to any other authentication failure over SSE.
 
 Either way, run `mcp-gee-sweet auth` (see step 4 above) and restart the server to re-authorize.
 

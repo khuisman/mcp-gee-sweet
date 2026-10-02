@@ -8,6 +8,7 @@ import threading
 import time
 import urllib.request
 import webbrowser
+from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -487,6 +488,7 @@ class TestLifespanAuthMethod:
         assert ctx.is_service_account_identity is True
 
     def test_pinned_service_account_no_creds_raises(self, monkeypatch):
+        monkeypatch.setattr(auth_module, "_raise_auth_failures", True)  # stdio
         monkeypatch.setattr(auth_module, "AUTH_METHOD", "service_account")
         with (
             patch("mcp_gee_sweet.auth._service_account_creds", return_value=None),
@@ -553,6 +555,7 @@ class TestLifespanAuthMethod:
         assert ctx.is_service_account_identity is True
 
     def test_pinned_adc_no_adc_raises(self, monkeypatch):
+        monkeypatch.setattr(auth_module, "_raise_auth_failures", True)  # stdio
         monkeypatch.setattr(auth_module, "AUTH_METHOD", "adc")
         with (
             patch("google.auth.default", side_effect=Exception("no ADC")),
@@ -571,6 +574,7 @@ class TestLifespanWaterfall:
     def test_waterfall_missing_oauth_scopes_is_not_masked_by_service_account(self, monkeypatch):
         # #790: a token on disk means OAuth is intended; silently switching to a
         # service account would hide the scope problem behind cryptic Gmail 400s.
+        monkeypatch.setattr(auth_module, "_raise_auth_failures", True)  # stdio
         sa = MagicMock()
         with pytest.raises(auth_module.MissingOAuthScopesError):
             _run_lifespan(
@@ -616,6 +620,7 @@ class TestLifespanWaterfall:
         assert ctx.auth_method == "adc"
 
     def test_waterfall_all_fail_raises(self, monkeypatch):
+        monkeypatch.setattr(auth_module, "_raise_auth_failures", True)  # stdio
         monkeypatch.setattr(auth_module, "AUTH_METHOD", None)
         with (
             patch("mcp_gee_sweet.auth._oauth_creds", side_effect=Exception("no OAuth")),
@@ -1216,6 +1221,73 @@ class TestConsentOffEventLoop:
                 asyncio.run(_run())
         finally:
             release.set()
+
+
+class TestAuthFailureDegradesOutsideStdio:
+    """PR #867 QA round 2: over SSE a lifespan that raises after its first await
+    leaves a raced-in POST parked forever in mcp's transport, and SIGTERM waits on
+    it (python-sdk#3616). Outside stdio, an auth failure starts the connection
+    without Google access instead, with the failure as every tool's error."""
+
+    def _run(self, monkeypatch, auth_method, **patches):
+        monkeypatch.setattr(auth_module, "AUTH_METHOD", auth_method)
+        build = MagicMock()
+        with ExitStack() as stack:
+            stack.enter_context(patch("googleapiclient.discovery.build", build))
+            for name, kw in patches.items():
+                stack.enter_context(patch(f"mcp_gee_sweet.auth.{name}", **kw))
+
+            async def _run():
+                async with spreadsheet_lifespan(MagicMock()) as ctx:
+                    assert get_lifespan_context() is ctx
+                    return ctx
+
+            ctx = asyncio.run(_run())
+        build.assert_not_called()
+        assert ctx.auth_method == "none"
+        assert ctx.sheets_service is None
+        return ctx
+
+    def test_missing_scopes_degrades_with_the_reauthorize_message(self, monkeypatch):
+        error = auth_module.MissingOAuthScopesError("missing drive scope; run mcp-gee-sweet auth")
+        ctx = self._run(monkeypatch, "oauth", _oauth_creds={"side_effect": error})
+        assert ctx.unauthorized_message == "missing drive scope; run mcp-gee-sweet auth"
+
+    def test_missing_scopes_in_the_waterfall_still_isnt_masked(self, monkeypatch):
+        # #790's rule holds: the service account isn't used to hide the shortfall.
+        error = auth_module.MissingOAuthScopesError("missing drive scope")
+        sa = MagicMock(return_value=MagicMock())
+        ctx = self._run(
+            monkeypatch,
+            None,
+            _oauth_creds={"side_effect": error},
+            _service_account_creds={"new": sa},
+        )
+        assert ctx.unauthorized_message == "missing drive scope"
+        sa.assert_not_called()
+
+    def test_all_methods_failed_degrades_and_names_the_cause(self, monkeypatch):
+        monkeypatch.setattr(auth_module, "AUTH_METHOD", None)
+        with patch("google.auth.default", side_effect=Exception("no ADC")):
+            ctx = self._run(
+                monkeypatch,
+                None,
+                _oauth_creds={"side_effect": Exception("no OAuth")},
+                _service_account_creds={"return_value": None},
+            )
+        assert "All authentication methods failed" in ctx.unauthorized_message
+        assert "no ADC" in ctx.unauthorized_message
+
+    def test_pinned_service_account_without_creds_degrades(self, monkeypatch):
+        ctx = self._run(
+            monkeypatch, "service_account", _service_account_creds={"return_value": None}
+        )
+        assert "AUTH_METHOD=service_account but no credentials found" in ctx.unauthorized_message
+
+    def test_lifespan_context_is_cleared_after_a_degraded_connection(self, monkeypatch):
+        self._run(monkeypatch, "service_account", _service_account_creds={"return_value": None})
+        with pytest.raises(RuntimeError, match="has not started"):
+            get_lifespan_context()
 
 
 class TestConsentTimeoutSetting:

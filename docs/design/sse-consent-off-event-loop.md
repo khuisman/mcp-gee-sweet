@@ -40,6 +40,14 @@ Consent is turned off **when the attempt settles with an error**, on the loop, b
 
 The lifespan runs inside the SSE request, and nothing cancels it on SIGTERM: sse_starlette ends the response stream, but `connect_sse`'s task group still waits for the body (the lifespan). So `_await_unless_shutdown` polls `sse_starlette.sse.AppStatus.should_exit` alongside the future. That flag is sse_starlette's public shutdown signal, set from uvicorn's exit handler, and it's how SSE streams learn to close. When it flips, the waiter raises `OAuthConsentRequiredError("...the server shut down before the browser consent completed...")`. The lifespan then degrades normally, the connection finishes, and uvicorn exits. The consent thread is stopped the same way as for a cancellation.
 
+### 5. Auth failures degrade outside stdio
+
+Moving the token load off the loop changed *when* a failing lifespan raises: after its first `await`, so after the SSE response task has already sent the `endpoint` event. A client that POSTs `initialize` the instant it sees that event gets `202`, and the POST then waits in `writer.send()` on mcp's zero-buffer session stream. `Server.run` never starts reading it, and `connect_sse` never closes it when the body raises, so the POST waits forever and SIGTERM hangs on it (`Waiting for background tasks to complete`). On `develop` the lifespan raised before any `await`, before the endpoint event went out, so no client could POST. PR #867 QA round 2 hit this 3 times in 39; a client that POSTs immediately hits it every time (25 of 25). It reproduces on a bare `mcp` 2.0.0 server with no code of ours, filed upstream as [python-sdk#3616](https://github.com/modelcontextprotocol/python-sdk/issues/3616) (related: python-sdk#514).
+
+The fix is in our lifespan, not mcp's transport: `spreadsheet_lifespan` wraps `_build_context()`, and outside stdio any exception becomes a degraded connection (`_degraded_context`) whose `unauthorized_message` is the failure (with its cause). The connection then runs normally, so a raced-in POST is read. Raising bought nothing over SSE anyway: the server keeps running, and the client only saw "Connection closed". Now every tool call returns the actual reason, such as the missing-scopes re-authorize instructions. `server.main()` sets `set_raise_auth_failures(True)` for stdio, which keeps #790's fail-fast exit there; stdio has no POST endpoint, so no race. #790's other rule is unchanged: a token on disk missing scopes still isn't masked by falling through to a service account.
+
+Patching mcp's transport instead was rejected: it means carrying a copy of `connect_sse` (or monkeypatching it), which silently goes stale on mcp upgrades, for a transport the MCP spec has deprecated.
+
 ## Verified live (2026-10-01, dummy installed-app client JSON, `BROWSER=/usr/bin/true`)
 
 | | `develop` before | this change |
@@ -48,6 +56,7 @@ The lifespan runs inside the SSE request, and nothing cancels it on SIGTERM: sse
 | SIGTERM during the wait | still running after 15s | exited in 0.39s, both ports released |
 | A, then B during the wait (timeout 4s) | n/a | 1 prompt, both degrade "within 4s"; C afterward degrades with no wait |
 | Stray callback request | | degrades in 0.08s (`MismatchingStateError`) |
+| Missing-scope token, client POSTs `initialize` on the endpoint event, then SIGTERM | n/a (no endpoint before the raise) | before §5: 25 of 25 hang. After: 0 of 25, POST `202`; a real `sse_client` initializes and gets the missing-scopes message as the tool error |
 
 An `Exception in ASGI application ... Expected ASGI message 'http.response.body'` traceback at shutdown appears on `develop` too, for any SSE stream open at SIGTERM, so it's unrelated to this change.
 
