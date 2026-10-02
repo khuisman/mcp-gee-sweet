@@ -345,15 +345,19 @@ def _oauth_creds(*, defer_consent: bool = False) -> Credentials:
     if not creds or not creds.valid:
         _check_client_secrets()
         if not _interactive_consent:
-            raise OAuthConsentRequiredError(
-                f"No usable OAuth token at {TOKEN_PATH!r}, and "
-                f"{_interactive_consent_off_reason}. {reauthorize_instructions()}"
-            )
+            raise _consent_off_error()
         if defer_consent:
             raise _ConsentDeferred(scopes)
         creds = _run_server_consent(scopes, threading.Event())
 
     return creds
+
+
+def _consent_off_error() -> OAuthConsentRequiredError:
+    return OAuthConsentRequiredError(
+        f"No usable OAuth token at {TOKEN_PATH!r}, and "
+        f"{_interactive_consent_off_reason}. {reauthorize_instructions()}"
+    )
 
 
 async def _oauth_creds_async() -> Credentials:
@@ -587,6 +591,11 @@ async def _await_server_consent(scopes: list[str]) -> Credentials:
         or attempt.stop.is_set()
         or attempt.future.get_loop() is not loop
     ):
+        # Checked again here, on the loop: the token load that decided consent was
+        # needed ran on a thread, and an attempt may have failed (turning consent
+        # off) since. Without this, that caller would start a second consent.
+        if not _interactive_consent:
+            raise _consent_off_error()
         attempt = _consent_attempt = _ConsentAttempt(loop, scopes)
     attempt.waiters += 1
     try:

@@ -1033,20 +1033,56 @@ class TestConsentOffEventLoop:
         serve.assert_called_once()
 
     def test_consent_failure_reaches_every_waiter(self):
-        async def _run():
-            return await asyncio.gather(
-                auth_module._oauth_creds_async(),
-                auth_module._oauth_creds_async(),
-                return_exceptions=True,
-            )
+        # The failure is held until both connections have joined the attempt: each
+        # one's token load runs on its own thread, so without the gate the second
+        # could arrive after the failure (see the next test). That's what made this
+        # flaky in CI (PR #867).
+        release = threading.Event()
 
-        with patch(
-            "mcp_gee_sweet.auth._serve_consent",
-            side_effect=auth_module.WSGITimeoutError("timed out"),
-        ):
+        def _fail_when_released(flow, timeout_seconds, stop):
+            release.wait(5)
+            raise auth_module.WSGITimeoutError("timed out")
+
+        serve = MagicMock(side_effect=_fail_when_released)
+
+        async def _run():
+            first = asyncio.create_task(auth_module._oauth_creds_async())
+            second = asyncio.create_task(auth_module._oauth_creds_async())
+            deadline = time.monotonic() + 5
+            while (attempt := auth_module._consent_attempt) is None or attempt.waiters < 2:
+                assert time.monotonic() < deadline, "both connections never joined"
+                await asyncio.sleep(0.01)
+            release.set()
+            return await asyncio.gather(first, second, return_exceptions=True)
+
+        with patch("mcp_gee_sweet.auth._serve_consent", serve):
             results = asyncio.run(_run())
         assert all(isinstance(r, auth_module.OAuthConsentRequiredError) for r in results)
         assert all("within 300s" in str(r) for r in results)
+        serve.assert_called_once()
+
+    def test_a_connection_arriving_after_a_failure_doesnt_start_another_consent(self):
+        # PR #867 CI flake: the token load decides consent is needed on a thread. If an
+        # attempt fails (turning consent off) before that caller gets back to the
+        # loop, it must not start a second consent.
+        auth_module.set_interactive_consent(False, reason="an earlier browser consent failed")
+        serve = MagicMock()
+
+        async def _run():
+            return await auth_module._oauth_creds_async()
+
+        with (
+            patch(
+                "mcp_gee_sweet.auth._oauth_creds",
+                side_effect=auth_module._ConsentDeferred(auth_module.BASE_SCOPES),
+            ),
+            patch("mcp_gee_sweet.auth._serve_consent", serve),
+            pytest.raises(
+                auth_module.OAuthConsentRequiredError, match="an earlier browser consent failed"
+            ),
+        ):
+            asyncio.run(_run())
+        serve.assert_not_called()
 
     def test_server_shutdown_ends_the_wait_and_stops_the_thread(self):
         from sse_starlette.sse import AppStatus
