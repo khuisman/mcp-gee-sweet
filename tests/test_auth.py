@@ -3,6 +3,11 @@
 import asyncio
 import base64
 import json
+import socket
+import threading
+import time
+import urllib.request
+import webbrowser
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -221,18 +226,14 @@ class TestOAuthCreds:
 
         fresh_creds = MagicMock()
         fresh_creds.to_json.return_value = json.dumps({"token": "fresh"})
-        mock_flow = MagicMock()
-        mock_flow.run_local_server.return_value = fresh_creds
 
         with (
             patch(
                 "mcp_gee_sweet.auth.Credentials.from_authorized_user_info",
                 return_value=mock_creds,
             ),
-            patch(
-                "mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file",
-                return_value=mock_flow,
-            ),
+            patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file"),
+            patch("mcp_gee_sweet.auth._serve_consent", return_value=fresh_creds),
         ):
             result = _oauth_creds()
             assert result is fresh_creds
@@ -246,13 +247,11 @@ class TestOAuthCreds:
 
         fresh_creds = MagicMock()
         fresh_creds.to_json.return_value = json.dumps({"token": "new"})
-        mock_flow = MagicMock()
-        mock_flow.run_local_server.return_value = fresh_creds
 
-        with patch(
-            "mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file",
-            return_value=mock_flow,
-        ) as m:
+        with (
+            patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file") as m,
+            patch("mcp_gee_sweet.auth._serve_consent", return_value=fresh_creds),
+        ):
             result = _oauth_creds()
             m.assert_called_once_with(str(creds_path), auth_module.SCOPES)
             assert result is fresh_creds
@@ -461,8 +460,10 @@ class TestOAuthScopeCheck:
         monkeypatch.setattr(auth_module, "_gmail_enabled", False)
         fresh = MagicMock()
         fresh.to_json.return_value = "{}"
-        with patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file") as m:
-            m.return_value.run_local_server.return_value = fresh
+        with (
+            patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file") as m,
+            patch("mcp_gee_sweet.auth._serve_consent", return_value=fresh),
+        ):
             _oauth_creds()
         m.assert_called_once_with(str(creds_path), auth_module.BASE_SCOPES)
 
@@ -758,36 +759,25 @@ class TestConsentRequired:
             _oauth_creds()
         assert not isinstance(exc.value, auth_module.OAuthConsentRequiredError)
 
-    def test_interactive_flow_is_bounded_and_prompts_on_stderr(self, monkeypatch, tmp_path, capsys):
+    def test_interactive_flow_is_bounded_and_saves_the_token(self, monkeypatch, tmp_path):
         token_path = self._setup(monkeypatch, tmp_path)
         fresh = MagicMock()
         fresh.to_json.return_value = json.dumps({"token": "new"})
-
-        def _run_local_server(**kwargs):
-            print("Please visit this URL to authorize this application: https://x")
-            return fresh
-
-        mock_flow = MagicMock()
-        mock_flow.run_local_server.side_effect = _run_local_server
-        with patch(
-            "mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file", return_value=mock_flow
+        with (
+            patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file"),
+            patch("mcp_gee_sweet.auth._serve_consent", return_value=fresh) as serve,
         ):
             assert _oauth_creds() is fresh
-        kwargs = mock_flow.run_local_server.call_args.kwargs
-        assert kwargs["timeout_seconds"] == auth_module._CONSENT_TIMEOUT_SECONDS
-        out, err = capsys.readouterr()
-        assert "Please visit" not in out
-        assert "Please visit" in err
+        assert serve.call_args.args[1] == auth_module._CONSENT_TIMEOUT_SECONDS
         assert token_path.exists()
 
     def test_interactive_flow_timeout_raises_consent_required(self, monkeypatch, tmp_path):
         self._setup(monkeypatch, tmp_path)
-        mock_flow = MagicMock()
-        mock_flow.run_local_server.side_effect = auth_module.WSGITimeoutError("timed out")
         with (
+            patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file"),
             patch(
-                "mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file",
-                return_value=mock_flow,
+                "mcp_gee_sweet.auth._serve_consent",
+                side_effect=auth_module.WSGITimeoutError("timed out"),
             ),
             pytest.raises(auth_module.OAuthConsentRequiredError, match="within 300s"),
         ):
@@ -804,13 +794,9 @@ class TestConsentRequired:
     def test_any_consent_failure_degrades_like_a_timeout(self, monkeypatch, tmp_path, error):
         # PR #828 QA round 1: only the timeout degraded; Deny etc. escaped the lifespan.
         self._setup(monkeypatch, tmp_path)
-        mock_flow = MagicMock()
-        mock_flow.run_local_server.side_effect = error
         with (
-            patch(
-                "mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file",
-                return_value=mock_flow,
-            ),
+            patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file"),
+            patch("mcp_gee_sweet.auth._serve_consent", side_effect=error),
             pytest.raises(auth_module.OAuthConsentRequiredError, match="consent failed") as exc,
         ):
             _oauth_creds()
@@ -852,6 +838,278 @@ class TestConsentRequired:
         with patch("mcp_gee_sweet.auth.Credentials.from_authorized_user_info", return_value=creds):
             _oauth_creds()
         assert token_path.stat().st_mode & 0o777 == 0o600
+
+
+# ---------------------------------------------------------------------------
+# #833: under SSE the consent wait used to run on the event loop, stalling every
+# other connection and keeping SIGTERM from stopping the server.
+# ---------------------------------------------------------------------------
+
+
+def _blocking_serve(release: threading.Event, result, started: threading.Event | None = None):
+    """A stand-in for auth._serve_consent that waits like the real one: until
+    `release`, or until `stop` is set."""
+
+    def serve(flow, timeout_seconds, stop):
+        if started is not None:
+            started.set()
+        while not release.is_set():
+            if stop.is_set():
+                raise auth_module._ConsentStopped()
+            time.sleep(0.01)
+        return result
+
+    return serve
+
+
+class TestServeConsent:
+    def _flow(self):
+        flow = MagicMock()
+        flow.authorization_url.return_value = ("https://accounts.example/auth?x=1", "st")
+        return flow
+
+    def _serve_in_thread(self, flow, timeout_seconds, stop):
+        box = {}
+
+        def run():
+            try:
+                box["result"] = auth_module._serve_consent(flow, timeout_seconds, stop)
+            except BaseException as e:
+                box["error"] = e
+
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+        return thread, box
+
+    def _wait_for_redirect_uri(self, flow):
+        deadline = time.monotonic() + 5
+        while not isinstance(flow.redirect_uri, str):
+            assert time.monotonic() < deadline, "callback server never started"
+            time.sleep(0.01)
+        return flow.redirect_uri
+
+    def test_callback_completes_the_flow_with_the_prompt_on_stderr(self, monkeypatch, capsys):
+        monkeypatch.setattr(auth_module, "_CONSENT_POLL_SECONDS", 0.05)
+        flow = self._flow()
+        with patch.object(auth_module.webbrowser, "get", side_effect=webbrowser.Error("none")):
+            thread, box = self._serve_in_thread(flow, 30, threading.Event())
+            redirect = self._wait_for_redirect_uri(flow)
+            with urllib.request.urlopen(f"{redirect}?code=c&state=st", timeout=5) as resp:
+                assert b"completed" in resp.read()
+            thread.join(5)
+        assert box == {"result": flow.credentials}
+        flow.fetch_token.assert_called_once_with(
+            authorization_response=f"{redirect.replace('http', 'https', 1)}?code=c&state=st"
+        )
+        out, err = capsys.readouterr()
+        assert out == ""
+        assert (
+            "Please visit this URL to authorize this application: https://accounts.example" in err
+        )
+        port = int(redirect.rstrip("/").rsplit(":", 1)[1])
+        with pytest.raises(OSError):
+            socket.create_connection(("localhost", port), timeout=1).close()
+
+    def test_stop_ends_the_wait_and_closes_the_port(self, monkeypatch):
+        monkeypatch.setattr(auth_module, "_CONSENT_POLL_SECONDS", 0.05)
+        flow = self._flow()
+        stop = threading.Event()
+        with patch.object(auth_module.webbrowser, "get"):
+            thread, box = self._serve_in_thread(flow, 300, stop)
+            redirect = self._wait_for_redirect_uri(flow)
+            stop.set()
+            thread.join(2)
+        assert not thread.is_alive()
+        assert isinstance(box.get("error"), auth_module._ConsentStopped)
+        flow.fetch_token.assert_not_called()
+        port = int(redirect.rstrip("/").rsplit(":", 1)[1])
+        with pytest.raises(OSError):
+            socket.create_connection(("localhost", port), timeout=1).close()
+
+    def test_times_out(self, monkeypatch):
+        monkeypatch.setattr(auth_module, "_CONSENT_POLL_SECONDS", 0.05)
+        with (
+            patch.object(auth_module.webbrowser, "get"),
+            pytest.raises(auth_module.WSGITimeoutError),
+        ):
+            auth_module._serve_consent(self._flow(), 0.1, threading.Event())
+
+
+class TestConsentOffEventLoop:
+    @pytest.fixture(autouse=True)
+    def _setup(self, monkeypatch, tmp_path):
+        creds_path = tmp_path / "credentials.json"
+        creds_path.write_text("{}")
+        monkeypatch.setattr(auth_module, "TOKEN_PATH", str(tmp_path / "token.json"))
+        monkeypatch.setattr(auth_module, "CREDENTIALS_PATH", str(creds_path))
+        monkeypatch.setattr(auth_module, "_CONSENT_POLL_SECONDS", 0.05)
+        from sse_starlette.sse import AppStatus
+
+        monkeypatch.setattr(AppStatus, "should_exit", False)
+        with patch("mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file"):
+            yield
+
+    def _fresh(self):
+        fresh = MagicMock()
+        fresh.to_json.return_value = json.dumps({"token": "new"})
+        return fresh
+
+    def test_event_loop_keeps_running_during_the_wait(self):
+        release, started, fresh = threading.Event(), threading.Event(), self._fresh()
+
+        async def _run():
+            consent = asyncio.create_task(auth_module._oauth_creds_async())
+            await asyncio.to_thread(started.wait, 5)
+            ticks = 0
+            for _ in range(5):  # the loop is free while the consent waits
+                await asyncio.sleep(0.01)
+                ticks += 1
+            assert not consent.done()
+            release.set()
+            return ticks, await consent
+
+        with patch("mcp_gee_sweet.auth._serve_consent", _blocking_serve(release, fresh, started)):
+            ticks, creds = asyncio.run(_run())
+        assert ticks == 5
+        assert creds is fresh
+
+    def test_consent_runs_on_a_daemon_thread(self):
+        release, started = threading.Event(), threading.Event()
+
+        async def _run():
+            consent = asyncio.create_task(auth_module._oauth_creds_async())
+            await asyncio.to_thread(started.wait, 5)
+            threads = [t for t in threading.enumerate() if t.name == "oauth-consent"]
+            release.set()
+            await consent
+            return threads
+
+        with patch(
+            "mcp_gee_sweet.auth._serve_consent", _blocking_serve(release, self._fresh(), started)
+        ):
+            threads = asyncio.run(_run())
+        assert len(threads) == 1 and threads[0].daemon
+
+    def test_concurrent_connections_share_one_consent(self):
+        release, fresh = threading.Event(), self._fresh()
+        serve = MagicMock(side_effect=_blocking_serve(release, fresh))
+
+        async def _run():
+            first = asyncio.create_task(auth_module._oauth_creds_async())
+            second = asyncio.create_task(auth_module._oauth_creds_async())
+            await asyncio.sleep(0.1)
+            release.set()
+            return await asyncio.gather(first, second)
+
+        with patch("mcp_gee_sweet.auth._serve_consent", serve):
+            results = asyncio.run(_run())
+        assert results == [fresh, fresh]
+        serve.assert_called_once()
+
+    def test_consent_failure_reaches_every_waiter(self):
+        async def _run():
+            return await asyncio.gather(
+                auth_module._oauth_creds_async(),
+                auth_module._oauth_creds_async(),
+                return_exceptions=True,
+            )
+
+        with patch(
+            "mcp_gee_sweet.auth._serve_consent",
+            side_effect=auth_module.WSGITimeoutError("timed out"),
+        ):
+            results = asyncio.run(_run())
+        assert all(isinstance(r, auth_module.OAuthConsentRequiredError) for r in results)
+        assert all("within 300s" in str(r) for r in results)
+
+    def test_server_shutdown_ends_the_wait_and_stops_the_thread(self):
+        from sse_starlette.sse import AppStatus
+
+        release, started = threading.Event(), threading.Event()
+
+        async def _run():
+            consent = asyncio.create_task(auth_module._oauth_creds_async())
+            await asyncio.to_thread(started.wait, 5)
+            AppStatus.should_exit = True  # what uvicorn's SIGTERM handler sets
+            with pytest.raises(auth_module.OAuthConsentRequiredError, match="shut down"):
+                await asyncio.wait_for(consent, 2)
+            return auth_module._consent_attempt
+
+        with patch(
+            "mcp_gee_sweet.auth._serve_consent", _blocking_serve(release, self._fresh(), started)
+        ):
+            attempt = asyncio.run(_run())
+        assert attempt.stop.is_set()
+        deadline = time.monotonic() + 2
+        while any(t.name == "oauth-consent" for t in threading.enumerate()):
+            assert time.monotonic() < deadline, "consent thread kept running"
+            time.sleep(0.01)
+
+    def test_lifespan_degrades_on_shutdown_mid_consent(self, monkeypatch):
+        from sse_starlette.sse import AppStatus
+
+        monkeypatch.setattr(auth_module, "AUTH_METHOD", "oauth")
+        release, started = threading.Event(), threading.Event()
+
+        async def _run():
+            async def _shutdown_once_waiting():
+                await asyncio.to_thread(started.wait, 5)
+                AppStatus.should_exit = True
+
+            trigger = asyncio.create_task(_shutdown_once_waiting())
+            async with spreadsheet_lifespan(MagicMock()) as ctx:
+                await trigger
+                return ctx
+
+        with (
+            patch(
+                "mcp_gee_sweet.auth._serve_consent",
+                _blocking_serve(release, self._fresh(), started),
+            ),
+            patch("googleapiclient.discovery.build") as build,
+        ):
+            ctx = asyncio.run(_run())
+        assert ctx.auth_method == "none"
+        assert "shut down before the browser consent completed" in ctx.unauthorized_message
+        build.assert_not_called()
+
+    def test_cancelling_the_last_waiter_stops_the_wait(self):
+        release, started = threading.Event(), threading.Event()
+
+        async def _run():
+            consent = asyncio.create_task(auth_module._oauth_creds_async())
+            await asyncio.to_thread(started.wait, 5)
+            consent.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await consent
+            return auth_module._consent_attempt
+
+        with patch(
+            "mcp_gee_sweet.auth._serve_consent", _blocking_serve(release, self._fresh(), started)
+        ):
+            attempt = asyncio.run(_run())
+        assert attempt.stop.is_set()
+        # Not a failed attempt: a later connection may still run the consent.
+        assert auth_module._interactive_consent is True
+
+    def test_cancelling_one_of_two_waiters_keeps_the_wait(self):
+        release, started, fresh = threading.Event(), threading.Event(), self._fresh()
+
+        async def _run():
+            first = asyncio.create_task(auth_module._oauth_creds_async())
+            second = asyncio.create_task(auth_module._oauth_creds_async())
+            await asyncio.to_thread(started.wait, 5)
+            await asyncio.sleep(0.05)
+            first.cancel()
+            await asyncio.sleep(0.05)
+            stopped = auth_module._consent_attempt.stop.is_set()
+            release.set()
+            return stopped, await second
+
+        with patch("mcp_gee_sweet.auth._serve_consent", _blocking_serve(release, fresh, started)):
+            stopped, creds = asyncio.run(_run())
+        assert stopped is False
+        assert creds is fresh
 
 
 class TestConsentTimeoutSetting:

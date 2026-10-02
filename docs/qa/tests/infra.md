@@ -869,10 +869,10 @@ Playwright signed-in check passed (fixture doc title). Step 1: `Credentials :` /
 **Setup:** same as TC-I35.
 
 **Action**
-Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PATH=<nonexistent>`, `CREDENTIALS_PATH=<client json>`, `BROWSER=/usr/bin/true`, `PORT=<free port>`, `PYTHONUNBUFFERED=1`, with stdout and stderr redirected to separate files. Open `http://127.0.0.1:<port>/sse` to trigger the lifespan, wait a few seconds, then kill the process group (`SIGKILL`: SIGTERM doesn't interrupt the synchronous consent wait).
+Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PATH=<nonexistent>`, `CREDENTIALS_PATH=<client json>`, `BROWSER=/usr/bin/true`, `PORT=<free port>`, `PYTHONUNBUFFERED=1`, with stdout and stderr redirected to separate files. Open `http://127.0.0.1:<port>/sse` to trigger the lifespan, wait a few seconds, then send the server `SIGTERM` (since #833 it stops the server during the consent wait; TC-I43 covers that).
 
 **Checks**
-- The stdout file is empty
+- The stdout file has no `Please visit` line. It may hold uvicorn access-log lines (`"GET /sse HTTP/1.1" 200`): since #833 the event loop keeps serving while the consent waits, and uvicorn logs access to stdout
 - The stderr file contains `Please visit this URL to authorize this application: https://accounts.google.com/...`
 
 **Cleanup:** make sure nothing is still listening on `<port>` (`lsof -i :<port>`).
@@ -932,7 +932,34 @@ Run 2: restart the server the same way. Open a connection (its `initialize` bloc
 - Run 1: the stderr file has exactly one `Please visit` prompt
 - Run 2: the connection initializes right after the stray request (no 4s wait), and its tool error says `the browser consent failed` with the `mcp-gee-sweet auth` instructions. The lifespan doesn't crash.
 
-**Cleanup:** SIGKILL each server's process group; confirm `lsof -i :<port>` is empty.
+**Cleanup:** SIGTERM each server (it exits within a few seconds, #833); confirm `lsof -i :<port>` is empty.
 
 **Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS**
 `mcp` SDK `sse_client`. Run 1: A opened (≈4s consent wait inside the SSE connect; `initialize` itself 0.0s) → error `...the browser consent wasn't completed within 4s. To authorize, run \`mcp-gee-sweet auth\`...`. B (A still open): connected + initialized 0.00s → `...an earlier browser consent in this server process didn't complete (it isn't retried, since waiting for it blocks every connection)`. A again: still `within 4s`. stderr: exactly 1 `Please visit`. Run 2: stray `GET http://localhost:<cb>/?state=bogus&code=x` fired while the connection was opening; connect+init finished 0.02s after it, tool error `...the browser consent failed (MismatchingStateError: (mismatching_state) CSRF Warning! State not equal in request and response.). To authorize, run \`mcp-gee-sweet auth\`...`; lifespan didn't crash. `lsof -i :<port>` empty after both.
+
+---
+
+### TC-I43: SSE consent wait doesn't stall other connections, and SIGTERM stops the server (issue #833) ⚠️ local-filesystem
+
+**Background:** the consent wait used to run on the event loop. Until consent or `OAUTH_CONSENT_TIMEOUT_SECONDS` (default 300), every other request stalled, and SIGTERM didn't stop the server (uvicorn waits for open connections, and this one couldn't finish), so QA had to SIGKILL it. The wait now runs on a daemon thread that the lifespan awaits. Connections that arrive during the wait share it (one prompt, one callback port). On SIGTERM, a waiting lifespan starts the connection degraded with a "server shut down" message, and the callback server closes.
+
+**Setup:** same as TC-I35. A small script using the `mcp` SDK's `sse_client` + `ClientSession`.
+
+**Action**
+Start `uv run mcp-gee-sweet --transport sse` with `AUTH_METHOD=oauth`, `TOKEN_PATH=<nonexistent>`, `CREDENTIALS_PATH=<client json>`, `BROWSER=/usr/bin/true`, `PORT=<free port>`, `OAUTH_CONSENT_TIMEOUT_SECONDS=120`, `DEBUG_LEVEL=INFO`, `PYTHONUNBUFFERED=1`, stderr to a file, in its own process group.
+1. Open connection A (`sse_client`); its connect blocks on the consent. Leave it waiting
+2. While A waits, time `POST http://127.0.0.1:<port>/messages/?session_id=00000000000000000000000000000000` with body `{}`
+3. While A waits, open connection B the same way and leave it waiting too
+4. Read the callback port from `redirect_uri=http%3A%2F%2Flocalhost%3A<cb>` in the stderr file
+5. Send the server process `SIGTERM` (not SIGKILL, and not the process group) and time how long it takes to exit
+
+**Checks**
+- 2: the POST answers `400` in well under a second (before #833: no answer until the consent ended)
+- 3: the stderr file has exactly one `Please visit` prompt (B shares A's consent instead of starting a second one)
+- 5: the server exits within a few seconds (before #833: it kept running until the 120s timeout)
+- 5: the stderr file has `Starting without Google access: ... the server shut down before the browser consent completed`
+- 5: `lsof -i :<port>` and `lsof -i :<cb>` are both empty afterward
+
+An `Exception in ASGI application ... Expected ASGI message 'http.response.body', but got 'http.response.start'` traceback during shutdown isn't a failure of this case: any SSE stream open at SIGTERM produces it, with or without a consent wait (pre-existing, seen on `develop` before #833).
+
+**Cleanup:** if the server is still running, SIGKILL its process group and record the case as failed.
