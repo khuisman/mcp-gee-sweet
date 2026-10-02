@@ -942,7 +942,7 @@ Run 2: restart the server the same way. Open a connection (its `initialize` bloc
 
 ### TC-I41: the Stop hook warns a lane session once its context passes the threshold, once per band (issue #847) ⚠️ local-filesystem
 
-**Background:** `.claude/settings.json` runs `scripts/lane_context_hook.py` on every `Stop`. Inside a lane worktree (`.claude/worktrees/{ash,jay,sky,kit}`) it sums the latest main-thread assistant message's `input_tokens + cache_read_input_tokens + cache_creation_input_tokens` from the session's own `transcript_path`. Past `LANE_CONTEXT_WARN_TOKENS` (default 250000) it shows a `systemMessage` suggesting `/clear` + `/team-member <Name>`. It warns again only after each further `LANE_CONTEXT_WARN_STEP` (default 50000) tokens, tracked per session under `$TMPDIR/mcp-gee-sweet-lane-context/`. Other cwds get no output. The env vars lower the threshold so a fresh session crosses it.
+**Background:** `.claude/settings.json` runs `scripts/lane_context_hook.py` on every `Stop`. Inside a lane worktree (`.claude/worktrees/{ash,jay,sky,kit}`) it sums the latest main-thread assistant message's `input_tokens + cache_read_input_tokens + cache_creation_input_tokens` from the session's own `transcript_path`. Past `LANE_CONTEXT_WARN_TOKENS` (default `DEFAULT_WARN_TOKENS` in the script) it shows a `systemMessage` suggesting `/clear` + `/team-member <Name>`. It warns again only after each further `LANE_CONTEXT_WARN_STEP` (default `DEFAULT_WARN_STEP`) tokens, tracked per session under `$TMPDIR/mcp-gee-sweet-lane-context/`. Other cwds get no output. The env vars lower the threshold so a fresh session crosses it.
 
 **Setup:** this lane's worktree checked out on the PR branch (`.claude/settings.json` there carries the hook). `<scratch>` is a fresh empty directory used as `TMPDIR`.
 
@@ -965,7 +965,7 @@ Claude Code 2.1.287, `kit` worktree. Step 1: Stop `hook_response` exit 0, empty 
 
 ### TC-I42: resuming a large lane session whose prompt cache has expired warns before the first request (issue #847) ⚠️ local-filesystem
 
-**Background:** on `SessionStart` with source `resume` or `fork`, Claude Code (2.1.251+) passes `context_tokens`, `prompt_cache_likely_expired` and `estimated_cache_write_usd`. The hook warns when the cache has likely expired and `context_tokens` is at least `LANE_RESUME_WARN_TOKENS` (default 100000). A warm-cache resume stays silent. `--fork-session` leaves the original transcript untouched; the hook sees it as `SessionStart:fork`.
+**Background:** on `SessionStart` with source `resume` or `fork`, Claude Code (2.1.251+) passes `context_tokens`, `prompt_cache_likely_expired` and `estimated_cache_write_usd`. The hook warns when the cache has likely expired and `context_tokens` is at least `LANE_RESUME_WARN_TOKENS` (default `DEFAULT_RESUME_WARN_TOKENS` in the script). A warm-cache resume stays silent. `--fork-session` leaves the original transcript untouched; the hook sees it as `SessionStart:fork`.
 
 **Setup:** pick a session in this lane's transcript directory last modified more than 2 hours ago (cache expired), with a small context so the test is cheap. `<scratch>` as in TC-I41.
 

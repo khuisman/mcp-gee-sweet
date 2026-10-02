@@ -7,6 +7,8 @@ The transcript fixtures mirror a live Claude Code transcript's line shape.
 
 import importlib.util
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -291,3 +293,93 @@ class TestScriptEntryPoint:
         assert result.returncode == 0
         assert result.stdout == ""
         assert result.stderr == ""
+
+
+_RESUME_PAYLOAD = {
+    "hook_event_name": "SessionStart",
+    "source": "resume",
+    "cwd": _LANE_CWD,
+    "context_tokens": 300_000,
+    "prompt_cache_likely_expired": True,
+    "estimated_cache_write_usd": 1.5,
+}
+
+
+def _system_python_39():
+    """macOS's /usr/bin/python3 (3.9), which the hook's bare `python3` can resolve to."""
+    exe = shutil.which("python3", path="/usr/bin")
+    if exe is None:
+        return None
+    version = subprocess.run(
+        [exe, "-c", "import sys; print(sys.version_info[:2] < (3, 10))"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return exe if version.stdout.strip() == "True" else None
+
+
+class TestRunsUnderPython39:
+    """PR #866 round 1: `isinstance(x, int | float)` raised TypeError on 3.9, and
+    main() swallowed it, so the resume warning silently never fired."""
+
+    def test_resume_warning_with_cost_under_python_39(self, tmp_path):
+        exe = _system_python_39()
+        if exe is None:
+            pytest.skip("no Python < 3.10 at /usr/bin/python3")
+        result = subprocess.run(
+            [exe, str(_SCRIPT_PATH)],
+            input=json.dumps(_RESUME_PAYLOAD),
+            capture_output=True,
+            text=True,
+            env={"TMPDIR": str(tmp_path)},
+            check=False,
+        )
+        assert result.returncode == 0
+        assert "(~$1.50)" in json.loads(result.stdout)["systemMessage"]
+
+
+class TestSettingsCommand:
+    """The settings.json command itself, run through bash as Claude Code does."""
+
+    def _commands(self):
+        settings = json.loads((_REPO / ".claude" / "settings.json").read_text())
+        return [
+            h["command"]
+            for groups in settings["hooks"].values()
+            for group in groups
+            for h in group["hooks"]
+            if "lane_context_hook.py" in h["command"]
+        ]
+
+    def _run(self, command: str, project_dir: Path, tmp_path: Path):
+        return subprocess.run(
+            ["bash", "-c", command],
+            input=json.dumps(_RESUME_PAYLOAD),
+            capture_output=True,
+            text=True,
+            env={
+                "CLAUDE_PROJECT_DIR": str(project_dir),
+                "TMPDIR": str(tmp_path),
+                "PATH": os.environ["PATH"],
+            },
+            check=False,
+        )
+
+    def test_both_events_wired(self):
+        assert len(self._commands()) == 2
+
+    def test_runs_the_script(self, tmp_path):
+        for command in self._commands():
+            result = self._run(command, _REPO, tmp_path)
+            assert result.returncode == 0
+            assert "systemMessage" in json.loads(result.stdout)
+
+    def test_missing_script_is_silent_success(self, tmp_path):
+        # PR #866 round 1: a checkout of a branch cut before #847 has no script;
+        # an unguarded `python3 <missing>` exits 2 and errors every turn.
+        for command in self._commands():
+            result = self._run(command, tmp_path, tmp_path)
+            assert result.returncode == 0
+            assert result.stdout == ""
+            assert result.stderr == ""

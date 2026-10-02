@@ -8,7 +8,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/scripts/lane_context_hook.py\"",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/lane_context_hook.py\" ] && python3 \"$CLAUDE_PROJECT_DIR/scripts/lane_context_hook.py\" || true",
             "timeout": 10
           }
         ]
@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/scripts/lane_context_hook.py\"",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/lane_context_hook.py\" ] && python3 \"$CLAUDE_PROJECT_DIR/scripts/lane_context_hook.py\" || true",
             "timeout": 10
           }
         ]

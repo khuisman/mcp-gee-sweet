@@ -15,8 +15,11 @@ session's cwd is inside one of the four lane worktrees
   has likely expired, using the cost estimate Claude Code passes in.
 
 A hook can't run `/clear` itself or start a turn, so the message is the whole
-job. Stdlib only, so it runs under a bare `python3`. Any error exits 0 silently:
-a broken backstop must never get in the way of the session it's watching.
+job. Stdlib only and 3.9-compatible, so it runs under a bare `python3` (macOS's
+`/usr/bin/python3` is 3.9). Any error exits 0 silently: a broken backstop must
+never get in the way of the session it's watching. The settings.json command
+also skips the call when this file is missing (a checkout of a branch cut
+before #847).
 """
 
 from __future__ import annotations
@@ -123,7 +126,9 @@ def resume_warning(payload: dict, lane: str, threshold: int) -> str | None:
     if not payload.get("prompt_cache_likely_expired"):
         return None
     cost = payload.get("estimated_cache_write_usd")
-    cost_clause = f" (~${cost:.2f})" if isinstance(cost, int | float) else ""
+    # Not `isinstance(cost, int | float)`: that needs 3.10, and a bare `python3`
+    # can be 3.9 (PR #866). `type() in` also keeps a stray bool out.
+    cost_clause = f" (~${cost:.2f})" if type(cost) in (int, float) else ""
     return (
         f"Resuming a ~{_k(tokens)}-token lane session with an expired prompt cache: "
         f"the first request re-writes all of it{cost_clause}. If this session's "
