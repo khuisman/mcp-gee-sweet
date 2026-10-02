@@ -1769,6 +1769,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-i41-the-stop-hook-warns-a-lane-session-once-its-context-passes-the-threshold-once-per-band-issue-847-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I41: the Stop hook warns a lane session once its context passes the threshold, once per band (issue #847) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-i42-resuming-a-large-lane-session-whose-prompt-cache-has-expired-warns-before-the-first-request-issue-847-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-I42: resuming a large lane session whose prompt cache has expired warns before the first request (issue #847) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2030,6 +2052,10 @@
 <tr>
 <td>TC-I29 (<code>server.json</code> registry manifest, issue #586)</td>
 <td>Not reachable via any MCP tool or prompt — <code>server.json</code> is a static repo-root manifest consumed by the external <code>mcp-publisher</code> CLI and the official MCP registry, not the running server. Identity/consistency (name, PyPI identifier, <code>mcp-name</code> marker) is unit-tested in <code>tests/test_server_json.py</code>. Manual / live QA only — verify once, after each stable release that changes <code>server.json</code>'s <code>version</code> — see TC-I29 below</td>
+</tr>
+<tr>
+<td>TC-I41, I42 (lane context-size hook, issue #847)</td>
+<td><code>scripts/lane_context_hook.py</code> is a Claude Code hook, not an MCP tool. Transcript parsing, lane scoping, warning bands and resume gating are unit-tested in <code>tests/test_lane_context_hook.py</code>. Live QA runs a headless <code>claude -p</code> session from a lane worktree with <code>--include-hook-events</code>, so the hook's real input and output are visible in the stream</td>
 </tr>
 </tbody>
 </table>
@@ -2675,6 +2701,38 @@ Run 1: start <code>uv run mcp-gee-sweet --transport sse</code> with <code>AUTH_M
 <p><strong>Cleanup:</strong> SIGKILL each server's process group; confirm <code>lsof -i :&lt;port&gt;</code> is empty.</p>
 <p><strong>Result (2026-09-26, PR #828 round 2 @ f633c4c, Sky) ✅ PASS</strong>
 <code>mcp</code> SDK <code>sse_client</code>. Run 1: A opened (≈4s consent wait inside the SSE connect; <code>initialize</code> itself 0.0s) → error <code>...the browser consent wasn't completed within 4s. To authorize, run \</code>mcp-gee-sweet auth`...<code>. B (A still open): connected + initialized 0.00s →</code>...an earlier browser consent in this server process didn't complete (it isn't retried, since waiting for it blocks every connection)<code>. A again: still</code>within 4s<code>. stderr: exactly 1</code>Please visit<code>. Run 2: stray</code>GET http://localhost:<cb>/?state=bogus&amp;code=x<code>fired while the connection was opening; connect+init finished 0.02s after it, tool error</code>...the browser consent failed (MismatchingStateError: (mismatching_state) CSRF Warning! State not equal in request and response.). To authorize, run `mcp-gee-sweet auth`...<code>; lifespan didn't crash.</code>lsof -i :<port>` empty after both.</p>
+<hr />
+<h3 id="tc-i41-the-stop-hook-warns-a-lane-session-once-its-context-passes-the-threshold-once-per-band-issue-847-local-filesystem">TC-I41: the Stop hook warns a lane session once its context passes the threshold, once per band (issue #847) ⚠️ local-filesystem<a class="headerlink" href="#tc-i41-the-stop-hook-warns-a-lane-session-once-its-context-passes-the-threshold-once-per-band-issue-847-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>.claude/settings.json</code> runs <code>scripts/lane_context_hook.py</code> on every <code>Stop</code>. Inside a lane worktree (<code>.claude/worktrees/{ash,jay,sky,kit}</code>) it sums the latest main-thread assistant message's <code>input_tokens + cache_read_input_tokens + cache_creation_input_tokens</code> from the session's own <code>transcript_path</code>. Past <code>LANE_CONTEXT_WARN_TOKENS</code> (default <code>DEFAULT_WARN_TOKENS</code> in the script) it shows a <code>systemMessage</code> suggesting <code>/clear</code> + <code>/team-member &lt;Name&gt;</code>. It warns again only after each further <code>LANE_CONTEXT_WARN_STEP</code> (default <code>DEFAULT_WARN_STEP</code>) tokens, tracked per session under <code>$TMPDIR/mcp-gee-sweet-lane-context/</code>. Other cwds get no output. The env vars lower the threshold so a fresh session crosses it.</p>
+<p><strong>Setup:</strong> this lane's worktree checked out on the PR branch (<code>.claude/settings.json</code> there carries the hook). <code>&lt;scratch&gt;</code> is a fresh empty directory used as <code>TMPDIR</code>.</p>
+<p><strong>Action</strong> (all from the lane worktree root)
+1. <code>LANE_CONTEXT_WARN_TOKENS=1000 LANE_CONTEXT_WARN_STEP=10000000 TMPDIR=&lt;scratch&gt; claude -p "Reply with just: ok" --model haiku --output-format stream-json --verbose --include-hook-events &gt; &lt;scratch&gt;/s1.jsonl</code>. Note the <code>session_id</code> from its <code>init</code> line.
+2. Same env, <code>claude -p "Reply with just: ok again" --resume &lt;session_id&gt; --model haiku --output-format stream-json --verbose --include-hook-events &gt; &lt;scratch&gt;/s2.jsonl</code>
+3. Pipe a hand-built Stop payload into the script with a non-lane cwd: <code>echo '{"hook_event_name":"Stop","cwd":"&lt;repo root&gt;/.claude/worktrees/bob","session_id":"x","transcript_path":"&lt;step 1 transcript&gt;"}' | LANE_CONTEXT_WARN_TOKENS=1000 TMPDIR=&lt;scratch&gt; python3 scripts/lane_context_hook.py</code>. The step 1 transcript is <code>~/.claude/projects/&lt;lane worktree path, with / and . replaced by -&gt;/&lt;session_id&gt;.jsonl</code>.</p>
+<p><strong>Checks</strong>
+- Step 1: a <code>hook_response</code> line with <code>"hook_event":"Stop"</code>, <code>exit_code</code> 0 and empty <code>stderr</code>, whose <code>output</code> is a <code>systemMessage</code> starting <code>Lane context is ~&lt;N&gt;k tokens (warning threshold 1k)</code> and ending <code>/clear, then /team-member &lt;Lane&gt;.</code> (this lane's name, capitalized). <code>&lt;N&gt;k</code> matches the step 1 <code>assistant</code> line's <code>input_tokens + cache_read_input_tokens + cache_creation_input_tokens</code>, rounded to thousands. An <code>informational</code> line shows the same text as <code>Stop says: ...</code>.
+- Step 2: the Stop <code>hook_response</code> has an empty <code>output</code> (same band, so no second warning), and there's no <code>Stop says:</code> line.
+- Step 3: no output, exit 0.</p>
+<p><strong>Cleanup:</strong> remove <code>&lt;scratch&gt;</code>. The headless sessions stay in this lane's transcript directory.</p>
+<p><strong>Result (2026-10-01, PR #866 round 1 @ 9e649ac, Kit) ✅ PASS</strong>
+Claude Code 2.1.287, <code>kit</code> worktree. Step 1: Stop <code>hook_response</code> exit 0, empty <code>stderr</code>, <code>output</code> <code>{"systemMessage": "Lane context is ~41k tokens (warning threshold 1k). ... start fresh: /clear, then /team-member Kit."}</code>; the <code>assistant</code> line's three usage fields sum to 41019; <code>informational</code> line <code>Stop says: Lane context is ~41k tokens ...</code>. State file under <code>&lt;scratch&gt;/mcp-gee-sweet-lane-context/</code> held <code>0</code>. Step 2 (<code>--resume</code>): Stop <code>output</code> empty, no <code>Stop says:</code> line (<code>SessionStart:resume</code> also empty, since no <code>LANE_RESUME_WARN_TOKENS</code> override). Step 3 (<code>cwd</code> = <code>.../worktrees/bob</code>): no output, exit 0.</p>
+<p><strong>Result (2026-10-01, PR #866 round 2 @ 3cf654a, Kit) ✅ PASS</strong>
+Re-ran step 1 against the guarded settings.json command: Stop <code>hook_response</code> exit 0 with <code>Lane context is ~39k tokens (warning threshold 1k). ... /clear, then /team-member Kit.</code> and one <code>Stop says:</code> line. Round 1 finding (missing script): a scratch project whose Stop hook uses the same guarded command with no <code>scripts/lane_context_hook.py</code> now gives exit 0, <code>outcome: "success"</code>, empty output and stderr (round 1's unguarded command: exit 2, <code>outcome: "error"</code>, <code>can't open file</code>).</p>
+<hr />
+<h3 id="tc-i42-resuming-a-large-lane-session-whose-prompt-cache-has-expired-warns-before-the-first-request-issue-847-local-filesystem">TC-I42: resuming a large lane session whose prompt cache has expired warns before the first request (issue #847) ⚠️ local-filesystem<a class="headerlink" href="#tc-i42-resuming-a-large-lane-session-whose-prompt-cache-has-expired-warns-before-the-first-request-issue-847-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> on <code>SessionStart</code> with source <code>resume</code> or <code>fork</code>, Claude Code (2.1.251+) passes <code>context_tokens</code>, <code>prompt_cache_likely_expired</code> and <code>estimated_cache_write_usd</code>. The hook warns when the cache has likely expired and <code>context_tokens</code> is at least <code>LANE_RESUME_WARN_TOKENS</code> (default <code>DEFAULT_RESUME_WARN_TOKENS</code> in the script). A warm-cache resume stays silent. <code>--fork-session</code> leaves the original transcript untouched; the hook sees it as <code>SessionStart:fork</code>.</p>
+<p><strong>Setup:</strong> pick a session in this lane's transcript directory last modified more than 2 hours ago (cache expired), with a small context so the test is cheap. <code>&lt;scratch&gt;</code> as in TC-I41.</p>
+<p><strong>Action</strong> (from the lane worktree root)
+1. <code>LANE_RESUME_WARN_TOKENS=1000 TMPDIR=&lt;scratch&gt; claude -p "Reply with just: ok" --resume &lt;old session_id&gt; --fork-session --model haiku --output-format stream-json --verbose --include-hook-events &gt; &lt;scratch&gt;/r1.jsonl</code>
+2. Immediately repeat step 1 against the session step 1 forked (its <code>session_id</code> from <code>r1.jsonl</code>'s <code>init</code> line), so the cache is warm.</p>
+<p><strong>Checks</strong>
+- Step 1: a <code>hook_response</code> line with <code>"hook_name":"SessionStart:fork"</code>, exit 0, whose <code>output</code> is a <code>systemMessage</code> starting <code>Resuming a ~&lt;N&gt;k-token lane session with an expired prompt cache</code> and containing a <code>(~$&lt;cost&gt;)</code> clause and <code>/clear, then /team-member &lt;Lane&gt;</code>.
+- Step 2: the SessionStart <code>hook_response</code> has an empty <code>output</code> (cache not expired).</p>
+<p><strong>Cleanup:</strong> remove <code>&lt;scratch&gt;</code>.</p>
+<p><strong>Result (2026-10-01, PR #866 round 1 @ 9e649ac, Kit) ✅ PASS</strong>
+Claude Code 2.1.287, <code>kit</code> worktree. Old session: a ~43k-token <code>kit</code> transcript last modified 2026-09-29. Step 1: <code>hook_name</code> <code>SessionStart:fork</code>, exit 0, <code>output</code> <code>{"systemMessage": "Resuming a ~43k-token lane session with an expired prompt cache: the first request re-writes all of it (~$0.34). If this session's ticket is done or between rounds, /clear, then /team-member Kit is cheaper."}</code>. Step 2 (fork of step 1's fork, seconds later): <code>SessionStart:fork</code> <code>output</code> empty.</p>
+<p><strong>Result (2026-10-01, PR #866 round 2 @ 3cf654a, Kit) ✅ PASS</strong>
+Re-ran step 1 (same 2026-09-29 session) after the <code>type(cost) in (int, float)</code> change: <code>SessionStart:fork</code> exit 0, <code>output</code> <code>Resuming a ~43k-token lane session with an expired prompt cache: the first request re-writes all of it (~$0.34). ... /clear, then /team-member Kit is cheaper.</code> The cost clause, which round 1's <code>int | float</code> check dropped under Python 3.9, is present. <code>tests/test_lane_context_hook.py::TestRunsUnderPython39</code> ran (not skipped) against <code>/usr/bin/python3</code> 3.9.6. All 46 tests in the file pass. Step 2 not re-run: the warm-cache path is unchanged by the fix.</p>
 
 
 
